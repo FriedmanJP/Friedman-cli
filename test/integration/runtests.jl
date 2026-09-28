@@ -3913,6 +3913,26 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             ses = [collect(row)[si] for row in table_rows(tbl)]
             @test all(x -> x isa Real && isfinite(x) && x >= 0, ses)
         end
+
+        @testset "did estimate methods route to upstream symbols" begin
+            # CLI shorts map via DID_METHOD_MAP; forwarding Symbol(method)
+            # directly died untyped for cs|sa|dcdh (upstream routes only on the
+            # long names). Group-time block renders cohorts × calendar periods.
+            for m in ("cs", "sa", "bjs")
+                r = run_json(vcat(["did", "estimate", panel], D, P, ["--method", m]))
+                assert_envelope_ok(r; label="did estimate $m")
+                _, tbl = first_table(r.doc)
+                @test tbl !== nothing && length(table_rows(tbl)) >= 1
+            end
+            rd = run_json(vcat(["did", "estimate", panel], D, P,
+                               ["--method", "dcdh", "--n-boot", "20"]))
+            assert_envelope_ok(rd; label="did estimate dcdh")
+            g = named_table(rd.doc, :did_estimation)
+            @test g !== nothing
+            # Unknown method is a parse-time usage error (choices-gated).
+            @test run_json(vcat(["did", "estimate", panel], D, P,
+                                ["--method", "bogus"])).code == 2
+        end
         @testset "test did honest has RR robust + original CIs (C061)" begin
             r = run_json(vcat(["test", "did", "honest", panel], D, P))
             assert_envelope_ok(r; label="test did honest")
@@ -6727,6 +6747,36 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test run_json(["estimate", "multivariate", "favar", multi, "--method", "bayesian",
                             "--factors", "1", "--lags", "1"]).code == 2
         end
+        @testset "NaN cells → data/missing-values (exit 3), never internal exit 1" begin
+            # A literal `NaN` cell used to slip past the `ismissing`-only loader guards
+            # into upstream `_validate_data` as an untyped ArgumentError (exit 1) — e.g.
+            # `estimate multivariate favar :fred_md` (999 NaNs). Now typed exit 3.
+            nancsv = write_csv(DataFrame(y1=[1.0, NaN, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
+                                         y2=[2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0],
+                                         y3=[3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]); prefix="nan")
+            r = run_json(["estimate", "multivariate", "favar", nancsv, "--factors", "1",
+                          "--lags", "1", "--key-vars", "y1"])
+            @test r.code == 3 && String(r.doc.error.code) == "data/missing-values"
+            rm(nancsv; force=true)
+        end
+
+        @testset "non-finite cells (Inf) → data/missing-values; fitted usage guards" begin
+            # `_is_gap` covers ±Inf as well as NaN/missing (upstream `_validate_data`
+            # rejects both); fitted panel handlers throw typed usage/missing.
+            infcsv = write_csv(DataFrame(y1=[1.0, Inf, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
+                                         y2=[2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]); prefix="inf")
+            ri = run_json(["estimate", "multivariate", "var", infcsv, "--lags", "1"])
+            @test ri.code == 3 && String(ri.doc.error.code) == "data/missing-values"
+            rm(infcsv; force=true)
+            id = repeat(1:10, inner=5); tt = repeat(1:5, 10)
+            pivcsv = write_csv(DataFrame(id=id, time=tt, y=randn(50), x=randn(50),
+                                         endo=randn(50), z1=randn(50)); prefix="fitmiss")
+            @test run_json(["predict", "panel", "piv", pivcsv, "--exog", "x", "--endog", "endo",
+                            "--instruments", "z1", "--id-col", "id", "--time-col", "time"]).code == 2
+            @test run_json(["predict", "panel", "piv", pivcsv, "--dep", "y", "--exog", "x",
+                            "--instruments", "z1", "--id-col", "id", "--time-col", "time"]).code == 2
+            rm(pivcsv; force=true)
+        end
     end
 
     # ── Families that had no real-MEMs coverage at all (#85) ──
@@ -6777,6 +6827,22 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             r = run_json(["nowcast", "forecast", multi, "--factors", "1",
                           "--lags", "1", "--horizons", "3"])
             assert_envelope_ok(r; label="nowcast forecast")
+        end
+
+        @testset "nowcast tolerates ragged-edge NaN; strict leaves reject it" begin
+            # Ragged trailing edge (the nowcasting use case): upstream bridge /
+            # bvar / DFM digest NaN by design, so nowcast opts out of the shared
+            # gap-cell guard via allow_nan — while strict estimators stay exit 3.
+            rag_df = CSV.read(multi, DataFrame)
+            rag_df[end-4:end, 1] = fill(NaN, 5)
+            rag_path = tempname() * ".csv"
+            CSV.write(rag_path, rag_df)
+            rf = run_json(["nowcast", "forecast", rag_path, "--factors", "1",
+                           "--lags", "1", "--horizons", "3"])
+            assert_envelope_ok(rf; label="nowcast forecast ragged edge")
+            @test run_json(["estimate", "multivariate", "var", rag_path,
+                            "--lags", "1"]).code == 3
+            rm(rag_path; force=true)
         end
         @testset "nowcast news" begin
             # Same-shape vintages: the old one has the final observation not yet
@@ -7689,6 +7755,106 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rm(csv; force=true)
     end
 
+    @testset "predict/residuals fitted-spec declarations (piv/arima/vol/vecm/plogit)" begin
+        # The fitted registry declared a subset of the handler kwargs: piv had no
+        # --endog (every call was usage-rejected at parse), arima/vol/vecm refits
+        # were silently pinned to defaults, and plogit/pprobit defaulted to "fe"
+        # (upstream defaults to :pooled; probit has no :fe at all).
+
+        # --- piv: --endog/--exog/--instruments declared; --indep rejected ---
+        rng = MersenneTwister(4301)
+        N, T = 30, 10
+        id = repeat(1:N, inner=T); tt = repeat(1:T, N)
+        z1 = randn(rng, N * T); z2 = randn(rng, N * T)
+        u = randn(rng, N * T)
+        endo = 0.7z1 + 0.5z2 + 0.4u + 0.3randn(rng, N * T)
+        x = randn(rng, N * T)
+        y = 1.2endo + 0.5x + u + 0.3randn(rng, N * T)
+        pivcsv = write_csv(DataFrame(id=id, time=tt, y=y, x=x, endo=endo, z1=z1, z2=z2);
+                           prefix="fittedpiv")
+        pivbase = ["panel", "piv", pivcsv, "--dep", "y", "--exog", "x", "--endog", "endo",
+                   "--instruments", "z1,z2", "--id-col", "id", "--time-col", "time"]
+        rp = run_json(vcat(["predict"], pivbase))
+        assert_envelope_ok(rp; label="predict panel piv")
+        pt = named_table(rp.doc, :panel_iv_fitted_values)
+        @test pt !== nothing
+        if pt !== nothing
+            @test length(table_rows(pt)) == N * T
+        end
+        @test run_json(vcat(["residuals"], pivbase)).code == 0
+        # --indep belongs to preg, not piv: unknown option (exit 2), not a crash.
+        @test run_json(["predict", "panel", "piv", pivcsv, "--dep", "y", "--indep", "x",
+                        "--id-col", "id", "--time-col", "time"]).code == 2
+        rm(pivcsv; force=true)
+
+        # --- arima: orders declared (were silently pinned to auto) ---
+        arng = MersenneTwister(4302)
+        ay = cumsum(randn(arng, 200))
+        acsv = write_csv(DataFrame(y=ay); prefix="fittedarima")
+        ra = run_json(["predict", "univariate", "arima", acsv, "--p", "1", "--d", "1", "--q", "1"])
+        assert_envelope_ok(ra; label="predict univariate arima orders")
+        at = named_table(ra.doc, :arima_predictions)
+        @test at !== nothing
+        if at !== nothing
+            # d=1 differencing consumes the first observation upstream.
+            @test length(table_rows(at)) == 199
+        end
+        @test run_json(["residuals", "univariate", "arima", acsv, "--auto"]).code == 0
+        rm(acsv; force=true)
+
+        # --- vol: orders declared per model (were silently pinned) ---
+        vrng = MersenneTwister(4303)
+        vr = randn(vrng, 300)
+        vcsv = write_csv(DataFrame(r=vr); prefix="fittedvol")
+        rg = run_json(["predict", "volatility", "garch", vcsv, "--p", "2", "--q", "2"])
+        assert_envelope_ok(rg; label="predict volatility garch orders")
+        gt = named_table(rg.doc, :garch_conditional_variance)
+        @test gt !== nothing
+        if gt !== nothing
+            @test length(table_rows(gt)) == 300
+        end
+        @test run_json(["predict", "volatility", "arch", vcsv, "--q", "2"]).code == 0
+        @test run_json(["residuals", "volatility", "garch", vcsv, "--p", "1", "--q", "1"]).code == 0
+        rm(vcsv; force=true)
+
+        # --- vecm: --deterministic declared AND honored ---
+        vecsv = dgp_coint(; T=200, seed=4304)
+        rvt = run_json(["predict", "multivariate", "vecm", vecsv, "--lags", "2", "--rank", "1",
+                        "--deterministic", "trend"])
+        assert_envelope_ok(rvt; label="predict multivariate vecm deterministic")
+        rvn = run_json(["predict", "multivariate", "vecm", vecsv, "--lags", "2", "--rank", "1",
+                        "--deterministic", "none"])
+        @test rvn.code == 0
+        tt2 = named_table(rvt.doc, :vecm_predictions)
+        tn2 = named_table(rvn.doc, :vecm_predictions)
+        @test tt2 !== nothing && tn2 !== nothing
+        if tt2 !== nothing && tn2 !== nothing
+            ft = [collect(row) for row in table_rows(tt2)]
+            fn = [collect(row) for row in table_rows(tn2)]
+            @test length(ft) == length(fn) > 0
+            @test ft != fn  # the knob reaches the estimator
+        end
+        rm(vecsv; force=true)
+
+        # --- plogit: default method is pooled (was "fe") ---
+        prng = MersenneTwister(4305)
+        N2, T2 = 40, 8
+        idi = repeat(1:N2, inner=T2); tti = repeat(1:T2, N2)
+        x1 = randn(prng, N2 * T2); x2 = randn(prng, N2 * T2)
+        py = rand(prng, N2 * T2) .< 1 ./ (1 .+ exp.(-(0.5x1 .- 0.3x2)))
+        plcsv = write_csv(DataFrame(id=idi, time=tti, y=Float64.(py), x1=x1, x2=x2);
+                          prefix="fittedplogit")
+        rpl = run_json(["predict", "panel", "plogit", plcsv, "--dep", "y", "--indep", "x1,x2",
+                        "--id-col", "id", "--time-col", "time"])
+        assert_envelope_ok(rpl; label="predict panel plogit pooled default")
+        plt = named_table(rpl.doc, :panel_logit_fitted_probabilities)
+        @test plt !== nothing
+        if plt !== nothing
+            @test length(table_rows(plt)) == N2 * T2
+        end
+        rm(plcsv; force=true)
+    end
+
     @testset "policy family (W4/#126, new top-level, MEMs 0.8.0 CF module)" begin
         rng = MersenneTwister(47)
         T_obs = 200
@@ -8018,6 +8184,24 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test run_json(vcat(["policy", "history", "var", csv, "--shocks", "3",
                                  "--rule", "rate-peg", "--horizon", "4",
                                  "--t-range", "100:110"], maps)).code == 2  # window > H−1
+
+            # History draws path: a bootstrap menu (--replications) propagates
+            # through upstream's draws branch. MEMs 1.0.0 clobbers the
+            # point-run nu/rel_residual there (per-draw `_run` rebinding via
+            # closure capture); the handler re-runs the point pass, so this
+            # must exit 0 with a full table — not an untyped BoundsError.
+            rd = run_json(vcat(["policy", "history", "var", csv, "--shocks", "3",
+                                "--rule", "rate-peg", "--horizon", "12",
+                                "--t-range", "100:105", "--replications", "10"], maps))
+            assert_envelope_ok(rd; label="policy history var draws")
+            hd = named_table(rd.doc, :counterfactual_history)
+            @test hd !== nothing
+            @test length(table_rows(hd)) == 6 * 3  # 6 dates × 3 mapped vars
+            hs = Dict(String(collect(r)[1]) => collect(r)[2]
+                      for r in table_rows(named_table(rd.doc, :history_summary)))
+            @test Int(hs["n_dates"]) == 6
+            @test Int(hs["n_draws_used"]) + Int(hs["n_draws_failed"]) == 10
+            @test Int(hs["n_draws_used"]) >= 1
 
             # Spanning: genuine square-vs-thin pair, machine-readable verdict.
             rs = run_json(vcat(["policy", "spanning", "var", csv, nk,
@@ -8523,8 +8707,11 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             # manifest, so the universal fallback's honest unverifiable verdict
             # (ok, not a crash and not a refusal)
             """{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"model_reproduce","arguments":$(argsjson(Dict("path"=>"model://m1")))}}""",
+            # 7. model_info over a session handle — describes the live object
+            # (pre-fix this fell into the filesystem handle reader: file-not-found)
+            """{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"model_info","arguments":$(argsjson(Dict("path"=>"model://m1")))}}""",
         ])
-        @test length(rs) == 6
+        @test length(rs) == 7
 
         @test String(rs[1].result.serverInfo.name) == "friedman"
         tools = rs[2].result.tools
@@ -8556,6 +8743,13 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rep_env = JSON3.read(rep.content[1].text)
         @test String(rep_env.status) == "ok"
         @test haskey(rep_env.data, :model_reproduce_summary)
+        mi = rs[7].result
+        @test mi.isError == false
+        mi_env = JSON3.read(mi.content[1].text)
+        @test String(mi_env.status) == "ok"
+        @test haskey(mi_env.data, :model_handle_info)
+        mirow = only(r for r in mi_env.data.model_handle_info.rows if String(r[1]) == "model_type")
+        @test String(mirow[2]) == "VARModel"
 
         # store is session-scoped: gone after the loop
         @test Friedman._SERVE_MODEL_STORE[] === nothing

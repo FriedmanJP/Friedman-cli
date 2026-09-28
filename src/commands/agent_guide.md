@@ -2,11 +2,13 @@
 
 Contract for agents driving Friedman-cli. This document is the single source: it
 ships inside the binary and is served verbatim by `friedman schema --docs`, and
-the documentation site renders the same file.
+the documentation site renders the same file. The per-leaf command reference
+lives under `commands/` on the site; this guide covers the output contract
+shared by every leaf.
 
 ## One envelope on stdout
 
-With `--format=json`, **stdout is exactly one JSON document** (the result envelope). Status and diagnostics go to **stderr**.
+With `--format json`, **stdout is exactly one JSON document** (the result envelope). Status and diagnostics go to **stderr**.
 
 ```bash
 friedman estimate multivariate var data.csv --lags 1 --format json | jq .
@@ -26,9 +28,9 @@ Example shape (fields abbreviated):
   "command": "friedman estimate multivariate var",
   "status": "ok",
   "meta": {
-    "cli_version": "0.9.2",
-    "mems_version": "0.8.0",
-    "julia": "1.13.x",
+    "cli_version": "1.0.0",
+    "mems_version": "1.0.0",
+    "julia": "1.13.0",
     "seed": null,
     "argv": ["estimate", "multivariate", "var", "data.csv", "--lags", "1", "--format", "json"],
     "elapsed_ms": 12.3
@@ -45,7 +47,7 @@ Example shape (fields abbreviated):
 }
 ```
 
-The shape is strict (v0.10.0, W1/#136):
+The shape is strict:
 
 - **Every `data` value is a table** — an object with exactly `columns` (array of
   string) and `rows` (array of arrays). Cell values are number, string, boolean,
@@ -58,23 +60,22 @@ The shape is strict (v0.10.0, W1/#136):
   an error object whose `code` matches `class/code` from the exit-code taxonomy
   below.
 
-Envelope schema v1 is **draft until CLI v1.0** and **additive-only from
-v0.10.0**: no key is removed or retyped within `schema_version` 1; a breaking
-change bumps `schema_version` to 2 and is a major release. Normative JSON
-Schema: `schema/envelope-v1.json` — it validates under any conformant draft-07
-validator (CI cross-checks every golden and every T3-captured envelope with
-python-jsonschema), so you can validate responses with ajv / jsonschema
-directly.
+Envelope schema v1 is **frozen**: no key is removed or retyped within
+`schema_version` 1; a breaking change bumps `schema_version` to 2 and is a
+major release. Normative JSON Schema: `schema/envelope-v1.json` — it validates
+under any conformant draft-07 validator, so you can validate responses with
+ajv / jsonschema directly.
 
-## Stable table keys (v0.10.0)
+---
+
+## Stable table keys
 
 `data` keys are **predictable before you run the command**: they come from each
 leaf's registry-declared table names, never from runtime values.
 
 - **Singleton tables** use the declared name verbatim: `estimate multivariate var` always
   answers under `var_coefficients` + `information_criteria` — regardless of
-  `--lags`, your column names, or anything estimated. (Before v0.10.0 the same
-  table was `var_2_coefficients` — the lag order baked into the address.)
+  `--lags`, your column names, or anything estimated.
 - **Family tables** appear when one invocation emits several sibling tables
   (per-shock IRFs, per-variable historical decompositions). Their keys are
   `<declared-name>_<variable-slug>` — e.g. `irf var` on columns `gdp,cpi`
@@ -83,16 +84,16 @@ leaf's registry-declared table names, never from runtime values.
   compute every key in advance.
 - Option values, horizons, CI levels, method names, and estimated parameters
   never appear in keys — they stay in the human-readable table titles.
-- A CI drift gate (`check_table_keys`) validates every emitted key against the
-  registry declarations, so this contract cannot silently rot.
 
-## Every failure is an envelope too (v0.10.0)
+---
+
+## Every failure is an envelope too
 
 When the argv asks for JSON (`--format json` / `-f json`, or the leading
 `--json` global), **every failure also emits exactly one envelope on stdout** —
-including usage/parse errors that fail before a command resolves, which used to
-leave stdout empty. `status` is `"error"`, `data` is `{}`, and the `error`
-object carries the machine-readable failure:
+including usage/parse errors that fail before a command resolves. `status` is
+`"error"`, `data` is `{}`, and the `error` object carries the machine-readable
+failure:
 
 ```json
 {
@@ -117,6 +118,8 @@ object carries the machine-readable failure:
   error text goes to stderr, as always.
 - The interactive REPL dispatches outside this path and is not part of the
   agent contract.
+
+---
 
 ## Exit codes
 
@@ -155,6 +158,8 @@ recognized (all are stable identifiers; the set only grows):
 Anything else surfaces as `usage/*`, `data/*`, `config/*`, or `env/*` per the
 class table above; `internal/error` (exit 1) means a CLI bug — report it.
 
+---
+
 ## Strict parsing & self-correction
 
 Unknown options throw with a suggestion when the edit distance is small:
@@ -164,6 +169,8 @@ Error: friedman estimate multivariate var: unknown option --lgas — did you mea
 ```
 
 `--format` is restricted to `table|csv|json`. Negative numerics bind: `--threshold -0.5`.
+
+---
 
 ## Self-description: `friedman schema`
 
@@ -176,8 +183,8 @@ friedman schema | jq '.contract.exit_codes'          # exit-code taxonomy
 friedman schema | jq -r '.docs'                      # this guide (--docs)
 ```
 
-Output is **raw JSON** (not wrapped in an envelope). Since v0.10.0 (W5/#140)
-the document is fully machine-actionable:
+Output is **raw JSON** (not wrapped in an envelope). The document is fully
+machine-actionable:
 
 - **`input_schema`** (leaf docs): a draft-07 JSON Schema over the invocation
   surface — one property per argument/option/flag under the CLI's kebab-case
@@ -203,13 +210,16 @@ The `schema` command itself is deliberately absent from the command inventory
 (its variable-length path does not fit the leaf model); it is discoverable from
 the top-level help and from this guide.
 
+---
+
 ## MCP server: `friedman serve --mcp`
 
 ```bash
 friedman serve --mcp    # JSON-RPC 2.0 / Model Context Protocol on stdio
 ```
 
-Every command becomes an MCP **tool** — one process, no per-call spawn:
+`serve` requires `--mcp` (the only supported mode). Every other command becomes
+an MCP **tool** — one process, no per-call spawn:
 
 - **`tools/list`** mirrors the registry: tool name = command path joined with
   `_` (`estimate_multivariate_var`, `estimate_volatility_garch`, `dsge_bayes_estimate`).
@@ -219,18 +229,24 @@ Every command becomes an MCP **tool** — one process, no per-call spawn:
   that family's estimate leaves; `"hadsge"` returns the household leaves).
   An unknown prefix returns `"tools": []` and a successful RPC result, not a
   JSON-RPC error. Omit `prefix`, or pass `""`, to list every leaf except `serve`.
-- **`tools/call`** reconstructs the exact argv from your arguments object,
-  forces `--format json`, and returns the **envelope verbatim** as text
-  content — same bytes as the CLI, same stable `data` keys, same typed
-  `error.code`/`exit_code` on failure (`isError` mirrors a nonzero exit
-  class). Everything in this guide about envelopes applies unchanged.
+- **`tools/call`** reconstructs the exact argv from your arguments object and
+  returns the **envelope verbatim** as text content — same bytes as the CLI,
+  same stable `data` keys, same typed `error.code`/`exit_code` on failure
+  (`isError` mirrors a nonzero exit class). `--format json` is appended when
+  the leaf declares `--format`, so results and failures are exactly one
+  envelope. Unknown argument keys are forwarded so the strict parser answers
+  with its typed did-you-mean usage error. Everything in this guide about
+  envelopes applies unchanged.
 - **`model://` handles**: within a serve session, `--save-model model://name`
   stores the fitted model **in memory** and `--model model://name` reuses it —
   estimate once, then run irf/fevd/forecast against the handle with no
   re-estimation and no files. Handles live exactly as long as the session;
-  file handles (`.jld2`/`.fmod`) also work as usual.
+  file handles (`.jld2`/`.fmod`) also work as usual. Outside a serve session a
+  `model://` handle is a typed `usage/invalid` error.
 - Requests are handled **serially** (handlers are not thread-audited); stdout
   carries only the JSON-RPC stream — status and library logs stay on stderr.
+
+---
 
 ## Determinism & reproducibility
 
@@ -238,38 +254,40 @@ Every command becomes an MCP **tool** — one process, no per-call spawn:
 friedman --seed 42 estimate multivariate var data.csv --format json
 ```
 
-`meta.seed` echoes the seed; use the same seed for reproducible stochastic paths. Every JSON
-envelope also carries `meta.manifest` — the MacroEconometricModels.jl reproducibility manifest
-(seed, threads, OS, Julia + package + dependency versions, git, timestamp) — for provenance.
-`--seed` is additionally forwarded as the estimator's own `seed=` everywhere upstream
-supports it (BVAR/IRF plus SV, MFVAR/TVPVAR, FAVAR/SDFM, SMM, quantile/robust/nonlinear,
-DiD, LP, PVAR bootstrap, conditional forecasts, set-identification, policy/OPP, DSGE Bayes
-and Krusell–Smith), so their `ReproManifest` records it and the draws reproduce bit-for-bit.
-`friedman model reproduce HANDLE` re-runs the recorded estimator and reports a match verdict
-plus per-field diffs (`unverifiable` when no seed was recorded — not a pass).
+`--seed` is a leading global: it seeds the process RNG (`Random.seed!`) on
+every invocation, and `meta.seed` echoes it. On leaves whose estimator accepts
+its own `seed=` keyword, the CLI additionally forwards `--seed` as that
+keyword, so the estimator's recorded reproducibility manifest carries it and
+the draws reproduce bit-for-bit; estimators that expose only an `rng` keyword
+stay reproducible through the global seed alone. Every JSON envelope also
+carries `meta.manifest` — the MacroEconometricModels.jl reproducibility
+manifest (seed, threads, OS, Julia + package + dependency versions, git,
+timestamp) — for provenance. `friedman model reproduce HANDLE` re-runs the
+recorded estimator and reports a match verdict plus per-field diffs
+(`unverifiable` when no seed was recorded — not a pass).
+
+---
 
 ## Typed handles (data, model, result)
 
-Three object kinds, each with its own slot. **Wave 2 ships result handles and
-`friedman show`.** Data + model shipped in Wave 1; `--result` / `--save-result`
-skip compute and re-render a saved result; `friedman show STEM` renders any
-loadable handle (data, model, result, or a keys-only bundle listing).
+Three object kinds, each with its own slot. `--result` / `--save-result` skip
+compute and re-render a saved result; `friedman show STEM` renders any loadable
+handle (data, model, result, or a keys-only bundle listing).
 
-| Kind | Argv slot | Native persist | Wave |
-|------|-----------|----------------|------|
-| data | positional `<data>` / `--data` | `data import -o STEM` → `STEM.jld2` | 1 |
-| model | `--model` / `--save-model` | `--save-model STEM` → `STEM.jld2` | 1 |
-| result | `--result` / `--save-result` | `--save-result STEM` | 2 |
+| Kind | Argv slot | Native persist |
+|------|-----------|----------------|
+| data | positional `<data>` / `--data` | `data import -o STEM` → `STEM.jld2` |
+| model | `--model` / `--save-model` | `--save-model STEM` → `STEM.jld2` |
+| result | `--result` / `--save-result` | `--save-result STEM` → `STEM.jld2` |
 
 **Stems vs suffixes.** Data positionals, `--save-model`, `--save-result`,
 `--model` (when the leaf declares `model_types`), `--result`, and
 `friedman show` accept suffix-less stems (`macro`, `--save-model var` →
-`var.jld2`, `--model var` loads `var.jld2`). `model info` still wants an
-explicit handle path (`.jld2` / `.fmod` / `model://`). Data load prefers
-`path.jld2` over `path.csv` when both exist; `--model` / `--result` / `show`
-have no CSV fallback. An explicit suffix skips the search. `model://name` is
-the in-session URI (serve) and is not stem-expanded. `:fred_md` example names
-are unchanged.
+`var.jld2`, `--model var` loads `var.jld2`). Data load prefers `path.jld2`
+over `path.csv` when both exist; `--model` / `--result` / `show` have no CSV
+fallback. An explicit suffix skips the search. `model://name` is the
+in-session URI (serve) and is not stem-expanded. `:fred_md` example names are
+unchanged.
 
 ```bash
 friedman data import macro.csv --kind timeseries -o macro
@@ -306,12 +324,12 @@ is a comma-separated string (`handle=false`, no `x-handle`).
 
 `--save-model PATH` persists a fitted model (suffix-less stem → `.jld2`);
 `--model STEM` (or `.jld2` / `.fmod` / `model://`) reloads it (skipping
-re-estimation) on leaves that declare `model_types`. `.jld2` is the native, versioned format covering the full
-upstream serialization registry (352 types at MacroEconometricModels 1.0.0) —
-every model `estimate` can fit, including DSGE/HA solutions (`dsge solve`,
+re-estimation) on leaves that declare `model_types`. `.jld2` is the native,
+versioned format covering the full upstream serialization registry — every
+model `estimate` can fit, including DSGE/HA solutions (`dsge solve`,
 `hadsge solve`, `hadsge steady-state`, `dsge bayes estimate` all take
 `--save-model`). `.fmod` remains as the interim handle for unregistered
-payloads. `friedman model info PATH.jld2` reads the container header (writing
+payloads. `friedman model info PATH` reads the container header (writing
 versions, note, bundle layout) without re-running estimation — header-only, it
 never executes stored code.
 Trust caveat (mirrors upstream): a `--model` handle carrying DSGE/HA equations recompiles
@@ -320,26 +338,43 @@ them at load through an AST allowlist (`Core.eval`), the same risk class as
 anonymous closures (household utilities, `ss_fn`) fail at `--save-model` time with
 `data/serialization`; persist named functions or callable structs (`CRRAUtility`) instead.
 
-## Quiet / no-color / json alias
+---
+
+## Leading globals
 
 | Flag | Effect |
 |------|--------|
+| `--seed <int>` / `--seed=<int>` | seed the process RNG; forwarded as the estimator's own `seed=` where supported; echoed in `meta.seed` |
 | `--quiet` / `-q` | suppress CLI status on stderr |
 | `--no-color` | disable ANSI (also honors `NO_COLOR`) |
-| `--json` | alias that injects `--format json` if missing |
+| `--json` | alias that appends `--format json` when the leaf declares `--format` and no explicit format was given |
 
-Leading globals only (before the first subcommand token).
+Leading globals only (before the first subcommand token). A mid-argv `--quiet`,
+`--seed`, or `--json` belongs to the leaf parser, not to the global pre-pass.
+
+---
 
 ## Removed in v1.0
 
 - `FRIEDMAN_LEGACY_OUTPUT` (pre-0.5 multi-document JSON): the variable is
   ignored; `--format json` always emits exactly one envelope.
-- Hidden snake_case command aliases (`gjr_garch`, `arch_lm`, `ljung_box`,
-  `hansen_j`): use the kebab-case primaries; the old spellings are now
-  unknown commands (exit 2).
+- Hidden snake_case command aliases (7 total): use the kebab-case primaries;
+  the old spellings are now unknown commands (exit 2).
+
+---
 
 ## Handler rules (for contributors)
 
 - Status/progress: `_status` / `_status_styled` (stderr), never bare `println` for status
 - Data tables: `output_result` / `output_kv`
 - Typed failures: `throw(CliError("class/code", "message"; hint="…"))`
+
+---
+
+## References
+
+- Per-leaf reference: the generated command pages under `commands/` on the docs
+  site (same registry this guide describes; `friedman schema` exposes it
+  machine-readably).
+- Normative envelope schema: `schema/envelope-v1.json`.
+- Exit-code taxonomy: `friedman schema | jq '.contract.exit_codes'`.

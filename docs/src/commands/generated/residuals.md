@@ -309,6 +309,7 @@ Model residuals (vecm)
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | `2` | — | Lag order |
 | `--rank` | `-r` | `String` | `auto` | — | Cointegration rank |
+| `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
@@ -328,13 +329,15 @@ Model residuals (piv)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--dep` | — | `String` | `""` | — | Dependent variable column name |
-| `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
-| `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
-| `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
-| `--cov-type` | — | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay` | ols\|cluster\|twoway\|driscoll-kraay |
-| `--method` | `-m` | `String` | `fe` | — | Estimation method |
-| `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--exog` | — | `String` | `""` | — | Exogenous variables (comma-separated) |
+| `--endog` | — | `String` | `""` | — | Endogenous variables (comma-separated) |
+| `--instruments` | — | `String` | `""` | — | Instruments (comma-separated) |
+| `--method` | `-m` | `String` | `fe` | — | fe\|re\|fd\|hausman-taylor |
+| `--cov-type` | — | `String` | `cluster` | — | ols\|cluster\|twoway\|driscoll-kraay |
+| `--id-col` | — | `String` | `""` | — | Panel group ID column |
+| `--time-col` | — | `String` | `""` | — | Panel time column |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
+| `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 
 **Output tables:** `panel_iv_residuals` (Panel IV residuals, one row per observation)
@@ -356,7 +359,7 @@ Model residuals (plogit)
 | `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
 | `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
 | `--cov-type` | — | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay` | ols\|cluster\|twoway\|driscoll-kraay |
-| `--method` | `-m` | `String` | `fe` | — | Estimation method |
+| `--method` | `-m` | `String` | `pooled` | — | Estimation method |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
@@ -380,7 +383,7 @@ Model residuals (pprobit)
 | `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
 | `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
 | `--cov-type` | — | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay` | ols\|cluster\|twoway\|driscoll-kraay |
-| `--method` | `-m` | `String` | `fe` | — | Estimation method |
+| `--method` | `-m` | `String` | `pooled` | — | Estimation method |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
@@ -648,10 +651,18 @@ Model residuals (arima)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--column` | `-c` | `Int64` | `1` | — | Column index |
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | — | — | AR order (default: auto selection) |
+| `--d` | — | `Int64` | `0` | — | Differencing order |
+| `--q` | — | `Int64` | `0` | — | MA order |
+| `--method` | `-m` | `String` | `css_mle` | — | ols\|css\|mle\|css_mle |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--auto` | — | Force automatic order selection |
 
 **Output tables:** `arima_residuals` (ARIMA residuals, one row per period)
 
@@ -728,7 +739,8 @@ Model residuals (arch)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--column` | `-c` | `Int64` | `1` | — | Column index |
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--q` | — | `Int64` | `1` | — | ARCH order |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
@@ -766,7 +778,9 @@ Model residuals (egarch)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--column` | `-c` | `Int64` | `1` | — | Column index |
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | GARCH order |
+| `--q` | — | `Int64` | `1` | — | ARCH order |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
@@ -833,7 +847,9 @@ Model residuals (garch)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--column` | `-c` | `Int64` | `1` | — | Column index |
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | GARCH order |
+| `--q` | — | `Int64` | `1` | — | ARCH order |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
@@ -882,7 +898,9 @@ Model residuals (gjr-garch)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--column` | `-c` | `Int64` | `1` | — | Column index |
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--p` | — | `Int64` | `1` | — | GARCH order |
+| `--q` | — | `Int64` | `1` | — | ARCH order |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
@@ -922,7 +940,8 @@ Model residuals (sv)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--column` | `-c` | `Int64` | `1` | — | Column index |
+| `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--draws` | `-n` | `Int64` | `5000` | — | MCMC draws |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |

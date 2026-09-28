@@ -4,8 +4,20 @@ function _model_info(; path::String="", data::String="",
                       output::String="", format::String="table")
     # positional may bind as `path` or (legacy) first free; accept either
     p = !isempty(path) ? path : data
-    isempty(p) && throw(CliError("usage/missing-arg", "model info requires a .jld2 or .fmod path"))
-    info = endswith(lowercase(p), ".jld2") ? _native_model_info(p) : model_handle_info(p)
+    isempty(p) && throw(CliError("usage/missing-arg", "model info requires a .jld2, .fmod, or model:// path"))
+    info = if startswith(p, "model://")
+        # Serve-session handle: no on-disk header to read — describe the live
+        # object instead (load_model_dispatch throws data/file-not-found on a
+        # miss, usage/invalid outside a serve session).
+        obj = load_model_dispatch(p)
+        (path=p, magic="serve-session (model://)",
+         cli_version=_cli_version_string(), mems_version=_mems_version_string(),
+         model_type=string(nameof(typeof(obj))),
+         runtime_cli=_cli_version_string(), runtime_mems=_mems_version_string(),
+         dimensions=_model_dims(obj))
+    else
+        endswith(lowercase(p), ".jld2") ? _native_model_info(p) : model_handle_info(p)
+    end
     fields = ["path", "magic", "model_type", "cli_version", "mems_version",
               "runtime_cli", "runtime_mems", "dimensions"]
     values = [
@@ -95,9 +107,9 @@ function model_specs()::Vector{CommandSpec}
     return [
         CommandSpec(
             path=["model", "info"],
-            summary="Inspect a model handle (.jld2 native or .fmod interim): type, versions, dimensions",
+            summary="Inspect a model handle (.jld2 native, .fmod interim, or model:// session handle): type, versions, dimensions",
             args=[ArgSpec(name="path", type=String, required=true, default=nothing,
-                          description="Path to .jld2 or .fmod handle")],
+                          description="Path to .jld2/.fmod handle or model:// session handle")],
             options=[
                 OptionSpec(name="output", short="o", type=String, default="",
                            description="Export results to file"),

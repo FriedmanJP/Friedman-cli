@@ -1279,17 +1279,40 @@ function _policy_history(route::String; data::String, lags=nothing, horizon::Int
     # double-count — CMW subtlety #9); rests on forecast sufficiency.
     _status()
 
-    hist = try
+    hist, n_used, n_failed = try
         ce, _, est = _policy_menu(route; data=data, lags=lags, horizon=horizon,
                                   draws=draws, replications=replications,
                                   n_draws=n_draws, config=config, shocks=shock_list,
                                   outcomes=out_pairs, instruments=ins_pairs,
                                   normalize=norm_sym)
         Y, varnames = load_multivariate_data(data)
-        counterfactual_history(est, Y, lo:hi, ce, policy;
-                               outcomes=out_pairs, instruments=ins_pairs,
-                               H=horizon, draws=Symbol(use_draws),
-                               quantiles=Tuple(qs))
+        # Point panels always come from a draws=:off pass. MEMs 1.0.0's draws
+        # branch re-runs its `_run` closure once per draw, and those panel
+        # assignments write through to the enclosing scope (closures capture by
+        # reference) — so after a draws pass the point-run `nu`/`rel_residual`
+        # come back 0-sized and `cf` holds the last draw's panel, which crashes
+        # the renderer below (BoundsError on `rel_residual[d]`). Recover the
+        # true point panels with a dedicated :off pass and take only the draw
+        # counts from the draws pass (bands are not tabulated — the summary
+        # carries n_draws_used/failed as the propagation honesty signal).
+        # Re-check on a MEMs bump: if upstream localizes `_run`'s panels the
+        # double pass stays correct, just redundant.
+        hp = counterfactual_history(est, Y, lo:hi, ce, policy;
+                                    outcomes=out_pairs, instruments=ins_pairs,
+                                    H=horizon, draws=:off,
+                                    quantiles=Tuple(qs))
+        draw_sym = Symbol(use_draws)
+        if draw_sym === :off || (draw_sym === :auto && ce.Theta_x_draws === nothing)
+            (hp, hp.n_draws_used, hp.n_draws_failed)
+        else
+            # :on with a draws-free container still throws upstream
+            # (ArgumentError → data/invalid), as before.
+            hd = counterfactual_history(est, Y, lo:hi, ce, policy;
+                                        outcomes=out_pairs, instruments=ins_pairs,
+                                        H=horizon, draws=draw_sym,
+                                        quantiles=Tuple(qs))
+            (hp, hd.n_draws_used, hd.n_draws_failed)
+        end
     catch e
         e isa CliError && rethrow()
         throw(_domain_or_data_error(e, "counterfactual history"))
@@ -1312,8 +1335,8 @@ function _policy_history(route::String; data::String, lags=nothing, horizon::Int
         "policy" => hist.policy_name,
         "H" => hist.H,
         "n_dates" => length(hist.dates),
-        "n_draws_used" => hist.n_draws_used,
-        "n_draws_failed" => hist.n_draws_failed,
+        "n_draws_used" => n_used,
+        "n_draws_failed" => n_failed,
         "note" => "built from forecast revisions, never identified shocks (raw forecasts double-count); rests on forecast sufficiency — see policy sufficiency",
     ]; format=format, title="History Summary")
     return hist

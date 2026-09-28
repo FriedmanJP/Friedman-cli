@@ -288,7 +288,7 @@ Path to panel CSV data file
 | `--cluster` | — | `String` | `unit` | — | unit\|time\|twoway |
 | `--conf-level` | — | `Float64` | `0.95` | — | Confidence level |
 | `--method` | — | `String` | `did` | — | did\|event-study |
-| `--did-method` | — | `String` | `twfe` | — | twfe\|cs\|sa\|bjs\|dcdh (did method only) |
+| `--did-method` | — | `String` | `twfe` | `twfe`, `cs`, `sa`, `bjs`, `dcdh` | twfe\|cs\|sa\|bjs\|dcdh (did method only) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
@@ -341,7 +341,7 @@ Path to panel CSV data file
 | `--cluster` | — | `String` | `unit` | — | unit\|time\|twoway |
 | `--conf-level` | — | `Float64` | `0.95` | — | Confidence level |
 | `--method` | — | `String` | `did` | — | did\|event-study |
-| `--did-method` | — | `String` | `twfe` | — | twfe\|cs\|sa\|bjs\|dcdh (did method only) |
+| `--did-method` | — | `String` | `twfe` | `twfe`, `cs`, `sa`, `bjs`, `dcdh` | twfe\|cs\|sa\|bjs\|dcdh (did method only) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 

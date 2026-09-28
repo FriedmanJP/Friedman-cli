@@ -1403,7 +1403,7 @@ function _fceval_load(data::String, actual::String, forecasts::String; leaf::Str
         "actual column '$actual' not found in numeric columns: $(join(numcols, ", "))"))
     # `variable_names` admits Union{Number,Missing} columns, so guard for missing
     # values → typed data error (a blank cell would otherwise MethodError → exit 1).
-    _col(c) = any(ismissing, df[!, c]) ?
+    _col(c) = any(_is_gap, df[!, c]) ?
         throw(CliError("data/missing-values",
             "column '$c' contains missing values; drop or impute them (e.g. via `data dropna`) before forecast evaluation")) :
         Vector{Float64}(df[!, c])

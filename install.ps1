@@ -3,7 +3,7 @@
 #   irm https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.ps1 | iex
 #
 # Specific version (set env var before piping):
-#   $env:FRIEDMAN_VERSION = "0.4.0"; irm https://...install.ps1 | iex
+#   $env:FRIEDMAN_VERSION = "1.0.0"; irm https://...install.ps1 | iex
 
 $ErrorActionPreference = "Stop"
 
@@ -20,7 +20,7 @@ if (-not $Version) {
         $Version = $Release.tag_name -replace '^v', ''
     } catch {
         Write-Host "Error: Failed to fetch latest release from GitHub API." -ForegroundColor Red
-        Write-Host 'You may be rate-limited. Try setting $env:FRIEDMAN_VERSION = "0.4.0" before running.' -ForegroundColor Yellow
+        Write-Host 'You may be rate-limited. Try setting $env:FRIEDMAN_VERSION = "1.0.0" before running.' -ForegroundColor Yellow
         exit 1
     }
 }

@@ -3813,6 +3813,43 @@ using TOML
         @test get_dsge(cfg2)["linear"] === true
     end
 
+    @testset "config schema — documented DSGE model keys warn-free" begin
+        # linear/utility/beta/controls are parsed by get_dsge and honored by
+        # _dsge_toml_block — they must not warn as unknown keys.
+        good = Dict{String,Any}(
+            "model" => Dict{String,Any}(
+                "linear" => true,
+                "utility" => "log(c[t])",
+                "beta" => "0.99",
+                "controls" => ["c"],
+                "endogenous" => ["y"], "exogenous" => ["e"],
+                "parameters" => Dict{String,Any}(), "equations" => Dict[],
+            ),
+        )
+        mktemp() do path, io
+            redirect_stderr(io) do
+                validate_config_schema!(good; strict=false)
+            end
+            flush(io)
+            out = read(path, String)
+            @test !occursin("config/unknown-key", out)
+        end
+        # strict mode accepts them too
+        validate_config_schema!(deepcopy(good); strict=true)
+        # an actually-unknown key still warns
+        bad = deepcopy(good)
+        bad["model"]["lineaar"] = true
+        mktemp() do path, io
+            redirect_stderr(io) do
+                validate_config_schema!(bad; strict=false)
+            end
+            flush(io)
+            out = read(path, String)
+            @test occursin("config/unknown-key", out)
+            @test occursin("lineaar", out)
+        end
+    end
+
     @testset "get_dsge_constraints — bounds" begin
         cfg = Dict(
             "constraints" => Dict(

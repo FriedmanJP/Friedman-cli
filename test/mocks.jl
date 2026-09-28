@@ -5603,14 +5603,19 @@ function estimate_did(pd::PanelData{T}, outcome, treatment;
         method=:twfe, leads=0, horizon=5, covariates=String[],
         control_group=:never_treated, cluster=:unit,
         conf_level=0.95, n_boot=200, base_period=:varying, seed=nothing) where T
+    # Mirror upstream validation (did/estimation.jl): only the long names route.
+    # The CLI maps its shorts via DID_METHOD_MAP and never forwards :cs/:sa/:dcdh.
+    method in (:twfe, :callaway_santanna, :sun_abraham, :bjs, :did_multiplegt) ||
+        throw(ArgumentError("Unknown DiD method :$method. Available: :twfe, :callaway_santanna, :sun_abraham, :bjs, :did_multiplegt"))
     et = collect(-leads:horizon)
     n_et = length(et)
     att = fill(T(0.5), n_et)
     se = fill(T(0.1), n_et)
     ci_lo = att .- T(1.96) .* se
     ci_hi = att .+ T(1.96) .* se
-    gt_att = method in (:callaway_santanna, :cs) ? ones(T, 3, n_et) * T(0.4) : nothing
-    cohorts = method in (:callaway_santanna, :cs) ? [5, 10, 15] : nothing
+    # Real group_time_att is cohorts × CALENDAR periods (n_times), not event grid.
+    gt_att = method === :callaway_santanna ? ones(T, 3, pd.T_obs) * T(0.4) : nothing
+    cohorts = method === :callaway_santanna ? [5, 10, 15] : nothing
     DIDResult{T}(att, se, ci_lo, ci_hi, et, -1, gt_att, cohorts,
         T(0.45), T(0.08), pd.T_obs, pd.n_groups,
         div(pd.n_groups, 2), pd.n_groups - div(pd.n_groups, 2),
@@ -9300,12 +9305,36 @@ function counterfactual_history(mdl::Union{VARModel{T},BVARPosterior{T}},
         "H = $H must equal the container H = $(ce.H)"))
     length(t_range) <= H - 1 || throw(ArgumentError(
         "window length $(length(t_range)) must be <= H - 1 = $(H - 1)"))
+    draws in (:auto, :on, :off) || throw(ArgumentError(
+        "draws: expected :auto, :on or :off, got :$draws"))
     syms = vcat(Symbol[first(p) for p in outcomes], Symbol[first(p) for p in instruments])
     nd = length(t_range); nv = length(syms)
     ds = dates === nothing ? [string("t", t) for t in t_range] : collect(String, dates)
     realized = Matrix{Float64}(data[collect(t_range), 1:nv])
+    cf = 0.9 .* realized
     pname = policy isa PolicyRule ? policy.name : policy.name
-    CounterfactualHistory{Float64}(ds, syms, realized, 0.9 .* realized, nothing,
+    # Mirror MEMs 1.0.0's draws branch faithfully, BUG INCLUDED: the per-draw
+    # `_run` closure rebinds the enclosing point-run panels (closure capture by
+    # reference — assignment inside `_run` writes the outer binding), so after a
+    # draws pass `nu`/`rel_residual` come back 0-sized while bands + counts are
+    # correct. The CLI history handler re-runs the point pass to recover them
+    # (see src/commands/policy.jl); that splice is exercised by the draws tests
+    # below. If upstream ever localizes those panels, update this mirror.
+    ndraws = ce.Theta_x_draws === nothing ? 0 : size(ce.Theta_x_draws[1], 3)
+    use = draws == :on || (draws == :auto && ndraws > 0)
+    use && ndraws == 0 && throw(ArgumentError(
+        "draws = :on requires a draws-bearing container"))
+    if use
+        nq = length(collect(quantiles))
+        bands = Array{Float64,3}(undef, nd, nv, nq)
+        for j in 1:nd, v in 1:nv, qi in 1:nq
+            bands[j, v, qi] = cf[j, v]
+        end
+        return CounterfactualHistory{Float64}(ds, syms, realized, cf, bands,
+            zeros(Float64, 0, 0), Float64[], pname, H,
+            collect(Float64, quantiles), ndraws, 0)
+    end
+    CounterfactualHistory{Float64}(ds, syms, realized, cf, nothing,
         zeros(nd, size(ce.Theta_x[1], 2)), fill(0.02, nd), pname, H,
         collect(Float64, quantiles), 0, 0)
 end

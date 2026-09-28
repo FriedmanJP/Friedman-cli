@@ -7,11 +7,11 @@ Generated reference for `friedman model` and its subcommands.
 
 ### `friedman model info`
 
-Inspect a model handle (.jld2 native or .fmod interim): type, versions, dimensions
+Inspect a model handle (.jld2 native, .fmod interim, or model:// session handle): type, versions, dimensions
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `path` | `String` | yes | — | Path to .jld2 or .fmod handle |
+| `path` | `String` | yes | — | Path to .jld2/.fmod handle or model:// session handle |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|

@@ -463,7 +463,8 @@ function _predict_preg(; data::String, dep::String="", indep::String="",
                         method::String="fe", cov_type::String="cluster",
                         id_col::String="", time_col::String="",
                         output::String="", format::String="table")
-    isempty(dep) && error("--dep is required")
+    isempty(dep) && throw(CliError("usage/missing", "--dep is required";
+        hint="name the dependent variable column, e.g. --dep y"))
     pd = _load_panel_for_preg(data, id_col, time_col)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
@@ -485,8 +486,10 @@ function _predict_piv(; data::String, dep::String="", exog::String="",
                        method::String="fe", cov_type::String="cluster",
                        id_col::String="", time_col::String="",
                        output::String="", format::String="table")
-    isempty(dep) && error("--dep is required")
-    isempty(endog) && error("--endog is required")
+    isempty(dep) && throw(CliError("usage/missing", "--dep is required";
+        hint="name the dependent variable column, e.g. --dep y"))
+    isempty(endog) && throw(CliError("usage/missing", "--endog is required";
+        hint="name the endogenous regressor(s), e.g. --endog investment"))
     pd = _load_panel_for_preg(data, id_col, time_col)
 
     exog_syms = isempty(exog) ? Symbol[] : Symbol[Symbol(strip(s)) for s in split(exog, ",")]
@@ -510,7 +513,8 @@ function _predict_plogit(; data::String, dep::String="", indep::String="",
                           method::String="pooled", cov_type::String="cluster",
                           id_col::String="", time_col::String="",
                           output::String="", format::String="table")
-    isempty(dep) && error("--dep is required")
+    isempty(dep) && throw(CliError("usage/missing", "--dep is required";
+        hint="name the dependent variable column, e.g. --dep y"))
     pd = _load_panel_for_preg(data, id_col, time_col)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
@@ -531,7 +535,8 @@ function _predict_pprobit(; data::String, dep::String="", indep::String="",
                            method::String="pooled", cov_type::String="cluster",
                            id_col::String="", time_col::String="",
                            output::String="", format::String="table")
-    isempty(dep) && error("--dep is required")
+    isempty(dep) && throw(CliError("usage/missing", "--dep is required";
+        hint="name the dependent variable column, e.g. --dep y"))
     pd = _load_panel_for_preg(data, id_col, time_col)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
@@ -1048,7 +1053,8 @@ function _residuals_preg(; data::String="", dep::String="", indep::String="",
                           method::String="fe", cov_type::String="cluster",
                           id_col::String="", time_col::String="",
                           output::String="", format::String="table")
-    isempty(dep) && error("--dep is required")
+    isempty(dep) && throw(CliError("usage/missing", "--dep is required";
+        hint="name the dependent variable column, e.g. --dep y"))
     pd = _load_panel_for_preg(data, id_col, time_col)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
@@ -1070,8 +1076,10 @@ function _residuals_piv(; data::String="", dep::String="", exog::String="",
                          method::String="fe", cov_type::String="cluster",
                          id_col::String="", time_col::String="",
                          output::String="", format::String="table")
-    isempty(dep) && error("--dep is required")
-    isempty(endog) && error("--endog is required")
+    isempty(dep) && throw(CliError("usage/missing", "--dep is required";
+        hint="name the dependent variable column, e.g. --dep y"))
+    isempty(endog) && throw(CliError("usage/missing", "--endog is required";
+        hint="name the endogenous regressor(s), e.g. --endog investment"))
     pd = _load_panel_for_preg(data, id_col, time_col)
 
     exog_syms = isempty(exog) ? Symbol[] : Symbol[Symbol(strip(s)) for s in split(exog, ",")]
@@ -1095,7 +1103,8 @@ function _residuals_plogit(; data::String="", dep::String="", indep::String="",
                             method::String="pooled", cov_type::String="cluster",
                             id_col::String="", time_col::String="",
                             output::String="", format::String="table")
-    isempty(dep) && error("--dep is required")
+    isempty(dep) && throw(CliError("usage/missing", "--dep is required";
+        hint="name the dependent variable column, e.g. --dep y"))
     pd = _load_panel_for_preg(data, id_col, time_col)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
@@ -1116,7 +1125,8 @@ function _residuals_pprobit(; data::String="", dep::String="", indep::String="",
                              method::String="pooled", cov_type::String="cluster",
                              id_col::String="", time_col::String="",
                              output::String="", format::String="table")
-    isempty(dep) && error("--dep is required")
+    isempty(dep) && throw(CliError("usage/missing", "--dep is required";
+        hint="name the dependent variable column, e.g. --dep y"))
     pd = _load_panel_for_preg(data, id_col, time_col)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
@@ -1513,9 +1523,12 @@ const _ORDERED_RESID_FLAGS = [
 the ordered-model generalized residual."""
 function _flags_for_kind(kind::Symbol, verb::Symbol)
     if verb === :residuals
-        return (kind === :ologit || kind === :oprobit) ? _ORDERED_RESID_FLAGS : FlagSpec[]
+        flags = (kind === :ologit || kind === :oprobit) ? _ORDERED_RESID_FLAGS : FlagSpec[]
+        kind === :arima && push!(flags, FlagSpec(name="auto", description="Force automatic order selection"))
+        return flags
     end
     verb === :predict || return FlagSpec[]
+    kind === :arima && return [FlagSpec(name="auto", description="Force automatic order selection")]
     kind === :logit && return _LOGIT_EXTRA_FLAGS
     kind === :probit && return filter(f -> f.name != "odds-ratio", _LOGIT_EXTRA_FLAGS)
     (kind === :ologit || kind === :oprobit || kind === :mlogit) && return _CHOICE_ME_FLAGS
@@ -1531,20 +1544,20 @@ const FITTED_MODEL_KINDS = [
     (; name="static",     pred=_predict_static,     res=_residuals_static,     kind=:factor_static),
     (; name="dynamic",    pred=_predict_dynamic,    res=_residuals_dynamic,    kind=:factor_dynamic),
     (; name="gdfm",       pred=_predict_gdfm,       res=_residuals_gdfm,       kind=:factor_gdfm),
-    (; name="arch",       pred=_VOL_PREDICT_HANDLERS["arch"],       res=_VOL_RESIDUALS_HANDLERS["arch"],       kind=:vol),
-    (; name="garch",      pred=_VOL_PREDICT_HANDLERS["garch"],      res=_VOL_RESIDUALS_HANDLERS["garch"],      kind=:vol),
-    (; name="egarch",     pred=_VOL_PREDICT_HANDLERS["egarch"],     res=_VOL_RESIDUALS_HANDLERS["egarch"],     kind=:vol),
+    (; name="arch",       pred=_VOL_PREDICT_HANDLERS["arch"],       res=_VOL_RESIDUALS_HANDLERS["arch"],       kind=:vol_q),
+    (; name="garch",      pred=_VOL_PREDICT_HANDLERS["garch"],      res=_VOL_RESIDUALS_HANDLERS["garch"],      kind=:vol_pq),
+    (; name="egarch",     pred=_VOL_PREDICT_HANDLERS["egarch"],     res=_VOL_RESIDUALS_HANDLERS["egarch"],     kind=:vol_pq),
     # C044: kebab primary; snake alias applied in _specs_for_verb
-    (; name="gjr-garch",  pred=_VOL_PREDICT_HANDLERS["gjr_garch"],  res=_VOL_RESIDUALS_HANDLERS["gjr_garch"],  kind=:vol),
-    (; name="sv",         pred=_VOL_PREDICT_HANDLERS["sv"],         res=_VOL_RESIDUALS_HANDLERS["sv"],         kind=:vol),
+    (; name="gjr-garch",  pred=_VOL_PREDICT_HANDLERS["gjr_garch"],  res=_VOL_RESIDUALS_HANDLERS["gjr_garch"],  kind=:vol_pq),
+    (; name="sv",         pred=_VOL_PREDICT_HANDLERS["sv"],         res=_VOL_RESIDUALS_HANDLERS["sv"],         kind=:vol_sv),
     (; name="favar",      pred=_predict_favar,      res=_residuals_favar,      kind=:favar),
     (; name="reg",        pred=_predict_reg,        res=_residuals_reg,        kind=:reg),
     (; name="logit",      pred=_predict_logit,      res=_residuals_logit,      kind=:logit),
     (; name="probit",     pred=_predict_probit,     res=_residuals_probit,     kind=:probit),
     (; name="preg",       pred=_predict_preg,       res=_residuals_preg,       kind=:preg),
-    (; name="piv",        pred=_predict_piv,        res=_residuals_piv,        kind=:preg),
-    (; name="plogit",     pred=_predict_plogit,     res=_residuals_plogit,     kind=:preg),
-    (; name="pprobit",    pred=_predict_pprobit,    res=_residuals_pprobit,    kind=:preg),
+    (; name="piv",        pred=_predict_piv,        res=_residuals_piv,        kind=:piv),
+    (; name="plogit",     pred=_predict_plogit,     res=_residuals_plogit,     kind=:panel_binary),
+    (; name="pprobit",    pred=_predict_pprobit,    res=_residuals_pprobit,    kind=:panel_binary),
     (; name="ologit",     pred=_predict_ologit,     res=_residuals_ologit,     kind=:ologit),
     (; name="oprobit",    pred=_predict_oprobit,    res=_residuals_oprobit,    kind=:oprobit),
     (; name="mlogit",     pred=_predict_mlogit,     res=_residuals_mlogit,     kind=:mlogit),
@@ -1558,11 +1571,55 @@ function _opts_for_kind(kind::Symbol, verb::Symbol)
         return opts
     elseif kind === :preg
         return copy(PREG_OPTIONS)
-    elseif kind === :vol || kind === :arima
+    elseif kind === :arima
+        # Mirrors `estimate arima`: p (nothing = auto-select), d, q, method, auto.
+        # Anything less silently pins the refit to built-in defaults (#85).
         return [
-            OptionSpec(name="column", short="c", type=Int, default=1, description="Column index"),
+            OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+            OptionSpec(name="p", type=Int, default=nothing, description="AR order (default: auto selection)"),
+            OptionSpec(name="d", type=Int, default=0, description="Differencing order"),
+            OptionSpec(name="q", type=Int, default=0, description="MA order"),
+            OptionSpec(name="method", short="m", type=String, default="css_mle", description="ols|css|mle|css_mle"),
             OUTPUT_OPTIONS...,
         ]
+    elseif kind === :vol_q
+        return [
+            OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+            OptionSpec(name="q", type=Int, default=1, description="ARCH order"),
+            OUTPUT_OPTIONS...,
+        ]
+    elseif kind === :vol_pq
+        return [
+            OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+            OptionSpec(name="p", type=Int, default=1, description="GARCH order"),
+            OptionSpec(name="q", type=Int, default=1, description="ARCH order"),
+            OUTPUT_OPTIONS...,
+        ]
+    elseif kind === :vol_sv
+        return [
+            OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+            OptionSpec(name="draws", short="n", type=Int, default=5000, description="MCMC draws"),
+            OUTPUT_OPTIONS...,
+        ]
+    elseif kind === :piv
+        # Mirrors `estimate panel piv`: --indep would be handler-unreachable here —
+        # the handler refits via estimate_xtiv and hard-requires --endog.
+        return [
+            OptionSpec(name="dep", type=String, default="", description="Dependent variable column name"),
+            OptionSpec(name="exog", type=String, default="", description="Exogenous variables (comma-separated)"),
+            OptionSpec(name="endog", type=String, default="", description="Endogenous variables (comma-separated)"),
+            OptionSpec(name="instruments", type=String, default="", description="Instruments (comma-separated)"),
+            OptionSpec(name="method", short="m", type=String, default="fe", description="fe|re|fd|hausman-taylor"),
+            OptionSpec(name="cov-type", type=String, default="cluster", description="ols|cluster|twoway|driscoll-kraay"),
+            OptionSpec(name="id-col", type=String, default="", description="Panel group ID column"),
+            OptionSpec(name="time-col", type=String, default="", description="Panel time column"),
+            OUTPUT_OPTIONS...,
+        ]
+    elseif kind === :panel_binary
+        # Upstream estimate_xtlogit/xtprobit default to :pooled (probit has no :fe at
+        # all) — the shared PREG_OPTIONS "fe" default disagrees with both the handler
+        # kwargs and `estimate panel plogit|pprobit`.
+        return with_default(PREG_OPTIONS, "method", "pooled")
     elseif kind === :factor_static
         # #144: options MUST mirror the handler kwargs exactly (#85). The old shared
         # :factor block declared --lags, which NO factor handler accepts — the bound
@@ -1618,6 +1675,7 @@ function _opts_for_kind(kind::Symbol, verb::Symbol)
         return [
             OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order"),
             OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank"),
+            OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
             OUTPUT_OPTIONS...,
         ]
     else # :var default

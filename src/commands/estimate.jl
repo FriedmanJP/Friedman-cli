@@ -66,13 +66,6 @@ function _vol_specs(verb::Symbol)::Vector{CommandSpec}
                                    description="Conditional distribution of the innovations"))
         end
         append!(opts, out_opts)
-        # predict/residuals historically omit p/q/draws from schema (defaults only)
-        if verb === :predict || verb === :residuals
-            opts = OptionSpec[
-                OptionSpec(name="column", short="c", type=Int, default=1, description="Column index"),
-                OUTPUT_OPTIONS...,
-            ]
-        end
         cli_name = get(_VOL_CLI_NAMES, vol.name, vol.name)
         label = vol.label(1, 1)
         # W3/#138: the four verbs share the shared.jl emitters, so their keys are
@@ -2902,7 +2895,7 @@ function _estimate_gmm_iv(data::String, gmm_cfg::Dict, w::Symbol, weighting::Str
         nm = String(name)
         nm in numcols || throw(CliError("data/column-range",
             "column '$nm' not found in numeric columns: $(join(numcols, ", "))"))
-        any(ismissing, df[!, nm]) && throw(CliError("data/missing-values",
+        any(_is_gap, df[!, nm]) && throw(CliError("data/missing-values",
             "column '$nm' contains missing values; drop or impute them first"))
         return Float64.(df[!, nm])
     end
@@ -4686,7 +4679,7 @@ function _load_count_vector(data::String, col::String, role::String, y::Abstract
     col in names(df) || throw(CliError("data/missing-column",
         "--$role column '$col' not found"; hint="available: $(join(names(df), ", "))"))
     raw = df[!, col]
-    any(v -> v === missing, raw) && throw(CliError("data/missing-value",
+    any(_is_gap, raw) && throw(CliError("data/missing-value",
         "--$role column '$col' contains missing values"))
     v = try
         Vector{Float64}(raw)
@@ -5947,7 +5940,7 @@ function _estimate_heckman(; data::String, dep::String="", select::String="",
     # row) BEFORE the Matrix{Float64} conversion (untyped ArgumentError → exit-1). The OUTCOME
     # column is handled separately below: it is unobserved by design for non-selected rows.
     for c in unique(vcat([select], ovars, svars))
-        any(ismissing, df[!, c]) && throw(CliError("data/missing-values",
+        any(_is_gap, df[!, c]) && throw(CliError("data/missing-values",
             "column '$c' contains missing values; drop or impute them first"))
     end
 
@@ -5964,9 +5957,9 @@ function _estimate_heckman(; data::String, dep::String="", select::String="",
     # present for selected rows, and fill unselected cells with a finite placeholder (0.0,
     # ignored downstream). This makes real selection CSVs usable without pre-imputing.
     yraw = df[!, dep_col]
-    any(ismissing, yraw[sel]) && throw(CliError("data/missing-values",
+    any(_is_gap, yraw[sel]) && throw(CliError("data/missing-values",
         "outcome '$dep_col' has missing values among SELECTED ($select==1) rows; the outcome must be observed wherever the unit is selected"))
-    y = Float64[ismissing(v) ? 0.0 : Float64(v) for v in yraw]
+    y = Float64[_is_gap(v) ? 0.0 : Float64(v) for v in yraw]
     X = Matrix{Float64}(df[!, ovars])
     Z = Matrix{Float64}(df[!, svars])
 
@@ -6974,7 +6967,7 @@ function _load_threshold_data(data::String, dep::String, threshold_col::String)
         "estimate threshold: no regressor columns left after removing --dep and --threshold-col";
         hint="the CSV needs at least one column besides those two"))
     for c in vcat(depc, threshold_col, xcols)
-        any(ismissing, df[!, c]) && throw(CliError("data/missing-values",
+        any(_is_gap, df[!, c]) && throw(CliError("data/missing-values",
             "column '$c' has missing values"; hint="clean them with `friedman data dropna`"))
     end
     y = Vector{Float64}(df[!, depc])
@@ -8137,7 +8130,7 @@ function _estimate_rdd(; data::String, outcome::String="", running::String="",
     isempty(fuzzy) || fuzzy in numcols || throw(CliError("data/column-range",
         "fuzzy treatment '$fuzzy' not found in numeric columns: $(join(numcols, ", "))"))
     for c in cols
-        any(ismissing, df[!, c]) && throw(CliError("data/missing-values",
+        any(_is_gap, df[!, c]) && throw(CliError("data/missing-values",
             "column '$c' contains missing values; drop or impute them first"))
     end
     y = Vector{Float64}(df[!, ycol])

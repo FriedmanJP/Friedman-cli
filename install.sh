@@ -4,7 +4,7 @@ set -euo pipefail
 # Friedman-cli installer for macOS and Linux
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.sh | bash
-#   curl -fsSL https://...install.sh | bash -s -- --version 0.4.0
+#   curl -fsSL https://...install.sh | bash -s -- --version 1.0.0
 
 REPO="FriedmanJP/Friedman-cli"
 INSTALL_DIR="$HOME/.friedman-cli"
@@ -66,7 +66,7 @@ if [ -z "$VERSION" ]; then
     RELEASE_JSON=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null) || {
         echo "Error: Failed to fetch latest release from GitHub API." >&2
         echo "You may be rate-limited. Try specifying a version:" >&2
-        echo "  curl -fsSL https://raw.githubusercontent.com/${REPO}/master/install.sh | bash -s -- --version 0.4.0" >&2
+        echo "  curl -fsSL https://raw.githubusercontent.com/${REPO}/master/install.sh | bash -s -- --version 1.0.0" >&2
         exit 1
     }
     VERSION=$(echo "$RELEASE_JSON" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"v\{0,1\}\([^"]*\)".*/\1/')

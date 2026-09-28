@@ -1,17 +1,23 @@
 # Panel Unit Root Tests
 
-Panel unit root tests that account for cross-sectional dependence via common factors, under `test`.
+Panel unit root tests for data with $N$ cross-sectional units observed over $T$ periods. Wide-format leaves accept CSV data with rows as time periods and columns as units; long panel format needs `--id-col` and `--time-col`. Full option tables live in the generated reference (`generated/test.md`). Wide examples simulate a stationary VAR panel in-block; long examples simulate a panel with `id`/`time` columns in-block — every fence runs standalone.
 
-All panel unit root tests accept CSV data in wide format (rows = time periods, columns = cross-sectional units) or panel format with `--id-col` and `--time-col` options.
+---
+
+## First- vs second-generation tests
+
+**First-generation** tests (Levin-Lin-Chu, Im-Pesaran-Shin) assume **cross-sectional independence**: a common shock that moves all units together violates the assumption and distorts size. The three tests on this page are **second-generation**: they model the **cross-sectional dependence** explicitly, so they stay valid when units share common factors. Use a first-generation test only after demeaning or when independence is defensible; otherwise start here.
+
+---
 
 ## test panel panic
 
-PANIC (Panel Analysis of Nonstationarity in Idiosyncratic and Common components) test by Bai & Ng (2004). Decomposes panel data into common factors and idiosyncratic components, then tests each for unit roots separately.
+The **PANIC test** (Bai & Ng 2004) decomposes each series into estimated **common factors** and **idiosyncratic components** and tests each part for unit roots separately. **H0**: the idiosyncratic component has a unit root (nonstationary panel after removing the common factors). Rejection means the panel is stationary once common shocks are factored out.
 
 ```bash
-friedman test panel panic panel.csv --factors=auto
-friedman test panel panic panel.csv --factors=3 --method=individual
-friedman test panel panic panel.csv --id-col=country --time-col=year
+friedman data simulate var --periods 200 --seed 7 --format csv --output panel_wide.csv && friedman test panel panic panel_wide.csv --factors=auto
+friedman data simulate var --periods 200 --seed 7 --format csv --output panel_wide.csv && friedman test panel panic panel_wide.csv --factors=3 --method=individual
+friedman data simulate panel --n 30 --periods 12 --seed 7 --format csv --output panel.csv && friedman test panel panic panel.csv --id-col=id --time-col=time
 ```
 
 | Option | Short | Type | Default | Description |
@@ -20,19 +26,19 @@ friedman test panel panic panel.csv --id-col=country --time-col=year
 | `--method` | | String | `pooled` | `pooled` (pooled ADF on defactored data), `individual` (unit-by-unit) |
 | `--id-col` | | String | | Panel unit ID column (optional) |
 | `--time-col` | | String | | Time column (optional) |
-| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
-| `--output` | `-o` | String | | Export file path |
 
-**Output:** Test statistic, p-value, number of factors, and verdict on panel-wide stationarity.
+`auto` selects the factor count by information criterion; pass an integer to fix it. `pooled` aggregates into one panel-wide verdict, while `individual` reports unit-by-unit evidence.
+
+---
 
 ## test unit-root cips
 
-Pesaran (2007) Cross-sectionally Augmented IPS (CIPS) test. Augments individual ADF regressions with cross-sectional averages to account for common factors without explicitly estimating them.
+The **CIPS test** (Pesaran 2007) augments each unit's ADF regression with cross-sectional averages of the level and differences (**CADF** regressions), which proxy the unobserved common factor without estimating it. The CIPS statistic is the cross-sectional average of the individual CADF $t$-statistics. **H0**: every unit has a unit root. Rejection means a nonzero fraction of units is stationary.
 
 ```bash
-friedman test unit-root cips panel.csv
-friedman test unit-root cips panel.csv --lags=4 --deterministic=trend
-friedman test unit-root cips panel.csv --id-col=country --time-col=year
+friedman data simulate var --periods 200 --seed 7 --format csv --output panel_wide.csv && friedman test unit-root cips panel_wide.csv
+friedman data simulate var --periods 200 --seed 7 --format csv --output panel_wide.csv && friedman test unit-root cips panel_wide.csv --lags=4 --deterministic=trend
+friedman data simulate panel --n 30 --periods 12 --seed 7 --format csv --output panel.csv && friedman test unit-root cips panel.csv --id-col=id --time-col=time
 ```
 
 | Option | Short | Type | Default | Description |
@@ -41,19 +47,19 @@ friedman test unit-root cips panel.csv --id-col=country --time-col=year
 | `--deterministic` | | String | `constant` | `constant`, `trend` |
 | `--id-col` | | String | | Panel unit ID column (optional) |
 | `--time-col` | | String | | Time column (optional) |
-| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
-| `--output` | `-o` | String | | Export file path |
 
-**Output:** CIPS statistic, p-value, and rejection decision. CIPS is the average of individual CADF statistics.
+CIPS needs no factor-count choice, which makes it the default second-generation test when the dependence structure is unknown.
+
+---
 
 ## test unit-root moon-perron
 
-Moon & Perron (2004) panel unit root test. Uses a factor-based approach where common factors are estimated and removed before applying modified t-statistics.
+The **Moon-Perron test** (Moon & Perron 2004) estimates the common factors by principal components, removes them, and applies the modified $t_a^*$ and $t_b^*$ statistics to the defactored data. **H0**: every unit has a unit root. Both statistics are standard normal under H0 with rejection in the left tail; the leaf rejects when either $p$-value is small.
 
 ```bash
-friedman test unit-root moon-perron panel.csv
-friedman test unit-root moon-perron panel.csv --factors=2
-friedman test unit-root moon-perron panel.csv --id-col=country --time-col=year
+friedman data simulate var --periods 200 --seed 7 --format csv --output panel_wide.csv && friedman test unit-root moon-perron panel_wide.csv
+friedman data simulate var --periods 200 --seed 7 --format csv --output panel_wide.csv && friedman test unit-root moon-perron panel_wide.csv --factors=2
+friedman data simulate panel --n 30 --periods 12 --seed 7 --format csv --output panel.csv && friedman test unit-root moon-perron panel.csv --id-col=id --time-col=time
 ```
 
 | Option | Short | Type | Default | Description |
@@ -61,19 +67,17 @@ friedman test unit-root moon-perron panel.csv --id-col=country --time-col=year
 | `--factors` | | String | `auto` | Number of factors (`auto` or integer) |
 | `--id-col` | | String | | Panel unit ID column (optional) |
 | `--time-col` | | String | | Time column (optional) |
-| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
-| `--output` | `-o` | String | | Export file path |
 
-**Output:** Modified t-bar and t-star statistics with p-values and number of factors.
+---
 
 ## test stability factor-break
 
-Factor break test for structural change in the factor structure of a panel. Tests whether the factor loadings or factor structure has changed at an unknown break point.
+The **factor-structure break test** asks whether the loadings of a dynamic factor model changed at an unknown date. **H0**: the factor structure is stable over the whole sample. The `--method` selects the test; the pooled methods additionally emit a *Per-Series Break Diagnostics* table ranking each series by its own sup statistic and maximizing date.
 
 ```bash
-friedman test stability factor-break panel.csv --factors=2
-friedman test stability factor-break panel.csv --factors=3 --method=chen_dolado_gonzalo
-friedman test stability factor-break panel.csv --method=han_inoue --id-col=country --time-col=year
+friedman data simulate var --periods 200 --seed 7 --format csv --output panel_wide.csv && friedman test stability factor-break panel_wide.csv --factors=2
+friedman data simulate var --periods 200 --seed 7 --format csv --output panel_wide.csv && friedman test stability factor-break panel_wide.csv --factors=3 --method=chen_dolado_gonzalo
+friedman data simulate panel --n 30 --periods 12 --seed 7 --format csv --output panel.csv && friedman test stability factor-break panel.csv --method=han_inoue --id-col=id --time-col=time
 ```
 
 | Option | Short | Type | Default | Description |
@@ -82,10 +86,8 @@ friedman test stability factor-break panel.csv --method=han_inoue --id-col=count
 | `--method` | | String | `breitung_eickmeier` | `breitung_eickmeier`, `chen_dolado_gonzalo`, `han_inoue` |
 | `--id-col` | | String | | Panel unit ID column (optional) |
 | `--time-col` | | String | | Time column (optional) |
-| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
-| `--output` | `-o` | String | | Export file path |
 
-**Output:** Test statistic, p-value, estimated break date, and method used. For the two **pooled** methods (`breitung_eickmeier`, `han_inoue`) a second table, *Per-Series Break Diagnostics*, lists each series' own sup statistic and maximizing date (MEMs#606, v0.9.2), sorted by statistic descending; `chen_dolado_gonzalo` has no per-series decomposition and the table is simply absent.
+`chen_dolado_gonzalo` has no per-series decomposition, so the diagnostics table is absent for it — never an error.
 
 !!! warning "The per-series ranking assumes a modest breaking subset"
     The ranking identifies the breaking series when a modest subset of the panel breaks. A break large enough to rotate the estimated factor space — for example, half the panel flipping sign — elevates the *stable* series' statistics too, because loading breaks are only identified relative to the factor normalization. Under a suspected large break, read the pooled verdict, not the ranking.
@@ -98,9 +100,13 @@ friedman test stability factor-break panel.csv --method=han_inoue --id-col=count
 | `chen_dolado_gonzalo` | Chen, Dolado & Gonzalo (2014) |
 | `han_inoue` | Han & Inoue (2015) |
 
+---
+
 ## References
 
 - Bai, J., & Ng, S. (2004). "A PANIC Attack on Unit Roots and Cointegration." *Econometrica*, 72(4), 1127--1177.
 - Pesaran, M. H. (2007). "A Simple Panel Unit Root Test in the Presence of Cross-Section Dependence." *Journal of Applied Econometrics*, 22(2), 265--312.
 - Moon, H. R., & Perron, B. (2004). "Testing for a Unit Root in Panels with Dynamic Factors." *Journal of Econometrics*, 122(1), 81--126.
 - Breitung, J., & Eickmeier, S. (2011). "Testing for Structural Breaks in Dynamic Factor Models." *Journal of Econometrics*, 163(1), 71--84.
+- Chen, L., Dolado, J. J., & Gonzalo, J. (2014). "Detecting Big Structural Breaks in Large Factor Models." *Journal of Econometrics*, 180(1), 30--48.
+- Han, X., & Inoue, A. (2015). "Tests for Parameter Instability in Dynamic Factor Models." *Econometric Theory*, 31(5), 1117--1152.

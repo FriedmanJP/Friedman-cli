@@ -72,7 +72,6 @@ makedocs(;
         "Configuration" => "configuration.md",
         "API Reference" => "api.md",
         "Architecture" => "architecture.md",
-        "Documentation rules" => "docrule.md",
     ],
     format = Documenter.HTML(;
         prettyurls = get(ENV, "CI", "false") == "true",

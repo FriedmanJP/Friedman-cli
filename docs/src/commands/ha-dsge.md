@@ -16,11 +16,11 @@ Compute a stationary equilibrium for a small incomplete-markets economy, solve a
 
 | Token | Model | Notes |
 |-------|--------|--------|
-| `huggett` | Huggett (1993) | Smallest; preferred for CI and quick starts |
+| `huggett` | Huggett (1993) | Smallest; start here |
 | `krusell-smith` | Krusell–Smith (1998) | Aggregate capital PLM |
 | `one-asset-hank` | One-asset HANK | Medium |
 | `two-asset-hank` | Two-asset HANK | Largest |
-
+| `endogenous-labor` | Endogenous labour (GHH / separable) | Labour-margin variant |
 Any of these tokens may be written with a leading colon (`:huggett`). A `.jl` file that evaluates to a heterogeneous-agent `ModelSpec` (household population) is also accepted.
 
 ### Custom models from a `.jl` file
@@ -30,7 +30,7 @@ declarations. The file needs no `using MacroEconometricModels` of its own — th
 evaluates it in a sandbox where the package's exports are already in scope:
 
 ```julia
-# aiyagari.jl
+# sketch (illustrative shape; save to a .jl file to use it)
 @dsge begin
     parameters: alpha = 0.36, beta_hh = 0.96, delta = 0.025, rho_z = 0.95, sigma_z = 0.007
     endogenous: Y, K, r, w, Z
@@ -47,23 +47,19 @@ evaluates it in a sandbox where the package's exports are already in scope:
 end
 ```
 
-```bash
-friedman hadsge steady-state aiyagari.jl
-```
+Pass the file path where a builtin token would go (for example `friedman hadsge steady-state mymodel.jl`).
 
 Set `a in [0.0, a_max]` generously. If too much of the stationary distribution piles up at
 `a_max`, the asset market does not really clear and `excess_demand` cannot detect it,
 because it is measured on the clamped aggregate; MEMs warns about this on stderr, and the
 warning is worth acting on rather than ignoring.
 
-!!! note "Fixed in v0.9.1 / v0.11.0"
-    Before v0.9.1 this path did not work at all ([#80](https://github.com/FriedmanJP/Friedman-cli/issues/80)):
-    every `.jl` HA model failed with `UndefVarError: @dsge`, because the loader's sandbox
-    injected the package object but not its exports. Builtin names were unaffected.
-    Since MEMs 0.9.0 `HADSGESpec` is gone (`ModelSpec` + `HouseholdSystem`) and HA SSJ
-    evaluates written aggregate residual closures, so `.jl` HA solves go through the
-    world-age barrier. Written aggregate equations are compiled (they were ignored at
-    0.8.0). `E[t](...)` is a typed `config/invalid`.
+The loader evaluates the file in a sandbox where the package exports are already in scope,
+so the file needs no `using` line of its own. A file that cannot be evaluated is a typed
+`config/invalid` (exit 4); a file that evaluates to anything other than a `ModelSpec`
+carrying a `HouseholdSystem` is `usage/wrong-command` (exit 2), pointing at the other DSGE
+node. Written aggregate equations are compiled into the spec; `E[t](...)` is a typed
+`config/invalid` — write the lead directly.
 
 ---
 
@@ -222,25 +218,20 @@ friedman hadsge steady-state huggett                       # midpoints (default)
 friedman hadsge steady-state huggett --euler-points nodes  # the older convention
 ```
 
-On `huggett` the same steady state reports `-1.94` at midpoints and `-4.47` at nodes — a
-gap of 2.5 log₁₀ units, i.e. the node figure is optimistic by a factor of about 300.
+On `huggett` the same steady state reports `-1.94` at midpoints and `-4.47` at nodes (both
+visible in the capture above) — a gap of 2.5 log₁₀ units, i.e. the node figure is
+optimistic by a factor of about 300.
 
 Because that gap is so wide, the `Euler Accuracy` table reports **both** conventions
 regardless of which one you select, with `n_evaluated` / `n_constrained` / `n_offgrid`
-alongside:
-
-| convention | max | mean | n_evaluated | n_constrained | n_offgrid |
-|---|---|---|---|---|---|
-| midpoints | -1.93627 | -4.53987 | 584 | 14 | 0 |
-| nodes | -4.46995 | -5.6558 | 585 | 15 | 0 |
-
-`--euler-points` selects only which of the two the scalar `euler_error` diagnostic reports.
+alongside. `--euler-points` selects only which of the two the scalar `euler_error`
+diagnostic reports.
 
 !!! warning "Comparing against published numbers"
-    Figures published for this package before MEMs 0.7.2 used the **node** convention, which
-    is now the non-default. Check which convention a number came from before comparing;
-    `midpoints` will look dramatically worse for the same solution without anything having
-    got worse. The table above exists so the comparison can always be made on like terms.
+    Older published figures use the **node** convention, which is now the non-default.
+    Check which convention a number came from before comparing; `midpoints` looks
+    dramatically worse for the same solution without anything having got worse. The
+    capture above exists so the comparison can always be made on like terms.
 
 ---
 
@@ -401,7 +392,7 @@ friedman hadsge solve huggett --method reiter --n-reduced 8 --format json
 }
 ```
 
-**Interpretation.** Diagnostics name the method (`reiter`) and reduced dimension. Aggregates/prices match the steady-state block above up to solver noise. For production runs, raise `--n-reduced` (default 30).
+**Interpretation.** Diagnostics name the method (`reiter`) and reduced dimension. Aggregates/prices match the steady-state block above up to solver noise. For production runs, raise `--n-reduced` above the small interactive value used here; option defaults live in the [generated reference](generated/dsge.md).
 
 ---
 
@@ -409,104 +400,11 @@ friedman hadsge solve huggett --method reiter --n-reduced 8 --format json
 
 Impulse responses on the linearized aggregate system (Reiter or SSJ).
 
-<!-- capture -->
 ```bash
 friedman hadsge irf huggett --method reiter --n-reduced 8 --horizon 5 --format json
 ```
-```json
-{
-    "schema_version": 1,
-    "data": {
-        "ha_dsge_irf_epsilon": {
-            "columns": [
-                "horizon",
-                "x_1",
-                "x_2",
-                "x_3",
-                "x_4",
-                "x_5",
-                "x_6",
-                "x_7",
-                "x_8",
-                "x_9"
-            ],
-            "rows": [
-                [
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0
-                ],
-                [
-                    1,
-                    0.00011352359,
-                    0.00039011323,
-                    0.00032736955,
-                    -0.0017093784,
-                    2.3099145e-5,
-                    0.00051854147,
-                    -0.00021961882,
-                    0.00057375851,
-                    1
-                ],
-                [
-                    2,
-                    0.00017924288,
-                    0.00061151741,
-                    0.00047777205,
-                    -0.0024747127,
-                    0.00013533925,
-                    0.0002728106,
-                    1.6736213e-5,
-                    0.0003966407,
-                    0.9
-                ],
-                [
-                    3,
-                    0.00020299653,
-                    0.00068884024,
-                    0.00051007232,
-                    -0.0026145215,
-                    7.1739359e-5,
-                    -0.00028695039,
-                    2.9265911e-5,
-                    0.00034358471,
-                    0.81
-                ],
-                [
-                    4,
-                    0.0002036366,
-                    0.0006886159,
-                    0.00049284669,
-                    -0.0025114572,
-                    -0.00016252479,
-                    -0.00068615162,
-                    0.00011802344,
-                    0.00032973828,
-                    0.729
-                ]
-            ]
-        }
-    },
-    "warnings": [
-    ],
-    "status": "ok",
-    "artifacts": [
-    ],
-    "command": "friedman hadsge irf",
-    "meta": {
-    },
-    "error": null
-}
-```
 
-**Interpretation.** The IRF table stacks horizons × observables for each aggregate shock. Horizon here is short (`5`) for a compact capture; typical analysis uses the default (`40`).
+**Interpretation.** The IRF table stacks horizons × observables for each aggregate shock. The short horizon above keeps the output compact; typical analysis uses longer horizons. `--method krusell-smith` is rejected here (exit 2) — a PLM is not a linear state space.
 
 Related:
 
@@ -534,335 +432,46 @@ Use `--shock-index` / `--shock-size` to pick the aggregate shock and scale.
 
 Draw individual asset paths from steady-state policies (no linearization method required).
 
-<!-- capture -->
 ```bash
 friedman hadsge simulate-panel huggett --n-agents 100 --periods 20 --seed 1 --format json
 ```
-```json
-{
-    "schema_version": 1,
-    "data": {
-        "ha_panel_simulation_summary": {
-            "columns": [
-                "period",
-                "mean_assets",
-                "sd_assets",
-                "n_agents"
-            ],
-            "rows": [
-                [
-                    1,
-                    -0.035992766,
-                    0.73885762,
-                    100
-                ],
-                [
-                    2,
-                    -0.030462912,
-                    0.69384416,
-                    100
-                ],
-                [
-                    3,
-                    -0.025137983,
-                    0.66307689,
-                    100
-                ],
-                [
-                    4,
-                    -0.010305077,
-                    0.66949271,
-                    100
-                ],
-                [
-                    5,
-                    -0.0010538745,
-                    0.68262336,
-                    100
-                ],
-                [
-                    6,
-                    0.021488586,
-                    0.68257806,
-                    100
-                ],
-                [
-                    7,
-                    0.063707879,
-                    0.63921679,
-                    100
-                ],
-                [
-                    8,
-                    0.046261666,
-                    0.6428119,
-                    100
-                ],
-                [
-                    9,
-                    0.061113696,
-                    0.66001583,
-                    100
-                ],
-                [
-                    10,
-                    0.037473753,
-                    0.66600819,
-                    100
-                ],
-                [
-                    11,
-                    0.050215433,
-                    0.64892452,
-                    100
-                ],
-                [
-                    12,
-                    -0.0051117798,
-                    0.6838137,
-                    100
-                ],
-                [
-                    13,
-                    0.0063927045,
-                    0.704722,
-                    100
-                ],
-                [
-                    14,
-                    0.0384567,
-                    0.70135607,
-                    100
-                ],
-                [
-                    15,
-                    0.074085061,
-                    0.66855733,
-                    100
-                ],
-                [
-                    16,
-                    0.10643318,
-                    0.65086954,
-                    100
-                ],
-                [
-                    17,
-                    0.13342213,
-                    0.63093263,
-                    100
-                ],
-                [
-                    18,
-                    0.16279669,
-                    0.59830539,
-                    100
-                ],
-                [
-                    19,
-                    0.15147237,
-                    0.56102337,
-                    100
-                ],
-                [
-                    20,
-                    0.12273524,
-                    0.59750907,
-                    100
-                ]
-            ]
-        }
-    },
-    "warnings": [
-    ],
-    "status": "ok",
-    "artifacts": [
-    ],
-    "command": "friedman hadsge simulate-panel",
-    "meta": {
-    },
-    "error": null
-}
-```
 
-**Interpretation.** The panel summary tracks mean (and related) asset holdings over time for `n-agents` agents. Fix `--seed` for reproducibility.
+**Interpretation.** The panel summary tracks mean and dispersion of asset holdings over time for the requested agent count. Fix `--seed` for reproducibility.
 
 ---
 
 ## Continuous-time HA and Blanchard OLG
 
-Sibling nodes for continuous-time Aiyagari (optional two-asset KMV) and perpetual-youth OLG:
-
-<!-- capture -->
-```bash
-friedman dsge ct solve --grid-size 50 --format json
-```
-```json
-{
-    "schema_version": 1,
-    "data": {
-        "ct_aiyagari_aggregates": {
-            "columns": [
-                "name",
-                "value"
-            ],
-            "rows": [
-                [
-                    "K",
-                    1.2912617
-                ],
-                [
-                    "L",
-                    0.15
-                ],
-                [
-                    "converged",
-                    1
-                ]
-            ]
-        },
-        "ct_aiyagari_prices": {
-            "columns": [
-                "name",
-                "value"
-            ],
-            "rows": [
-                [
-                    "r",
-                    0.040771932
-                ],
-                [
-                    "w",
-                    1.3891603
-                ]
-            ]
-        }
-    },
-    "warnings": [
-    ],
-    "status": "ok",
-    "artifacts": [
-    ],
-    "command": "friedman dsge ct solve",
-    "meta": {
-    },
-    "error": null
-}
-```
-
-<!-- capture -->
-```bash
-friedman dsge olg solve --format json
-```
-```json
-{
-    "schema_version": 1,
-    "data": {
-        "blanchard_olg_steady_state": {
-            "columns": [
-                "variable",
-                "value"
-            ],
-            "rows": [
-                [
-                    "k",
-                    5.1239604
-                ],
-                [
-                    "C",
-                    1.3908525
-                ],
-                [
-                    "r",
-                    0.046518726
-                ],
-                [
-                    "w",
-                    1.1524923
-                ],
-                [
-                    "H",
-                    18.131809
-                ],
-                [
-                    "mpc",
-                    0.0592
-                ],
-                [
-                    "b",
-                    0
-                ],
-                [
-                    "converged",
-                    1
-                ]
-            ]
-        },
-        "blanchard_olg_dynamics": {
-            "columns": [
-                "metric",
-                "value"
-            ],
-            "rows": [
-                [
-                    "stable_eig",
-                    0.88375665
-                ],
-                [
-                    "policy_slope",
-                    0.16276208
-                ],
-                [
-                    "determinate",
-                    1
-                ],
-                [
-                    "eig1_mod",
-                    0.88375665
-                ],
-                [
-                    "eig2_mod",
-                    1.1896865
-                ]
-            ]
-        }
-    },
-    "warnings": [
-    ],
-    "status": "ok",
-    "artifacts": [
-    ],
-    "command": "friedman dsge olg solve",
-    "meta": {
-    },
-    "error": null
-}
-```
+Sibling nodes for continuous-time Aiyagari (optional two-asset KMV via `--two-asset`, with
+general equilibrium under `--two-asset --ge`) and perpetual-youth OLG:
 
 ```bash
+friedman dsge ct solve --format json
 friedman dsge ct transition --periods 40 --shock-size 0.95 --dt 0.25
+friedman dsge olg solve --format json
 friedman dsge olg simulate --horizon 50
 ```
 
-See [dsge guide — CT and OLG](dsge.md#continuous-time-ha-dsge-ct--c041) for options.
+Keep the leaf default grid size; never go below 16 — coarser asset grids fail inside the
+Linux sparse factorisation rather than merely losing accuracy. See the [dsge guide](dsge.md#continuous-time-ha-dsge-ct--c041) for options.
 
 ---
 
 ## 6. Bayesian estimation
 
-`hadsge estimate` estimates HA-DSGE parameters by Random-Walk Metropolis-Hastings. This shipped in CLI v0.6.0 once upstream **MEMs#228** was fixed (the Kalman observation matrix `Z` is now built from the reduction `C` rows, so observables map to the right reduced states). Each RWMH draw **re-solves the full HA model** (steady state → linearization → Kalman likelihood), the Auclert-Bardóczy-Rognlie-Straub (2021) "offline" approach — so keep `--n-draws` modest and prefer small `--n-reduced` / `--t-horizon` while prototyping.
+`hadsge estimate` estimates HA-DSGE parameters with the posterior sampler (`--sampler mh|smc`, RWMH or SMC). Each posterior draw **re-solves the full HA model** (steady state → linearization → Kalman likelihood), the Auclert-Bardóczy-Rognlie-Straub (2021) "offline" approach — so keep `--n-draws` modest and prefer small `--n-reduced` / `--t-horizon` while prototyping.
 
-Priors live in a `[priors]` TOML; the two numbers are the distribution's constructor args (`normal` → mean, sd):
+Priors live in a `[priors]` TOML; the two numbers are the distribution's constructor args (`normal` → mean, sd). Create both files inside the same block before estimating (prototype draw counts shown):
 
-```toml
+```bash
+cat > priors.toml <<'EOF'
 [priors]
 [priors.alpha]
 dist = "normal"
 a = 0.36
 b = 0.05
-```
-
-```bash
+EOF
+awk 'BEGIN{print "K"; for(i=1;i<=350;i++) print 1+0.01*i}' > aggregates.csv
 friedman hadsge estimate krusell-smith \
   --data aggregates.csv --priors priors.toml \
   --observables K --method ssj \
@@ -887,16 +496,7 @@ friedman hadsge accuracy krusell-smith --t-sim 10000 --t-burn 1000
 friedman hadsge accuracy krusell-smith --method reiter --t-fit 4000
 ```
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `--method` | String | `krusell-smith` | Solution to score: `krusell-smith`, `ssj`, `reiter` |
-| `--n-reduced` | Int | 30 | Reduced distribution states for the solve |
-| `--t-sim` | Int | 10000 | Simulation length (must exceed `--t-burn` by ≥ 10) |
-| `--t-burn` | Int | 1000 | Burn-in discarded before scoring |
-| `--t-fit` | Int | 4000 | Periods used to fit the implied law (> 100; `ssj`/`reiter` only) |
-| `--rho-z` / `--sigma-z` | Float64 | 0.95 / 0.007 | Aggregate shock persistence and s.d. |
-| `--seed` | Int | 98765 | Simulation seed |
-| `--plot` / `--plot-save` | Flag/String | | Reference vs law-only path |
+Full option list (simulation lengths, shock persistence and scale, seed, plot flags) lives in the [generated reference](generated/dsge.md). `--t-sim` must exceed `--t-burn` by at least 10, and `--t-fit` (linearized methods only) must exceed 100 — both are guarded as `usage/invalid`.
 
 **Output:** `dh_max` and `dh_mean` (maximum and mean percentage deviation — smaller is
 better), the two simulation standard deviations `sigma_ref`/`sigma_plm`, the full reference
@@ -926,22 +526,24 @@ from a `--t-fit`-period simulation of the linearized solution.
 than the aggregate shock alone, so a meaningful test there needs a distribution-augmented
 law. The CLI refuses before running the (expensive) solve rather than after it.
 
-## Upstream feature coverage (Stage-14 audit)
+---
 
-MacroEconometricModels 0.7.2 added a block of heterogeneous-agent / OLG / continuous-time
-features. Not all of them warrant CLI surface; this records where each stands, so the absence
-of a command is a decision rather than an oversight.
+## Upstream feature coverage (audit)
+
+Upstream ships a block of heterogeneous-agent / OLG / continuous-time features. Not all of
+them warrant CLI surface; this records where each stands, so the absence of a command is a
+decision rather than an oversight.
 
 | Upstream feature | Status in the CLI |
 |---|---|
 | Den Haan accuracy | **Exposed** as `hadsge accuracy` (above), for all three solution methods |
-| Winberry parametric distribution dynamics | Reachable via the existing `hadsge` method surface; note the library's convergence flag is scale-relative, and its four-moment basis is not numerically portable across platforms — do not compare that flag between machines |
+| Winberry parametric distribution dynamics | Reachable via `--distribution winberry` on the existing `hadsge` leaves; note the library's convergence flag is scale-relative, and its four-moment basis is not numerically portable across platforms — do not compare that flag between machines |
 | SSJ DAG / second-order SSJ | **Deferred.** Block-composition types (`SimpleBlock`/`HetBlock`/`SSJModel`) are a model-*construction* API. Exposing them means a config schema for wiring blocks, which is a design task in its own right, not an option on an existing leaf |
-| DCEGM (discrete–continuous choice) | **Deferred.** Needs a builtin carrying a discrete choice; none of the shipped builtins has one, so a leaf would have nothing to run |
-| Life-cycle OLG (age-EGM) | **Deferred.** A distinct model class with its own steady state and distribution objects, not an option on the existing two-period `dsge olg` leaves |
-| Endogenous labour (GHH / separable) | **Deferred.** A property of a model spec, so it belongs in the builtin/config surface rather than a flag |
+| DCEGM (discrete–continuous choice) | **Exposed** as `dsge dcegm` (solve, steady-state, irf, fevd, simulate, transition); see the [generated reference](generated/dsge.md) |
+| Life-cycle OLG (age-EGM) | **Exposed** as `dsge lifecycle` (steady-state, transition, irf, fevd, simulate); see the [generated reference](generated/dsge.md) |
+| Endogenous labour (GHH / separable) | **Exposed** as the `endogenous-labor` builtin (above) |
 | Adaptive Smolyak / adaptive grids | **No new surface.** Grid construction is internal to solving; the existing `--n-reduced` already governs the accuracy/cost trade-off users actually tune |
-| KMV two-asset GE + MIT transitions | **Deferred.** Substantial new surface (two-asset calibration, transition paths); the existing `dsge ct` leaves cover the one-asset case |
+| KMV two-asset GE + MIT transitions | **Exposed** as `dsge ct solve --two-asset [--ge]` and `dsge ct transition --z-path`; see the [generated reference](generated/dsge.md) |
 
 Deferred rows are gated on a concrete use case rather than on upstream — the methods exist
 today and can be reached from Julia directly.
@@ -951,9 +553,8 @@ Two related items settled with the same audit:
 - **Euler-error convention.** Surfaced as `--euler-points midpoints|nodes` on
   `hadsge steady-state`, and both statistics are reported unconditionally from
   `HASteadyState.euler`. See [Euler accuracy](#Euler-accuracy-and---euler-points).
-- **[#80](https://github.com/FriedmanJP/Friedman-cli/issues/80) — HA `.jl` loader.** Fixed
-  here rather than worked around, since `hadsge accuracy` loads models through the same
-  helper. See [Custom models from a `.jl` file](#Custom-models-from-a-.jl-file).
+- **HA `.jl` loader.** Loads through the same helper as `hadsge accuracy`.
+  See [Custom models from a `.jl` file](#Custom-models-from-a-.jl-file).
 
 ---
 
@@ -963,6 +564,7 @@ Two related items settled with the same audit:
 2. **Large builtins** — `two-asset-hank` is expensive; prototype on `huggett`.
 3. **Agent contract** — with `--format json`, stdout is one envelope; status is stderr ([Agent Guide](../agent-guide.md)).
 4. **Wrong command for HA specs** — a `.jl` file with one `HouseholdSystem` under `dsge solve|irf|…` raises `usage/wrong-command` (exit 2) pointing at `hadsge solve`. Conversely, a representative-agent spec under `hadsge` is rejected the same way.
+5. **Coarse CT grids** — keep the leaf default grid size and never go below 16; smaller grids fail in the Linux sparse factorisation.
 
 ---
 

@@ -1,138 +1,744 @@
 # nowcast
 
-Real-time nowcasting with mixed-frequency data: `dfm`, `bvar`, `bridge`, `news`, `forecast`.
+Mixed-frequency nowcasting for a monthly/quarterly panel: `dfm`, `bvar`, `bridge`, `news`, `forecast`. Every leaf takes a CSV panel as its positional `data` argument except `news`, which takes two vintages instead. Full option tables live in the [generated `nowcast` reference](generated/nowcast.md).
 
-All nowcast methods accept `--monthly-vars` and `--quarterly-vars` to specify the frequency split. When omitted, defaults to all-but-last as monthly and last column as the quarterly target.
+Each leaf splits columns into monthly indicators and quarterly variables through `--monthly-vars` and `--quarterly-vars`. Omit both and the CLI treats all-but-last column as monthly with the last column as the quarterly **target**. `--target-var` selects a different target (0 means last).
+
+---
 
 ## nowcast dfm
 
-Nowcast via Dynamic Factor Model using the EM algorithm (Banbura, Giannone, & Reichlin 2011).
+Nowcast from a **dynamic factor model** fit by EM (Banbura, Giannone, & Reichlin). The factor block is tuned by `--factors` (`-r`) and `--lags` (`-p`); `--idio` selects the **idiosyncratic** component and `--max-iter` caps EM iterations.
 
 ```bash
-friedman nowcast dfm data.csv --factors=3 --lags=2
-friedman nowcast dfm data.csv --monthly-vars=10 --quarterly-vars=2 --target-var=12
-friedman nowcast dfm data.csv --idio=iid --max-iter=200 --plot
+friedman nowcast dfm :fred_md --factors=3 --lags=2
+friedman nowcast dfm :fred_md --idio=iid --max-iter=200
 ```
 
-| Option | Short | Type | Default | Description |
-|--------|-------|------|---------|-------------|
-| `--monthly-vars` | | Int | auto | Number of monthly variables (first N columns) |
-| `--quarterly-vars` | | Int | auto | Number of quarterly variables (remaining columns) |
-| `--factors` | `-r` | Int | 2 | Number of factors |
-| `--lags` | `-p` | Int | 1 | Factor VAR lags |
-| `--idio` | | String | `ar1` | Idiosyncratic component: `ar1`, `iid` |
-| `--max-iter` | | Int | 100 | Maximum EM iterations |
-| `--target-var` | | Int | 0 | Target variable index (0 = last) |
-| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
-| `--output` | `-o` | String | | Export file path |
-| `--plot` | | Flag | | Open interactive plot in browser |
-| `--plot-save` | | String | | Save plot to HTML file |
+The leaf emits the `nowcast_dfm` table: nowcast, forecast, log-likelihood, and EM iteration count.
 
-**Output:** Nowcast value, forecast value, log-likelihood, EM iterations.
+---
 
 ## nowcast bvar
 
-Nowcast via Bayesian VAR for mixed-frequency data.
+Nowcast from a mixed-frequency Bayesian VAR. The only lag knob is `--lags` (`-p`): this leaf takes no `--factors`. The **prior** is tuned by `--prior` (`conjugate` or `litterman`) plus the hyperparameters `--lambda0`, `--theta0`, `--miu0`, `--alpha0`, with `--theta-cross` available under `litterman` only — passing it with `conjugate` is a usage error, because the dummy-observation prior pins the cross/own tightness ratio by construction.
 
 ```bash
-friedman nowcast bvar data.csv --lags=5
-friedman nowcast bvar data.csv --monthly-vars=8 --quarterly-vars=1 --target-var=9
-friedman nowcast bvar data.csv --prior=litterman --theta-cross=0.5
+friedman nowcast bvar :fred_md --lags=5
+friedman nowcast bvar :fred_md --prior=litterman --theta-cross=0.5
 ```
 
-| Option | Short | Type | Default | Description |
-|--------|-------|------|---------|-------------|
-| `--monthly-vars` | | Int | auto | Number of monthly variables |
-| `--quarterly-vars` | | Int | auto | Number of quarterly variables |
-| `--lags` | `-p` | Int | 5 | VAR lags |
-| `--target-var` | | Int | 0 | Target variable index (0 = last) |
-| `--prior` | | String | `conjugate` | `conjugate` (GLP dummy-observation NIW) or `litterman` (fixed-Σ) |
-| `--theta-cross` | | String | | Initial cross-variable relative tightness > 0 (`litterman` only) |
-| `--lambda0` | | Float | 0.2 | Initial overall shrinkage λ |
-| `--theta0` | | Float | 1.0 | Initial lag-decay exponent (Litterman *d* / GLP α) |
-| `--miu0` | | Float | 1.0 | Initial sum-of-coefficients weight μ |
-| `--alpha0` | | Float | 2.0 | Initial co-persistence weight α |
-| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
-| `--output` | `-o` | String | | Export file path |
+The leaf emits two tables: `nowcast_bvar` (nowcast, forecast, log-likelihood) and `nowcast_bvar_hyperparameters` (the optimized hyperparameters). Log-likelihoods are not comparable across priors — the conjugate value integrates Σ out while the Litterman value holds it fixed — so compare lag orders within a prior and priors by out-of-sample performance.
 
-**Output:** two tables — the nowcast/forecast/log-likelihood values, and the *optimized* hyperparameters (Nelder–Mead), which record the prior and, under `litterman`, the cross-variable tightness `theta_cross`.
-
-!!! note "`--prior litterman` and `--theta-cross` (MEMs#602, v0.9.2)"
-    Under the conjugate dummy-observation prior the cross/own tightness ratio is pinned by Σ whatever the dummy rows are, so a cross-lag knob **cannot exist** — passing `--theta-cross` with `--prior conjugate` is a usage error, by construction rather than by policy. The Litterman prior fixes Σ at `diag(σ̂²)`, which separates the equations and frees `theta_cross` as a genuine hyperparameter. **Log-likelihoods are not comparable across priors** (the conjugate value integrates Σ out; the Litterman value holds it fixed): compare lag orders or hyperparameters within a prior, and compare priors by out-of-sample performance.
+---
 
 ## nowcast bridge
 
-Nowcast via bridge equations linking monthly indicators to the quarterly target.
+Nowcast from **bridge equations** linking monthly indicators to the quarterly target. Its lag structure is three separate knobs — `--lag-m` (monthly indicators), `--lag-q` (quarterly indicators), `--lag-y` (dependent variable) — and it takes neither `--factors` nor `--lags`.
 
 ```bash
-friedman nowcast bridge data.csv
-friedman nowcast bridge data.csv --lag-m=2 --lag-q=1 --lag-y=1
-friedman nowcast bridge data.csv --monthly-vars=5 --quarterly-vars=1
+friedman nowcast bridge :fred_md
+friedman nowcast bridge :fred_md --lag-m=2 --lag-q=1 --lag-y=1
 ```
 
-| Option | Short | Type | Default | Description |
-|--------|-------|------|---------|-------------|
-| `--monthly-vars` | | Int | auto | Number of monthly variables |
-| `--quarterly-vars` | | Int | auto | Number of quarterly variables |
-| `--lag-m` | | Int | 1 | Monthly indicator lags |
-| `--lag-q` | | Int | 1 | Quarterly indicator lags |
-| `--lag-y` | | Int | 1 | Dependent variable lags |
-| `--target-var` | | Int | 0 | Target variable index (0 = last) |
-| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
-| `--output` | `-o` | String | | Export file path |
+The leaf emits the `nowcast_bridge` table: nowcast, forecast, and the number of bridge equations.
 
-**Output:** Nowcast value, forecast value, number of bridge equations.
+---
 
 ## nowcast news
 
-News decomposition for nowcast revisions (Banbura & Modugno 2014). Compares old and new data vintages to attribute nowcast revisions to individual data releases.
+**News decomposition** (Banbura & Modugno): attribute a nowcast revision to individual data releases by comparing an old and a new data vintage. This leaf takes no positional argument; the vintages arrive via `--data-new` and `--data-old` (both required). `--method` selects the model (`dfm` or `bvar`); `--factors` applies to DFM fits and `--lags` to either. `--target-period` selects the period under study and `--target-var` the target variable (0 means last in both).
 
+Each example below simulates a factor panel in-block, derives the old vintage by blanking the last column of the final two rows (same shape, filled-in cells — a newer vintage never adds rows), and runs the decomposition:
 ```bash
-friedman nowcast news --data-new=new_vintage.csv --data-old=old_vintage.csv
-friedman nowcast news --data-new=v2.csv --data-old=v1.csv --method=bvar
-friedman nowcast news --data-new=v2.csv --data-old=v1.csv --target-period=50 --plot
+friedman data simulate factors --series 6 --periods 60 --seed 7 --format csv --output vint_new.csv && awk -F, 'BEGIN{OFS=","} NR==1{print; next} {row[NR]=$0; n=NR} END{for(i=2;i<=n;i++){if(i>n-2){$0=row[i]; $NF=""; print} else print row[i]}}' vint_new.csv > vint_old.csv && friedman nowcast news --data-new=vint_new.csv --data-old=vint_old.csv
+friedman data simulate factors --series 6 --periods 60 --seed 7 --format csv --output vint_new.csv && awk -F, 'BEGIN{OFS=","} NR==1{print; next} {row[NR]=$0; n=NR} END{for(i=2;i<=n;i++){if(i>n-2){$0=row[i]; $NF=""; print} else print row[i]}}' vint_new.csv > vint_old.csv && friedman nowcast news --data-new=vint_new.csv --data-old=vint_old.csv --method=bvar --target-period=50
 ```
 
-| Option | Short | Type | Default | Description |
-|--------|-------|------|---------|-------------|
-| `--data-new` | | String | (required) | Path to new vintage CSV |
-| `--data-old` | | String | (required) | Path to old vintage CSV |
-| `--monthly-vars` | | Int | auto | Number of monthly variables |
-| `--quarterly-vars` | | Int | auto | Number of quarterly variables |
-| `--method` | | String | `dfm` | `dfm`, `bvar` |
-| `--factors` | `-r` | Int | 2 | Number of factors (DFM only) |
-| `--lags` | `-p` | Int | 1 | Factor VAR lags |
-| `--target-period` | | Int | 0 | Target period (0 = last) |
-| `--target-var` | | Int | 0 | Target variable index (0 = last) |
-| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
-| `--output` | `-o` | String | | Export file path |
-| `--plot` | | Flag | | Open interactive plot in browser |
-| `--plot-save` | | String | | Save plot to HTML file |
+The two vintages must have the same shape. A newer vintage fills in missing cells of the old one; it never adds rows. A row-count mismatch is user error and exits 3 (`data/shape`), not an internal failure. The leaf emits the `nowcast_news_decomposition` table: per-variable news impacts behind the revision.
 
-**Output:** Old nowcast, new nowcast, revision, per-variable news impact table.
+---
 
 ## nowcast forecast
 
-Multi-step ahead forecast from a nowcasting model.
+Multi-step forecast from a fitted nowcasting model. `--method` selects `dfm` or `bvar`; `--factors` applies to DFM only and `--lags` to DFM and BVAR. `--horizons` sets the forecast horizon (it has no short flag: `-h` is help on every leaf). `bridge` is a declared `--method` choice but has no upstream `forecast` method (MEMs 1.0.0 defines `forecast` only for DFM/BVAR models), so `--method=bridge` fails here — bridge nowcasts via `nowcast bridge`.
 
+<!-- capture -->
 ```bash
-friedman nowcast forecast data.csv --method=dfm --horizons=8
-friedman nowcast forecast data.csv --method=bvar --horizons=4
-friedman nowcast forecast data.csv --method=bridge --horizons=4 --plot
+friedman nowcast forecast :fred_md --method=dfm --horizons=4 --format json
+```
+```json
+{
+    "schema_version": 1,
+    "data": {
+        "nowcast_forecast": {
+            "columns": [
+                "horizon",
+                "RPI",
+                "W875RX1",
+                "DPCERA3M086SBEA",
+                "CMRMTSPLx",
+                "RETAILx",
+                "INDPRO",
+                "IPFPNSS",
+                "IPFINAL",
+                "IPCONGD",
+                "IPDCONGD",
+                "IPNCONGD",
+                "IPBUSEQ",
+                "IPMAT",
+                "IPDMAT",
+                "IPNMAT",
+                "IPMANSICS",
+                "IPB51222S",
+                "IPFUELS",
+                "CUMFNS",
+                "HWI",
+                "HWIURATIO",
+                "CLF16OV",
+                "CE16OV",
+                "UNRATE",
+                "UEMPMEAN",
+                "UEMPLT5",
+                "UEMP5TO14",
+                "UEMP15OV",
+                "UEMP15T26",
+                "UEMP27OV",
+                "CLAIMSx",
+                "PAYEMS",
+                "USGOOD",
+                "CES1021000001",
+                "USCONS",
+                "MANEMP",
+                "DMANEMP",
+                "NDMANEMP",
+                "SRVPRD",
+                "USTPU",
+                "USWTRADE",
+                "USTRADE",
+                "USFIRE",
+                "USGOVT",
+                "CES0600000007",
+                "AWOTMAN",
+                "AWHMAN",
+                "HOUST",
+                "HOUSTNE",
+                "HOUSTMW",
+                "HOUSTS",
+                "HOUSTW",
+                "PERMIT",
+                "PERMITNE",
+                "PERMITMW",
+                "PERMITS",
+                "PERMITW",
+                "ACOGNO",
+                "AMDMNOx",
+                "ANDENOx",
+                "AMDMUOx",
+                "BUSINVx",
+                "ISRATIOx",
+                "M1SL",
+                "M2SL",
+                "M2REAL",
+                "BOGMBASE",
+                "TOTRESNS",
+                "NONBORRES",
+                "BUSLOANS",
+                "REALLN",
+                "NONREVSL",
+                "CONSPI",
+                "S&P 500",
+                "S&P div yield",
+                "S&P PE ratio",
+                "FEDFUNDS",
+                "CP3Mx",
+                "TB3MS",
+                "TB6MS",
+                "GS1",
+                "GS5",
+                "GS10",
+                "AAA",
+                "BAA",
+                "COMPAPFFx",
+                "TB3SMFFM",
+                "TB6SMFFM",
+                "T1YFFM",
+                "T5YFFM",
+                "T10YFFM",
+                "AAAFFM",
+                "BAAFFM",
+                "TWEXAFEGSMTHx",
+                "EXSZUSx",
+                "EXJPUSx",
+                "EXUSUKx",
+                "EXCAUSx",
+                "WPSFD49207",
+                "WPSFD49502",
+                "WPSID61",
+                "WPSID62",
+                "OILPRICEx",
+                "PPICMM",
+                "CPIAUCSL",
+                "CPIAPPSL",
+                "CPITRNSL",
+                "CPIMEDSL",
+                "CUSR0000SAC",
+                "CUSR0000SAD",
+                "CUSR0000SAS",
+                "CPIULFSL",
+                "CUSR0000SA0L2",
+                "CUSR0000SA0L5",
+                "PCEPI",
+                "DDURRG3M086SBEA",
+                "DNDGRG3M086SBEA",
+                "DSERRG3M086SBEA",
+                "CES0600000008",
+                "CES2000000008",
+                "CES3000000008",
+                "UMCSENTx",
+                "DTCOLNVHFNM",
+                "DTCTHFNM",
+                "INVEST",
+                "VIXCLSx"
+            ],
+            "rows": [
+                [
+                    1,
+                    20754.508,
+                    16744.451,
+                    126.28443,
+                    1.5673305e6,
+                    737343.58,
+                    102.48261,
+                    98.615709,
+                    98.834031,
+                    98.838273,
+                    95.319643,
+                    99.788579,
+                    96.061757,
+                    107.45801,
+                    98.78169,
+                    98.278316,
+                    97.604655,
+                    112.00236,
+                    88.575782,
+                    75.555187,
+                    7181.3724,
+                    0.921448,
+                    171621.95,
+                    164091.63,
+                    4.423306,
+                    24.462179,
+                    2304.1789,
+                    2125.3275,
+                    3170.2124,
+                    1231.4949,
+                    1970.755,
+                    249128.66,
+                    159619.14,
+                    21529.31,
+                    570.40386,
+                    8302.9206,
+                    12626.193,
+                    7810.1671,
+                    4815.6009,
+                    138090.16,
+                    28984.819,
+                    6157.3738,
+                    15549.306,
+                    9247.5101,
+                    23409.599,
+                    40.835244,
+                    3.752741,
+                    41.257589,
+                    1240.0323,
+                    132.62924,
+                    190.7517,
+                    652.02083,
+                    264.14572,
+                    1390.6055,
+                    136.40957,
+                    195.27187,
+                    727.00016,
+                    319.5211,
+                    245369.25,
+                    317426.6,
+                    100369.2,
+                    1518151,
+                    2.6936736e6,
+                    1.36545,
+                    19070.884,
+                    22445.703,
+                    6890.6274,
+                    5392.0522,
+                    2956.0727,
+                    2946.4178,
+                    2716.7791,
+                    5762.6933,
+                    3.7978643e6,
+                    143.98295,
+                    6835.5364,
+                    1.131119,
+                    30.804086,
+                    3.577242,
+                    3.607907,
+                    3.468691,
+                    3.410362,
+                    3.412906,
+                    3.580717,
+                    4.026556,
+                    5.204637,
+                    5.791492,
+                    0.083888,
+                    -0.013855,
+                    -0.069677,
+                    -0.076276,
+                    0.060582,
+                    0.498816,
+                    1.667322,
+                    2.254392,
+                    111.48449,
+                    0.803462,
+                    155.59867,
+                    1.341213,
+                    1.377413,
+                    266.46159,
+                    282.47106,
+                    263.39593,
+                    251.96784,
+                    58.881407,
+                    458.8907,
+                    325.75552,
+                    132.41565,
+                    274.5468,
+                    589.54525,
+                    227.32515,
+                    123.62511,
+                    423.90566,
+                    323.90386,
+                    292.79038,
+                    313.30199,
+                    128.38471,
+                    105.598,
+                    121.57481,
+                    134.51318,
+                    33.067573,
+                    38.061784,
+                    29.519609,
+                    53.81991,
+                    541252.85,
+                    944269.97,
+                    5641.1863,
+                    15.89562
+                ],
+                [
+                    2,
+                    20797.092,
+                    16769.193,
+                    126.46896,
+                    1.5697061e6,
+                    737850.48,
+                    102.64359,
+                    98.723886,
+                    98.95787,
+                    98.867753,
+                    95.813257,
+                    99.745804,
+                    96.39737,
+                    107.67512,
+                    99.224847,
+                    98.103029,
+                    97.800019,
+                    112.37343,
+                    88.749614,
+                    75.499294,
+                    7179.5612,
+                    0.921761,
+                    171670.07,
+                    164180.45,
+                    4.437443,
+                    24.606506,
+                    2285.9733,
+                    2166.0737,
+                    3197.6035,
+                    1263.5723,
+                    1993.5974,
+                    270626.86,
+                    159654.91,
+                    21456.799,
+                    568.42796,
+                    8302.1193,
+                    12561.65,
+                    7769.1898,
+                    4791.6706,
+                    138180.76,
+                    28979.533,
+                    6152.4161,
+                    15546.238,
+                    9247.8697,
+                    23406.092,
+                    40.850832,
+                    3.764896,
+                    41.285003,
+                    1232.3249,
+                    130.91798,
+                    188.0204,
+                    648.8919,
+                    262.61919,
+                    1384.0624,
+                    135.54406,
+                    193.98839,
+                    724.59249,
+                    316.99358,
+                    246088.32,
+                    317072.27,
+                    100524.57,
+                    1.5203256e6,
+                    2.6967801e6,
+                    1.361537,
+                    19033.938,
+                    22483.118,
+                    6906.2616,
+                    5412.6024,
+                    2971.6787,
+                    2960.9741,
+                    2723.8281,
+                    5781.9851,
+                    3.8083795e6,
+                    144.54126,
+                    6820.4497,
+                    1.110911,
+                    30.939718,
+                    3.43483,
+                    3.476919,
+                    3.346487,
+                    3.290579,
+                    3.286778,
+                    3.46518,
+                    3.916966,
+                    5.102573,
+                    5.685928,
+                    0.134656,
+                    0.085476,
+                    0.04041,
+                    0.021197,
+                    0.151105,
+                    0.589287,
+                    1.756984,
+                    2.340541,
+                    111.12419,
+                    0.809757,
+                    155.37747,
+                    1.344514,
+                    1.374648,
+                    266.64021,
+                    282.75038,
+                    263.61922,
+                    252.80457,
+                    59.670475,
+                    457.2543,
+                    326.08455,
+                    132.21669,
+                    274.82527,
+                    591.07794,
+                    227.46901,
+                    123.35393,
+                    424.38654,
+                    324.22316,
+                    293.08781,
+                    313.57325,
+                    128.48054,
+                    105.0541,
+                    121.686,
+                    134.65701,
+                    33.090396,
+                    38.083518,
+                    29.537172,
+                    54.7531,
+                    542086.32,
+                    948680.11,
+                    5652.9126,
+                    15.797707
+                ],
+                [
+                    3,
+                    20839.4,
+                    16793.907,
+                    126.65343,
+                    1.5720749e6,
+                    738376.63,
+                    102.80327,
+                    98.830584,
+                    99.080194,
+                    98.896105,
+                    96.296606,
+                    99.702074,
+                    96.730778,
+                    107.89114,
+                    99.665596,
+                    97.927483,
+                    97.993603,
+                    112.71261,
+                    88.920894,
+                    75.444355,
+                    7177.7915,
+                    0.922082,
+                    171717.64,
+                    164267.29,
+                    4.450979,
+                    24.750081,
+                    2268.5693,
+                    2199.3809,
+                    3224.8092,
+                    1292.9635,
+                    2016.2951,
+                    287233.75,
+                    159690.39,
+                    21384.624,
+                    566.45753,
+                    8301.3461,
+                    12497.388,
+                    7728.383,
+                    4767.852,
+                    138270.83,
+                    28974.178,
+                    6147.4566,
+                    15543.064,
+                    9248.197,
+                    23402.503,
+                    40.865942,
+                    3.776778,
+                    41.311433,
+                    1224.7265,
+                    129.28829,
+                    185.38146,
+                    645.79202,
+                    261.10862,
+                    1377.5879,
+                    134.70828,
+                    192.72947,
+                    722.20155,
+                    314.50464,
+                    246806.79,
+                    316740.57,
+                    100678.79,
+                    1.5225075e6,
+                    2.6999027e6,
+                    1.357705,
+                    18997.77,
+                    22520.783,
+                    6921.8921,
+                    5433.1571,
+                    2987.2658,
+                    2975.5187,
+                    2730.8754,
+                    5801.2593,
+                    3818903,
+                    145.09627,
+                    6805.6457,
+                    1.090774,
+                    31.074205,
+                    3.293135,
+                    3.346597,
+                    3.224912,
+                    3.171409,
+                    3.161283,
+                    3.350197,
+                    3.807894,
+                    5.000967,
+                    5.580812,
+                    0.180795,
+                    0.176576,
+                    0.141854,
+                    0.109001,
+                    0.237896,
+                    0.677021,
+                    1.844674,
+                    2.42476,
+                    110.76598,
+                    0.81606,
+                    155.16365,
+                    1.347808,
+                    1.371898,
+                    266.81982,
+                    283.03049,
+                    263.84318,
+                    253.63136,
+                    60.446016,
+                    455.63672,
+                    326.4142,
+                    132.0177,
+                    275.10289,
+                    592.60775,
+                    227.61243,
+                    123.083,
+                    424.86939,
+                    324.54306,
+                    293.38524,
+                    313.84531,
+                    128.57656,
+                    104.51098,
+                    121.79688,
+                    134.80145,
+                    33.11345,
+                    38.105556,
+                    29.554928,
+                    55.650043,
+                    542924.96,
+                    953072.17,
+                    5664.6894,
+                    16.737352
+                ],
+                [
+                    4,
+                    20881.439,
+                    16818.595,
+                    126.83784,
+                    1574437,
+                    738921.69,
+                    102.96166,
+                    98.935817,
+                    99.201017,
+                    98.923338,
+                    96.769913,
+                    99.6574,
+                    97.062005,
+                    108.10607,
+                    100.10397,
+                    97.751674,
+                    98.185427,
+                    113.02249,
+                    89.089662,
+                    75.39035,
+                    7176.063,
+                    0.92241,
+                    171764.69,
+                    164352.18,
+                    4.463931,
+                    24.892913,
+                    2251.9137,
+                    2226.4991,
+                    3251.8315,
+                    1319.8962,
+                    2038.8495,
+                    300045.77,
+                    159725.59,
+                    21312.783,
+                    564.49249,
+                    8300.6009,
+                    12433.402,
+                    7687.7446,
+                    4744.1437,
+                    138360.36,
+                    28968.756,
+                    6142.495,
+                    15539.784,
+                    9248.4923,
+                    23398.833,
+                    40.880593,
+                    3.788392,
+                    41.336919,
+                    1217.2344,
+                    127.73632,
+                    182.83118,
+                    642.7207,
+                    259.61363,
+                    1371.1807,
+                    133.90121,
+                    191.49446,
+                    719.8271,
+                    312.05337,
+                    247524.69,
+                    316430.63,
+                    100831.91,
+                    1.5246968e6,
+                    2.7030414e6,
+                    1.353952,
+                    18962.373,
+                    22558.698,
+                    6937.5193,
+                    5453.7167,
+                    3002.8345,
+                    2990.052,
+                    2737.921,
+                    5820.5163,
+                    3.8294351e6,
+                    145.64801,
+                    6791.122,
+                    1.070707,
+                    31.207573,
+                    3.15215,
+                    3.216933,
+                    3.103957,
+                    3.052843,
+                    3.036413,
+                    3.235761,
+                    3.699333,
+                    4.899813,
+                    5.47614,
+                    0.222769,
+                    0.260202,
+                    0.235405,
+                    0.188163,
+                    0.321129,
+                    0.762115,
+                    1.930443,
+                    2.5071,
+                    110.40985,
+                    0.822372,
+                    154.95716,
+                    1.351096,
+                    1.369162,
+                    267.00041,
+                    283.31139,
+                    264.06781,
+                    254.44843,
+                    61.208317,
+                    454.03777,
+                    326.74446,
+                    131.81865,
+                    275.37969,
+                    594.13471,
+                    227.75542,
+                    122.81232,
+                    425.35419,
+                    324.86355,
+                    293.68267,
+                    314.11818,
+                    128.67275,
+                    103.96864,
+                    121.90746,
+                    134.9465,
+                    33.136733,
+                    38.127894,
+                    29.572874,
+                    56.512122,
+                    543768.74,
+                    957446.36,
+                    5676.5167,
+                    17.424144
+                ]
+            ]
+        }
+    },
+    "warnings": [
+    ],
+    "status": "ok",
+    "artifacts": [
+    ],
+    "command": "friedman nowcast forecast",
+    "meta": {
+    },
+    "error": null
+}
 ```
 
-| Option | Short | Type | Default | Description |
-|--------|-------|------|---------|-------------|
-| `--monthly-vars` | | Int | auto | Number of monthly variables |
-| `--quarterly-vars` | | Int | auto | Number of quarterly variables |
-| `--method` | | String | `dfm` | `dfm`, `bvar`, `bridge` |
-| `--factors` | `-r` | Int | 2 | Number of factors (DFM only) |
-| `--lags` | `-p` | Int | 1 | Factor VAR lags |
-| `--horizons` | `-h` | Int | 4 | Forecast horizon |
-| `--target-var` | | Int | 0 | Target variable index (0 = last) |
-| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
-| `--output` | `-o` | String | | Export file path |
-| `--plot` | | Flag | | Open interactive plot in browser |
-| `--plot-save` | | String | | Save plot to HTML file |
+The leaf emits the `nowcast_forecast` table: the forecast path by horizon, one column per variable.
 
-**Output:** Per-variable forecast table across horizons.
+---
+
+## References
+
+- Banbura, Giannone, & Reichlin (2011). Nowcasting.
+- Banbura & Modugno (2014). Maximum likelihood estimation of factor models on datasets with arbitrary pattern of missing data.
+- Full option and output-table reference: [generated `nowcast` reference](generated/nowcast.md).

@@ -35,6 +35,8 @@ Total: 21 top-level commands, 477 leaves (from registry).
 
 Additionally, `friedman repl` launches an interactive REPL session with persistent data loading, result caching, and tab completion.
 
+---
+
 ## Generated reference pages
 
 - [`completions`](generated/completions.md) — 3 leaves
@@ -63,16 +65,22 @@ Additionally, `friedman repl` launches an interactive REPL session with persiste
 
 ## Common Options
 
-All commands that produce output support these options:
+Every leaf that produces output supports `--format`/`-f` (`table`|`csv`|`json`) and `--output`/`-o` (write to a file instead of stdout):
 
 | Option | Short | Type | Default | Description |
 |--------|-------|------|---------|-------------|
 | `--format` | `-f` | String | `table` | Output format: `table`, `csv`, or `json` |
 | `--output` | `-o` | String | (stdout) | Export results to a file path |
 
+Leaves that accept a TOML spec (priors, restrictions, DSGE models, GMM/SMM configs, equation systems) add `--config <path>`. Plot-capable leaves add the `--plot` flag (open interactive plot in browser) and `--plot-save <path>` (save plot to HTML file) — only where a real `plot_result` recipe exists for the result type.
+
+Agent-wide globals come **before** the command (leading only): `--seed N` (deterministic runs, echoed in envelope `meta`), `--quiet`/`-q` (warnings and above on stderr), `--json` (force JSON envelope), `--no-color`. Mid-argv they are ordinary tokens, never swallowed out of a command line.
+
+---
+
 ## Help
 
-Every command and subcommand supports `--help`. Machine-readable schema:
+Every command and subcommand supports `--help` (`-h` is reserved for help on every leaf). Machine-readable schema:
 
 ```bash
 friedman schema estimate multivariate var

@@ -16,31 +16,57 @@
 
 # Shared utilities for command handlers
 
+# ── Gap-cell guard ─────────────────────────────────────────
+
+"""Gap-cell test for loaded data columns: `missing` (a blank CSV cell) or a
+non-finite float (`NaN` literal, `±Inf`, or a NaN-bearing `:example` dataset
+such as `:fred_md`).
+
+Every shared loader guards with `any(_is_gap, col)` so both surface as typed
+`data/missing-values` (exit 3) instead of an untyped `ArgumentError` from the
+`Matrix{Float64}`/`Vector{Float64}` conversion or an upstream validator (exit 1) —
+unless the caller passes `allow_nan` (nowcasting estimators digest ragged edges).
+Non-finiteness needs the explicit `isa Real` check: `isnan`/`isinf`/`isfinite`
+are undefined on `missing` and on non-Real values, and a bare broadcast would throw."""
+_is_gap(v) = v === missing || (v isa Real && !isfinite(v))
+
 # ── Data Loading Helpers ───────────────────────────────────
 
 """
-    load_multivariate_data(data) → (Y::Matrix{Float64}, varnames::Vector{String})
+    load_multivariate_data(data; allow_nan=false) → (Y::Matrix{Float64}, varnames::Vector{String})
 
 Load CSV or a typed data handle, convert to a numeric matrix and extract variable names.
 CSV path is bit-identical to `load_data` + `df_to_matrix`; a handle uses `to_matrix`/`varnames`.
+Gap cells reject as typed `data/missing-values` unless `allow_nan` (nowcasting only).
 """
-function load_multivariate_data(data::String)
+function load_multivariate_data(data::String; allow_nan::Bool=false)
     obj = resolve_data(data)
     if obj isa DataFrame
         df = obj
         vn = variable_names(df)
-        # Guard missing cells as a typed data error BEFORE df_to_matrix's Matrix{Float64}
-        # conversion (which throws an untyped ArgumentError → uncaught exit-1). Mirrors the
-        # univariate `load_univariate_series` guard so every multivariate estimator surfaces
-        # a `data/missing-values` (exit 3) instead of an internal error.
-        for c in vn
-            any(ismissing, df[!, c]) && throw(CliError("data/missing-values",
-                "column '$c' contains missing values; drop or impute them (e.g. via `data dropna`/`data fix`) first"))
+        # Guard gap cells (blank `missing` or literal `NaN`) as a typed data error BEFORE
+        # df_to_matrix's Matrix{Float64} conversion (which throws an untyped ArgumentError
+        # → uncaught exit-1) or an upstream NaN validator does — UNLESS the caller
+        # opts out via allow_nan (nowcasting estimators digest ragged-edge NaN
+        # upstream: bridge/bvar/DFM handle arbitrary missing patterns by design).
+        if !allow_nan
+            for c in vn
+                any(_is_gap, df[!, c]) && throw(CliError("data/missing-values",
+                    "column '$c' contains missing values; drop or impute them (e.g. via `data dropna`/`data fix`) first"))
+            end
         end
         return df_to_matrix(df), vn
     end
     Y = to_matrix(obj)
     vn = Vector{String}(varnames(obj))
+    # A saved handle can itself carry NaN; reject it with the same typed error rather
+    # than an untyped upstream validator failure (honored unless allow_nan).
+    if !allow_nan
+        for (j, c) in enumerate(vn)
+            any(isnan, @view Y[:, j]) && throw(CliError("data/missing-values",
+                "column '$c' contains missing values; drop or impute them (e.g. via `data dropna`/`data fix`) first"))
+        end
+    end
     return Y, vn
 end
 
@@ -57,6 +83,8 @@ function load_univariate_series(data::String, column::Int)
         (column < 1 || column > length(vn)) && throw(CliError("data/column-range",
             "column $column out of range (data has $(length(vn)) numeric column(s))";
             hint="--column is 1-based; pick 1..$(length(vn))"))
+        any(isnan, @view Y[:, column]) && throw(CliError("data/missing-values",
+            "column '$(vn[column])' contains missing values; drop or impute them (e.g. via `data dropna`/`data fix`) first"))
         return Vector{Float64}(Y[:, column]), vn[column]
     end
     df = obj
@@ -65,7 +93,7 @@ function load_univariate_series(data::String, column::Int)
         "column $column out of range (data has $(length(varnames_)) numeric column(s))";
         hint="--column is 1-based; pick 1..$(length(varnames_))"))
     col = df[!, varnames_[column]]
-    any(ismissing, col) && throw(CliError("data/missing-values",
+    any(_is_gap, col) && throw(CliError("data/missing-values",
         "column '$(varnames_[column])' contains missing values; drop or impute them (e.g. via `data dropna`/`data fix`) first"))
     return Vector{Float64}(col), varnames_[column]
 end
@@ -1389,6 +1417,14 @@ function load_panel_data(data::String, id_col::String, time_col::String)
     varnames = [n for n in variable_names(df) if n != id_col && n != time_col]
     isempty(varnames) && throw(CliError("data/invalid",
         "no numeric variable columns found after excluding id='$id_col'/time='$time_col'; a panel needs at least one numeric variable column"))
+    # Reject gap cells (blank `missing` or literal `NaN`) BEFORE xtset: it silently
+    # NaN-fills a blank cell, which would otherwise propagate to NaN coefficients at
+    # exit 0 — or hit an untyped upstream validator for literal NaN input (exit 1).
+    # Same typed `data/missing-values` (exit 3) as every other shared loader.
+    for c in varnames
+        any(_is_gap, df[!, c]) && throw(CliError("data/missing-values",
+            "column '$c' contains missing values; drop or impute them (e.g. via `data dropna`/`data fix`) first"))
+    end
     # MEMs 0.7.0 xtset takes (df, group_col::Symbol, time_col::Symbol; ...) and
     # resolves group/time ID mapping internally (C054: the old Matrix/Vector
     # signature was removed upstream). It throws untyped ArgumentErrors on a bad panel
@@ -1436,12 +1472,14 @@ function _load_panel_reg(data::String, id_col::String, time_col::String,
         v in vars || throw(CliError("usage/invalid",
             "--indep '$v' is not a panel variable (have: $(join(vars, ", ")))"))
     end
-    # Guard missing cells in the dep + regressor columns: `xtset`/`load_panel_data` silently
-    # NaN-fills a blank cell (data/panel.jl `ismissing(v) ? NaN : …`), which would propagate to
-    # NaN coefficients at exit 0 — inconsistent with `estimate cointreg`'s `_load_reg_data`,
-    # which rejects the same input. Reject it here too (adversarial review C062a).
+    # Guard gap cells (blank `missing` or literal `NaN`) in the dep + regressor columns:
+    # `xtset`/`load_panel_data` silently NaN-fills a blank cell (data/panel.jl
+    # `ismissing(v) ? NaN : …`), which would propagate to NaN coefficients at exit 0 —
+    # inconsistent with `estimate cointreg`'s `_load_reg_data`, which rejects the same
+    # input. Reject it here too (adversarial review C062a). Now subsumed by the
+    # `load_panel_data` guard above for panel variables, kept as defense in depth.
     for c in vcat([depc], indeps)
-        any(ismissing, df[!, c]) && throw(CliError("data/missing-values",
+        any(_is_gap, df[!, c]) && throw(CliError("data/missing-values",
             "column '$c' contains missing values; drop or impute them (e.g. via `data dropna`/`data fix`) first"))
     end
     return pd, Symbol(depc), Symbol.(indeps), depc, indeps
@@ -1631,7 +1669,7 @@ function _load_instrument(data::String, column::String)
     column in names(df) || throw(CliError("data/column-range",
         "instrument column '$column' not found; available: $(join(names(df), ", "))"))
     col = df[!, column]
-    any(ismissing, col) && throw(CliError("data/missing-values",
+    any(_is_gap, col) && throw(CliError("data/missing-values",
         "instrument column '$column' contains missing values"))
     try
         return Vector{Float64}(col)
@@ -2914,7 +2952,7 @@ function _load_reg_data(data::String, dep::String; weights_col::String="", clust
     # columns, so a single blank cell in dep or any regressor reaches here. Mirror the
     # univariate/multivariate loaders' typed guard for the whole reg family.
     for c in vcat([dep_col], xcols)
-        any(ismissing, df[!, c]) && throw(CliError("data/missing-values",
+        any(_is_gap, df[!, c]) && throw(CliError("data/missing-values",
             "column '$c' contains missing values; drop or impute them (e.g. via `data dropna`/`data fix`) first"))
     end
     y = Vector{Float64}(df[!, dep_col])
@@ -3018,7 +3056,7 @@ function _load_iv_data(data::String, dep::String, endogenous::String, instrument
     end
 
     for c in unique(vcat([dep_col], xcols, zcols))
-        any(ismissing, df[!, c]) && throw(CliError("data/missing-values",
+        any(_is_gap, df[!, c]) && throw(CliError("data/missing-values",
             "column '$c' contains missing values; drop or impute them (e.g. via `data dropna`/`data fix`) first"))
     end
 
@@ -3061,7 +3099,7 @@ function _load_xy_data(data::String, dep::String, indep::String)
     indep == dep_col && throw(CliError("data/column-range",
         "predictor '$indep' cannot equal the response '$dep_col'"))
     for c in (dep_col, indep)
-        any(ismissing, df[!, c]) && throw(CliError("data/missing-values",
+        any(_is_gap, df[!, c]) && throw(CliError("data/missing-values",
             "column '$c' contains missing values; drop or impute them (e.g. via `data dropna`/`data fix`) first"))
     end
     y = Vector{Float64}(df[!, dep_col])
@@ -3097,7 +3135,7 @@ function _load_clusters(data::String, clusters_col::String)
     clusters_col in names(df) || throw(CliError("data/column-range",
         "cluster column '$clusters_col' not found; available: $(join(names(df), ", "))"))
     col = df[!, clusters_col]
-    any(ismissing, col) && throw(CliError("data/missing-values",
+    any(_is_gap, col) && throw(CliError("data/missing-values",
         "cluster column '$clusters_col' contains missing values; every observation must " *
         "belong to a cluster"))
     # DENSE-RANK to Int codes rather than `Vector{Int}(col)`. Cluster identity is all that
@@ -3150,7 +3188,7 @@ function _load_coords(data::String, lat_col::String, lon_col::String, metric::St
     for (role, c) in (("--lat", lat_col), ("--lon", lon_col))
         c in names(df) || throw(CliError("data/column-range",
             "$role column '$c' not found; available: $(join(names(df), ", "))"))
-        any(ismissing, df[!, c]) && throw(CliError("data/missing-values",
+        any(_is_gap, df[!, c]) && throw(CliError("data/missing-values",
             "$role column '$c' contains missing values; coordinates must be fully observed"))
     end
     lat = try

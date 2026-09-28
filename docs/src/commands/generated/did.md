@@ -17,7 +17,7 @@ Path to panel CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--outcome` | — | `String` | `""` | — | Outcome variable column name (required) |
 | `--treatment` | — | `String` | `""` | — | Treatment indicator column name (required) |
-| `--method` | — | `String` | `twfe` | — | twfe\|cs\|sa\|bjs\|dcdh |
+| `--method` | — | `String` | `twfe` | `twfe`, `cs`, `sa`, `bjs`, `dcdh` | twfe\|cs\|sa\|bjs\|dcdh |
 | `--id-col` | — | `String` | `""` | — | Panel unit ID column (default: first column) |
 | `--time-col` | — | `String` | `""` | — | Time column (default: second column) |
 | `--leads` | — | `Int64` | `0` | — | Pre-treatment periods |

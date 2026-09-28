@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://friedmanjp.github.io/Friedman-cli/schema/envelope-v1.json",
-  "title": "Friedman CLI result envelope v1 (draft until CLI v1.0)",
+  "title": "Friedman CLI result envelope v1 (frozen at CLI v1.0.0)",
   "description": "Normative shape of stdout when JSON output is requested. Tightened at CLI v0.10.0 (W1/#136) and additive-only from v0.10.0 on: new optional keys may appear under meta/error/tables, but no key is removed or retyped within schema_version 1; a breaking change bumps schema_version to 2 and is a major release. The formal freeze declaration lands at v1.0.0 (#59). Every `data` value is a table (columns × rows); cell values are number|string|boolean|null — non-finite floats are serialized as the strings \"NaN\"/\"Inf\"/\"-Inf\", never null, and missing values as null (F20). status and error co-occur: status \"ok\" implies error null; status \"error\" implies an error object carrying a `class/code` string from the exit-code taxonomy (0 ok · 2 usage · 3 data · 4 config · 5 model · 6 env · 1 internal).",
   "type": "object",
   "required": [

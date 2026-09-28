@@ -2111,6 +2111,30 @@ end  # Shared utilities
                             "--horizon", "4", "--t-range", "50:60"])
                 @test eh isa CliError && eh.code == "usage/invalid"
 
+                # Draws path (MEMs 1.0.0 clobbers the point-run nu/rel_residual
+                # inside its draws branch — the handler re-runs the point pass
+                # and splices bands/counts, so this renders instead of dying
+                # with an untyped BoundsError on rel_residual[1]).
+                dd = _pdoc(["history", "var", csv, "--shocks", "3",
+                            "--outcomes", "infl=1,ygap=2", "--instruments", "rate=3",
+                            "--rule", "rate-peg", "--horizon", "8",
+                            "--t-range", "50:54", "--replications", "10"])
+                @test dd.status == "ok"
+                @test length(collect(dd.data[:counterfactual_history].rows)) == 5 * 3
+                ds = Dict(String(collect(r)[1]) => collect(r)[2]
+                          for r in dd.data[:history_summary].rows)
+                @test Int(ds["n_draws_used"]) == 10 && Int(ds["n_draws_failed"]) == 0
+                # Draws present but propagation off stays a point render.
+                doff = _pdoc(["history", "var", csv, "--shocks", "3",
+                              "--outcomes", "infl=1,ygap=2", "--instruments", "rate=3",
+                              "--rule", "rate-peg", "--horizon", "8",
+                              "--t-range", "50:54", "--replications", "10",
+                              "--use-draws", "off"])
+                @test doff.status == "ok"
+                ds2 = Dict(String(collect(r)[1]) => collect(r)[2]
+                           for r in doff.data[:history_summary].rows)
+                @test Int(ds2["n_draws_used"]) == 0 && Int(ds2["n_draws_failed"]) == 0
+
                 dsuf = _pdoc(["sufficiency", "dsge", nk,
                               "--observables", "infl,rate", "--horizon", "6"])
                 @test dsuf.status == "ok"
@@ -10748,7 +10772,7 @@ end
     end
 
     @testset "_did_estimate — methods cycle" begin
-        for m in ["twfe", "sa", "bjs", "dcdh"]
+        for m in ["twfe", "cs", "sa", "bjs", "dcdh"]
             mktempdir() do dir
                 csv = _make_did_csv(dir)
                 out = _capture() do
@@ -10757,6 +10781,16 @@ end
                 end
             end
         end
+    end
+
+    @testset "_did_method_sym — CLI shorts map to upstream symbols" begin
+        @test _did_method_sym("twfe") === :twfe
+        @test _did_method_sym("cs") === :callaway_santanna
+        @test _did_method_sym("sa") === :sun_abraham
+        @test _did_method_sym("bjs") === :bjs
+        @test _did_method_sym("dcdh") === :did_multiplegt
+        e = try _did_method_sym("bogus"); nothing catch ex; ex end
+        @test e isa CliError && e.code == "usage/invalid"
     end
 
     @testset "_did_estimate — missing outcome" begin
@@ -10941,6 +10975,106 @@ end
                 _estimate_favar(; data=csv, factors=2, lags=1, key_vars="1,2",
                                   method="two_step", draws=5000, format="table")
             end
+        end
+    end
+    @testset "shared loaders reject NaN cells as data/missing-values (exit 3)" begin
+        # A literal `NaN` cell (or a NaN-bearing `:example` dataset such as `:fred_md`)
+        # used to slip past the `ismissing`-only guards into `Matrix{Float64}`/upstream
+        # validators as an untyped `ArgumentError` (exit 1). Every shared loader now
+        # rejects it with the same typed `data/missing-values` as a blank cell.
+        mktempdir() do dir
+            nanerr(f) = begin
+                e = nothing
+                try; f(); catch ex; e = ex; end
+                e
+            end
+            nancsv = joinpath(dir, "nan.csv")
+            write(nancsv, "y,x1,x2\n1.0,2.0,3.0\nNaN,4.0,5.0\n2.0,3.0,4.0\n3.0,5.0,6.0\n")
+            # the reported repro at mock level: favar on NaN data → typed, never exit 1
+            ef = nanerr(() -> _estimate_favar(; data=nancsv, factors=1, lags=1,
+                                              key_vars="1,2", method="two_step",
+                                              draws=100, format="table"))
+            @test ef isa CliError && ef.code == "data/missing-values" && exit_class(ef) == 3
+            # every hardened shared loader agrees on the same code
+            @test nanerr(() -> load_multivariate_data(nancsv)).code == "data/missing-values"
+            @test nanerr(() -> load_univariate_series(nancsv, 1)).code == "data/missing-values"
+            @test nanerr(() -> _load_reg_data(nancsv, "y")).code == "data/missing-values"
+            @test nanerr(() -> _load_iv_data(nancsv, "y", "x1", "x2")).code == "data/missing-values"
+            @test nanerr(() -> _load_xy_data(nancsv, "y", "x1")).code == "data/missing-values"
+            @test nanerr(() -> _load_instrument(nancsv, "y")).code == "data/missing-values"
+            thrcsv = joinpath(dir, "thr_nan.csv")
+            write(thrcsv, "y,x1,z\n1.0,2.0,0.5\nNaN,4.0,1.5\n2.0,3.0,2.5\n3.0,5.0,3.5\n")
+            @test nanerr(() -> _load_threshold_data(thrcsv, "y", "z")).code == "data/missing-values"
+            panelnan = joinpath(dir, "panel_nan.csv")
+            write(panelnan, "group,time,y,x1\n1,1,1.0,2.0\n1,2,NaN,2.3\n2,1,3.0,4.0\n2,2,3.5,4.5\n")
+            @test nanerr(() -> load_panel_data(panelnan, "group", "time")).code == "data/missing-values"
+            @test nanerr(() -> _load_panel_reg(panelnan, "group", "time", "y", "x1")).code == "data/missing-values"
+            # MIDAS reads through load_univariate_series, so it inherits the guard
+            lf = joinpath(dir, "lf.csv")
+            write(lf, "y,aux\n" * join(["$(0.1 * i),0.5" for i in 1:40], "\n") * "\n")
+            hf = joinpath(dir, "hf.csv")
+            write(hf, "ip,aux\n" * join(["$(i == 60 ? "NaN" : string(0.1 * i)),0.5" for i in 1:120], "\n") * "\n")
+            @test nanerr(() -> _load_midas_data(lf, 1, hf, 1; m=3)).code == "data/missing-values"
+            # ...unless the caller opts out: nowcasting estimators digest
+            # ragged-edge NaN upstream (bridge/bvar/DFM handle missing by design).
+            Y, vn = load_multivariate_data(nancsv; allow_nan=true)
+            @test size(Y, 1) == 4 && vn == ["y", "x1", "x2"]
+        end
+    end
+
+    @testset "gap cells: Inf rejected; per-leaf loaders; fitted usage guards" begin
+        # `_is_gap` covers ±Inf as well as NaN/missing (upstream `_validate_data`
+        # rejects both); the per-leaf loaders outside the shared set use the same
+        # idiom; fitted panel handlers throw typed usage/missing (was bare error).
+        @test _is_gap(missing) && _is_gap(NaN) && _is_gap(Inf) && _is_gap(-Inf)
+        @test !_is_gap(1.0) && !_is_gap(0) && !_is_gap("a")
+        mktempdir() do dir
+            grab(f) = begin
+                e = nothing
+                try; f(); catch ex; e = ex; end
+                e
+            end
+            infcsv = joinpath(dir, "inf.csv")
+            write(infcsv, "y,x1,x2\n1.0,2.0,3.0\nInf,4.0,5.0\n2.0,3.0,4.0\n3.0,5.0,6.0\n")
+            @test grab(() -> load_multivariate_data(infcsv)).code == "data/missing-values"
+            @test grab(() -> load_univariate_series(infcsv, 1)).code == "data/missing-values"
+            # `data import` stays mechanically tolerant (pinned by test_handles.jl):
+            # gaps reject on estimator read, not at conversion.
+            @test _reject_missing_numeric(load_data(infcsv), ["y", "x1", "x2"]) === nothing
+            # per-leaf loaders outside the shared set
+            @test grab(() -> _load_clusters(infcsv, "y")).code == "data/missing-values"
+            @test grab(() -> _load_count_vector(infcsv, "y", "offset", [1.0, 2.0, 3.0, 4.0])).code == "data/missing-value"
+            nancsv = joinpath(dir, "nan.csv")
+            write(nancsv, "y,x1,x2\n1.0,2.0,3.0\nNaN,4.0,5.0\n2.0,3.0,4.0\n3.0,5.0,6.0\n")
+            @test grab(() -> _load_clusters(nancsv, "y")).code == "data/missing-values"
+            # gmm-iv colvec path via a poisoned moment-condition column
+            gcsv = joinpath(dir, "g.csv")
+            CSV.write(gcsv, DataFrame(output=[1.0, NaN, 3.0, 4.0], inflation=randn(4), rate=randn(4)))
+            gcfg = _make_gmm_config(dir; colnames=["output", "inflation", "rate"])
+            @test grab(() -> _estimate_gmm(; data=gcsv, config=gcfg, weighting="twostep", format="table")).code == "data/missing-values"
+            # heckman: NaN outcome on a SELECTED row rejects; unselected NaN is the layout
+            hcsv = joinpath(dir, "h.csv")
+            write(hcsv, "y,x,s\n1.0,0.5,1\nNaN,0.3,1\n2.0,0.1,0\nNaN,0.2,0\n1.5,0.4,1\n0.5,0.6,0\n")
+            @test grab(() -> _estimate_heckman(; data=hcsv, dep="y", select="s",
+                outcome_vars="x", select_vars="x", format="table")).code == "data/missing-values"
+            # rdd: NaN running variable rejects
+            rcsv = joinpath(dir, "r.csv")
+            write(rcsv, "y,x\n1.0,-2.0\n2.0,-1.0\nNaN,1.0\n3.0,2.0\n")
+            @test grab(() -> _estimate_rdd(; data=rcsv, outcome="y", running="x",
+                cutoff=0.0, format="table")).code == "data/missing-values"
+            # forecast evaluate actuals/forecasts loader
+            fcsv = joinpath(dir, "f.csv")
+            write(fcsv, "y,f\n1.0,1.1\nNaN,2.1\n3.0,2.9\n")
+            @test grab(() -> _fceval_load(fcsv, "y", "f"; leaf="metrics")).code == "data/missing-values"
+            # fitted panel usage guards (were bare error() → exit 1)
+            @test grab(() -> _predict_piv(; data=nancsv, dep="", exog="x1",
+                endog="x2", format="table")).code == "usage/missing"
+            @test grab(() -> _predict_piv(; data=nancsv, dep="y", exog="x1",
+                endog="", format="table")).code == "usage/missing"
+            @test grab(() -> _predict_preg(; data=nancsv, dep="",
+                format="table")).code == "usage/missing"
+            @test grab(() -> _residuals_pprobit(; data=nancsv, dep="",
+                format="table")).code == "usage/missing"
         end
     end
 
@@ -14806,6 +14940,23 @@ end
         end
     end
 
+    @testset "model info via model:// session handle" begin
+        _SERVE_MODEL_STORE[] = Dict{String,Any}()
+        try
+            save_model_dispatch("model://mi", estimate_bvar(randn(60, 2), 1; seed=5))
+            doc = _run_leaf(["model", "info", "model://mi"])
+            @test string(doc.status) == "ok"
+            @test haskey(doc.data, :model_handle_info)
+            mrow = only(r for r in doc.data.model_handle_info.rows if r[1] == "model_type")
+            @test mrow[2] == "BVARPosterior"
+            # miss: typed file-not-found from the session store, not an
+            # untyped crash from the filesystem handle reader
+            miss = try; _run_leaf(["model", "info", "model://nope"]); nothing; catch e; e; end
+            @test miss isa CliError && miss.code == "data/file-not-found"
+        finally
+            _SERVE_MODEL_STORE[] = nothing
+        end
+    end
     @testset "model reproduce via model:// session handle" begin
         _SERVE_MODEL_STORE[] = Dict{String,Any}()
         try

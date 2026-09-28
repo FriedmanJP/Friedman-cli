@@ -61,7 +61,7 @@ The installer checks for Julia 1.13 (installs [juliaup](https://github.com/Julia
 
 **Supported platforms:** macOS ARM64 (Apple Silicon), Linux x86_64, Windows x86_64.
 
-> **Solver dependencies:** From the v0.7.0 line onward (the MacroEconometricModels 0.7.0 adoption), JuMP (MPL-2.0) and Ipopt (MIT Julia wrapper over the EPL-2.0 Ipopt library, linked dynamically as a separate work) are required upstream dependencies and **are bundled** in the precompiled release — DSGE constrained optimization (OccBin, etc.) works out of the box, with no separate install. PATHSolver remains optional and is not bundled — add it with `Pkg.add("PATHSolver")` if a model needs the PATH solver. (Older v0.6.x releases bundle none of the three; on those, install JuMP and Ipopt yourself with `julia -e 'using Pkg; Pkg.add(["JuMP", "Ipopt"])'`.)
+> **Solver dependencies:** JuMP (MPL-2.0) and Ipopt (MIT Julia wrapper over the EPL-2.0 Ipopt library, linked dynamically as a separate work) are required upstream dependencies and **are bundled** in the precompiled release — DSGE constrained optimization (OccBin, etc.) works out of the box, with no separate install. PATHSolver remains optional and is not bundled — add it with `Pkg.add("PATHSolver")` if a model needs the PATH solver. (On pre-1.0 releases before the MEMs 0.7.0 adoption, install JuMP and Ipopt yourself with `julia -e 'using Pkg; Pkg.add(["JuMP", "Ipopt"])'`.)
 
 ### Install from Source
 
@@ -87,7 +87,7 @@ friedman [command] [subcommand] [args...] [options...]
 | `test` | `unit-root` · `coint` · `stability` · `serial` · `iv` · `panel` · `multivariate` · `vecm` · `pvar` · `did`, plus flat leaves such as `vif` and `hausman-iia` (`test unit-root adf`, `test panel pmg-hausman`, `test vif`; `test other …` is not a command) | Statistical tests (unit-root and cointegration batteries, stability and serial diagnostics, weak-instrument tests, panel specification and DiD diagnostics, VAR/VECM/PVAR tests, and the flat diagnostics that stay directly under `test`) |
 | `irf` | `var` `bvar` `tvpvar` `lp` `vecm` `pvar` `favar` `sdfm` | Impulse response functions (`tvpvar` is date-specific: `--date`) |
 | `fevd` | `var` `bvar` `lp` `vecm` `pvar` `favar` `sdfm` | Forecast error variance decomposition (`var` adds `--generalized` Pesaran-Shin) |
-| `hd` | `var` `bvar` `lp` `vecm` `favar` | Historical decomposition |
+| `hd` | `var` `bvar` `lp` `vecm` `favar` `sdfm` | Historical decomposition |
 | `forecast` | `multivariate` · `volatility` · `factor` · `univariate` · `regime` · `evaluate` (`forecast multivariate var`, `forecast volatility gjr-garch`, `forecast multivariate scenario`, `forecast evaluate metrics`) | Forecasting, including SETAR/STAR bootstrap-simulation forecasts, plus the evaluation and combination leaves under `forecast evaluate` |
 | `predict` | `multivariate` · `volatility` · `factor` · `univariate` · `regime` · `panel` · `choice` · `regression` (`predict multivariate var`, `predict choice poisson`; no `setar` or `star`) | In-sample fitted values (`statespace` emits the filtered/smoothed state paths; `sur`/`3sls` one long per-equation table) |
 | `residuals` | same families as `predict`, plus `regime setar` and `regime star` (`residuals volatility garch`, `residuals regime setar`) | Model residuals (`statespace` emits Kalman innovations, `--standardized` for `v_t/√F_t`; `setar`/`star`/`ms`/`ms-ar` have residuals and no `predict` leaf) |
@@ -875,7 +875,7 @@ self-contained HTML file). Both are inline flags — there is no separate `plot`
 **A leaf advertises them only when MacroEconometricModels defines a real plot recipe for that
 leaf's result type.** This is deliberate: the flags are not universal, and a leaf that offered
 them without an upstream recipe would fail at the point of plotting rather than refuse up front.
-As of CLI v1.0.0 (MacroEconometricModels 1.0.0) 147 of 477 leaves are plot-capable (`friedman show` plots when a recipe exists).
+As of CLI v1.0.0 the plot-capable leaves are exactly those whose result type has an upstream recipe (`friedman show` plots when a recipe exists; `test/tools/check_plot_coverage.jl` tracks the set).
 
 Notable gaps, all upstream rather than CLI choices: `forecast regime setar` and `forecast regime star` have no
 recipe for their forecast result types (the models themselves plot fine via `estimate regime setar` /

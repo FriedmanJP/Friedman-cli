@@ -1,5 +1,7 @@
 # Installation
 
+---
+
 ## Quick Install
 
 ### macOS and Linux
@@ -14,12 +16,16 @@ curl -fsSL https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/inst
 irm https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.ps1 | iex
 ```
 
+---
+
 ## What the Installer Does
 
 1. **Checks for Julia 1.13** — if not found, installs [juliaup](https://github.com/JuliaLang/juliaup) (the official Julia version manager) and adds Julia 1.13. Your default Julia version is never changed.
 2. **Downloads a precompiled sysimage** — platform-specific binary from GitHub Releases (size varies by platform; release builds use `--strip-metadata` when healthy)
 3. **Installs to `~/.friedman-cli/`** — self-contained directory with sysimage, source, and launcher
 4. **Adds to PATH** — creates a symlink in `~/.local/bin/` (macOS/Linux) or adds to user PATH (Windows)
+
+---
 
 ## Install a Specific Version
 
@@ -35,6 +41,8 @@ curl -fsSL https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/inst
 $env:FRIEDMAN_VERSION = "1.0.0"; irm https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.ps1 | iex
 ```
 
+---
+
 ## Manual Install from GitHub Releases
 
 1. Go to [Releases](https://github.com/FriedmanJP/Friedman-cli/releases)
@@ -47,9 +55,13 @@ $env:FRIEDMAN_VERSION = "1.0.0"; irm https://raw.githubusercontent.com/FriedmanJ
 
 **Requires:** Julia 1.13+ installed via [juliaup](https://github.com/JuliaLang/juliaup) or manually.
 
+---
+
 ## Upgrade
 
 Re-run the install command. The installer replaces the existing installation.
+
+---
 
 ## Uninstall
 
@@ -67,6 +79,8 @@ Remove-Item -Recurse -Force "$env:USERPROFILE\.friedman-cli"
 
 Then remove `%USERPROFILE%\.friedman-cli\bin` from your user PATH in System Settings.
 
+---
+
 ## Build from Source
 
 For development or if you prefer to build locally:
@@ -77,11 +91,7 @@ cd Friedman-cli
 julia --project -e 'using Pkg; Pkg.instantiate()'
 ```
 
-Run directly:
-
-```bash
-julia --project bin/friedman [command] [subcommand] [args] [options]
-```
+Run directly with `julia --project bin/friedman <command> <subcommand> [args] [options]` — for example, `julia --project bin/friedman --version`. The [Quick Start](index.md#quick-start) runs a full session this way.
 
 Or build a local sysimage:
 
@@ -90,9 +100,11 @@ julia build_release.jl
 ~/.friedman-cli/bin/friedman --version
 ```
 
+---
+
 ## Optional Dependencies
 
-**JuMP and Ipopt** (DSGE constrained optimization) are required upstream dependencies and are **bundled** in the release build — no separate install needed. JuMP is MPL-2.0; the Ipopt Julia wrapper is MIT and the underlying Ipopt library is EPL-2.0, linked dynamically as a separate work. (On the retired v0.6.x line they were not bundled; there install them yourself with `Pkg.add(["JuMP", "Ipopt"])`.)
+**JuMP and Ipopt** (DSGE constrained optimization) are required upstream dependencies and are **bundled** in the release build — no separate install needed. JuMP is MPL-2.0; the Ipopt Julia wrapper is MIT and the underlying Ipopt library is EPL-2.0, linked dynamically as a separate work.
 
 **PATHSolver** (PATH mixed-complementarity solver, used only by a niche DSGE constrained path) is never bundled. Install it if a model requires it:
 
@@ -101,7 +113,11 @@ using Pkg
 Pkg.add("PATHSolver")
 ```
 
+---
+
 ## Testing
+
+From the repo root:
 
 ```bash
 # Fast tiers (engine, handlers on mocks — no MacroEconometricModels needed)
@@ -110,3 +126,11 @@ julia --project test/runtests.jl
 # Integration tier on real MacroEconometricModels (the gate for handler changes)
 julia --project test/integration/runtests.jl
 ```
+
+---
+
+## References
+
+- [GitHub Releases](https://github.com/FriedmanJP/Friedman-cli/releases) (precompiled sysimages and checksums)
+- [juliaup](https://github.com/JuliaLang/juliaup) (Julia version manager)
+- [Quick Start](index.md#quick-start) (first runnable session)

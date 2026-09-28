@@ -144,7 +144,7 @@ function _nowcast_dfm(; data::String, monthly_vars::Int=0, quarterly_vars::Int=0
                        max_iter::Int=100, target_var::Int=0,
                        output::String="", format::String="table",
                        plot::Bool=false, plot_save::String="")
-    Y, varnames = load_multivariate_data(data)
+    Y, varnames = load_multivariate_data(data; allow_nan=true)
     nM, nQ = _validate_nowcast_vars(Y, monthly_vars, quarterly_vars)
     T_obs, N = size(Y)
 
@@ -198,7 +198,7 @@ function _nowcast_bvar(; data::String, monthly_vars::Int=0, quarterly_vars::Int=
     miu0 > 0 || throw(CliError("usage/invalid", "nowcast bvar: --miu0 must be > 0 (got $miu0)"))
     alpha0 > 0 || throw(CliError("usage/invalid", "nowcast bvar: --alpha0 must be > 0 (got $alpha0)"))
 
-    Y, varnames = load_multivariate_data(data)
+    Y, varnames = load_multivariate_data(data; allow_nan=true)
     nM, nQ = _validate_nowcast_vars(Y, monthly_vars, quarterly_vars)
     T_obs, N = size(Y)
 
@@ -250,7 +250,7 @@ end
 function _nowcast_bridge(; data::String, monthly_vars::Int=0, quarterly_vars::Int=0,
                           lag_m::Int=1, lag_q::Int=1, lag_y::Int=1, target_var::Int=0,
                           output::String="", format::String="table")
-    Y, varnames = load_multivariate_data(data)
+    Y, varnames = load_multivariate_data(data; allow_nan=true)
     nM, nQ = _validate_nowcast_vars(Y, monthly_vars, quarterly_vars)
     T_obs, N = size(Y)
 
@@ -290,8 +290,8 @@ function _nowcast_news(; data_new::String="", data_old::String="",
     isempty(data_old) && throw(CliError("usage/missing", "--data-old is required";
         hint="path to the older data vintage"))
 
-    Y_new, varnames_new = load_multivariate_data(data_new)
-    Y_old, _ = load_multivariate_data(data_old)
+    Y_new, varnames_new = load_multivariate_data(data_new; allow_nan=true)
+    Y_old, _ = load_multivariate_data(data_old; allow_nan=true)
     nM, nQ = _validate_nowcast_vars(Y_new, monthly_vars, quarterly_vars)
     T_new, N = size(Y_new)
     T_old = size(Y_old, 1)
@@ -348,7 +348,7 @@ function _nowcast_forecast(; data::String, monthly_vars::Int=0, quarterly_vars::
                              horizons::Int=4, target_var::Int=0,
                              output::String="", format::String="table",
                              plot::Bool=false, plot_save::String="")
-    Y, varnames = load_multivariate_data(data)
+    Y, varnames = load_multivariate_data(data; allow_nan=true)
     nM, nQ = _validate_nowcast_vars(Y, monthly_vars, quarterly_vars)
     T_obs, N = size(Y)
 

@@ -35,7 +35,8 @@ const CONFIG_SCHEMA = Dict{String,Vector{String}}(
               "weighting", "sim_ratio", "burn"],
     "nongaussian" => ["method", "contrast", "distribution", "n_regimes",
                       "transition_variable", "regime_variable"],
-    "model" => ["parameters", "endogenous", "exogenous", "equations"],
+    "model" => ["parameters", "endogenous", "exogenous", "equations",
+                "linear", "utility", "beta", "controls"],
     "solver" => ["method", "order", "degree", "grid"],
     "constraints" => ["bounds", "nonlinear"],
     "priors" => String[],  # free param names under [priors]

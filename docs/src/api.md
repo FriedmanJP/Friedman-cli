@@ -1,105 +1,22 @@
 # API Reference
 
-Internal API documentation for the Friedman module. Most symbols are internal (prefixed with `_`) and not exported. Only [`main`](@ref) and [`build_app`](@ref) are exported.
+Agents use the `friedman` command line, not this page. The Julia API below exists for embedding the CLI engine (REPL, scripts, the MCP server) and for developers hacking on the command tree. End-user behavior — options, output tables, envelope schema — is documented under the [CLI Reference](commands/overview.md) and generated per command; nothing here replaces it.
 
-## Exported Functions
+---
+
+## Exported entry points
 
 ```@docs
 Friedman.main
 Friedman.build_app
+Friedman.run_cli
+Friedman.julia_main
 ```
 
-## CLI Types
+---
 
-```@docs
-Friedman.Argument
-Friedman.Option
-Friedman.Flag
-Friedman.LeafCommand
-Friedman.NodeCommand
-Friedman.Entry
-```
+## References
 
-## CLI Parser
-
-```@docs
-Friedman.tokenize
-Friedman.resolve_option
-Friedman.resolve_flag
-Friedman.convert_value
-Friedman.bind_args
-```
-
-## CLI Dispatch
-
-```@docs
-Friedman.dispatch
-Friedman.dispatch_node
-Friedman.dispatch_leaf
-```
-
-## CLI Help
-
-```@docs
-Friedman.print_help
-Friedman.print_entry_line
-```
-
-## Data I/O
-
-```@docs
-Friedman.load_data
-Friedman.df_to_matrix
-Friedman.variable_names
-Friedman.output_result
-Friedman.output_kv
-```
-
-## Configuration
-
-```@docs
-Friedman.load_config
-Friedman.get_identification
-Friedman.get_prior
-Friedman.get_gmm
-Friedman.get_nongaussian
-Friedman.get_uhlig_params
-Friedman.get_dsge
-Friedman.get_dsge_constraints
-Friedman.get_smm
-Friedman.get_dsge_priors
-```
-
-## Shared Utilities
-
-```@docs
-Friedman.ID_METHOD_MAP
-Friedman.load_multivariate_data
-Friedman.load_univariate_series
-Friedman._load_and_estimate_var
-Friedman._load_and_estimate_bvar
-Friedman._load_and_estimate_vecm
-Friedman._load_and_estimate_pvar
-Friedman._load_and_estimate_favar
-Friedman._build_prior
-Friedman._build_check_func
-Friedman._build_identification_kwargs
-Friedman._load_and_structural_lp
-Friedman._var_forecast_point
-Friedman._maybe_plot
-Friedman.load_panel_data
-Friedman._load_panel_reg
-Friedman._load_dsge_model
-Friedman._solve_dsge
-Friedman._load_dsge_constraints
-Friedman._load_panel_for_did
-Friedman._per_var_output_path
-Friedman._load_reg_data
-Friedman._load_clusters
-Friedman._load_weights
-Friedman._reg_coef_table
-Friedman._parse_lag_spec
-Friedman._parse_asym_spec
-Friedman._fit_ardl
-Friedman._fit_nardl
-```
+- [CLI overview](commands/overview.md) — the supported surface; agents start here.
+- Upstream estimator semantics: [MacroEconometricModels.jl](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/) (pinned **1.0.0**; see `Project.toml`).
+- Unwrapped upstream surface: [Not wrapped](commands/not-wrapped.md).
