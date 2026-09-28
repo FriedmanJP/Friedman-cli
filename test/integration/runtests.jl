@@ -524,7 +524,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         theta0 = [0.4, 0.5]
         lags = 2
         weighting = "two_step"
-        sim_ratio = 5
+        sim_ratio = 3
         burn = 100
         lower = [-0.99, 1.0e-4]
         upper = [0.99, 10.0]
@@ -561,7 +561,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         theta0 = [0.4, 0.5]
         lags = 2
         weighting = "identity"
-        sim_ratio = 5
+        sim_ratio = 3
         burn = 100
         lower = [-0.99, 1.0e-4]
         upper = [0.99, 10.0]
@@ -1340,7 +1340,9 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         csv = dgp_threshold(; n=400, seed=7001)
 
         @testset "recovers the true threshold and both regime slopes" begin
-            r = run_json(["estimate", "regime", "threshold", csv, "--dep", "y", "--threshold-col", "z", "--reps", "199"])
+            # Diet (v1.0.1): Hansen bootstrap --reps 199 → 99 (p-resolution 0.01
+            # still resolves the pvalue < 0.10 rejection on this strong signal).
+            r = run_json(["estimate", "regime", "threshold", csv, "--dep", "y", "--threshold-col", "z", "--reps", "99"])
             assert_envelope_ok(r; label="estimate regime threshold")
             ct = _coef(r.doc)
             @test ct !== nothing
@@ -1432,7 +1434,9 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
 
         @testset "estimate regime setar — two regimes, γ in CI, attached Hansen rejects" begin
             csv = dgp_setar(; n=400, seed=651)
-            r = run_json(["estimate", "regime", "setar", csv, "--column", "1", "--p", "1", "--d", "1", "--reps", "199"])
+            # Diet (v1.0.1): --reps 199 → 99 (linearity-bootstrap teeth are
+            # reject/not-reject directions on strong signals, not p-precision).
+            r = run_json(["estimate", "regime", "setar", csv, "--column", "1", "--p", "1", "--d", "1", "--reps", "99"])
             assert_envelope_ok(r; label="estimate regime setar")
             # coef table: regime|term|estimate|std_error|z_stat|p_value, 2 regimes × 2 terms
             ct = nothing
@@ -1462,7 +1466,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
 
         @testset "test hansen-linearity — rejects on the SETAR DGP" begin
             csv = dgp_setar(; n=400, seed=652)
-            r = run_json(["test", "hansen-linearity", csv, "--column", "1", "--p", "1", "--d", "1", "--reps", "199"])
+            r = run_json(["test", "hansen-linearity", csv, "--column", "1", "--p", "1", "--d", "1", "--reps", "99"])
             assert_envelope_ok(r; label="test hansen-linearity")
             @test Set(["sup_lm", "pvalue_lm", "sup_wald", "pvalue_wald", "gamma_sup", "n_grid"]) ⊆
                   Set(String(string(collect(row)[1])) for row in table_rows(_diag(r.doc)))
@@ -1476,7 +1480,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         @testset "forecast regime setar — h=6 finite paths, lower ≤ value ≤ upper" begin
             csv = dgp_setar(; n=400, seed=653)
             r = run_json(["forecast", "regime", "setar", csv, "--column", "1", "--p", "1", "--d", "1",
-                          "--horizons", "6", "--reps", "199"])
+                          "--horizons", "6", "--reps", "99"])
             assert_envelope_ok(r; label="forecast regime setar")
             _, tbl = first_table(r.doc)
             @test tbl !== nothing
@@ -1557,7 +1561,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         @testset "forecast regime star — h=6 finite paths, coherent bands" begin
             csv = dgp_star(; n=400, seed=663)
             r = run_json(["forecast", "regime", "star", csv, "--column", "1", "--p", "1", "--d", "1",
-                          "--horizons", "6", "--reps", "199"])
+                          "--horizons", "6", "--reps", "99"])
             assert_envelope_ok(r; label="forecast regime star")
             _, tbl = first_table(r.doc)
             @test tbl !== nothing
@@ -1595,7 +1599,10 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         mv(doc, name) = (d = _diag(doc); d === nothing ? nothing : metric_value(d, name))
 
         @testset "estimate regime ms-ar — converged, ordered mu, row-stochastic P, finite loglik" begin
-            csv = dgp_msar(; n=500, seed=671)
+            # Diet (v1.0.1): n=500 → 350 on the three EM fits (a pinned-stream
+            # PREFIX, so the same regimes — EM cost is superlinear in n and the
+            # teeth are qualitative: ordering, stochasticity, finiteness).
+            csv = dgp_msar(; n=350, seed=671)
             r = run_json(["estimate", "regime", "ms-ar", csv, "--column", "1", "--p", "1"])
             assert_envelope_ok(r; label="estimate regime ms-ar")
             # coef table: per-regime `mu` rows (ordered increasing) + a common-AR block
@@ -1627,7 +1634,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         end
 
         @testset "estimate regime ms — intercept-only recovers two distinct regime means" begin
-            csv = dgp_msar(; n=500, seed=672)
+            csv = dgp_msar(; n=350, seed=672)
             r = run_json(["estimate", "regime", "ms", csv])
             assert_envelope_ok(r; label="estimate regime ms")
             ct = _find(r.doc, "regime", "term", "estimate")
@@ -1646,7 +1653,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             # The headline MS output. Real `filtered_prob` and `smoothed_prob` are genuinely
             # different objects (smoothed conditions on the whole sample), which is what makes
             # this worth asserting on REAL MEMs rather than only against the mock.
-            csv = dgp_msar(; n=500, seed=673)
+            csv = dgp_msar(; n=350, seed=673)
             r = run_json(["estimate", "regime", "ms-ar", csv, "--column", "1", "--p", "1"])
             assert_envelope_ok(r; label="estimate regime ms-ar probabilities")
             pt = _find(r.doc, "period", "regime", "filtered", "smoothed")
@@ -2683,11 +2690,14 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         @testset "sadf/gsadf — explosive episode vs pure random walk" begin
             bub = dgp_bubble(; T=300, seed=129)
             rw  = dgp_random_walk(; T=300, seed=131)
+            # Diet (v1.0.1): --mc-reps 199 → 99. The tooth compares the sample
+            # STATISTIC (bubble > random walk), which Monte-Carlo reps do not
+            # affect — they only simulate the p-value tail.
             for leaf in ("sadf", "gsadf")
-                rb = run_json(vcat(_head("test", leaf), [bub, "--mc-reps", "199"]))
+                rb = run_json(vcat(_head("test", leaf), [bub, "--mc-reps", "99"]))
                 assert_envelope_ok(rb; label="$leaf bubble")
                 sb = scan_metric(rb.doc, "statistic")
-                rr = run_json(vcat(_head("test", leaf), [rw, "--mc-reps", "199"]))
+                rr = run_json(vcat(_head("test", leaf), [rw, "--mc-reps", "99"]))
                 assert_envelope_ok(rr; label="$leaf random walk")
                 sr = scan_metric(rr.doc, "statistic")
                 # the explosive series must score strictly higher than the pure I(1) one
@@ -4095,8 +4105,10 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         # ReproManifest on the saved SVModel, so reproduce re-runs from the
         # seed and compares bit-for-bit.
         vjld = tempname() * ".jld2"
+        # Diet (v1.0.1): --draws 150 → 100 (the reproduce pin is bit-for-bit
+        # from the recorded seed, so it is exact at any draw count).
         rv = run_json(["--seed", "7", "estimate", "volatility", "sv", csv, "--column", "1",
-                       "--draws", "150", "--save-model", vjld])
+                       "--draws", "100", "--save-model", vjld])
         assert_envelope_ok(rv; label="w3 seeded sv save")
         rvi = run_json(["model", "info", vjld])
         assert_envelope_ok(rvi; label="w3 sv info")
@@ -4172,9 +4184,10 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rm(ss; force=true)
 
         ks = tempname() * ".jld2"
+        # Diet (v1.0.1): smaller KS solve (type-string teeth only).
         rk = run_json(["--seed", "7", "hadsge", "solve", "krusell-smith",
-                       "--method", "krusell-smith", "--n-reduced", "6",
-                       "--t-horizon", "20", "--save-model", ks])
+                       "--method", "krusell-smith", "--n-reduced", "4",
+                       "--t-horizon", "12", "--save-model", ks])
         assert_envelope_ok(rk; label="w3 ks solve save")
         rki = run_json(["model", "info", ks])
         assert_envelope_ok(rki; label="w3 ks info")
@@ -4567,8 +4580,10 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
     # ── W7/#109: TVP-VAR-SV, MF-VAR, BVAR hyperopt ──────────────────────────
     @testset "estimate multivariate tvpvar + irf tvpvar (W7/#109)" begin
         csv = dgp_var2(; T=120, seed=21)
+        # Diet (v1.0.1): Gibbs 60/30 → 40/20, --irf-draws 40 → 25 (teeth are
+        # tidy shapes + positive volatilities + row counts, all draw-robust).
         r = run_json(["estimate", "multivariate", "tvpvar", csv, "--lags", "1",
-                      "--draws", "60", "--burnin", "30"])
+                      "--draws", "40", "--burnin", "20"])
         assert_envelope_ok(r; label="estimate multivariate tvpvar")
         vol = nothing
         for (_, v) in pairs(r.doc.data)
@@ -4596,8 +4611,8 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         @test occursin("date", lowercase(String(rmiss.doc["error"]["message"])))
 
         rirf = run_json(["irf", "tvpvar", csv, "--date", "40", "--horizons", "4",
-                         "--lags", "1", "--draws", "60", "--burnin", "30",
-                         "--irf-draws", "40"])
+                         "--lags", "1", "--draws", "40", "--burnin", "20",
+                         "--irf-draws", "25"])
         assert_envelope_ok(rirf; label="irf tvpvar")
         it = nothing
         for (_, v) in pairs(rirf.doc.data)
@@ -4632,8 +4647,10 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                 end
             end
         end
-        r = run_json(["estimate", "multivariate", "mfvar", csv, "--lags", "2", "--draws", "80",
-                      "--burnin", "40", "--freq-ratio", "3", "--aggregation", "average"])
+        # Diet (v1.0.1): Gibbs 80/40 → 50/25 (the tooth is the 96×2 latent-path
+        # length — the interpolation existing, not its posterior precision).
+        r = run_json(["estimate", "multivariate", "mfvar", csv, "--lags", "2", "--draws", "50",
+                      "--burnin", "25", "--freq-ratio", "3", "--aggregation", "average"])
         assert_envelope_ok(r; label="estimate multivariate mfvar")
         lat = nothing
         for (_, v) in pairs(r.doc.data)
@@ -4665,7 +4682,10 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             return nothing
         end
 
-        rg = run_json(["estimate", "multivariate", "bvar", csv, "--lags", "2", "--draws", "200"])
+        # Diet (v1.0.1): --draws 200 → 100 on the three hyperopt runs (the
+        # GLP/grid/config teeth are selection-table shapes + the log_ml
+        # improvement inequality, all draw-count-robust).
+        rg = run_json(["estimate", "multivariate", "bvar", csv, "--lags", "2", "--draws", "100"])
         assert_envelope_ok(rg; label="estimate multivariate bvar --hyperopt glp (default)")
         tg = hyper_tbl(rg.doc)
         @test tg !== nothing
@@ -4681,7 +4701,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test vals["tau"] > 0
         end
 
-        rr = run_json(["estimate", "multivariate", "bvar", csv, "--lags", "2", "--draws", "200",
+        rr = run_json(["estimate", "multivariate", "bvar", csv, "--lags", "2", "--draws", "100",
                        "--hyperopt", "grid"])
         assert_envelope_ok(rr; label="estimate multivariate bvar --hyperopt grid")
         tr = hyper_tbl(rr.doc)
@@ -4704,7 +4724,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         lambda2 = 0.5
         lambda3 = 1.0
         """)
-        rc = run_json(["estimate", "multivariate", "bvar", csv, "--lags", "2", "--draws", "200",
+        rc = run_json(["estimate", "multivariate", "bvar", csv, "--lags", "2", "--draws", "100",
                        "--config", cfg])
         assert_envelope_ok(rc; label="estimate multivariate bvar --config minnesota")
         # Config pins the values, so no selection table is emitted.
@@ -4733,8 +4753,12 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         has_metric(t, m) = any(rw -> String(collect(rw)[col_index(t, "metric")]) == m,
                                table_rows(t))
         # Short simulation: this solves Krusell-Smith first, so keep the horizon small.
+        # Diet (v1.0.1): 1500/200 → 800/100; the dh ordering/finiteness teeth only
+        # need a stable-enough simulation, not a long one.
+        # Diet (v1.0.1): --n-reduced 8 → 6 (the dh teeth are ordering +
+        # finiteness, not solution precision; the ssj/reiter legs already run 6).
         r = run_json(["hadsge", "accuracy", "krusell-smith",
-                      "--t-sim", "1500", "--t-burn", "200", "--n-reduced", "8"])
+                      "--t-sim", "800", "--t-burn", "100", "--n-reduced", "6"])
         assert_envelope_ok(r; label="hadsge accuracy")
         t = cols_table(r.doc, ["metric", "value"]; where=v -> has_metric(v, "dh_max"))
         @test t !== nothing
@@ -4770,8 +4794,9 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         # implied law by regression over --t-fit periods. Both must work, and --t-fit is
         # guarded only on that branch (upstream asserts T_fit > 100 untyped).
         for m in ("ssj", "reiter")
+            # Diet (v1.0.1): --t-fit 600 → 400 (same rationale as above).
             rm_ = run_json(["hadsge", "accuracy", "krusell-smith", "--method", m,
-                            "--t-sim", "400", "--t-burn", "50", "--t-fit", "600",
+                            "--t-sim", "400", "--t-burn", "50", "--t-fit", "400",
                             "--n-reduced", "6"])
             assert_envelope_ok(rm_; label="hadsge accuracy --method $m")
             tm = cols_table(rm_.doc, ["metric", "value"]; where=v -> has_metric(v, "dh_max"))
@@ -4908,7 +4933,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             Z[t] = rho_z * Z[t-1] + sigma_z * eps_Z[t]
         end
         """)
-        r = run_json(["hadsge", "solve", spec, "--n-reduced", "8"])
+        r = run_json(["hadsge", "solve", spec, "--n-reduced", "6"])
         assert_envelope_ok(r; label="hadsge solve .jl ssj")
         @test r.doc !== nothing
 
@@ -4947,8 +4972,10 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
     end
 
     @testset "hadsge solve reiter huggett" begin
+        # Diet (v1.0.1): --n-reduced 8 → 6 on the reiter solve/irf/fevd trio
+        # (shape + sweep-exists teeth, not solution precision).
         r = run_json(["hadsge", "solve", "huggett",
-                      "--method", "reiter", "--n-reduced", "8"])
+                      "--method", "reiter", "--n-reduced", "6"])
         assert_envelope_ok(r; label="hadsge solve reiter")
         _, tbl = first_table(r.doc)
         @test tbl !== nothing
@@ -4956,7 +4983,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
 
     @testset "hadsge irf reiter huggett" begin
         r = run_json(["hadsge", "irf", "huggett",
-                      "--method", "reiter", "--horizon", "5", "--n-reduced", "8"])
+                      "--method", "reiter", "--horizon", "5", "--n-reduced", "6"])
         assert_envelope_ok(r; label="hadsge irf")
         _, tbl = first_table(r.doc)
         @test tbl !== nothing
@@ -4965,7 +4992,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
 
     @testset "W0 hadsge fevd zero-row proportion (#702)" begin
         r = run_json(["hadsge", "fevd", "huggett",
-                      "--method", "reiter", "--horizon", "4", "--n-reduced", "8"])
+                      "--method", "reiter", "--horizon", "4", "--n-reduced", "6"])
         assert_envelope_ok(r; label="hadsge fevd")
         # MEMs#702: an identically-zero IRF row now gets proportion 1.0, never 0.
         for (_, t) in pairs(r.doc.data)
@@ -5001,10 +5028,13 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         priors = tempname() * "_ha_priors.toml"
         write(priors, "[priors]\n[priors.alpha]\ndist = \"normal\"\na = 0.36\nb = 0.05\n")
         try
+            # Diet (v1.0.1): RWMH re-solves HA per draw (~9 min at 4 draws);
+            # 2 draws + smaller SSJ state/horizon keep the shape teeth
+            # (envelope ok + ≥1 posterior row) at a fraction of the cost.
             r = run_json(["hadsge", "estimate", "krusell-smith",
                           "--data", csv, "--priors", priors, "--observables", "K",
-                          "--method", "ssj", "--n-draws", "4", "--burnin", "1",
-                          "--t-horizon", "20", "--n-reduced", "6", "--seed", "1"])
+                          "--method", "ssj", "--n-draws", "2", "--burnin", "1",
+                          "--t-horizon", "12", "--n-reduced", "4", "--seed", "1"])
             assert_envelope_ok(r; label="hadsge estimate")
             _, tbl = first_table(r.doc)
             @test tbl !== nothing
@@ -5048,21 +5078,23 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             return nothing
         end
 
-        @testset "two-asset-hank B == B_supply" begin
-            # Cap GE iters: the production 50×50×7 example does not clear, and a
-            # full 200-iter closer blew the 60 min CI T3 budget. Keys still come
-            # from the shipped leaf; numeric B≈B_supply is the CT GE pin below.
+        @testset "two-asset-hank steady-state keys (1 GE iter)" begin
+            # Diet (v1.0.1): ONE GE iteration. Each closer iteration re-solves
+            # the production 50×50×7 two-asset household problem (~8-16 min),
+            # so --max-iter 2 alone cost ~32 min — the single slowest T3 call.
+            # This pins keys-only (B/B_supply present, B_supply == 2); numeric
+            # B≈B_supply is the CT GE pin below. GE convergence itself is
+            # upstream-tested (MEMs#709); T3 does not need to re-prove it.
             r = run_json(["hadsge", "steady-state", "two-asset-hank",
-                          "--max-iter", "2"])
+                          "--max-iter", "1"])
             assert_envelope_ok(r; label="two-asset-hank ss")
             kv = collect_named_kv(r.doc, "name", "value")
             @test haskey(kv, "B")
             @test haskey(kv, "B_supply")
             @test isapprox(Float64(kv["B_supply"]), 2.0; atol=0)
-            # Discrete two-asset-hank GE on MEMs 0.9.0 does not clear the
-            # production 50×50×7 example (measured B≈24.7 vs B_supply=2; upstream
-            # tests document the same for coarse grids). Numeric B≈B_supply is
-            # pinned on the CT closer, which does clear the liquid market.
+            # Numeric B≈B_supply is pinned on the CT closer, which clears
+            # the liquid market (90s); the discrete production-grid closer
+            # above is keys-only by design (see note).
             ct = run_json(["dsge", "ct", "solve", "--two-asset", "--ge",
                            "--rho", "0.06", "--max-iter", "120", "--tol", "1e-3"])
             assert_envelope_ok(ct; label="ct two-asset ge")
@@ -5088,7 +5120,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                 end
             end
             r = run_json(["hadsge", "hd", "krusell-smith", "--data", csv,
-                          "--observables", "K", "--method", "ssj", "--n-reduced", "8",
+                          "--observables", "K", "--method", "ssj", "--n-reduced", "6",
                           "--t-horizon", "40"])
             assert_envelope_ok(r; label="ha hd")
             t = cols_table(r.doc, ["t"])
@@ -5431,10 +5463,18 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             # No --degree here either: it is tensor-path-only like --n-grid
             # (upstream ignores it on Smolyak; the guard rejects it — rd4).
             # Tensor-path calls below pass it explicitly.
-            base = ["--n-choice", "15",
+            # Diet (v1.0.1): this testset runs 16 full VFI solves (~17 min).
+            # Tensor grids dominate (12²=144 nodes vs Smolyak's 13-41), so the
+            # tensor path runs --n-grid 8 (64 nodes) here; the SHIPPED default
+            # stays 12 — these pins are routing/identity pins, not default pins.
+            # --n-choice 15 → 10 rides base/b4 into every solve. --tol stays
+            # 1e-4: loosening it to 2e-4 pushed optimizer agreement to 9.2e-4
+            # against the 1e-3 band (Howard/Newton stopping lands erratically),
+            # while the grid coarsening keeps 100×+ margin on every tooth.
+            base = ["--n-choice", "10",
                     "--max-iter", "200", "--tol", "1e-4", "--howard-steps", "10",
                     "--next-state", "residual"]
-            base_fm = filter(x -> x != "--n-choice" && x != "15", base)
+            base_fm = filter(x -> x != "--n-choice" && x != "10", base)
             # Interior state points (exact values immaterial: identity
             # compares use the same point on both runs).
             pt2 = "38.0,0.0"
@@ -5454,10 +5494,10 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test Int(_diag(rs.doc, "smolyak_blocks")) > 0
             @test isfinite(_V(rs.doc))
             # μ-refinement toward tensor: N(2,3)=29 nodes, strictly closer.
-            # Explicit --n-grid 12 == the default, so this is bit-exact
-            # with the auto run below while still exercising the knob.
+            # --n-grid 8 here AND on the auto run below (diet, not the default),
+            # so the pair stays bit-exact while still exercising the knob.
             rt = run_json(["dsge", "solve", rbc, "--method", "vfi",
-                           "--grid", "tensor", "--n-grid", "12",
+                           "--grid", "tensor", "--n-grid", "8",
                            "--degree", "3",
                            base..., "--evaluate-at", pt2])
             assert_envelope_ok(rt; label="vfi tensor baseline")
@@ -5484,24 +5524,27 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             # Same-path identities are bit-exact (same binary, same point):
             # auto→tensor on nx=2, and auto→grid1d on 1 control.
             ra = run_json(["dsge", "solve", rbc, "--method", "vfi",
-                           "--grid", "auto", "--degree", "3",
+                           "--grid", "auto", "--n-grid", "8", "--degree", "3",
                            base..., "--evaluate-at", pt2])
             assert_envelope_ok(ra; label="vfi auto")
             @test String(_diag(ra.doc, "grid_type")) == "tensor"
             @test _V(ra.doc) == _V(rt.doc)
             rg1 = run_json(["dsge", "solve", rbc, "--method", "vfi",
-                            "--optimizer", "grid1d", "--degree", "3", base...,
+                            "--optimizer", "grid1d", "--n-grid", "8",
+                            "--degree", "3", base...,
                             "--evaluate-at", pt2])
             assert_envelope_ok(rg1; label="vfi grid1d")
             @test _V(rg1.doc) == _V(ra.doc)
             # fminbox agrees loosely on 1 control (measured ≈ 2.6e-6).
             rnm = run_json(["dsge", "solve", rbc, "--method", "vfi",
-                            "--optimizer", "fminbox-nm", "--degree", "3",
+                            "--optimizer", "fminbox-nm", "--n-grid", "8",
+                            "--degree", "3",
                             base_fm..., "--evaluate-at", pt2])
             assert_envelope_ok(rnm; label="vfi fminbox-nm")
             @test abs(_V(rnm.doc) - _V(rg1.doc)) < 1e-3
             rlb = run_json(["dsge", "solve", rbc, "--method", "vfi",
-                            "--optimizer", "fminbox-lbfgs", "--degree", "3",
+                            "--optimizer", "fminbox-lbfgs", "--n-grid", "8",
+                            "--degree", "3",
                             base_fm..., "--evaluate-at", pt2])
             assert_envelope_ok(rlb; label="vfi fminbox-lbfgs")
             @test abs(_V(rlb.doc) - _V(rg1.doc)) < 1e-3
@@ -5523,7 +5566,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test rd4.code == 2
             @test String(rd4.doc.error.code) == "usage/invalid"
             # nx=4 routing: auto→smolyak, N(4,2)=41 nodes, bit-exact.
-            b4 = ["--n-choice", "15", "--max-iter", "150",
+            b4 = ["--n-choice", "10", "--max-iter", "150",
                   "--tol", "1e-3", "--howard-steps", "5",
                   "--next-state", "residual"]
             r4a = run_json(["dsge", "solve", rbc4s, "--method", "vfi",
@@ -5536,14 +5579,18 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                             "--grid", "smolyak", b4..., "--evaluate-at", pt4])
             assert_envelope_ok(r4s; label="vfi smolyak nx=4")
             @test _V(r4a.doc) == _V(r4s.doc)
-            # Two-control labor: auto→fminbox-nm bit-exact (same path).
+            # Two-control labor: auto→fminbox-nm bit-exact (same path). rl strips
+            # --n-choice like rln: upstream's auto+fminbox path CONSUMES n_choice
+            # (n-choice 10 vs unset differ by ~1.8 in V), so the pair must agree
+            # on it for the routing identity to hold.
             rl = run_json(["dsge", "solve", labor, "--method", "vfi",
-                           "--degree", "3",
-                           base..., "--evaluate-at", ptL])
+                           "--n-grid", "8", "--degree", "3",
+                           base_fm..., "--evaluate-at", ptL])
             assert_envelope_ok(rl; label="vfi 2-control auto")
             @test Bool(_diag(rl.doc, "converged")) === true
             rln = run_json(["dsge", "solve", labor, "--method", "vfi",
-                            "--optimizer", "fminbox-nm", "--degree", "3",
+                            "--optimizer", "fminbox-nm", "--n-grid", "8",
+                            "--degree", "3",
                             base_fm..., "--evaluate-at", ptL])
             assert_envelope_ok(rln; label="vfi 2-control nm")
             @test _V(rl.doc) == _V(rln.doc)
@@ -5566,20 +5613,19 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             ri = run_json(["dsge", "irf", rbc, "--method", "vfi",
                            "--grid", "smolyak", base..., "--horizon", "4"])
             assert_envelope_ok(ri; label="vfi irf smolyak")
+            # Diet (v1.0.1): the old standalone --seed twin (rss) only pinned
+            # "seed accepted + runs", so the seed rides this call instead —
+            # one fewer full VFI re-solve, same coverage.
             rsm = run_json(["dsge", "simulate", rbc, "--method", "vfi",
                             "--grid", "smolyak", base..., "--periods", "20",
-                            "--burn", "5"])
+                            "--burn", "5", "--seed", "7"])
             assert_envelope_ok(rsm; label="vfi simulate smolyak")
             tsm = named_table(rsm.doc, :dsge_simulation)
             @test tsm !== nothing && length(table_rows(tsm)) == 20
             rst = run_json(["dsge", "simulate", rbc, "--method", "vfi",
-                            "--degree", "3",
+                            "--n-grid", "8", "--degree", "3",
                             base..., "--periods", "20", "--burn", "5"])
             assert_envelope_ok(rst; label="vfi simulate tensor")
-            rss = run_json(["dsge", "simulate", rbc, "--method", "vfi",
-                            "--grid", "smolyak", base..., "--periods", "20",
-                            "--burn", "5", "--seed", "7"])
-            assert_envelope_ok(rss; label="vfi simulate smolyak seed")
         end
 
         @testset "W1 dsge solve --method projection (no order=)" begin
@@ -5729,7 +5775,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             # would be a false requirement, so the leaf does not accept it.
             rp = run_json(["dsge", "bayes", "prior-predictive", model_toml,
                            "--params", "rho,sigma", "--priors", pri,
-                           "--observables", "Y", "--n-draws", "40", "--periods", "80"])
+                           "--observables", "Y", "--n-draws", "25", "--periods", "60"])
             assert_envelope_ok(rp; label="dsge bayes prior-predictive")
             pt = find_tbl(rp.doc, "statistic")
             @test pt !== nothing && length(table_rows(pt)) >= 1
@@ -5785,11 +5831,14 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                     println(io, y)
                 end
             end
+            # Diet (v1.0.1): SMC cost is ~linear in stages × particles; 50×25 keeps
+            # the linear-Gaussian chains healthy while cutting ~4× per estimation.
+            # The assertions here are shapes + finite logML, never tight numbers.
             r = run_json(["dsge", "bayes", "compare", model_jl,
                           "--data", data, "--observables", "Y",
                           "--params", "rho,sigma", "--priors", priors,
                           "--model2", model_jl, "--params2", "rho", "--priors2", priors2,
-                          "--sampler", "smc", "--n-smc", "100", "--n-particles", "50",
+                          "--sampler", "smc", "--n-smc", "50", "--n-particles", "25",
                           "--n-draws", "100", "--burnin", "10"])
             assert_envelope_ok(r; label="dsge bayes compare")
             tbl = named_table(r.doc, :bayesian_model_comparison)
@@ -5833,7 +5882,9 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                     println(io, y)
                 end
             end
-            smc = ["--sampler", "smc", "--n-smc", "100", "--n-particles", "50",
+            # Diet (v1.0.1): 100×50 → 50×25 (see compare above); every leaf
+            # re-estimates, so the diagnostics family pays this 4×.
+            smc = ["--sampler", "smc", "--n-smc", "50", "--n-particles", "25",
                    "--n-draws", "100", "--burnin", "10"]
             base = vcat(["--data", data, "--observables", "Y",
                          "--params", "rho,sigma", "--priors", priors], smc)
@@ -5878,7 +5929,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
 
             @testset "learning-rate (Koop-Pesaran-Smith)" begin
                 r = run_json(vcat(["dsge", "bayes", "learning-rate", model_jl], base,
-                                  ["--refit-n-smc", "30"]))
+                                  ["--refit-n-smc", "15"]))
                 assert_envelope_ok(r; label="dsge bayes learning-rate")
                 tbl = named_table(r.doc, :learning_rate_check)
                 @test tbl !== nothing
@@ -8306,8 +8357,10 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         end
 
         # Webb weights and the WCU variant both run; --no-ci drops the interval.
+        # Diet (v1.0.1): --boot-reps 199 → 99 on the webb/no-enumerate legs
+        # (shape + flag teeth; the exact enumerated 999 leg is untouched).
         rw = run_json(["test", "iv", "wild-cluster", csv, "--dep", "y", "--clusters", "cl",
-                       "--coefficient", "x", "--boot-weights", "webb", "--boot-reps", "199"])
+                       "--coefficient", "x", "--boot-weights", "webb", "--boot-reps", "99"])
         assert_envelope_ok(rw; label="test iv wild-cluster webb")
         ru = run_json(["test", "iv", "wild-cluster", csv, "--dep", "y", "--clusters", "cl",
                        "--coefficient", "x", "--no-impose-null", "--no-ci"])
@@ -8319,7 +8372,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         end
         # Forcing enumeration off must change `enumerated`.
         rn = run_json(["test", "iv", "wild-cluster", csv, "--dep", "y", "--clusters", "cl",
-                       "--coefficient", "x", "--enumerate-signs", "no", "--boot-reps", "199"])
+                       "--coefficient", "x", "--enumerate-signs", "no", "--boot-reps", "99"])
         assert_envelope_ok(rn; label="test iv wild-cluster --enumerate-signs no")
         tn = first_table(rn.doc)[2]
         tn === nothing || @test metric_value(tn, "enumerated") in (false, "false")
