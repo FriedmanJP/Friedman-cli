@@ -346,12 +346,11 @@ function _predict_logit(; data::String="", dep::String="", cov_type::String="hc1
 
     if marginal_effects
         me = MacroEconometricModels.marginal_effects(model)
-        me_df = DataFrame(Variable=me.varnames, Effect=round.(me.effects; digits=6),
-            SE=round.(me.se; digits=6), z=round.(me.z_stat; digits=4),
-            p_value=round.(me.p_values; digits=4),
-            CI_Lower=round.(me.ci_lower; digits=6), CI_Upper=round.(me.ci_upper; digits=6))
-        output_result(me_df; format=Symbol(format), output=output,
-                      title="Average Marginal Effects (Logit)")
+        # #216: vector-form MarginalEffects routes through the central helper —
+        # upstream lowercase unrounded columns (+ non-finite-row drop, as report() does).
+        # Key frozen via the title slug (`average_marginal_effects_logit`).
+        _emit_result(me; title="Average Marginal Effects (Logit)",
+            format=Symbol(format), output=output)
     elseif odds_ratio
         or = MacroEconometricModels.odds_ratio(model)
         or_df = DataFrame(Variable=or.varnames, Odds_Ratio=round.(or.or; digits=6),
@@ -414,12 +413,11 @@ function _predict_probit(; data::String="", dep::String="", cov_type::String="hc
 
     if marginal_effects
         me = MacroEconometricModels.marginal_effects(model)
-        me_df = DataFrame(Variable=me.varnames, Effect=round.(me.effects; digits=6),
-            SE=round.(me.se; digits=6), z=round.(me.z_stat; digits=4),
-            p_value=round.(me.p_values; digits=4),
-            CI_Lower=round.(me.ci_lower; digits=6), CI_Upper=round.(me.ci_upper; digits=6))
-        output_result(me_df; format=Symbol(format), output=output,
-                      title="Average Marginal Effects (Probit)")
+        # #216: vector-form MarginalEffects routes through the central helper —
+        # upstream lowercase unrounded columns (+ non-finite-row drop, as report() does).
+        # Key frozen via the title slug (`average_marginal_effects_probit`).
+        _emit_result(me; title="Average Marginal Effects (Probit)",
+            format=Symbol(format), output=output)
     elseif classification_table
         ct = MacroEconometricModels.classification_table(model; threshold=threshold)
         _status("Classification Table (threshold=$threshold):")

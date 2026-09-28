@@ -68,20 +68,12 @@ function _did_estimate(; data::String, outcome::String, treatment::String,
         cluster=Symbol(cluster), conf_level=conf_level, n_boot=n_boot,
         base_period=Symbol(base_period), _fwd_seed()...)
 
-    # C051: DIDResult is deliberately NOT rendered via DataFrame(model)/long_table — the
-    # event-time ATT summary (plus the optional group-time ATT block below) is a
-    # domain-specific report, not a coefficient table or an array-valued IRF/forecast, so
-    # a principled exception (like the volatility forecast variance|volatility table).
-    att_df = DataFrame(
-        Event_Time = result.event_times,
-        ATT = round.(result.att; digits=6),
-        SE = round.(result.se; digits=6),
-        CI_Lower = round.(result.ci_lower; digits=6),
-        CI_Upper = round.(result.ci_upper; digits=6)
-    )
+    # #216: the C051 exception is overturned — upstream `_coef_nt(::DIDResult)` is a
+    # strict superset (event_time|term|estimate|std_error|stat|p_value|ci_lower|ci_upper),
+    # so the event-time block routes through the central helper. Key frozen (`did_estimation`).
     fmt = Symbol(lowercase(format))
-    output_result(att_df; format=fmt, output=output,
-        title="DID Estimation — $(uppercase(method))", key="did_estimation")
+    _emit_result(result; title="DID Estimation — $(uppercase(method))", key="did_estimation",
+        format=fmt, output=output)
 
     _status()
     _status_styled("  Overall ATT: "; bold=true)

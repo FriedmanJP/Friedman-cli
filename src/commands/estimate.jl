@@ -2537,9 +2537,9 @@ function _forecast_sarima(; data::String="", result=nothing, column::Int=1, p=no
     catch e
         throw(_domain_or_data_error(e, "SARIMA forecast"))
     end
-    output_result(long_table(fc); format=Symbol(format), output=output,
-                  title="$lbl Forecast for $vname (h=$horizons, $(Int(round(ci_level*100)))% CI)",
-                  key="sarima_forecast")
+    # #217: via the central helper (same long_table, key frozen).
+    _emit_result(fc; title="$lbl Forecast for $vname (h=$horizons, $(Int(round(ci_level*100)))% CI)",
+                 key="sarima_forecast", format=Symbol(format), output=output)
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
     return (; model, result=fc)
 end
@@ -7590,9 +7590,9 @@ same gap that keeps the flags off `forecast setar|star` — so the leaves declar
 function _ms_forecast_output(fc, label::String, vname::String, horizons::Int,
                              ci_level::Float64, format::String, output::String;
                              key_prefix::String="")
-    output_result(long_table(fc); format=Symbol(format), output=output,
-                  title="$label Forecast for $vname (h=$horizons, $(Int(round(ci_level*100)))% CI)",
-                  key="$(key_prefix)_forecast")
+    # #217: via the central helper (same long_table, key frozen).
+    _emit_result(fc; title="$label Forecast for $vname (h=$horizons, $(Int(round(ci_level*100)))% CI)",
+                 key="$(key_prefix)_forecast", format=Symbol(format), output=output)
     K = size(fc.regime_prob, 2)
     rp = DataFrame(horizon=1:size(fc.regime_prob, 1))
     for k in 1:K
@@ -7870,11 +7870,9 @@ function _irf_tvpvar(; data::String="", result=nothing, date::Int=0, horizons::I
     end
 
     shock_name = birf.shocks[shock]
-    df = long_table(birf)
-    df = df[df.shock .== shock_name, :]
-    output_result(df; format=Symbol(format), output=output,
-                  title="TVP-VAR IRF at date $date to $shock_name (68% credible interval)",
-                  key="tvpvar_irf")
+    # #217: via the central helper (same long_table + shock filter, key frozen).
+    _emit_result(birf; title="TVP-VAR IRF at date $date to $shock_name (68% credible interval)",
+                 key="tvpvar_irf", format=Symbol(format), output=output, shocks=shock_name)
     return (; model=post, result=birf)
 end
 

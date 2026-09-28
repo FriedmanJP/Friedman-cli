@@ -6608,6 +6608,21 @@ end  # VECM handlers
         end
     end
 
+    @testset "_predict_logit — ME upstream tidy columns (#216)" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=4)
+            out = _capture() do
+                _predict_logit(; data=csv, dep="var1", cov_type="hc1",
+                                 clusters="", threshold=0.5,
+                                 marginal_effects=true, odds_ratio=false,
+                                 classification_table=false,
+                                 format="table", output="")
+            end
+            @test occursin("std_error", out)
+            @test !occursin("CI_Lower", out)
+        end
+    end
+
     @testset "_predict_logit — odds ratio" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=4)
@@ -6664,6 +6679,21 @@ end  # VECM handlers
                                   classification_table=false,
                                   format="table", output="")
             end
+        end
+    end
+
+    @testset "_predict_probit — ME upstream tidy columns (#216)" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=4)
+            out = _capture() do
+                _predict_probit(; data=csv, dep="var1", cov_type="hc1",
+                                  clusters="", threshold=0.5,
+                                  marginal_effects=true,
+                                  classification_table=false,
+                                  format="table", output="")
+            end
+            @test occursin("std_error", out)
+            @test !occursin("CI_Lower", out)
         end
     end
 
@@ -10761,6 +10791,19 @@ end
         end
     end
 
+    @testset "_did_estimate — upstream tidy columns (#216)" begin
+        mktempdir() do dir
+            csv = _make_did_csv(dir)
+            out = _capture() do
+                _did_estimate(; data=csv, outcome="outcome", treatment="treat",
+                    id_col="unit", time_col="time", format="table")
+            end
+            @test occursin("event_time", out)
+            @test occursin("std_error", out)
+            @test !occursin("Event_Time", out)
+        end
+    end
+
     @testset "_did_estimate — callaway_santanna with group-time" begin
         mktempdir() do dir
             csv = _make_did_csv(dir)
@@ -10959,6 +11002,67 @@ end
         @test haskey(test_node.subcmds, "negweight")
         @test haskey(test_node.subcmds, "honest")
         @test length(test_node.subcmds) == 4
+    end
+end
+
+@testset "_emit_result routing (#216)" begin
+    @testset "unsupported type throws model/unsupported, never silent hand-build" begin
+        y = Float64.(rand(0:5, 50))  # integer-valued: the mock mirrors real's count guard
+        X = hcat(ones(50), randn(50, 2))
+        m = estimate_poisson(y, X)
+        e = try
+            _emit_result(m; title="t", key="k", format="table", output="")
+            nothing
+        catch ex
+            ex
+        end
+        @test e isa CliError && e.code == "model/unsupported"
+    end
+end
+
+@testset "_emit_result long_table branch (#217)" begin
+    @testset "ImpulseResponse routes via long_table" begin
+        irf = ImpulseResponse(rand(4, 2, 2), nothing, nothing)
+        out = _capture() do
+            _emit_result(irf; title="t", key="k", format="table", output="")
+        end
+        @test occursin("shock1", out) && occursin("shock2", out)
+        @test occursin("horizon", out)
+    end
+    @testset "single-shock filter" begin
+        irf = ImpulseResponse(rand(4, 2, 2), nothing, nothing)
+        out = _capture() do
+            _emit_result(irf; title="t", key="k", format="table", output="", shocks="shock1")
+        end
+        @test occursin("shock1", out) && !occursin("shock2", out)
+    end
+    @testset "multi-shock filter" begin
+        irf = ImpulseResponse(rand(4, 2, 3), nothing, nothing)
+        out = _capture() do
+            _emit_result(irf; title="t", key="k", format="table", output="",
+                         shocks=["shock1", "shock3"])
+        end
+        @test occursin("shock1", out) && occursin("shock3", out) && !occursin("shock2", out)
+    end
+    @testset "FEVD routes via long_table" begin
+        f = FEVD(rand(2, 2, 4), rand(2, 2, 4))
+        out = _capture() do
+            _emit_result(f; title="t", key="k", format="table", output="")
+        end
+        @test occursin("shock1", out)
+    end
+    @testset "BayesianFEVD/LPFEVD/HD throw until upstream lands (TIDY-09/11/12)" begin
+        for x in (BayesianFEVD(rand(2, 2, 4), rand(4, 2, 2, 3), [0.16, 0.5, 0.84]),
+                  LPFEVD(rand(2, 2, 4), nothing, nothing, rand(2, 2, 4), rand(2, 2, 4), 4, 2, 2),
+                  HistoricalDecomposition(rand(4, 2, 2), rand(4, 2), rand(4, 2), rand(4, 2), 4))
+            e = try
+                _emit_result(x; title="t", key="k", format="table", output="")
+                nothing
+            catch ex
+                ex
+            end
+            @test e isa CliError && e.code == "model/unsupported"
+        end
     end
 end
 

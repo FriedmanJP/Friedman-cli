@@ -3221,6 +3221,54 @@ function _reg_coef_table(model, varnames::Vector{String})
     DataFrame(model)
 end
 
+# ── #215/#216: central tidy-result router ──────────────────────
+# Mirrors upstream `_COEF_TABLE_TYPES` 1:1 (MEMs core/tables.jl). Explicit Unions,
+# not trait probes: a trait (`applicable(Tables.columns, …)`) would auto-extend to
+# new upstream types with no mock mirror, converting a production crash into a
+# green suite. Explicit unions are grep-able and T3 enforces conformance.
+const _TIDY_COEF_TYPES = Union{RegModel,LogitModel,ProbitModel,PanelRegModel,PanelIVModel,
+    PanelLogitModel,PanelProbitModel,MarginalEffects,OrderedLogitModel,OrderedProbitModel,
+    MultinomialLogitModel,VARModel,DIDResult}
+
+"""Emit a coefficient-bearing result via upstream Tables.jl (`DataFrame(m)`).
+
+Keys stay caller-chosen (frozen per #215 Option A); columns come from upstream.
+Types outside the union hit the fallback: typed `model/unsupported`, never a
+silent hand-build.
+"""
+function _emit_result(m::_TIDY_COEF_TYPES; title::String="Results", key::AbstractString="",
+                      format::Union{String,Symbol}=:table, output::String="")
+    output_result(DataFrame(m); format=format, output=output, title=title, key=key)
+end
+# Mirrors the upstream `long_table` receivers 1:1 (MEMs core/tables.jl). Deliberately
+# NOT extended to BayesianFEVD/LPFEVD/HD — those have no upstream long_table (TIDY-09/
+# TIDY-11/TIDY-12) and must keep hitting the typed fallback until they land.
+const _TIDY_LONG_TYPES = Union{ImpulseResponse,BayesianImpulseResponse,FEVD,
+    LPImpulseResponse,AbstractForecastResult}
+
+"""Emit an array-valued result via upstream `long_table`.
+
+`shocks` (single name or vector) filters the tidy rows to the selected structural
+shock(s) — the per-shock IRF pattern. Keys stay caller-chosen (frozen per #215
+Option A); columns come from upstream.
+"""
+function _emit_result(r::_TIDY_LONG_TYPES; title::String="Results", key::AbstractString="",
+                      format::Union{String,Symbol}=:table, output::String="",
+                      shocks::Union{Nothing,AbstractString,AbstractVector}=nothing)
+    df = long_table(r)
+    if shocks !== nothing && "shock" in names(df)
+        keep = shocks isa AbstractString ? [String(shocks)] : String[string(s) for s in shocks]
+        df = df[in.(df.shock, Ref(keep)), :]
+    end
+    output_result(df; format=format, output=output, title=title, key=key)
+end
+function _emit_result(x; title::String="Results", key::AbstractString="",
+                      format::Union{String,Symbol}=:table, output::String="")
+    throw(CliError("model/unsupported",
+        "no machine-readable upstream table for $(typeof(x))";
+        hint="this result type has no Tables.jl/long_table coverage yet (tracked upstream under CLI #218)"))
+end
+
 # --- Panel Regression Shared Helpers (v0.4.0) ---
 
 """Load panel CSV for panel regression. Returns PanelData."""

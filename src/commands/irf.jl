@@ -422,10 +422,9 @@ function _irf_var(; data::String="", result=nothing, model=nothing, lags=nothing
     # upper), replacing the wide per-shock build_irf_table. Preserve the --shock selector
     # by filtering the tidy rows to the chosen structural shock.
     shock_name = irf_result.shocks[shock]
-    irf_df = long_table(irf_result)
-    irf_df = irf_df[irf_df.shock .== shock_name, :]
-    output_result(irf_df; format=Symbol(format), output=output,
-                  title="IRF to $shock_name shock ($id identification)", key="irf")
+    # #217: via the central helper (same long_table + shock filter, key frozen).
+    _emit_result(irf_result; title="IRF to $shock_name shock ($id identification)", key="irf",
+                 format=Symbol(format), output=output, shocks=shock_name)
     return (; model, result=irf_result)
 end
 
@@ -553,11 +552,9 @@ function _irf_bvar(; data::String="", result=nothing, lags::Int=4, shock::Int=1,
     # mean, lower/upper = the outer credible quantiles (16/84pct). Preserve --shock by
     # filtering the tidy rows to the selected structural shock.
     shock_name = birf.shocks[shock]
-    irf_df = long_table(birf)
-    irf_df = irf_df[irf_df.shock .== shock_name, :]
-    output_result(irf_df; format=Symbol(format), output=output,
-                  title="Bayesian IRF to $shock_name shock ($id, 68% credible interval)",
-                  key="bayesian_irf")
+    # #217: via the central helper (same long_table + shock filter, key frozen).
+    _emit_result(birf; title="Bayesian IRF to $shock_name shock ($id, 68% credible interval)",
+                 key="bayesian_irf", format=Symbol(format), output=output, shocks=shock_name)
     return (; model=post, result=birf)
 end
 
@@ -655,12 +652,12 @@ function _irf_lp(; data::String="", result=nothing, shock::Int=1, shocks::String
     # into irf_result.shocks (not the CLI-loaded varnames — see irf var/vecm) since
     # structural_lp names shocks after its own internal VAR, not the CLI's column names.
     shock_names = [irf_result.shocks[s] for s in shock_indices]
-    irf_df = long_table(irf_result)
-    irf_df = irf_df[in.(irf_df.shock, Ref(shock_names)), :]
     title = length(shock_names) == 1 ?
         "LP IRF to $(shock_names[1]) shock ($id identification)" :
         "LP IRF to shocks $(join(shock_names, ", ")) ($id identification)"
-    output_result(irf_df; format=Symbol(format), output=output, title=title, key="lp_irf")
+    # #217: via the central helper (same long_table + multi-shock filter, key frozen).
+    _emit_result(irf_result; title=title, key="lp_irf",
+                 format=Symbol(format), output=output, shocks=shock_names)
     return (; model=slp, result=irf_result)
 end
 
@@ -724,10 +721,9 @@ function _irf_vecm(; data::String="", result=nothing, lags::Int=2, rank::String=
 
     # C051: tidy long_table filtered to the selected --shock (see irf var).
     shock_name = irf_result.shocks[shock]
-    irf_df = long_table(irf_result)
-    irf_df = irf_df[irf_df.shock .== shock_name, :]
-    output_result(irf_df; format=Symbol(format), output=output,
-                  title="VECM IRF to $shock_name shock ($id identification)", key="vecm_irf")
+    # #217: via the central helper (same long_table + shock filter, key frozen).
+    _emit_result(irf_result; title="VECM IRF to $shock_name shock ($id identification)",
+                 key="vecm_irf", format=Symbol(format), output=output, shocks=shock_name)
     return (; model=vecm, result=irf_result)
 end
 
@@ -816,10 +812,10 @@ function _irf_favar(; data::String="", result=nothing, factors=nothing, lags::In
     # C051: tidy long_table (horizon|variable|shock|value|lower|upper); irf(favar,...)
     # delegates to irf(to_var(favar),...) — the same ImpulseResponse type as irf var —
     # so one tidy table covers every shock (no more per-shock output files).
-    irf_df = long_table(irf_result)
-    output_result(irf_df; format=Symbol(format), output=output,
-                  title="FAVAR IRF ($id identification)" * (panel_irf ? ", panel-wide" : ""),
-                  key="favar_irf")
+    # #217: via the central helper (same long_table, key frozen).
+    _emit_result(irf_result;
+                 title="FAVAR IRF ($id identification)" * (panel_irf ? ", panel-wide" : ""),
+                 key="favar_irf", format=Symbol(format), output=output)
     return (; model=favar, result=irf_result)
 end
 
@@ -866,8 +862,8 @@ function _irf_sdfm(; data::String="", result=nothing, factors=nothing, id::Strin
     # C051: tidy long_table (horizon|variable|shock|value|lower|upper); irf(sdfm,...)
     # returns a panel-wide ImpulseResponse directly (see MEMs favar/analysis.jl), same
     # schema as irf var — one tidy table covers every shock.
-    irf_df = long_table(irf_result)
-    output_result(irf_df; format=Symbol(format), output=output,
-                  title="SDFM IRF ($id identification)", key="sdfm_irf")
+    # #217: via the central helper (same long_table, key frozen).
+    _emit_result(irf_result; title="SDFM IRF ($id identification)", key="sdfm_irf",
+                 format=Symbol(format), output=output)
     return (; model=sdfm, result=irf_result)
 end

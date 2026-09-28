@@ -4,6 +4,35 @@ All notable changes to Friedman-cli are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to
 Semantic Versioning. Releases before v0.6.0 are recorded in the git tag history.
 
+## [Unreleased] — tidy-surface migration waves 1+2 (#216, #217)
+
+Central `_emit_result` router (`src/commands/shared.jl`): coefficient-bearing
+results emit via upstream `DataFrame(model)`, array results via upstream
+`long_table`, everything else hits typed `model/unsupported` (exit 5) instead of
+a silent hand-build. Explicit type unions mirror upstream
+`_COEF_TABLE_TYPES`/`long_table` receivers 1:1 (no trait probes — a mock more
+permissive than real converts a production crash into a green suite).
+
+- **Wave 1 (#216, columns minor-evolvable per #215 Option A — keys frozen):**
+  `did estimate` event-time block `(Event_Time,ATT,SE,CI_Lower,CI_Upper)` →
+  upstream `(event_time,term,estimate,std_error,stat,p_value,ci_lower,ci_upper)`
+  (strict superset; overturns the C051 exception; group-time block untouched);
+  `predict choice logit|probit --marginal-effects` 7 capitalized rounded cols →
+  upstream lowercase unrounded `(term,estimate,std_error,stat,p_value,ci_lower,ci_upper)`
+  with the non-finite-row drop `report()` applies. Ordered/multinomial ME
+  (`variable|category|dydx|se`) unchanged by design — matrix grain, unregistered
+  upstream (TIDY-10).
+- **Wave 2 (#217, byte-identical routing):** all 26 direct `long_table` call sites
+  (`irf`/`fevd`/`forecast` incl. Bayesian variants, sarima/ms/tvpvar) route through
+  the helper with a `shocks` filter knob; `--result` re-render paths already
+  dispatched via `applicable(long_table)` and stay. Still hand-rolled until
+  upstream lands: `fevd bvar` (BayesianFEVD, TIDY-11), `fevd lp` (LPFEVD, TIDY-12),
+  HD (TIDY-09); permanently CLI-side: arias/uhlig/narrative/sign-set/pvar/TVP-band
+  builders (no upstream result type — arrays/NamedTuples by design).
+- Mock mirrors: `DataFrame(::MarginalEffects)`/`(::DIDResult)` in upstream column
+  shape; mock forecast types subtyped under a new `AbstractForecastResult`
+  (real `core/types.jl` hierarchy).
+
 ## [1.0.0] — 2026-09-20 — v1.0 freeze on MEMs 1.0.0 + Julia 1.13 (v1.0.0 program)
 
 First major. 477 leaves / 21 top-level. MEMs pin

@@ -3916,9 +3916,11 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         @testset "did estimate has finite SE column (#164-169)" begin
             r = run_json(vcat(["did", "estimate", panel], D, P))
             assert_envelope_ok(r; label="did estimate")
-            _, tbl = first_table(r.doc)
+            # #216: routes via upstream _coef_nt(::DIDResult) — lowercase columns + stat/p_value.
+            tbl = named_table(r.doc, :did_estimation)
             @test tbl !== nothing
-            si = col_index(tbl, "SE")
+            @test "event_time" in table_cols(tbl)
+            si = col_index(tbl, "std_error")
             @test si !== nothing
             ses = [collect(row)[si] for row in table_rows(tbl)]
             @test all(x -> x isa Real && isfinite(x) && x >= 0, ses)
@@ -7149,6 +7151,24 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             end
             # probit has no odds ratio → unknown option is a usage error
             @test run_json(["predict", "choice", "probit", logit, "--dep", "y", "--odds-ratio"]).code == 2
+        end
+
+        @testset "predict logit/probit --marginal-effects use upstream tidy columns (#216)" begin
+            # Vector-form MarginalEffects routes via _emit_result → upstream
+            # term|estimate|std_error|stat|p_value|ci_lower|ci_upper (unrounded;
+            # non-finite rows dropped as report() does). Keys frozen.
+            for (leaf, key) in (("logit", :average_marginal_effects_logit),
+                                ("probit", :average_marginal_effects_probit))
+                r = run_json(["predict", "choice", leaf, logit, "--dep", "y", "--marginal-effects"])
+                assert_envelope_ok(r; label="predict choice $leaf --marginal-effects")
+                me = named_table(r.doc, key)
+                @test me !== nothing
+                if me !== nothing
+                    @test table_cols(me) == ["term", "estimate", "std_error", "stat",
+                                             "p_value", "ci_lower", "ci_upper"]
+                    @test length(table_rows(me)) >= 1
+                end
+            end
         end
         rm(ord; force=true)
     end

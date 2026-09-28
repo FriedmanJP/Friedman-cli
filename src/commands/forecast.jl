@@ -774,13 +774,13 @@ function _forecast_var(; data::String="", result=nothing, model=nothing, lags=no
         (; ci_method=:bootstrap, reps=500, conf_level=confidence) :
         (; ci_method=ci_sym, conf_level=confidence)
     fc_result = forecast(model, horizons; fc_kw...)
-    fc_df = long_table(fc_result)
 
     ci_label = ci_sym == :bootstrap ? "bootstrap $(Int(round(confidence*100)))% CI" :
                ci_sym == :none      ? "point forecast" :
                "$(Int(round(confidence*100)))% CI"
-    output_result(fc_df; format=Symbol(format), output=output,
-                  title="VAR($p) Forecast (h=$horizons, $ci_label)", key="var_forecast")
+    # #217: via the central helper (same long_table, key frozen).
+    _emit_result(fc_result; title="VAR($p) Forecast (h=$horizons, $ci_label)", key="var_forecast",
+                 format=Symbol(format), output=output)
     _maybe_plot(fc_result; plot=plot, plot_save=plot_save)
     return (; model, result=fc_result)
 end
@@ -828,9 +828,9 @@ function _forecast_bvar(; data::String="", result=nothing, lags::Int=4, horizons
     # #95: BVARForecast has a real plot_result recipe upstream — this leaf simply never
     # advertised it.
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
-    output_result(long_table(fc); format=Symbol(format), output=output,
-                  title="Bayesian VAR($p) Forecast (h=$horizons, 68% credible interval)",
-                  key="bvar_forecast")
+    # #217: via the central helper (same long_table, key frozen).
+    _emit_result(fc; title="Bayesian VAR($p) Forecast (h=$horizons, 68% credible interval)",
+                 key="bvar_forecast", format=Symbol(format), output=output)
     return (; model=post, result=fc)
 end
 
@@ -867,9 +867,9 @@ function _forecast_lp(; data::String="", result=nothing, shock::Int=1, horizons:
 
     shock_name = _shock_name(varnames, shock)
     # C051: MEMs tidy long_table (horizon|variable|value|lower|upper).
-    output_result(long_table(fc); format=Symbol(format), output=output,
-                  title="LP Forecast (shock=$shock_name, h=$horizons, $(Int(round(conf_level*100)))% CI)",
-                  key="lp_forecast")
+    # #217: via the central helper (same long_table, key frozen).
+    _emit_result(fc; title="LP Forecast (shock=$shock_name, h=$horizons, $(Int(round(conf_level*100)))% CI)",
+                 key="lp_forecast", format=Symbol(format), output=output)
     return (; model, result=fc)
 end
 
@@ -918,9 +918,9 @@ function _forecast_arima(; data::String="", result=nothing, column::Int=1, p=not
     label = _model_label(p_sel, d_sel, q_sel)
 
     # C051: MEMs tidy long_table (horizon|variable|value|lower|upper).
-    output_result(long_table(fc); format=Symbol(format), output=output,
-                  title="$label Forecast for $vname (h=$horizons, $(Int(round(confidence*100)))% CI)",
-                  key="arima_forecast")
+    # #217: via the central helper (same long_table, key frozen).
+    _emit_result(fc; title="$label Forecast for $vname (h=$horizons, $(Int(round(confidence*100)))% CI)",
+                 key="arima_forecast", format=Symbol(format), output=output)
     return (; model, result=fc)
 end
 
@@ -960,9 +960,9 @@ function _forecast_setar(; data::String="", result=nothing, column::Int=1, p::In
     end
     # ThresholdForecast <: AbstractForecastResult → MEMs tidy long_table (horizon|variable|value|lower|upper).
     # No _maybe_plot: MEMs ships no plot_result(::ThresholdForecast) recipe (see the CommandSpec note).
-    output_result(long_table(fc); format=Symbol(format), output=output,
-                  title="SETAR Forecast for $vname (h=$horizons, $(Int(round(ci_level*100)))% CI)",
-                  key="setar_forecast")
+    # #217: via the central helper (same long_table, key frozen).
+    _emit_result(fc; title="SETAR Forecast for $vname (h=$horizons, $(Int(round(ci_level*100)))% CI)",
+                 key="setar_forecast", format=Symbol(format), output=output)
     return (; model, result=fc)
 end
 
@@ -1006,9 +1006,9 @@ function _forecast_star(; data::String="", result=nothing, column::Int=1, p::Int
     end
     # STARForecast <: AbstractForecastResult → MEMs tidy long_table (horizon|variable|value|lower|upper).
     # No _maybe_plot: MEMs ships no plot_result(::STARForecast) recipe (see the CommandSpec note).
-    output_result(long_table(fc); format=Symbol(format), output=output,
-                  title="STAR Forecast for $vname (h=$horizons, $(Int(round(ci_level*100)))% CI)",
-                  key="star_forecast")
+    # #217: via the central helper (same long_table, key frozen).
+    _emit_result(fc; title="STAR Forecast for $vname (h=$horizons, $(Int(round(ci_level*100)))% CI)",
+                 key="star_forecast", format=Symbol(format), output=output)
     return (; model, result=fc)
 end
 
@@ -1048,9 +1048,9 @@ function _forecast_static(; data::String="", result=nothing, nfactors=nothing, h
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
 
     # C051: MEMs tidy long_table (horizon|variable|value|lower|upper).
-    output_result(long_table(fc); format=Symbol(format), output=output,
-                  title="Static Factor Forecast (h=$horizons, $(length(varnames)) variables)",
-                  key="static_factor_forecast")
+    # #217: via the central helper (same long_table, key frozen).
+    _emit_result(fc; title="Static Factor Forecast (h=$horizons, $(length(varnames)) variables)",
+                 key="static_factor_forecast", format=Symbol(format), output=output)
 
     if !isnothing(fc.observables_se)
         _status()
@@ -1099,9 +1099,9 @@ function _forecast_dynamic(; data::String="", result=nothing, nfactors=nothing, 
     # C051: render the FactorForecast's observable forecasts through MEMs' tidy
     # long_table (horizon|variable|value|lower|upper), replacing the hand-rolled
     # loadings reconstruction.
-    output_result(long_table(fc); format=Symbol(format), output=output,
-                  title="Dynamic Factor Forecast (h=$horizons, $(length(varnames)) variables)",
-                  key="dynamic_factor_forecast")
+    # #217: via the central helper (same long_table, key frozen).
+    _emit_result(fc; title="Dynamic Factor Forecast (h=$horizons, $(length(varnames)) variables)",
+                 key="dynamic_factor_forecast", format=Symbol(format), output=output)
     return (; model=fm, result=fc)
 end
 
@@ -1163,9 +1163,9 @@ function _forecast_gdfm(; data::String="", result=nothing, nfactors=nothing, dyn
     # are the FHLR 2005 one-sided projection).
     fc = forecast(fm, horizons; method=_GDFM_FORECAST_METHODS[method])
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
-    output_result(long_table(fc); format=Symbol(format), output=output,
-                  title="GDFM Forecast (h=$horizons, $(length(varnames)) variables)",
-                  key="gdfm_forecast")
+    # #217: via the central helper (same long_table, key frozen).
+    _emit_result(fc; title="GDFM Forecast (h=$horizons, $(length(varnames)) variables)",
+                 key="gdfm_forecast", format=Symbol(format), output=output)
 
     _status()
     var_shares = common_variance_share(fm)
@@ -1206,9 +1206,9 @@ function _forecast_sdfm(; data::String="", result=nothing, factors=nothing, id::
         forecast(sdfm, horizons; ci_method=:bootstrap, reps=reps) :
         forecast(sdfm, horizons)
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
-    output_result(long_table(fc); format=Symbol(format), output=output,
-                  title="SDFM Forecast (h=$horizons, $(length(varnames)) variables)",
-                  key="sdfm_forecast")
+    # #217: via the central helper (same long_table, key frozen).
+    _emit_result(fc; title="SDFM Forecast (h=$horizons, $(length(varnames)) variables)",
+                 key="sdfm_forecast", format=Symbol(format), output=output)
     return (; model=sdfm, result=fc)
 end
 
@@ -1244,8 +1244,9 @@ function _forecast_vecm(; data::String="", result=nothing, lags::Int=2, rank::St
 
     ci_label = ci_method == "none" ? "" : ", $(Int(round(confidence*100)))% CI"
     # C051: MEMs tidy long_table (horizon|variable|value|lower|upper).
-    output_result(long_table(fc); format=Symbol(format), output=output,
-                  title="VECM Forecast (rank=$r, h=$horizons$ci_label)", key="vecm_forecast")
+    # #217: via the central helper (same long_table, key frozen).
+    _emit_result(fc; title="VECM Forecast (rank=$r, h=$horizons$ci_label)", key="vecm_forecast",
+                 format=Symbol(format), output=output)
     return (; model=vecm, result=fc)
 end
 
@@ -1279,8 +1280,9 @@ function _forecast_favar(; data::String="", result=nothing, factors=nothing, lag
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
 
     # C051: MEMs tidy long_table (horizon|variable|value|lower|upper).
-    output_result(long_table(fc); format=Symbol(format), output=output,
-                  title="FAVAR Forecast (h=$horizons)", key="favar_forecast")
+    # #217: via the central helper (same long_table, key frozen).
+    _emit_result(fc; title="FAVAR Forecast (h=$horizons)", key="favar_forecast",
+                 format=Symbol(format), output=output)
     return (; model=favar, result=fc)
 end
 

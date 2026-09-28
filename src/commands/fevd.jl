@@ -311,8 +311,9 @@ function _fevd_var(; data::String="", result=nothing, model=nothing, lags=nothin
         # Saying so in the title keeps a reader from reading the rows as an orthogonal
         # decomposition.
         note = normalize ? "normalized to sum to 1" : "shares do NOT sum to 1 across shocks"
-        output_result(long_table(fevd_result); format=Symbol(format), output=output,
-                      title="Generalized FEVD (Pesaran-Shin, $note)", key="generalized_fevd")
+        # #217: via the central helper (same long_table, key frozen).
+        _emit_result(fevd_result; title="Generalized FEVD (Pesaran-Shin, $note)",
+                     key="generalized_fevd", format=Symbol(format), output=output)
         return (; model, result=fevd_result)
     end
 
@@ -334,8 +335,9 @@ function _fevd_var(; data::String="", result=nothing, model=nothing, lags=nothin
     # C051: render via MEMs' uniform tidy long_table (horizon|variable|shock|value),
     # replacing the wide per-variable _output_fevd_tables. (Arias/Uhlig branches above
     # build proportions by hand with no FEVD result type, so they keep the wide helper.)
-    output_result(long_table(fevd_result); format=Symbol(format), output=output,
-                  title="FEVD ($id identification)", key="fevd")
+    # #217: via the central helper (same long_table, key frozen).
+    _emit_result(fevd_result; title="FEVD ($id identification)", key="fevd",
+                 format=Symbol(format), output=output)
     return (; model, result=fevd_result)
 end
 
@@ -468,8 +470,9 @@ function _fevd_vecm(; data::String="", result=nothing, lags::Int=2, rank::String
     _maybe_plot(fevd_result; plot=plot, plot_save=plot_save)
 
     # C051: tidy long_table (see fevd var).
-    output_result(long_table(fevd_result); format=Symbol(format), output=output,
-                  title="VECM FEVD ($id identification)", key="vecm_fevd")
+    # #217: via the central helper (same long_table, key frozen).
+    _emit_result(fevd_result; title="VECM FEVD ($id identification)", key="vecm_fevd",
+                 format=Symbol(format), output=output)
     return (; model=vecm, result=fevd_result)
 end
 
@@ -536,9 +539,9 @@ function _fevd_favar(; data::String="", result=nothing, factors=nothing, lags::I
 
     # C051: tidy long_table (horizon|variable|shock|value); fevd(favar,...) delegates to
     # fevd(to_var(favar),...) — the same FEVD type as fevd var.
-    fevd_df = long_table(result)
-    output_result(fevd_df; format=Symbol(format), output=output,
-                  title="FAVAR FEVD ($id identification)", key="favar_fevd")
+    # #217: via the central helper (same long_table, key frozen).
+    _emit_result(result; title="FAVAR FEVD ($id identification)", key="favar_fevd",
+                 format=Symbol(format), output=output)
     return (; model=favar, result=result)
 end
 
@@ -573,7 +576,7 @@ function _fevd_sdfm(; data::String="", result=nothing, factors=nothing, id::Stri
 
     # C051: tidy long_table (horizon|variable|shock|value); fevd(sdfm,...) delegates to
     # fevd(sdfm.factor_var,...) — the same FEVD type as fevd var, in factor space.
-    fevd_df = long_table(result)
-    output_result(fevd_df; format=Symbol(format), output=output, title="SDFM FEVD")
+    # #217: via the central helper (same long_table; title-slug key frozen).
+    _emit_result(result; title="SDFM FEVD", format=Symbol(format), output=output)
     return (; model=sdfm, result=result)
 end
