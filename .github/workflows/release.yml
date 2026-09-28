@@ -68,7 +68,9 @@ jobs:
       # Swap is headroom only. The v1.0.0 ubuntu death (signal 15 during
       # "compiling incremental system image", twice, ~15 min in, under the 120 min
       # cap) is Julia 1.13's PackageCompiler default cpu_target="sysimage"
-      # (three x86_64 clones). build_release.jl passes cpu_target="generic" there.
+      # (three x86_64 clones). build_release.jl passes cpu_target="generic" there
+      # and cpu_target="apple-m1" on aarch64 (one clone). macos-14 timed out at
+      # 120 min on generic;apple-m1,clone_all.
       # The runner is 15Gi, not the old ~7 GB image. Linux-only (fallocate).
       - name: Add swap space (Linux OOM headroom)
         if: runner.os == 'Linux'

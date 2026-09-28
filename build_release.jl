@@ -135,8 +135,11 @@ println("This will take several minutes.")
 # "compiling incremental system image" in ~19 min on the same 15Gi runner.
 # v1.0.0 died there twice (14 min and 17 min) with SIGTERM — the runner
 # shutdown that follows an OOM, not the 120 min step timeout. One portable
-# clone fits. aarch64 keeps "sysimage" (generic;apple-m1,clone_all only).
-cpu_target = Sys.ARCH === :x86_64 ? "generic" : "sysimage"
+# clone fits: x86_64 uses "generic". aarch64 uses "apple-m1" (one clone).
+# "sysimage" there is generic;apple-m1,clone_all, and macos-14 (3-core M1,
+# 7 GB) was still in that compile when the 120-minute step timeout fired
+# (run 36456649455). Later Apple Silicon runs apple-m1 code.
+cpu_target = Sys.ARCH === :x86_64 ? "generic" : "apple-m1"
 println("Sysimage cpu_target: $cpu_target")
 create_sysimage(
     [:Friedman];
