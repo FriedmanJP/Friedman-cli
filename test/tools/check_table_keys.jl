@@ -48,8 +48,10 @@ include(joinpath(ROOT, "src", "cli", "help.jl"))
 include(joinpath(ROOT, "src", "cli", "dispatch.jl"))
 include(joinpath(ROOT, "src", "commands", "shared.jl"))
 include(joinpath(ROOT, "src", "model_handle.jl"))
+include(joinpath(ROOT, "src", "handles.jl"))
 include(joinpath(ROOT, "src", "registry", "spec.jl"))
 include(joinpath(ROOT, "src", "registry", "adapter.jl"))
+include(joinpath(ROOT, "src", "registry", "families.jl"))
 include(joinpath(ROOT, "src", "commands", "estimate.jl"))
 include(joinpath(ROOT, "src", "commands", "test.jl"))
 include(joinpath(ROOT, "src", "commands", "irf.jl"))
@@ -58,10 +60,12 @@ include(joinpath(ROOT, "src", "commands", "hd.jl"))
 include(joinpath(ROOT, "src", "commands", "forecast.jl"))
 include(joinpath(ROOT, "src", "commands", "fitted.jl"))
 include(joinpath(ROOT, "src", "commands", "filter.jl"))
+include(joinpath(ROOT, "src", "commands", "data_simulate.jl"))
 include(joinpath(ROOT, "src", "commands", "data.jl"))
 include(joinpath(ROOT, "src", "commands", "io.jl"))
 include(joinpath(ROOT, "src", "commands", "nowcast.jl"))
 include(joinpath(ROOT, "src", "commands", "dsge.jl"))
+include(joinpath(ROOT, "src", "commands", "hadsge.jl"))
 include(joinpath(ROOT, "src", "commands", "did.jl"))
 include(joinpath(ROOT, "src", "commands", "multipliers.jl"))
 include(joinpath(ROOT, "src", "commands", "policy.jl"))
@@ -70,6 +74,7 @@ include(joinpath(ROOT, "src", "commands", "schema.jl"))
 include(joinpath(ROOT, "src", "commands", "model.jl"))
 include(joinpath(ROOT, "src", "commands", "completions.jl"))
 include(joinpath(ROOT, "src", "commands", "serve.jl"))
+include(joinpath(ROOT, "src", "commands", "show.jl"))
 
 # Populate REGISTRY (register! runs inside each register function)
 register_estimate_commands!()
@@ -85,13 +90,14 @@ register_data_commands!()
 register_io_commands!()
 register_nowcast_commands!()
 register_dsge_commands!()
+register_hadsge_commands!()
 register_did_commands!()
-register_multipliers_commands!()
 register_policy_commands!()
 register_spectral_commands!()
 register_model_commands!()
 register_completions_commands!()
 register_serve_commands!()
+register_show_commands!()
 
 # Dedup by path (last wins — matches generate_cli_reference.jl)
 const SPECS = Dict{String,CommandSpec}()
@@ -105,12 +111,13 @@ violations = String[]
 for (path, spec) in sort!(collect(SPECS); by=first)
     if isempty(spec.tables)
         # Documented no-table leaves (W3/#138): completions emit shell scripts;
-        # data load/fix/transform write CSV directly and data validate reports
-        # on stderr only; serve owns stdout as a JSON-RPC channel (W7/#142).
-        # (estimate sdfm left this list at #147 — it now emits a summary.)
-        # An explicitly empty declaration on these means "emits nothing", not "forgot".
+        # data load/export/fix/transform write CSV (or a handle) directly and
+        # data validate reports on stderr only; serve owns stdout as a JSON-RPC
+        # channel (W7/#142). (estimate factor sdfm left this list at #147 — it now
+        # emits a summary.) An explicitly empty declaration on these means
+        # "emits nothing", not "forgot".
         startswith(path, "completions") && continue
-        path in ("data load", "data fix", "data transform",
+        path in ("data load", "data export", "data fix", "data transform",
                  "data validate", "serve") && continue
         push!(violations, "$path: declares NO tables (every envelope-emitting leaf must declare its tables)")
         continue

@@ -47,10 +47,12 @@ include("commands/shared.jl")
 
 # Model handles (.fmod) — after io/errors (uses CliError, _status)
 include("model_handle.jl")
+include("handles.jl")
 
 # Declarative registry (P2-1) — before command files that emit CommandSpecs
 include("registry/spec.jl")
 include("registry/adapter.jl")
+include("registry/families.jl")
 
 # Commands (action-first hierarchy)
 include("commands/estimate.jl")
@@ -61,10 +63,12 @@ include("commands/hd.jl")
 include("commands/forecast.jl")
 include("commands/fitted.jl")  # predict + residuals collapsed (C025)
 include("commands/filter.jl")
+include("commands/data_simulate.jl")  # data simulate specs (#177); register_data appends them
 include("commands/data.jl")
 include("commands/io.jl")           # input-output analysis (C049)
 include("commands/nowcast.jl")
 include("commands/dsge.jl")
+include("commands/hadsge.jl")
 include("commands/did.jl")
 include("commands/multipliers.jl")  # multipliers nardl — new top-level (C062b)
 include("commands/policy.jl")       # policy counterfactuals — new top-level (W4/#126)
@@ -73,6 +77,7 @@ include("commands/schema.jl")
 include("commands/model.jl")       # model info (C029)
 include("commands/completions.jl") # completions bash|zsh|fish (C029)
 include("commands/serve.jl")       # serve --mcp (C057/#61, W7/#142)
+include("commands/show.jl")        # show HANDLE (typed-handles Wave 2)
 
 # REPL (interactive session)
 include("repl.jl")
@@ -104,14 +109,15 @@ function build_app()
         "io"        => register_io_commands!(),
         "nowcast"   => register_nowcast_commands!(),
         "dsge"      => register_dsge_commands!(),
+        "hadsge"    => register_hadsge_commands!(),
         "did"       => register_did_commands!(),
-        "multipliers" => register_multipliers_commands!(),
         "policy"    => register_policy_commands!(),
         "spectral"  => register_spectral_commands!(),
         "schema"    => register_schema_command!(),
         "model"     => register_model_commands!(),
         "completions" => register_completions_commands!(),
         "serve"     => register_serve_commands!(),
+        "show"      => register_show_commands!(),
     )
 
     root = NodeCommand("friedman", root_cmds,

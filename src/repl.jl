@@ -28,7 +28,8 @@ Session() = Session("", nothing, nothing, String[], Dict{Symbol,Any}(), :none)
 function session_load_data!(s::Session, path::String)
     # `~` has no shell to expand it inside the REPL; store the expanded path so
     # every downstream command that receives it via inject_session_data resolves.
-    path = startswith(path, ":") ? path : _expanduser(path)
+    # Stem `macro` injects `macro.jld2` when that file exists (resolve_stem).
+    path = startswith(path, ":") ? path : resolve_stem(_expanduser(path); slot=:data)
     df = load_data(path)
     Y = df_to_matrix(df)
     vnames = variable_names(df)
@@ -148,6 +149,12 @@ is_downstream_command(args::Vector{String}) =
 
 function detect_model_type(args::Vector{String})
     length(args) >= 2 || return :none
+    # v1.0.0 family paths: estimate|predict|residuals|forecast|test <family> <model>
+    if length(args) >= 3 && args[1] in ("estimate", "predict", "residuals", "forecast", "test") &&
+       !startswith(args[3], "-") && !occursin(".", args[3]) && !occursin("/", args[3]) &&
+       !startswith(args[3], ":")
+        return Symbol(args[3])
+    end
     return Symbol(args[2])
 end
 

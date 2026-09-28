@@ -236,7 +236,7 @@ function _policy_menu(route::String; data::String, lags, horizon::Int, draws::In
         # LP draws are an INDEPENDENT-NORMAL N(value, se) approximation — fine
         # for pointwise bands, not a joint posterior (documented + settings row).
         ce = policy_causal_effects(slp, shocks, outcomes, instruments;
-                                   H=horizon, n_draws=n_draws)
+                                   H=horizon, n_draws=n_draws, _fwd_seed()...)
         normalize === :none || throw(CliError("usage/invalid",
             "policy: --normalize applies to the var|bvar|sign routes; the lp route keeps the estimator's scale"))
         return ce, slp.irf, slp
@@ -246,7 +246,7 @@ function _policy_menu(route::String; data::String, lags, horizon::Int, draws::In
         check_func === nothing && throw(CliError("usage/missing",
             "policy effects sign requires --config with [identification] sign restrictions"))
         set = identify_sign(model, horizon, check_func; max_draws=replications > 0 ? replications : 1000,
-                            store_all=true)
+                            store_all=true, _fwd_seed()...)
         ce = policy_causal_effects(set, shocks, outcomes, instruments;
                                    H=horizon, normalize=normalize)
         return ce, set, set
@@ -840,7 +840,8 @@ function _policy_opp(route::String; data::String, lags=nothing, horizon::Int=20,
                 sdv = [fill(Float64(x), horizon) for x in ss]
             end
             policy_forecast(out_syms, vals; sd=sdv, rho=rho, n_draws=n_draws,
-                            H=horizon, cross_corr=cc, min_sd=min_sd, origin=origin)
+                            H=horizon, cross_corr=cc, min_sd=min_sd, origin=origin,
+                            _fwd_seed()...)
         elseif route == "bvar"
             # store_draws is LOAD-BEARING: without it estimate_opp silently
             # falls back to IRF-only bands (narrower, one @info line).
@@ -862,14 +863,14 @@ function _policy_opp(route::String; data::String, lags=nothing, horizon::Int=20,
             constrained_opp(pf, ce, loss, cons;
                             instrument_path=ipath, z_wedge=z_wedge,
                             method=Symbol(method), n_sim=n_sim, levels=lv,
-                            independent=!matched_draws)
+                            independent=!matched_draws, _fwd_seed()...)
         else
             has_draws = pf.draws !== nothing || ce.Theta_x_draws !== nothing
             if has_draws && n_sim > 0
                 (; result=estimate_opp(pf, ce, loss;
                                        instrument_path=ipath, z_wedge=z_wedge,
                                        independent=!matched_draws, levels=lv,
-                                       n_sim=n_sim),
+                                       n_sim=n_sim, _fwd_seed()...),
                  method_used=:unconstrained, binding=Bool[],
                  kkt_residual=NaN, warm_start_feasible=true)
             else
@@ -1043,11 +1044,11 @@ function _policy_opp_sequence(route::String; data::String, lags=nothing,
                 push!(vals, v)
             end
             policy_forecast(out_syms, vals; sd=sdv, rho=rho, n_draws=n_draws,
-                            H=horizon, origin=splitext(f)[1])
+                            H=horizon, origin=splitext(f)[1], _fwd_seed()...)
         end
         opp_sequence(collect(Union{PolicyForecast,Missing}, fcs), ce, loss;
                      dates=dates, z_wedge=z_wedge, n_sim=n_sim, levels=lv,
-                     independent=!matched_draws)
+                     independent=!matched_draws, _fwd_seed()...)
     catch e
         e isa CliError && rethrow()
         throw(_domain_or_data_error(e, "OPP sequence"))
@@ -1278,17 +1279,40 @@ function _policy_history(route::String; data::String, lags=nothing, horizon::Int
     # double-count — CMW subtlety #9); rests on forecast sufficiency.
     _status()
 
-    hist = try
+    hist, n_used, n_failed = try
         ce, _, est = _policy_menu(route; data=data, lags=lags, horizon=horizon,
                                   draws=draws, replications=replications,
                                   n_draws=n_draws, config=config, shocks=shock_list,
                                   outcomes=out_pairs, instruments=ins_pairs,
                                   normalize=norm_sym)
         Y, varnames = load_multivariate_data(data)
-        counterfactual_history(est, Y, lo:hi, ce, policy;
-                               outcomes=out_pairs, instruments=ins_pairs,
-                               H=horizon, draws=Symbol(use_draws),
-                               quantiles=Tuple(qs))
+        # Point panels always come from a draws=:off pass. MEMs 1.0.0's draws
+        # branch re-runs its `_run` closure once per draw, and those panel
+        # assignments write through to the enclosing scope (closures capture by
+        # reference) — so after a draws pass the point-run `nu`/`rel_residual`
+        # come back 0-sized and `cf` holds the last draw's panel, which crashes
+        # the renderer below (BoundsError on `rel_residual[d]`). Recover the
+        # true point panels with a dedicated :off pass and take only the draw
+        # counts from the draws pass (bands are not tabulated — the summary
+        # carries n_draws_used/failed as the propagation honesty signal).
+        # Re-check on a MEMs bump: if upstream localizes `_run`'s panels the
+        # double pass stays correct, just redundant.
+        hp = counterfactual_history(est, Y, lo:hi, ce, policy;
+                                    outcomes=out_pairs, instruments=ins_pairs,
+                                    H=horizon, draws=:off,
+                                    quantiles=Tuple(qs))
+        draw_sym = Symbol(use_draws)
+        if draw_sym === :off || (draw_sym === :auto && ce.Theta_x_draws === nothing)
+            (hp, hp.n_draws_used, hp.n_draws_failed)
+        else
+            # :on with a draws-free container still throws upstream
+            # (ArgumentError → data/invalid), as before.
+            hd = counterfactual_history(est, Y, lo:hi, ce, policy;
+                                        outcomes=out_pairs, instruments=ins_pairs,
+                                        H=horizon, draws=draw_sym,
+                                        quantiles=Tuple(qs))
+            (hp, hd.n_draws_used, hd.n_draws_failed)
+        end
     catch e
         e isa CliError && rethrow()
         throw(_domain_or_data_error(e, "counterfactual history"))
@@ -1311,8 +1335,8 @@ function _policy_history(route::String; data::String, lags=nothing, horizon::Int
         "policy" => hist.policy_name,
         "H" => hist.H,
         "n_dates" => length(hist.dates),
-        "n_draws_used" => hist.n_draws_used,
-        "n_draws_failed" => hist.n_draws_failed,
+        "n_draws_used" => n_used,
+        "n_draws_failed" => n_failed,
         "note" => "built from forecast revisions, never identified shocks (raw forecasts double-count); rests on forecast sufficiency — see policy sufficiency",
     ]; format=format, title="History Summary")
     return hist
@@ -1372,7 +1396,8 @@ function _policy_spanning(; data::String, model::String, lags=nothing,
                              mo_pairs, mi_pairs; H=horizon,
                              solver=Symbol(replace(solver, '-' => '_')))
         spanning_diagnostic(base, ce_emp, ce_full, pol;
-                            tol=tol, n_sim=n_sim, quantiles=Tuple(qs))
+                            tol=tol, n_sim=n_sim, quantiles=Tuple(qs),
+                            _fwd_seed()...)
     catch e
         e isa CliError && rethrow()
         throw(_domain_or_data_error(e, "spanning diagnostic"))
@@ -1905,7 +1930,8 @@ function register_policy_commands!()
         category="policy",
         handler=wrap_legacy((; kw...) -> _policy_sufficiency(; kw...)),
     ))
-    register!(specs)
+    specs = with_default_csv_kinds(specs)
+    specs = register!(specs)
     return build_node("policy", specs;
         description="Policy counterfactuals: menus (empirical + structural), rule counterfactuals, optimal policy, moments, OPP, histories and diagnostics")
 end

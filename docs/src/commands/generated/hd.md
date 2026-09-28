@@ -3,7 +3,7 @@
 
 Generated reference for `friedman hd` and its subcommands.
 
-**Leaves:** 5
+**Leaves:** 6
 
 ### `friedman hd bvar`
 
@@ -23,9 +23,11 @@ Compute Bayesian historical decomposition
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -55,9 +57,11 @@ FAVAR historical decomposition
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -86,9 +90,11 @@ Compute historical decomposition via structural LP
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -96,6 +102,45 @@ Compute historical decomposition via structural LP
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
 **Output tables:** `lp_historical_decomposition_*` (One table per variable: period | actual | initial | one shock-contribution column per shock)
+
+---
+
+### `friedman hd sdfm`
+
+Structural DFM historical decomposition
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `data` | `String` | yes | — | Path to CSV data file |
+
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--factors` | `-q` | `Int64` | — | — | Number of dynamic factors (default: auto via --q-method) |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|proxy\|lewis-tvv\|sv-em\|gmm-moments (--id proxy requires --instrument) |
+| `--q-method` | — | `String` | `hallin-liska` | `hallin-liska`, `bai-ng`, `amengual-watson` | Auto factor selection: hallin-liska\|bai-ng\|amengual-watson |
+| `--method` | — | `String` | `fglr` | `fglr`, `gdfm-var` | Estimator: fglr\|gdfm-var (gdfm-var is the legacy path) |
+| `--spectral` | — | `String` | `lag-window` | `lag-window`, `smoothed-periodogram` | GDFM spectrum: lag-window (FHLR)\|smoothed-periodogram |
+| `--instrument` | — | `String` | `""` | — | Proxy-instrument CSV column (only with --id proxy) |
+| `--var-lags` | — | `Int64` | `1` | — | Factor VAR lag order |
+| `--horizons` | — | `Int64` | `20` | — | HD horizon (periods decomposed) |
+| `--config` | — | `String` | `""` | — | TOML config for sign restrictions |
+| `--space` | — | `String` | `panel` | `panel`, `factor` | Decomposition space: panel\|factor |
+| `--output` | `-o` | `String` | `""` | — | Export results to file |
+| `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
+| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--plot` | — | Open interactive plot in browser |
+| `--no-idiosyncratic` | — | Drop the idiosyncratic column (panel space only) |
+| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+
+**Output tables:** `sdfm_historical_decomposition_*` (One table per variable: period | actual | initial | one shock-contribution column per shock)
 
 ---
 
@@ -110,14 +155,18 @@ Compute historical decomposition of shocks
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto) |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|arias\|uhlig |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|arias\|uhlig\|proxy\|max-share\|gmm-moments\|narrative-adrr\|lewis-tvv\|sv-em |
 | `--config` | — | `String` | `""` | — | TOML config for identification |
+| `--instrument` | — | `String` | `""` | — | Proxy-instrument CSV column (only with --id proxy) |
+| `--target-var` | — | `String` | `""` | — | Max-share target: column name or 1-based index (only with --id max-share) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -141,14 +190,16 @@ Compute historical decomposition via VECM → VAR representation
 | `--lags` | `-p` | `Int64` | `2` | — | Lag order (in levels) |
 | `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto\|1\|2\|...) |
 | `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|svec\|lewis-tvv\|sv-em |
 | `--config` | — | `String` | `""` | — | TOML config for identification |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a .fmod handle (skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
+| `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 
 | Flag | Short | Description |
 |------|-------|-------------|

@@ -463,7 +463,8 @@ function _predict_preg(; data::String, dep::String="", indep::String="",
                         method::String="fe", cov_type::String="cluster",
                         id_col::String="", time_col::String="",
                         output::String="", format::String="table")
-    isempty(dep) && error("--dep is required")
+    isempty(dep) && throw(CliError("usage/missing", "--dep is required";
+        hint="name the dependent variable column, e.g. --dep y"))
     pd = _load_panel_for_preg(data, id_col, time_col)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
@@ -485,8 +486,10 @@ function _predict_piv(; data::String, dep::String="", exog::String="",
                        method::String="fe", cov_type::String="cluster",
                        id_col::String="", time_col::String="",
                        output::String="", format::String="table")
-    isempty(dep) && error("--dep is required")
-    isempty(endog) && error("--endog is required")
+    isempty(dep) && throw(CliError("usage/missing", "--dep is required";
+        hint="name the dependent variable column, e.g. --dep y"))
+    isempty(endog) && throw(CliError("usage/missing", "--endog is required";
+        hint="name the endogenous regressor(s), e.g. --endog investment"))
     pd = _load_panel_for_preg(data, id_col, time_col)
 
     exog_syms = isempty(exog) ? Symbol[] : Symbol[Symbol(strip(s)) for s in split(exog, ",")]
@@ -510,7 +513,8 @@ function _predict_plogit(; data::String, dep::String="", indep::String="",
                           method::String="pooled", cov_type::String="cluster",
                           id_col::String="", time_col::String="",
                           output::String="", format::String="table")
-    isempty(dep) && error("--dep is required")
+    isempty(dep) && throw(CliError("usage/missing", "--dep is required";
+        hint="name the dependent variable column, e.g. --dep y"))
     pd = _load_panel_for_preg(data, id_col, time_col)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
@@ -531,7 +535,8 @@ function _predict_pprobit(; data::String, dep::String="", indep::String="",
                            method::String="pooled", cov_type::String="cluster",
                            id_col::String="", time_col::String="",
                            output::String="", format::String="table")
-    isempty(dep) && error("--dep is required")
+    isempty(dep) && throw(CliError("usage/missing", "--dep is required";
+        hint="name the dependent variable column, e.g. --dep y"))
     pd = _load_panel_for_preg(data, id_col, time_col)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
@@ -1048,7 +1053,8 @@ function _residuals_preg(; data::String="", dep::String="", indep::String="",
                           method::String="fe", cov_type::String="cluster",
                           id_col::String="", time_col::String="",
                           output::String="", format::String="table")
-    isempty(dep) && error("--dep is required")
+    isempty(dep) && throw(CliError("usage/missing", "--dep is required";
+        hint="name the dependent variable column, e.g. --dep y"))
     pd = _load_panel_for_preg(data, id_col, time_col)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
@@ -1070,8 +1076,10 @@ function _residuals_piv(; data::String="", dep::String="", exog::String="",
                          method::String="fe", cov_type::String="cluster",
                          id_col::String="", time_col::String="",
                          output::String="", format::String="table")
-    isempty(dep) && error("--dep is required")
-    isempty(endog) && error("--endog is required")
+    isempty(dep) && throw(CliError("usage/missing", "--dep is required";
+        hint="name the dependent variable column, e.g. --dep y"))
+    isempty(endog) && throw(CliError("usage/missing", "--endog is required";
+        hint="name the endogenous regressor(s), e.g. --endog investment"))
     pd = _load_panel_for_preg(data, id_col, time_col)
 
     exog_syms = isempty(exog) ? Symbol[] : Symbol[Symbol(strip(s)) for s in split(exog, ",")]
@@ -1095,7 +1103,8 @@ function _residuals_plogit(; data::String="", dep::String="", indep::String="",
                             method::String="pooled", cov_type::String="cluster",
                             id_col::String="", time_col::String="",
                             output::String="", format::String="table")
-    isempty(dep) && error("--dep is required")
+    isempty(dep) && throw(CliError("usage/missing", "--dep is required";
+        hint="name the dependent variable column, e.g. --dep y"))
     pd = _load_panel_for_preg(data, id_col, time_col)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
@@ -1116,7 +1125,8 @@ function _residuals_pprobit(; data::String="", dep::String="", indep::String="",
                              method::String="pooled", cov_type::String="cluster",
                              id_col::String="", time_col::String="",
                              output::String="", format::String="table")
-    isempty(dep) && error("--dep is required")
+    isempty(dep) && throw(CliError("usage/missing", "--dep is required";
+        hint="name the dependent variable column, e.g. --dep y"))
     pd = _load_panel_for_preg(data, id_col, time_col)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
@@ -1513,9 +1523,12 @@ const _ORDERED_RESID_FLAGS = [
 the ordered-model generalized residual."""
 function _flags_for_kind(kind::Symbol, verb::Symbol)
     if verb === :residuals
-        return (kind === :ologit || kind === :oprobit) ? _ORDERED_RESID_FLAGS : FlagSpec[]
+        flags = (kind === :ologit || kind === :oprobit) ? _ORDERED_RESID_FLAGS : FlagSpec[]
+        kind === :arima && push!(flags, FlagSpec(name="auto", description="Force automatic order selection"))
+        return flags
     end
     verb === :predict || return FlagSpec[]
+    kind === :arima && return [FlagSpec(name="auto", description="Force automatic order selection")]
     kind === :logit && return _LOGIT_EXTRA_FLAGS
     kind === :probit && return filter(f -> f.name != "odds-ratio", _LOGIT_EXTRA_FLAGS)
     (kind === :ologit || kind === :oprobit || kind === :mlogit) && return _CHOICE_ME_FLAGS
@@ -1531,20 +1544,20 @@ const FITTED_MODEL_KINDS = [
     (; name="static",     pred=_predict_static,     res=_residuals_static,     kind=:factor_static),
     (; name="dynamic",    pred=_predict_dynamic,    res=_residuals_dynamic,    kind=:factor_dynamic),
     (; name="gdfm",       pred=_predict_gdfm,       res=_residuals_gdfm,       kind=:factor_gdfm),
-    (; name="arch",       pred=_VOL_PREDICT_HANDLERS["arch"],       res=_VOL_RESIDUALS_HANDLERS["arch"],       kind=:vol),
-    (; name="garch",      pred=_VOL_PREDICT_HANDLERS["garch"],      res=_VOL_RESIDUALS_HANDLERS["garch"],      kind=:vol),
-    (; name="egarch",     pred=_VOL_PREDICT_HANDLERS["egarch"],     res=_VOL_RESIDUALS_HANDLERS["egarch"],     kind=:vol),
+    (; name="arch",       pred=_VOL_PREDICT_HANDLERS["arch"],       res=_VOL_RESIDUALS_HANDLERS["arch"],       kind=:vol_q),
+    (; name="garch",      pred=_VOL_PREDICT_HANDLERS["garch"],      res=_VOL_RESIDUALS_HANDLERS["garch"],      kind=:vol_pq),
+    (; name="egarch",     pred=_VOL_PREDICT_HANDLERS["egarch"],     res=_VOL_RESIDUALS_HANDLERS["egarch"],     kind=:vol_pq),
     # C044: kebab primary; snake alias applied in _specs_for_verb
-    (; name="gjr-garch",  pred=_VOL_PREDICT_HANDLERS["gjr_garch"],  res=_VOL_RESIDUALS_HANDLERS["gjr_garch"],  kind=:vol),
-    (; name="sv",         pred=_VOL_PREDICT_HANDLERS["sv"],         res=_VOL_RESIDUALS_HANDLERS["sv"],         kind=:vol),
+    (; name="gjr-garch",  pred=_VOL_PREDICT_HANDLERS["gjr_garch"],  res=_VOL_RESIDUALS_HANDLERS["gjr_garch"],  kind=:vol_pq),
+    (; name="sv",         pred=_VOL_PREDICT_HANDLERS["sv"],         res=_VOL_RESIDUALS_HANDLERS["sv"],         kind=:vol_sv),
     (; name="favar",      pred=_predict_favar,      res=_residuals_favar,      kind=:favar),
     (; name="reg",        pred=_predict_reg,        res=_residuals_reg,        kind=:reg),
     (; name="logit",      pred=_predict_logit,      res=_residuals_logit,      kind=:logit),
     (; name="probit",     pred=_predict_probit,     res=_residuals_probit,     kind=:probit),
     (; name="preg",       pred=_predict_preg,       res=_residuals_preg,       kind=:preg),
-    (; name="piv",        pred=_predict_piv,        res=_residuals_piv,        kind=:preg),
-    (; name="plogit",     pred=_predict_plogit,     res=_residuals_plogit,     kind=:preg),
-    (; name="pprobit",    pred=_predict_pprobit,    res=_residuals_pprobit,    kind=:preg),
+    (; name="piv",        pred=_predict_piv,        res=_residuals_piv,        kind=:piv),
+    (; name="plogit",     pred=_predict_plogit,     res=_residuals_plogit,     kind=:panel_binary),
+    (; name="pprobit",    pred=_predict_pprobit,    res=_residuals_pprobit,    kind=:panel_binary),
     (; name="ologit",     pred=_predict_ologit,     res=_residuals_ologit,     kind=:ologit),
     (; name="oprobit",    pred=_predict_oprobit,    res=_residuals_oprobit,    kind=:oprobit),
     (; name="mlogit",     pred=_predict_mlogit,     res=_residuals_mlogit,     kind=:mlogit),
@@ -1558,11 +1571,55 @@ function _opts_for_kind(kind::Symbol, verb::Symbol)
         return opts
     elseif kind === :preg
         return copy(PREG_OPTIONS)
-    elseif kind === :vol || kind === :arima
+    elseif kind === :arima
+        # Mirrors `estimate arima`: p (nothing = auto-select), d, q, method, auto.
+        # Anything less silently pins the refit to built-in defaults (#85).
         return [
-            OptionSpec(name="column", short="c", type=Int, default=1, description="Column index"),
+            OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+            OptionSpec(name="p", type=Int, default=nothing, description="AR order (default: auto selection)"),
+            OptionSpec(name="d", type=Int, default=0, description="Differencing order"),
+            OptionSpec(name="q", type=Int, default=0, description="MA order"),
+            OptionSpec(name="method", short="m", type=String, default="css_mle", description="ols|css|mle|css_mle"),
             OUTPUT_OPTIONS...,
         ]
+    elseif kind === :vol_q
+        return [
+            OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+            OptionSpec(name="q", type=Int, default=1, description="ARCH order"),
+            OUTPUT_OPTIONS...,
+        ]
+    elseif kind === :vol_pq
+        return [
+            OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+            OptionSpec(name="p", type=Int, default=1, description="GARCH order"),
+            OptionSpec(name="q", type=Int, default=1, description="ARCH order"),
+            OUTPUT_OPTIONS...,
+        ]
+    elseif kind === :vol_sv
+        return [
+            OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+            OptionSpec(name="draws", short="n", type=Int, default=5000, description="MCMC draws"),
+            OUTPUT_OPTIONS...,
+        ]
+    elseif kind === :piv
+        # Mirrors `estimate panel piv`: --indep would be handler-unreachable here —
+        # the handler refits via estimate_xtiv and hard-requires --endog.
+        return [
+            OptionSpec(name="dep", type=String, default="", description="Dependent variable column name"),
+            OptionSpec(name="exog", type=String, default="", description="Exogenous variables (comma-separated)"),
+            OptionSpec(name="endog", type=String, default="", description="Endogenous variables (comma-separated)"),
+            OptionSpec(name="instruments", type=String, default="", description="Instruments (comma-separated)"),
+            OptionSpec(name="method", short="m", type=String, default="fe", description="fe|re|fd|hausman-taylor"),
+            OptionSpec(name="cov-type", type=String, default="cluster", description="ols|cluster|twoway|driscoll-kraay"),
+            OptionSpec(name="id-col", type=String, default="", description="Panel group ID column"),
+            OptionSpec(name="time-col", type=String, default="", description="Panel time column"),
+            OUTPUT_OPTIONS...,
+        ]
+    elseif kind === :panel_binary
+        # Upstream estimate_xtlogit/xtprobit default to :pooled (probit has no :fe at
+        # all) — the shared PREG_OPTIONS "fe" default disagrees with both the handler
+        # kwargs and `estimate panel plogit|pprobit`.
+        return with_default(PREG_OPTIONS, "method", "pooled")
     elseif kind === :factor_static
         # #144: options MUST mirror the handler kwargs exactly (#85). The old shared
         # :factor block declared --lags, which NO factor handler accepts — the bound
@@ -1618,6 +1675,7 @@ function _opts_for_kind(kind::Symbol, verb::Symbol)
         return [
             OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order"),
             OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank"),
+            OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
             OUTPUT_OPTIONS...,
         ]
     else # :var default
@@ -1628,15 +1686,11 @@ function _opts_for_kind(kind::Symbol, verb::Symbol)
     end
 end
 
-# C044 snake→kebab aliases for fitted leaves
-const _FITTED_CLI_ALIASES = Dict("gjr-garch" => ["gjr_garch"])
-
 function _specs_for_verb(verb::Symbol, title_prefix::String)
     specs = CommandSpec[]
     for m in FITTED_MODEL_KINDS
         handler = verb === :predict ? m.pred : m.res
         path0 = verb === :predict ? "predict" : "residuals"
-        aliases = get(_FITTED_CLI_ALIASES, m.name, String[])
         push!(specs, CommandSpec(
             path=[path0, m.name],
             summary="$title_prefix ($(m.name))",
@@ -1645,8 +1699,7 @@ function _specs_for_verb(verb::Symbol, title_prefix::String)
             flags=_flags_for_kind(m.kind, verb),
             tables=_fitted_tables(verb, m.name),
             category=path0,
-            aliases=aliases,
-            handler=wrap_legacy(handler),
+            handler=handler,
         ))
     end
     return specs
@@ -1667,7 +1720,7 @@ function predict_specs()::Vector{CommandSpec}
             flags=copy(SARIMA_FLAGS),
             tables=_fitted_tables(:predict, "sarima"),
             category="predict",
-            handler=wrap_legacy(_predict_sarima),
+            handler=_predict_sarima,
         ),
         # W2/#107: count-data conditional means exp(x'b + offset). Upstream's 1-arg
         # `predict(m)` returns m.fitted; the (m, Xnew) out-of-sample form is out of scope
@@ -1688,7 +1741,7 @@ function predict_specs()::Vector{CommandSpec}
             flags=FlagSpec[],
             tables=_fitted_tables(:predict, "poisson"),
             category="predict",
-            handler=wrap_legacy(_predict_poisson),
+            handler=_predict_poisson,
         ),
         CommandSpec(
             path=["predict", "nbreg"],
@@ -1701,7 +1754,7 @@ function predict_specs()::Vector{CommandSpec}
             flags=FlagSpec[],
             tables=_fitted_tables(:predict, "nbreg"),
             category="predict",
-            handler=wrap_legacy(_predict_nbreg),
+            handler=_predict_nbreg,
         ),
         # W3/#101: MS fitted values, un-gated by MEMs#510. `--probs` picks the regime
         # weighting; upstream warns `y - predict(m; probs=:filtered)` is NOT residuals(m)
@@ -1724,7 +1777,7 @@ function predict_specs()::Vector{CommandSpec}
             flags=[FlagSpec(name="switching-variance", description="Let σ² switch across regimes (default: off, Hamilton form)")],
             tables=_fitted_tables(:predict, "ms-ar"),
             category="predict",
-            handler=wrap_legacy(_predict_ms_ar),
+            handler=_predict_ms_ar,
         ),
         CommandSpec(
             path=["predict", "ms"],
@@ -1742,7 +1795,7 @@ function predict_specs()::Vector{CommandSpec}
             flags=[FlagSpec(name="no-switching-variance", description="Force common σ² across regimes (default: σ² switches)")],
             tables=_fitted_tables(:predict, "ms"),
             category="predict",
-            handler=wrap_legacy(_predict_ms),
+            handler=_predict_ms,
         ),
         # #71: state-space state paths / innovations, read from the model's fields.
         CommandSpec(
@@ -1764,7 +1817,7 @@ function predict_specs()::Vector{CommandSpec}
             flags=FlagSpec[],
             tables=_fitted_tables(:predict, "statespace"),
             category="predict",
-            handler=wrap_legacy(_predict_statespace),
+            handler=_predict_statespace,
         ),
         # #68: SUR/3SLS carry PER-EQUATION fitted/residuals fields. Both mirror their
         # `estimate` sibling's options because the equation system lives in --config —
@@ -1782,7 +1835,7 @@ function predict_specs()::Vector{CommandSpec}
                    FlagSpec(name="no-intercept", description="Do not add an intercept to each equation")],
             tables=_fitted_tables(:predict, "sur"),
             category="predict",
-            handler=wrap_legacy(_predict_sur),
+            handler=_predict_sur,
         ),
         CommandSpec(
             path=["predict", "3sls"],
@@ -1797,7 +1850,7 @@ function predict_specs()::Vector{CommandSpec}
             flags=[FlagSpec(name="no-intercept", description="Do not add an intercept to each equation")],
             tables=_fitted_tables(:predict, "3sls"),
             category="predict",
-            handler=wrap_legacy(_predict_3sls),
+            handler=_predict_3sls,
         ),
         # #73: ARFIMA mirrors `estimate arfima`'s full option set — the :arima kind in
         # FITTED_MODEL_KINDS supplies only --column, which would silently pin p=q=0.
@@ -1818,7 +1871,7 @@ function predict_specs()::Vector{CommandSpec}
             flags=FlagSpec[],
             tables=_fitted_tables(:predict, "arfima"),
             category="predict",
-            handler=wrap_legacy(_predict_arfima),
+            handler=_predict_arfima,
         ),
         CommandSpec(
             path=["predict", "igarch"],
@@ -1834,7 +1887,7 @@ function predict_specs()::Vector{CommandSpec}
             flags=FlagSpec[],
             tables=_fitted_tables(:predict, "igarch"),
             category="predict",
-            handler=wrap_legacy(_predict_igarch),
+            handler=_predict_igarch,
         ),
         CommandSpec(
             path=["predict", "cgarch"],
@@ -1848,7 +1901,7 @@ function predict_specs()::Vector{CommandSpec}
             flags=FlagSpec[],
             tables=_fitted_tables(:predict, "cgarch"),
             category="predict",
-            handler=wrap_legacy(_predict_cgarch),
+            handler=_predict_cgarch,
         ),
         CommandSpec(
             path=["predict", "aparch"],
@@ -1866,7 +1919,7 @@ function predict_specs()::Vector{CommandSpec}
             flags=FlagSpec[],
             tables=_fitted_tables(:predict, "aparch"),
             category="predict",
-            handler=wrap_legacy(_predict_aparch),
+            handler=_predict_aparch,
         ),
         CommandSpec(
             path=["predict", "figarch"],
@@ -1885,7 +1938,7 @@ function predict_specs()::Vector{CommandSpec}
             flags=FlagSpec[],
             tables=_fitted_tables(:predict, "figarch"),
             category="predict",
-            handler=wrap_legacy(_predict_figarch),
+            handler=_predict_figarch,
         ),
         CommandSpec(
             path=["predict", "fiegarch"],
@@ -1904,7 +1957,7 @@ function predict_specs()::Vector{CommandSpec}
             flags=FlagSpec[],
             tables=_fitted_tables(:predict, "fiegarch"),
             category="predict",
-            handler=wrap_legacy(_predict_fiegarch),
+            handler=_predict_fiegarch,
         ),
         CommandSpec(
             path=["predict", "garch-midas"],
@@ -1923,7 +1976,7 @@ function predict_specs()::Vector{CommandSpec}
             flags=FlagSpec[],
             tables=_fitted_tables(:predict, "garch-midas"),
             category="predict",
-            handler=wrap_legacy(_predict_garch_midas),
+            handler=_predict_garch_midas,
         ),
     ])
 end
@@ -1954,7 +2007,7 @@ function residuals_specs()::Vector{CommandSpec}
             flags=FlagSpec[],
             tables=_fitted_tables(:residuals, "setar"),
             category="residuals",
-            handler=wrap_legacy(_residuals_setar),
+            handler=_residuals_setar,
         ),
         CommandSpec(
             path=["residuals", "star"],
@@ -1974,7 +2027,7 @@ function residuals_specs()::Vector{CommandSpec}
             flags=FlagSpec[],
             tables=_fitted_tables(:residuals, "star"),
             category="residuals",
-            handler=wrap_legacy(_residuals_star),
+            handler=_residuals_star,
         ),
         CommandSpec(
             path=["residuals", "ms-ar"],
@@ -1993,7 +2046,7 @@ function residuals_specs()::Vector{CommandSpec}
             flags=[FlagSpec(name="switching-variance", description="Let σ² switch across regimes (default: off, Hamilton form)")],
             tables=_fitted_tables(:residuals, "ms-ar"),
             category="residuals",
-            handler=wrap_legacy(_residuals_ms_ar),
+            handler=_residuals_ms_ar,
         ),
         CommandSpec(
             path=["residuals", "ms"],
@@ -2010,7 +2063,7 @@ function residuals_specs()::Vector{CommandSpec}
             flags=[FlagSpec(name="no-switching-variance", description="Force common σ² across regimes (default: σ² switches)")],
             tables=_fitted_tables(:residuals, "ms"),
             category="residuals",
-            handler=wrap_legacy(_residuals_ms),
+            handler=_residuals_ms,
         ),
         # W6/#108: SARIMA residuals (abstract AbstractARIMAModel dispatch).
         CommandSpec(
@@ -2022,7 +2075,7 @@ function residuals_specs()::Vector{CommandSpec}
             flags=copy(SARIMA_FLAGS),
             tables=_fitted_tables(:residuals, "sarima"),
             category="residuals",
-            handler=wrap_legacy(_residuals_sarima),
+            handler=_residuals_sarima,
         ),
         # W2/#107: count-data residuals. `residuals(m)` is a bare field accessor upstream
         # with NO `kind` kwarg, so no --kind is advertised here (a declared option the
@@ -2042,7 +2095,7 @@ function residuals_specs()::Vector{CommandSpec}
             flags=FlagSpec[],
             tables=_fitted_tables(:residuals, "poisson"),
             category="residuals",
-            handler=wrap_legacy(_residuals_poisson),
+            handler=_residuals_poisson,
         ),
         CommandSpec(
             path=["residuals", "nbreg"],
@@ -2055,7 +2108,7 @@ function residuals_specs()::Vector{CommandSpec}
             flags=FlagSpec[],
             tables=_fitted_tables(:residuals, "nbreg"),
             category="residuals",
-            handler=wrap_legacy(_residuals_nbreg),
+            handler=_residuals_nbreg,
         ),
         # #71: state-space state paths / innovations, read from the model's fields.
         CommandSpec(
@@ -2076,7 +2129,7 @@ function residuals_specs()::Vector{CommandSpec}
             flags=[FlagSpec(name="standardized", description="Emit standardized innovations v_t/sqrt(F_t) instead of raw v_t")],
             tables=_fitted_tables(:residuals, "statespace"),
             category="residuals",
-            handler=wrap_legacy(_residuals_statespace),
+            handler=_residuals_statespace,
         ),
         # #68: SUR/3SLS carry PER-EQUATION fitted/residuals fields. Both mirror their
         # `estimate` sibling's options because the equation system lives in --config —
@@ -2094,7 +2147,7 @@ function residuals_specs()::Vector{CommandSpec}
                    FlagSpec(name="no-intercept", description="Do not add an intercept to each equation")],
             tables=_fitted_tables(:residuals, "sur"),
             category="residuals",
-            handler=wrap_legacy(_residuals_sur),
+            handler=_residuals_sur,
         ),
         CommandSpec(
             path=["residuals", "3sls"],
@@ -2109,7 +2162,7 @@ function residuals_specs()::Vector{CommandSpec}
             flags=[FlagSpec(name="no-intercept", description="Do not add an intercept to each equation")],
             tables=_fitted_tables(:residuals, "3sls"),
             category="residuals",
-            handler=wrap_legacy(_residuals_3sls),
+            handler=_residuals_3sls,
         ),
         # #73: ARFIMA mirrors `estimate arfima`'s full option set — the :arima kind in
         # FITTED_MODEL_KINDS supplies only --column, which would silently pin p=q=0.
@@ -2130,7 +2183,7 @@ function residuals_specs()::Vector{CommandSpec}
             flags=FlagSpec[],
             tables=_fitted_tables(:residuals, "arfima"),
             category="residuals",
-            handler=wrap_legacy(_residuals_arfima),
+            handler=_residuals_arfima,
         ),
         CommandSpec(
             path=["residuals", "igarch"],
@@ -2146,7 +2199,7 @@ function residuals_specs()::Vector{CommandSpec}
             flags=FlagSpec[],
             tables=_fitted_tables(:residuals, "igarch"),
             category="residuals",
-            handler=wrap_legacy(_residuals_igarch),
+            handler=_residuals_igarch,
         ),
         CommandSpec(
             path=["residuals", "cgarch"],
@@ -2160,7 +2213,7 @@ function residuals_specs()::Vector{CommandSpec}
             flags=FlagSpec[],
             tables=_fitted_tables(:residuals, "cgarch"),
             category="residuals",
-            handler=wrap_legacy(_residuals_cgarch),
+            handler=_residuals_cgarch,
         ),
         CommandSpec(
             path=["residuals", "aparch"],
@@ -2178,7 +2231,7 @@ function residuals_specs()::Vector{CommandSpec}
             flags=FlagSpec[],
             tables=_fitted_tables(:residuals, "aparch"),
             category="residuals",
-            handler=wrap_legacy(_residuals_aparch),
+            handler=_residuals_aparch,
         ),
         CommandSpec(
             path=["residuals", "figarch"],
@@ -2197,7 +2250,7 @@ function residuals_specs()::Vector{CommandSpec}
             flags=FlagSpec[],
             tables=_fitted_tables(:residuals, "figarch"),
             category="residuals",
-            handler=wrap_legacy(_residuals_figarch),
+            handler=_residuals_figarch,
         ),
         CommandSpec(
             path=["residuals", "fiegarch"],
@@ -2216,7 +2269,7 @@ function residuals_specs()::Vector{CommandSpec}
             flags=FlagSpec[],
             tables=_fitted_tables(:residuals, "fiegarch"),
             category="residuals",
-            handler=wrap_legacy(_residuals_fiegarch),
+            handler=_residuals_fiegarch,
         ),
         CommandSpec(
             path=["residuals", "garch-midas"],
@@ -2235,19 +2288,59 @@ function residuals_specs()::Vector{CommandSpec}
             flags=FlagSpec[],
             tables=_fitted_tables(:residuals, "garch-midas"),
             category="residuals",
-            handler=wrap_legacy(_residuals_garch_midas),
+            handler=_residuals_garch_midas,
         ),
     ])
 end
 
+function _overlay_estimator_data_kinds(specs::Vector{CommandSpec})
+    out = CommandSpec[]
+    for s in specs
+        push!(out, _copy_spec(s; data_kinds=_data_kinds_for_estimator(s.path[end])))
+    end
+    return with_default_csv_kinds(out)
+end
+
+const _FITTED_MODEL_TYPES = Dict{String,Vector{Symbol}}(
+    "var" => [:VARModel], "bvar" => [:BVARPosterior],
+    "arima" => [:ARIMAModel, :ARMAModel, :ARModel, :MAModel],
+    "vecm" => [:VECMModel], "static" => [:FactorModel],
+    "dynamic" => [:DynamicFactorModel], "gdfm" => [:GeneralizedDynamicFactorModel],
+    "arch" => [:ARCHModel], "garch" => [:GARCHModel], "egarch" => [:EGARCHModel],
+    "gjr-garch" => [:GJRGARCHModel], "sv" => [:SVModel], "favar" => [:FAVARModel],
+    "reg" => [:RegModel], "logit" => [:LogitModel], "probit" => [:ProbitModel],
+    "preg" => [:PanelRegModel], "piv" => [:PanelIVModel],
+    "plogit" => [:PanelLogitModel], "pprobit" => [:PanelProbitModel],
+    "ologit" => [:OrderedLogitModel], "oprobit" => [:OrderedProbitModel],
+    "mlogit" => [:MultinomialLogitModel], "sarima" => [:SARIMAModel],
+    "poisson" => [:PoissonModel], "nbreg" => [:NegBinModel],
+    "ms-ar" => [:MSRegModel], "ms" => [:MSRegModel],
+    "statespace" => [:StateSpaceModel], "sur" => [:SURModel],
+    "3sls" => [:ThreeSLSModel], "arfima" => [:ARFIMAModel],
+    "igarch" => [:IGARCHModel], "cgarch" => [:CGARCHModel],
+    "aparch" => [:APARCHModel], "figarch" => [:FIGARCHModel],
+    "fiegarch" => [:FIEGARCHModel], "garch-midas" => [:GarchMidasModel],
+    "setar" => [:ThresholdModel], "star" => [:STARModel],
+)
+
+function _wrap_fitted_specs(specs::Vector{CommandSpec})
+    out = CommandSpec[]
+    for s in specs
+        leaf = join(s.path, " ")
+        key = isempty(s.tables) ? "" : string(s.tables[1].name)
+        mt = get(_FITTED_MODEL_TYPES, s.path[end], Symbol[])
+        h = wrap_legacy(_with_result(s.handler, leaf; key=key))
+        push!(out, _copy_spec(s; handler=h, model_types=mt))
+    end
+    return out
+end
+
 function register_predict_commands!()
-    specs = with_config_ergonomics(with_model_option(predict_specs()))
-    register!(specs)
+    specs = register!(catalog_specs("predict"))
     return build_node("predict", specs; description="In-sample fitted values / predictions")
 end
 
 function register_residuals_commands!()
-    specs = with_config_ergonomics(with_model_option(residuals_specs()))
-    register!(specs)
+    specs = register!(catalog_specs("residuals"))
     return build_node("residuals", specs; description="Model residuals")
 end

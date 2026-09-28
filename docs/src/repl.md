@@ -1,90 +1,64 @@
 # Interactive REPL
 
-Friedman-cli includes an interactive REPL (Read-Eval-Print Loop) session mode for exploratory analysis.
+Friedman-cli provides an interactive REPL (**Read-Eval-Print Loop**) for exploratory analysis. The REPL wraps the same registry as the command line: every `friedman <args>` invocation also runs as `<args>` at the `friedman>` prompt, plus session state described below.
 
+---
 ## Launching
 
-```bash
-friedman repl
-```
+Start the session with `friedman repl`. The REPL prints a `friedman>` prompt and
+accepts every `friedman <args>` invocation as `<args>` — type commands exactly
+as on the command line, without the leading `friedman`. Leave with `exit`,
+`quit`, or Ctrl-D.
 
-Or in development mode:
-
-```bash
-julia --project bin/friedman repl
-```
-
+---
 ## Session Data
 
-Load data once and use it across multiple commands:
+`data use` loads a dataset once; later commands omit the positional and the REPL injects the session path automatically. An explicit positional on any command overrides the session value for that invocation.
 
-```
-friedman> data use mydata.csv
-Loaded mydata.csv (200x5, vars: GDP, CPI, FFR, UE, IP)
+Load a file with `data use mydata.csv`, or a bundled example with `data use :fred-md`.
+A leading `:` loads a bundled example dataset through the same names `data list` advertises, with either separator spelling (`:fred-md` or `:fred_md`). A bare path loads a CSV file (`~` is expanded on every platform, Windows included) and resolves short **stems** the same way `data load` does. Panel datasets keep their `group`/`time` identifier columns.
 
-friedman> data use :fred-md
-Loaded :fred-md (804x126, vars: INDPRO, CPIAUCSL, ...)
-```
+Check the session with `data current` or clear it with `data clear`.
+`data current` prints the session path, its dimensions, and the cached model types. `data clear` clears the dataset and all cached results.
 
-Built-in datasets: `:fred-md`, `:fred-qd`, `:pwt`, `:mpdta`, `:ddcg`.
-
-Check or clear the current dataset:
-
-```
-friedman> data current
-mydata.csv (200x5)
-Cached results: var, bvar
-
-friedman> data clear
-Data and results cleared
-```
-
+---
 ## Result Caching
 
-Estimation results are automatically cached in memory. Downstream commands (`irf`, `fevd`, `hd`, `forecast`, `predict`, `residuals`) reuse cached models:
+**Estimation results** are automatically cached in memory, keyed by model type. Downstream commands (`irf`, `fevd`, `hd`, `forecast`, `predict`, `residuals`) reuse the cached model instead of re-estimating: estimating with `estimate multivariate var --lags 4` and then running `irf var --horizons 20` followed by `fevd var --horizons 20` fits the VAR once and reuses it twice.
 
-```
-friedman> estimate var --lags 4
-[VAR estimation output]
+Multiple model types coexist: estimating `var` and then `bvar` caches both, and `irf var` uses the cached VAR while `irf bvar` uses the cached BVAR. Re-estimating the same model type replaces the cached result. Loading new data clears all cached results.
 
-friedman> irf var --horizons 20
-[uses cached VAR -- no re-estimation needed]
+---
+## What Persists
 
-friedman> fevd var --horizons 20
-[uses same cached VAR]
-```
+Session data and cached models live in memory only and vanish when the REPL exits. Nothing is written to disk unless requested. To keep work across sessions, use `--save-model` on an `estimate` leaf and `--model` on the downstream leaf (native `.jld2` handles), or `--output` to export a result table. Outside the REPL every invocation is stateless and needs the data positional plus `--model` explicitly.
 
-Results are keyed by model type. Multiple model types coexist:
-
-```
-friedman> estimate var --lags 4
-friedman> estimate bvar --lags 4 --draws 2000
-friedman> irf var   # uses cached VAR
-friedman> irf bvar  # uses cached BVAR
-```
-
-Re-estimating the same model type replaces the cached result. Loading new data clears all cached results.
-
+---
 ## Tab Completion
 
-Press Tab to complete commands, subcommands, and options:
+Tab completes subcommand names from the registry tree and `--option`/`--flag` names on leaves — typing `est` then Tab offers `estimate`, narrowing to `estimate multivariate v` then Tab offers the family leaves, and `estimate multivariate var --la` then Tab offers the matching options.
 
-```
-friedman> est<Tab>     -> estimate
-friedman> estimate v<Tab>  -> var, vecm
-friedman> estimate var --la<Tab>  -> --lags
-```
+Completion candidates are precomputed once per session from the registry. Quoted strings are respected when splitting input lines.
 
+---
 ## REPL-Only Commands
 
 | Command | Description |
 |---------|-------------|
-| `data use <path>` | Load CSV file into session (`~` is expanded on every platform, Windows included) |
-| `data use :<name>` | Load a bundled dataset -- any name from `data list`, with either separator (`:fred-md` or `:fred_md`) |
+| `data use <path>` | Load a CSV file into the session |
+| `data use :<name>` | Load a bundled dataset (any name from `data list`, either separator) |
 | `data current` | Show current dataset and cached results |
 | `data clear` | Clear data and all cached results |
 | `exit` / `quit` | Leave the REPL (also Ctrl-D) |
 
+---
 ## Error Handling
 
-Errors in the REPL print a message and return to the prompt -- they never exit the session. Parse errors and dispatch errors show clean messages. Unexpected errors show the exception message.
+Errors in the REPL print a message and return to the prompt; they never exit the session. Parse and dispatch errors show their clean messages, and unexpected errors show the exception message. The REPL never calls `exit()`, so process exit codes do not apply inside a session.
+
+---
+## References
+
+- Generated command reference: `commands/overview.md`
+- Session dataset source of truth: `src/io.jl` (`EXAMPLE_DATASETS`, `parse_dataset_name`)
+- Session implementation: `src/repl.jl` (`repl_dispatch`, `inject_session_data`, `session_store_result!`)

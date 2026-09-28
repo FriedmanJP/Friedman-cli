@@ -61,7 +61,7 @@ end
         @test occursin("estimate", r.out)
         @test occursin("Commands", r.out) || occursin("command", lowercase(r.out))
 
-        r = _e2e_run(["schema", "estimate", "var"])
+        r = _e2e_run(["schema", "estimate", "multivariate", "var"])
         @test r.code == 0
         @test _exactly_one_json(r.out) || occursin("{", r.out)
         if occursin("{", r.out)
@@ -75,15 +75,15 @@ end
         r = _e2e_run(["nosuchcmd"])
         @test r.code == 2
 
-        r = _e2e_run(["estimate", "var", "d.csv", "--lgas", "2"])
+        r = _e2e_run(["estimate", "multivariate", "var", "d.csv", "--lgas", "2"])
         @test r.code == 2
 
         # data → 3
-        r = _e2e_run(["estimate", "var", "/nope/does/not/exist.csv"])
+        r = _e2e_run(["estimate", "multivariate", "var", "/nope/does/not/exist.csv"])
         @test r.code == 3
 
         # config → 4 (missing config file with --strict optional; missing file is config class)
-        r = _e2e_run(["estimate", "bvar", "/nope.csv", "--config", "/nope/config.toml"])
+        r = _e2e_run(["estimate", "multivariate", "bvar", "/nope.csv", "--config", "/nope/config.toml"])
         # may be 3 (data first) or 4 (config) depending on order of checks
         @test r.code in (3, 4)
 
@@ -100,14 +100,14 @@ end
         try
             # Sample one leaf under each major top-level that accepts data
             cases = [
-                ["--quiet", "estimate", "var", fix, "--lags", "1", "--format", "json"],
-                ["--quiet", "test", "adf", fix, "--column", "1", "--format", "json"],
+                ["--quiet", "estimate", "multivariate", "var", fix, "--lags", "1", "--format", "json"],
+                ["--quiet", "test", "unit-root", "adf", fix, "--column", "1", "--format", "json"],
                 ["--quiet", "irf", "var", fix, "--lags", "1", "--horizons", "3", "--ci", "none", "--format", "json"],
                 ["--quiet", "fevd", "var", fix, "--lags", "1", "--horizons", "3", "--format", "json"],
                 ["--quiet", "hd", "var", fix, "--lags", "1", "--format", "json"],
-                ["--quiet", "forecast", "var", fix, "--lags", "1", "--horizons", "2", "--format", "json"],
-                ["--quiet", "predict", "var", fix, "--lags", "1", "--format", "json"],
-                ["--quiet", "residuals", "var", fix, "--lags", "1", "--format", "json"],
+                ["--quiet", "forecast", "multivariate", "var", fix, "--lags", "1", "--horizons", "2", "--format", "json"],
+                ["--quiet", "predict", "multivariate", "var", fix, "--lags", "1", "--format", "json"],
+                ["--quiet", "residuals", "multivariate", "var", fix, "--lags", "1", "--format", "json"],
                 ["--quiet", "filter", "hp", fix, "--columns", "1", "--format", "json"],
                 ["--quiet", "spectral", "acf", fix, "--column", "1", "--format", "json"],
                 ["--quiet", "data", "describe", fix, "--format", "json"],
@@ -133,13 +133,13 @@ end
     @testset "no-color / CRLF safety" begin
         fix = _make_fixture()
         try
-            r = _e2e_run(["--no-color", "--quiet", "estimate", "var", fix, "--lags", "1", "--format", "table"])
+            r = _e2e_run(["--no-color", "--quiet", "estimate", "multivariate", "var", fix, "--lags", "1", "--format", "table"])
             @test r.code == 0
             # PrettyTables may still emit style markers; ensure output is usable UTF-8 table
             @test !isempty(strip(replace(r.out, "\r\n" => "\n")))
             @test occursin("Coefficients", r.out) || occursin("equation", r.out) || occursin("y1", r.out)
             # JSON path remains pure regardless of color
-            r2 = _e2e_run(["--no-color", "--quiet", "estimate", "var", fix, "--lags", "1", "--format", "json"])
+            r2 = _e2e_run(["--no-color", "--quiet", "estimate", "multivariate", "var", fix, "--lags", "1", "--format", "json"])
             @test r2.code == 0
             @test _exactly_one_json(r2.out)
         finally
@@ -150,7 +150,7 @@ end
     @testset "quiet + json purity seed cases" begin
         fix = _make_fixture()
         try
-            r = _e2e_run(["--quiet", "estimate", "var", fix, "--lags", "1", "--format", "json"])
+            r = _e2e_run(["--quiet", "estimate", "multivariate", "var", fix, "--lags", "1", "--format", "json"])
             @test r.code == 0
             @test _exactly_one_json(r.out)
             @test !occursin("Estimating", r.err)
@@ -167,7 +167,7 @@ end
         fix = _make_fixture()
         try
             # data-class handler error → dispatch_leaf's envelope (not the net)
-            r = _e2e_run(["estimate", "var", "/nope/does/not/exist.csv", "--format", "json"])
+            r = _e2e_run(["estimate", "multivariate", "var", "/nope/does/not/exist.csv", "--format", "json"])
             @test r.code == 3
             @test _exactly_one_json(r.out)
             doc = JSON3.read(strip(r.out))
@@ -176,14 +176,14 @@ end
             @test doc.error.exit_code == 3
 
             # unknown option → ParseError → the run_cli net (usage/parse)
-            r = _e2e_run(["estimate", "var", fix, "--lgas", "2", "--format", "json"])
+            r = _e2e_run(["estimate", "multivariate", "var", fix, "--lgas", "2", "--format", "json"])
             @test r.code == 2
             @test _exactly_one_json(r.out)
             doc = JSON3.read(strip(r.out))
             @test string(doc.status) == "error"
             @test string(doc.error.code) == "usage/parse"
             @test doc.error.exit_code == 2
-            @test string(doc.command) == "friedman estimate var"
+            @test string(doc.command) == "friedman estimate multivariate var"
 
             # unknown command → DispatchError → usage/unknown-command
             r = _e2e_run(["definitely-not-a-command", "--format", "json"])
@@ -193,18 +193,18 @@ end
             @test string(doc.error.code) == "usage/unknown-command"
 
             # the leading --json global reaches the net too
-            r = _e2e_run(["--json", "estimate", "var", fix, "--lgas", "2"])
+            r = _e2e_run(["--json", "estimate", "multivariate", "var", fix, "--lgas", "2"])
             @test r.code == 2
             @test _exactly_one_json(r.out)
 
             # bad --seed throws INSIDE _extract_global_flags! — net still fires
-            r = _e2e_run(["--seed", "abc", "estimate", "var", fix, "--format", "json"])
+            r = _e2e_run(["--seed", "abc", "estimate", "multivariate", "var", fix, "--format", "json"])
             @test r.code == 2
             doc = JSON3.read(strip(r.out))
             @test string(doc.error.code) == "usage/bad-seed"
 
             # table format: usage errors keep stdout EMPTY (no envelope leak)
-            r = _e2e_run(["estimate", "var", fix, "--lgas", "2"])
+            r = _e2e_run(["estimate", "multivariate", "var", fix, "--lgas", "2"])
             @test r.code == 2
             @test isempty(strip(r.out))
         finally

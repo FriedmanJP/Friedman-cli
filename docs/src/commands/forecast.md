@@ -1,536 +1,291 @@
 # forecast
 
-Compute forecasts. 16 model subcommands covering VAR, BVAR, LP, ARIMA, SETAR, STAR, factor models, volatility models, VECM, and FAVAR, plus a nested [`forecast evaluate`](#forecast-evaluate) sub-family (6 leaves) for post-hoc forecast evaluation and combination.
+Point and conditional forecasts across multivariate, univariate, regime-switching, factor, and volatility models, plus a nested `forecast evaluate` sub-family for post-hoc evaluation and combination of already-computed forecasts. The full per-leaf option surface lives in the [generated forecast reference](generated/forecast.md); this guide explains which leaf to reach for, what each one assumes, and how to read the result.
 
-## Output format (C051)
+---
 
-`var`, `bvar`, `lp`, `arima`, `static`, `dynamic`, `gdfm`, `vecm`, and `favar` (see
-[favar & sdfm](favar.md)) all render through MEMs' tidy `long_table(result)`: one row per
-`(horizon, variable)` cell, columns `horizon | variable | value | lower | upper`
-(`lower`/`upper` are `missing` when the forecast carries no CI, e.g. `--ci-method=none`).
-Univariate forecasts (ARIMA, volatility) reshape to the same schema with a single
-`variable` value. `bvar`/`dynamic`/`gdfm`/`favar` previously hand-computed their forecasts
-directly from posterior draws / factor loadings; they now route through MEMs'
-`forecast(...)` first so the result is a typed `*Forecast` object `long_table` can render.
-**Left wide on purpose:** the volatility leaves (`arch`/`garch`/`egarch`/`gjr_garch`/`sv`)
-share a domain-specific `horizon | variance | volatility` table — collapsing it into the
-generic tidy schema would drop the `volatility` (= √variance) column, so it stays a
-principled exception (see [Volatility Model Forecasts](#volatility-model-forecasts) below).
+## Output format
 
-## forecast var
+Multivariate, factor, `arima`, `sarima`, `sdfm`, `favar`, `lp`, and `vecm` leaves render through the tidy MEMs `long_table`: one row per `(horizon, variable)` cell with columns `horizon | variable | value | lower | upper`. `lower`/`upper` carry `missing` when the forecast ships no interval (for example under a `none` interval method). Regime-switching `setar`/`star` forecasts are typed `AbstractForecastResult`s and render through the same tidy path.
 
-H-step ahead VAR point forecasts with analytical or bootstrap confidence intervals.
+Three deliberate exceptions keep information the generic schema would drop. `arfima` uses the single-series form (`horizon | forecast | lower | upper`); `midas` adds a standard error (`horizon | forecast | lower | upper | se`) beside a key–value summary table. Volatility forecasts use a domain-specific `horizon | variance | volatility` table (`volatility` is the square root of `variance`). The `evaluate` leaves wrap model-agnostic vector statistics rather than MEMs forecast types, so their tables are hand-built key–value and weight tables described under [`forecast evaluate`](#forecast-evaluate).
+
+---
+
+## forecast multivariate var
+
+H-step-ahead forecasts from a fitted **vector autoregression (VAR)**. The handler fits the VAR first (lag order selected automatically unless `--lags` is given) and reports the point path with analytical or bootstrap intervals at the requested confidence level.
 
 ```bash
-friedman forecast var data.csv --horizons=12 --confidence=0.95
-friedman forecast var data.csv --lags=4 --horizons=24
-friedman forecast var data.csv --ci-method=bootstrap
+friedman forecast multivariate var :denmark --horizons 6
+friedman forecast multivariate var :denmark --lags 2 --horizons 6
+friedman forecast multivariate var :denmark --ci-method bootstrap --horizons 6
 ```
 
-| Option | Short | Type | Default | Description |
-|--------|-------|------|---------|-------------|
-| `--lags` | `-p` | Int | auto | Lag order |
-| `--horizons` | `-h` | Int | 12 | Forecast horizon |
-| `--confidence` | | Float64 | 0.95 | Confidence level for intervals |
-| `--ci-method` | | String | `analytical` | `analytical`, `bootstrap` |
-| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
-| `--output` | `-o` | String | | Export file path |
-| `--plot` | | Flag | | Open interactive plot in browser |
-| `--plot-save` | | String | | Save plot to HTML file |
+**Output:** tidy `var_forecast` table (`horizon | variable | value | lower | upper`). Full option set: [generated reference](generated/forecast.md#friedman-forecast-multivariate-var).
 
-**Output:** Tidy table (`horizon|variable|value|lower|upper`) — `lower`/`upper` are `missing` when the forecast has no CI.
+---
 
-!!! note "v0.3.0"
-    VAR forecasts now return typed `VARForecast` objects with accessor functions: `point_forecast()`, `lower_bound()`, `upper_bound()`, `forecast_horizon()`.
+## forecast multivariate bvar
 
-## forecast bvar
-
-Bayesian forecasts with posterior credible intervals (16th/50th/84th percentiles).
+Forecasts from a fitted **Bayesian VAR**, with posterior credible bands around the point path. `--sampler` selects the posterior simulator and `--config` supplies a TOML file with prior hyperparameters; without it the leaf runs on the default prior.
 
 ```bash
-friedman forecast bvar data.csv --horizons=12 --draws=2000
-friedman forecast bvar data.csv --sampler=gibbs --config=prior.toml
+friedman forecast multivariate bvar :denmark --horizons 6 --draws 500
+friedman forecast multivariate bvar :denmark --horizons 6 --draws 500 --sampler gibbs
 ```
 
-| Option | Short | Type | Default | Description |
-|--------|-------|------|---------|-------------|
-| `--lags` | `-p` | Int | 4 | Lag order |
-| `--horizons` | `-h` | Int | 12 | Forecast horizon |
-| `--draws` | `-n` | Int | 2000 | MCMC draws |
-| `--sampler` | | String | `direct` | `direct`, `gibbs` |
-| `--config` | | String | | TOML config for prior |
-| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
-| `--output` | `-o` | String | | Export file path |
+**Output:** tidy `bvar_forecast` table (`horizon | variable | value | lower | upper`). Full option set: [generated reference](generated/forecast.md#friedman-forecast-multivariate-bvar).
 
-**Output:** Tidy table (`horizon|variable|value|lower|upper`); `--conf-level=0.68` band from the BVAR posterior.
+---
 
-!!! note "v0.3.0"
-    BVAR forecasts now return typed `BVARForecast` objects with the same accessor interface as `VARForecast`.
+## forecast multivariate scenario
 
-## forecast scenario
-
-Waggoner–Zha conditional (scenario) forecasts: pin some variables to chosen paths and let
-the model work out everything else, together with the structural shocks that would deliver
-the scenario.
+**Waggoner–Zha conditional forecasts:** pin some variables to chosen paths and let the model work out everything else, together with the structural shocks that deliver the scenario. `--method` selects which model is fitted first (`var` or `bvar`); the conditional forecast dispatches on that fit.
 
 ```bash
-friedman forecast scenario data.csv --conditions-file=scenario.csv --horizons=12
-friedman forecast scenario data.csv --conditions-file=scenario.csv --method=bvar --draws=2000
+cat > scenario.csv <<'EOF'
+variable,period,value,sd
+LRM,1,0.5,0
+LRM,2,0.4,0
+LRY,4,0.3,0.5
+EOF
+friedman forecast multivariate scenario :denmark --conditions-file scenario.csv --horizons 6
+friedman forecast multivariate scenario :denmark --conditions-file scenario.csv --method bvar --draws 500 --horizons 6
 ```
 
-**Conditions file.** A long-format CSV, one condition per row:
+**Conditions file.** A long-format CSV with columns `variable,period,value` and an optional `sd`:
 
 ```csv
 variable,period,value,sd
-gdp,1,2.5,0
-gdp,2,2.0,0
-inflation,4,3.1,0.5
+LRM,1,0.5,0
+LRM,2,0.4,0
+LRY,4,0.3,0.5
 ```
 
-- `variable` — a column name from your data, or a 1-based index.
-- `period` — the forecast horizon the condition applies to (1 = first forecast period).
-- `value` — the level the variable is pinned to.
-- `sd` — optional. **0 (the default) is a hard condition**: the path is pinned exactly and
-  the interval collapses to a point at that horizon. A positive `sd` makes it soft, so the
-  model may deviate at a cost.
+`variable` accepts a CSV column name or a 1-based index; names resolve against the data header to an index before the forecast is conditioned, so either spelling constrains the same series. `period` counts forward from the first forecast period and must lie inside `--horizons`. `sd` controls hardness: `0` (the default when the column is absent or blank) is a **hard condition** pinned exactly with a point interval at that horizon, while a positive `sd` is **soft** and lets the path deviate at a cost. Each `(variable, period)` pair admits at most one condition; unknown names, out-of-range periods, duplicates, and non-finite values are typed data errors.
 
-| Option | Short | Type | Default | Description |
-|--------|-------|------|---------|-------------|
-| `--conditions-file` | | String | | **Required.** Path to the conditions CSV |
-| `--method` | | String | `var` | Model to condition: `var`, `bvar` |
-| `--lags` | `-p` | Int | auto | Lag order (4 for `bvar`) |
-| `--horizons` | `-h` | Int | 12 | Forecast horizon |
-| `--replications` | | Int | 1000 | Draws used for the conditional bands |
-| `--confidence` | | Float64 | 0.95 | Confidence level in (0, 1) |
-| `--draws` | `-n` | Int | 2000 | MCMC draws (`--method bvar`) |
-| `--sampler` | | String | `direct` | `direct`, `gibbs` (`--method bvar`) |
-| `--plot` / `--plot-save` | | Flag/String | | Plot the conditional path |
+**Why `--conditions-file`.** `--conditions` is a reserved pre-dispatch global: it prints the GPL conditions notice and is matched as the leading token before leaf parsing, so no leaf option may claim that name. The scenario leaf therefore spells it `--conditions-file`, and `--config` (BVAR prior TOML under `--method bvar`) keeps its usual meaning alongside it. `--lags` defaults to automatic selection under `var` and to 4 under `bvar`; `--replications` sizes the simulation behind the conditional bands and `--confidence` sets their level.
 
-**Output:** the conditional path (`horizon`, `variable`, `value`, `lower`, `upper`,
-`unconditional`), the implied structural shocks as a second table, and the settings.
+**Paths.** The conditions file passes through the standard input-path validation: with `FRIEDMAN_DATA_ROOT` unset it is an ordinary filesystem path (parent-relative paths and `~` resolve normally); when `FRIEDMAN_DATA_ROOT` is set, the resolved, normalized path must stay inside that root or the leaf exits with `data/bad-path`.
 
-The `unconditional` column is the baseline forecast from the same fit. A scenario is only
-interpretable against the baseline it departs from, and computing it here rather than in a
-second command guarantees both come from the same draws.
+**Output:** three tables — the `conditional_forecast` path carrying the `unconditional` baseline from the same fit beside each conditioned value, the `implied_structural_shocks` delivering it, and the `scenario_settings` diagnostics. Read the scenario against its baseline: both come from the same draws, so the gap is the scenario and nothing else. Then check the shock table before believing the path — a scenario that needs structural shocks far outside their historical range is arithmetically consistent but economically incredible. Full option set: [generated reference](generated/forecast.md#friedman-forecast-multivariate-scenario).
 
-Check the implied shocks before believing a scenario. A path that requires structural shocks
-far outside their historical range is arithmetically consistent but not economically
-credible, and the shock table is what reveals that.
+---
 
-!!! note "The option is `--conditions-file`, not `--conditions`"
-    `--conditions` is reserved: it prints the GPL conditions notice, and it is matched
-    anywhere in the command line.
+## forecast multivariate lp
 
-## forecast lp
-
-Direct LP forecasts with configurable impulse path and confidence intervals.
-
-!!! note "v0.3.0"
-    `LPForecast` field renamed: `.forecast` (was `.forecasts` in earlier versions).
+Direct **local-projection (LP)** forecasts along an impulse path: the handler fits horizon-by-horizon projections for a one-unit (by default) shock to one variable and traces the response. `--shock` selects the shocked variable by index, `--shock-size` scales the impulse, `--lags` sets the control lags, and `--vcov` selects the covariance estimator behind the bands.
 
 ```bash
-friedman forecast lp data.csv --shock=1 --horizons=12 --shock-size=1.0
-friedman forecast lp data.csv --ci-method=bootstrap --n-boot=500
+friedman forecast multivariate lp :denmark --shock 1 --horizons 6 --shock-size 1.0
+friedman forecast multivariate lp :denmark --shock 1 --horizons 6 --ci-method bootstrap --n-boot 200
 ```
 
-| Option | Short | Type | Default | Description |
-|--------|-------|------|---------|-------------|
-| `--shock` | | Int | 1 | Shock variable index |
-| `--horizons` | `-h` | Int | 12 | Forecast horizon |
-| `--shock-size` | | Float64 | 1.0 | Impulse shock size |
-| `--lags` | `-p` | Int | 4 | LP control lags |
-| `--vcov` | | String | `newey_west` | `newey_west`, `white`, `driscoll_kraay` |
-| `--ci-method` | | String | `analytical` | `analytical`, `bootstrap`, `none` |
-| `--conf-level` | | Float64 | 0.95 | Confidence level |
-| `--n-boot` | | Int | 500 | Bootstrap replications |
-| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
-| `--output` | `-o` | String | | Export file path |
-| `--plot` | | Flag | | Open interactive plot in browser |
-| `--plot-save` | | String | | Save plot to HTML file |
+**Output:** tidy `lp_forecast` table (`horizon | variable | value | lower | upper`); `LPForecast` carries its point path in `.forecast`. Full option set: [generated reference](generated/forecast.md#friedman-forecast-multivariate-lp).
 
-**Output:** Tidy table (`horizon|variable|value|lower|upper`).
+---
 
-## forecast arima
+## forecast univariate arima
 
-ARIMA forecast with auto model selection when `--p` is omitted.
+ARIMA forecasts for a single series. Omit `--p` and the leaf selects the AR and MA orders automatically (bounded by `--max-p`/`--max-d`/`--max-q` under `--criterion`); pass `--p`/`--d`/`--q` explicitly to fix the specification. `--method` selects the estimator and `--column` selects the series.
 
 ```bash
-friedman forecast arima data.csv --horizons=12 --confidence=0.95
-friedman forecast arima data.csv --p=1 --d=1 --q=1 --horizons=24
-friedman forecast arima data.csv --column=2 --criterion=aic
+friedman forecast univariate arima :nile --horizons 6 --confidence 0.95
+friedman forecast univariate arima :nile --p 1 --d 1 --q 1 --horizons 6
+friedman forecast univariate arima :nile --criterion aic --horizons 6
 ```
 
-| Option | Short | Type | Default | Description |
-|--------|-------|------|---------|-------------|
-| `--column` | `-c` | Int | 1 | Column index |
-| `--p` | | Int | auto | AR order |
-| `--d` | | Int | 0 | Differencing order |
-| `--q` | | Int | 0 | MA order |
-| `--max-p` | | Int | 5 | Max AR order for auto selection |
-| `--max-d` | | Int | 2 | Max differencing order |
-| `--max-q` | | Int | 5 | Max MA order |
-| `--criterion` | | String | `bic` | `aic`, `bic` |
-| `--horizons` | `-h` | Int | 12 | Forecast horizon |
-| `--confidence` | | Float64 | 0.95 | Confidence level |
-| `--method` | `-m` | String | `css_mle` | `ols`, `css`, `mle`, `css_mle` |
-| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
-| `--output` | `-o` | String | | Export file path |
-| `--plot` | | Flag | | Open interactive plot in browser |
-| `--plot-save` | | String | | Save plot to HTML file |
+**Output:** tidy `arima_forecast` table (`horizon | variable | value | lower | upper`) with interval bounds. Full option set: [generated reference](generated/forecast.md#friedman-forecast-univariate-arima).
 
-**Output:** Tidy table (`horizon|variable|value|lower|upper`) with a single `variable` (univariate).
+---
 
-## forecast setar
+## forecast regime setar
 
-Bootstrap-simulation forecast from a **self-exciting threshold autoregression (SETAR)**. The handler re-estimates the SETAR (see [`estimate setar`](estimate.md#estimate-setar)) and then simulates forward paths through the fitted two-regime dynamics, reporting the mean path and percentile bands. `--d` accepts an integer delay or `auto` (=`1:p` grid); `--ci-level` must be **exactly** `0.90`, `0.95`, or `0.99` (the re-estimated threshold CI uses the Hansen 2000 tabulation). Only self-exciting SETAR models are forecastable, so no external transition-variable option is offered.
+Bootstrap-simulation forecasts from a re-estimated **self-exciting threshold autoregression (SETAR)**. The handler fits the two-regime model, simulates forward paths through the fitted dynamics by resampling residuals, and reports the mean path with percentile bands. `--d` accepts an integer delay or `auto` (a `1:p` grid); `--ci-level` must be exactly `0.90`, `0.95`, or `0.99`, the tabulation behind the re-estimated threshold interval.
 
 ```bash
-friedman forecast setar y.csv --p=1 --d=1 --horizons=12
-friedman forecast setar y.csv --p=2 --d=auto --horizons=6 --ci-level=0.90 --reps=2000
+friedman forecast regime setar :gnp_hamilton --p 1 --d 1 --horizons 6
+friedman forecast regime setar :gnp_hamilton --p 2 --d auto --horizons 6 --ci-level 0.90 --reps 500
 ```
 
-| Option | Short | Type | Default | Description |
-|--------|-------|------|---------|-------------|
-| `--column` | `-c` | Int | 1 | Column index (1-based) |
-| `--p` | | Int | 1 | AR order (≥ 1) |
-| `--d` | | String | `1` | Delay lag: an integer ≥ 1, or `auto` (=`1:p` grid) |
-| `--horizons` | `-h` | Int | 12 | Forecast horizon (≥ 1) |
-| `--reps` | | Int | 1000 | Bootstrap simulation paths (≥ 1) |
-| `--ci-level` | | Float64 | 0.95 | Band coverage: `0.90`, `0.95`, or `0.99` (exact) |
-| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
-| `--output` | `-o` | String | | Export file path |
+**Output:** tidy `setar_forecast` table with a single series. This leaf offers no `--plot`/`--plot-save`: upstream ships no plot recipe for the forecast type (only the fitted model plots), so the flags stay undeclared rather than advertised-but-broken. Full option set: [generated reference](generated/forecast.md#friedman-forecast-regime-setar).
 
-**Output:** Tidy table (`horizon|variable|value|lower|upper`) with a single `variable` (univariate). `ThresholdForecast` is an `AbstractForecastResult`, so it renders through the shared `long_table` path. Unlike the other `forecast` leaves, `forecast setar` offers **no** `--plot`/`--plot-save`: MacroEconometricModels 0.7.0 ships no plot recipe for `ThresholdForecast` (only the fitted `ThresholdModel` from `estimate setar` is plottable), so per the plot-capable-leaves-only convention the flags are omitted rather than advertised-but-broken.
+---
 
-## forecast star
+## forecast regime star
 
-Bootstrap-simulation forecast from a **smooth-transition autoregression (STAR)**. The handler re-estimates a *self-exciting* STAR (see [`estimate star`](estimate.md#estimate-star)) and simulates forward paths through the fitted smooth-transition dynamics, drawing residuals with replacement and reporting the mean path and percentile bands. `--type` selects the transition shape (or `auto`). Only self-exciting STAR models are forecastable (a future path of an external transition variable would be required), so no `--transition-col` option is offered.
+Bootstrap-simulation forecasts from a re-estimated self-exciting **smooth-transition autoregression (STAR)**. `--type` selects the transition shape (`lstr1`, `lstr2`, `estr`, or `auto`). Only self-exciting STARs are forecastable — an external transition variable would need its own future path — so no transition-column option is offered.
 
 ```bash
-friedman forecast star y.csv --p=1 --d=1 --horizons=12
-friedman forecast star y.csv --p=2 --type=lstr1 --horizons=6 --ci-level=0.90 --reps=2000
+friedman forecast regime star :gnp_hamilton --p 1 --d 1 --horizons 6
+friedman forecast regime star :gnp_hamilton --p 2 --type lstr1 --horizons 6 --ci-level 0.90 --reps 500
 ```
 
-| Option | Short | Type | Default | Description |
-|--------|-------|------|---------|-------------|
-| `--column` | `-c` | Int | 1 | Column index (1-based) |
-| `--p` | | Int | 1 | AR order (≥ 1) |
-| `--d` | | Int | 1 | Delay lag for the self-exciting transition var (≥ 1) |
-| `--type` | | String | `auto` | Transition shape: `lstr1`, `lstr2`, `estr`, `auto` |
-| `--horizons` | `-h` | Int | 12 | Forecast horizon (≥ 1) |
-| `--reps` | | Int | 1000 | Bootstrap simulation paths (≥ 1) |
-| `--ci-level` | | Float64 | 0.95 | Band coverage: `0.90`, `0.95`, or `0.99` (exact) |
-| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
-| `--output` | `-o` | String | | Export file path |
+**Output:** tidy `star_forecast` table with a single series. Like `setar`, no `--plot`/`--plot-save`: the forecast type has no upstream plot recipe. Full option set: [generated reference](generated/forecast.md#friedman-forecast-regime-star).
 
-**Output:** Tidy table (`horizon|variable|value|lower|upper`) with a single `variable` (univariate). `STARForecast` is an `AbstractForecastResult`, so it renders through the shared `long_table` path. Like `forecast setar`, `forecast star` offers **no** `--plot`/`--plot-save`: MacroEconometricModels 0.7.0 ships no plot recipe for `STARForecast` (only the fitted `STARModel` from `estimate star` is plottable), so per the plot-capable-leaves-only convention the flags are omitted rather than advertised-but-broken.
+---
 
-## forecast static
+## forecast factor static
 
-Forecast observables using a static factor model (PCA).
+Forecasts of many observables from a **static factor model (PCA)**: compress the panel to `--nfactors` factors (selected by information criteria when omitted), project forward, and reconstruct the observables. `--ci-method` controls the bands (`none`, `bootstrap`, `parametric`).
 
 ```bash
-friedman forecast static data.csv --horizons=12
-friedman forecast static data.csv --nfactors=3 --ci-method=bootstrap
+friedman forecast factor static :denmark --horizons 6
+friedman forecast factor static :denmark --nfactors 2 --ci-method bootstrap --horizons 6
 ```
 
-| Option | Short | Type | Default | Description |
-|--------|-------|------|---------|-------------|
-| `--nfactors` | `-r` | Int | auto (IC) | Number of factors |
-| `--horizons` | `-h` | Int | 12 | Forecast horizon |
-| `--ci-method` | | String | `none` | `none`, `bootstrap`, `parametric` |
-| `--conf-level` | | Float64 | 0.95 | Confidence level |
-| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
-| `--output` | `-o` | String | | Export file path |
-| `--plot` | | Flag | | Open interactive plot in browser |
-| `--plot-save` | | String | | Save plot to HTML file |
+**Output:** tidy `static_factor_forecast` table (`horizon | variable | value | lower | upper`) over the observables. Full option set: [generated reference](generated/forecast.md#friedman-forecast-factor-static).
 
-**Output:** Tidy table (`horizon|variable|value|lower|upper`).
+---
 
-## forecast dynamic
+## forecast factor dynamic
 
-Forecast observables using a dynamic factor model.
+Forecasts from a **dynamic factor model**, where the factors themselves follow a VAR of order `--factor-lags`. `--method` selects the factor estimator (`twostep` or `em`); the factor count is automatic unless `--nfactors` is given.
 
 ```bash
-friedman forecast dynamic data.csv --nfactors=2 --factor-lags=1 --horizons=12
+friedman forecast factor dynamic :denmark --nfactors 2 --factor-lags 1 --horizons 6
 ```
 
-| Option | Short | Type | Default | Description |
-|--------|-------|------|---------|-------------|
-| `--nfactors` | `-r` | Int | auto | Number of factors |
-| `--horizons` | `-h` | Int | 12 | Forecast horizon |
-| `--factor-lags` | `-p` | Int | 1 | Factor VAR lag order |
-| `--method` | | String | `twostep` | `twostep`, `em` |
-| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
-| `--output` | `-o` | String | | Export file path |
-| `--plot` | | Flag | | Open interactive plot in browser |
-| `--plot-save` | | String | | Save plot to HTML file |
+**Output:** tidy `dynamic_factor_forecast` table over the observables. Full option set: [generated reference](generated/forecast.md#friedman-forecast-factor-dynamic).
 
-**Output:** Tidy table (`horizon|variable|value|lower|upper`).
+---
 
-## forecast gdfm
+## forecast factor gdfm
 
-Forecast observables using a Generalized Dynamic Factor Model.
+Forecasts from a **generalized dynamic factor model**. `--method` selects the factor projection: `ar` fits an AR(1) on each two-sided factor, while `one-sided` and `spectral` use the Forni–Hallin–Lippi–Reichlin one-sided projection. `--dynamic-rank` and `--nfactors` default to automatic selection, and `--spectral` selects the spectrum estimator behind the decomposition.
 
 ```bash
-friedman forecast gdfm data.csv --dynamic-rank=2 --horizons=12
+friedman forecast factor gdfm :denmark --dynamic-rank 2 --horizons 6
+friedman forecast factor gdfm :denmark --dynamic-rank 2 --horizons 6 --method one-sided
 ```
 
-| Option | Short | Type | Default | Description |
-|--------|-------|------|---------|-------------|
-| `--nfactors` | `-r` | Int | auto | Number of static factors |
-| `--dynamic-rank` | `-q` | Int | auto | Dynamic rank |
-| `--horizons` | `-h` | Int | 12 | Forecast horizon |
-| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
-| `--output` | `-o` | String | | Export file path |
-| `--plot` | | Flag | | Open interactive plot in browser |
-| `--plot-save` | | String | | Save plot to HTML file |
+**Output:** tidy `gdfm_forecast` table over the observables. Full option set: [generated reference](generated/forecast.md#friedman-forecast-factor-gdfm).
 
-**Output:** Tidy table (`horizon|variable|value|lower|upper`).
+---
 
-## Volatility Model Forecasts
+## Volatility forecasts
 
-All volatility forecast commands produce a table with `horizon`, `variance`, and `volatility` (= sqrt of variance) columns. This is a deliberate exception to the [tidy `long_table` schema](#output-format-c051) used elsewhere in `forecast` — collapsing into the generic `horizon|variable|value|lower|upper` shape would drop the `volatility` column, so the shared `_vol_forecast_output` helper keeps its own domain-specific table.
-
-### forecast arch
+One leaf per volatility model — `arch`, `garch`, `egarch`, `gjr-garch`, and `sv`, plus the extended family (`aparch`, `cgarch`, `figarch`, `fiegarch`, `igarch`, `garch-midas`). Each leaf re-estimates its model on the selected column and projects the conditional variance forward. The GARCH-family leaves accept a conditional innovation distribution (`normal`, `student`, `ged`); `arch` and `sv` are Gaussian-only upstream and declare no such option. `sv` takes MCMC draws instead of lag orders.
 
 ```bash
-friedman forecast arch data.csv --column=1 --q=1 --horizons=12
+friedman data simulate garch --kind garch --periods 300 -o returns.csv --format csv
+friedman forecast volatility garch returns.csv --column 2 --p 1 --q 1 --horizons 6
+friedman forecast volatility sv returns.csv --column 2 --draws 500 --horizons 6
 ```
 
-| Option | Short | Type | Default | Description |
-|--------|-------|------|---------|-------------|
-| `--column` | `-c` | Int | 1 | Column index |
-| `--q` | | Int | 1 | ARCH order |
-| `--horizons` | `-h` | Int | 12 | Forecast horizon |
-| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
-| `--output` | `-o` | String | | Export file path |
-| `--plot` | | Flag | | Open interactive plot in browser |
-| `--plot-save` | | String | | Save plot to HTML file |
+**Output:** the domain-specific `horizon | variance | volatility` table kept as a deliberate exception to the tidy schema. `garch-midas` instead splits the path into `total_variance | long_run | short_run | volatility` components and declares no interval level or plot flags. Per-leaf option sets (orders and distributions differ across the family): [generated reference](generated/forecast.md).
 
-### forecast garch
+---
+
+## forecast multivariate vecm
+
+Forecasts from a fitted **vector error-correction model (VECM)** for cointegrated panels. `--lags` is the lag order in levels, `--rank` is the cointegration rank (`auto` selects via the Johansen procedure), and `--deterministic` sets the deterministic terms. Intervals are off by default; `--ci-method` (`bootstrap` or `parametric`) enables them with `--replications` sizing the bootstrap and `--confidence` setting the level.
 
 ```bash
-friedman forecast garch data.csv --column=1 --p=1 --q=1 --horizons=12
+friedman forecast multivariate vecm :denmark --horizons 6
+friedman forecast multivariate vecm :denmark --rank 1 --deterministic constant --lags 2
+friedman forecast multivariate vecm :denmark --ci-method bootstrap --confidence 0.90 --replications 200 --horizons 6
 ```
 
-| Option | Short | Type | Default | Description |
-|--------|-------|------|---------|-------------|
-| `--column` | `-c` | Int | 1 | Column index |
-| `--p` | | Int | 1 | GARCH order |
-| `--q` | | Int | 1 | ARCH order |
-| `--horizons` | `-h` | Int | 12 | Forecast horizon |
-| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
-| `--output` | `-o` | String | | Export file path |
-| `--plot` | | Flag | | Open interactive plot in browser |
-| `--plot-save` | | String | | Save plot to HTML file |
+**Output:** tidy `vecm_forecast` level forecasts with optional bounds. Full option set: [generated reference](generated/forecast.md#friedman-forecast-multivariate-vecm).
 
-### forecast egarch
-
-```bash
-friedman forecast egarch data.csv --column=1 --p=1 --q=1 --horizons=12
-```
-
-| Option | Short | Type | Default | Description |
-|--------|-------|------|---------|-------------|
-| `--column` | `-c` | Int | 1 | Column index |
-| `--p` | | Int | 1 | EGARCH order |
-| `--q` | | Int | 1 | ARCH order |
-| `--horizons` | `-h` | Int | 12 | Forecast horizon |
-| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
-| `--output` | `-o` | String | | Export file path |
-| `--plot` | | Flag | | Open interactive plot in browser |
-| `--plot-save` | | String | | Save plot to HTML file |
-
-### forecast gjr\_garch
-
-```bash
-friedman forecast gjr_garch data.csv --column=1 --p=1 --q=1 --horizons=12
-```
-
-| Option | Short | Type | Default | Description |
-|--------|-------|------|---------|-------------|
-| `--column` | `-c` | Int | 1 | Column index |
-| `--p` | | Int | 1 | GARCH order |
-| `--q` | | Int | 1 | ARCH order |
-| `--horizons` | `-h` | Int | 12 | Forecast horizon |
-| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
-| `--output` | `-o` | String | | Export file path |
-| `--plot` | | Flag | | Open interactive plot in browser |
-| `--plot-save` | | String | | Save plot to HTML file |
-
-### forecast sv
-
-```bash
-friedman forecast sv data.csv --column=1 --draws=5000 --horizons=12
-```
-
-| Option | Short | Type | Default | Description |
-|--------|-------|------|---------|-------------|
-| `--column` | `-c` | Int | 1 | Column index |
-| `--draws` | `-n` | Int | 5000 | MCMC draws |
-| `--horizons` | `-h` | Int | 12 | Forecast horizon |
-| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
-| `--output` | `-o` | String | | Export file path |
-| `--plot` | | Flag | | Open interactive plot in browser |
-| `--plot-save` | | String | | Save plot to HTML file |
-
-## forecast vecm
-
-VECM forecasts with bootstrap confidence intervals.
-
-```bash
-friedman forecast vecm data.csv --horizons=12
-friedman forecast vecm data.csv --rank=2 --deterministic=constant --lags=4
-friedman forecast vecm data.csv --confidence=0.90 --replications=1000
-```
-
-| Option | Short | Type | Default | Description |
-|--------|-------|------|---------|-------------|
-| `--lags` | `-p` | Int | auto | Lag order |
-| `--horizons` | `-h` | Int | 12 | Forecast horizon |
-| `--rank` | `-r` | Int | auto | Cointegration rank (auto via Johansen) |
-| `--deterministic` | | String | `constant` | `none`, `constant`, `trend` |
-| `--confidence` | | Float64 | 0.95 | Confidence level |
-| `--replications` | | Int | 500 | Bootstrap replications |
-| `--format` | `-f` | String | `table` | `table`, `csv`, `json` |
-| `--output` | `-o` | String | | Export file path |
-| `--plot` | | Flag | | Open interactive plot in browser |
-| `--plot-save` | | String | | Save plot to HTML file |
-
-**Output:** Tidy table (`horizon|variable|value|lower|upper`); bootstrap confidence bands.
+---
 
 ## forecast evaluate
 
-Post-hoc evaluation and combination of **already-computed** forecasts (C072). These
-leaves are model-agnostic: they take a CSV plus an actual-values column and one or
-more forecast columns, and wrap the MEMs `fceval` toolkit (Diebold–Mariano,
-Clark–West, Mincer–Zarnowitz, forecast encompassing, accuracy metrics, combination).
-
-**Uniform input convention** — every leaf takes:
-
-- `data` — a CSV of realized values and competing forecasts (positional).
-- `--actual <col>` — the realized-values column name (required).
-- `--forecasts <col1,col2,...>` — one or more forecast column names (required).
-
-The handler forms whatever the underlying statistic needs from those columns:
-forecast **errors** `e = actual − forecast` (Diebold–Mariano), the forecast
-**difference** `f_adj = f_small − f_big` (Clark–West squares it internally), or the
-`T×M` forecast matrix (accuracy metrics, combination). Forecast-count arity is
-validated per leaf (e.g. `dm` requires exactly 2) → usage error; unknown columns →
-`data/bad-column`.
-
-These result types are not Tables.jl-registered upstream, so their tables are
-hand-built (a documented C051 exception, like the `io` and `estimate sur/3sls`
-families): the test leaves emit a `metric | value` key–value table, `metrics` emits
-a wide accuracy table plus the Theil decomposition, and `combine` emits a
-`model | weight | mse` table.
-
-| Leaf | Forecasts | Purpose |
-|------|-----------|---------|
-| `metrics` | ≥1 | Point-accuracy metrics (ME, MAE, RMSE, MAPE, sMAPE, MASE, Theil U1/U2) + Theil MSE bias/variance/covariance decomposition |
-| `dm` | exactly 2 | Diebold–Mariano (1995) equal-predictive-accuracy test |
-| `clark-west` | exactly 2 (small, big) | Clark–West (2007) adjusted-MSPE test for nested models |
-| `mincer-zarnowitz` | exactly 1 | Mincer–Zarnowitz (1969) forecast-efficiency regression |
-| `encompassing` | exactly 2 | Harvey–Leybourne–Newbold (1998) forecast-encompassing test |
-| `combine` | ≥2 | Forecast combination (equal / Bates–Granger / Granger–Ramanathan weights) |
+Post-hoc evaluation and combination of **already-computed** forecasts. These leaves are model-agnostic: they take realized values plus competing forecast series and wrap the upstream forecast-evaluation toolkit. Every leaf shares one input convention: `data` carries the realized column named by `--actual` (required), and the forecasts arrive either as `--forecasts` columns in the same file or as `--result` forecast-handle stems — never both. `--result` is a comma-separated stem string (not a single-handle option), so `--result fcst_var,fcst_bvar` loads two saved forecasts. Handlers form whatever each statistic needs: errors `e = actual − forecast`, the nested-model gap `f_adj = f_small − f_big` (squared internally), or the `T×M` forecast matrix. Each leaf validates its forecast-count arity (a wrong count is a usage error), unknown columns are `data/bad-column`, and length mismatches are `data/shape`.
 
 ```bash
-# Accuracy metrics + Theil decomposition for two competing forecasts
-friedman forecast evaluate metrics data.csv --actual y --forecasts f1,f2
+cat > eval.csv <<'EOF'
+y,f1,f2,f3
+2.10,2.00,2.20,2.05
+1.80,1.90,1.70,1.85
+2.40,2.30,2.50,2.35
+1.50,1.60,1.40,1.55
+2.00,1.95,2.10,2.02
+2.60,2.50,2.70,2.58
+1.90,2.00,1.80,1.92
+2.20,2.10,2.30,2.18
+1.70,1.75,1.65,1.72
+2.50,2.40,2.60,2.48
+2.30,2.25,2.35,2.31
+1.60,1.65,1.55,1.62
+2.05,2.00,2.10,2.04
+1.95,1.90,2.00,1.93
+EOF
+friedman forecast evaluate metrics eval.csv --actual y --forecasts f1,f2,f3
+friedman forecast evaluate dm eval.csv --actual y --forecasts f1,f2 --loss se --horizon 1
+friedman forecast evaluate clark-west eval.csv --actual y --forecasts f1,f2
+friedman forecast evaluate mincer-zarnowitz eval.csv --actual y --forecasts f1 --lags 4
+friedman forecast evaluate combine eval.csv --actual y --forecasts f1,f2,f3 --method bates-granger
+```
 
-# Diebold–Mariano test (squared-error loss, 1-step); errors formed as y - f
-friedman forecast evaluate dm data.csv --actual y --forecasts f1,f2 --loss se --horizon 1
+Saved result handles work the same way, with the forecast length matching the realized column:
 
-# Clark–West test for a nested pair (f1 restricted, f2 unrestricted)
-friedman forecast evaluate clark-west data.csv --actual y --forecasts f1,f2
-
-# Mincer–Zarnowitz efficiency regression with HAC(4) covariance
-friedman forecast evaluate mincer-zarnowitz data.csv --actual y --forecasts f1 --lags 4
-
-# Combine three forecasts with inverse-MSE (Bates–Granger) weights
-friedman forecast evaluate combine data.csv --actual y --forecasts f1,f2,f3 --method bates-granger
+```bash
+friedman data simulate var --periods 60 -o macro.csv --format csv
+friedman forecast multivariate var macro.csv --horizons 60 --save-result fcst_var
+friedman forecast multivariate var macro.csv --horizons 60 --lags 1 --save-result fcst_bvar
+friedman forecast evaluate metrics macro.csv --actual y1 --result fcst_var,fcst_bvar
 ```
 
 ### forecast evaluate metrics
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `--actual` | String | (required) | Realized-values column name |
-| `--forecasts` | String | (required) | Forecast column names, comma-separated (≥1) |
-| `--seasonal-period` | Int | 1 | Seasonal lag for the MASE naive-forecast scaling |
-| `--format` | String | `table` | `table`, `csv`, `json` |
-| `--output` | String | | Export file path |
+Point-accuracy metrics per forecast — **ME**, **MAE**, **RMSE**, **MAPE**, **sMAPE**, **MASE**, and Theil **U1**/**U2** — plus the Theil mean-squared-error decomposition into **bias**, **variance**, and **covariance** proportions (summing to 1). Errors follow `e = actual − forecast`; MAPE and sMAPE skip near-zero denominators, and `--seasonal-period` sets the naive-forecast lag behind the MASE scaling. Takes one or more forecasts. This is the only `evaluate` leaf with plot flags.
 
-**Output:** a wide accuracy table `model | ME | MAE | RMSE | MAPE | sMAPE | MASE | U1 | U2` (one row per forecast) and a `model | bias | variance | covariance` Theil MSE decomposition (proportions sum to 1).
+**Output:** a wide accuracy table (one row per forecast) and the Theil decomposition table. Full option set: [generated reference](generated/forecast.md#friedman-forecast-evaluate-metrics).
 
 ### forecast evaluate dm
 
-Diebold–Mariano test of equal predictive accuracy. Errors are formed internally as `e = actual − forecast`. A positive statistic means forecast 1 has the larger average loss (is worse). Invalid for nested models — use `clark-west` there.
+The **Diebold–Mariano (1995)** test of equal predictive accuracy between exactly two forecasts. The loss differential is `d = g(e1) − g(e2)` with `--loss` selecting squared (`se`) or absolute (`ad`) loss; the null is equal accuracy (`E[d] = 0`). A positive statistic means the first forecast carries the larger average loss. `--horizon` sets the truncation lag `h − 1` of the long-run variance. By default the Harvey–Leybourne–Newbold small-sample correction applies (statistic referenced to `t_{T−1}`); `--no-hln` disables it in favour of `N(0,1)`. The test is invalid for nested models — use `clark-west` there.
 
-| Option | Short | Type | Default | Description |
-|--------|-------|------|---------|-------------|
-| `--actual` | | String | (required) | Realized-values column name |
-| `--forecasts` | | String | (required) | Exactly two forecast columns |
-| `--loss` | | String | `se` | Loss function: `se` (squared) or `ad` (absolute) |
-| `--horizon` | `-h` | Int | 1 | Forecast horizon (sets the truncation lag `h−1`) |
-| `--alternative` | | String | `two-sided` | `two-sided`, `less`, `greater` |
-| `--no-hln` | | Flag | | Disable the Harvey–Leybourne–Newbold small-sample correction (reference `N(0,1)` instead of `t_{T−1}`) |
-
-**Output:** a `metric | value` table (statistic, p-value, mean loss differential, long-run variance, horizon, HLN flag, alternative, n).
+**Output:** a `metric | value` table (statistic, p-value, mean loss differential, long-run variance, horizon, HLN flag, alternative, n). Full option set: [generated reference](generated/forecast.md#friedman-forecast-evaluate-dm).
 
 ### forecast evaluate clark-west
 
-Clark–West adjusted-MSPE test for nested models. Give the two forecasts as **small (restricted) then big (unrestricted)**. Internally uses `e_small = y − f_small`, `e_big = y − f_big`, and `f_adj = f_small − f_big` (the library squares `f_adj`).
+The **Clark–West (2007)** adjusted-MSPE test for **nested** models, taking exactly two forecasts ordered small (restricted) then big (unrestricted). It forms the adjusted differential `f̂ = e_small² − (e_big² − f_adj²)` with `f_adj = f_small − f_big`, and tests the null that the big model does not improve MSPE (`E[f̂] ≤ 0`) against the one-sided `greater` alternative, referenced to the standard normal. This is the correct test exactly where Diebold–Mariano is invalid.
 
-| Option | Short | Type | Default | Description |
-|--------|-------|------|---------|-------------|
-| `--actual` | | String | (required) | Realized-values column name |
-| `--forecasts` | | String | (required) | Exactly two columns: small, then big |
-| `--horizon` | `-h` | Int | 1 | Forecast horizon (sets the truncation lag `h−1`) |
-| `--alternative` | | String | `greater` | `two-sided`, `less`, `greater` |
-
-**Output:** a `metric | value` table (one-sided CW statistic, p-value, mean adjusted differential, long-run variance, horizon, alternative, n).
+**Output:** a `metric | value` table (statistic, p-value, mean adjusted differential, long-run variance, horizon, alternative, n). Full option set: [generated reference](generated/forecast.md#friedman-forecast-evaluate-clark-west).
 
 ### forecast evaluate mincer-zarnowitz
 
-Mincer–Zarnowitz forecast-efficiency regression `actual = a + b·fc + u`, jointly testing `(a, b) = (0, 1)` with a Newey–West HAC covariance.
+The **Mincer–Zarnowitz (1969)** forecast-efficiency regression `actual = a + b·fc + u` on exactly one forecast, jointly testing `(a, b) = (0, 1)`: a weakly efficient forecast needs intercept 0 and slope 1. `--lags` sets the Newey–West HAC truncation lag (`0` gives the White covariance) with `--kernel` selecting the kernel. Reports both the χ²(2) Wald statistic and the equivalent `F(2, T−2)`.
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `--actual` | String | (required) | Realized-values column name |
-| `--forecasts` | String | (required) | Exactly one forecast column |
-| `--lags` | Int | 0 | Newey–West HAC truncation lag (0 = White) |
-| `--kernel` | String | `bartlett` | `bartlett`, `parzen`, `quadratic_spectral`, `tukey_hanning` |
-
-**Output:** a `metric | value` table (`a`, `b`, HAC `se_a`/`se_b`, Wald χ²(2) and its p-value, the equivalent `F(2, T−2)` and its p-value, HAC lags, kernel, n).
+**Output:** a `metric | value` table (`a`, `b`, HAC standard errors, Wald χ²(2) and p-value, `F` and p-value, HAC lags, kernel, n). Full option set: [generated reference](generated/forecast.md#friedman-forecast-evaluate-mincer-zarnowitz).
 
 ### forecast evaluate encompassing
 
-Regression-based forecast-encompassing test `actual = a + b₁·fc1 + b₂·fc2 + u`, testing `b₂ = 0`. Non-rejection means forecast 1 encompasses forecast 2.
+The regression-based **forecast-encompassing test (Harvey–Leybourne–Newbold 1998)** on exactly two forecasts. It estimates `actual = a + b₁·fc1 + b₂·fc2 + u` with a Newey–West HAC covariance (`--lags`, `--kernel`; `0` gives White) and tests `b₂ = 0` with a two-sided `t_{T−3}` p-value. Non-rejection means the first forecast encompasses the second — the second carries no incremental information.
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `--actual` | String | (required) | Realized-values column name |
-| `--forecasts` | String | (required) | Exactly two forecast columns |
-| `--lags` | Int | 0 | Newey–West HAC truncation lag (0 = White) |
-| `--kernel` | String | `bartlett` | `bartlett`, `parzen`, `quadratic_spectral`, `tukey_hanning` |
-
-**Output:** a `metric | value` table (`b1`, `b2`, `se(b2)`, t-statistic on `b₂`, two-sided p-value, HAC lags, kernel, n).
+**Output:** a `metric | value` table (`b1`, `b2`, HAC `se(b2)`, t-statistic, p-value, HAC lags, kernel, n). Full option set: [generated reference](generated/forecast.md#friedman-forecast-evaluate-encompassing).
 
 ### forecast evaluate combine
 
-Combine ≥2 forecasts into one series.
+Combines two or more forecasts into one series. `equal` averages; `bates-granger` uses inverse-MSE weights (ignoring cross-forecast error correlation); `granger-ramanathan` runs constrained least squares minimizing `‖actual − F·w‖²` subject to weights summing to 1 — those weights may be negative, by construction. `--emit-series` additionally emits the combined series itself.
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `--actual` | String | (required) | Realized-values column name |
-| `--forecasts` | String | (required) | Forecast column names, comma-separated (≥2) |
-| `--method` | String | `equal` | `equal`, `bates-granger` (inverse-MSE), `granger-ramanathan` (constrained least squares) |
-| `--emit-series` | Flag | | Also emit the combined forecast series (`index | combined`) |
+**Output:** a `model | weight | mse` table (weights sum to 1), plus an `index | combined` table under `--emit-series`. Full option set: [generated reference](generated/forecast.md#friedman-forecast-evaluate-combine).
 
-**Output:** a `model | weight | mse` table (weights sum to 1; Granger–Ramanathan weights may be negative). With `--emit-series`, an additional `index | combined` table carries the combined series.
+---
 
-## See Also
+## Beyond this page
 
-For FAVAR forecasting, see [favar & sdfm](favar.md#forecast-favar). For DSGE model forecasting via simulation, see [dsge simulate](dsge.md#dsge-simulate).
+`forecast` also serves `univariate arfima`, `univariate sarima`, `univariate midas`, `regime ms`, `regime ms-ar`, `factor sdfm`, and `multivariate favar` — the same tidy forecast table, except that `arfima` uses the single-series `horizon | forecast | lower | upper` form, `midas` adds a standard error with a summary table, and the `ms` leaves add a predicted-regime-probabilities table. Per-leaf options live in the [generated forecast reference](generated/forecast.md). FAVAR and structural-DFM forecasting are additionally covered from the model side in the [favar & sdfm guide](favar.md); DSGE forecasting runs through simulation in the [dsge guide](dsge.md#dsge-simulate).
+
+---
+
+## References
+
+- [Generated forecast reference](generated/forecast.md) — authoritative per-leaf options, defaults, and output-table keys.
+- [Command overview](overview.md) — the full action-first tree.
+- [favar & sdfm guide](favar.md) — FAVAR and structural-DFM forecasting alongside identification and decomposition.
+- [dsge guide](dsge.md#dsge-simulate) — DSGE forecasting via simulation.
+- Diebold, F. X. and Mariano, R. S. (1995). Comparing predictive accuracy. *Journal of Business & Economic Statistics*.
+- Clark, T. E. and West, K. D. (2007). Approximately normal tests for equal predictive accuracy in nested models. *Journal of Econometrics*.
+- Mincer, J. A. and Zarnowitz, V. (1969). The evaluation of economic forecasts. In *Economic Forecasts and Expectations*.
+- Harvey, D., Leybourne, S. and Newbold, P. (1997). Testing the equality of prediction mean squared errors. *International Journal of Forecasting*.
+- Harvey, D., Leybourne, S. and Newbold, P. (1998). Tests for forecast encompassing. *Journal of Business & Economic Statistics*.
+- Bates, J. M. and Granger, C. W. J. (1969). The combination of forecasts. *Operational Research Quarterly*.
+- Granger, C. W. J. and Ramanathan, R. (1984). Improved methods of combining forecasts. *Journal of Forecasting*.
+- Waggoner, D. F. and Zha, T. (1999). Conditional forecasts in dynamic multivariate models. *Review of Economics and Statistics*.
+- Forni, M., Hallin, M., Lippi, M. and Reichlin, L. (2005). The generalized dynamic factor model. *Journal of the American Statistical Association*.

@@ -8,7 +8,7 @@
 # Convention in markdown:
 #   <!-- capture -->
 #   ```bash
-#   friedman dsge ha steady-state huggett --format json
+#   friedman hadsge steady-state huggett --format json
 #   ```
 #   ```json
 #   <captured stdout>
@@ -133,7 +133,7 @@ First structural difference between a fresh capture and the committed one, as a
 It returns the *reason* rather than a Bool because `--check` reports it: a bare "stale
 capture" says nothing about which field moved, and the two failure modes look identical in
 CI while having opposite fixes. A missing/extra key means a leaf gained or lost a table and
-the capture simply needs regenerating (this is what W13 did to `dsge ha steady-state`); a
+the capture simply needs regenerating (this is what W13 did to `hadsge steady-state`); a
 numeric drift past the tolerance means the model output actually changed, or the tolerance
 is too tight for cross-OS BLAS, and regenerating would paper over it.
 """

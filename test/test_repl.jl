@@ -38,6 +38,23 @@ module Friedman
         end
     end
 
+    function resolve_stem(path::String; slot::Symbol=:data)::String
+        startswith(path, ":") && return path
+        startswith(path, "model://") && return path
+        path = _expanduser(path)
+        if occursin(r"\.[A-Za-z0-9]+$", basename(path))
+            return path
+        end
+        jld = path * ".jld2"
+        isfile(jld) && return jld
+        if slot === :data
+            csv = path * ".csv"
+            isfile(csv) && return csv
+        end
+        isfile(path) && return path
+        throw(CliError("data/file-not-found", "file not found: $path"))
+    end
+
     function load_data(path::String)
         if startswith(path, ":")
             ds = load_example(parse_dataset_name(path))
@@ -89,9 +106,11 @@ module Friedman
     const FRIEDMAN_VERSION = v"0.4.1"
     _last_injected_model = nothing
     function dispatch(app, args; extra_kwargs...)
-        # Return a mock result for estimate commands
+        # Return a mock result for estimate commands (model token: depth-3
+        # family path, else the flat leaf)
         if !isempty(args) && args[1] == "estimate" && length(args) >= 2
-            return "mock_$(args[2])_model"
+            tag = length(args) >= 3 ? args[3] : args[2]
+            return "mock_$(tag)_model"
         end
         # For downstream commands, store the injected model in a global for testing
         if haskey(Dict(extra_kwargs), :model)
@@ -107,8 +126,11 @@ module Friedman
         bvar_leaf = LeafCommand("bvar", noop, Argument[], Option[], Flag[], "Estimate BVAR")
         vecm_leaf = LeafCommand("vecm", noop, Argument[], Option[], Flag[], "Estimate VECM")
 
-        estimate_node = NodeCommand("estimate", Dict{String,Union{NodeCommand,LeafCommand}}(
+        mvar_family = NodeCommand("multivariate", Dict{String,Union{NodeCommand,LeafCommand}}(
             "var" => var_leaf, "bvar" => bvar_leaf, "vecm" => vecm_leaf
+        ), "Multivariate family")
+        estimate_node = NodeCommand("estimate", Dict{String,Union{NodeCommand,LeafCommand}}(
+            "multivariate" => mvar_family
         ), "Estimation commands")
 
         irf_var_leaf = LeafCommand("var", noop, Argument[], Option[], Flag[], "VAR IRF")
@@ -191,6 +213,23 @@ end
         rm(tmpfile; force=true)
     end
 
+    @testset "session_load_data! resolves stem to .jld2" begin
+        s = Friedman.Session()
+        mktempdir() do dir
+            csv = joinpath(dir, "macro.csv")
+            jld = joinpath(dir, "macro.jld2")
+            CSV.write(csv, DataFrame(x=[1.0, 2.0], y=[3.0, 4.0]))
+            # stub load_data CSV.reads; table content at the .jld2 path is enough
+            # to pin that `data use macro` injects `macro.jld2` when it exists.
+            CSV.write(jld, DataFrame(x=[10.0, 20.0], y=[30.0, 40.0]))
+            Friedman.session_load_data!(s, joinpath(dir, "macro"))
+            @test s.data_path == jld
+            @test s.varnames == ["x", "y"]
+            @test size(s.Y) == (2, 2)
+            @test s.Y[1, 1] == 10.0
+        end
+    end
+
     @testset "session_clear!" begin
         s = Friedman.Session()
         s.data_path = "test.csv"
@@ -268,22 +307,22 @@ end
         s.data_path = "/tmp/test.csv"
 
         # Args with no data positional — inject before options
-        args = ["estimate", "var", "--lags", "4"]
+        args = ["estimate", "multivariate", "var", "--lags", "4"]
         result = Friedman.inject_session_data(s, args, app)
-        @test result == ["estimate", "var", "/tmp/test.csv", "--lags", "4"]
+        @test result == ["estimate", "multivariate", "var", "/tmp/test.csv", "--lags", "4"]
 
         # Args already have data (a .csv path) — don't inject
-        args2 = ["estimate", "var", "mydata.csv", "--lags", "4"]
+        args2 = ["estimate", "multivariate", "var", "mydata.csv", "--lags", "4"]
         result2 = Friedman.inject_session_data(s, args2, app)
         @test result2 == args2
 
         # Extensionless positional — do not inject (tree-walk, F27)
-        args_ext = ["estimate", "var", "mydata", "--lags", "4"]
+        args_ext = ["estimate", "multivariate", "var", "mydata", "--lags", "4"]
         result_ext = Friedman.inject_session_data(s, args_ext, app)
         @test result_ext == args_ext
 
         # Builtin dataset token — already a positional
-        args_bi = ["estimate", "var", ":fred-md"]
+        args_bi = ["estimate", "multivariate", "var", ":fred-md"]
         @test Friedman.inject_session_data(s, args_bi, app) == args_bi
 
         # No session data — return unchanged
@@ -300,24 +339,24 @@ end
     end
 
     @testset "detect_model_type" begin
-        @test Friedman.detect_model_type(["estimate", "var"]) == :var
-        @test Friedman.detect_model_type(["estimate", "bvar"]) == :bvar
+        @test Friedman.detect_model_type(["estimate", "multivariate", "var"]) == :var
+        @test Friedman.detect_model_type(["estimate", "multivariate", "bvar"]) == :bvar
         @test Friedman.detect_model_type(["irf", "var"]) == :var
-        @test Friedman.detect_model_type(["test", "adf"]) == :adf
+        @test Friedman.detect_model_type(["test", "unit-root", "adf"]) == :adf
         @test Friedman.detect_model_type(["data", "use"]) == :use
         @test Friedman.detect_model_type(["data"]) == :none
     end
 
     @testset "is_estimate_command" begin
-        @test Friedman.is_estimate_command(["estimate", "var", "d.csv"])
+        @test Friedman.is_estimate_command(["estimate", "multivariate", "var", "d.csv"])
         @test !Friedman.is_estimate_command(["irf", "var", "d.csv"])
         @test !Friedman.is_estimate_command(["data", "use", "d.csv"])
     end
 end
 
 @testset "REPL line splitting" begin
-    @test Friedman._split_repl_line("estimate var data.csv --lags 4") == ["estimate", "var", "data.csv", "--lags", "4"]
-    @test Friedman._split_repl_line("  estimate   var  ") == ["estimate", "var"]
+    @test Friedman._split_repl_line("estimate multivariate var data.csv --lags 4") == ["estimate", "multivariate", "var", "data.csv", "--lags", "4"]
+    @test Friedman._split_repl_line("  estimate   multivariate var  ") == ["estimate", "multivariate", "var"]
     @test Friedman._split_repl_line("data use \"my file.csv\"") == ["data", "use", "my file.csv"]
     @test Friedman._split_repl_line("") == String[]
     @test Friedman._split_repl_line("   ") == String[]
@@ -329,8 +368,8 @@ end
 @testset "command path tree-walk" begin
     app = Friedman.build_app()
     # Leaf depth
-    _, d1 = Friedman._walk_command_path(app, ["estimate", "var", "data.csv"])
-    @test d1 == 2
+    _, d1 = Friedman._walk_command_path(app, ["estimate", "multivariate", "var", "data.csv"])
+    @test d1 == 3
     _, d2 = Friedman._walk_command_path(app, ["dsge", "bayes", "estimate", "model.toml"])
     @test d2 == 3
     _, d3 = Friedman._walk_command_path(app, ["data", "list"])
@@ -340,19 +379,19 @@ end
     _, dempty = Friedman._walk_command_path(app, String[])
     @test dempty == 0
     # Path with slash / extensionless still depth 2 (positional is not a subcommand)
-    _, d4 = Friedman._walk_command_path(app, ["estimate", "var", "/path/to/data"])
-    @test d4 == 2
+    _, d4 = Friedman._walk_command_path(app, ["estimate", "multivariate", "var", "/path/to/data"])
+    @test d4 == 3
     _, d5 = Friedman._walk_command_path(app, ["dsge", "solve", "model.jl"])
     @test d5 == 2
     # Extensionless bare name is positional, not a third subcommand
-    leaf, d6 = Friedman._walk_command_path(app, ["estimate", "var", "mydata"])
-    @test d6 == 2
+    leaf, d6 = Friedman._walk_command_path(app, ["estimate", "multivariate", "var", "mydata"])
+    @test d6 == 3
     @test leaf isa Friedman.LeafCommand
 end
 
 @testset "_complete_leaf_options" begin
     app = Friedman.build_app()
-    var_leaf = app.root.subcmds["estimate"].subcmds["var"]
+    var_leaf = app.root.subcmds["estimate"].subcmds["multivariate"].subcmds["var"]
     # Option prefix matching
     completions = Friedman._complete_leaf_options(var_leaf, "--la")
     @test "--lags" in completions
@@ -486,8 +525,8 @@ end
         s.data_path = "/tmp/test.csv"  # pretend data is loaded
         app = Friedman.build_app()
 
-        # Simulate estimate var dispatch
-        Friedman.repl_dispatch(s, app, ["estimate", "var", "data.csv"])
+        # Simulate estimate multivariate var dispatch
+        Friedman.repl_dispatch(s, app, ["estimate", "multivariate", "var", "data.csv"])
         @test Friedman.session_get_result(s, :var) == "mock_var_model"
         @test s.last_model == :var
 
@@ -502,11 +541,11 @@ end
         @test Friedman.is_downstream_command(["irf", "var"])
         @test Friedman.is_downstream_command(["fevd", "bvar"])
         @test Friedman.is_downstream_command(["hd", "var"])
-        @test Friedman.is_downstream_command(["forecast", "var"])
-        @test Friedman.is_downstream_command(["predict", "var"])
-        @test Friedman.is_downstream_command(["residuals", "var"])
-        @test !Friedman.is_downstream_command(["estimate", "var"])
-        @test !Friedman.is_downstream_command(["test", "adf"])
+        @test Friedman.is_downstream_command(["forecast", "multivariate", "var"])
+        @test Friedman.is_downstream_command(["predict", "multivariate", "var"])
+        @test Friedman.is_downstream_command(["residuals", "multivariate", "var"])
+        @test !Friedman.is_downstream_command(["estimate", "multivariate", "var"])
+        @test !Friedman.is_downstream_command(["test", "unit-root", "adf"])
         @test !Friedman.is_downstream_command(["data", "use"])
     end
 
@@ -516,7 +555,7 @@ end
         app = Friedman.build_app()
 
         # First estimate to cache a result
-        Friedman.repl_dispatch(s, app, ["estimate", "var", "data.csv"])
+        Friedman.repl_dispatch(s, app, ["estimate", "multivariate", "var", "data.csv"])
         @test Friedman.session_get_result(s, :var) == "mock_var_model"
 
         # Now run downstream — should inject cached model
@@ -536,14 +575,19 @@ end
     end
 
     @testset "subcommand completions" begin
-        completions = Friedman.complete_command(app, "estimate v")
-        @test "var" in completions
-        @test "vecm" in completions
+        # Family node, then the model token under it.
+        completions = Friedman.complete_command(app, "estimate m")
+        @test "multivariate" in completions
+        @test !("vecm" in completions)
         @test !("bvar" in completions)
+        nested = Friedman.complete_command(app, "estimate multivariate v")
+        @test "var" in nested
+        @test "vecm" in nested
+        @test !("bvar" in nested)
     end
 
     @testset "option completions" begin
-        completions = Friedman.complete_command(app, "estimate var --la")
+        completions = Friedman.complete_command(app, "estimate multivariate var --la")
         @test "--lags" in completions
     end
 
@@ -599,17 +643,17 @@ end
         s.Y = zeros(10, 3)
         s.varnames = ["a", "b", "c"]
 
-        # estimate var --lags 4 → estimate var /tmp/macro.csv --lags 4
-        injected = Friedman.inject_session_data(s, ["estimate", "var", "--lags", "4"], app)
-        @test injected[3] == "/tmp/macro.csv"
+        # estimate multivariate var --lags 4 → estimate multivariate var /tmp/macro.csv --lags 4
+        injected = Friedman.inject_session_data(s, ["estimate", "multivariate", "var", "--lags", "4"], app)
+        @test injected[4] == "/tmp/macro.csv"
 
         # dsge solve model.toml → unchanged (has positional)
         unchanged = Friedman.inject_session_data(s, ["dsge", "solve", "model.toml"], app)
         @test unchanged == ["dsge", "solve", "model.toml"]
 
         # Extensionless file already provided — unchanged (tree-walk, not extension sniff)
-        bare = Friedman.inject_session_data(s, ["estimate", "var", "panel_data"], app)
-        @test bare == ["estimate", "var", "panel_data"]
+        bare = Friedman.inject_session_data(s, ["estimate", "multivariate", "var", "panel_data"], app)
+        @test bare == ["estimate", "multivariate", "var", "panel_data"]
     end
 
     @testset "builtin dataset workflow" begin
@@ -634,7 +678,7 @@ end
         app = Friedman.build_app()
 
         # Estimate caches result
-        Friedman.repl_dispatch(s, app, ["estimate", "var", "data.csv"])
+        Friedman.repl_dispatch(s, app, ["estimate", "multivariate", "var", "data.csv"])
         @test s.results[:var] == "mock_var_model"
         @test s.last_model == :var
 

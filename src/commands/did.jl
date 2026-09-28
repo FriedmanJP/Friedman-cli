@@ -22,6 +22,26 @@ function _did_panel_cols(df, id_col::String, time_col::String)
     return id, tc
 end
 
+"""Map CLI DiD method shorts to upstream `estimate_did` symbols.
+
+Upstream (MEMs 1.0.0 `did/estimation.jl`) routes only on the long names
+(`:twfe`, `:callaway_santanna`, `:sun_abraham`, `:bjs`, `:did_multiplegt`) and
+throws an untyped `ArgumentError` otherwise — forwarding `Symbol(method)`
+directly made every `--method cs|sa|dcdh` invocation die with exit 1."""
+const DID_METHOD_MAP = Dict(
+    "twfe" => :twfe,
+    "cs"   => :callaway_santanna,
+    "sa"   => :sun_abraham,
+    "bjs"  => :bjs,
+    "dcdh" => :did_multiplegt,
+)
+
+function _did_method_sym(s::String)
+    haskey(DID_METHOD_MAP, s) && return DID_METHOD_MAP[s]
+    throw(CliError("usage/invalid",
+        "unknown DiD method '$s' (expected twfe|cs|sa|bjs|dcdh)"))
+end
+
 # ─── Handlers ────────────────────────────────────────────────────
 
 function _did_estimate(; data::String, outcome::String, treatment::String,
@@ -43,10 +63,10 @@ function _did_estimate(; data::String, outcome::String, treatment::String,
     covs = isempty(covariates) ? String[] : String.(split(covariates, ","))
 
     result = estimate_did(pd, outcome, treatment;
-        method=Symbol(method), leads=leads, horizon=horizon,
+        method=_did_method_sym(method), leads=leads, horizon=horizon,
         covariates=covs, control_group=Symbol(control_group),
         cluster=Symbol(cluster), conf_level=conf_level, n_boot=n_boot,
-        base_period=Symbol(base_period))
+        base_period=Symbol(base_period), _fwd_seed()...)
 
     # C051: DIDResult is deliberately NOT rendered via DataFrame(model)/long_table — the
     # event-time ATT summary (plus the optional group-time ATT block below) is a
@@ -71,9 +91,14 @@ function _did_estimate(; data::String, outcome::String, treatment::String,
     _status_styled("  N: "; bold=true)
     _status("$(result.n_obs) obs, $(result.n_groups) groups ($(result.n_treated) treated, $(result.n_control) control)")
 
-    if !isnothing(result.group_time_att) && !isnothing(result.cohorts)
+    if !isnothing(result.group_time_att) && !isnothing(result.cohorts) &&
+            size(result.group_time_att, 1) == length(result.cohorts)
+        # Upstream group_time_att is cohorts × CALENDAR periods (n_times), not
+        # cohorts × event times — labeling columns with event_times crashed with
+        # DimensionMismatch whenever n_times != length(event_times).
         _status()
-        gt_df = DataFrame(result.group_time_att, ["t=$(t)" for t in result.event_times])
+        gt = result.group_time_att
+        gt_df = DataFrame(gt, ["period_$(t)" for t in 1:size(gt, 2)])
         insertcols!(gt_df, 1, :Cohort => result.cohorts)
         output_result(gt_df; format=fmt, output="",
             title="Group-Time ATT (Callaway-Sant'Anna)")
@@ -261,8 +286,8 @@ function _did_test_pretrend(; data::String, outcome::String, treatment::String,
         result = pretrend_test(est)
     else
         est = estimate_did(pd, outcome, treatment;
-            method=Symbol(did_method), leads=leads, horizon=horizon,
-            cluster=Symbol(cluster), conf_level=conf_level)
+            method=_did_method_sym(did_method), leads=leads, horizon=horizon,
+            cluster=Symbol(cluster), conf_level=conf_level, _fwd_seed()...)
         result = pretrend_test(est)
     end
 
@@ -330,8 +355,8 @@ function _did_test_honest(; data::String, outcome::String, treatment::String,
         result = honest_did(est; Mbar=mbar, conf_level=conf_level)
     else
         est = estimate_did(pd, outcome, treatment;
-            method=Symbol(did_method), leads=leads, horizon=horizon,
-            cluster=Symbol(cluster), conf_level=conf_level)
+            method=_did_method_sym(did_method), leads=leads, horizon=horizon,
+            cluster=Symbol(cluster), conf_level=conf_level, _fwd_seed()...)
         result = honest_did(est; Mbar=mbar, conf_level=conf_level)
     end
 
@@ -366,7 +391,7 @@ function did_specs()::Vector{CommandSpec}
             options=[
                 OptionSpec(name="outcome", type=String, default="", description="Outcome variable column name (required)"),
                 OptionSpec(name="treatment", type=String, default="", description="Treatment indicator column name (required)"),
-                OptionSpec(name="method", type=String, default="twfe", description="twfe|cs|sa|bjs|dcdh"),
+                OptionSpec(name="method", type=String, default="twfe", choices=["twfe", "cs", "sa", "bjs", "dcdh"], description="twfe|cs|sa|bjs|dcdh"),
                 _DID_PANEL_OPTIONS...,
                 OptionSpec(name="leads", type=Int, default=0, description="Pre-treatment periods"),
                 OptionSpec(name="horizon", type=Int, default=5, description="Post-treatment periods"),
@@ -490,7 +515,7 @@ function did_specs()::Vector{CommandSpec}
                 OptionSpec(name="cluster", type=String, default="unit", description="unit|time|twoway"),
                 OptionSpec(name="conf-level", type=Float64, default=0.95, description="Confidence level"),
                 OptionSpec(name="method", type=String, default="did", description="did|event-study"),
-                OptionSpec(name="did-method", type=String, default="twfe", description="twfe|cs|sa|bjs|dcdh (did method only)"),
+                OptionSpec(name="did-method", type=String, default="twfe", choices=["twfe", "cs", "sa", "bjs", "dcdh"], description="twfe|cs|sa|bjs|dcdh (did method only)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -535,7 +560,7 @@ function did_specs()::Vector{CommandSpec}
                 OptionSpec(name="cluster", type=String, default="unit", description="unit|time|twoway"),
                 OptionSpec(name="conf-level", type=Float64, default=0.95, description="Confidence level"),
                 OptionSpec(name="method", type=String, default="did", description="did|event-study"),
-                OptionSpec(name="did-method", type=String, default="twfe", description="twfe|cs|sa|bjs|dcdh (did method only)"),
+                OptionSpec(name="did-method", type=String, default="twfe", choices=["twfe", "cs", "sa", "bjs", "dcdh"], description="twfe|cs|sa|bjs|dcdh (did method only)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
@@ -551,9 +576,19 @@ function did_specs()::Vector{CommandSpec}
     ]
 end
 
+"""Prepared DiD specs. `did test *` is rewritten to `test did *` by `_finalize_spec`."""
+function _prepared_did_specs()
+    specs = with_default_csv_kinds(with_data_kinds(did_specs(), [:panel, :csv]))
+    return CommandSpec[_finalize_spec(s) for s in specs]
+end
+
+"""The four diagnostic leaves, already moved under `test did`."""
+function _did_test_specs()
+    return filter(s -> s.path[1] == "test", _prepared_did_specs())
+end
+
 function register_did_commands!()
-    specs = did_specs()
-    register!(specs)
-    return build_node("did", specs; description="Difference-in-differences: estimation, event study LP, diagnostics")
+    stay = register!(filter(s -> s.path[1] == "did", _prepared_did_specs()))
+    return build_node("did", stay; description="Difference-in-differences: estimation, event study LP, diagnostics")
 end
 

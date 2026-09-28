@@ -39,6 +39,52 @@ function _json_type(T::Type)
     return "string"  # unreached today (String/Int/Float64 are the full set); safe fallback
 end
 
+"""Last-wins CommandSpec for `path` (`register!` appends)."""
+function _spec_for_path(path::Vector{String})
+    i = findlast(s -> s.path == path, REGISTRY)
+    return i === nothing ? nothing : REGISTRY[i]
+end
+
+function _option_spec(spec::CommandSpec, name::String)
+    i = findfirst(o -> o.name == name, spec.options)
+    return i === nothing ? nothing : spec.options[i]
+end
+
+"""`x-handle` annotation for a data slot or `OptionSpec.handle` option, or `nothing`."""
+function _x_handle_dict(spec::CommandSpec, name::String; is_arg::Bool=false)
+    if spec.path == ["show"] && is_arg
+        return Dict{String,Any}(
+            "role" => "any",
+            "kinds" => String[],
+            "types" => String[],
+        )
+    end
+    if name == "data"
+        return Dict{String,Any}(
+            "role" => "data",
+            "kinds" => String.(spec.data_kinds),
+            "types" => String[],
+        )
+    end
+    is_arg && return nothing
+    ospec = _option_spec(spec, name)
+    (ospec === nothing || !ospec.handle) && return nothing
+    if name == "model"
+        return Dict{String,Any}(
+            "role" => "model",
+            "kinds" => String[],
+            "types" => String.(spec.model_types),
+        )
+    elseif name == "result"
+        return Dict{String,Any}(
+            "role" => "result",
+            "kinds" => String[],
+            "types" => String.(spec.result_types),
+        )
+    end
+    return nothing
+end
+
 """
     _input_schema(leaf, path) → Dict
 
@@ -46,9 +92,11 @@ Draft-07 object schema over `leaf`'s invocation surface. Property names are the
 CLI's kebab-case spellings; each property carries an `x-cli` annotation
 (`kind` = argument|option|flag, `position` for positionals, `long`/`short`
 spellings) so an agent can reconstruct the exact argv from a validated object.
-Shared with the MCP `inputSchema` (W7).
+Shared with the MCP `inputSchema` (W7). Data slots and `OptionSpec.handle`
+options also carry `x-handle` (`role`/`kinds`/`types`).
 """
 function _input_schema(leaf::LeafCommand, path::Vector{String})
+    spec = _spec_for_path(path)
     props = Dict{String,Any}()
     required = String[]
     for (i, a) in enumerate(leaf.args)
@@ -58,6 +106,10 @@ function _input_schema(leaf::LeafCommand, path::Vector{String})
         )
         isempty(a.description) || (p["description"] = a.description)
         a.default === nothing || (p["default"] = _default_json(a.default))
+        if spec !== nothing
+            xh = _x_handle_dict(spec, a.name; is_arg=true)
+            xh !== nothing && (p["x-handle"] = xh)
+        end
         props[a.name] = p
         a.required && push!(required, a.name)
     end
@@ -68,6 +120,10 @@ function _input_schema(leaf::LeafCommand, path::Vector{String})
         isempty(o.description) || (p["description"] = o.description)
         o.default === nothing || (p["default"] = _default_json(o.default))
         o.choices === nothing || (p["enum"] = o.choices)
+        if spec !== nothing
+            xh = _x_handle_dict(spec, o.name)
+            xh !== nothing && (p["x-handle"] = xh)
+        end
         props[o.name] = p
     end
     for f in leaf.flags
@@ -95,8 +151,8 @@ end
 The leaf's registry-declared TableSpecs — the SAME declaration set the W3 key
 drift gate enforces, so these are exactly the envelope `data` keys the leaf can
 emit (`family: true` → keys are `<name>_<variable-slug>`). Lookup is last-wins
-over REGISTRY (matching the adapter's dedup); a hidden-alias path resolves via
-the leaf's primary name. Leaves outside the registry (only `schema` itself)
+over REGISTRY (matching the adapter's dedup). Leaves outside the registry
+(only `schema` itself)
 return an empty list.
 """
 function _registry_tables(path::Vector{String}, leaf::LeafCommand)
@@ -177,15 +233,36 @@ function _schema_leaf(leaf::LeafCommand, path::Vector{String})
         # W5/#140 (additive): machine-actionable invocation + result contract
         "input_schema" => _input_schema(leaf, path),
         "tables" => _registry_tables(path, leaf),
+        "family" => leaf.family,
     )
+end
+
+"""Descendant leaves of `node` grouped by `LeafCommand.family`."""
+function _schema_families(node::NodeCommand, path::Vector{String})
+    groups = Dict{String,Vector{Any}}()
+    function walk(n::NodeCommand, p::Vector{String})
+        for name in sort!(collect(keys(n.subcmds)))
+            sub = n.subcmds[name]
+            sp = vcat(p, [name])
+            if sub isa LeafCommand
+                push!(get!(groups, sub.family, Any[]), Dict{String,Any}(
+                    "path" => sp,
+                    "summary" => sub.description,
+                ))
+            else
+                walk(sub, sp)
+            end
+        end
+    end
+    walk(node, path)
+    return [Dict{String,Any}("name" => fam, "leaves" => groups[fam])
+            for fam in sort!(collect(keys(groups)))]
 end
 
 function _schema_node(node::NodeCommand, path::Vector{String})
     cmds = Any[]
     for name in sort!(collect(keys(node.subcmds)))
         sub = node.subcmds[name]
-        # Hide snake_case aliases from machine schema (C044); primary path only
-        is_hidden_alias(name, sub) && continue
         sp = vcat(path, [name])
         if sub isa LeafCommand
             push!(cmds, Dict{String,Any}(
@@ -207,6 +284,7 @@ function _schema_node(node::NodeCommand, path::Vector{String})
         "path" => path,
         "description" => node.description,
         "commands" => cmds,
+        "families" => _schema_families(node, path),
     )
     if isempty(path)
         # Root doc only: the full output contract (W5/#140)
@@ -221,7 +299,8 @@ function _resolve_schema_path(root::NodeCommand, parts::Vector{String})
     path = String[]
     for (i, p) in enumerate(parts)
         haskey(node.subcmds, p) || throw(CliError("usage/unknown-command",
-            "schema: unknown command path segment '$p' under $(join(path, " "))"))
+            _unknown_command_message(
+                join(vcat(["friedman"], path), " "), p, parts[i+1:end])))
         sub = node.subcmds[p]
         push!(path, p)
         if sub isa LeafCommand
@@ -269,7 +348,7 @@ function dispatch_schema(args::Vector{String}; prog::String="friedman schema")
     end
     # Split path tokens from options. FLAGS never consume the next token —
     # the old splitter ate the following path segment for ANY dash token, so
-    # `schema --docs estimate var` consumed `estimate` as --docs's value (D-6).
+    # `schema --docs estimate multivariate` consumed `estimate` as --docs's value (D-6).
     flag_tokens = Set{String}()
     for f in leaf.flags
         push!(flag_tokens, "--" * f.name)
@@ -313,5 +392,6 @@ function register_schema_command!()
             Flag("docs";
                 description="Embed the agent guide as a `docs` markdown string"),
         ],
-        description="Machine-readable CLI self-description (raw JSON, no envelope)")
+        description="Machine-readable CLI self-description (raw JSON, no envelope)",
+        family="schema")
 end

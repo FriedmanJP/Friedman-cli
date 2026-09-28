@@ -25,8 +25,12 @@ const RA_SOLVER_KNOB_OPTIONS = [
                description="VFI: auto|linear|residual; PFI: linear|policy|nonlinear"),
     OptionSpec(name="howard-steps", type=Int, default=-1,
                description="Howard policy-evaluation steps (vfi default 20, pfi 0; -1 = method default)"),
-    OptionSpec(name="n-grid", type=Int, default=0, description="VFI tensor nodes per state (≥3; 0 = default 12)"),
-    OptionSpec(name="n-choice", type=Int, default=0, description="VFI line-search points (≥3; 0 = default 41)"),
+    OptionSpec(name="n-grid", type=Int, default=0, description="VFI tensor-grid nodes per state (tensor path only; ≥3; 0 = default 12)"),
+    OptionSpec(name="n-choice", type=Int, default=0, description="VFI line-search points (grid1d only; ≥3; 0 = default 41)"),
+    OptionSpec(name="optimizer", type=String, default="", choices=_VFI_OPTIMIZER_CHOICES,
+               description="VFI Bellman maximizer: auto (grid1d for 1 control, fminbox-nm for vectors)|grid1d|fminbox-nm|fminbox-lbfgs"),
+    OptionSpec(name="smolyak-mu", type=String, default="",
+               description="VFI Smolyak level: scalar μ ≥ 0 or comma-separated per-dimension levels (Smolyak path only; unset = default 2)"),
     OptionSpec(name="n-quad", type=Int, default=0, description="VFI/PFI quadrature nodes per shock (0 = default 5)"),
     OptionSpec(name="scale", type=Float64, default=0.0, description="VFI/PFI state-bound scale (0 = default 3.0)"),
     OptionSpec(name="tol", type=Float64, default=0.0, description="VFI/PFI convergence tolerance (0 = default 1e-8)"),
@@ -53,7 +57,7 @@ function dsge_specs()::Vector{CommandSpec}
                 RA_METHOD_OPTION,
                 OptionSpec(name="order", type=Int, default=1, description="Perturbation order (1, 2, or 3)"),
                 OptionSpec(name="degree", type=Int, default=5, description="Polynomial degree (projection/pfi/vfi)"),
-                OptionSpec(name="grid", type=String, default="auto", description="Grid type: auto|chebyshev|smolyak (vfi: auto|tensor)"),
+                OptionSpec(name="grid", type=String, default="auto", description="Grid type: auto|chebyshev|smolyak (vfi: auto|tensor|smolyak; auto routes nx≥4 to Smolyak)"),
                 RA_SOLVER_KNOB_OPTIONS...,
                 OptionSpec(name="evaluate-at", type=String, default="",
                            description="State vector x1,x2,… at which to evaluate the VFI value function"),
@@ -72,7 +76,7 @@ function dsge_specs()::Vector{CommandSpec}
                 TableSpec(name=:perturbation_policy_gx, description="Perturbation control policy gx: control responses to states and shocks"),
                 TableSpec(name=:projection_solution, description="Projection/PFI/VFI basis coefficients, one row per control"),
                 TableSpec(name=:projection_diagnostics, description="Projection/PFI/VFI convergence, iterations, residual norm, grid and degree"),
-                TableSpec(name=:vfi_value_function, description="Bellman value on collocation nodes (--method vfi)"),
+                TableSpec(name=:vfi_value_function, description="Bellman value on physical collocation nodes (--method vfi)"),
                 TableSpec(name=:vfi_value_coefficients, description="Chebyshev coefficients of the Bellman value (--method vfi)"),
                 TableSpec(name=:vfi_value_at, description="evaluate_value at --evaluate-at (--method vfi)"),
                 TableSpec(name=:determinacy_verdict, description="Sims existence/uniqueness pair and the collapsed determinacy verdict"),
@@ -89,7 +93,7 @@ function dsge_specs()::Vector{CommandSpec}
                 RA_METHOD_OPTION,
                 OptionSpec(name="order", type=Int, default=1, description="Perturbation order (1, 2, or 3)"),
                 OptionSpec(name="degree", type=Int, default=5, description="Polynomial degree (projection/pfi/vfi)"),
-                OptionSpec(name="grid", type=String, default="auto", description="Grid type: auto|chebyshev|smolyak (vfi: auto|tensor)"),
+                OptionSpec(name="grid", type=String, default="auto", description="Grid type: auto|chebyshev|smolyak (vfi: auto|tensor|smolyak; auto routes nx≥4 to Smolyak)"),
                 RA_SOLVER_KNOB_OPTIONS...,
                 OptionSpec(name="horizon", type=Int, default=40, description="IRF horizon"),
                 OptionSpec(name="shock-size", type=Float64, default=1.0, description="Shock size (std devs)"),
@@ -117,7 +121,7 @@ function dsge_specs()::Vector{CommandSpec}
                 RA_METHOD_OPTION,
                 OptionSpec(name="order", type=Int, default=1, description="Perturbation order (1, 2, or 3)"),
                 OptionSpec(name="degree", type=Int, default=5, description="Polynomial degree (projection/pfi/vfi)"),
-                OptionSpec(name="grid", type=String, default="auto", description="Grid type: auto|chebyshev|smolyak (vfi: auto|tensor)"),
+                OptionSpec(name="grid", type=String, default="auto", description="Grid type: auto|chebyshev|smolyak (vfi: auto|tensor|smolyak; auto routes nx≥4 to Smolyak)"),
                 RA_SOLVER_KNOB_OPTIONS...,
                 OptionSpec(name="horizon", type=Int, default=40, description="FEVD horizon"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -140,7 +144,7 @@ function dsge_specs()::Vector{CommandSpec}
                 RA_METHOD_OPTION,
                 OptionSpec(name="order", type=Int, default=1, description="Perturbation order (1, 2, or 3)"),
                 OptionSpec(name="degree", type=Int, default=5, description="Polynomial degree (projection/pfi/vfi)"),
-                OptionSpec(name="grid", type=String, default="auto", description="Grid type: auto|chebyshev|smolyak (vfi: auto|tensor)"),
+                OptionSpec(name="grid", type=String, default="auto", description="Grid type: auto|chebyshev|smolyak (vfi: auto|tensor|smolyak; auto routes nx≥4 to Smolyak)"),
                 RA_SOLVER_KNOB_OPTIONS...,
                 OptionSpec(name="periods", type=Int, default=200, description="Simulation periods (after burn-in)"),
                 OptionSpec(name="burn", type=Int, default=100, description="Burn-in periods to discard"),
@@ -284,7 +288,7 @@ function dsge_specs()::Vector{CommandSpec}
                 RA_METHOD_OPTION,
                 OptionSpec(name="order", type=Int, default=1, description="Perturbation order (1, 2, or 3)"),
                 OptionSpec(name="degree", type=Int, default=5, description="Polynomial degree (projection/pfi/vfi)"),
-                OptionSpec(name="grid", type=String, default="auto", description="Grid type: auto|chebyshev|smolyak (vfi: auto|tensor)"),
+                OptionSpec(name="grid", type=String, default="auto", description="Grid type: auto|chebyshev|smolyak (vfi: auto|tensor|smolyak; auto routes nx≥4 to Smolyak)"),
                 RA_SOLVER_KNOB_OPTIONS...,
                 OptionSpec(name="data", short="d", type=String, default="", description="Path to CSV data file"),
                 OptionSpec(name="observables", type=String, default="", description="Observable variable names (comma-separated)"),
@@ -1627,13 +1631,31 @@ function dsge_specs()::Vector{CommandSpec}
     ]
 end
 
-function register_dsge_commands!()
-    # --save-model only on solve (estimate already covered under estimate command)
+function _prepared_dsge_specs()
+    # --save-model on the solution-returning leaves (W3/#167 adds the HA pair +
+    # bayes estimate: HASteadyState / HADSGESolution / KrusellSmithSolution /
+    # BayesianDSGE are all natively registered at MEMs 0.9.3, so they persist
+    # via .jld2 — the retired .fmod carve-out). Matched on the pre-promotion path.
     specs = map(dsge_specs()) do s
-        s.path == ["dsge", "solve"] ? with_save_model([s])[1] : s
+        s.path in (["dsge", "solve"], ["dsge", "ha", "solve"],
+                   ["dsge", "ha", "steady-state"],
+                   ["dsge", "bayes", "estimate"]) ? with_save_model([s])[1] : s
     end
-    register!(specs)
-    return build_node("dsge", specs; description="DSGE models: RA, Bayesian, HA, CT, OLG, DCEGM, lifecycle, firm, bank")
+    out = CommandSpec[]
+    for s in specs
+        if _has_data_slot(s)
+            push!(out, _copy_spec(s; data_kinds=[:timeseries, :csv]))
+        else
+            push!(out, s)
+        end
+    end
+    return CommandSpec[_finalize_spec(s) for s in with_default_csv_kinds(out)]
+end
+
+function register_dsge_commands!()
+    stay = register!(filter(s -> s.path[1] == "dsge", _prepared_dsge_specs()))
+    return build_node("dsge", stay;
+        description="DSGE models: representative-agent, Bayesian, continuous-time, OLG, DCEGM, lifecycle, firm, bank")
 end
 
 
@@ -1645,6 +1667,7 @@ function _dsge_solve(; model::String, method::String="gensys", order::Int=1,
                       n_grid::Int=0, n_choice::Int=0, n_quad::Int=0,
                       scale::Float64=0.0, tol::Float64=0.0, max_iter::Int=0,
                       damping::Float64=0.0, anderson_m::Int=0,
+                      optimizer::String="", smolyak_mu::String="",
                       evaluate_at::String="",
                       constraints::String="", constraint_solver::String="",
                       periods::Int=40,
@@ -1665,7 +1688,8 @@ function _dsge_solve(; model::String, method::String="gensys", order::Int=1,
                               next_state=next_state, howard_steps=howard_steps,
                               n_grid=n_grid, n_choice=n_choice, n_quad=n_quad,
                               scale=scale, tol=tol, max_iter=max_iter,
-                              damping=damping, anderson_m=anderson_m)
+                              damping=damping, anderson_m=anderson_m,
+                              optimizer=optimizer, smolyak_mu=smolyak_mu)
             ob_sol = _occbin_solve_call(spec, cons; periods=periods)
 
             _maybe_plot(ob_sol; plot=plot, plot_save=plot_save)
@@ -1689,7 +1713,8 @@ function _dsge_solve(; model::String, method::String="gensys", order::Int=1,
                               next_state=next_state, howard_steps=howard_steps,
                               n_grid=n_grid, n_choice=n_choice, n_quad=n_quad,
                               scale=scale, tol=tol, max_iter=max_iter,
-                              damping=damping, anderson_m=anderson_m)
+                              damping=damping, anderson_m=anderson_m,
+                              optimizer=optimizer, smolyak_mu=smolyak_mu)
         end
     else
         sol = _solve_dsge(spec; method=method, order=order, degree=degree, grid=grid,
@@ -1697,7 +1722,8 @@ function _dsge_solve(; model::String, method::String="gensys", order::Int=1,
                           next_state=next_state, howard_steps=howard_steps,
                           n_grid=n_grid, n_choice=n_choice, n_quad=n_quad,
                           scale=scale, tol=tol, max_iter=max_iter,
-                          damping=damping, anderson_m=anderson_m)
+                          damping=damping, anderson_m=anderson_m,
+                          optimizer=optimizer, smolyak_mu=smolyak_mu)
     end
 
     # W12/#114 item 4: the Sims [existence, uniqueness] verdict pair. Both DSGESolution and
@@ -1758,12 +1784,16 @@ function _dsge_solve(; model::String, method::String="gensys", order::Int=1,
         _status("  Converged: $(sol.converged), Iterations: $(sol.iterations)")
         _status_styled("  Residual norm: $(round(sol.residual_norm; sigdigits=4))\n";
                     color = sol.residual_norm < 1e-6 ? :green : :yellow)
+        # `smolyak_levels` is a struct field on real MEMs ≥ 0.9.0 (0×0 on
+        # tensor grids) and mirrored on the mock — read directly, no guard.
         output_kv(Pair{String,Any}[
             "converged" => sol.converged,
             "iterations" => sol.iterations,
             "residual_norm" => sol.residual_norm,
             "grid_type" => string(sol.grid_type),
             "degree" => sol.degree,
+            "n_nodes" => size(sol.collocation_nodes, 1),
+            "smolyak_blocks" => size(sol.smolyak_levels, 1),
             "method" => string(hasproperty(sol, :method) ? sol.method : method),
         ]; format=format, output=_per_var_output_path(output, "diagnostics"),
            title="Projection Diagnostics", key="projection_diagnostics")
@@ -1782,8 +1812,7 @@ function _dsge_solve(; model::String, method::String="gensys", order::Int=1,
                       title=title, key="projection_solution")
         if hasproperty(sol, :method) && sol.method === :vfi &&
            hasproperty(sol, :value_fn) && !isempty(sol.value_fn)
-            nodes = hasproperty(sol, :collocation_nodes) ? sol.collocation_nodes :
-                    zeros(eltype(sol.value_fn), size(sol.value_fn, 1), 0)
+            nodes = physical_nodes(sol)
             n_nodes = size(sol.value_fn, 1)
             vfi_df = DataFrame(node = 1:n_nodes)
             nx = size(nodes, 2)
@@ -2071,6 +2100,7 @@ function _dsge_simulate(; model::String, method::String="gensys", order::Int=1,
                          n_grid::Int=0, n_choice::Int=0, n_quad::Int=0,
                          scale::Float64=0.0, tol::Float64=0.0, max_iter::Int=0,
                          damping::Float64=0.0, anderson_m::Int=0,
+                         optimizer::String="", smolyak_mu::String="",
                          periods::Int=200, burn::Int=100,
                          antithetic::Bool=false, seed::Int=0,
                          output::String="", format::String="table",
@@ -2080,11 +2110,20 @@ function _dsge_simulate(; model::String, method::String="gensys", order::Int=1,
                       next_state=next_state, howard_steps=howard_steps,
                       n_grid=n_grid, n_choice=n_choice, n_quad=n_quad,
                       scale=scale, tol=tol, max_iter=max_iter,
-                      damping=damping, anderson_m=anderson_m)
+                      damping=damping, anderson_m=anderson_m,
+                      optimizer=optimizer, smolyak_mu=smolyak_mu)
 
     _status("Simulating $(periods + burn) periods (burn-in=$burn)...")
 
-    if seed > 0
+    if sol isa MacroEconometricModels.ProjectionSolution
+        # Nonlinear-policy simulations take seed/rng/shock_draws only
+        # (real simulate/simulation.jl:206) — no antithetic variates here.
+        antithetic && _status("note: --antithetic ignored for " *
+            "projection/pfi/vfi simulations (no antithetic draws on " *
+            "nonlinear policies)")
+        sim = seed > 0 ? simulate(sol, periods + burn; seed=seed) :
+            simulate(sol, periods + burn)
+    elseif seed > 0
         sim = simulate(sol, periods + burn; antithetic=antithetic, rng=Random.MersenneTwister(seed))
     else
         sim = simulate(sol, periods + burn; antithetic=antithetic)
@@ -2111,6 +2150,7 @@ function _dsge_irf(; model::String, method::String="gensys", order::Int=1,
                     n_grid::Int=0, n_choice::Int=0, n_quad::Int=0,
                     scale::Float64=0.0, tol::Float64=0.0, max_iter::Int=0,
                     damping::Float64=0.0, anderson_m::Int=0,
+                    optimizer::String="", smolyak_mu::String="",
                     horizon::Int=40, shock_size::Float64=1.0, n_sim::Int=500,
                     constraints::String="",
                     output::String="", format::String="table",
@@ -2120,7 +2160,8 @@ function _dsge_irf(; model::String, method::String="gensys", order::Int=1,
                       next_state=next_state, howard_steps=howard_steps,
                       n_grid=n_grid, n_choice=n_choice, n_quad=n_quad,
                       scale=scale, tol=tol, max_iter=max_iter,
-                      damping=damping, anderson_m=anderson_m)
+                      damping=damping, anderson_m=anderson_m,
+                      optimizer=optimizer, smolyak_mu=smolyak_mu)
 
     if !isempty(constraints)
         _status("\nComputing OccBin IRF...")
@@ -2175,6 +2216,7 @@ function _dsge_fevd(; model::String, method::String="gensys", order::Int=1,
                      n_grid::Int=0, n_choice::Int=0, n_quad::Int=0,
                      scale::Float64=0.0, tol::Float64=0.0, max_iter::Int=0,
                      damping::Float64=0.0, anderson_m::Int=0,
+                     optimizer::String="", smolyak_mu::String="",
                      horizon::Int=40, unconditional::Bool=false,
                      output::String="", format::String="table",
                      plot::Bool=false, plot_save::String="")
@@ -2186,7 +2228,8 @@ function _dsge_fevd(; model::String, method::String="gensys", order::Int=1,
                       next_state=next_state, howard_steps=howard_steps,
                       n_grid=n_grid, n_choice=n_choice, n_quad=n_quad,
                       scale=scale, tol=tol, max_iter=max_iter,
-                      damping=damping, anderson_m=anderson_m)
+                      damping=damping, anderson_m=anderson_m,
+                      optimizer=optimizer, smolyak_mu=smolyak_mu)
 
     if unconditional
         # MEMs: unconditional FEVD is only defined for PerturbationSolution with order ≥ 2
@@ -2509,7 +2552,8 @@ function _dsge_bayes_run_estimation(; model::String, data::String, params::Strin
         solver=Symbol(solver), solver_kwargs=solver_kwargs,
         delayed_acceptance=delayed_acceptance,
         measurement_error=me,
-        prefilter=pf, hp_lambda=hp_lambda)
+        prefilter=pf, hp_lambda=hp_lambda,
+        _fwd_seed()...)
 
     return result
 end
@@ -2799,7 +2843,7 @@ function _dsge_bayes_predictive(; model::String, data::String="", params::String
 
     _status("Generating posterior predictive simulations: n=$n_sim, T=$periods")
     # re-solves per draw → world-age barrier (see _dsge_call)
-    pp = _dsge_call(posterior_predictive, result, n_sim; T_periods=periods)
+    pp = _dsge_call(posterior_predictive, result, n_sim; T_periods=periods, _fwd_seed()...)
 
     _maybe_plot(pp; plot=plot, plot_save=plot_save)
 
@@ -2824,6 +2868,7 @@ function _dsge_hd(; model::String, method::String="gensys", order::Int=1,
                    n_grid::Int=0, n_choice::Int=0, n_quad::Int=0,
                    scale::Float64=0.0, tol::Float64=0.0, max_iter::Int=0,
                    damping::Float64=0.0, anderson_m::Int=0,
+                   optimizer::String="", smolyak_mu::String="",
                    data::String="", observables::String="",
                    states::String="observables",
                    measurement_error::String="",
@@ -2840,7 +2885,8 @@ function _dsge_hd(; model::String, method::String="gensys", order::Int=1,
                       next_state=next_state, howard_steps=howard_steps,
                       n_grid=n_grid, n_choice=n_choice, n_quad=n_quad,
                       scale=scale, tol=tol, max_iter=max_iter,
-                      damping=damping, anderson_m=anderson_m)
+                      damping=damping, anderson_m=anderson_m,
+                      optimizer=optimizer, smolyak_mu=smolyak_mu)
 
     df = load_data(data)
     Y = df_to_matrix(df)
@@ -3194,7 +3240,8 @@ function _dsge_bayes_prior_predictive(; model::String, params::String="",
     res = try
         _dsge_call(prior_predictive, inp.spec, inp.priors_dict;
             n_draws=n_draws, T_periods=periods, observables=inp.obs_syms,
-            solver=Symbol(solver), solver_kwargs=inp.solver_kwargs)
+            solver=Symbol(solver), solver_kwargs=inp.solver_kwargs,
+            _fwd_seed()...)
     catch e
         throw(_identification_error(e))
     end
@@ -3785,12 +3832,17 @@ function _dsge_ha_estimate(; model::String, data::String="", priors::String="",
     _status()
 
     rng = seed > 0 ? Random.MersenneTwister(seed) : Random.default_rng()
+    # MEMs#769: seed= owns the RNG and records the manifest (seed wins over rng;
+    # upstream builds Xoshiro(seed), so the MersenneTwister above is shadowed
+    # whenever a seed is in play). Leaf --seed wins, else global.
+    eff_seed = seed > 0 ? seed : _SEED[]
     result = _dsge_call(estimate_dsge_bayes, spec, Y, theta0;
         priors=priors_dist, observables=obs_syms,
         method=Symbol(samp), n_draws=n_draws, burnin=burnin, n_smc=n_smc,
         n_mh_steps=n_mh_steps, ess_target=ess_target, measurement_error=me,
         ha_method=meth, ha_kwargs=(T_horizon=t_horizon, n_reduced=n_reduced, hh_solver=hh),
-        proposal_scale=proposal_scale, adapt_interval=adapt_interval, rng=rng)
+        proposal_scale=proposal_scale, adapt_interval=adapt_interval, rng=rng,
+        seed=eff_seed)
 
     draws = result.theta_draws
     np = size(draws, 2)
@@ -3913,7 +3965,11 @@ function _dsge_ct_solve(; alpha::Float64=0.36, rho::Float64=0.05, sigma::Float64
     if two_asset
         _status("Solving continuous-time two-asset (KMV) model...")
         m = MacroEconometricModels.CTTwoAsset(; sigma=sigma, rho=rho)
-        sol = MacroEconometricModels.ct_two_asset_solve(m; max_iter=max_iter, tol=tol)
+        sol = try
+            MacroEconometricModels.ct_two_asset_solve(m; max_iter=max_iter, tol=tol)
+        catch e
+            throw(_domain_or_data_error(e, "dsge ct solve"))
+        end
         # Summarize two-asset solution
         gsum = sum(sol.g)
         diag_df = DataFrame(
@@ -3932,7 +3988,11 @@ function _dsge_ct_solve(; alpha::Float64=0.36, rho::Float64=0.05, sigma::Float64
 
     _status("Solving continuous-time Aiyagari steady state (I=$grid_size)...")
     m = _dsge_ct_build_aiyagari(; alpha, rho, sigma, delta, z, a_min, a_max, grid_size)
-    ss = MacroEconometricModels.ct_steady_state(m; max_iter=max_iter, tol=tol)
+    ss = try
+        MacroEconometricModels.ct_steady_state(m; max_iter=max_iter, tol=tol)
+    catch e
+        throw(_domain_or_data_error(e, "dsge ct solve"))
+    end
     _status_styled("  Converged: $(ss.converged)  r=$(round(ss.r; digits=5))  K=$(round(ss.K; digits=4))\n";
                    color = ss.converged ? :green : :yellow)
     price_df = DataFrame(name=["r", "w"], value=[ss.r, ss.w])
@@ -3973,11 +4033,19 @@ function _dsge_ct_transition(; alpha::Float64=0.36, rho::Float64=0.05, sigma::Fl
         "--periods must be >= 2 (need impact + terminal)"))
     _status("CT MIT-shock transition: periods=$periods, impact Z=$(shock_size)*$z")
     m = _dsge_ct_build_aiyagari(; alpha, rho, sigma, delta, z, a_min=0.0, a_max, grid_size)
-    ss = MacroEconometricModels.ct_steady_state(m; max_iter=max_iter, tol=tol)
+    ss = try
+        MacroEconometricModels.ct_steady_state(m; max_iter=max_iter, tol=tol)
+    catch e
+        throw(_domain_or_data_error(e, "dsge ct transition"))
+    end
     # Z_path: impact then reversion to m.Z
     Z_path = fill(Float64(m.Z), periods)
     Z_path[1] = shock_size * Float64(m.Z)
-    tr = MacroEconometricModels.ct_mit_shock(m, ss, Z_path; dt=dt, max_iter=max_iter, tol=tol)
+    tr = try
+        MacroEconometricModels.ct_mit_shock(m, ss, Z_path; dt=dt, max_iter=max_iter, tol=tol)
+    catch e
+        throw(_domain_or_data_error(e, "dsge ct transition"))
+    end
     df = DataFrame(
         t = tr.t,
         Z = tr.Z,

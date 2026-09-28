@@ -3,7 +3,7 @@
 #   irm https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.ps1 | iex
 #
 # Specific version (set env var before piping):
-#   $env:FRIEDMAN_VERSION = "0.4.0"; irm https://...install.ps1 | iex
+#   $env:FRIEDMAN_VERSION = "1.0.0"; irm https://...install.ps1 | iex
 
 $ErrorActionPreference = "Stop"
 
@@ -20,7 +20,7 @@ if (-not $Version) {
         $Version = $Release.tag_name -replace '^v', ''
     } catch {
         Write-Host "Error: Failed to fetch latest release from GitHub API." -ForegroundColor Red
-        Write-Host 'You may be rate-limited. Try setting $env:FRIEDMAN_VERSION = "0.4.0" before running.' -ForegroundColor Yellow
+        Write-Host 'You may be rate-limited. Try setting $env:FRIEDMAN_VERSION = "1.0.0" before running.' -ForegroundColor Yellow
         exit 1
     }
 }
@@ -36,22 +36,22 @@ Write-Host "Installing Friedman-cli v$Version..."
 $ArchiveName = "friedman-v$Version-windows-x86_64.zip"
 $DownloadUrl = "https://github.com/$Repo/releases/download/v$Version/$ArchiveName"
 
-# --- Ensure Julia 1.12 is available ---
+# --- Ensure Julia 1.13 is available ---
 function Ensure-Julia {
     # Check if juliaup is available
     if (Get-Command juliaup -ErrorAction SilentlyContinue) {
-        Write-Host "Found juliaup. Ensuring Julia 1.12 is installed..."
-        & juliaup add 1.12 2>$null
+        Write-Host "Found juliaup. Ensuring Julia 1.13 is installed..."
+        & juliaup add 1.13 2>$null
         return
     }
 
-    # Check if julia >= 1.12 is on PATH
+    # Check if julia >= 1.13 is on PATH
     if (Get-Command julia -ErrorAction SilentlyContinue) {
         $JuliaVer = & julia --version 2>&1
         if ($JuliaVer -match '(\d+)\.(\d+)') {
             $Major = [int]$Matches[1]
             $Minor = [int]$Matches[2]
-            if ($Major -ge 1 -and $Minor -ge 12) {
+            if ($Major -ge 1 -and $Minor -ge 13) {
                 Write-Host "Found $JuliaVer"
                 return
             }
@@ -59,7 +59,7 @@ function Ensure-Julia {
     }
 
     # Install juliaup via winget
-    Write-Host "Julia 1.12+ not found. Installing juliaup..."
+    Write-Host "Julia 1.13+ not found. Installing juliaup..."
     if (Get-Command winget -ErrorAction SilentlyContinue) {
         & winget install --id Julialang.Juliaup --accept-source-agreements --accept-package-agreements
         if ($LASTEXITCODE -ne 0) {
@@ -69,8 +69,8 @@ function Ensure-Julia {
         }
         # Refresh PATH
         $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH", "User") + ";" + [System.Environment]::GetEnvironmentVariable("PATH", "Machine")
-        Write-Host "Installing Julia 1.12..."
-        & juliaup add 1.12
+        Write-Host "Installing Julia 1.13..."
+        & juliaup add 1.13
     } else {
         Write-Host "Error: winget is not available." -ForegroundColor Red
         Write-Host "Install juliaup manually: https://julialang.org/downloads/" -ForegroundColor Yellow
