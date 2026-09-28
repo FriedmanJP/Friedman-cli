@@ -35,18 +35,18 @@ Trend: constant, Observations: 200
 
   Equation   Parms     RMSE       R²   Adj. R²   F-stat
 
-  y1             5   1.0858   0.3983    0.3858   31.934
-  y2             5   0.9642   0.2393    0.2235   15.177
+  y1             5   0.9948   0.3616    0.3484   27.335
+  y2             5   1.1199   0.2649    0.2497   17.387
 
-                                  Equation: y1
+                                   Equation: y1
 
-                 Coef.   Std.Err.        t    P>|t|   CI lower   CI upper
+                  Coef.   Std.Err.         t    P>|t|   CI lower   CI upper
 
-  (Intercept)   0.0213     0.0774   0.2747   0.7839    -0.1314     0.1739
-  y1.L1         0.5456     0.0717   7.6090   <0.001     0.4042     0.6870   ***
-  y2.L1         0.1404     0.0807   1.7400   0.0835    -0.0187     0.2996   *
-  y1.L2         0.0523     0.0722   0.7247   0.4695    -0.0901     0.1947
-  y2.L2         0.0198     0.0807   0.2456   0.8062    -0.1393     0.1790
+  (Intercept)   -0.0739     0.0743   -0.9938   0.3216    -0.2205     0.0727
+  y1.L1          0.4647     0.0792    5.8677   <0.001     0.3085     0.6209   ***
+  y2.L1          0.0977     0.0707    1.3818   0.1686    -0.0418     0.2372
+  y1.L2          0.0762     0.0794    0.9605    0.338    -0.0803     0.2327
+  y2.L2          0.0248     0.0705    0.3521   0.7251    -0.1143     0.1640
 ```
 
 Impulse responses, with bootstrap bands and a plot you can send to a coauthor:
@@ -65,10 +65,10 @@ Impulse Response Functions
 
              Shock: y1
 
-           h=1       h=4      h=8
+           h=1       h=4       h=8
 
-  y1   1.0398*   0.2874*   0.0303
-  y2    0.1345   0.1818*   0.0679
+  y1   1.0065*   0.2150*   0.0319*
+  y2   0.5209*   0.1859*   0.0282*
 ```
 
 (`*` = band excludes zero. `irf.html` is a self-contained interactive chart —
@@ -94,6 +94,16 @@ friedman dsge solve rbc.toml
 ```
   Determinacy: unique
   Stability: stable
+                 Determinacy Verdict
+┌────────────┬──────────────────────────────────────┐
+│   metric   │                value                 │
+│   String   │                 Any                  │
+├────────────┼──────────────────────────────────────┤
+│ existence  │                  1                   │
+│ uniqueness │                  1                   │
+│  verdict   │ determinate (unique stable solution) │
+│   solver   │                gensys                │
+└────────────┴──────────────────────────────────────┘
  DSGE Solution (method=gensys)
 ┌──────────┬─────────┬─────────┐
 │ variable │  G1_Y   │  G1_C   │
