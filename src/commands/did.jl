@@ -378,7 +378,7 @@ function did_specs()::Vector{CommandSpec}
     return [
         CommandSpec(
             path=["did", "estimate"],
-            summary="Path to panel CSV data file",
+            summary="Staggered-adoption DiD estimation (twfe|cs|sa|bjs|dcdh) with event-time and overall ATT",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to panel CSV data file")],
             options=[
                 OptionSpec(name="outcome", type=String, default="", description="Outcome variable column name (required)"),
@@ -388,11 +388,11 @@ function did_specs()::Vector{CommandSpec}
                 OptionSpec(name="leads", type=Int, default=0, description="Pre-treatment periods"),
                 OptionSpec(name="horizon", type=Int, default=5, description="Post-treatment periods"),
                 OptionSpec(name="covariates", type=String, default="", description="Comma-separated covariate column names"),
-                OptionSpec(name="control-group", type=String, default="never_treated", description="never_treated|not_yet_treated"),
-                OptionSpec(name="cluster", type=String, default="unit", description="unit|time|twoway"),
+                OptionSpec(name="control-group", type=String, default="never_treated", description="never_treated|not_yet_treated", choices=["never_treated","not_yet_treated"]),
+                OptionSpec(name="cluster", type=String, default="unit", description="unit|time|twoway", choices=["unit","time","twoway"]),
                 OptionSpec(name="conf-level", type=Float64, default=0.95, description="Confidence level"),
                 OptionSpec(name="n-boot", type=Int, default=200, description="Bootstrap replications (dcdh only)"),
-                OptionSpec(name="base-period", type=String, default="varying", description="varying|universal (Callaway-Sant'Anna only)"),
+                OptionSpec(name="base-period", type=String, default="varying", description="varying|universal (Callaway-Sant'Anna only)", choices=["varying","universal"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
@@ -404,14 +404,14 @@ function did_specs()::Vector{CommandSpec}
                 TableSpec(name=:did_estimation,
                           description="ATT with standard error and confidence band by event time"),
                 TableSpec(name=:group_time_att_callaway_sant_anna,
-                          description="Cohort-by-event-time ATT matrix (Callaway-Sant'Anna estimators only)"),
+                          description="Cohort-by-calendar-period effects table (shown whenever the method reports group-time effects)"),
             ],
             category="did",
             handler=wrap_legacy(_did_estimate),
         ),
         CommandSpec(
             path=["did", "event-study"],
-            summary="Path to panel CSV data file",
+            summary="Local-projection event-study DiD with pre-trend leads and post-treatment horizon",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to panel CSV data file")],
             options=[
                 OptionSpec(name="outcome", type=String, default="", description="Outcome variable column name (required)"),
@@ -437,7 +437,7 @@ function did_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["did", "lp-did"],
-            summary="Path to panel CSV data file",
+            summary="LP-DiD estimation (Dube et al. 2023) with pre/post windows and clean-control options",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to panel CSV data file")],
             options=[
                 OptionSpec(name="outcome", type=String, default="", description="Outcome variable column name (required)"),
@@ -465,8 +465,8 @@ function did_specs()::Vector{CommandSpec}
                 FlagSpec(name="nevertreated", description="Use never-treated as controls"),
                 FlagSpec(name="firsttreat", description="Use first-treatment timing"),
                 FlagSpec(name="oneoff", description="One-off treatment specification"),
-                FlagSpec(name="only-pooled", description="Only report pooled estimates"),
-                FlagSpec(name="only-event", description="Only report event-time estimates")
+                FlagSpec(name="only-pooled", description="Only estimate pooled effects (the event-time table is still shown)"),
+                FlagSpec(name="only-event", description="Only estimate event-time effects (the event-time table is still shown)"),
             ],
             tables=[TableSpec(name=:lp_did_dube_et_al_2023,
                               description="LP-DiD coefficient, SE, confidence band and observation count by event time")],
@@ -475,7 +475,7 @@ function did_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["did", "test", "bacon"],
-            summary="Path to panel CSV data file",
+            summary="Goodman-Bacon (2021) decomposition of TWFE into 2x2 DiD comparisons with weights",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to panel CSV data file")],
             options=[
                 OptionSpec(name="outcome", type=String, default="", description="Outcome variable column name (required)"),
@@ -495,7 +495,7 @@ function did_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["did", "test", "pretrend"],
-            summary="Path to panel CSV data file",
+            summary="Joint pre-trend (parallel-trends) test from a DiD or event-study fit",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to panel CSV data file")],
             options=[
                 OptionSpec(name="outcome", type=String, default="", description="Outcome variable column name (required)"),
@@ -506,7 +506,7 @@ function did_specs()::Vector{CommandSpec}
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="Control lags (event-study only)"),
                 OptionSpec(name="cluster", type=String, default="unit", description="unit|time|twoway"),
                 OptionSpec(name="conf-level", type=Float64, default=0.95, description="Confidence level"),
-                OptionSpec(name="method", type=String, default="did", description="did|event-study"),
+                OptionSpec(name="method", type=String, default="did", description="did|event-study", choices=["did","event-study"]),
                 OptionSpec(name="did-method", type=String, default="twfe", choices=["twfe", "cs", "sa", "bjs", "dcdh"], description="twfe|cs|sa|bjs|dcdh (did method only)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
@@ -519,7 +519,7 @@ function did_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["did", "test", "negweight"],
-            summary="Path to panel CSV data file",
+            summary="Negative-weight diagnostic for TWFE (de Chaisemartin-D'Haultfoeuille 2020)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to panel CSV data file")],
             options=[
                 OptionSpec(name="treatment", type=String, default="", description="Treatment indicator column name (required)"),
@@ -539,7 +539,7 @@ function did_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["did", "test", "honest"],
-            summary="Path to panel CSV data file",
+            summary="HonestDiD sensitivity analysis (Rambachan-Roth 2023) with violation bound Mbar",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to panel CSV data file")],
             options=[
                 OptionSpec(name="outcome", type=String, default="", description="Outcome variable column name (required)"),
@@ -551,7 +551,7 @@ function did_specs()::Vector{CommandSpec}
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="Control lags (event-study only)"),
                 OptionSpec(name="cluster", type=String, default="unit", description="unit|time|twoway"),
                 OptionSpec(name="conf-level", type=Float64, default=0.95, description="Confidence level"),
-                OptionSpec(name="method", type=String, default="did", description="did|event-study"),
+                OptionSpec(name="method", type=String, default="did", description="did|event-study", choices=["did","event-study"]),
                 OptionSpec(name="did-method", type=String, default="twfe", choices=["twfe", "cs", "sa", "bjs", "dcdh"], description="twfe|cs|sa|bjs|dcdh (did method only)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -581,6 +581,6 @@ end
 
 function register_did_commands!()
     stay = register!(filter(s -> s.path[1] == "did", _prepared_did_specs()))
-    return build_node("did", stay; description="Difference-in-differences: estimation, event study LP, diagnostics")
+    return build_node("did", stay; description="Difference-in-differences: estimation, event-study LP, LP-DiD (diagnostics under test did)")
 end
 

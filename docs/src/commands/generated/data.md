@@ -7,7 +7,7 @@ Generated reference for `friedman data` and its subcommands.
 
 ### `friedman data balance`
 
-Handle stem or CSV path
+Balance an unbalanced panel via the DFM method
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -15,7 +15,7 @@ Handle stem or CSV path
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--method` | — | `String` | `dfm` | — | dfm |
+| `--method` | — | `String` | `dfm` | `dfm` | dfm |
 | `--factors` | `-r` | `Int64` | `3` | — | Number of factors |
 | `--lags` | `-p` | `Int64` | `2` | — | Factor VAR lags |
 | `--output` | `-o` | `String` | `""` | — | Export file |
@@ -27,7 +27,7 @@ Handle stem or CSV path
 
 ### `friedman data describe`
 
-Handle stem or CSV path
+Per-variable descriptive statistics with first/last finite-row window
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -44,7 +44,7 @@ Handle stem or CSV path
 
 ### `friedman data diagnose`
 
-Handle stem or CSV path
+Per-variable NaN/Inf counts and constant-series flags
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -61,7 +61,7 @@ Handle stem or CSV path
 
 ### `friedman data dropna`
 
-Handle stem or CSV path
+Drop rows containing NaN/Inf, optionally restricted to --vars
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -83,7 +83,7 @@ Export a typed handle to CSV (frequency/tcode/dates dropped)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Handle stem or path (TimeSeriesData/PanelData/CrossSectionData) |
+| `data` | `String` | yes | — | Handle stem/path, or :example dataset |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -94,19 +94,19 @@ Export a typed handle to CSV (frequency/tcode/dates dropped)
 
 ### `friedman data filter`
 
-Path to CSV data file
+Extract the cycle or trend component with a time-series filter
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Timeseries CSV, handle, or timeseries :example (panels rejected) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--method` | `-m` | `String` | `hp` | — | hp\|hamilton\|bn\|bk\|bhp |
-| `--component` | — | `String` | `cycle` | — | cycle\|trend |
+| `--method` | `-m` | `String` | `hp` | `hp`, `hamilton`, `bn`, `bk`, `bhp` | hp\|hamilton\|bn\|bk\|bhp |
+| `--component` | — | `String` | `cycle` | `cycle`, `trend` | cycle\|trend |
 | `--lambda` | `-l` | `Float64` | `1600.0` | — | Smoothing parameter (HP/BHP) |
 | `--horizon` | — | `Int64` | `8` | — | Forecast horizon (Hamilton) |
-| `--lags` | `-p` | `Int64` | `4` | — | Number of lags (Hamilton/BN) |
+| `--lags` | `-p` | `Int64` | `4` | — | Number of lags (Hamilton only) |
 | `--columns` | `-c` | `String` | `""` | — | Column indices, comma-separated (default: all) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -117,7 +117,7 @@ Path to CSV data file
 
 ### `friedman data fix`
 
-Handle stem or CSV path
+Repair missing/non-finite cells (listwise, interpolate, or mean)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -125,7 +125,7 @@ Handle stem or CSV path
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--method` | `-m` | `String` | `listwise` | — | listwise\|interpolate\|mean |
+| `--method` | `-m` | `String` | `listwise` | `listwise`, `interpolate`, `mean` | listwise\|interpolate\|mean |
 | `--output` | `-o` | `String` | `""` | — | Output stem or CSV path |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
@@ -142,13 +142,13 @@ Import CSV or :example to a typed .jld2 handle
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--kind` | — | `String` | `""` | `timeseries`, `panel`, `cross-section` | timeseries\|panel\|cross-section (required for CSV) |
-| `--frequency` | — | `String` | `other` | `daily`, `monthly`, `quarterly`, `annual`, `mixed`, `other` | daily\|monthly\|quarterly\|annual\|mixed\|other |
-| `--dates` | — | `String` | `""` | — | CSV column of date labels (timeseries) |
+| `--frequency` | — | `String` | `other` | `daily`, `monthly`, `quarterly`, `annual`, `mixed`, `other` | daily\|monthly\|quarterly\|annual\|mixed\|other (must be other for --kind cross-section) |
+| `--dates` | — | `String` | `""` | — | CSV column of date labels (timeseries only) |
 | `--id-col` | — | `String` | `""` | — | Panel group column (required for --kind panel) |
 | `--time-col` | — | `String` | `""` | — | Panel time column (required for --kind panel) |
 | `--vars` | — | `String` | `""` | — | Comma-separated variable subset |
-| `--tcodes` | — | `String` | `""` | — | Comma-separated FRED tcode per variable |
-| `--note` | — | `String` | `""` | — | Free-form note stored in the handle header |
+| `--tcodes` | — | `String` | `""` | — | Comma-separated FRED tcode per variable (--kind timeseries only) |
+| `--note` | — | `String` | `""` | — | Free-form note stored in the handle header (when the backend supports it) |
 | `--output` | `-o` | `String` | `""` | — | Output stem or path (default: input basename) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
@@ -158,7 +158,7 @@ Import CSV or :example to a typed .jld2 handle
 
 ### `friedman data keeprows`
 
-Handle stem or CSV path
+Keep a row subset by range or list
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -166,7 +166,7 @@ Handle stem or CSV path
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--rows` | — | `String` | `""` | — | Row indices (e.g. 1:100, 1,5,10) |
+| `--rows` | — | `String` | `""` | — | Required row selection: range (1:100, 1:end) or list (1,5,10) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
@@ -176,7 +176,7 @@ Handle stem or CSV path
 
 ### `friedman data list`
 
-table|csv|json
+List bundled example datasets with type, dimensions and description
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -189,7 +189,7 @@ table|csv|json
 
 ### `friedman data load`
 
-Example dataset name (see 'data list'), or omit and pass --path for a CSV
+Load a bundled example dataset or CSV file and write it to CSV
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -199,14 +199,14 @@ Example dataset name (see 'data list'), or omit and pass --path for a CSV
 |--------|-------|------|---------|---------|-------------|
 | `--output` | `-o` | `String` | `""` | — | Output CSV file path |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--vars` | — | `String` | `""` | — | Comma-separated variable subset |
-| `--country` | — | `String` | `""` | — | Country filter (for PWT panel data) |
-| `--dates` | — | `String` | `""` | — | Column name for date labels |
+| `--vars` | — | `String` | `""` | — | Comma-separated variable subset (bundled datasets only; ignored with --path) |
+| `--country` | — | `String` | `""` | — | Country label in status line only (no filtering) (bundled datasets only; ignored with --path) |
+| `--dates` | — | `String` | `""` | — | CSV/--path and timeseries date-label column (ignored for panels) |
 | `--path` | — | `String` | `""` | — | Path to CSV file (alternative to named dataset) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--transform` | `-t` | Apply FRED transformation codes |
+| `--transform` | `-t` | Apply stored FRED tcodes (timeseries only) (bundled datasets only; ignored with --path) |
 
 ---
 
@@ -258,7 +258,7 @@ Cointegrating regression with endogenous regressors
 |--------|-------|------|---------|---------|-------------|
 | `--endog-rho` | — | `Float64` | `0.7` | — | Correlation of the equilibrium error with Δx |
 | `--sigma-u` | — | `Float64` | `1.0` | — | Equilibrium-error scale |
-| `--periods` | — | `Int64` | `200` | — | Sample length after burn-in |
+| `--periods` | — | `Int64` | `200` | — | Sample length |
 | `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
@@ -304,7 +304,7 @@ Continuous-time Aiyagari MIT transition
 | `--max-iter` | — | `Int64` | `80` | — | Steady-state / transition iterations |
 | `--tol` | — | `Float64` | `1.0e-5` | — | Convergence tolerance |
 | `--dt` | — | `Float64` | `0.25` | — | Transition step |
-| `--periods` | — | `Int64` | `12` | — | Sample length after burn-in |
+| `--periods` | — | `Int64` | `12` | — | Transition horizon in steps (deterministic; no burn-in) |
 | `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
@@ -320,7 +320,7 @@ Staggered adoption with the realized ATT
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--n` | — | `Int64` | `80` | — | Units |
-| `--periods` | — | `Int64` | `20` | — | Sample length after burn-in |
+| `--periods` | — | `Int64` | `20` | — | Sample length |
 | `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
@@ -413,7 +413,7 @@ Heterogeneous-agent aggregate path from solve + simulate
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--method` | — | `String` | `reiter` | `ssj`, `reiter`, `krusell-smith` | ssj\|reiter (krusell-smith has no aggregate simulate) |
+| `--method` | — | `String` | `reiter` | `ssj`, `reiter`, `krusell-smith` | ssj\|reiter\|krusell-smith (krusell-smith: no aggregate path; use ssj/reiter) |
 | `--n-reduced` | — | `Int64` | `10` | — | Reduced states for the linear solution |
 | `--distribution` | — | `String` | `young` | `young`, `winberry` | young\|winberry |
 | `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | egm\|vfi |
@@ -428,7 +428,7 @@ Heterogeneous-agent aggregate path from solve + simulate
 
 ### `friedman data simulate heteroskedastic-var`
 
-Heteroskedastic SVAR (Markov, GARCH, smooth, or break)
+Heteroskedastic SVAR (markov, garch, smooth, or external regimes)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -445,13 +445,13 @@ Heteroskedastic SVAR (Markov, GARCH, smooth, or break)
 
 ### `friedman data simulate lp-iv`
 
-Local-projection IV (instrument z, endogenous s, outcome y)
+Local-projection IV (instrument z, endogenous s, outcome y, control x2)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--pi1` | — | `Float64` | `1.5` | — | First-stage coefficient on the instrument |
 | `--theta` | — | `Float64` | `1.0` | — | Impact response of y to s |
-| `--periods` | — | `Int64` | `200` | — | Sample length after burn-in |
+| `--periods` | — | `Int64` | `200` | — | Sample length |
 | `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
@@ -473,7 +473,7 @@ Blanchard OLG saddle path (deterministic)
 | `--z` | — | `Float64` | `1.0` | — | TFP |
 | `--debt` | — | `Float64` | `0.0` | — | Government debt b |
 | `--k0` | — | `Float64` | `0.0` | — | Initial capital (0 = 0.8 × steady state) |
-| `--periods` | — | `Int64` | `40` | — | Sample length after burn-in |
+| `--periods` | — | `Int64` | `40` | — | Transition horizon H (emits H+1 rows, t=0:H; deterministic) |
 | `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
@@ -490,7 +490,7 @@ Linear or binary panel with optional correlated effects
 |--------|-------|------|---------|---------|-------------|
 | `--kind` | — | `String` | `linear` | `linear`, `logit`, `probit` | linear\|logit\|probit |
 | `--n` | — | `Int64` | `30` | — | Cross-sectional units |
-| `--periods` | — | `Int64` | `12` | — | Sample length after burn-in |
+| `--periods` | — | `Int64` | `12` | — | Sample length |
 | `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
@@ -506,7 +506,7 @@ Panel VAR(1) with random effects
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--n` | — | `Int64` | `15` | — | Cross-sectional units |
-| `--periods` | — | `Int64` | `20` | — | Sample length after burn-in |
+| `--periods` | — | `Int64` | `20` | — | Sample length |
 | `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
@@ -571,7 +571,7 @@ Non-Gaussian SVAR (independent structural shocks)
 
 ### `friedman data simulate var`
 
-Reference stationary VAR(1) with population A, B0, Sigma
+Reference stationary VAR(1) with population A, B0, Sigma, c
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -587,7 +587,7 @@ Reference stationary VAR(1) with population A, B0, Sigma
 
 ### `friedman data simulate vecm`
 
-Rank-1 VECM with population alpha, beta, Gamma, Sigma
+Rank-1 VECM with population alpha, beta, Gamma, mu, Sigma
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -603,7 +603,7 @@ Rank-1 VECM with population alpha, beta, Gamma, Sigma
 
 ### `friedman data transform`
 
-Handle stem or CSV path
+Apply per-variable FRED transformation codes
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -611,7 +611,7 @@ Handle stem or CSV path
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--tcodes` | — | `String` | `""` | — | Comma-separated FRED transformation codes |
+| `--tcodes` | — | `String` | `""` | — | Required comma-separated FRED tcodes, one per variable (1-7) |
 | `--output` | `-o` | `String` | `""` | — | Output stem or CSV path |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
@@ -619,7 +619,7 @@ Handle stem or CSV path
 
 ### `friedman data validate`
 
-Handle stem or CSV path
+Check data suitability for an estimator family (stderr report)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -627,7 +627,7 @@ Handle stem or CSV path
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--model` | — | `String` | `""` | — | Model type (var\|bvar\|vecm\|arima\|garch\|sv\|lp\|gmm\|factor) |
+| `--model` | — | `String` | `""` | `var`, `bvar`, `vecm`, `arima`, `garch`, `sv`, `lp`, `gmm`, `factor`, `arch`, `egarch`, `gjr_garch`, `static`, `dynamic`, `gdfm` | Model type (required; var\|bvar\|vecm\|arima\|garch\|sv\|lp\|gmm\|factor\|arch\|egarch\|gjr_garch\|static\|dynamic\|gdfm) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 

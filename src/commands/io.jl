@@ -36,7 +36,7 @@
 "Input options shared by every analysis leaf (CSV path / bundled example / labels)."
 const IO_INPUT_OPTIONS = [
     OptionSpec(name="data", type=String, default="",
-               description="IO table: CSV path, :wiot (bundled example, the default), or another :example"),
+               description="IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example"),
     OptionSpec(name="n-sectors", type=Int, default=0,
                description="Number of sectors (CSV: Z is the first n_sectors columns)"),
     OptionSpec(name="n-fd", type=Int, default=1,
@@ -106,7 +106,7 @@ function io_specs()::Vector{CommandSpec}
                            description="Comma-separated year filter (default: all)"),
                 OptionSpec(name="system", type=String, default="pxp",
                            choices=["pxp", "ixi"],
-                           description="EXIOBASE product-by-product|industry-by-industry"),
+                           description="EXIOBASE pxp (product-by-product) | ixi (industry-by-industry)"),
                 OptionSpec(name="email", type=String, default="",
                            description="Account email (EORA26 only)"),
                 OptionSpec(name="password", type=String, default="",
@@ -128,12 +128,12 @@ function io_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["io", "load"],
-            summary="Parse/inspect an IO table: dimensions, balance, per-sector totals",
+            summary="Parse/inspect an IO table: dimensions and per-sector totals",
             args=ArgSpec[],
             options=[IO_INPUT_OPTIONS...,
                 OptionSpec(name="parser", type=String, default="csv",
                            choices=["csv", "icio"],
-                           description="Input parser: csv (parse_io) | icio (OECD ICIO text; .zip needs ZipFile, deferred W9)"),
+                           description="Input parser: csv (parse_io) | icio (OECD ICIO text)"),
                 OptionSpec(name="year", type=String, default="",
                            description="ICIO year filter"),
                 OptionSpec(name="member", type=String, default="",
@@ -224,14 +224,14 @@ function io_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["io", "sda"],
-            summary="Structural decomposition of Δoutput between two periods",
+            summary="Structural decomposition of Δoutput (or Δemissions with --on) between two periods",
             args=ArgSpec[],
             options=[IO_INPUT_OPTIONS...,
                 OptionSpec(name="data2", type=String, default="",
                            description="Second-period IO table (CSV path / :example; default: same as --data)"),
                 OptionSpec(name="method", type=String, default="additive",
                            choices=["additive", "multiplicative"],
-                           description="additive (exact, zero residual) | multiplicative"),
+                           description="additive (exact, zero residual) | multiplicative (two-factor output path only)"),
                 OptionSpec(name="factors", type=String, default="",
                            description="Comma-separated SDA factors (kebab); omit for legacy L_effect/Y_effect"),
                 OptionSpec(name="on", type=String, default="output",
@@ -248,7 +248,7 @@ function io_specs()::Vector{CommandSpec}
             args=ArgSpec[],
             options=[IO_INPUT_OPTIONS...,
                 OptionSpec(name="sectors-extract", type=String, default="",
-                           description="Sector(s) to extract: names or 1-based indices, comma-separated (required)"),
+                           description="Sector(s) to extract: names or 1-based indices, comma-separated (required unless --region)"),
                 OptionSpec(name="mode", type=String, default="complete",
                            choices=["complete", "backward", "forward", "partial"],
                            description="Extraction variant: complete|backward|forward|partial"),
@@ -270,7 +270,7 @@ function io_specs()::Vector{CommandSpec}
             args=ArgSpec[],
             options=[IO_INPUT_OPTIONS...,
                 OptionSpec(name="account", type=String, default="",
-                           description="Satellite account name (default: first available, e.g. CO2)"),
+                           description="Satellite account name (default: first alphabetically, e.g. CO2)"),
                 OptionSpec(name="by", type=String, default="sector",
                            choices=["sector", "region"],
                            description="sector (default) | region (MRIO production vs consumption)"),
@@ -372,7 +372,7 @@ function io_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["io", "bf", "elasticities"],
-            summary="Factor-price, goods-price and Domar-share incidence at the base point",
+            summary="Factor-price and goods-price incidence at the base point",
             args=ArgSpec[],
             options=[IO_INPUT_OPTIONS..., IO_PARSER_OPTIONS..., BF_NETWORK_OPTIONS...,
                      OUTPUT_OPTIONS..., PLOT_OPTIONS...],
@@ -463,7 +463,7 @@ function io_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["io", "impact"],
-            summary="Final-demand impact / scenario through the Leontief inverse",
+            summary="Final-demand impact / scenario through the (extended) Leontief inverse",
             args=ArgSpec[],
             options=[IO_INPUT_OPTIONS..., IO_PARSER_OPTIONS...,
                 OptionSpec(name="dy", type=String, default="",
@@ -483,7 +483,7 @@ function io_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["io", "network-stats"],
-            summary="Domar weights, Herfindahl, APL, degrees, upstreamness/downstreamness",
+            summary="Domar weights, Herfindahl, degrees, upstreamness/downstreamness",
             args=ArgSpec[],
             options=[IO_INPUT_OPTIONS..., IO_PARSER_OPTIONS...,
                      OUTPUT_OPTIONS..., PLOT_OPTIONS...],
@@ -539,7 +539,7 @@ function io_specs()::Vector{CommandSpec}
                 OUTPUT_OPTIONS..., PLOT_OPTIONS...],
             flags=[FlagSpec(name="plot", description="Open interactive plot in browser")],
             tables=[TableSpec(name=:vertical_specialization,
-                              description="VS, VS share, VS1, domestic content and gross exports"),
+                              description="VS, VS share, VS1, domestic content, domestic-content share and gross exports"),
                     TableSpec(name=:vertical_specialization_by_sector,
                               description="Per-sector foreign content in that sector's exports")],
             category="io", handler=wrap_legacy(_io_vertical_specialization),
@@ -575,7 +575,7 @@ function io_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:bilateral_trade_summary,
                               description="Intermediate, final and total bilateral flows"),
                     TableSpec(name=:bilateral_trade_by_sector,
-                              description="Per-sector gross exports from exporter to importer")],
+                              description="Per-sector bilateral flow of the requested kind from exporter to importer")],
             category="io", handler=wrap_legacy(_io_bilateral_trade),
         ),
     ]
@@ -603,7 +603,7 @@ function register_io_commands!()
     out = with_default_csv_kinds(out)
     out = register!(out)
     return build_node("io", out;
-        description="Input-Output analysis: Leontief/Ghosh, multipliers, linkages, SDA, footprints, Baqaee-Farhi, MRIO")
+        description="Input-Output analysis: load/download/sources, Leontief/Ghosh, multipliers, linkages, price/impact, SDA, footprints, Baqaee-Farhi, MRIO, network-stats, aggregate/balance")
 end
 
 # ── Shared helpers ───────────────────────────────────────────

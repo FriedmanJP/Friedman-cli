@@ -25,7 +25,7 @@ function fevd_specs()::Vector{CommandSpec}
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto)"),
                 OptionSpec(name="horizons", type=Int, default=20, description="Forecast horizon"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|arias|uhlig|proxy|max-share|gmm-moments|narrative-adrr|lewis-tvv|sv-em"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|arias|uhlig|proxy|max-share|gmm-moments|narrative-adrr|lewis-tvv|sv-em|fastica|jade|sobi|dcov|hsic|student_t|mixture_normal|pml|skew_normal|markov_switching|garch_id"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
                 OptionSpec(name="instrument", type=String, default="", description="Proxy-instrument CSV column (only with --id proxy)"),
                 OptionSpec(name="target-var", type=String, default="", description="Max-share target: column name or 1-based index (only with --id max-share)"),
@@ -35,8 +35,8 @@ function fevd_specs()::Vector{CommandSpec}
             ],
             flags=[
                 FlagSpec(name="plot", description="Open interactive plot in browser"),
-                FlagSpec(name="generalized", description="Pesaran-Shin generalized FEVD (identification-free; shares do NOT sum to 1)"),
-                FlagSpec(name="normalize", description="Rescale generalized shares to sum to 1 per variable")
+                FlagSpec(name="generalized", description="Pesaran-Shin generalized FEVD (identification-free; shares do NOT sum to 1) (ignored with --id arias|uhlig|narrative-adrr)"),
+                FlagSpec(name="normalize", description="Rescale generalized shares to sum to 1 per variable (ignored with --id arias|uhlig|narrative-adrr)")
             ],
             tables=[TableSpec(name=:fevd, description="Variance shares in tidy long form: horizon | variable | shock | value"),
                     TableSpec(name=:generalized_fevd, description="Pesaran-Shin generalized variance shares (--generalized); tidy long form"),
@@ -51,8 +51,8 @@ function fevd_specs()::Vector{CommandSpec}
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="Lag order"),
                 OptionSpec(name="horizons", type=Int, default=20, description="Forecast horizon"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun"),
-                OptionSpec(name="draws", short="n", type=Int, default=2000, description="MCMC draws"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|fastica|jade|sobi|dcov|hsic|student_t|mixture_normal|pml|skew_normal|markov_switching|garch_id|uhlig|lewis-tvv|sv-em"),
+                OptionSpec(name="draws", short="n", type=Int, default=2000, description="Posterior draws"),
                 OptionSpec(name="sampler", type=String, default="direct", description="direct|gibbs"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification/prior"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -73,8 +73,8 @@ function fevd_specs()::Vector{CommandSpec}
             options=[
                 OptionSpec(name="horizons", type=Int, default=20, description="Forecast horizon"),
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="LP control lags"),
-                OptionSpec(name="var-lags", type=Int, default=nothing, description="VAR lag order for identification"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun"),
+                OptionSpec(name="var-lags", type=Int, default=nothing, description="VAR lag order for identification (default: same as --lags)"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|fastica|jade|sobi|dcov|hsic|student_t|mixture_normal|pml|skew_normal|markov_switching|garch_id|uhlig|lewis-tvv|sv-em"),
                 OptionSpec(name="vcov", type=String, default="newey_west", description="newey_west|white|driscoll_kraay"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -90,14 +90,14 @@ function fevd_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["fevd", "vecm"],
-            summary="Compute FEVD via VECM → VAR representation",
+            summary="Compute FEVD via VECM → VAR representation (direct VECM under --id svec)",
             args=[ArgSpec(name="data", description="Path to CSV data file")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels)"),
                 OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
                 OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
                 OptionSpec(name="horizons", type=Int, default=20, description="Forecast horizon"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|svec|lewis-tvv|sv-em"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|fastica|jade|sobi|dcov|hsic|student_t|mixture_normal|pml|skew_normal|markov_switching|garch_id|uhlig|lewis-tvv|sv-em|svec (uhlig: generic path)"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -139,7 +139,7 @@ function fevd_specs()::Vector{CommandSpec}
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="VAR lag order"),
                 OptionSpec(name="key-vars", type=String, default="", description="Key variable names or indices"),
                 OptionSpec(name="horizons", type=Int, default=20, description="FEVD horizon"),
-                OptionSpec(name="id", type=String, default="cholesky", description="Identification method"),
+                OptionSpec(name="id", type=String, default="cholesky", description="Identification method: cholesky|sign|narrative|longrun|… (base set; see irf var)"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for restrictions"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),

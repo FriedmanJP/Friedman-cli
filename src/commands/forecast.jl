@@ -32,7 +32,7 @@ function forecast_specs()::Vector{CommandSpec}
         # --trunc-lag is ARFIMA-specific and has no arima equivalent.
         CommandSpec(
             path=["forecast", "arfima"],
-            summary="Path to CSV data file",
+            summary="ARFIMA forecast with fractional-filter truncation and interval bands",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -60,7 +60,7 @@ function forecast_specs()::Vector{CommandSpec}
         # curve) but none for MidasForecast.
         CommandSpec(
             path=["forecast", "midas"],
-            summary="Path to low-frequency target CSV",
+            summary="Direct h-step ADL-MIDAS forecast from a high-frequency indicator block (horizon fixed at estimation)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to low-frequency target CSV")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Target column index (1-based)"),
@@ -87,7 +87,7 @@ function forecast_specs()::Vector{CommandSpec}
         # garch-midas has NO --conf-level: forecast(::GarchMidasModel, h) takes none.
         CommandSpec(
             path=["forecast", "igarch"],
-            summary="Path to CSV data file",
+            summary="IGARCH volatility forecast with interval level",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -109,7 +109,7 @@ function forecast_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["forecast", "cgarch"],
-            summary="Path to CSV data file",
+            summary="CGARCH volatility forecast with interval level",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -129,7 +129,7 @@ function forecast_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["forecast", "aparch"],
-            summary="Path to CSV data file",
+            summary="APARCH volatility forecast with interval level",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -153,7 +153,7 @@ function forecast_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["forecast", "figarch"],
-            summary="Path to CSV data file",
+            summary="FIGARCH volatility forecast with interval level",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -161,7 +161,7 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="q", type=Int, default=1, description="ARCH order q"),
                 OptionSpec(name="d0", type=Float64, default=0.4, description="Initial fractional differencing parameter"),
                 OptionSpec(name="truncation", type=Int, default=1000, description="Truncation lag for the ARCH(inf) expansion"),
-                OptionSpec(name="dist", type=String, default="normal", description="Innovation distribution"),
+                OptionSpec(name="dist", type=String, default="normal", description="Innovation distribution (only normal is accepted; use garch|egarch|gjr-garch for Student-t or GED)", choices=["normal"]),
                 OptionSpec(name="horizons", short="H", type=Int, default=10, description="Forecast horizons (≥ 1)"),
                 OptionSpec(name="conf-level", type=Float64, default=0.95, description="Forecast interval level in (0,1)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -178,7 +178,7 @@ function forecast_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["forecast", "fiegarch"],
-            summary="Path to CSV data file",
+            summary="FIEGARCH volatility forecast with interval level",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -186,7 +186,7 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="q", type=Int, default=1, description="ARCH order q"),
                 OptionSpec(name="d0", type=Float64, default=0.4, description="Initial fractional differencing parameter"),
                 OptionSpec(name="truncation", type=Int, default=1000, description="Truncation lag for the ARCH(inf) expansion"),
-                OptionSpec(name="dist", type=String, default="normal", description="Innovation distribution"),
+                OptionSpec(name="dist", type=String, default="normal", description="Innovation distribution (only normal is accepted; use garch|egarch|gjr-garch for Student-t or GED)", choices=["normal"]),
                 OptionSpec(name="horizons", short="H", type=Int, default=10, description="Forecast horizons (≥ 1)"),
                 OptionSpec(name="conf-level", type=Float64, default=0.95, description="Forecast interval level in (0,1)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -203,7 +203,7 @@ function forecast_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["forecast", "garch-midas"],
-            summary="Path to CSV data file",
+            summary="GARCH-MIDAS variance forecast split into long-run/short-run components (no interval level)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -226,13 +226,13 @@ function forecast_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["forecast", "var"],
-            summary="Path to CSV data file",
+            summary="Unconditional VAR forecast with analytical or bootstrap intervals",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto)"),
                 OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon"),
                 OptionSpec(name="confidence", type=Float64, default=0.95, description="Confidence level for intervals"),
-                OptionSpec(name="ci-method", type=String, default="analytical", description="analytical|bootstrap"),
+                OptionSpec(name="ci-method", type=String, default="analytical", description="Interval method: analytical|bootstrap|none (none = point forecast)", choices=["analytical","bootstrap","none"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
@@ -257,7 +257,7 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="confidence", type=Float64, default=0.95, description="Confidence level in (0, 1)"),
                 OptionSpec(name="draws", short="n", type=Int, default=2000, description="MCMC draws (--method bvar)"),
                 OptionSpec(name="sampler", type=String, default="direct", description="direct|gibbs (--method bvar)"),
-                OptionSpec(name="config", type=String, default="", description="TOML config for the BVAR prior"),
+                OptionSpec(name="config", type=String, default="", description="TOML config for the BVAR prior (--method bvar; ignored with --method var)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
@@ -271,7 +271,7 @@ function forecast_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["forecast", "bvar"],
-            summary="Path to CSV data file",
+            summary="BVAR posterior-mean forecast with fixed 68% credible bands",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="Lag order"),
@@ -290,7 +290,7 @@ function forecast_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["forecast", "lp"],
-            summary="Path to CSV data file",
+            summary="Local-projection forecast along a fixed shock path",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="shock", type=Int, default=1, description="Shock variable index (1-based)"),
@@ -314,7 +314,7 @@ function forecast_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["forecast", "arima"],
-            summary="Path to CSV data file",
+            summary="ARIMA point forecast with interval bands (auto or fixed order)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -351,7 +351,7 @@ function forecast_specs()::Vector{CommandSpec}
         # the C051 convention only plot-capable leaves add the flags; revisit if MEMs adds one.
         CommandSpec(
             path=["forecast", "setar"],
-            summary="Path to CSV data file",
+            summary="Bootstrap-simulation threshold forecast for self-exciting models",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -379,7 +379,7 @@ function forecast_specs()::Vector{CommandSpec}
         # leaves add the flags; revisit if MEMs adds a STARForecast recipe.
         CommandSpec(
             path=["forecast", "star"],
-            summary="Path to CSV data file",
+            summary="Bootstrap-simulation STAR forecast for self-exciting models",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -402,7 +402,7 @@ function forecast_specs()::Vector{CommandSpec}
         # — so this leaf legitimately carries the plot flags.
         CommandSpec(
             path=["forecast", "sarima"],
-            summary="Path to CSV data file",
+            summary="SARIMA point forecast with interval bands (auto or fixed order)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[SARIMA_OPTIONS...,
                 OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon (>= 1)"),
@@ -424,7 +424,7 @@ function forecast_specs()::Vector{CommandSpec}
         # advertising them would drive `_maybe_plot` into an uncaught MethodError → exit 1.
         CommandSpec(
             path=["forecast", "ms-ar"],
-            summary="Path to CSV data file",
+            summary="Regime-averaged MS-AR forecast over simulated regime paths",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -445,7 +445,7 @@ function forecast_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["forecast", "ms"],
-            summary="Path to CSV data file",
+            summary="Switching-regression forecast over future regressors (or intercept-only horizons)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
@@ -467,7 +467,7 @@ function forecast_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["forecast", "static"],
-            summary="Path to CSV data file",
+            summary="Static-factor observable forecast reconstructed from factors",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="nfactors", short="r", type=Int, default=nothing, description="Number of factors (default: auto via IC)"),
@@ -487,7 +487,7 @@ function forecast_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["forecast", "dynamic"],
-            summary="Path to CSV data file",
+            summary="Dynamic-factor observable forecast reconstructed from factors",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="nfactors", short="r", type=Int, default=nothing, description="Number of factors (default: auto)"),
@@ -507,7 +507,7 @@ function forecast_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["forecast", "gdfm"],
-            summary="Path to CSV data file",
+            summary="GDFM observable forecast reconstructed from factors",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="nfactors", short="r", type=Int, default=nothing, description="Number of static factors (default: auto)"),
@@ -528,7 +528,7 @@ function forecast_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["forecast", "sdfm"],
-            summary="Path to CSV data file",
+            summary="SDFM observable forecast reconstructed from factors",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="factors", short="q", type=Int, default=nothing, description="Number of dynamic factors (default: auto via --q-method)"),
@@ -557,7 +557,7 @@ function forecast_specs()::Vector{CommandSpec}
         _vol_specs(:forecast)...,
         CommandSpec(
             path=["forecast", "vecm"],
-            summary="Path to CSV data file",
+            summary="Level VECM forecast with optional bootstrap/parametric intervals",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels)"),
@@ -580,7 +580,7 @@ function forecast_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["forecast", "favar"],
-            summary="Path to CSV data file",
+            summary="FAVAR factor-level (or --panel-forecast panel-wide) forecast",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="factors", short="r", type=Int, default=nothing, description="Number of factors (default: auto)"),

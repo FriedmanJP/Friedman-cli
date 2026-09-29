@@ -18,7 +18,7 @@
 
 const RA_METHOD_OPTION = OptionSpec(
     name="method", type=String, default="gensys",
-    description="Solution method: gensys|klein|perturbation|projection|pfi|vfi|blanchard-kahn",
+    description="Solution method: gensys|klein|perturbation|projection|pfi|vfi|blanchard-kahn (fevd/hd reject projection|pfi|vfi)",
     choices=_RA_METHOD_CHOICES)
 const RA_SOLVER_KNOB_OPTIONS = [
     OptionSpec(name="next-state", type=String, default="",
@@ -41,7 +41,7 @@ const RA_SOLVER_KNOB_OPTIONS = [
 const HA_HH_OPTIONS = [
     OptionSpec(name="hh-solver", type=String, default="egm",
                choices=["egm", "vfi"],
-               description="Household solver: egm|vfi (SS + Reiter; SSJ is EGM; not with krusell-smith)"),
+               description="Household solver: egm|vfi (not with krusell-smith)"),
     OptionSpec(name="distribution", type=String, default="young",
                choices=["young", "winberry"],
                description="Distribution method: young|winberry"),
@@ -51,8 +51,8 @@ function dsge_specs()::Vector{CommandSpec}
     return [
         CommandSpec(
             path=["dsge", "solve"],
-            summary="Path to DSGE model file (.toml or .jl)",
-            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            summary="Solve a DSGE model and report the policy solution",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="TOML (synthesized @dsge block) or .jl evaluating to a ModelSpec")],
             options=[
                 RA_METHOD_OPTION,
                 OptionSpec(name="order", type=Int, default=1, description="Perturbation order (1, 2, or 3)"),
@@ -63,7 +63,7 @@ function dsge_specs()::Vector{CommandSpec}
                            description="State vector x1,x2,… at which to evaluate the VFI value function"),
                 OptionSpec(name="constraints", type=String, default="", description="Path to OccBin constraints TOML"),
                 OptionSpec(name="constraint-solver", type=String, default="", description="Constraint solver: nonlinearsolve|optim|nlopt|ipopt|path"),
-                OptionSpec(name="periods", type=Int, default=40, description="Number of periods for OccBin simulation"),
+                OptionSpec(name="periods", type=Int, default=40, description="Number of periods for the OccBin path (--constraints without --constraint-solver; ignored otherwise)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
@@ -72,7 +72,7 @@ function dsge_specs()::Vector{CommandSpec}
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
             tables=[
-                TableSpec(name=:dsge_solution, description="Gensys/Klein state-transition policy matrix G1, one column per variable"),
+                TableSpec(name=:dsge_solution, description="Gensys/Klein/Blanchard-Kahn state-transition policy matrix G1, one column per variable"),
                 TableSpec(name=:perturbation_policy_gx, description="Perturbation control policy gx: control responses to states and shocks"),
                 TableSpec(name=:projection_solution, description="Projection/PFI/VFI basis coefficients, one row per control"),
                 TableSpec(name=:projection_diagnostics, description="Projection/PFI/VFI convergence, iterations, residual norm, grid and degree"),
@@ -87,8 +87,8 @@ function dsge_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["dsge", "irf"],
-            summary="Path to DSGE model file (.toml or .jl)",
-            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            summary="Compute DSGE impulse responses to each structural shock",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="TOML (synthesized @dsge block) or .jl evaluating to a ModelSpec")],
             options=[
                 RA_METHOD_OPTION,
                 OptionSpec(name="order", type=Int, default=1, description="Perturbation order (1, 2, or 3)"),
@@ -96,9 +96,9 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="grid", type=String, default="auto", description="Grid type: auto|chebyshev|smolyak (vfi: auto|tensor|smolyak; auto routes nx≥4 to Smolyak)"),
                 RA_SOLVER_KNOB_OPTIONS...,
                 OptionSpec(name="horizon", type=Int, default=40, description="IRF horizon"),
-                OptionSpec(name="shock-size", type=Float64, default=1.0, description="Shock size (std devs)"),
-                OptionSpec(name="n-sim", type=Int, default=0, description="Simulation-based IRF draws (0=analytical)"),
-                OptionSpec(name="constraints", type=String, default="", description="Path to OccBin constraints TOML"),
+                OptionSpec(name="shock-size", type=Float64, default=1.0, description="Shock size (std devs; perturbation/projection only; ignored for linear solutions)"),
+                OptionSpec(name="n-sim", type=Int, default=0, description="Simulated-path replications for projection solutions (default 0 = analytical; ignored for linear/perturbation solutions)"),
+                OptionSpec(name="constraints", type=String, default="", description="Path to OccBin constraints TOML (applied to shock 1 only)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
@@ -115,8 +115,8 @@ function dsge_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["dsge", "fevd"],
-            summary="Path to DSGE model file (.toml or .jl)",
-            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            summary="Decompose the DSGE forecast-error variance by shock",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="TOML (synthesized @dsge block) or .jl evaluating to a ModelSpec")],
             options=[
                 RA_METHOD_OPTION,
                 OptionSpec(name="order", type=Int, default=1, description="Perturbation order (1, 2, or 3)"),
@@ -138,8 +138,8 @@ function dsge_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["dsge", "simulate"],
-            summary="Path to DSGE model file (.toml or .jl)",
-            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            summary="Simulate a DSGE model and report the simulated paths",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="TOML (synthesized @dsge block) or .jl evaluating to a ModelSpec")],
             options=[
                 RA_METHOD_OPTION,
                 OptionSpec(name="order", type=Int, default=1, description="Perturbation order (1, 2, or 3)"),
@@ -154,7 +154,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
             ],
             flags=[
-                FlagSpec(name="antithetic", description="Use antithetic sampling for variance reduction"),
+                FlagSpec(name="antithetic", description="Use antithetic sampling for variance reduction (ignored for projection/pfi/vfi simulations)"),
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
             tables=[TableSpec(name=:dsge_simulation, description="Simulated path of every endogenous variable, burn-in dropped")],
@@ -167,8 +167,8 @@ function dsge_specs()::Vector{CommandSpec}
         # (plotting/dsge_extra.jl:258), so --plot is honoured, not advertised on faith.
         CommandSpec(
             path=["dsge", "determinacy-map"],
-            summary="Path to DSGE model file (.toml or .jl)",
-            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            summary="Map the DSGE determinacy region over two parameters",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="TOML (synthesized @dsge block) or .jl evaluating to a ModelSpec")],
             options=[
                 OptionSpec(name="config", type=String, default="",
                            description="TOML with a [determinacy] section (params, lower/upper/points or grids); REQUIRED"),
@@ -197,11 +197,11 @@ function dsge_specs()::Vector{CommandSpec}
         # no unpruned path, so a flag would advertise a choice that does not exist.
         CommandSpec(
             path=["dsge", "moments"],
-            summary="Path to DSGE model file (.toml or .jl)",
-            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            summary="Report closed-form DSGE theoretical moments without simulation",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="TOML (synthesized @dsge block) or .jl evaluating to a ModelSpec")],
             options=[
                 OptionSpec(name="method", type=String, default="perturbation",
-                           description="Solution method (moments need a PerturbationSolution)"),
+                           description="Solution method: perturbation (the only supported value; moments need a PerturbationSolution)"),
                 OptionSpec(name="order", type=Int, default=2,
                            description="Perturbation order: 1, 2 or 3 (default 2; for linear models order 2 equals order 1 exactly)"),
                 OptionSpec(name="lags", type=Int, default=1, description="Autocovariance lags to report (>= 1)"),
@@ -219,19 +219,19 @@ function dsge_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["dsge", "estimate"],
-            summary="Path to DSGE model file (.toml or .jl)",
-            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            summary="Estimate DSGE parameters by moment matching",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="TOML (synthesized @dsge block) or .jl evaluating to a ModelSpec")],
             options=[
                 OptionSpec(name="data", short="d", type=String, default="", description="Path to CSV data file"),
-                OptionSpec(name="method", type=String, default="irf_matching", description="Estimation method: irf_matching|likelihood|bayesian|smm"),
+                OptionSpec(name="method", type=String, default="irf_matching", description="Estimation method: irf_matching|euler_gmm|smm|analytical_gmm", choices=["irf_matching", "euler_gmm", "smm", "analytical_gmm"]),
                 OptionSpec(name="params", type=String, default="", description="Comma-separated parameter names to estimate"),
-                OptionSpec(name="solve-method", type=String, default="gensys", description="DSGE solution method"),
-                OptionSpec(name="solve-order", type=Int, default=1, description="Perturbation order for solution"),
-                OptionSpec(name="weighting", type=String, default="optimal", description="Weighting matrix: identity|optimal|diagonal"),
-                OptionSpec(name="irf-horizon", type=Int, default=20, description="IRF horizon for matching"),
-                OptionSpec(name="var-lags", type=Int, default=4, description="VAR lags for empirical IRF"),
-                OptionSpec(name="sim-ratio", type=Int, default=5, description="Simulation-to-data ratio (SMM)"),
-                OptionSpec(name="bounds", type=String, default="", description="Path to parameter bounds TOML"),
+                OptionSpec(name="solve-method", type=String, default="gensys", description="DSGE solution method (analytical_gmm only)"),
+                OptionSpec(name="solve-order", type=Int, default=1, description="Perturbation order for solution (analytical_gmm only)"),
+                OptionSpec(name="weighting", type=String, default="optimal", description="Weighting matrix: identity|optimal|diagonal|two_step|efficient|cee (default two_step)"),
+                OptionSpec(name="irf-horizon", type=Int, default=20, description="IRF horizon for matching (irf_matching only)"),
+                OptionSpec(name="var-lags", type=Int, default=4, description="VAR lags for empirical IRF (irf_matching only)"),
+                OptionSpec(name="sim-ratio", type=Int, default=5, description="Simulation-to-data ratio (smm only)"),
+                OptionSpec(name="bounds", type=String, default="", description="Path to parameter bounds TOML (currently not used)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -242,8 +242,8 @@ function dsge_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["dsge", "perfect-foresight"],
-            summary="Path to DSGE model file (.toml or .jl)",
-            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            summary="Solve a DSGE model under perfect foresight along a shock path",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="TOML (synthesized @dsge block) or .jl evaluating to a ModelSpec")],
             options=[
                 OptionSpec(name="shocks", type=String, default="", description="Path to shock sequence CSV"),
                 OptionSpec(name="constraints", type=String, default="", description="Path to constraints TOML"),
@@ -267,8 +267,8 @@ function dsge_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["dsge", "steady-state"],
-            summary="Path to DSGE model file (.toml or .jl)",
-            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            summary="Compute the DSGE steady state",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="TOML (synthesized @dsge block) or .jl evaluating to a ModelSpec")],
             options=[
                 OptionSpec(name="constraints", type=String, default="", description="Path to OccBin constraints TOML"),
                 OptionSpec(name="constraint-solver", type=String, default="", description="Constraint solver: nonlinearsolve|optim|nlopt|ipopt|path"),
@@ -282,12 +282,11 @@ function dsge_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["dsge", "hd"],
-            summary="Path to DSGE model file (.toml or .jl)",
-            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            summary="Decompose DSGE observables into historical shock contributions",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="TOML (synthesized @dsge block) or .jl evaluating to a ModelSpec")],
             options=[
                 RA_METHOD_OPTION,
                 OptionSpec(name="order", type=Int, default=1, description="Perturbation order (1, 2, or 3)"),
-                OptionSpec(name="degree", type=Int, default=5, description="Polynomial degree (projection/pfi/vfi)"),
                 OptionSpec(name="grid", type=String, default="auto", description="Grid type: auto|chebyshev|smolyak (vfi: auto|tensor|smolyak; auto routes nx≥4 to Smolyak)"),
                 RA_SOLVER_KNOB_OPTIONS...,
                 OptionSpec(name="data", short="d", type=String, default="", description="Path to CSV data file"),
@@ -307,8 +306,8 @@ function dsge_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["dsge", "bayes", "estimate"],
-            summary="Path to DSGE model file (.toml or .jl)",
-            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            summary="Estimate a DSGE model with Bayesian sampling and report the posterior",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="Path to DSGE model file (.toml or .jl)")],
             options=[
                 BAYES_OPTIONS...
             ],
@@ -321,8 +320,8 @@ function dsge_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["dsge", "bayes", "irf"],
-            summary="Path to DSGE model file (.toml or .jl)",
-            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            summary="Estimate a DSGE model with Bayesian sampling and report posterior-mean IRFs",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="Path to DSGE model file (.toml or .jl)")],
             options=[
                 BAYES_OPTIONS...,
                 OptionSpec(name="horizon", type=Int, default=40, description="IRF horizon"),
@@ -338,8 +337,8 @@ function dsge_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["dsge", "bayes", "fevd"],
-            summary="Path to DSGE model file (.toml or .jl)",
-            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            summary="Estimate a DSGE model with Bayesian sampling and report posterior-mean FEVD",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="Path to DSGE model file (.toml or .jl)")],
             options=[
                 BAYES_OPTIONS...,
                 OptionSpec(name="horizon", type=Int, default=40, description="FEVD horizon"),
@@ -355,8 +354,8 @@ function dsge_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["dsge", "bayes", "simulate"],
-            summary="Path to DSGE model file (.toml or .jl)",
-            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            summary="Estimate a DSGE model with Bayesian sampling and report posterior-mean simulated paths",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="Path to DSGE model file (.toml or .jl)")],
             options=[
                 BAYES_OPTIONS...,
                 OptionSpec(name="periods", type=Int, default=200, description="Simulation periods"),
@@ -372,8 +371,8 @@ function dsge_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["dsge", "bayes", "summary"],
-            summary="Path to DSGE model file (.toml or .jl)",
-            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            summary="Estimate a DSGE model with Bayesian sampling and report the posterior summary with prior-posterior comparison",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="Path to DSGE model file (.toml or .jl)")],
             options=[
                 BAYES_OPTIONS...
             ],
@@ -389,8 +388,8 @@ function dsge_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["dsge", "bayes", "compare"],
-            summary="Path to DSGE model file (.toml or .jl)",
-            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            summary="Estimate two DSGE models with Bayesian sampling and compare log marginal likelihoods",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="Path to DSGE model file (.toml or .jl)")],
             options=[
                 BAYES_OPTIONS...,
                 OptionSpec(name="model2", type=String, default="", description="Path to second DSGE model file"),
@@ -406,8 +405,8 @@ function dsge_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["dsge", "bayes", "predictive"],
-            summary="Path to DSGE model file (.toml or .jl)",
-            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            summary="Estimate a DSGE model with Bayesian sampling and report the posterior predictive summary",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="Path to DSGE model file (.toml or .jl)")],
             options=[
                 BAYES_OPTIONS...,
                 OptionSpec(name="n-sim", type=Int, default=500, description="Number of predictive simulations"),
@@ -424,13 +423,14 @@ function dsge_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["dsge", "bayes", "hd"],
-            summary="Path to DSGE model file (.toml or .jl)",
-            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            summary="Estimate a DSGE model with Bayesian sampling and report the posterior-mean historical decomposition",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="Path to DSGE model file (.toml or .jl)")],
             options=[
-                BAYES_OPTIONS...,
+                filter(o -> o.name != "observables", BAYES_OPTIONS)...,
+                OptionSpec(name="observables", type=String, default="", description="Observable variable names, comma-separated (required — no default)"),
                 OptionSpec(name="n-hd-draws", type=Int, default=200, description="Number of posterior draws for HD"),
                 OptionSpec(name="quantiles", type=String, default="0.16,0.5,0.84", description="Quantile levels"),
-                OptionSpec(name="horizon", type=Int, default=40, description="IRF horizon"),
+                OptionSpec(name="horizon", type=Int, default=40, description="Horizon (accepted but not used: historical decomposition has no horizon setting)"),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
             ],
             flags=[
@@ -442,11 +442,10 @@ function dsge_specs()::Vector{CommandSpec}
             category="dsge",
             handler=wrap_legacy(_dsge_bayes_hd),
         ),
-        # ── Bayesian DSGE diagnostics (C073 / MEMs 0.7.0) ──
         CommandSpec(
             path=["dsge", "bayes", "mcmc-diag"],
-            summary="Path to DSGE model file (.toml or .jl)",
-            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            summary="Estimate a DSGE model with Bayesian sampling and report MCMC convergence diagnostics",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="Path to DSGE model file (.toml or .jl)")],
             options=[
                 BAYES_OPTIONS...
             ],
@@ -462,8 +461,8 @@ function dsge_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["dsge", "bayes", "identification"],
-            summary="Path to DSGE model file (.toml or .jl)",
-            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            summary="Test local DSGE parameter identification with the Iskrev rank test without estimating",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="Path to DSGE model file (.toml or .jl)")],
             options=[
                 OptionSpec(name="params", type=String, default="", description="Comma-separated estimated parameter names (required)"),
                 OptionSpec(name="observables", type=String, default="", description="Observable variable names (comma-separated; default: all endogenous)"),
@@ -484,8 +483,8 @@ function dsge_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["dsge", "bayes", "learning-rate"],
-            summary="Path to DSGE model file (.toml or .jl)",
-            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            summary="Estimate a DSGE model with Bayesian sampling and run the Koop-Pesaran-Smith learning-rate check",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="Path to DSGE model file (.toml or .jl)")],
             options=[
                 BAYES_OPTIONS...,
                 OptionSpec(name="fractions", type=String, default="0.5,1.0", description="Nested subsample fractions (comma-separated, in (0,1])"),
@@ -504,8 +503,8 @@ function dsge_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["dsge", "bayes", "overlap"],
-            summary="Path to DSGE model file (.toml or .jl)",
-            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            summary="Estimate a DSGE model with Bayesian sampling and report prior-posterior overlap per parameter",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="Path to DSGE model file (.toml or .jl)")],
             options=[
                 BAYES_OPTIONS...,
                 OptionSpec(name="threshold", type=Float64, default=0.8, description="Flag threshold on the prior/posterior overlap"),
@@ -523,12 +522,12 @@ function dsge_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["dsge", "bayes", "marginal-lik"],
-            summary="Path to DSGE model file (.toml or .jl)",
-            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            summary="Estimate a DSGE model with Bayesian sampling and report bridge-sampling and SMC log marginal likelihoods",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="Path to DSGE model file (.toml or .jl)")],
             options=[
                 BAYES_OPTIONS...,
                 OptionSpec(name="proposal", type=String, default="normal", description="Bridge proposal family: normal|t", choices=["normal","t"]),
-                OptionSpec(name="df", type=Float64, default=5.0, description="Degrees of freedom for the t proposal"),
+                OptionSpec(name="df", type=Float64, default=5.0, description="Degrees of freedom for the t proposal (ignored with --proposal normal)"),
             ],
             flags=[
                 FlagSpec(name="delayed-acceptance", description="Use delayed acceptance for MH")
@@ -543,8 +542,8 @@ function dsge_specs()::Vector{CommandSpec}
         # select_options picks exactly the ones each signature has.
         CommandSpec(
             path=["dsge", "bayes", "posterior-mode"],
-            summary="Path to DSGE model file (.toml or .jl)",
-            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            summary="Maximize the DSGE posterior and report the mode with Laplace standard errors without sampling",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="Path to DSGE model file (.toml or .jl)")],
             options=[
                 select_options(BAYES_OPTIONS, "data", "params", "priors", "observables",
                                "solver", "order", "constraint-solver", "output", "format")...,
@@ -561,12 +560,12 @@ function dsge_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["dsge", "bayes", "prior-predictive"],
-            summary="Path to DSGE model file (.toml or .jl)",
-            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="")],
+            summary="Draw from the DSGE prior and report the prior predictive distribution without data",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="Path to DSGE model file (.toml or .jl)")],
             options=[
                 # no --data: prior_predictive draws from the PRIOR and needs none
-                select_options(BAYES_OPTIONS, "params", "priors", "observables", "solver",
-                               "order", "constraint-solver", "n-draws", "output", "format")...,
+                with_default(select_options(BAYES_OPTIONS, "params", "priors", "observables", "solver",
+                               "order", "constraint-solver", "n-draws", "output", "format"), "n-draws", 500)...,
                 OptionSpec(name="periods", type=Int, default=200, description="Periods to simulate per draw (≥ 1)"),
             ],
             flags=FlagSpec[],
@@ -584,7 +583,7 @@ function dsge_specs()::Vector{CommandSpec}
             path=["dsge", "ha", "accuracy"],
             summary="Den Haan (2010) accuracy of the aggregate law of motion",
             args=[ArgSpec(name="model", type=String, required=true, default=nothing,
-                          description="Capital builtin (krusell-smith|one-asset-hank) or .jl HA ModelSpec")],
+                          description="Builtin name (krusell-smith|one-asset-hank recommended; huggett refused) or .jl HA ModelSpec")],
             options=[
                 HA_HH_OPTIONS...,
                 OptionSpec(name="method", type=String, default="krusell-smith",
@@ -625,7 +624,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="n-reduced", type=Int, default=30,
                            description="Reduced distribution states (SSJ/Reiter)"),
                 OptionSpec(name="t-horizon", type=Int, default=300,
-                           description="Sequence-space horizon (SSJ)"),
+                           description="Sequence-space horizon (SSJ/Reiter; ignored with krusell-smith)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table",
                            description="table|csv|json", choices=["table","csv","json"]),
@@ -637,7 +636,7 @@ function dsge_specs()::Vector{CommandSpec}
                 TableSpec(name=:ha_steady_state_aggregates, description="Steady-state aggregate quantities"),
                 TableSpec(name=:ha_steady_state_prices, description="Steady-state prices"),
                 TableSpec(name=:ha_steady_state_diagnostics, description="Steady-state convergence, iterations, Euler error and excess demand"),
-                TableSpec(name=:ha_euler_accuracy_log10_by_convention, description="log10 Euler errors under both the midpoints and nodes conventions"),
+                TableSpec(name=:ha_euler_accuracy_log10_by_convention, description="log10 Euler errors by convention (one row per measured convention; absent when the steady-state path records no accuracy)"),
             ],
             category="dsge",
             handler=wrap_legacy(_dsge_ha_solve),
@@ -653,9 +652,9 @@ function dsge_specs()::Vector{CommandSpec}
                            description="Euler-error evaluation points: midpoints|nodes",
                            choices=["midpoints", "nodes"]),
                 OptionSpec(name="max-iter", type=Int, default=0,
-                           description="GE iterations (0 = upstream default: 200 one-asset, 60 two-asset closer)"),
+                           description="GE iterations (0 = automatic: 200 one-asset, 60 two-asset)"),
                 OptionSpec(name="tol", type=Float64, default=0.0,
-                           description="Market-clearing tolerance (0 = upstream default)"),
+                           description="Market-clearing tolerance (0 = automatic)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table",
                            description="table|csv|json", choices=["table","csv","json"]),
@@ -665,7 +664,7 @@ function dsge_specs()::Vector{CommandSpec}
                 TableSpec(name=:ha_steady_state_aggregates, description="Steady-state aggregate quantities"),
                 TableSpec(name=:ha_steady_state_prices, description="Steady-state prices"),
                 TableSpec(name=:ha_steady_state_diagnostics, description="Convergence, iterations, Euler error and excess demand"),
-                TableSpec(name=:ha_euler_accuracy_log10_by_convention, description="log10 Euler errors under both the midpoints and nodes conventions"),
+                TableSpec(name=:ha_euler_accuracy_log10_by_convention, description="log10 Euler errors by convention (one row per measured convention; absent when the steady-state path records no accuracy)"),
             ],
             category="dsge",
             handler=wrap_legacy(_dsge_ha_steady_state),
@@ -805,7 +804,7 @@ function dsge_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["dsge", "ha", "estimate"],
-            summary="Bayesian estimation of HA-DSGE parameters (MH/SMC; MEMs#228 fixed in 0.6.7)",
+            summary="Bayesian estimation of HA-DSGE parameters (MH/SMC)",
             args=[ArgSpec(name="model", type=String, required=true, default=nothing,
                           description="Builtin name or .jl HA ModelSpec")],
             options=[
@@ -826,7 +825,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="n-mh-steps", type=Int, default=1, description="MH mutation steps per SMC stage"),
                 OptionSpec(name="ess-target", type=Float64, default=0.5, description="ESS target for SMC resampling"),
                 OptionSpec(name="t-horizon", type=Int, default=300,
-                           description="Sequence-space truncation length (SSJ); default 300 (ABRS 2021)"),
+                           description="Sequence-space truncation length (SSJ/Reiter); default 300 (ABRS 2021)"),
                 OptionSpec(name="n-reduced", type=Int, default=15, description="Reduced distribution states"),
                 OptionSpec(name="proposal-scale", type=Float64, default=0.01, description="Initial RWMH proposal scale"),
                 OptionSpec(name="adapt-interval", type=Int, default=100, description="Adapt proposal covariance every N draws"),
@@ -860,7 +859,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="observables", type=String, default="", description="Observable aggregates (comma-separated; keys of ss.aggregates/ss.prices)"),
                 OptionSpec(name="measurement-error", type=String, default="", description="Measurement error std devs (comma-separated) or auto"),
                 OptionSpec(name="n-reduced", type=Int, default=30, description="Reduced states"),
-                OptionSpec(name="t-horizon", type=Int, default=300, description="Sequence-space horizon (SSJ)"),
+                OptionSpec(name="t-horizon", type=Int, default=300, description="Sequence-space horizon (SSJ/Reiter)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table",
                            description="table|csv|json", choices=["table","csv","json"]),
@@ -877,14 +876,14 @@ function dsge_specs()::Vector{CommandSpec}
             summary="Continuous-time Aiyagari (or two-asset KMV) stationary equilibrium",
             args=ArgSpec[],
             options=[
-                OptionSpec(name="alpha", type=Float64, default=0.36, description="Capital share"),
+                OptionSpec(name="alpha", type=Float64, default=0.36, description="Capital share (one-asset and --ge; ignored by --two-asset partial-equilibrium solve)"),
                 OptionSpec(name="rho", type=Float64, default=0.05, description="Discount rate"),
                 OptionSpec(name="sigma", type=Float64, default=2.0, description="CRRA risk aversion"),
-                OptionSpec(name="delta", type=Float64, default=0.05, description="Depreciation"),
-                OptionSpec(name="z", type=Float64, default=1.0, description="TFP level"),
-                OptionSpec(name="a-min", type=Float64, default=0.0, description="Asset grid lower bound"),
-                OptionSpec(name="a-max", type=Float64, default=30.0, description="Asset grid upper bound"),
-                OptionSpec(name="grid-size", type=Int, default=100, description="Asset grid points (I)"),
+                OptionSpec(name="delta", type=Float64, default=0.05, description="Depreciation (one-asset and --ge; ignored by --two-asset partial-equilibrium solve)"),
+                OptionSpec(name="z", type=Float64, default=1.0, description="TFP level (one-asset and --ge; ignored by --two-asset partial-equilibrium solve)"),
+                OptionSpec(name="a-min", type=Float64, default=0.0, description="Asset grid lower bound (one-asset only; ignored with --two-asset)"),
+                OptionSpec(name="a-max", type=Float64, default=30.0, description="Asset grid upper bound (one-asset only; ignored with --two-asset)"),
+                OptionSpec(name="grid-size", type=Int, default=100, description="Asset grid points (I) (one-asset only; ignored with --two-asset)"),
                 OptionSpec(name="max-iter", type=Int, default=100, description="Outer equilibrium iterations"),
                 OptionSpec(name="tol", type=Float64, default=1e-6, description="Convergence tolerance"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -906,7 +905,7 @@ function dsge_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["dsge", "ct", "transition"],
-            summary="MIT-shock perfect-foresight transition (ct_mit_shock)",
+            summary="MIT-shock perfect-foresight transition (ct_mit_shock; ct_two_asset_mit with --two-asset)",
             args=ArgSpec[],
             options=[
                 OptionSpec(name="alpha", type=Float64, default=0.36, description="Capital share"),
@@ -917,18 +916,18 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="shock-size", type=Float64, default=0.95, description="Impact TFP multiplier (Z_0 = shock-size * z)"),
                 OptionSpec(name="periods", type=Int, default=40, description="Transition length (time points)"),
                 OptionSpec(name="dt", type=Float64, default=0.25, description="Time step"),
-                OptionSpec(name="a-max", type=Float64, default=30.0, description="Asset grid upper bound"),
-                OptionSpec(name="grid-size", type=Int, default=100, description="Asset grid points"),
+                OptionSpec(name="a-max", type=Float64, default=30.0, description="Asset grid upper bound (one-asset only; ignored with --two-asset)"),
+                OptionSpec(name="grid-size", type=Int, default=100, description="Asset grid points (one-asset only; ignored with --two-asset)"),
                 OptionSpec(name="max-iter", type=Int, default=100, description="Shooting iterations"),
                 OptionSpec(name="tol", type=Float64, default=1e-6, description="Convergence tolerance"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table",
                            description="table|csv|json", choices=["table","csv","json"]),
-                OptionSpec(name="z-path", type=String, default="", description="CSV of TFP path (two-asset MIT; length ≥ 2, all positive)"),
+                OptionSpec(name="z-path", type=String, default="", description="CSV of TFP path (required with --two-asset; ignored otherwise; length ≥ 2, all positive)"),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file"),
             ],
             flags=[
-                FlagSpec(name="plot", description="Open interactive plot in browser (one-asset CTTransition only)"),
+                FlagSpec(name="plot", description="Plot the transition table in browser (one-asset only; --two-asset has no plot recipe)"),
                 FlagSpec(name="two-asset", description="Two-asset MIT (ct_two_asset_mit; no plot)"),
             ],
             tables=[
@@ -952,7 +951,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="shock-size", type=Float64, default=0.01, description="TFP impulse size"),
                 OptionSpec(name="persist", type=Float64, default=0.0, description="AR(1) decay of the TFP impulse"),
                 OptionSpec(name="dt", type=Float64, default=0.25, description="Time step"),
-                OptionSpec(name="grid-size", type=Int, default=100, description="Asset grid points"),
+                OptionSpec(name="grid-size", type=Int, default=100, description="Asset grid points (one-asset only; ignored with --two-asset)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table",
                            description="table|csv|json", choices=["table","csv","json"]),
@@ -980,7 +979,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="shock-size", type=Float64, default=0.01, description="TFP impulse size"),
                 OptionSpec(name="persist", type=Float64, default=0.0, description="AR(1) decay of the TFP impulse"),
                 OptionSpec(name="dt", type=Float64, default=0.25, description="Time step"),
-                OptionSpec(name="grid-size", type=Int, default=100, description="Asset grid points"),
+                OptionSpec(name="grid-size", type=Int, default=100, description="Asset grid points (one-asset only; ignored with --two-asset)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table",
                            description="table|csv|json", choices=["table","csv","json"]),
@@ -1060,7 +1059,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="kappa", type=Float64, default=0.1, description="NK Phillips slope (--nk)"),
                 OptionSpec(name="phi-pi", type=Float64, default=1.5, description="NK Taylor φπ (--nk)"),
                 OptionSpec(name="phi-y", type=Float64, default=0.125, description="NK Taylor φy (--nk)"),
-                OptionSpec(name="rho-i", type=Float64, default=0.0, description="NK interest smoothing (--nk)"),
+                OptionSpec(name="rho-i", type=Float64, default=0.0, description="NK interest smoothing in [0,1) (--nk)"),
                 OptionSpec(name="sigma-i", type=Float64, default=0.0, description="NK monetary shock scale (--nk)"),
                 OptionSpec(name="omega", type=Float64, default=0.0, description="NK indexation ω in [0,1] (--nk)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -1093,7 +1092,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="kappa", type=Float64, default=0.1, description="NK Phillips slope (--nk)"),
                 OptionSpec(name="phi-pi", type=Float64, default=1.5, description="NK Taylor φπ (--nk)"),
                 OptionSpec(name="phi-y", type=Float64, default=0.125, description="NK Taylor φy (--nk)"),
-                OptionSpec(name="rho-i", type=Float64, default=0.0, description="NK interest smoothing (--nk)"),
+                OptionSpec(name="rho-i", type=Float64, default=0.0, description="NK interest smoothing in [0,1) (--nk)"),
                 OptionSpec(name="sigma-i", type=Float64, default=0.0, description="NK monetary shock scale (--nk)"),
                 OptionSpec(name="omega", type=Float64, default=0.0, description="NK indexation ω in [0,1] (--nk)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -1112,9 +1111,9 @@ function dsge_specs()::Vector{CommandSpec}
         # ── DCEGM (MEMs 0.9.0) ──
         CommandSpec(
             path=["dsge", "dcegm", "solve"],
-            summary="Discrete-continuous EGM household (builtin retirement or .jl DCEGMProblem)",
+            summary="Discrete-continuous EGM household (builtin retirement or .jl DCEGMProblem/DCEGMSystem)",
             args=[ArgSpec(name="model", type=String, required=true, default=nothing,
-                          description="Builtin `retirement` or .jl DCEGMProblem / DCEGMSystem spec")],
+                          description="Builtin `retirement` or .jl DCEGMProblem / DCEGMSystem spec (household flags apply to the builtin only; ignored for .jl specs)")],
             options=[
                 OptionSpec(name="n-periods", type=Int, default=20, description="Finite horizon (0 = infinite)"),
                 OptionSpec(name="beta", type=Float64, default=0.98, description="Discount factor in (0,1)"),
@@ -1130,9 +1129,9 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="credit-limit", type=Float64, default=0.0, description="Borrowing limit"),
                 OptionSpec(name="curvature", type=Float64, default=2.0, description="Grid curvature (≥ 1)"),
                 OptionSpec(name="max-iter", type=Int, default=500, description="Infinite-horizon iteration cap"),
-                OptionSpec(name="tol", type=Float64, default=1e-8, description="Policy tolerance"),
-                OptionSpec(name="period", type=Int, default=1, description="Stored period for the policy table"),
-                OptionSpec(name="income", type=Int, default=1, description="Income-state index for the policy table"),
+                OptionSpec(name="tol", type=Float64, default=1e-8, description="Sup-norm policy tolerance (infinite horizon)"),
+                OptionSpec(name="period", type=Int, default=1, description="Stored period for the policy table (clamped to the solved range)"),
+                OptionSpec(name="income", type=Int, default=1, description="Income-state index for the policy table (clamped to the solved range)"),
                 OptionSpec(name="view", type=String, default="policy", choices=["policy", "threshold"],
                            description="plot_result view: policy|threshold"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -1142,7 +1141,7 @@ function dsge_specs()::Vector{CommandSpec}
             ],
             flags=[FlagSpec(name="plot", description="Open interactive plot in browser (DCEGMSolution)")],
             tables=[
-                TableSpec(name=:dcegm_solve_diagnostics, description="Convergence, iterations, kinks and sup-norm policy change"),
+                TableSpec(name=:dcegm_solve_diagnostics, description="Convergence, iterations, sup-norm policy change and solved dimensions"),
                 TableSpec(name=:dcegm_policy, description="Long policy: one row per option knot at --period/--income"),
                 TableSpec(name=:dcegm_kinks, description="Switching-threshold counts per period × option × income"),
             ],
@@ -1153,7 +1152,7 @@ function dsge_specs()::Vector{CommandSpec}
             path=["dsge", "dcegm", "steady-state"],
             summary="DCEGM capital-market equilibrium (dcegm_steady_state)",
             args=[ArgSpec(name="model", type=String, required=true, default=nothing,
-                          description="Builtin `retirement` or .jl DCEGMProblem / DCEGMSystem spec")],
+                          description="Builtin `retirement` or .jl DCEGMProblem / DCEGMSystem spec (household flags apply to the builtin only; ignored for .jl specs)")],
             options=[
                 OptionSpec(name="n-periods", type=Int, default=20, description="Finite horizon (0 = infinite)"),
                 OptionSpec(name="beta", type=Float64, default=0.98, description="Discount factor in (0,1)"),
@@ -1161,12 +1160,12 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="wage", type=Float64, default=20.0, description="Work-option wage"),
                 OptionSpec(name="disutility", type=Float64, default=1.0, description="Work disutility"),
                 OptionSpec(name="sigma", type=Float64, default=0.0, description="Income-shock s.d."),
-                OptionSpec(name="n-shocks", type=Int, default=1, description="Income quadrature nodes"),
+                OptionSpec(name="n-shocks", type=Int, default=1, description="Income quadrature nodes (≥ 1)"),
                 OptionSpec(name="a-max", type=Float64, default=50.0, description="Asset grid upper bound"),
                 OptionSpec(name="n-a", type=Int, default=200, description="Asset grid points"),
                 OptionSpec(name="pension", type=Float64, default=0.0, description="Retirement income"),
                 OptionSpec(name="credit-limit", type=Float64, default=0.0, description="Borrowing limit"),
-                OptionSpec(name="curvature", type=Float64, default=2.0, description="Grid curvature"),
+                OptionSpec(name="curvature", type=Float64, default=2.0, description="Grid curvature (≥ 1)"),
                 OptionSpec(name="alpha", type=Float64, default=0.36, description="Firm capital share"),
                 OptionSpec(name="delta", type=Float64, default=0.08, description="Firm depreciation"),
                 OptionSpec(name="z", type=Float64, default=1.0, description="Firm TFP"),
@@ -1192,7 +1191,7 @@ function dsge_specs()::Vector{CommandSpec}
             path=["dsge", "dcegm", "irf"],
             summary="MIT IRF of a DCEGM equilibrium (needs GE, not DCEGMSolution)",
             args=[ArgSpec(name="model", type=String, required=true, default=nothing,
-                          description="Builtin `retirement` or .jl DCEGMProblem / DCEGMSystem spec")],
+                          description="Builtin `retirement` or .jl DCEGMProblem / DCEGMSystem spec (household flags apply to the builtin only; ignored for .jl specs)")],
             options=[
                 OptionSpec(name="n-periods", type=Int, default=20, description="Finite horizon"),
                 OptionSpec(name="beta", type=Float64, default=0.98, description="Discount factor"),
@@ -1219,7 +1218,7 @@ function dsge_specs()::Vector{CommandSpec}
             path=["dsge", "dcegm", "fevd"],
             summary="FEVD of a DCEGM equilibrium (single TFP shock)",
             args=[ArgSpec(name="model", type=String, required=true, default=nothing,
-                          description="Builtin `retirement` or .jl DCEGMProblem / DCEGMSystem spec")],
+                          description="Builtin `retirement` or .jl DCEGMProblem / DCEGMSystem spec (household flags apply to the builtin only; ignored for .jl specs)")],
             options=[
                 OptionSpec(name="n-periods", type=Int, default=20, description="Finite horizon"),
                 OptionSpec(name="beta", type=Float64, default=0.98, description="Discount factor"),
@@ -1246,7 +1245,7 @@ function dsge_specs()::Vector{CommandSpec}
             path=["dsge", "dcegm", "simulate"],
             summary="MIT simulation of a DCEGM equilibrium (levels)",
             args=[ArgSpec(name="model", type=String, required=true, default=nothing,
-                          description="Builtin `retirement` or .jl DCEGMProblem / DCEGMSystem spec")],
+                          description="Builtin `retirement` or .jl DCEGMProblem / DCEGMSystem spec (household flags apply to the builtin only; ignored for .jl specs)")],
             options=[
                 OptionSpec(name="n-periods", type=Int, default=20, description="Finite horizon"),
                 OptionSpec(name="beta", type=Float64, default=0.98, description="Discount factor"),
@@ -1272,7 +1271,7 @@ function dsge_specs()::Vector{CommandSpec}
             path=["dsge", "dcegm", "transition"],
             summary="MIT TFP path of a DCEGM equilibrium",
             args=[ArgSpec(name="model", type=String, required=true, default=nothing,
-                          description="Builtin `retirement` or .jl DCEGMProblem / DCEGMSystem spec")],
+                          description="Builtin `retirement` or .jl DCEGMProblem / DCEGMSystem spec (household flags apply to the builtin only; ignored for .jl specs)")],
             options=[
                 OptionSpec(name="z-path", type=String, default="", description="CSV of TFP path (length ≥ 2, all positive; required)"),
                 OptionSpec(name="n-periods", type=Int, default=20, description="Finite horizon"),
@@ -1528,10 +1527,10 @@ function dsge_specs()::Vector{CommandSpec}
             summary="Bewley-bank partial equilibrium at given (R, rᵏ)",
             args=ArgSpec[],
             options=[
-                OptionSpec(name="n-n", type=Int, default=25, description="Net-worth grid points"),
+                OptionSpec(name="n-n", type=Int, default=25, description="Net-worth grid points (≥ 3)"),
                 OptionSpec(name="n-xi", type=Int, default=3, description="Idiosyncratic ξ states"),
                 OptionSpec(name="n-min", type=Float64, default=0.05, description="Net-worth grid lower bound (> 0)"),
-                OptionSpec(name="n-max", type=Float64, default=8.0, description="Net-worth grid upper bound"),
+                OptionSpec(name="n-max", type=Float64, default=8.0, description="Net-worth grid upper bound (must exceed --n-min)"),
                 OptionSpec(name="beta", type=Float64, default=0.99, description="Discount factor in (0,1)"),
                 OptionSpec(name="sigma", type=Float64, default=0.95, description="Survival probability in (0,1]"),
                 OptionSpec(name="lambda", type=Float64, default=0.20, description="Diversion parameter (> 0)"),
@@ -1560,10 +1559,10 @@ function dsge_specs()::Vector{CommandSpec}
             summary="Bewley-bank credit-market stationary equilibrium",
             args=ArgSpec[],
             options=[
-                OptionSpec(name="n-n", type=Int, default=25, description="Net-worth grid points"),
+                OptionSpec(name="n-n", type=Int, default=25, description="Net-worth grid points (≥ 3)"),
                 OptionSpec(name="n-xi", type=Int, default=3, description="Idiosyncratic ξ states"),
                 OptionSpec(name="n-min", type=Float64, default=0.05, description="Net-worth grid lower bound"),
-                OptionSpec(name="n-max", type=Float64, default=8.0, description="Net-worth grid upper bound"),
+                OptionSpec(name="n-max", type=Float64, default=8.0, description="Net-worth grid upper bound (must exceed --n-min)"),
                 OptionSpec(name="beta", type=Float64, default=0.99, description="Discount factor"),
                 OptionSpec(name="sigma", type=Float64, default=0.95, description="Survival probability"),
                 OptionSpec(name="lambda", type=Float64, default=0.20, description="Diversion parameter"),
@@ -1592,7 +1591,7 @@ function dsge_specs()::Vector{CommandSpec}
             args=ArgSpec[],
             options=[
                 OptionSpec(name="z-path", type=String, default="", description="CSV of TFP path (length ≥ 2, all positive; required)"),
-                OptionSpec(name="n-n", type=Int, default=25, description="Net-worth grid points"),
+                OptionSpec(name="n-n", type=Int, default=25, description="Net-worth grid points (≥ 3)"),
                 OptionSpec(name="n-xi", type=Int, default=3, description="Idiosyncratic ξ states"),
                 OptionSpec(name="z", type=Float64, default=0.25, description="Steady-state TFP"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -1615,7 +1614,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="horizon", type=Int, default=20, description="IRF horizon (≥ 2)"),
                 OptionSpec(name="shock-size", type=Float64, default=0.01, description="TFP impulse size"),
                 OptionSpec(name="persist", type=Float64, default=0.5, description="AR(1) decay (default 0.5)"),
-                OptionSpec(name="n-n", type=Int, default=25, description="Net-worth grid points"),
+                OptionSpec(name="n-n", type=Int, default=25, description="Net-worth grid points (≥ 3)"),
                 OptionSpec(name="n-xi", type=Int, default=3, description="Idiosyncratic ξ states"),
                 OptionSpec(name="z", type=Float64, default=0.25, description="Steady-state TFP"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),

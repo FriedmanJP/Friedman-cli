@@ -43,6 +43,48 @@ permissive than real converts a production crash into a green suite).
   TIDY-14) and the vol `variance|volatility` table (sqrt transform, different
   data — deliberate C051 exception kept).
 
+## [Unreleased] — --help description accuracy (#227)
+
+Every `--help` sentence audited against handler bodies and MEMs 1.0.0
+(18-slice read-only swarm) and rewritten where non-factual. No leaves
+added or removed (477 steady); no estimator logic changed — three small
+CLI-side guard touches only (see below).
+
+- Placeholder summaries replaced everywhere they described the argument
+  instead of the command (`summary="Path to CSV data file"` on ~300
+  `estimate`/`predict`/`residuals`/`forecast`/`did`/`policy`/`data`/`test`
+  leaves; `"Path to DSGE model file"` on all 25 `dsge`/`dsge bayes`
+  leaves). Each summary now states what the command computes.
+- Wrong enums corrected to verified upstream sets: `sdfm --kernel`
+  (quadratic_spectral never worked — now bartlett|parzen|tukey),
+  `adf --trend`, `za --trend`, `lm-unitroot --regression`,
+  `adf-2break --model`, `gregory-hansen --model` (C/T|C/S never parsed —
+  now C|CT|CS), `engle-granger --lags` (tstat silently ran BIC),
+  `llc/ips --criterion` (tstat silently ran HQIC), `ips --deterministic`,
+  choice/panel cov-types and `pprobit --method`, `ml --distribution`,
+  figarch/fiegarch `--dist` (normal-only), `spectral`/`forecast` siblings.
+  `choices=` added so typos fail at parse (exit 2), not downstream.
+- Silently-ignored knobs disclosed with plain scope notes
+  (`(standard/iv only)`, `(GMM only; ignored with --method feols)`,
+  `(arima method only)`, `(one-asset only; ignored with --two-asset)`,
+  `(builtin retirement only; ignored for .jl specs)`,
+  `(accepted but has no effect: …)`); ignored-branch tables reworded
+  (arias/uhlig wide tables, `policy history` bands, `effects`
+  dropped-draw counts, `bf elasticities` Domar share, `network-stats`
+  APL, `io load` balance). Phantom `show show_summary` table declaration
+  removed (never emitted). `serve` summary/flag de-overclaimed.
+- Implemented (behavior): `test coint pedroni` + `test coint westerlund`
+  `--trend none` (upstream accepts `:none`; guards relaxed; help kept
+  `none|constant|trend`). `test coint engle-granger --lags tstat` now a
+  typed usage error instead of silent BIC. `forecast … figarch/fiegarch`
+  and `nowcast news` reject unsupported `--dist`/`--method bvar` at
+  parse. `dsge bayes prior-predictive` effective `--n-draws` 10000 → 500
+  (handler intent; spec default was dead code shadowing it).
+- House style for help text (new managed skill `friedman-help-text`):
+  summaries describe the command, never the argument; plain user
+  language — no `upstream`/`reserved`/`kv`/`envelope`/issue-pointer
+  jargon; every advertised value works; ignored knobs say so.
+
 ## [1.0.0] — 2026-09-20 — v1.0 freeze on MEMs 1.0.0 + Julia 1.13 (v1.0.0 program)
 
 First major. 477 leaves / 21 top-level. MEMs pin

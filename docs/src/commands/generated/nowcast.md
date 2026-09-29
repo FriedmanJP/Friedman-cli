@@ -97,8 +97,8 @@ Forecast from a nowcasting model
 | `--monthly-vars` | — | `Int64` | `0` | — | Number of monthly variables |
 | `--quarterly-vars` | — | `Int64` | `0` | — | Number of quarterly variables |
 | `--method` | — | `String` | `dfm` | `dfm`, `bvar`, `bridge` | dfm\|bvar\|bridge |
-| `--factors` | `-r` | `Int64` | `2` | — | Number of factors (DFM) |
-| `--lags` | `-p` | `Int64` | `1` | — | Factor VAR lags |
+| `--factors` | `-r` | `Int64` | `2` | — | Number of factors (DFM only; ignored by bvar/bridge) |
+| `--lags` | `-p` | `Int64` | `1` | — | VAR lags: DFM factor dynamics or BVAR order (ignored by bridge) |
 | `--horizons` | — | `Int64` | `4` | — | Forecast horizon |
 | `--target-var` | — | `Int64` | `0` | — | Target variable index (0=last) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
@@ -123,9 +123,9 @@ Nowcast news decomposition (Banbura & Modugno 2014)
 | `--data-old` | — | `String` | `""` | — | Path to old vintage CSV |
 | `--monthly-vars` | — | `Int64` | `0` | — | Number of monthly variables |
 | `--quarterly-vars` | — | `Int64` | `0` | — | Number of quarterly variables |
-| `--method` | — | `String` | `dfm` | `dfm`, `bvar` | dfm\|bvar |
-| `--factors` | `-r` | `Int64` | `2` | — | Number of factors (DFM) |
-| `--lags` | `-p` | `Int64` | `1` | — | Factor VAR lags |
+| `--method` | — | `String` | `dfm` | `dfm` | News engine (BVAR news is not available) |
+| `--factors` | `-r` | `Int64` | `2` | — | Number of factors (DFM only; ignored by bvar/bridge) |
+| `--lags` | `-p` | `Int64` | `1` | — | VAR lags: DFM factor dynamics or BVAR order (ignored by bridge) |
 | `--target-period` | — | `Int64` | `0` | — | Target period (0=last) |
 | `--target-var` | — | `Int64` | `0` | — | Target variable index (0=last) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |

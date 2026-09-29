@@ -84,9 +84,9 @@ function nowcast_specs()::Vector{CommandSpec}
                 OptionSpec(name="data-old", type=String, default="", description="Path to old vintage CSV"),
                 OptionSpec(name="monthly-vars", type=Int, default=0, description="Number of monthly variables"),
                 OptionSpec(name="quarterly-vars", type=Int, default=0, description="Number of quarterly variables"),
-                OptionSpec(name="method", type=String, default="dfm", choices=["dfm", "bvar"], description="dfm|bvar"),
-                OptionSpec(name="factors", short="r", type=Int, default=2, description="Number of factors (DFM)"),
-                OptionSpec(name="lags", short="p", type=Int, default=1, description="Factor VAR lags"),
+                OptionSpec(name="method", type=String, default="dfm", choices=["dfm"], description="News engine (BVAR news is not available)"),
+                OptionSpec(name="factors", short="r", type=Int, default=2, description="Number of factors (DFM only; ignored by bvar/bridge)"),
+                OptionSpec(name="lags", short="p", type=Int, default=1, description="VAR lags: DFM factor dynamics or BVAR order (ignored by bridge)"),
                 OptionSpec(name="target-period", type=Int, default=0, description="Target period (0=last)"),
                 OptionSpec(name="target-var", type=Int, default=0, description="Target variable index (0=last)"),
                 out_fmt..., PLOT_OPTIONS...,
@@ -100,8 +100,8 @@ function nowcast_specs()::Vector{CommandSpec}
                 OptionSpec(name="monthly-vars", type=Int, default=0, description="Number of monthly variables"),
                 OptionSpec(name="quarterly-vars", type=Int, default=0, description="Number of quarterly variables"),
                 OptionSpec(name="method", type=String, default="dfm", choices=["dfm", "bvar", "bridge"], description="dfm|bvar|bridge"),
-                OptionSpec(name="factors", short="r", type=Int, default=2, description="Number of factors (DFM)"),
-                OptionSpec(name="lags", short="p", type=Int, default=1, description="Factor VAR lags"),
+                OptionSpec(name="factors", short="r", type=Int, default=2, description="Number of factors (DFM only; ignored by bvar/bridge)"),
+                OptionSpec(name="lags", short="p", type=Int, default=1, description="VAR lags: DFM factor dynamics or BVAR order (ignored by bridge)"),
                 OptionSpec(name="horizons", type=Int, default=4, description="Forecast horizon"),
                 OptionSpec(name="target-var", type=Int, default=0, description="Target variable index (0=last)"),
                 out_fmt..., PLOT_OPTIONS...,
@@ -116,7 +116,7 @@ function register_nowcast_commands!()
     specs = with_default_csv_kinds(with_data_kinds(nowcast_specs(), [:timeseries, :csv]))
     specs = register!(specs)
     return build_node("nowcast", specs;
-        description="Nowcasting: DFM, BVAR, bridge equations, news decomposition")
+        description="Nowcasting: DFM, BVAR, bridge equations, news decomposition and forecast")
 end
 
 # ── Helpers ──────────────────────────────────────────────

@@ -223,11 +223,11 @@ function serve_specs()::Vector{CommandSpec}
     return [
         CommandSpec(
             path=["serve"],
-            summary="Serve every command as a Model Context Protocol tool over stdio (--mcp)",
+            summary="Serve every other command as a Model Context Protocol tool over stdio (--mcp)",
             args=ArgSpec[],
             options=OptionSpec[],
             flags=[FlagSpec(name="mcp",
-                            description="MCP server: JSON-RPC 2.0 on stdio; tools/list mirrors the registry, tools/call returns the JSON envelope verbatim")],
+                            description="MCP server: JSON-RPC 2.0 on stdio; tools/list mirrors the commands, tools/call returns each command's plain output (JSON for commands that produce JSON)")],
             # No envelope tables: stdout is the JSON-RPC channel (gate-exempt).
             tables=TableSpec[],
             category="serve",

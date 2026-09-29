@@ -1641,7 +1641,7 @@ function _opts_for_kind(kind::Symbol, verb::Symbol)
     elseif kind === :factor_gdfm
         return [
             OptionSpec(name="nfactors", type=Int, default=nothing,
-                       description="Number of static factors (unused when --dynamic-rank set)"),
+                       description="Number of static factors (accepted but has no effect: the number of factors is chosen automatically)"),
             OptionSpec(name="dynamic-rank", short="q", type=Int, default=nothing,
                        description="Dynamic rank (default: auto)"),
             OUTPUT_OPTIONS...,
@@ -1653,7 +1653,7 @@ function _opts_for_kind(kind::Symbol, verb::Symbol)
     elseif kind === :ologit || kind === :oprobit
         return [REG_OPTIONS...; (verb === :predict ? _ORDERED_EXTRA : _CHOICE_RESID_EXTRA)]
     elseif kind === :mlogit
-        return [REG_OPTIONS...; (verb === :predict ? _MLOGIT_EXTRA : _CHOICE_RESID_EXTRA)]
+        return [with_default(REG_OPTIONS, "cov-type", "ols")...; (verb === :predict ? _MLOGIT_EXTRA : _CHOICE_RESID_EXTRA)]
     elseif kind === :bvar
         return [
             OptionSpec(name="lags", short="p", type=Int, default=4, description="Lag order"),
@@ -1711,7 +1711,7 @@ function predict_specs()::Vector{CommandSpec}
         # AbstractARIMAModel StatsAPI block, so no SARIMA-specific method is needed.
         CommandSpec(
             path=["predict", "sarima"],
-            summary="Path to CSV data file",
+            summary="In-sample SARIMA fitted values",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[SARIMA_OPTIONS...,
                 OUTPUT_OPTIONS...],
@@ -1726,7 +1726,7 @@ function predict_specs()::Vector{CommandSpec}
         # dispatch covering PoissonModel/NegBinModel on the 0.7.2 tag.
         CommandSpec(
             path=["predict", "poisson"],
-            summary="Path to CSV data file",
+            summary="Fitted Poisson conditional means exp(x'b + offset)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[COUNT_COMMON_OPTIONS...,
                 OptionSpec(name="cov-type", type=String, default="robust",
@@ -1743,7 +1743,7 @@ function predict_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["predict", "nbreg"],
-            summary="Path to CSV data file",
+            summary="Fitted negative-binomial conditional means exp(x'b + offset)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[COUNT_COMMON_OPTIONS...,
                 OptionSpec(name="maxiter", type=Int, default=1000, description="Maximum iterations (≥ 1)"),
@@ -1761,7 +1761,7 @@ function predict_specs()::Vector{CommandSpec}
         # defaults as the residuals leaves — ms-ar FALSE, ms TRUE. Do not unify them.
         CommandSpec(
             path=["predict", "ms-ar"],
-            summary="Path to CSV data file",
+            summary="Regime-weighted MS-AR in-sample fitted values (--probs smoothed|filtered)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -1779,7 +1779,7 @@ function predict_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["predict", "ms"],
-            summary="Path to CSV data file",
+            summary="Regime-weighted Markov-switching regression fitted values (--probs smoothed|filtered)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
@@ -1798,7 +1798,7 @@ function predict_specs()::Vector{CommandSpec}
         # #71: state-space state paths / innovations, read from the model's fields.
         CommandSpec(
             path=["predict", "statespace"],
-            summary="Path to CSV data file",
+            summary="State-space filtered/smoothed state paths (--state filtered|smoothed|both)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -1822,7 +1822,7 @@ function predict_specs()::Vector{CommandSpec}
         # without it the model cannot be refit.
         CommandSpec(
             path=["predict", "sur"],
-            summary="Path to CSV data file",
+            summary="Per-equation SUR in-sample fitted values (equations from --config)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="config", type=String, default="", description="TOML with [[equations]] blocks (required)"),
@@ -1837,7 +1837,7 @@ function predict_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["predict", "3sls"],
-            summary="Path to CSV data file",
+            summary="Per-equation 3SLS in-sample fitted values (equations and instruments from --config)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="config", type=String, default="", description="TOML with [[equations]] and instruments (required)"),
@@ -1854,7 +1854,7 @@ function predict_specs()::Vector{CommandSpec}
         # FITTED_MODEL_KINDS supplies only --column, which would silently pin p=q=0.
         CommandSpec(
             path=["predict", "arfima"],
-            summary="Path to CSV data file",
+            summary="In-sample ARFIMA fitted values (fractional-d estimator --method css|mle)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -1873,7 +1873,7 @@ function predict_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["predict", "igarch"],
-            summary="Path to CSV data file",
+            summary="IGARCH in-sample conditional variance and volatility",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -1889,7 +1889,7 @@ function predict_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["predict", "cgarch"],
-            summary="Path to CSV data file",
+            summary="Component-GARCH in-sample conditional variance and volatility",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -1903,7 +1903,7 @@ function predict_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["predict", "aparch"],
-            summary="Path to CSV data file",
+            summary="APARCH in-sample conditional variance and volatility",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -1921,7 +1921,7 @@ function predict_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["predict", "figarch"],
-            summary="Path to CSV data file",
+            summary="FIGARCH in-sample conditional variance and volatility",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -1929,7 +1929,7 @@ function predict_specs()::Vector{CommandSpec}
                 OptionSpec(name="q", type=Int, default=1, description="ARCH order q"),
                 OptionSpec(name="d0", type=Float64, default=0.4, description="Initial fractional differencing parameter"),
                 OptionSpec(name="truncation", type=Int, default=1000, description="Truncation lag for the ARCH(inf) expansion"),
-                OptionSpec(name="dist", type=String, default="normal", description="Innovation distribution"),
+                OptionSpec(name="dist", type=String, default="normal", description="Innovation distribution (Gaussian QMLE)", choices=["normal"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -1940,7 +1940,7 @@ function predict_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["predict", "fiegarch"],
-            summary="Path to CSV data file",
+            summary="FIEGARCH in-sample conditional variance and volatility",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -1948,7 +1948,7 @@ function predict_specs()::Vector{CommandSpec}
                 OptionSpec(name="q", type=Int, default=1, description="ARCH order q"),
                 OptionSpec(name="d0", type=Float64, default=0.4, description="Initial fractional differencing parameter"),
                 OptionSpec(name="truncation", type=Int, default=1000, description="Truncation lag for the ARCH(inf) expansion"),
-                OptionSpec(name="dist", type=String, default="normal", description="Innovation distribution"),
+                OptionSpec(name="dist", type=String, default="normal", description="Innovation distribution (Gaussian QMLE)", choices=["normal"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -1959,7 +1959,7 @@ function predict_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["predict", "garch-midas"],
-            summary="Path to CSV data file",
+            summary="GARCH-MIDAS in-sample conditional variance and volatility",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -1992,7 +1992,7 @@ function residuals_specs()::Vector{CommandSpec}
         # CI, never the residuals); the refit passes linearity=false to skip that bootstrap.
         CommandSpec(
             path=["residuals", "setar"],
-            summary="Path to CSV data file",
+            summary="Model residuals (setar, effective-sample errors)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -2009,7 +2009,7 @@ function residuals_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["residuals", "star"],
-            summary="Path to CSV data file",
+            summary="Model residuals (star, effective-sample errors)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -2029,7 +2029,7 @@ function residuals_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["residuals", "ms-ar"],
-            summary="Path to CSV data file",
+            summary="Model residuals (ms-ar, smoothed-probability weighted)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -2048,7 +2048,7 @@ function residuals_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["residuals", "ms"],
-            summary="Path to CSV data file",
+            summary="Model residuals (ms, smoothed-probability weighted)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
@@ -2066,7 +2066,7 @@ function residuals_specs()::Vector{CommandSpec}
         # W6/#108: SARIMA residuals (abstract AbstractARIMAModel dispatch).
         CommandSpec(
             path=["residuals", "sarima"],
-            summary="Path to CSV data file",
+            summary="Model residuals (sarima)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[SARIMA_OPTIONS...,
                 OUTPUT_OPTIONS...],
@@ -2080,7 +2080,7 @@ function residuals_specs()::Vector{CommandSpec}
         # handler cannot honour fails on every call — #85).
         CommandSpec(
             path=["residuals", "poisson"],
-            summary="Path to CSV data file",
+            summary="Model residuals (poisson)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[COUNT_COMMON_OPTIONS...,
                 OptionSpec(name="cov-type", type=String, default="robust",
@@ -2097,7 +2097,7 @@ function residuals_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["residuals", "nbreg"],
-            summary="Path to CSV data file",
+            summary="Model residuals (negative-binomial)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[COUNT_COMMON_OPTIONS...,
                 OptionSpec(name="maxiter", type=Int, default=1000, description="Maximum iterations (≥ 1)"),
@@ -2111,7 +2111,7 @@ function residuals_specs()::Vector{CommandSpec}
         # #71: state-space state paths / innovations, read from the model's fields.
         CommandSpec(
             path=["residuals", "statespace"],
-            summary="Path to CSV data file",
+            summary="State-space innovations (raw or standardized one-step prediction errors)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -2134,7 +2134,7 @@ function residuals_specs()::Vector{CommandSpec}
         # without it the model cannot be refit.
         CommandSpec(
             path=["residuals", "sur"],
-            summary="Path to CSV data file",
+            summary="Model residuals (sur, long per-equation)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="config", type=String, default="", description="TOML with [[equations]] blocks (required)"),
@@ -2149,7 +2149,7 @@ function residuals_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["residuals", "3sls"],
-            summary="Path to CSV data file",
+            summary="Model residuals (3sls, long per-equation)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="config", type=String, default="", description="TOML with [[equations]] and instruments (required)"),
@@ -2166,7 +2166,7 @@ function residuals_specs()::Vector{CommandSpec}
         # FITTED_MODEL_KINDS supplies only --column, which would silently pin p=q=0.
         CommandSpec(
             path=["residuals", "arfima"],
-            summary="Path to CSV data file",
+            summary="Model residuals (arfima)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -2185,7 +2185,7 @@ function residuals_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["residuals", "igarch"],
-            summary="Path to CSV data file",
+            summary="Model residuals (igarch, standardized)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -2201,7 +2201,7 @@ function residuals_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["residuals", "cgarch"],
-            summary="Path to CSV data file",
+            summary="Model residuals (cgarch, standardized)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -2215,7 +2215,7 @@ function residuals_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["residuals", "aparch"],
-            summary="Path to CSV data file",
+            summary="Model residuals (aparch, standardized)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -2233,7 +2233,7 @@ function residuals_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["residuals", "figarch"],
-            summary="Path to CSV data file",
+            summary="Model residuals (figarch, standardized)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -2241,7 +2241,7 @@ function residuals_specs()::Vector{CommandSpec}
                 OptionSpec(name="q", type=Int, default=1, description="ARCH order q"),
                 OptionSpec(name="d0", type=Float64, default=0.4, description="Initial fractional differencing parameter"),
                 OptionSpec(name="truncation", type=Int, default=1000, description="Truncation lag for the ARCH(inf) expansion"),
-                OptionSpec(name="dist", type=String, default="normal", description="Innovation distribution"),
+                OptionSpec(name="dist", type=String, default="normal", description="Innovation distribution (Gaussian QMLE)", choices=["normal"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -2252,7 +2252,7 @@ function residuals_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["residuals", "fiegarch"],
-            summary="Path to CSV data file",
+            summary="Model residuals (fiegarch, standardized)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -2260,7 +2260,7 @@ function residuals_specs()::Vector{CommandSpec}
                 OptionSpec(name="q", type=Int, default=1, description="ARCH order q"),
                 OptionSpec(name="d0", type=Float64, default=0.4, description="Initial fractional differencing parameter"),
                 OptionSpec(name="truncation", type=Int, default=1000, description="Truncation lag for the ARCH(inf) expansion"),
-                OptionSpec(name="dist", type=String, default="normal", description="Innovation distribution"),
+                OptionSpec(name="dist", type=String, default="normal", description="Innovation distribution (Gaussian QMLE)", choices=["normal"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -2271,7 +2271,7 @@ function residuals_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["residuals", "garch-midas"],
-            summary="Path to CSV data file",
+            summary="Model residuals (garch-midas, standardized)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),

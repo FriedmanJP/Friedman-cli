@@ -266,7 +266,7 @@ const COUNT_IRR_FLAG = FlagSpec(name="irr",
     description="Also report incidence-rate ratios exp(beta) with delta-method SEs")
 
 const PREG_OPTIONS = [
-    OptionSpec(name="dep", type=String, default="", description="Dependent variable column name"),
+    OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (required)"),
     OptionSpec(name="indep", type=String, default="", description="Independent variables (comma-separated)"),
     OptionSpec(name="id-col", type=String, default="", description="Panel group ID column (default: first column)"),
     OptionSpec(name="time-col", type=String, default="", description="Panel time column (default: second column)"),
@@ -294,7 +294,7 @@ const BAYES_OPTIONS = [
     OptionSpec(name="burnin", type=Int, default=5000, description="Burn-in draws"),
     OptionSpec(name="ess-target", type=Float64, default=0.5, description="ESS target for resampling"),
     OptionSpec(name="observables", type=String, default="", description="Observable variable names (comma-separated)"),
-    OptionSpec(name="solver", type=String, default="gensys", description="gensys|klein|perturbation"),
+    OptionSpec(name="solver", type=String, default="gensys", description="gensys|klein|perturbation", choices=["gensys", "klein", "perturbation"]),
     OptionSpec(name="order", type=Int, default=1, description="Perturbation order (1, 2, or 3)"),
     OptionSpec(name="constraint-solver", type=String, default="",
                description="Constraint solver: nonlinearsolve|optim|nlopt|ipopt|path"),

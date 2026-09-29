@@ -4,5 +4,5 @@
 function register_hadsge_commands!()
     ha = register!(filter(s -> s.path[1] == "hadsge", _prepared_dsge_specs()))
     return build_node("hadsge", ha;
-        description="Heterogeneous-agent DSGE (one HouseholdSystem): SSJ, Reiter, Krusell–Smith")
+        description="Heterogeneous-agent DSGE (one HouseholdSystem): SSJ, Reiter, Krusell–Smith solution, simulation, IRFs, decomposition, estimation, accuracy")
 end
