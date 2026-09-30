@@ -2848,7 +2848,7 @@ function _estimate_gmm(; data::String, config::String="",
                         output::String="", format::String="table")
     isempty(config) && error("GMM requires a --config=<file.toml> specifying moment conditions and instruments")
 
-    cfg = load_config(config)
+    cfg = _load_config_or_card(config, :gmm)
     gmm_cfg = get_gmm(cfg)
 
     weighting_map = Dict("identity" => :identity, "optimal" => :optimal,
@@ -3566,7 +3566,7 @@ function _estimate_smm(; data::String, config::String="",
         "data-generating `model` (ar1|arp|var1|iid_normal) and `theta0`. SMM matches " *
         "simulated moments to sample moments, so it needs a model to simulate."))
 
-    cfg = load_config(config)
+    cfg = _load_config_or_card(config, :smm)
     smm = get_smm(cfg)
     weighting = smm["weighting"]
     sim_ratio = smm["sim_ratio"]
@@ -4094,7 +4094,7 @@ function _sur_refit(data, config, iterate, no_intercept)
         "requires --config <toml> with [[equations]] blocks (each `dep` + `indep`)"))
     df = load_data(data)
     numcols = variable_names(df)
-    spec = get_system(load_config(config))
+    spec = get_system(_load_config_or_card(config, :system))
     intercept = !no_intercept
     eqs = [_system_eq_matrix(df, numcols, eq, intercept) for eq in spec["equations"]]
     eqnames = String[eq["name"] for eq in spec["equations"]]
@@ -4112,7 +4112,7 @@ function _3sls_refit(data, config, instruments, no_intercept)
         "requires --config <toml> with [[equations]] and instruments"))
     df = load_data(data)
     numcols = variable_names(df)
-    spec = get_system(load_config(config))
+    spec = get_system(_load_config_or_card(config, :system))
     intercept = !no_intercept
     imode = Symbol(instruments)
     eqs = [_system_eq_matrix(df, numcols, eq, intercept) for eq in spec["equations"]]
@@ -4178,7 +4178,7 @@ function _estimate_sur(; data::String, config::String="", iterate::Bool=false,
         "estimate sur requires --config <toml> with [[equations]] blocks (each `dep` + `indep`)"))
     df = load_data(data)
     numcols = variable_names(df)
-    spec = get_system(load_config(config))
+    spec = get_system(_load_config_or_card(config, :system))
     intercept = !no_intercept
     eqs = [_system_eq_matrix(df, numcols, eq, intercept) for eq in spec["equations"]]
     eqnames = String[eq["name"] for eq in spec["equations"]]
@@ -4212,7 +4212,7 @@ function _estimate_3sls(; data::String, config::String="", instruments::String="
         "estimate 3sls requires --config <toml> with [[equations]] and instruments"))
     df = load_data(data)
     numcols = variable_names(df)
-    spec = get_system(load_config(config))
+    spec = get_system(_load_config_or_card(config, :system))
     intercept = !no_intercept
     eqs = [_system_eq_matrix(df, numcols, eq, intercept) for eq in spec["equations"]]
     eqnames = String[eq["name"] for eq in spec["equations"]]

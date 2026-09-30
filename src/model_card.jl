@@ -726,3 +726,82 @@ function lowered_card(src::AbstractString, family::Symbol, path::AbstractString=
     family === :constraints && return lower_constraints(stanzas, path)
     throw(_card_error(path, 1, "no lowerer for the '$(family)' family"))
 end
+
+# ─── `--config` routing (W3 / #208) ────────────────────────────────────────────
+
+"""
+    _is_card_path(path) -> Bool
+
+True when a `--config` value names a model card rather than a TOML config.
+The extension decides: `.toml` is ALWAYS TOML, even when it fails to parse,
+so a broken TOML keeps its `config/malformed-toml` exit."""
+_is_card_path(path::AbstractString) =
+    !isempty(path) && !endswith(lowercase(String(path)), ".toml")
+
+"""True when an override directive was supplied at all, whether the caller
+passed it as one string, a vector, or `nothing`."""
+_override_given(x::AbstractString) = !isempty(strip(x))
+_override_given(x::Union{AbstractVector,Nothing}) = x !== nothing && !isempty(x)
+_override_given(x) = false
+
+"""
+    _card_config_path(path, set_vals, config_json) -> String
+
+The `--config` value a card leaf receives. `--set` and `--config-json` are
+merging directives for TOML files, so against a card they are a typed refusal
+(`config/invalid`), never a silent no-op."""
+function _card_config_path(path::AbstractString, set_vals, config_json)
+    if _override_given(set_vals) || _override_given(config_json)
+        throw(CliError("config/invalid",
+            "--set / --config-json apply to TOML config files; '$(basename(String(path)))' is a model card";
+            hint="put the overrides in the card, or pass a .toml file"))
+    end
+    return String(path)
+end
+
+"""True when `text` holds at least one line the card scanner reads as a stanza
+header. Used only to pick a better hint, never to decide the format."""
+_text_looks_like_card(text::AbstractString) =
+    any(l -> occursin(_CARD_HEADER, strip(l)), split(text, '\n'))
+
+"""True when `text` holds at least one TOML table header (`[section]`)."""
+_text_looks_like_toml(text::AbstractString) =
+    any(l -> occursin(r"^\s*\[[A-Za-z0-9_.\"'-]+\]\s*$", l), split(text, '\n'))
+
+_slurp_ignoring(path, ex) = try read(String(path), String) catch; "" end
+
+"""
+    _load_config_or_card(path, family) -> Dict
+
+Load a `--config` value: `.toml` goes to `load_config` exactly as before,
+anything else is a model card lowered to the same dict the `get_*` loaders
+return. A file saved under the wrong extension is still an error — the hint
+just names the format the user actually wrote."""
+function _load_config_or_card(path::AbstractString, family::Symbol)
+    p = String(path)
+    if !_is_card_path(p)
+        try
+            return load_config(p)
+        catch e
+            if e isa CliError && e.code == "config/malformed-toml" &&
+               _text_looks_like_card(_slurp_ignoring(p, e))
+                throw(CliError("config/malformed-toml", e.message;
+                    hint="'$(basename(p))' is written as a model card; rename it to .card, or write the config as TOML"))
+            end
+            rethrow()
+        end
+    end
+    q = _validate_input_path(_expanduser(p))
+    isfile(q) ||
+        throw(CliError("data/file-not-found", "file not found: $q"; hint="check the path"))
+    text = read(q, String)
+    try
+        return lowered_card(text, family, q)
+    catch e
+        if e isa CliError && e.code == "config/invalid" && _text_looks_like_toml(text)
+            throw(CliError("config/invalid", e.message;
+                hint="'$(basename(q))' is written as TOML; rename it to .toml, or use the card format"))
+        end
+        rethrow()
+    end
+end
