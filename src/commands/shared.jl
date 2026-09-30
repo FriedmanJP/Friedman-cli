@@ -2386,6 +2386,33 @@ function _card_preamble_header(lines, path::AbstractString)
 end
 
 """
+    _card_dsge_opens(lines) → indices of the column-0 `@dsge` blocks
+
+The block scan uses the SAME triple-quote parity as `_card_preamble_header`:
+within one pass a `\"\"\"…\"\"\"` region must not be prose for one decision and code
+for the other. A model file that documents its own usage with an example
+`@dsge` block puts a column-0 `@dsge` inside a docstring, and treating that as a
+block would silently solve the documented example instead of the model — exit
+0, different parameters, no warning. The probe also reads only the code part of
+a line, so `x = \"\"\"…@dsge` is not an open either.
+"""
+function _card_dsge_opens(lines)
+    idxs = Int[]
+    in_doc = false
+    for (i, line) in enumerate(lines)
+        nd = _card_doc_delims(line)
+        if in_doc
+            isodd(nd) && (in_doc = false)
+            continue
+        end
+        _card_is_dsge_open(_card_code_part(line)) && push!(idxs, i)
+        isodd(nd) && (in_doc = true)
+    end
+    return idxs
+end
+
+
+"""
     _split_card_and_model(path) → (card, model)
 
 Split a `.jl` model file into the optional model-card preamble and the
@@ -2412,7 +2439,14 @@ contract is that its LAST expression is the `ModelSpec`, so a card-bearing file 
 several blocks must resolve to the same one. Taking the first block instead would
 mean adding a card switched which economic model got solved — exit 0, wrong
 numbers, no warning. Blocks between the first and the last are dropped rather than
-executed, which cannot change the returned spec for the same reason.
+executed, which cannot change the returned spec for the same reason — and a stanza
+header found among them is rejected by name, not passed to the evaluator.
+
+The scan for column-0 `@dsge` (`_card_dsge_opens`) and the scan for a column-0
+stanza header (`_card_preamble_header`) share one triple-quote parity: within a
+single pass a `\"\"\"…\"\"\"` region is prose for both. A file that documents its own
+usage with an example `@dsge` block is ordinary, and treating that example as the
+model would solve the wrong parameters with exit 0.
 
 The slice never reaches EOF, so nothing after the block can hit `include_string`.
 """
@@ -2422,7 +2456,7 @@ function _split_card_and_model(path::AbstractString)
 
     src = read(String(path), String)
     lines = _card_lines(src)
-    opens = findall(_card_is_dsge_open, lines)
+    opens = _card_dsge_opens(lines)
     isempty(opens) && return (nothing, src)
     idx = last(opens)
 
@@ -2448,6 +2482,19 @@ function _split_card_and_model(path::AbstractString)
     stop = length(lines)
     for j in (idx+1):length(lines)
         _card_is_dsge_close(lines[j]) && (stop = j; break)
+    end
+    # The region between the FIRST and the LAST block is in neither `pre` (which
+    # stops at the first open) nor the tail (which starts after the last), so
+    # without this it is examined by nothing: a stanza written there would ride
+    # into `include_string` as a bare ParseError instead of the named-line
+    # message. Only when there really are two blocks — with one, this region is
+    # the model's own body.
+    if first(opens) < idx
+        mid = _card_preamble_header(lines[first(opens)+1:idx-1], path)
+        mid === nothing ||
+            throw(_card_error(path, first(opens) + mid[1],
+                "'$(mid[2])' appears below the @dsge block; a model card must be " *
+                "written above it, with its body lines indented"))
     end
     if stop < length(lines)
         tail = _card_preamble_header(lines[stop+1:end], path)

@@ -161,6 +161,55 @@ end
         @test s1 isa MacroEconometricModels.ModelSpec
         @test s2 isa MacroEconometricModels.ModelSpec
         @test s1.n_endog == s2.n_endog == 1
+
+        # A model file that documents its own usage with an example `@dsge`
+        # block is ordinary, and that example is a column-0 `@dsge` inside a
+        # docstring. The block scan shares the header probe's triple-quote
+        # parity, so `last` cannot land on the prose: pre-fix the docstring
+        # example won and rho = 0.99 was solved with exit 0.
+        f3 = tempname() * ".jl"
+        write(f3, "priors:\n  rho ~ beta(2, 2)\n" * two *
+                   "\n\"\"\"\nAn example model:\n\n@dsge begin\n" *
+                   "    parameters: rho = 0.99\nend\n\"\"\"\n" *
+                   "const EXAMPLE_NOTE = true\n")
+        card3, model3 = _split_card_and_model(f3)
+        @test occursin("priors:", card3)
+        @test occursin("rho = 0.9", model3)     # the real LAST block
+        @test !occursin("rho = 0.99", model3)   # never the docstring example
+        # And at the loader: the documented example must not become the spec.
+        s3 = _load_dsge_model(f3)
+        @test s3 isa MacroEconometricModels.ModelSpec
+        @test s3.n_endog == 1
+    end
+
+    @testset "a stanza BETWEEN two @dsge blocks is named, not executed" begin
+        # `pre` stops at the first block and the tail starts after the last, so
+        # without an explicit scan of the inter-block region this text is
+        # examined by nothing and reaches `include_string` as a bare
+        # ParseError — same exit class, but the line-naming message is lost.
+        blk(rho) = "@dsge begin\n    parameters: rho = $rho\n    endogenous: Y\n" *
+                   "    exogenous: e\n    Y[t] = rho * Y[t-1] + e[t]\nend\n"
+        for stanza in ("priors:\n  rho ~ beta(2, 2)\n",
+                       "gmm lp:\n  moments: y\n",
+                       "Model: notes\n")
+            f = tempname() * ".jl"
+            write(f, blk(0.5) * stanza * blk(0.9))
+            err = try; _split_card_and_model(f); nothing; catch e; e; end
+            @test err isa CliError && err.code == "config/invalid"
+            @test occursin("below the @dsge block", err.message)
+        end
+        # The same rule, at the loader, where the text used to be executed.
+        f = tempname() * ".jl"
+        write(f, blk(0.5) * "priors:\n  rho ~ beta(2, 2)\n" * blk(0.9))
+        err = try; _load_dsge_model(f); nothing; catch e; e; end
+        @test err isa CliError && err.code == "config/invalid"
+        @test occursin("below the @dsge block", err.message)
+        # The named line number is the real one in the file (line 7 = `priors:`).
+        @test occursin("line 7:", err.message)
+        # A well-formed file with two blocks and nothing between them is unaffected.
+        f2 = tempname() * ".jl"
+        write(f2, blk(0.5) * blk(0.9))
+        @test _split_card_and_model(f2)[1] === nothing
     end
 
     @testset "a stanza below the @dsge block is rejected and never executed" begin
