@@ -5300,7 +5300,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             priors:
               rho ~ beta(2, 2)
               sigma ~ inv_gamma(3, 0.01)
-            n_extra = 3
+
             @dsge begin
                 parameters: rho = 0.9, sigma = 0.01
                 endogenous: Y, C
@@ -5371,6 +5371,52 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             write(gmmjl, "gmm lp:\n  moments: y\n@dsge begin\nend\n")
             rgmm = run_json(["dsge", "solve", gmmjl])
             @test rgmm.code == 4
+        end
+
+        @testset "CARD-W2 #210 — Julia `using X: y` and `x::T` preambles still load" begin
+            # A colon at column 0 is NOT a card header: `using Statistics: mean`
+            # and `const rho_default::Float64 = 0.9` are ordinary Julia that every
+            # existing .jl model may already rely on. A probe that treated them as
+            # a bad header would break files that used to load.
+            kern = joinpath(dir, "julia_colon.jl")
+            write(kern, """
+            using LinearAlgebra: I
+            const rho_default::Float64 = 0.9
+            @dsge begin
+                parameters: rho = 0.9, sigma = 0.01
+                endogenous: Y, C
+                exogenous: e
+                linear: true
+
+                Y[t] = rho * Y[t-1] + sigma * e[t]
+                C[t] = Y[t]
+            end
+            """)
+            r = run_json(["dsge", "solve", kern])
+            assert_envelope_ok(r; label="dsge solve using/x::T preamble")
+            @test _dsge_policy_table(r.doc) !== nothing
+        end
+
+        @testset "CARD-W2 #210 — a card below the @dsge block is rejected, not executed" begin
+            # The model slice runs to the matching `end`, so a stanza below the
+            # model can never reach the evaluator; it is a typed config/invalid
+            # that names the line and says where the card belongs.
+            below = joinpath(dir, "card_below.jl")
+            write(below, """
+            @dsge begin
+                parameters: rho = 0.9, sigma = 0.01
+                endogenous: Y, C
+                exogenous: e
+                linear: true
+
+                Y[t] = rho * Y[t-1] + sigma * e[t]
+                C[t] = Y[t]
+            end
+            constraints:
+              Y[t] >= -10
+            """)
+            r = run_json(["dsge", "solve", below])
+            @test r.code == 4
         end
 
         @testset "dsge solve --method perturbation --order 2 (gx over v=[states; shocks])" begin

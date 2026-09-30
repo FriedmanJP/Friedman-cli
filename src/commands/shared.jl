@@ -2302,25 +2302,45 @@ function _dsge_solve_error(e, label::String)
     return _domain_or_data_error(e, label)
 end
 
+# ── The .jl preamble classifier (W2 / #210) ────────────────────────────────
+#
+# A column-0 colon is not by itself a card header: `x::T`, `using X: y` and
+# `labels: = […]` all contain one, and the first two are ordinary Julia that
+# every existing `.jl` model file may already rely on. The classifier below
+# separates them, and the asymmetry is deliberate — misreading Julia as a
+# header breaks a file that used to load, whereas the one shape we must stay
+# loud on (`labels: = […]`, a colon followed by `=`) is still caught.
+#
+# `labels: = […]` cannot be caught by `_CARD_HEADER` at all: that pattern
+# requires end-of-line after the colon, which is exactly what this mistake
+# lacks. Hence the separate, looser probe with the two Julia escapes.
+
+const _CARD_JULIA_KEYWORDS = Set([
+    "using", "import", "export", "module", "baremodule", "const", "global",
+    "local", "function", "macro", "struct", "mutable", "abstract", "primitive",
+    "type", "begin", "let", "quote", "do", "if", "elseif", "else", "end",
+    "while", "for", "return", "break", "continue",
+])
+
+# `(?!:)` excludes a type annotation (`x::T`); the first character is ASCII, so
+# the decision never depends on whether a variable name happens to be ASCII.
+const _CARD_PREAMBLE_HEADER =
+    r"^([A-Za-z][A-Za-z0-9_-]*(?:[ \t]+[A-Za-z][A-Za-z0-9_-]*)?):(?!:)"
+
 """
     _card_preamble_header(lines, path) → (lineno, header) | nothing
 
-The first column-0 line of a `.jl` model preamble that looks like `word:` (or
-`word word:`) — the shape both a card stanza header and a mistyped Julia
-assignment take. Found here, and *before* [`parse_card`], because
-`parse_card` reports such a line as a generic "expected a stanza header" and
-the user needs the offending text to find it. The pattern is deliberately
-looser than `_CARD_HEADER` (it does not require end-of-line after the colon),
-because `labels: = ["a", "b"]` is exactly the mistake this must catch.
+The first column-0 line of a `.jl` model preamble that is *trying* to be a card
+stanza header, as `(lineno, "text")`, or `nothing` when there is none. `using X: y`
+and `x::T` are skipped as ordinary Julia; see the block comment above.
 """
-const _CARD_PREAMBLE_HEADER =
-    r"^([A-Za-z][A-Za-z0-9_-]*(?:[ \t]+[A-Za-z][A-Za-z0-9_-]*)?):"
-
 function _card_preamble_header(lines, path::AbstractString)
     for (i, line) in enumerate(lines)
         m = match(_CARD_PREAMBLE_HEADER, line)
         m === nothing && continue
-        return (i, String(m.captures[1]))
+        text = String(m.captures[1])
+        first(split(text)) in _CARD_JULIA_KEYWORDS && continue
+        return (i, text)
     end
     return nothing
 end
@@ -2340,9 +2360,12 @@ Split a `.jl` model file into the optional model-card preamble and the
   a `n_extra = 3` constant must not change behaviour.
 - A column-0 `ident:` that is not a card header → `config/invalid` naming that
   line (a mistyped `labels: = […]` is silently un-Julia otherwise).
+- A stanza header BELOW the `@dsge` block → `config/invalid` naming that line:
+  the card belongs above the model, and a card below it would otherwise ride
+  into the executed text.
 
-Only the `@dsge` slice is ever executed, and it comes from the user's own
-Julia file — card stanza text is parsed, never evaluated.
+The model slice runs from `@dsge` to its matching column-0 `end` — never to EOF —
+so nothing after the block can reach `include_string`.
 """
 function _split_card_and_model(path::AbstractString)
     ext = lowercase(splitext(String(path))[2])
@@ -2366,10 +2389,28 @@ function _split_card_and_model(path::AbstractString)
         # Validates the rest of the preamble (body lines, stray column-0 code).
         parse_card(join(pre, "\n"), path)
     end
+    # The block runs to its matching column-0 `end`, not to EOF, so a stanza
+    # written below the model can never reach the evaluator. Checked BEFORE the
+    # no-card early return: a lone stanza below the model is a mistake too, and
+    # returning the whole file would hand it to `include`. An unterminated block
+    # falls through to EOF and fails in the evaluator, whose syntax error already
+    # points at the file.
+    stop = length(lines)
+    for j in (idx+1):length(lines)
+        _card_is_dsge_close(lines[j]) && (stop = j; break)
+    end
+    if stop < length(lines)
+        tail = _card_preamble_header(lines[stop+1:end], path)
+        tail === nothing ||
+            throw(_card_error(path, stop + tail[1],
+                "'$(tail[2])' appears below the @dsge block; a model card must be " *
+                "written above it, with its body lines indented"))
+    end
+
     # No card header: the whole file is the model, helper code included. This is
     # what keeps an ordinary `.jl` model working exactly as it did before.
     header === nothing && return (nothing, src)
-    return (join(pre, "\n"), join(lines[idx:end], "\n"))
+    return (join(pre, "\n"), join(lines[idx:stop], "\n"))
 end
 
 """
@@ -2605,9 +2646,11 @@ function _load_ha_model(model::String; distribution::String="young")
         "HA model file must be .jl (got '$ext'); builtins: " *
         join(first.( _HA_BUILTIN_MODELS), ", ")))
 
-    # Same preamble rule as the RA loader: a column-0 `ident:` in helper code is a
-    # loud config/invalid rather than un-Julia that include would report as noise.
+    # Same preamble rule as the RA loader, validation included: a column-0
+    # `ident:` in helper code is a loud config/invalid, and a stanza that is not
+    # a model card (`gmm lp:`) is rejected rather than silently ignored.
     card, model_src = _split_card_and_model(model)
+    card === nothing || _model_card_stanzas(model)
     mod = _dsge_sandbox()
     result = try
         card === nothing ? Base.include(mod, model) : include_string(mod, model_src, model)
