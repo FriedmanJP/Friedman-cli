@@ -161,6 +161,21 @@ _task8_err(f) = try f(); nothing catch e; e end
             e = _task8_err(() -> get_system(load_config(_task8_toml(bad))))
             @test e isa CliError && e.code == "config/shape"
         end
+
+        # Both spellings of the shared set in one config is a contradiction,
+        # refused rather than resolved by a precedence the user cannot see.
+        # (The documented `[instruments] common` is the one that used to win,
+        # silently; the card key must not outrank it either.)
+        dup = _task8_err(() -> get_system(load_config(_task8_toml("""
+        common_instruments = ["top"]
+        [[equations]]
+        dep = "y"
+        indep = ["x"]
+        [instruments]
+        common = ["nested"]
+        """))))
+        @test dup isa CliError && dup.code == "config/invalid"
+        @test occursin("twice", dup.message)
     end
 
     @testset "a sur card agrees with the TOML it replaces (wave C x wave D)" begin
@@ -208,6 +223,10 @@ _task8_err(f) = try f(); nothing catch e; e end
         err = _task8_err(() -> _load_config_or_card(card, :system))
         @test err isa CliError && err.code == "config/shape"
         @test occursin("regressor", err.message)
+        # `occursin` on `err.message` is safe here: `parse_card` is its own
+        # scanner and raises `CliError` only, so the `ParseError` of the CLI
+        # tokenizer cannot arrive wrapped on this path (no `error.code` to
+        # confuse it with either — the code is asserted above).
         # Same for a bar with nothing after it — a distinct refusal point in
         # lower_system, so assert the code for that one too.
         bar = _task8_err(() -> _load_config_or_card(

@@ -624,10 +624,17 @@ end
 Extract a multi-equation **systems** specification (SUR / 3SLS) from a config dict.
 Each `[[equations]]` block names a dependent column (`dep`) and regressor columns
 (`indep`); a block may add its own instruments (`instr`) and/or a shared
-`[instruments].common` set may be given (3SLS).  A model card lowers to the
-same dict with the shared set under `common_instruments` and an equation's
-absent instruments as `instr => nothing`; both spellings are accepted here.
+`[instruments].common` set may be given (3SLS).
 
+Returns `Dict("equations" => [Dict("name","dep","indep","instr"), ...],
+"common_instruments" => Vector{String} | nothing)`. Column *names* only — the
+handler resolves them against the data CSV. Raises typed `config/*` CliErrors.
+
+A model card lowers to the same shape with two differences this function
+accepts: the shared set arrives under `common_instruments` rather than
+`[instruments].common`, and an equation with no `|` arrives with `instr =>
+nothing`. A config carrying BOTH spellings of the shared set is refused
+(`config/invalid`) rather than resolved by an invisible precedence.
 """
 function get_system(config::Dict)
     eqs_raw = get(config, "equations", nothing)
@@ -652,17 +659,24 @@ function get_system(config::Dict)
         ))
     end
     common = nothing
-    # `instruments.common` is the TOML spelling; `common_instruments` is the
-    # key a model card lowers to.  Accept either, so a card reaches 3SLS with
-    # its shared instruments instead of silently losing them.
+    # `instruments.common` is the documented TOML spelling; `common_instruments`
+    # is the key a model card lowers to.  Both are accepted, and the documented
+    # one is read FIRST: a config carrying both is a contradiction, so it is
+    # refused rather than resolved by precedence the user cannot see.  (A card
+    # lowers to the direct key alone, so this never fires on the card path.)
+    instr_tbl = get(config, "instruments", nothing)
+    nested = (instr_tbl isa AbstractDict && haskey(instr_tbl, "common")) ?
+             instr_tbl["common"] : nothing
     direct = get(config, "common_instruments", nothing)
-    if direct !== nothing
+    if nested !== nothing && direct !== nothing
+        throw(CliError("config/invalid",
+            "shared instruments are given twice: `[instruments] common` and `common_instruments`. " *
+            "Keep one."))
+    end
+    if nested !== nothing
+        common = _system_strvec(nested, "[instruments] `common`")
+    elseif direct !== nothing
         common = _system_strvec(direct, "`common_instruments`")
-    else
-        instr_tbl = get(config, "instruments", nothing)
-        if instr_tbl isa AbstractDict && haskey(instr_tbl, "common")
-            common = _system_strvec(instr_tbl["common"], "[instruments] `common`")
-        end
     end
     Dict{String,Any}("equations" => equations, "common_instruments" => common)
 end

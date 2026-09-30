@@ -60,12 +60,18 @@ end
     end
 
     @testset "a non-.toml path is a card" begin
-        card = _task7_card("gmm lp:\n  moments: output, inflation\n  weighting: twostep\n")
+        # A card that WRITES the keys: `get_gmm`'s fallbacks for `dep`/`theta0`
+        # are the same defaults `lower_gmm` emits, so asserting those would pass
+        # on the broken flat shape too (task_3:12 already pins them where they
+        # mean something). `weighting` is the other direction: `get_gmm` falls
+        # back to "twostep", so a card that says "identity" distinguishes the
+        # two shapes.
+        card = _task7_card("gmm lp:\n  moments: output, inflation\n  weighting: identity\n")
         # NESTED under `[gmm]`: `get_gmm` reads the section, so a flat dict
         # would hand the handler an empty spec (see task_8's regression pin).
         g = _load_config_or_card(card, :gmm)
         @test get_gmm(g)["moment_conditions"] == ["output", "inflation"]
-        @test get_gmm(g)["dep"] == "" && get_gmm(g)["theta0"] == Float64[]
+        @test get_gmm(g)["weighting"] == "identity"
     end
 
     @testset "a card path passes --config through the adapter untouched" begin
