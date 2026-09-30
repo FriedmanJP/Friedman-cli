@@ -27,7 +27,7 @@ import DataFrames
 using DataFrames: DataFrame   # for long_table (Tables.jl tidy exports, real MEMs #346)
 
 # ─── Distributions re-export (real MEMs re-exports Distributions) ──────────
-# Minimal stand-in so the CLI's prior bridge (_dsge_priors_distributions →
+# Minimal stand-in so the CLI's prior bridge (_dsge_prior_distribution →
 # MacroEconometricModels.Distributions.Beta/Normal/...) resolves under the mock.
 # Stores constructor args and supports Statistics.mean (used to seed theta0).
 module Distributions

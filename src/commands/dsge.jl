@@ -62,6 +62,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="evaluate-at", type=String, default="",
                            description="State vector x1,x2,… at which to evaluate the VFI value function"),
                 OptionSpec(name="constraints", type=String, default="", description="Path to OccBin constraints TOML"),
+                CONSTRAINT_OPTION,
                 OptionSpec(name="constraint-solver", type=String, default="", description="Constraint solver: nonlinearsolve|optim|nlopt|ipopt|path"),
                 OptionSpec(name="periods", type=Int, default=40, description="Number of periods for the OccBin path (--constraints without --constraint-solver; ignored otherwise)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -99,6 +100,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="shock-size", type=Float64, default=1.0, description="Shock size (std devs; perturbation/projection only; ignored for linear solutions)"),
                 OptionSpec(name="n-sim", type=Int, default=0, description="Simulated-path replications for projection solutions (default 0 = analytical; ignored for linear/perturbation solutions)"),
                 OptionSpec(name="constraints", type=String, default="", description="Path to OccBin constraints TOML (applied to shock 1 only)"),
+                CONSTRAINT_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
@@ -247,6 +249,7 @@ function dsge_specs()::Vector{CommandSpec}
             options=[
                 OptionSpec(name="shocks", type=String, default="", description="Path to shock sequence CSV"),
                 OptionSpec(name="constraints", type=String, default="", description="Path to constraints TOML"),
+                CONSTRAINT_OPTION,
                 OptionSpec(name="constraint-solver", type=String, default="", description="Constraint solver: nonlinearsolve|optim|nlopt|ipopt|path"),
                 OptionSpec(name="periods", type=Int, default=100, description="Simulation periods"),
                 OptionSpec(name="sparsity", type=String, default="auto",
@@ -271,6 +274,7 @@ function dsge_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="TOML (synthesized @dsge block) or .jl evaluating to a ModelSpec")],
             options=[
                 OptionSpec(name="constraints", type=String, default="", description="Path to OccBin constraints TOML"),
+                CONSTRAINT_OPTION,
                 OptionSpec(name="constraint-solver", type=String, default="", description="Constraint solver: nonlinearsolve|optim|nlopt|ipopt|path"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
@@ -545,7 +549,7 @@ function dsge_specs()::Vector{CommandSpec}
             summary="Maximize the DSGE posterior and report the mode with Laplace standard errors without sampling",
             args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="Path to DSGE model file (.toml or .jl)")],
             options=[
-                select_options(BAYES_OPTIONS, "data", "params", "priors", "observables",
+                select_options(BAYES_OPTIONS, "data", "params", "priors", "prior", "observables",
                                "solver", "order", "constraint-solver", "output", "format")...,
                 OptionSpec(name="max-iter", type=Int, default=500, description="Maximum optimizer iterations (≥ 1)"),
                 OptionSpec(name="f-reltol", type=Float64, default=1e-8, description="Relative function tolerance (> 0)"),
@@ -564,7 +568,7 @@ function dsge_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="Path to DSGE model file (.toml or .jl)")],
             options=[
                 # no --data: prior_predictive draws from the PRIOR and needs none
-                with_default(select_options(BAYES_OPTIONS, "params", "priors", "observables", "solver",
+                with_default(select_options(BAYES_OPTIONS, "params", "priors", "prior", "observables", "solver",
                                "order", "constraint-solver", "n-draws", "output", "format"), "n-draws", 500)...,
                 OptionSpec(name="periods", type=Int, default=200, description="Periods to simulate per draw (≥ 1)"),
             ],
@@ -811,6 +815,7 @@ function dsge_specs()::Vector{CommandSpec}
                 HA_HH_OPTIONS...,
                 OptionSpec(name="data", type=String, default="", description="Path to observed aggregates CSV (required)"),
                 OptionSpec(name="priors", type=String, default="", description="Path to priors TOML with [priors] section (required)"),
+                PRIOR_OPTION,
                 OptionSpec(name="observables", type=String, default="",
                            description="Comma-separated observed aggregates (e.g. K,Y); default: first aggregates"),
                 OptionSpec(name="method", type=String, default="ssj",
@@ -1669,6 +1674,7 @@ function _dsge_solve(; model::String, method::String="gensys", order::Int=1,
                       optimizer::String="", smolyak_mu::String="",
                       evaluate_at::String="",
                       constraints::String="", constraint_solver::String="",
+                      constraint::Vector{String}=String[],
                       periods::Int=40,
                       output::String="", format::String="table",
                       plot::Bool=false, plot_save::String="")
@@ -1678,8 +1684,8 @@ function _dsge_solve(; model::String, method::String="gensys", order::Int=1,
 
     spec = _load_dsge_model(model)
 
-    if !isempty(constraints)
-        cons = _load_dsge_constraints(constraints; spec=spec)
+    if !isempty(constraints) || !isempty(constraint)
+        cons = _resolve_dsge_constraints(constraints, constraint; spec=spec)
         if isempty(constraint_solver)
             # Default: OccBin path (backward compatible)
             _status("\nSolving with OccBin constraints...")
@@ -2070,6 +2076,7 @@ end
 
 function _dsge_steady_state(; model::String, constraints::String="",
                              constraint_solver::String="",
+                             constraint::Vector{String}=String[],
                              output::String="", format::String="table")
     if !isempty(constraint_solver) && !(constraint_solver in ("nonlinearsolve", "optim", "nlopt", "ipopt", "path"))
         error("invalid --constraint-solver value '$constraint_solver'; must be one of: nonlinearsolve, optim, nlopt, ipopt, path")
@@ -2078,8 +2085,8 @@ function _dsge_steady_state(; model::String, constraints::String="",
     spec = _load_dsge_model(model)
 
     solver_kw = isempty(constraint_solver) ? (;) : (; solver=Symbol(constraint_solver))
-    if !isempty(constraints)
-        cons = _load_dsge_constraints(constraints; spec=spec)
+    if !isempty(constraints) || !isempty(constraint)
+        cons = _resolve_dsge_constraints(constraints, constraint; spec=spec)
         spec = _dsge_call(compute_steady_state, spec; constraints=cons, solver_kw...)
     else
         spec = _dsge_call(compute_steady_state, spec; solver_kw...)
@@ -2151,7 +2158,7 @@ function _dsge_irf(; model::String, method::String="gensys", order::Int=1,
                     damping::Float64=0.0, anderson_m::Int=0,
                     optimizer::String="", smolyak_mu::String="",
                     horizon::Int=40, shock_size::Float64=1.0, n_sim::Int=500,
-                    constraints::String="",
+                    constraints::String="", constraint::Vector{String}=String[],
                     output::String="", format::String="table",
                     plot::Bool=false, plot_save::String="")
     spec = _load_dsge_model(model)
@@ -2162,9 +2169,9 @@ function _dsge_irf(; model::String, method::String="gensys", order::Int=1,
                       damping=damping, anderson_m=anderson_m,
                       optimizer=optimizer, smolyak_mu=smolyak_mu)
 
-    if !isempty(constraints)
+    if !isempty(constraints) || !isempty(constraint)
         _status("\nComputing OccBin IRF...")
-        cons = _load_dsge_constraints(constraints; spec=spec)
+        cons = _resolve_dsge_constraints(constraints, constraint; spec=spec)
         ob_irf = _occbin_irf_call(spec, cons; shock_idx=1, horizon=horizon, magnitude=shock_size)
 
         _maybe_plot(ob_irf; plot=plot, plot_save=plot_save)
@@ -2322,6 +2329,7 @@ end
 
 function _dsge_perfect_foresight(; model::String, shocks::String="",
                                   constraints::String="", constraint_solver::String="",
+                                  constraint::Vector{String}=String[],
                                   periods::Int=100,
                                   sparsity::String="auto", max_iter::Int=100, tol::Float64=1e-8,
                                   output::String="", format::String="table",
@@ -2360,8 +2368,8 @@ function _dsge_perfect_foresight(; model::String, shocks::String="",
     _status()
 
     solver_kw = isempty(constraint_solver) ? (;) : (; solver=Symbol(constraint_solver))
-    cons_kw = if !isempty(constraints)
-        cons = _load_dsge_constraints(constraints; spec=spec)
+    cons_kw = if !isempty(constraints) || !isempty(constraint)
+        cons = _resolve_dsge_constraints(constraints, constraint; spec=spec)
         (; constraints=cons)
     else
         (;)
@@ -2415,15 +2423,17 @@ function _dsge_prior_distribution(name::AbstractString, spec)
 end
 
 """
-    _dsge_priors_distributions(priors_config) → Dict{Symbol,<:Distribution}
+    _dsge_prior_distributions(raw::Dict{String,Any}) → Dict{Symbol,<:Distribution}
 
-Bridge the `[priors]` TOML to the `Dict{Symbol,<:Distribution}` that MEMs
-`estimate_dsge_bayes` requires (both RA and HA `ModelSpec`
-methods). `get_dsge_priors` yields `{name => {dist,a,b}}`; each entry becomes a
-concrete distribution via [`_dsge_prior_distribution`].
+Bridge already-lowered `{name => {dist, a, b}}` priors to the
+`Dict{Symbol,<:Distribution}` that MEMs `estimate_dsge_bayes` requires (both RA
+and HA `ModelSpec` methods). `raw` is whatever a prior SOURCE produced — the
+`get_dsge_priors` TOML shape, or the merged result of
+[`_resolve_dsge_priors`](@ref) — so this function does no config parsing and
+does not know where the priors came from; each entry becomes a concrete
+distribution via [`_dsge_prior_distribution`].
 """
-function _dsge_priors_distributions(priors_config::Dict)
-    raw = get_dsge_priors(priors_config)  # throws config/missing-key if no [priors]
+function _dsge_prior_distributions(raw::Dict{String,Any})
     return Dict(Symbol(name) => _dsge_prior_distribution(name, spec)
                 for (name, spec) in raw)
 end
@@ -2437,11 +2447,15 @@ out of `_dsge_bayes_run_estimation` so `dsge bayes posterior-mode`/`prior-predic
 from the prior, so demanding `--data` would be a false requirement."""
 function _dsge_bayes_inputs(; model::String, data::String, params::String,
         priors::String, observables::String, solver::String, order::Int,
-        constraint_solver::String="", require_data::Bool=true)
+        constraint_solver::String="", require_data::Bool=true,
+        prior::Vector{String}=String[])
     require_data && isempty(data) &&
         throw(CliError("usage/missing", "--data is required (path to CSV data file)"))
     isempty(params) && throw(CliError("usage/missing", "--params is required (comma-separated parameter names)"))
-    isempty(priors) && throw(CliError("usage/missing", "--priors is required (path to priors TOML)"))
+    isempty(priors) && isempty(prior) &&
+        throw(CliError("usage/missing",
+            "priors are required: pass --prior 'name ~ dist(a, b)' (repeatable), " *
+            "or --priors <file.toml> with a [priors] section"))
 
     if !isempty(constraint_solver) && !(constraint_solver in ("nonlinearsolve", "optim", "nlopt", "ipopt", "path"))
         throw(CliError("usage/invalid",
@@ -2459,10 +2473,11 @@ function _dsge_bayes_inputs(; model::String, data::String, params::String,
     # priors' parameter set. A bare positional vector would only be length-checked.
     theta0 = Dict(Symbol(p) => 0.5 for p in param_names)
 
-    priors_config = load_config(priors)
-    # Bridge {dist,a,b} TOML → Dict{Symbol,<:Distribution} (MEMs requires distribution
+    # Bridge {dist,a,b} → Dict{Symbol,<:Distribution} (MEMs requires distribution
     # objects, not the raw config dict — C048; previously passed the wrong type).
-    priors_dict = _dsge_priors_distributions(priors_config)
+    # CARD-W1 (#209): --prior lines and the --priors file (and, from #213, the
+    # model's `priors:` stanza) merge into ONE map, so there is a single path.
+    priors_dict = _dsge_prior_distributions(_resolve_dsge_priors(priors, prior))
 
     obs_syms = isempty(observables) ? Symbol[] : Symbol.(strip.(split(observables, ",")))
 
@@ -2475,12 +2490,13 @@ end
 """Shared helper: run Bayesian DSGE estimation and return the result."""
 function _dsge_bayes_run_estimation(; model::String, data::String, params::String,
         priors::String, sampler::String, n_smc::Int, n_particles::Int,
+        prior::Vector{String}=String[],
         n_draws::Int, burnin::Int, ess_target::Float64, observables::String,
         solver::String, order::Int, delayed_acceptance::Bool,
         constraint_solver::String="",
         prefilter::String="none", hp_lambda::Float64=1600.0,
         measurement_error::String="none")
-    inp = _dsge_bayes_inputs(; model, data, params, priors, observables, solver, order,
+    inp = _dsge_bayes_inputs(; model, data, params, priors, prior, observables, solver, order,
                              constraint_solver)
     spec, Y, theta0 = inp.spec, inp.Y, inp.theta0
     priors_dict, obs_syms, solver_kwargs = inp.priors_dict, inp.obs_syms, inp.solver_kwargs
@@ -2559,6 +2575,7 @@ end
 
 function _dsge_bayes_estimate(; model::String, data::String="", params::String="",
                                priors::String="", sampler::String="smc",
+                               prior::Vector{String}=String[],
                                n_smc::Int=5000, n_particles::Int=500,
                                n_draws::Int=10000, burnin::Int=5000,
                                ess_target::Float64=0.5, observables::String="",
@@ -2568,7 +2585,7 @@ function _dsge_bayes_estimate(; model::String, data::String="", params::String="
                                prefilter::String="none", hp_lambda::Float64=1600.0,
                                measurement_error::String="none",
                                output::String="", format::String="table")
-    result = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
+    result = _dsge_bayes_run_estimation(; model, data, params, priors, prior, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
         solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
 
@@ -2594,6 +2611,7 @@ end
 
 function _dsge_bayes_irf(; model::String, data::String="", params::String="",
                           priors::String="", sampler::String="smc",
+                          prior::Vector{String}=String[],
                           n_smc::Int=5000, n_particles::Int=500,
                           n_draws::Int=10000, burnin::Int=5000,
                           ess_target::Float64=0.5, observables::String="",
@@ -2605,7 +2623,7 @@ function _dsge_bayes_irf(; model::String, data::String="", params::String="",
                           horizon::Int=40,
                           output::String="", format::String="table",
                           plot::Bool=false, plot_save::String="")
-    result = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
+    result = _dsge_bayes_run_estimation(; model, data, params, priors, prior, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
         solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
 
@@ -2638,6 +2656,7 @@ end
 
 function _dsge_bayes_fevd(; model::String, data::String="", params::String="",
                            priors::String="", sampler::String="smc",
+                           prior::Vector{String}=String[],
                            n_smc::Int=5000, n_particles::Int=500,
                            n_draws::Int=10000, burnin::Int=5000,
                            ess_target::Float64=0.5, observables::String="",
@@ -2649,7 +2668,7 @@ function _dsge_bayes_fevd(; model::String, data::String="", params::String="",
                                measurement_error::String="none",
                            output::String="", format::String="table",
                            plot::Bool=false, plot_save::String="")
-    result = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
+    result = _dsge_bayes_run_estimation(; model, data, params, priors, prior, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
         solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
 
@@ -2683,6 +2702,7 @@ end
 
 function _dsge_bayes_simulate(; model::String, data::String="", params::String="",
                                priors::String="", sampler::String="smc",
+                               prior::Vector{String}=String[],
                                n_smc::Int=5000, n_particles::Int=500,
                                n_draws::Int=10000, burnin::Int=5000,
                                ess_target::Float64=0.5, observables::String="",
@@ -2694,7 +2714,7 @@ function _dsge_bayes_simulate(; model::String, data::String="", params::String="
                                periods::Int=200,
                                output::String="", format::String="table",
                                plot::Bool=false, plot_save::String="")
-    result = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
+    result = _dsge_bayes_run_estimation(; model, data, params, priors, prior, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
         solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
 
@@ -2721,6 +2741,7 @@ end
 
 function _dsge_bayes_summary(; model::String, data::String="", params::String="",
                               priors::String="", sampler::String="smc",
+                              prior::Vector{String}=String[],
                               n_smc::Int=5000, n_particles::Int=500,
                               n_draws::Int=10000, burnin::Int=5000,
                               ess_target::Float64=0.5, observables::String="",
@@ -2730,7 +2751,7 @@ function _dsge_bayes_summary(; model::String, data::String="", params::String=""
                               prefilter::String="none", hp_lambda::Float64=1600.0,
                                measurement_error::String="none",
                               output::String="", format::String="table")
-    result = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
+    result = _dsge_bayes_run_estimation(; model, data, params, priors, prior, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
         solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
 
@@ -2772,6 +2793,7 @@ end
 
 function _dsge_bayes_compare(; model::String, data::String="", params::String="",
                               priors::String="", sampler::String="smc",
+                              prior::Vector{String}=String[],
                               n_smc::Int=5000, n_particles::Int=500,
                               n_draws::Int=10000, burnin::Int=5000,
                               ess_target::Float64=0.5, observables::String="",
@@ -2787,7 +2809,7 @@ function _dsge_bayes_compare(; model::String, data::String="", params::String=""
     isempty(priors2) && error("--priors2 is required for model comparison")
 
     _status("Estimating Model 1...")
-    r1 = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
+    r1 = _dsge_bayes_run_estimation(; model, data, params, priors, prior, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
         solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
 
@@ -2826,6 +2848,7 @@ end
 
 function _dsge_bayes_predictive(; model::String, data::String="", params::String="",
                                  priors::String="", sampler::String="smc",
+                                 prior::Vector{String}=String[],
                                  n_smc::Int=5000, n_particles::Int=500,
                                  n_draws::Int=10000, burnin::Int=5000,
                                  ess_target::Float64=0.5, observables::String="",
@@ -2837,7 +2860,7 @@ function _dsge_bayes_predictive(; model::String, data::String="", params::String
                                measurement_error::String="none",
                                  output::String="", format::String="table",
                                  plot::Bool=false, plot_save::String="")
-    result = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
+    result = _dsge_bayes_run_estimation(; model, data, params, priors, prior, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
         solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
 
@@ -2928,6 +2951,7 @@ end
 
 function _dsge_bayes_hd(; model::String, data::String="", params::String="",
                          priors::String="", observables::String="",
+                         prior::Vector{String}=String[],
                          sampler::String="smc", n_smc::Int=5000,
                          n_particles::Int=500,
                          n_draws::Int=10000, burnin::Int=5000,
@@ -2944,7 +2968,7 @@ function _dsge_bayes_hd(; model::String, data::String="", params::String="",
                          plot::Bool=false, plot_save::String="")
     isempty(observables) && error("--observables is required (comma-separated variable names)")
 
-    bd = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
+    bd = _dsge_bayes_run_estimation(; model, data, params, priors, prior, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
         solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
 
@@ -2981,6 +3005,7 @@ end
 
 function _dsge_bayes_mcmc_diag(; model::String, data::String="", params::String="",
                                 priors::String="", sampler::String="smc",
+                                prior::Vector{String}=String[],
                                 n_smc::Int=5000, n_particles::Int=500,
                                 n_draws::Int=10000, burnin::Int=5000,
                                 ess_target::Float64=0.5, observables::String="",
@@ -2990,7 +3015,7 @@ function _dsge_bayes_mcmc_diag(; model::String, data::String="", params::String=
                                 prefilter::String="none", hp_lambda::Float64=1600.0,
                                measurement_error::String="none",
                                 output::String="", format::String="table")
-    result = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
+    result = _dsge_bayes_run_estimation(; model, data, params, priors, prior, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
         solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
 
@@ -3091,6 +3116,7 @@ end
 
 function _dsge_bayes_learning_rate(; model::String, data::String="", params::String="",
                                     priors::String="", sampler::String="smc",
+                                    prior::Vector{String}=String[],
                                     n_smc::Int=5000, n_particles::Int=500,
                                     n_draws::Int=10000, burnin::Int=5000,
                                     ess_target::Float64=0.5, observables::String="",
@@ -3111,7 +3137,7 @@ function _dsge_bayes_learning_rate(; model::String, data::String="", params::Str
     (length(frac_vec) >= 2 && all(f -> 0 < f <= 1, frac_vec)) || throw(CliError("usage/invalid",
         "--fractions must be at least two values in (0,1], got '$fractions'"))
 
-    result = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
+    result = _dsge_bayes_run_estimation(; model, data, params, priors, prior, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
         solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
 
@@ -3138,6 +3164,7 @@ end
 
 function _dsge_bayes_overlap(; model::String, data::String="", params::String="",
                               priors::String="", sampler::String="smc",
+                              prior::Vector{String}=String[],
                               n_smc::Int=5000, n_particles::Int=500,
                               n_draws::Int=10000, burnin::Int=5000,
                               ess_target::Float64=0.5, observables::String="",
@@ -3148,7 +3175,7 @@ function _dsge_bayes_overlap(; model::String, data::String="", params::String=""
                               prefilter::String="none", hp_lambda::Float64=1600.0,
                                measurement_error::String="none",
                               output::String="", format::String="table")
-    result = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
+    result = _dsge_bayes_run_estimation(; model, data, params, priors, prior, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
         solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
 
@@ -3183,13 +3210,14 @@ end
 # the leaf for that.
 function _dsge_bayes_posterior_mode(; model::String, data::String="", params::String="",
         priors::String="", observables::String="", solver::String="gensys", order::Int=1,
+        prior::Vector{String}=String[],
         max_iter::Int=500, f_reltol::Float64=1e-8, constraint_solver::String="",
         output::String="", format::String="table")
     max_iter >= 1 || throw(CliError("usage/invalid",
         "dsge bayes posterior-mode: --max-iter must be ≥ 1 (got $max_iter)"))
     f_reltol > 0 || throw(CliError("usage/invalid",
         "dsge bayes posterior-mode: --f-reltol must be > 0 (got $f_reltol)"))
-    inp = _dsge_bayes_inputs(; model, data, params, priors, observables, solver, order,
+    inp = _dsge_bayes_inputs(; model, data, params, priors, prior, observables, solver, order,
                              constraint_solver)
     _status("Bayesian DSGE Posterior Mode:")
     _status("  Parameters: $(join(inp.param_names, ", "))")
@@ -3227,13 +3255,14 @@ end
 # a false requirement (hence require_data=false).
 function _dsge_bayes_prior_predictive(; model::String, params::String="",
         priors::String="", observables::String="", solver::String="gensys", order::Int=1,
+        prior::Vector{String}=String[],
         n_draws::Int=500, periods::Int=200, constraint_solver::String="",
         output::String="", format::String="table")
     n_draws >= 1 || throw(CliError("usage/invalid",
         "dsge bayes prior-predictive: --n-draws must be ≥ 1 (got $n_draws)"))
     periods >= 1 || throw(CliError("usage/invalid",
         "dsge bayes prior-predictive: --periods must be ≥ 1 (got $periods)"))
-    inp = _dsge_bayes_inputs(; model, data="", params, priors, observables, solver, order,
+    inp = _dsge_bayes_inputs(; model, data="", params, priors, prior, observables, solver, order,
                              constraint_solver, require_data=false)
     _status("Bayesian DSGE Prior Predictive: draws=$n_draws, periods=$periods")
     _status()
@@ -3270,6 +3299,7 @@ end
 
 function _dsge_bayes_marginal_lik(; model::String, data::String="", params::String="",
                                    priors::String="", sampler::String="smc",
+                                   prior::Vector{String}=String[],
                                    n_smc::Int=5000, n_particles::Int=500,
                                    n_draws::Int=10000, burnin::Int=5000,
                                    ess_target::Float64=0.5, observables::String="",
@@ -3282,7 +3312,7 @@ function _dsge_bayes_marginal_lik(; model::String, data::String="", params::Stri
                                    output::String="", format::String="table")
     proposal in ("normal", "t") || throw(CliError("usage/invalid",
         "--proposal must be normal|t, got '$proposal'"))
-    result = _dsge_bayes_run_estimation(; model, data, params, priors, sampler,
+    result = _dsge_bayes_run_estimation(; model, data, params, priors, prior, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
         solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
 
@@ -3782,6 +3812,7 @@ end
 # HA model at every draw (Auclert-Bardóczy-Rognlie-Straub 2021 "offline" approach), so
 # runs are intentionally small by default relative to RA SMC.
 function _dsge_ha_estimate(; model::String, data::String="", priors::String="",
+                            prior::Vector{String}=String[],
                             observables::String="", method::String="ssj",
                             sampler::String="mh",
                             n_draws::Int=2000, burnin::Int=500,
@@ -3793,8 +3824,9 @@ function _dsge_ha_estimate(; model::String, data::String="", priors::String="",
                             output::String="", format::String="table")
     isempty(data) && throw(CliError("usage/missing-option",
         "--data is required (path to observed aggregates CSV)"))
-    isempty(priors) && throw(CliError("usage/missing-option",
-        "--priors is required (path to priors TOML with a [priors] section)"))
+    isempty(priors) && isempty(prior) && throw(CliError("usage/missing-option",
+        "priors are required: pass --prior 'name ~ dist(a, b)' (repeatable), " *
+        "or --priors <file.toml> with a [priors] section"))
     meth = _parse_ha_method(method)
     meth === :krusell_smith && throw(CliError("usage/invalid-option",
         "HA Bayesian estimation requires --method=ssj or reiter " *
@@ -3815,8 +3847,7 @@ function _dsge_ha_estimate(; model::String, data::String="", priors::String="",
     df = load_data(data)
     Y = df_to_matrix(df)
 
-    priors_config = load_config(priors)
-    priors_dist = _dsge_priors_distributions(priors_config)
+    priors_dist = _dsge_prior_distributions(_resolve_dsge_priors(priors, prior))
     param_names = sort!(collect(keys(priors_dist)))          # match DSGEPrior sorted order
     theta0 = Float64[mean(priors_dist[pn]) for pn in param_names]
     obs_syms = isempty(observables) ? Symbol[] :

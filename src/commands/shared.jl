@@ -2836,6 +2836,118 @@ function _load_dsge_constraints(path::String; spec=nothing)
     return constraints
 end
 
+"""
+    _resolve_dsge_priors(file::String, lines::Vector{String}) → Dict{String,Any}
+
+Merge every prior source into exactly what `get_dsge_priors` returns — the same
+`{name => {dist, a, b}}` shape the TOML loader produces — so a card and the
+equivalent TOML reach the estimator by ONE path. `file` is `--priors`;
+`lines` are the repeatable `--prior 'name ~ dist(a, b)'` values.
+
+A parameter supplied by both sources (or twice in `lines`) is
+`config/invalid` naming the parameter. With neither source the error is
+`usage/missing`, and its message names `--prior`, then the `priors:` stanza,
+then `--priors`, in that order.
+"""
+function _resolve_dsge_priors(file::String, lines::Vector{String})
+    out = Dict{String,Any}()
+    if !isempty(file)
+        for (k, v) in get_dsge_priors(load_config(file))
+            out[k] = v
+        end
+    end
+    if !isempty(lines)
+        for (k, v) in lower_priors(parse_card(_card_inline("priors", lines), "<--prior>"),
+                                    "<--prior>")
+            haskey(out, k) && throw(CliError("config/invalid",
+                "prior '$(k)' is given twice — once by --priors and once by --prior"))
+            out[k] = v
+        end
+    end
+    isempty(out) && throw(CliError("usage/missing",
+        "no priors given: pass --prior 'name ~ dist(a, b)' (repeatable), " *
+        "add a priors: stanza to the model file, or point --priors at a priors TOML"))
+    return out
+end
+
+"""
+    _card_inline(header, lines) → String
+
+Wrap repeated `--prior` / `--constraint` values in the minimal card text they
+are: one stanza header plus its INDENTED body lines. `parse_card` closes a
+stanza at column 0, so an unindented body line is `config/invalid`. No stanza
+text is ever evaluated — only parsed.
+"""
+function _card_inline(header::AbstractString, lines::Vector{String})
+    return string(header, ":\n", join(("  " * l for l in lines), "\n"))
+end
+
+"""`(variable, direction)` identity of a loaded constraint; non-variable bounds
+(nonlinear OccBin expressions) have none and so never collide."""
+function _constraint_keys(c)
+    c isa MacroEconometricModels.VariableBound || return Tuple{String,Symbol}[]
+    ks = Tuple{String,Symbol}[]
+    c.lower !== nothing && push!(ks, (String(c.var_name), :geq))
+    c.upper !== nothing && push!(ks, (String(c.var_name), :leq))
+    return ks
+end
+
+"""
+    _resolve_dsge_constraints(file::String, lines::Vector{String}; spec=nothing)
+
+Merge `--constraints <file>` with the repeatable `--constraint 'var[t] >= expr'`
+values into the same `Vector` `_load_dsge_constraints` returns, so the four
+OccBin leaves keep ONE constraint path. `spec` is the loaded DSGE spec, needed
+only when the file carries `[[constraints.nonlinear]]` entries — their
+`config/invalid` propagates unchanged.
+
+The identity of a bound is `(variable, direction)`: the same variable bounded
+from both sides is two bounds, but bounded twice from one side is a conflict.
+Neither source is not an error here — the caller decides whether constraints
+apply at all.
+"""
+function _resolve_dsge_constraints(file::String, lines::Vector{String}; spec=nothing)
+    out = Any[]
+    seen = Set{Tuple{String,Symbol}}()
+
+    function add(c, keys)
+        for k in keys
+            k in seen && throw(CliError("config/invalid",
+                "constraint on '$(k[1])' is given twice " *
+                "($(k[2] === :geq ? ">=" : "<=")) — supply it once" *
+                # only blame the file flag when a file was actually given; the
+                # within-`lines` case must not point at --constraints
+                (isempty(file) ? "" : " across --constraints and --constraint")))
+            push!(seen, k)
+        end
+        push!(out, c)
+    end
+
+    if !isempty(file)
+        for c in _load_dsge_constraints(file; spec=spec)
+            add(c, _constraint_keys(c))
+        end
+    end
+
+    if !isempty(lines)
+        lowered = lower_constraints(parse_card(_card_inline("constraints", lines),
+                                              "<--constraint>"), "<--constraint>")
+        for b in lowered["bounds"]
+            var = String(b["variable"])
+            lo = get(b, "lower", nothing)
+            hi = get(b, "upper", nothing)
+            (lo === nothing && hi === nothing) && throw(CliError("config/invalid",
+                "the constraint on '$(var)' needs a finite lower or upper bound"))
+            ks = Tuple{String,Symbol}[]
+            lo === nothing || push!(ks, (var, :geq))
+            hi === nothing || push!(ks, (var, :leq))
+            add(variable_bound(Symbol(var); lower=lo, upper=hi), ks)
+        end
+    end
+
+    return out
+end
+
 """Convert loaded constraints to 1 or 2 `OccBinConstraint`s (upstream's only shapes)."""
 function _as_occbin_constraints(constraints, spec)
     out = MacroEconometricModels.OccBinConstraint[]

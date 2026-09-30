@@ -5309,6 +5309,50 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test numv(row[3]) ≈ 0.01 atol=1e-8
         end
 
+        @testset "CARD-W1 #209 — repeatable --constraint on dsge solve (T3)" begin
+            cmodel = joinpath(dir, "cconstraint.jl")
+            write(cmodel, """
+            @dsge begin
+                parameters: rho = 0.9, sigma = 0.01, phi_pi = 1.5
+                endogenous: Y, C, i
+                exogenous: e
+                linear: true
+
+                Y[t] = rho * Y[t-1] + sigma * e[t]
+                C[t] = Y[t]
+                i[t] = phi_pi * Y[t]
+            end
+            """)
+            r = run_json(["dsge", "solve", cmodel, "--periods", "8",
+                          "--constraint", "i[t] >= -10"])
+            assert_envelope_ok(r; label="dsge solve --constraint")
+            # Locate the OccBin path by a DISTINCTIVE COLUMN SET, never by key order:
+            # JSON3 does not preserve insertion order, and data tables collide on shared
+            # substrings (W12/#114). Only the path table carries BOTH the leading
+            # `period` index and every model variable.
+            tbl = nothing
+            for (_, v) in pairs(r.doc.data)
+                (v isa JSON3.Object && haskey(v, :rows)) || continue
+                v.columns isa JSON3.Array || continue
+                Set(Symbol.(v.columns)) == Set([:period, :Y, :C, :i]) && (tbl = v; break)
+            end
+            @test tbl !== nothing
+            if tbl !== nothing
+                ivals = [Float64(getproperty(rp, :i)) for rp in tbl.rows]
+                # The bound holds along the WHOLE path, to a tolerance — never an exact
+                # float equality (T3 is Linux-only; BLAS differs by a ULP).
+                @test all(v -> v >= -10 - 1e-8, ivals)
+            end
+            # Two bounds, opposite directions, on the same variable: both are kept.
+            r2 = run_json(["dsge", "solve", cmodel, "--periods", "8",
+                           "--constraint", "i[t] >= -10", "--constraint", "i[t] <= 10"])
+            assert_envelope_ok(r2; label="dsge solve two --constraint")
+            # A bound the OccBin parser rejects (no [t]) is a typed config/invalid —
+            # proof the --constraint VALUE reaches the resolver instead of being ignored.
+            bad = run_json(["dsge", "solve", cmodel, "--constraint", "i >= -10"])
+            @test bad.code == 4 && String(bad.doc.error.code) == "config/invalid"
+        end
+
         @testset "W1 dsge solve --method pfi (no order=)" begin
             r = run_json(["dsge", "solve", model_jl, "--method", "pfi"])
             assert_envelope_ok(r; label="dsge solve pfi")

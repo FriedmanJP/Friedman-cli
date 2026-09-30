@@ -14877,7 +14877,10 @@ end
                 @test s["additionalProperties"] === false
                 @test issubset(Set(s["required"]), Set(keys(s["properties"])))
                 for (_, pv) in s["properties"]
-                    @test pv["type"] in ("string", "integer", "number", "boolean")
+                    # "array" admitted for CARD-W1 #209's repeatable --prior/--constraint,
+                    # whose schema form is an array of strings. The card-named-but-
+                    # non-repeatable discrimination is pinned separately below.
+                    @test pv["type"] in ("string", "integer", "number", "boolean", "array")
                     @test haskey(pv, "x-cli")
                 end
                 nchecked[] += 1
@@ -15327,6 +15330,251 @@ end
         p = tokenize(["--lo", "-2.5", "--n", "-3"])
         @test p.options["lo"] == "-2.5" && p.options["n"] == "-3"
         @test p.multi["lo"] == ["-2.5"]
+    end
+end
+
+# ── CARD-W1 #209: the prior/constraint resolvers and their declarations ─────
+
+"""Write `content` to a temp TOML file and return its path."""
+function _toml_fixture(content::AbstractString)
+    p = tempname() * ".toml"
+    write(p, content)
+    return p
+end
+
+@testset "CARD-W1 #209 — resolvers and declarations" begin
+    @testset "_resolve_dsge_priors — file plus lines" begin
+        toml = _toml_fixture("[priors.sigma]\ndist = \"inv_gamma\"\na = 2.0\nb = 0.5\n")
+        got = _resolve_dsge_priors(toml, ["rho ~ beta(2, 2)"])
+        @test sort(collect(keys(got))) == ["rho", "sigma"]
+        @test got["rho"] == Dict("dist" => "beta", "a" => 2.0, "b" => 2.0)
+        @test got["sigma"] == Dict("dist" => "inv_gamma", "a" => 2.0, "b" => 0.5)
+    end
+
+    @testset "_resolve_dsge_priors — one source alone is enough" begin
+        only_lines = _resolve_dsge_priors("", ["rho ~ beta(2, 2)"])
+        @test only_lines == Dict("rho" => Dict("dist" => "beta", "a" => 2.0, "b" => 2.0))
+        only_file = _resolve_dsge_priors(_toml_fixture("[priors.rho]\ndist = \"beta\"\na = 2.0\nb = 2.0\n"), String[])
+        @test only_file == only_lines
+    end
+
+    @testset "_resolve_dsge_priors — duplicates are config/invalid" begin
+        toml = _toml_fixture("[priors.rho]\ndist = \"beta\"\na = 2.0\nb = 2.0\n")
+        # line duplicates file
+        e1 = try _resolve_dsge_priors(toml, ["rho ~ beta(2, 2)"]); nothing catch e; e end
+        @test e1 isa CliError && e1.code == "config/invalid"
+        @test occursin("rho", e1.message)
+        # Line duplicates line. NOTE: this is caught by `lower_priors`'s own
+        # within-stanza duplicate guard (src/model_card.jl), which fires BEFORE the
+        # resolver's `haskey(out, k)` merge check — it is here to pin that the
+        # resolver does not silently COLLAPSE a within-lines duplicate. The
+        # file-vs-line case above is the one that exercises the resolver's own guard.
+        e2 = try _resolve_dsge_priors("", ["rho ~ beta(2, 2)", "rho ~ normal(0, 1)"]); nothing catch e; e end
+        @test e2 isa CliError && e2.code == "config/invalid"
+        # distinct names coexist
+        merged = _resolve_dsge_priors(toml, ["alpha ~ normal(0, 1)"])
+        @test sort(collect(keys(merged))) == ["alpha", "rho"]
+    end
+
+    @testset "_resolve_dsge_priors — neither source is usage/missing" begin
+        err = try; _resolve_dsge_priors("", String[]); nothing; catch e; e; end
+        @test err isa CliError && err.code == "usage/missing"
+        # the message names the line, the stanza, then the file, in that order
+        m = lowercase(err.message)
+        @test findfirst("--prior", m) < findfirst("priors:", m) < findfirst("--priors", m)
+    end
+
+    @testset "_resolve_dsge_constraints — variable plus direction" begin
+        a = _resolve_dsge_constraints("", ["i[t] >= 0"])
+        # the card grammar has NO strict operator: `>=` / `<=` only, so a different
+        # DIRECTION is expressed with the other one
+        b = _resolve_dsge_constraints("", ["i[t] <= 0"])
+        @test length(a) == 1
+        @test length(b) == 1
+        @test a[1].var_name == :i && a[1].lower == 0.0 && a[1].upper === nothing
+        @test b[1].upper == 0.0 && b[1].lower === nothing
+        # the same variable bounded from BOTH sides is two distinct keys
+        two = _resolve_dsge_constraints("", ["-1 <= i[t] <= 1"])
+        @test length(two) == 1 && two[1].lower == -1.0 && two[1].upper == 1.0
+        mixed = _resolve_dsge_constraints("", ["i[t] >= 0", "i[t] <= 5"])
+        @test length(mixed) == 2
+        # but the SAME direction twice is a conflict
+        err = try; _resolve_dsge_constraints("", ["i[t] >= 0", "i[t] >= 0.5"]); nothing
+        catch e; e; end
+        @test err isa CliError && err.code == "config/invalid"
+        # no constraints FILE was given, so the message must not blame --constraints
+        @test !occursin("--constraints", err.message)
+        @test occursin("supply it once", err.message)
+    end
+
+    @testset "_resolve_dsge_constraints — file plus lines merge" begin
+        toml = _toml_fixture("[[constraints.bounds]]\nvariable = \"c\"\nlower = -2.0\n")
+        got = _resolve_dsge_constraints(toml, ["i[t] >= 0"]; spec=nothing)
+        @test length(got) == 2
+        vars = sort([String(c.var_name) for c in got])
+        @test vars == ["c", "i"]
+        # a line repeating a file bound collides
+        err = try; _resolve_dsge_constraints(toml, ["c[t] >= 0"]; spec=nothing); nothing
+        catch e; e; end
+        @test err isa CliError && err.code == "config/invalid"
+        # a FILE was given here, so naming --constraints is the right advice
+        @test occursin("--constraints", err.message)
+    end
+
+    @testset "_resolve_dsge_constraints — neither source is empty, not an error" begin
+        @test isempty(_resolve_dsge_constraints("", String[]))
+    end
+
+    @testset "declarations — --prior / --constraint are repeatable" begin
+        @test PRIOR_OPTION.name == "prior" && PRIOR_OPTION.repeatable
+        @test CONSTRAINT_OPTION.name == "constraint" && CONSTRAINT_OPTION.repeatable
+        @test PRIOR_OPTION.type === String && CONSTRAINT_OPTION.type === String
+        @test PRIOR_OPTION.choices === nothing && CONSTRAINT_OPTION.choices === nothing
+    end
+
+    @testset "with_default preserves every OptionSpec field" begin
+        # `with_default` rebuilds each OptionSpec field-by-field. It silently DROPPED
+        # `repeatable`, which is invisible until call time: `bind_args`
+        # (src/cli/parser.jl) takes the non-repeatable branch and hands a String to a
+        # kwarg declared `prior::Vector{String}` — a TypeError, exit 1, on every
+        # `dsge bayes prior-predictive --prior …` call. `dsge bayes prior-predictive`
+        # is the live victim: its options route through
+        # `with_default(select_options(BAYES_OPTIONS, …), "n-draws", 500)`.
+        group = OptionSpec[OptionSpec(name="prior", type=String, default=String[],
+                                      repeatable=true, description="d"),
+                           OptionSpec(name="n-draws", type=Int, default=10000,
+                                      description="n")]
+        out = with_default(group, "n-draws", 500)
+        @test length(out) == 2
+        # every field survives, not just the ones this task touches
+        for (src, got) in zip(group, out)
+            @test got.name == src.name
+            @test got.short == src.short
+            @test got.type === src.type
+            @test got.choices === src.choices
+            @test got.description == src.description
+            @test got.since == src.since
+            @test got.handle == src.handle
+            @test got.repeatable == src.repeatable
+        end
+        @test out[1].repeatable                       # the co-passenger is untouched
+        @test out[1].default == String[]
+        @test out[2].default == 500 && out[2].repeatable == false
+    end
+
+    @testset "every declared prior/constraint option matches its binding in the live registry" begin
+        # The reverse direction of the `with_default` bug: an option added WITHOUT
+        # `repeatable` binds as a String while every handler declares
+        # `::Vector{String}` — a TypeError, exit 1, caught here at the registry
+        # rather than at call time.
+        #
+        # `_CARD_REPEATABLE` is a NAME set, and three live options are named `prior`
+        # while being ordinary scalars with `choices` (the BVAR hyperparameter knob,
+        # surfaced on both `estimate multivariate bvar` and `… mfvar`, and the
+        # `nowcast bvar` default). So `prior` + non-repeatable is CORRECT for those
+        # three and a TypeError only for the rest — both directions are pinned here.
+        offenders = Tuple{String,String}[]
+        repeatable = Tuple{String,String}[]
+        scalar = Tuple{String,String}[]
+        function walk(node, path)
+            for (name, sub) in node.subcmds
+                p = vcat(path, [name])
+                if sub isa LeafCommand
+                    for o in sub.options
+                        o.name in ("prior", "constraint") || continue
+                        if o.choices !== nothing        # the pre-existing scalar knobs
+                            o.repeatable && push!(offenders, (join(p, " "), o.name))
+                            push!(scalar, (join(p, " "), o.name))
+                        else
+                            o.repeatable || push!(offenders, (join(p, " "), o.name))
+                            push!(repeatable, (join(p, " "), o.name))
+                        end
+                    end
+                else
+                    walk(sub, p)
+                end
+            end
+        end
+        walk(APP.root, String[])
+        @test offenders == []
+        # The three scalar name collisions are exactly these — not a growing set.
+        @test sort(unique(scalar)) == [("estimate multivariate bvar", "prior"),
+                                       ("estimate multivariate mfvar", "prior"),
+                                       ("nowcast bvar", "prior")]
+        # …and the repeatable set is non-empty, so neither walk above is vacuous.
+        @test length(repeatable) == 19      # 15 --priors leaves + 4 --constraints leaves
+        @test count(p -> last(p) == "prior", repeatable) == 15
+        @test count(p -> last(p) == "constraint", repeatable) == 4
+    end
+
+    @testset "declarations — reach the leaves that use them" begin
+        function names_at(path)
+            want = join(path, " ")
+            exact = nothing
+            loose = nothing
+            function walk(n, p)
+                for (nm, sub) in n.subcmds
+                    q = vcat(p, [nm])
+                    if sub isa LeafCommand
+                        joined = join(q, " ")
+                        joined == want && (exact = sub)
+                        # NOT endswith alone: "hadsge solve" ends with "dsge solve".
+                        endswith(joined, want) && (loose = sub)
+                    else
+                        walk(sub, q)
+                    end
+                end
+            end
+            walk(APP.root, String[])
+            found = exact === nothing ? loose : exact
+            found === nothing && error("no leaf matching $path")
+            return [o.name for o in found.options]
+        end
+        # every Bayesian DSGE leaf that takes --priors also takes --prior
+        for p in (["dsge", "bayes", "estimate"], ["dsge", "bayes", "irf"],
+                  ["dsge", "bayes", "fevd"], ["dsge", "bayes", "simulate"],
+                  ["dsge", "bayes", "summary"], ["dsge", "bayes", "compare"],
+                  ["dsge", "bayes", "predictive"], ["dsge", "bayes", "hd"],
+                  ["dsge", "bayes", "mcmc-diag"], ["dsge", "bayes", "learning-rate"],
+                  ["dsge", "bayes", "overlap"], ["dsge", "bayes", "marginal-lik"],
+                  ["dsge", "bayes", "posterior-mode"], ["dsge", "bayes", "prior-predictive"],
+                  ["hadsge", "estimate"])
+            @test "prior" in names_at(p)
+        end
+        # compare keeps priors2 a FILE: no --prior2 is invented
+        @test !("prior2" in names_at(["dsge", "bayes", "compare"]))
+        # identification never had --priors, so it must not gain --prior
+        @test !("prior" in names_at(["dsge", "bayes", "identification"]))
+        # the four OccBin leaves gain --constraint beside --constraints
+        for p in (["dsge", "solve"], ["dsge", "irf"],
+                  ["dsge", "perfect-foresight"], ["dsge", "steady-state"])
+            n = names_at(p)
+            @test "constraints" in n && "constraint" in n
+        end
+    end
+
+    @testset "handlers accept the repeatable kwargs the options bind to" begin
+        # A repeatable String option binds to Vector{String}. A String kwarg here
+        # is a TypeError on every call (#85).
+        function kwnames(f)
+            for m in methods(f)
+                Base.isdispatchtuple(m.sig) || continue
+                return Base.kwarg_decl(m)
+            end
+            return Symbol[]
+        end
+        for f in (_dsge_solve, _dsge_irf, _dsge_steady_state, _dsge_perfect_foresight)
+            @test :constraint in kwnames(f)
+        end
+        for f in (_dsge_bayes_inputs, _dsge_bayes_run_estimation, _dsge_bayes_estimate,
+                  _dsge_bayes_irf, _dsge_bayes_fevd, _dsge_bayes_simulate,
+                  _dsge_bayes_summary, _dsge_bayes_compare, _dsge_bayes_predictive,
+                  _dsge_bayes_hd, _dsge_bayes_mcmc_diag, _dsge_bayes_learning_rate,
+                  _dsge_bayes_overlap, _dsge_bayes_posterior_mode,
+                  _dsge_bayes_prior_predictive, _dsge_bayes_marginal_lik,
+                  _dsge_ha_estimate)
+            @test :prior in kwnames(f)
+        end
     end
 end
 
