@@ -152,10 +152,6 @@ end
     end
 end
 
-@testset "every card header has a family" begin
-    @test Set(collect(keys(_CARD_FAMILIES))) == Set(collect(CARD_HEADERS))
-end
-
 @testset "lower_system — | with common instruments is config/invalid" begin
     err = try
         lower_system(parse_card("equations:\n  cons = y, x | z\ninstruments:\n  common: w\n"), "c")

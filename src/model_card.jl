@@ -39,13 +39,23 @@ end
 
 const _CARD_HEADER = r"^([A-Za-z][A-Za-z0-9_-]*(?:[ \t]+[A-Za-z][A-Za-z0-9_-]*)?):[ \t]*$"
 
+"""
+The family each stanza header belongs to. This table is the single source of
+the format's headers: `CARD_HEADERS` is derived from its keys, so a header
+cannot be accepted by `parse_card` while `card_family` answers `nothing` for
+it and `lowered_card` silently skips the stanza."""
+const _CARD_FAMILIES = Dict{String,Symbol}(
+    "priors"       => :priors,
+    "constraints"  => :constraints,
+    "gmm lp"       => :gmm,
+    "gmm iv"       => :gmm,
+    "smm"          => :smm,
+    "equations"    => :system,
+    "instruments"  => :system,
+)
+
 """Every stanza header the format defines. Anything else is `config/invalid`."""
-const CARD_HEADERS = Set([
-    "priors", "constraints",
-    "gmm lp", "gmm iv",
-    "smm",
-    "equations", "instruments",
-])
+const CARD_HEADERS = Set(keys(_CARD_FAMILIES))
 
 _card_error(path, lineno, reason; class::AbstractString="config/invalid") =
     CliError(class, "$(path) line $(lineno): $(reason)")
@@ -688,22 +698,8 @@ function _card_colvec(s::AbstractString, ctx::AbstractString, path::AbstractStri
 end
 
 # ─── Family dispatch (W0 / #206) ───────────────────────────────────────────────
-
-
-# Every header `parse_card` accepts must map to a family. Without this tie, a
-# header added to `CARD_HEADERS` alone would make `card_family` answer
-# `nothing` and `lowered_card` would silently skip that stanza.
-const _CARD_FAMILIES = Dict{String,Symbol}(
-    "priors"       => :priors,
-    "constraints"  => :constraints,
-    "gmm lp"       => :gmm,
-    "gmm iv"       => :gmm,
-    "smm"          => :smm,
-    "equations"    => :system,
-    "instruments"  => :system,
-)
-
-@assert Set(keys(_CARD_FAMILIES)) == CARD_HEADERS "every card header needs a family"
+# The family table itself now lives at the top of the file, next to the header
+# scanner: `CARD_HEADERS` is derived from its keys there.
 
 """The family a stanza header belongs to, or `nothing` when it is not a header
 the format defines."""
