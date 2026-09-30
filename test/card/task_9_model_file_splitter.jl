@@ -156,8 +156,12 @@ end
         @test !occursin("rho = 0.5", model)    # the first block is not the model
 
         # And at the loader: both files must yield the same rho-dependent spec.
+        # `allow_priors=true` declares that this caller CONSUMES the `priors:`
+        # stanza; the loader's default policy refuses a stanza a leaf cannot use
+        # (CARD-W2 #210, F2), and this probe is about which block is solved, not
+        # about the priors themselves.
         s1 = _load_dsge_model(f1)
-        s2 = _load_dsge_model(f2)
+        s2 = _load_dsge_model(f2; allow_priors=true)
         @test s1 isa MacroEconometricModels.ModelSpec
         @test s2 isa MacroEconometricModels.ModelSpec
         @test s1.n_endog == s2.n_endog == 1
@@ -177,7 +181,9 @@ end
         @test occursin("rho = 0.9", model3)     # the real LAST block
         @test !occursin("rho = 0.99", model3)   # never the docstring example
         # And at the loader: the documented example must not become the spec.
-        s3 = _load_dsge_model(f3)
+        # `f3` declares `priors:`, and this probe exercises the splitter, not the
+        # leaf's stanza policy — opt in so the loader actually reaches the file.
+        s3 = _load_dsge_model(f3; allow_priors=true)
         @test s3 isa MacroEconometricModels.ModelSpec
         @test s3.n_endog == 1
     end
@@ -314,7 +320,7 @@ end
         Y[t] = rho * Y[t-1] + e[t]
     end
     """)
-    spec2 = _load_dsge_model(f2)
+    spec2 = _load_dsge_model(f2; allow_priors=true)
     @test spec2 isa MacroEconometricModels.ModelSpec
     @test spec2.n_endog == 1
 
