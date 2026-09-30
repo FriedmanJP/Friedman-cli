@@ -15030,14 +15030,31 @@ end
         @test !haskey(p["x-cli"], "repeatable")
     end
 
+    # The name half of the gate is only half the gate: `_CARD_REPEATABLE` is a NAME
+    # set, and three live options are named `prior` while being non-repeatable
+    # (`estimate multivariate bvar --prior` ×2 and `nowcast --prior`, all with
+    # choices). This mirrors the registry, not the card world: it fails if the
+    # `o.repeatable` half of the gate is ever dropped, which would advertise an
+    # array for an option the CLI binds — and `_mcp_argv` emits — as a scalar.
+    @testset "_input_schema — a card-named but non-repeatable option stays a string" begin
+        leaf = LeafCommand("x", identity;
+                           options=[Option("prior"; type=String, choices=["minnesota", "normal"])],
+                           args=[Argument("data")])
+        p = _input_schema(leaf, ["x"])["properties"]["prior"]
+        @test p["type"] == "string"
+        @test p["enum"] == ["minnesota", "normal"]
+        @test !haskey(p, "items")
+        @test !haskey(p["x-cli"], "repeatable")
+    end
+
     @testset "_input_schema — a card option's items carry its own type" begin
         leaf = LeafCommand("x", identity;
-                           options=[Option("constraint"; type=String, repeatable=true,
+                           options=[Option("constraint"; type=Int, repeatable=true,
                                            choices=["a", "b"])],
                            args=[Argument("data")])
         p = _input_schema(leaf, ["x"])["properties"]["constraint"]
         @test p["type"] == "array"
-        @test p["items"]["type"] == "string"
+        @test p["items"]["type"] == "integer"   # items type follows the option, not a literal
         @test p["items"]["enum"] == ["a", "b"]   # enum moves into items, not the value
         @test !haskey(p, "enum")
     end
