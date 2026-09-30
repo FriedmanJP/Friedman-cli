@@ -15376,12 +15376,33 @@ end
         @test sort(collect(keys(merged))) == ["alpha", "rho"]
     end
 
-    @testset "_resolve_dsge_priors — neither source is usage/missing" begin
-        err = try; _resolve_dsge_priors("", String[]); nothing; catch e; e; end
-        @test err isa CliError && err.code == "usage/missing"
-        # the message names the line, the stanza, then the file, in that order
-        m = lowercase(err.message)
-        @test findfirst("--prior", m) < findfirst("priors:", m) < findfirst("--priors", m)
+    @testset "neither source — the REACHABLE usage/missing, in order" begin
+        # The resolver deliberately does NOT throw here (it returns an empty dict);
+        # the user-facing error lives in the leaf guards, which run first. So the
+        # ordering contract is asserted on the message a user actually receives,
+        # reached by calling the guard — not on a dead branch inside the resolver.
+        # Each guard gets its OWN probe: the two signatures share no superset
+        # (`_dsge_bayes_inputs` takes no sampler, `_dsge_ha_estimate` takes no
+        # params/solver/order), so one merged probe would MethodError on the kwarg
+        # set rather than reach the guard.
+        probes = Any[
+            (_dsge_bayes_inputs, "usage/missing",
+             (model="", data="d.csv", params="rho", priors="", prior=String[],
+              observables="", solver="gensys", order=1, constraint_solver="")),
+            (_dsge_ha_estimate, "usage/missing-option",
+             (model="", data="d.csv", priors="", prior=String[], observables="",
+              method="ssj", sampler="mh", n_draws=1, burnin=0, n_smc=1, ess_target=0.5)),
+        ]
+        for (f, code, p) in probes
+            err = try f(; p...); nothing catch e; e; end
+            @test err isa CliError && err.code == code
+            @test err.message == _priors_required_message()
+            # the message names the line, the stanza, then the file, in that order
+            m = lowercase(err.message)
+            @test findfirst("--prior", m) < findfirst("priors:", m) < findfirst("--priors", m)
+        end
+        # the resolver's own contract at that point: empty, not an exception
+        @test _resolve_dsge_priors("", String[]) == Dict{String,Any}()
     end
 
     @testset "_resolve_dsge_constraints — variable plus direction" begin
@@ -15432,34 +15453,38 @@ end
         @test PRIOR_OPTION.choices === nothing && CONSTRAINT_OPTION.choices === nothing
     end
 
-    @testset "with_default preserves every OptionSpec field" begin
-        # `with_default` rebuilds each OptionSpec field-by-field. It silently DROPPED
-        # `repeatable`, which is invisible until call time: `bind_args`
-        # (src/cli/parser.jl) takes the non-repeatable branch and hands a String to a
-        # kwarg declared `prior::Vector{String}` — a TypeError, exit 1, on every
-        # `dsge bayes prior-predictive --prior …` call. `dsge bayes prior-predictive`
-        # is the live victim: its options route through
-        # `with_default(select_options(BAYES_OPTIONS, …), "n-draws", 500)`.
+    @testset "with_default preserves every OptionSpec field of the option it REBUILDS" begin
+        # `with_default` rebuilds ONLY the option whose name matches; every other
+        # member is passed through by reference. So the assertion that bites must be
+        # about the REBUILT option — a passthrough member compares equal to itself
+        # under any implementation. Here the rebuilt option is the REPEATABLE one,
+        # which is exactly the field the function used to drop: delete
+        # `repeatable=o.repeatable` from src/registry/spec.jl and
+        # `out[1].repeatable` below goes false, which is the regression.
         group = OptionSpec[OptionSpec(name="prior", type=String, default=String[],
                                       repeatable=true, description="d"),
                            OptionSpec(name="n-draws", type=Int, default=10000,
                                       description="n")]
-        out = with_default(group, "n-draws", 500)
+        out = with_default(group, "prior", ["rho ~ beta(2, 2)"])
         @test length(out) == 2
-        # every field survives, not just the ones this task touches
-        for (src, got) in zip(group, out)
-            @test got.name == src.name
-            @test got.short == src.short
-            @test got.type === src.type
-            @test got.choices === src.choices
-            @test got.description == src.description
-            @test got.since == src.since
-            @test got.handle == src.handle
-            @test got.repeatable == src.repeatable
-        end
-        @test out[1].repeatable                       # the co-passenger is untouched
-        @test out[1].default == String[]
-        @test out[2].default == 500 && out[2].repeatable == false
+        rebuilt = out[1]
+        @test rebuilt.repeatable === true            # ← the pin that turns red
+        @test rebuilt.default == ["rho ~ beta(2, 2)"]
+        # every other field of the rebuilt option survives too
+        src = group[1]
+        @test rebuilt.name == src.name
+        @test rebuilt.short == src.short
+        @test rebuilt.type === src.type
+        @test rebuilt.choices === src.choices
+        @test rebuilt.description == src.description
+        @test rebuilt.since == src.since
+        @test rebuilt.handle == src.handle
+        # …and the untouched member is passed through unchanged
+        @test out[2] === group[2]
+        # a NON-repeatable option rebuilds to a non-repeatable one
+        out2 = with_default(group, "n-draws", 500)
+        @test out2[2].default == 500 && out2[2].repeatable === false
+        @test out2[1] === group[1]
     end
 
     @testset "every declared prior/constraint option matches its binding in the live registry" begin
@@ -15543,8 +15568,12 @@ end
         end
         # compare keeps priors2 a FILE: no --prior2 is invented
         @test !("prior2" in names_at(["dsge", "bayes", "compare"]))
-        # identification never had --priors, so it must not gain --prior
-        @test !("prior" in names_at(["dsge", "bayes", "identification"]))
+        # identification never had --priors, so it must not gain --prior. The
+        # PREMISE is asserted alongside the conclusion, so the conclusion cannot
+        # keep passing after someone adds --priors to that leaf without --prior.
+        ident = names_at(["dsge", "bayes", "identification"])
+        @test !("priors" in ident)
+        @test !("prior" in ident)
         # the four OccBin leaves gain --constraint beside --constraints
         for p in (["dsge", "solve"], ["dsge", "irf"],
                   ["dsge", "perfect-foresight"], ["dsge", "steady-state"])
@@ -15553,9 +15582,15 @@ end
         end
     end
 
-    @testset "handlers accept the repeatable kwargs the options bind to" begin
-        # A repeatable String option binds to Vector{String}. A String kwarg here
-        # is a TypeError on every call (#85).
+    @testset "handlers declare the repeatable kwargs with the TYPE they bind to" begin
+        # #85: a declared option must match its handler kwarg in NAME and in TYPE.
+        # A repeatable String option binds to `Vector{String}`; a handler declaring
+        # `prior::String` accepts the name and then TypeErrors on every call.
+        # `Base.kwarg_decl` yields NAMES only, so the type is checked the way it
+        # actually bites: the kwsorter enforces a declared keyword type BEFORE the
+        # body runs, so a `Vector{String}` probe must not TypeError and a `String`
+        # probe must. Every probe below dies on a usage/config guard instead — no
+        # model, no data, no estimation.
         function kwnames(f)
             for m in methods(f)
                 Base.isdispatchtuple(m.sig) || continue
@@ -15563,17 +15598,42 @@ end
             end
             return Symbol[]
         end
+        p_in = (model="", data="d.csv", params="rho", priors="", observables="",
+                solver="gensys", order=1, constraint_solver="")
+        p_run = merge(p_in, (sampler="smc", n_smc=1, n_particles=1, n_draws=1,
+                             burnin=0, ess_target=0.5, delayed_acceptance=false))
+        bayes = Any[
+            (_dsge_bayes_inputs, p_in),
+            (_dsge_bayes_run_estimation, p_run),
+            (_dsge_bayes_estimate, p_run), (_dsge_bayes_irf, p_run),
+            (_dsge_bayes_fevd, p_run), (_dsge_bayes_simulate, p_run),
+            (_dsge_bayes_summary, p_run), (_dsge_bayes_compare, p_run),
+            (_dsge_bayes_predictive, p_run), (_dsge_bayes_hd, p_run),
+            (_dsge_bayes_mcmc_diag, p_run), (_dsge_bayes_learning_rate, p_run),
+            (_dsge_bayes_overlap, p_run), (_dsge_bayes_marginal_lik, p_run),
+            (_dsge_bayes_posterior_mode, p_in),
+            # no --data on prior-predictive: it draws from the PRIOR
+            (_dsge_bayes_prior_predictive,
+             (model="", params="rho", priors="", observables="", solver="gensys",
+              order=1, constraint_solver="")),
+            (_dsge_ha_estimate,
+             (model="", data="d.csv", priors="", observables="", method="ssj",
+              sampler="mh", n_draws=1, burnin=0, n_smc=1, ess_target=0.5)),
+        ]
+        for (f, p) in bayes
+            @test :prior in kwnames(f)
+            ok = try f(; p..., prior=String[]); nothing catch e; e end
+            @test !(ok isa TypeError) && !(ok isa MethodError)
+            bad = try f(; p..., prior="rho ~ beta(2, 2)"); nothing catch e; e end
+            @test bad isa TypeError        # ← fails if the kwarg is declared ::String
+        end
+        p_c = (model="",)
         for f in (_dsge_solve, _dsge_irf, _dsge_steady_state, _dsge_perfect_foresight)
             @test :constraint in kwnames(f)
-        end
-        for f in (_dsge_bayes_inputs, _dsge_bayes_run_estimation, _dsge_bayes_estimate,
-                  _dsge_bayes_irf, _dsge_bayes_fevd, _dsge_bayes_simulate,
-                  _dsge_bayes_summary, _dsge_bayes_compare, _dsge_bayes_predictive,
-                  _dsge_bayes_hd, _dsge_bayes_mcmc_diag, _dsge_bayes_learning_rate,
-                  _dsge_bayes_overlap, _dsge_bayes_posterior_mode,
-                  _dsge_bayes_prior_predictive, _dsge_bayes_marginal_lik,
-                  _dsge_ha_estimate)
-            @test :prior in kwnames(f)
+            ok = try f(; p_c..., constraint=String[]); nothing catch e; e end
+            @test !(ok isa TypeError) && !(ok isa MethodError)
+            bad = try f(; p_c..., constraint="i[t] >= 0"); nothing catch e; e end
+            @test bad isa TypeError        # ← fails if the kwarg is declared ::String
         end
     end
 end

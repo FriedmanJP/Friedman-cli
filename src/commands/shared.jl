@@ -2845,9 +2845,13 @@ equivalent TOML reach the estimator by ONE path. `file` is `--priors`;
 `lines` are the repeatable `--prior 'name ~ dist(a, b)'` values.
 
 A parameter supplied by both sources (or twice in `lines`) is
-`config/invalid` naming the parameter. With neither source the error is
-`usage/missing`, and its message names `--prior`, then the `priors:` stanza,
-then `--priors`, in that order.
+`config/invalid` naming the parameter. A `--priors` file with no `[priors]`
+table is `config/missing-key` from `get_dsge_priors`.
+
+With neither source this returns an EMPTY dict rather than throwing: the
+user-facing `usage/missing` lives in the leaf guards
+(`_dsge_bayes_inputs`, `_dsge_ha_estimate`), which run first and are the only
+reachable copy — see `_priors_required_message`.
 """
 function _resolve_dsge_priors(file::String, lines::Vector{String})
     out = Dict{String,Any}()
@@ -2864,11 +2868,25 @@ function _resolve_dsge_priors(file::String, lines::Vector{String})
             out[k] = v
         end
     end
-    isempty(out) && throw(CliError("usage/missing",
-        "no priors given: pass --prior 'name ~ dist(a, b)' (repeatable), " *
-        "add a priors: stanza to the model file, or point --priors at a priors TOML"))
     return out
 end
+
+"""
+    _priors_required_message() → String
+
+The ONE user-facing "no priors supplied" message (#209), shared by every leaf
+guard so the three sources are named identically wherever the user hits it.
+It lives here, beside the resolver, because the leaf guards run FIRST — a
+second copy inside `_resolve_dsge_priors` would be unreachable (a `--priors`
+file with an empty `[priors]` table is already `config/missing-key` from
+`get_dsge_priors`), and an unreachable copy is a copy nobody tests.
+
+Order is `--prior`, then the `priors:` stanza, then `--priors`: the cheapest
+source first, the file last.
+"""
+_priors_required_message() =
+    "priors are required: pass --prior 'name ~ dist(a, b)' (repeatable), " *
+    "add a priors: stanza to the model file, or point --priors at a priors TOML"
 
 """
     _card_inline(header, lines) → String

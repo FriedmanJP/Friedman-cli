@@ -2453,9 +2453,7 @@ function _dsge_bayes_inputs(; model::String, data::String, params::String,
         throw(CliError("usage/missing", "--data is required (path to CSV data file)"))
     isempty(params) && throw(CliError("usage/missing", "--params is required (comma-separated parameter names)"))
     isempty(priors) && isempty(prior) &&
-        throw(CliError("usage/missing",
-            "priors are required: pass --prior 'name ~ dist(a, b)' (repeatable), " *
-            "or --priors <file.toml> with a [priors] section"))
+        throw(CliError("usage/missing", _priors_required_message()))
 
     if !isempty(constraint_solver) && !(constraint_solver in ("nonlinearsolve", "optim", "nlopt", "ipopt", "path"))
         throw(CliError("usage/invalid",
@@ -3824,9 +3822,8 @@ function _dsge_ha_estimate(; model::String, data::String="", priors::String="",
                             output::String="", format::String="table")
     isempty(data) && throw(CliError("usage/missing-option",
         "--data is required (path to observed aggregates CSV)"))
-    isempty(priors) && isempty(prior) && throw(CliError("usage/missing-option",
-        "priors are required: pass --prior 'name ~ dist(a, b)' (repeatable), " *
-        "or --priors <file.toml> with a [priors] section"))
+    isempty(priors) && isempty(prior) &&
+        throw(CliError("usage/missing-option", _priors_required_message()))
     meth = _parse_ha_method(method)
     meth === :krusell_smith && throw(CliError("usage/invalid-option",
         "HA Bayesian estimation requires --method=ssj or reiter " *

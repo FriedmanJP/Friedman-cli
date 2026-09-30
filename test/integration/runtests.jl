@@ -5330,12 +5330,16 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             # JSON3 does not preserve insertion order, and data tables collide on shared
             # substrings (W12/#114). Only the path table carries BOTH the leading
             # `period` index and every model variable.
-            tbl = nothing
-            for (_, v) in pairs(r.doc.data)
-                (v isa JSON3.Object && haskey(v, :rows)) || continue
-                v.columns isa JSON3.Array || continue
-                Set(Symbol.(v.columns)) == Set([:period, :Y, :C, :i]) && (tbl = v; break)
+            function ipath(doc)
+                doc === nothing && return nothing
+                for (_, v) in pairs(doc.data)
+                    (v isa JSON3.Object && haskey(v, :rows)) || continue
+                    v.columns isa JSON3.Array || continue
+                    Set(Symbol.(v.columns)) == Set([:period, :Y, :C, :i]) && return v
+                end
+                return nothing
             end
+            tbl = ipath(r.doc)
             @test tbl !== nothing
             if tbl !== nothing
                 ivals = [Float64(getproperty(rp, :i)) for rp in tbl.rows]
@@ -5343,10 +5347,29 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                 # float equality (T3 is Linux-only; BLAS differs by a ULP).
                 @test all(v -> v >= -10 - 1e-8, ivals)
             end
-            # Two bounds, opposite directions, on the same variable: both are kept.
+
+            # Two occurrences are BOTH merged, and the SECOND one is in force. The
+            # upper bound is binding: unconstrained, i = phi_pi * Y oscillates around
+            # +0.75, so if the second --constraint were dropped the path would sit
+            # above 0 and this assertion would fail.
             r2 = run_json(["dsge", "solve", cmodel, "--periods", "8",
-                           "--constraint", "i[t] >= -10", "--constraint", "i[t] <= 10"])
+                           "--constraint", "i[t] >= -10", "--constraint", "i[t] <= 0"])
             assert_envelope_ok(r2; label="dsge solve two --constraint")
+            tbl2 = ipath(r2.doc)
+            @test tbl2 !== nothing
+            if tbl2 !== nothing
+                i2 = [Float64(getproperty(rp, :i)) for rp in tbl2.rows]
+                @test all(v -> v >= -10 - 1e-8, i2)
+                @test all(v -> v <= 1e-8, i2)
+            end
+
+            # The second occurrence REACHES the resolver: two bounds on the same
+            # variable in the same direction are a conflict (exit 4), not a silent
+            # drop of the second flag and not a collapsed merge.
+            dup = run_json(["dsge", "solve", cmodel, "--periods", "8",
+                            "--constraint", "i[t] >= -10", "--constraint", "i[t] >= -5"])
+            @test dup.code == 4 && String(dup.doc.error.code) == "config/invalid"
+
             # A bound the OccBin parser rejects (no [t]) is a typed config/invalid —
             # proof the --constraint VALUE reaches the resolver instead of being ignored.
             bad = run_json(["dsge", "solve", cmodel, "--constraint", "i >= -10"])
