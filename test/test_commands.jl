@@ -15008,10 +15008,38 @@ end
         @test p["x-cli"]["repeatable"] == true
     end
 
-    @testset "_input_schema — a non-repeatable option is unchanged" begin
-        leaf = LeafCommand("x", identity; options=[Option("set")], args=[Argument("data")])
+    # The load-bearing gate: `set` IS repeatable in the registry (Task 4) and must
+    # still be a plain string in the schema, per #209. A `repeatable=true` option
+    # that is NOT a card option is the case that fails if the branch ever loses
+    # its `in _CARD_REPEATABLE` half.
+    @testset "_input_schema — a repeatable non-card option stays a string" begin
+        leaf = LeafCommand("x", identity; options=[Option("set"; repeatable=true)],
+                           args=[Argument("data")])
         p = _input_schema(leaf, ["x"])["properties"]["set"]
-        @test p["type"] == "string"     # set is a string in the schema unless repeatable
+        @test p["type"] == "string"
+        @test !haskey(p, "items")
+        @test !haskey(p["x-cli"], "repeatable")
+    end
+
+    @testset "_input_schema — a plain non-repeatable option is unchanged" begin
+        leaf = LeafCommand("x", identity; options=[Option("lags"; type=Int)],
+                           args=[Argument("data")])
+        p = _input_schema(leaf, ["x"])["properties"]["lags"]
+        @test p["type"] == "integer"
+        @test !haskey(p, "items")
+        @test !haskey(p["x-cli"], "repeatable")
+    end
+
+    @testset "_input_schema — a card option's items carry its own type" begin
+        leaf = LeafCommand("x", identity;
+                           options=[Option("constraint"; type=String, repeatable=true,
+                                           choices=["a", "b"])],
+                           args=[Argument("data")])
+        p = _input_schema(leaf, ["x"])["properties"]["constraint"]
+        @test p["type"] == "array"
+        @test p["items"]["type"] == "string"
+        @test p["items"]["enum"] == ["a", "b"]   # enum moves into items, not the value
+        @test !haskey(p, "enum")
     end
 
     @testset "_mcp_argv — one flag per array element" begin
