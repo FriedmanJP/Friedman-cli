@@ -1,0 +1,143 @@
+# Friedman-cli — macroeconometric analysis from the terminal
+# Copyright (C) 2026 Wookyung Chung <chung@friedman.jp>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+# Model card format — line scanner and grammar (W0 / #206)
+#
+# A card is a plain-text, stanza-oriented config file:
+#
+#     priors:
+#       rho ~ beta(2, 2)
+#
+#     gmm lp:
+#       moments: output, inflation
+#
+# This file holds the scanner. Value interpretation lives in the lowerers
+# that follow it; a stanza line is never evaluated as code.
+
+"""One stanza of a model card: its header, the line it starts on, and its body.
+
+`lines` holds `(lineno, trimmed_line)` for every body line — comments and
+blank lines are dropped by the scanner, so a lowerer sees only content."""
+struct CardStanza
+    header::String
+    lineno::Int
+    lines::Vector{Tuple{Int,String}}
+end
+
+const _CARD_IDENT = r"^[A-Za-z][A-Za-z0-9_-]*"
+const _CARD_HEADER = r"^([A-Za-z][A-Za-z0-9_-]*(?:[ \t]+[A-Za-z][A-Za-z0-9_-]*)?):[ \t]*$"
+
+"""Every stanza header the format defines. Anything else is `config/invalid`."""
+const CARD_HEADERS = Set([
+    "priors", "constraints",
+    "gmm lp", "gmm iv",
+    "smm",
+    "equations", "instruments",
+])
+
+_card_error(path, lineno, reason) =
+    CliError("config/invalid", "$(path) line $(lineno): $(reason)")
+
+"""True when `line`'s leading whitespace is at least two spaces wide, or a tab.
+
+Editors differ on what they emit for an indent (Review Focus 4), so both a tab
+and two or more spaces open a body line."""
+function _card_is_body_indent(line::AbstractString)
+    m = match(r"^[ \t]*", line)
+    ws = m === nothing ? "" : m.match
+    return occursin('\t', ws) || count(==(' '), ws) >= 2
+end
+
+"""Does `line` open a `@dsge` block at column 0?"""
+_card_is_dsge_open(line) = startswith(line, "@dsge")
+
+"""Does `line` close a `@dsge` block at column 0?"""
+_card_is_dsge_close(line) = occursin(r"^end\b", line)
+
+"""
+    parse_card(src, path="<card>") -> Vector{CardStanza}
+
+Scan `src` into stanzas. `src` is split on `\\n` and each line loses a trailing
+`\\r`, so a Windows-authored card parses identically (Review Focus 2).
+
+A line at column 0 that looks like `word:` or `word word:` opens a stanza;
+inside a stanza a line indented by at least two spaces (or a tab) is a body
+line. Blank lines and `#` comments are skipped anywhere, and a `@dsge` block
+is passed over untouched so a model file's preamble can hold both.
+
+Every rejection is a `config/invalid` `CliError` naming the 1-based line.
+"""
+function parse_card(src::AbstractString, path::AbstractString="<card>")
+    stanzas = CardStanza[]
+    open = CardStanza[]            # stack depth is at most 1; a vector keeps the close path uniform
+    seen = Set{String}()
+    in_dsge = false
+
+    raw = split(src, '\n')
+    for (i, rawline) in enumerate(raw)
+        line = endswith(rawline, '\r') ? chop(rawline) : rawline
+        stripped = strip(line)
+
+        if in_dsge
+            _card_is_dsge_close(stripped) && (in_dsge = false)
+            continue
+        end
+        isempty(stripped) && continue
+        startswith(stripped, '#') && continue
+
+        m = match(_CARD_HEADER, line)
+        if m !== nothing
+            header = String(m.captures[1])
+            header in CARD_HEADERS ||
+                throw(_card_error(path, i, "unknown stanza header '$(header)'"))
+            header in seen &&
+                throw(_card_error(path, i, "duplicate stanza header '$(header)'"))
+            push!(seen, header)
+            isempty(open) || push!(stanzas, pop!(open))
+            push!(open, CardStanza(header, i, Tuple{Int,String}[]))
+            continue
+        end
+
+        # A `@dsge` block is ordinary Julia, not card content (Task 9).
+        _card_is_dsge_open(stripped) && (in_dsge = true; continue)
+        if !isempty(open)
+            if _card_is_body_indent(line)
+                push!(open[1].lines, (i, stripped))
+                continue
+            end
+            # Column 0 inside a stanza closes it, then is re-examined above;
+            # a non-header at column 0 is not a card at all.
+            push!(stanzas, pop!(open))
+        end
+
+        throw(_card_error(path, i,
+            _card_is_body_indent(line) ?
+                "indented line outside a stanza; stanza headers start at the left margin" :
+                "expected a stanza header or an indented body line"))
+    end
+
+    isempty(open) || push!(stanzas, pop!(open))
+    return stanzas
+end
+
+"""
+    read_card(path) -> Vector{CardStanza}
+
+Read and scan the card at `path`. The path is validated as an input file first,
+so a missing card is the same typed failure as any other missing input.
+"""
+read_card(path::AbstractString) =
+    parse_card(read(_validate_input_path(path), String), path)

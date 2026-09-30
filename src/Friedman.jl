@@ -41,6 +41,7 @@ include("io.jl")
 include("output/envelope.jl")
 include("output/render.jl")
 include("config.jl")
+include("model_card.jl")
 
 # Shared utilities (must come before command files)
 include("commands/shared.jl")

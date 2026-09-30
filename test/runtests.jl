@@ -4044,6 +4044,11 @@ using TOML
 end
 
 # ──────────────────────────────────────────────────────────────
+# Model card grammar (W0 / #206)
+# ──────────────────────────────────────────────────────────────
+include(joinpath(@__DIR__, "model_card.jl"))
+
+# ──────────────────────────────────────────────────────────────
 # Command handler tests (uses mock MacroEconometricModels)
 # ──────────────────────────────────────────────────────────────
 include(joinpath(@__DIR__, "test_commands.jl"))
