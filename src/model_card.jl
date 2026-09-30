@@ -592,7 +592,6 @@ than silently resolved."""
 function lower_system(stanzas, path::AbstractString)
     common = String[]
     has_common = false
-    common_lineno = 0
     for s in stanzas
         s.header == "instruments" || continue
         for (lineno, raw) in s.lines
@@ -605,7 +604,6 @@ function lower_system(stanzas, path::AbstractString)
                                   class="config/shape"))
             has_common = true
             common = cols
-            common_lineno = ln
         end
     end
 
