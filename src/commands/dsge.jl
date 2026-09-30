@@ -2794,7 +2794,8 @@ function _dsge_bayes_compare(; model::String, data::String="", params::String=""
     _status("Estimating Model 2...")
     r2 = _dsge_bayes_run_estimation(; model=model2, data, params=params2,
         priors=priors2, sampler, n_smc, n_particles, n_draws, burnin,
-        ess_target, observables, solver, order, delayed_acceptance, constraint_solver)
+        ess_target, observables, solver, order, delayed_acceptance, constraint_solver,
+        prefilter, hp_lambda, measurement_error)
 
     # MEMs `bayes_factor` returns the LOG Bayes factor: log BF₁₂ = logML₁ − logML₂
     # (positive favors Model 1). Do NOT take log() of it again. `bf = exp(log_bf)` may

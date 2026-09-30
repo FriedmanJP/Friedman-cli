@@ -141,7 +141,7 @@ function _spectral_acf(; data::String, column::Int=1,
     Y = df_to_matrix(df)
     y = Y[:, column]
 
-    kwargs = isnothing(max_lag) ? (;) : (; maxlag=max_lag)
+    kwargs = isnothing(max_lag) ? (;) : (; lags=max_lag)
     result = acf(y; kwargs...)
 
     _status("ACF/PACF: $(vnames[column])  (T = $(length(y)))")

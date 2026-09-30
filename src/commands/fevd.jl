@@ -225,6 +225,10 @@ function _fevd_var(; data::String="", result=nothing, model=nothing, lags=nothin
 
     # Arias identification: use identify_arias → irf_mean → compute FEVD from structural IRFs
     # (narrative-adrr shares the pipeline via identify_narrative)
+    if id in ("arias", "uhlig", "narrative-adrr") && (!isempty(instrument) || !isempty(target_var))
+        throw(CliError("usage/invalid",
+            "fevd var: --instrument/--target-var apply only to --id proxy/max-share (got --id $id)"))
+    end
     if id in ("arias", "narrative-adrr")
         cfg2, restrictions = _load_svar_restrictions(config, n, id == "narrative-adrr" ? "Narrative-ADRR" : "Arias")
         if id == "narrative-adrr"
@@ -319,10 +323,6 @@ function _fevd_var(; data::String="", result=nothing, model=nothing, lags=nothin
 
     # W2/#166: VAR-family allow-set (proxy/max-share/gmm-moments) + extras.
     _identification_method(id, _ID_METHODS_VAR, "fevd var")
-    if id in ("arias", "uhlig") && (!isempty(instrument) || !isempty(target_var))
-        throw(CliError("usage/invalid",
-            "fevd var: --instrument/--target-var apply only to --id proxy/max-share (got --id $id)"))
-    end
     kwargs = _build_identification_kwargs(id, config; methods=_ID_METHODS_VAR,
                                               nvars=length(varnames), leaf="fevd var")
     _inject_svar_id_kwargs!(kwargs, id, "fevd var", data, varnames, instrument, target_var)

@@ -296,9 +296,19 @@ function _irf_var(; data::String="", result=nothing, model=nothing, lags=nothing
     _status("Computing IRFs: VAR($p), shock=$shock, horizons=$horizons, id=$id, ci=$ci")
     _status()
 
-    if id in ("arias", "uhlig") && (!isempty(instrument) || !isempty(target_var))
+    if id in ("arias", "uhlig", "narrative-adrr") && (!isempty(instrument) || !isempty(target_var))
         throw(CliError("usage/invalid",
             "irf var: --instrument/--target-var apply only to --id proxy/max-share (got --id $id)"))
+    end
+
+    if identified_set && id != "sign"
+        throw(CliError("usage/invalid",
+            "irf var: --identified-set applies only to --id sign (got --id $id)"))
+    end
+
+    if summary != "none" && !(identified_set && id == "sign")
+        throw(CliError("usage/invalid",
+            "irf var: --summary applies only to --identified-set with --id sign (got --summary $summary)"))
     end
 
     # Arias identification handled separately (narrative-adrr shares the Arias
@@ -317,15 +327,6 @@ function _irf_var(; data::String="", result=nothing, model=nothing, lags=nothing
     # W2/#166: the VAR family admits proxy/max-share/gmm-moments beyond the base
     # map (validated here — _build_identification_kwargs below only knows base).
     _identification_method(id, _ID_METHODS_VAR, "irf var")
-    if identified_set && id != "sign"
-        throw(CliError("usage/invalid",
-            "irf var: --identified-set applies only to --id sign (got --id $id)"))
-    end
-
-    if summary != "none" && !(identified_set && id == "sign")
-        throw(CliError("usage/invalid",
-            "irf var: --summary applies only to --identified-set with --id sign (got --summary $summary)"))
-    end
 
     # Sign-identified set: return full draw set instead of point estimates
     if identified_set && id == "sign"

@@ -9223,7 +9223,7 @@ end  # Data handlers
         end
     end
 
-    @testset "_nowcast_news — bvar method" begin
+    @testset "_nowcast_news — bvar method is rejected (no upstream BVAR news)" begin
         mktempdir() do dir
             csv_old = _make_csv(dir; T=100, n=5, colnames=["m1","m2","m3","m4","q1"])
             csv_new = joinpath(dir, "data_new.csv")
@@ -9233,10 +9233,15 @@ end  # Data handlers
             end
             CSV.write(csv_new, DataFrame(data))
 
-            out = _capture() do
+            e = try
                 _nowcast_news(; data_new=csv_new, data_old=csv_old,
                     monthly_vars=4, quarterly_vars=1, method="bvar")
+                nothing
+            catch ex
+                ex
             end
+            @test e isa CliError
+            @test e.code == "usage/invalid"
         end
     end
 

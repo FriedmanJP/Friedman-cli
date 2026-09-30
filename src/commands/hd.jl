@@ -211,6 +211,10 @@ function _hd_var(; data::String="", result=nothing, model=nothing, lags=nothing,
 
     # Arias identification: use Q from identify_arias to compute structural shocks
     # (narrative-adrr shares the pipeline via identify_narrative)
+    if id in ("arias", "uhlig", "narrative-adrr") && (!isempty(instrument) || !isempty(target_var))
+        throw(CliError("usage/invalid",
+            "hd var: --instrument/--target-var apply only to --id proxy/max-share (got --id $id)"))
+    end
     if id in ("arias", "narrative-adrr")
         cfg2, restrictions = _load_svar_restrictions(config, n, id == "narrative-adrr" ? "Narrative-ADRR" : "Arias")
         if id == "narrative-adrr"
@@ -268,10 +272,6 @@ function _hd_var(; data::String="", result=nothing, model=nothing, lags=nothing,
 
     # W2/#166: VAR-family allow-set (proxy/max-share/gmm-moments) + extras.
     _identification_method(id, _ID_METHODS_VAR, "hd var")
-    if id in ("arias", "uhlig") && (!isempty(instrument) || !isempty(target_var))
-        throw(CliError("usage/invalid",
-            "hd var: --instrument/--target-var apply only to --id proxy/max-share (got --id $id)"))
-    end
     kwargs = _build_identification_kwargs(id, config; methods=_ID_METHODS_VAR,
                                               nvars=length(varnames), leaf="hd var")
     _inject_svar_id_kwargs!(kwargs, id, "hd var", data, varnames, instrument, target_var)

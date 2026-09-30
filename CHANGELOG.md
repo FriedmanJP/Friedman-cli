@@ -43,6 +43,33 @@ permissive than real converts a production crash into a green suite).
   TIDY-14) and the vol `variance|volatility` table (sqrt transform, different
   data — deliberate C051 exception kept).
 
+## [Unreleased] — handler-logic follow-ups to #227
+
+- `estimate multivariate lp --method state --transition`: locked to
+  `logistic` (`choices=["logistic"]`) — upstream `estimate_state_lp`
+  hardcodes the logistic shape; other values were silently ignored.
+- `dsge bayes compare`: `--prefilter/--hp-lambda/--measurement-error`
+  now forwarded to the Model 2 estimation (was Model 1 only —
+  asymmetric likelihoods).
+- Clustered choice models: `--clusters` column no longer leaks into `X`
+  as a regressor (`estimate`/`predict`/`residuals` ologit/oprobit/mlogit;
+  `estimate mlogit` gains `--clusters`, wired to upstream `clusters=`).
+- `irf|fevd|hd var`: `--instrument/--target-var` (proxy/max-share only)
+  and irf `--identified-set/--summary` (sign only) guards moved ahead of
+  the arias/uhlig/narrative-adrr early returns, which silently ignored
+  them; narrative-adrr included in the instrument guard.
+- `spectral acf --max-lag`: forwarded as `maxlag=` (upstream takes
+  `lags=`) — every use crashed with `MethodError`. Same fix for `--ccf-with`.
+- `nowcast news`: dead `--method bvar` branch removed (upstream
+  `nowcast_news` takes a `NowcastDFM` only; the call always threw
+  `MethodError`). BVAR news needs an upstream method; parse gate
+  (`choices=["dfm"]`) plus a typed handler error hold the line.
+- NOT fixed (verified against MEMs 1.0.0): `predict|residuals factor
+  gdfm --nfactors` stays accepted-but-inert — upstream builds both
+  tables from the q-factor split only (`predict = common`,
+  `residuals = idiosyncratic`); threading `r` would only add an untyped
+  `r<q` error path. The option text says so.
+
 ## [Unreleased] — --help description accuracy (#227)
 
 Every `--help` sentence audited against handler bodies and MEMs 1.0.0

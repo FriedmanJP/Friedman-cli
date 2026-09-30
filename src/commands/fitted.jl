@@ -243,6 +243,12 @@ function _predict_gdfm(; data::String="", nfactors=nothing, dynamic_rank=nothing
             dynamic_rank
         end
 
+        # NOTE: --nfactors is deliberately NOT threaded here. Upstream builds
+        # predict()/residuals() from the q-dynamic-factor common/idiosyncratic
+        # split only (generalized.jl: predict = common, residuals = idiosyncratic);
+        # r feeds the one-sided filter, which neither leaf emits. Passing r would
+        # only add an untyped r<q ArgumentError path, so the static rank stays
+        # auto and the option text discloses it. (Verified against MEMs 1.0.0.)
         gm = estimate_gdfm(X, q)
     else
         gm = model
@@ -620,7 +626,7 @@ end
 function _predict_ologit(; data::String="", dep::String="", cov_type::String="hc1",
                           clusters::String="", marginal_effects::Bool=false,
                           output::String="", format::String="table")
-    y, X, xcols = _load_reg_data(data, dep)
+    y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
     cl = _load_clusters(data, clusters)
     dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
 
@@ -640,7 +646,7 @@ end
 function _predict_oprobit(; data::String="", dep::String="", cov_type::String="hc1",
                            clusters::String="", marginal_effects::Bool=false,
                            output::String="", format::String="table")
-    y, X, xcols = _load_reg_data(data, dep)
+    y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
     cl = _load_clusters(data, clusters)
     dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
 
@@ -660,7 +666,7 @@ end
 function _predict_mlogit(; data::String="", dep::String="", cov_type::String="ols",
                           clusters::String="", marginal_effects::Bool=false,
                           output::String="", format::String="table")
-    y, X, xcols = _load_reg_data(data, dep)
+    y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
     cl = _load_clusters(data, clusters)
     dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
 
@@ -915,6 +921,7 @@ function _residuals_gdfm(; data::String="", nfactors=nothing, dynamic_rank=nothi
             dynamic_rank
         end
 
+        # NOTE: --nfactors is deliberately NOT threaded here (see _predict_gdfm).
         gm = estimate_gdfm(X, q)
     else
         gm = model
@@ -1210,7 +1217,7 @@ function _residuals_ologit(; data::String="", dep::String="", cov_type::String="
                             clusters::String="", kind::String="response",
                             generalized::Bool=false,
                             output::String="", format::String="table")
-    y, X, xcols = _load_reg_data(data, dep)
+    y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
     cl = _load_clusters(data, clusters)
     dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
 
@@ -1227,7 +1234,7 @@ function _residuals_oprobit(; data::String="", dep::String="", cov_type::String=
                              clusters::String="", kind::String="response",
                              generalized::Bool=false,
                              output::String="", format::String="table")
-    y, X, xcols = _load_reg_data(data, dep)
+    y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
     cl = _load_clusters(data, clusters)
     dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
 
@@ -1243,10 +1250,11 @@ end
 function _residuals_mlogit(; data::String="", dep::String="", cov_type::String="ols",
                             clusters::String="", kind::String="response",
                             output::String="", format::String="table")
-    y, X, xcols = _load_reg_data(data, dep)
+    y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
+    cl = _load_clusters(data, clusters)
     dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
 
-    model = estimate_mlogit(y, X; cov_type=Symbol(cov_type), varnames=xcols)
+    model = estimate_mlogit(y, X; cov_type=Symbol(cov_type), varnames=xcols, clusters=cl)
 
     _status("Multinomial Logit Residuals: $dep_name")
     _status()

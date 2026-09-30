@@ -277,7 +277,7 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="lambda", type=Float64, default=0.0, description="Smoothing penalty, 0=auto CV (smooth only)"),
                 OptionSpec(name="state-var", type=Int, default=nothing, description="State variable index (state only)"),
                 OptionSpec(name="gamma", type=Float64, default=1.5, description="Transition steepness (state only)"),
-                OptionSpec(name="transition", type=String, default="logistic", description="logistic|exponential|indicator (accepted but has no effect: the state model always uses the logistic shape)"),
+                OptionSpec(name="transition", type=String, default="logistic", description="Transition shape (logistic only)", choices=["logistic"]),
                 OptionSpec(name="treatment", type=Int, default=1, description="Treatment variable index (propensity/robust only)"),
                 OptionSpec(name="score-method", type=String, default="logit", description="logit|probit (propensity/robust only)", choices=["logit", "probit"]),
                 # W10/#112 weak-instrument-robust LP-IV (iv only). Both are OFF by default so
@@ -1870,6 +1870,7 @@ function estimate_specs()::Vector{CommandSpec}
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column name"),
                 OptionSpec(name="cov-type", type=String, default="ols", description="ols|hc0|hc1|cluster"),
+                OptionSpec(name="clusters", type=String, default="", description="Cluster variable column name"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -4590,7 +4591,7 @@ end
 function _estimate_ologit(; data::String, dep::String="", cov_type::String="ols",
                            clusters::String="",
                            output::String="", format::String="table")
-    y, X, xcols = _load_reg_data(data, dep)
+    y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
     cl = _load_clusters(data, clusters)
     dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
 
@@ -4627,7 +4628,7 @@ end
 function _estimate_oprobit(; data::String, dep::String="", cov_type::String="ols",
                             clusters::String="",
                             output::String="", format::String="table")
-    y, X, xcols = _load_reg_data(data, dep)
+    y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
     cl = _load_clusters(data, clusters)
     dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
 
@@ -4657,14 +4658,16 @@ end
 # ── Multinomial Logit ──────────────────────────────────
 
 function _estimate_mlogit(; data::String, dep::String="", cov_type::String="ols",
+                           clusters::String="",
                            output::String="", format::String="table")
-    y, X, xcols = _load_reg_data(data, dep)
+    y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
+    cl = _load_clusters(data, clusters)
     dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
 
     _status("Multinomial Logit: $dep_name ~ $(join(xcols, " + "))")
     _status()
 
-    model = estimate_mlogit(y, X; cov_type=Symbol(cov_type), varnames=xcols)
+    model = estimate_mlogit(y, X; cov_type=Symbol(cov_type), varnames=xcols, clusters=cl)
 
     # C051: MEMs tidy coef table keyed by alternative — all categories in one table
     # (alternative|term|estimate|std_error|stat|p_value|ci_lower|ci_upper), replacing the

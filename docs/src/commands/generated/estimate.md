@@ -40,6 +40,7 @@ Fit multinomial logit regression over unordered categories
 |--------|-------|------|---------|---------|-------------|
 | `--dep` | — | `String` | `""` | — | Dependent variable column name |
 | `--cov-type` | — | `String` | `ols` | — | ols\|hc0\|hc1\|cluster |
+| `--clusters` | — | `String` | `""` | — | Cluster variable column name |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
@@ -385,7 +386,7 @@ Jorda local projections: standard|iv|smooth|state|propensity|robust
 | `--lambda` | — | `Float64` | `0.0` | — | Smoothing penalty, 0=auto CV (smooth only) |
 | `--state-var` | — | `Int64` | — | — | State variable index (state only) |
 | `--gamma` | — | `Float64` | `1.5` | — | Transition steepness (state only) |
-| `--transition` | — | `String` | `logistic` | — | logistic\|exponential\|indicator (accepted but has no effect: the state model always uses the logistic shape) |
+| `--transition` | — | `String` | `logistic` | `logistic` | Transition shape (logistic only) |
 | `--treatment` | — | `Int64` | `1` | — | Treatment variable index (propensity/robust only) |
 | `--score-method` | — | `String` | `logit` | `logit`, `probit` | logit\|probit (propensity/robust only) |
 | `--mop-tau` | — | `Float64` | `0.1` | — | MOP worst-case relative-bias target: 0.05\|0.10\|0.20\|0.30 (iv, with --mop-f) |

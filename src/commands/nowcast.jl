@@ -85,8 +85,8 @@ function nowcast_specs()::Vector{CommandSpec}
                 OptionSpec(name="monthly-vars", type=Int, default=0, description="Number of monthly variables"),
                 OptionSpec(name="quarterly-vars", type=Int, default=0, description="Number of quarterly variables"),
                 OptionSpec(name="method", type=String, default="dfm", choices=["dfm"], description="News engine (BVAR news is not available)"),
-                OptionSpec(name="factors", short="r", type=Int, default=2, description="Number of factors (DFM only; ignored by bvar/bridge)"),
-                OptionSpec(name="lags", short="p", type=Int, default=1, description="VAR lags: DFM factor dynamics or BVAR order (ignored by bridge)"),
+                OptionSpec(name="factors", short="r", type=Int, default=2, description="Number of factors"),
+                OptionSpec(name="lags", short="p", type=Int, default=1, description="Factor VAR lags"),
                 OptionSpec(name="target-period", type=Int, default=0, description="Target period (0=last)"),
                 OptionSpec(name="target-var", type=Int, default=0, description="Target variable index (0=last)"),
                 out_fmt..., PLOT_OPTIONS...,
@@ -301,15 +301,13 @@ function _nowcast_news(; data_new::String="", data_old::String="",
     _status("  Method: $method")
     _status()
 
-    # Estimate model on old data
-    model = if method == "dfm"
-        nowcast_dfm(Y_old, nM, nQ; r=factors, p=lags)
-    elseif method == "bvar"
-        nowcast_bvar(Y_old, nM, nQ; lags=lags)
-    else
-        throw(CliError("usage/invalid",
-            "unknown nowcast method for news: $method"; hint="expected dfm|bvar"))
-    end
+    # Estimate model on old data. Only the DFM state-space form admits the
+    # Banbura-Modugno news decomposition upstream (nowcast_news takes a
+    # NowcastDFM); BVAR news needs an upstream method that does not exist,
+    # so --method is parse-gated to dfm and anything else fails here too.
+    method == "dfm" || throw(CliError("usage/invalid",
+        "unknown nowcast method for news: $method"; hint="BVAR news is not available; use --method dfm"))
+    model = nowcast_dfm(Y_old, nM, nQ; r=factors, p=lags)
 
     tp = target_period > 0 ? target_period : T_new
     tv = target_var > 0 ? target_var : size(Y_new, 2)
