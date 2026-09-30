@@ -1,11 +1,71 @@
 # Configuration
 
-Friedman uses TOML configuration files for complex model specifications. Pass them via the `--config` option.
+Friedman takes configuration for complex model specifications in two formats:
+**model cards** (plain text with named stanzas) and **TOML** files. Pass either
+one with the `--config` option. Start with [Model cards and TOML
+files](#model-cards-and-toml-files) below for the rules they share.
 
-Every `toml` block below is a **fragment**, not something to run: save it to a
-file (e.g. `model.toml`) and pass it with `--config model.toml`. Only `bash`
-blocks are runnable commands. Every key shown is read by a `get_*` parser in
-`src/config.jl`; unknown keys warn (error under `--strict`). For command flags and defaults, see the [generated command reference](commands/overview.md).
+Every `toml` and card block below is a **fragment**, not something to run: save
+it to a file and pass it with `--config <file>`. Only `bash` blocks are runnable
+commands. Every TOML key shown is read by a `get_*` parser in `src/config.jl`;
+unknown keys warn (error under `--strict`). For command flags and defaults, see
+the [generated command reference](commands/overview.md).
+
+---
+
+## Model cards and TOML files
+
+Two config formats are accepted, and for every model family they lower to the
+same settings, so the estimator sees one set of values either way.
+
+- A **model card** is plain text with named stanzas, one per family. It is the
+  recommended way to write priors, OccBin constraints, GMM, SMM and system
+  (SUR/3SLS) specifications. Pass it with `--config <path>`; the file name can
+  be anything except `.toml`.
+- A **TOML** file is still fully supported for all of these, and its precedence
+  rules are unchanged. Sections that begin "TOML, still accepted" below show
+  the equivalent file.
+
+The extension decides the format: **a `.toml` file is always TOML**, even when
+it fails to parse, so a broken TOML file keeps its `config/malformed-toml`
+error with the parser's own message. A card misnamed `config.toml` is therefore
+reported as broken TOML, and the message points at the `stanza:` line the
+parser tripped on. The reverse — a TOML file under a non-`.toml` name — is a
+typed error whose hint names the format you actually wrote. A file with **no**
+extension is read as a card. `--set` and `--config-json` merge into TOML files;
+against a card they are refused rather than silently ignored, with a hint to
+put the overrides in the card or pass a `.toml` file.
+
+Exactly seven stanza headers exist. Any other `word:` line at the start of a
+line is a `config/invalid` error naming the line, not a silently ignored
+section:
+
+| Stanza | Family | Used by |
+|--------|--------|---------|
+| `priors:` | Bayesian priors | `dsge bayes` leaves |
+| `constraints:` | OccBin constraints | `dsge solve`, `dsge irf`, `dsge steady-state`, `dsge perfect-foresight` |
+| `gmm lp:` | LP-GMM | `estimate regression gmm` |
+| `gmm iv:` | IV-GMM | `estimate regression gmm` |
+| `smm:` | Method of simulated moments | `estimate regression smm` |
+| `equations:` | System equations | `estimate regression sur`, `estimate regression 3sls` |
+| `instruments:` | Shared instrument set | `estimate regression 3sls` |
+
+Grammar rules that hold everywhere:
+
+- A stanza's body lines must be **indented** (two spaces, or a tab). A stanza
+  ends at the first line that starts at column 0.
+- `#` starts a comment to the end of the line.
+- Numbers are plain decimal literals; card text is never run as code.
+- An **empty stanza is refused** — a stanza that says nothing is a mistake, not
+  a default.
+
+`--prior 'name ~ dist(a, b)'` and `--constraint 'var[t] >= expr'` are
+repeatable and may be given several times on one command line. Together with a
+`priors:` or `constraints:` stanza and the corresponding TOML file they are
+**three sources of one set**: giving the same name in two of them is a
+`config/invalid` error naming the parameter and both sources.
+
+---
 
 ---
 
@@ -333,6 +393,36 @@ n_regimes = 2
 
 Used by `estimate regression gmm`.
 
+### Model card
+
+The stanza header chooses the estimator. `gmm lp:` is the horizon-0
+Lagrange-multiplier form; `gmm iv:` is the linear instrument form.
+
+```text
+gmm lp:
+  moments: output, inflation
+  weighting: twostep
+```
+
+`gmm lp:` accepts only `moments` and `weighting`. Giving it `instruments`,
+`dep`, `endogenous`, `exogenous` or `theta0` is a `config/invalid` error naming
+the key — under LP those have no meaning, and the header already says which
+estimator you asked for. IV needs all of:
+
+```text
+gmm iv:
+  dep: cons
+  endogenous: income
+  exogenous: wealth
+  theta0: 0.1, 0.5, 0.2
+  instruments: gov
+```
+
+`theta0` is a comma-separated numeric list of length 1 (intercept) plus
+endogenous plus exogenous columns.
+
+### TOML, still accepted
+
 ```toml
 [gmm]
 moment_conditions = ["output", "inflation"]
@@ -350,16 +440,64 @@ weighting = "twostep"
 | `exogenous` | Optional included exogenous regressors (IV path) |
 | `theta0` | Starting values, length = 1 (intercept) + endogenous + exogenous |
 
-Omit both `dep` and `theta0` to keep the default LP-GMM (horizon-0) estimator.
-Set both to call `estimate_gmm` with a linear-IV moment `Z'(y − Xθ)` so the
+The TOML form has no header, so it infers the estimator from the keys instead:
+omit both `dep` and `theta0` to keep the default LP-GMM (horizon-0) estimator;
+set both to call `estimate_gmm` with a linear-IV moment `Z'(y − Xθ)` so the
 Stock–Yogo first-stage F is stored and rendered. One without the other is
-`config/invalid`.
+`config/invalid`. **That inference is TOML-only** — in a card the `gmm lp:` /
+`gmm iv:` header is the statement of intent, and there is nothing to infer.
 
 ---
 
 ## DSGE Model
 
-Used by `dsge solve`, `dsge irf`, `dsge fevd`, `dsge simulate`, `dsge estimate`, `dsge perfect-foresight`, `dsge steady-state`, `dsge determinacy-map` (plus `[priors]` for the `dsge bayes` leaves).
+Used by `dsge solve`, `dsge irf`, `dsge fevd`, `dsge simulate`, `dsge estimate`, `dsge perfect-foresight`, `dsge steady-state`, `dsge determinacy-map`.
+
+### The model itself
+
+The model — variables, parameters and equations — is not a card. It lives in an
+`@dsge begin … end` block in a `.jl` file, and that file may carry a card
+preamble for the priors and constraints. The stanzas must be written **above**
+the `@dsge` block, with their body lines indented; a stanza below the block is a
+`config/invalid` error naming the line.
+
+```julia
+priors:
+  beta ~ beta(2, 2)
+  alpha ~ beta(2, 2)
+  sigma ~ inv_gamma(2, 0.5)
+
+constraints:
+  c[t] >= 0.0
+  0.0 <= k[t] <= 10.0
+
+@dsge begin
+    parameters: alpha = 0.36, beta = 0.99, delta = 0.025, sigma = 1.0
+    endogenous: y, c, k, n
+    exogenous: eps_a
+
+    c[t]^(-sigma) = beta * c[t+1]^(-sigma) * (alpha * exp(eps_a[t+1]) * k[t]^(alpha-1) * n[t+1]^(1-alpha) + 1 - delta)
+    k[t] = (1-delta) * k[t-1] + y[t] - c[t]
+    y[t] = exp(eps_a[t]) * k[t-1]^alpha * n[t]^(1-alpha)
+end
+```
+
+A `priors:` stanza and a `constraints:` stanza cannot travel together in one
+file: the `dsge bayes` leaves read priors and refuse a `constraints:` stanza,
+and the constraint-solving leaves read constraints and refuse a `priors:`
+stanza. Either error names the stanza, the command that can use it, and the
+alternative. Keep the two in separate files — the priors stanza beside the
+model, the constraints file passed with `--constraints`.
+
+**`@dsge constraint:` is a different thing.** A `constraint:` declaration
+inside an `@dsge` block marks an equation as the binding regime for the model
+and is stored on the equation. It is **not** an OccBin constraint argument.
+OccBin constraints come from the `constraints:` stanza or from `--constraint`.
+
+### TOML, still accepted
+
+The whole model in one TOML file. Equations use `@dsge` syntax and the loader
+builds the spec by feeding them to that macro.
 
 ```toml
 [model]
@@ -388,33 +526,62 @@ expr = "k[t] = (1-delta)*k[t-1] + y[t] - c[t]"
 
 [[model.equations]]
 expr = "y[t] = exp(eps_a[t]) * k[t-1]^alpha * n[t]^(1-alpha)"
-
-[solver]
-method = "gensys"    # gensys|klein|perturbation|projection|pfi
-order = 1            # perturbation order (1, 2, or 3)
-degree = 5           # polynomial degree (projection/pfi)
-grid = "auto"        # auto|chebyshev|smolyak
 ```
 
 | Section | Description |
 |---------|-------------|
-| `[model]` | Lists endogenous/exogenous variables; optional `linear = true` for pre-linearized specs (MEMs `ModelSpec.linear`); optional `utility` / `beta` / `controls` for the Bellman VFI payload |
+| `[model]` | Lists endogenous/exogenous variables; optional `linear = true` for pre-linearized specs; optional `utility` / `beta` / `controls` for the Bellman VFI payload |
 | `[model.parameters]` | Deep parameters with values |
 | `[[model.equations]]` | Model equations (one per block, `expr` field) |
-| `[solver]` | Solution method and settings |
 
-Equations use MEMs' `@dsge` syntax — the CLI builds the spec by feeding them to that
-macro. Time notation: `x[t]` = current, `x[t-1]` = lag, `x[t+1]` = lead
-(`x[t+1]` is `E_t x_{t+1}`). The expectations operator `E[t](expr)` was removed
-upstream — both `.toml` and `.jl` fail as typed `config/invalid`
-with that message. There is no auto-rewrite shim. (Bare `x` and the older
-`x(+1)`/`x(-1)` forms are **not** accepted — always index by `[t]`.)
+A `[solver]` section is still read without complaint but has no effect on the
+solution; choose the method with the `--method`, `--order`, `--degree` and
+`--grid` flags instead.
+
+Equations use `var[t]` time notation: `x[t]` = current, `x[t-1]` = lag, `x[t+1]`
+is the lead (`x[t+1]` is `E_t x_{t+1}`). The expectations operator `E[t](expr)`
+not available — both `.toml` and `.jl` fail as a typed `config/invalid` with
+that message. (Bare `x` and the older `x(+1)`/`x(-1)` forms are **not** accepted
+— always index by `[t]`.)
 
 ---
 
 ## DSGE Priors
 
-Bayesian prior for each estimated DSGE parameter. Used by the `dsge bayes` leaves (`bayes estimate`, `bayes posterior-mode`, and every leaf that re-estimates). Each `[priors.<name>]` table gives a distribution name plus its two positional constructor arguments (MEMs/Dynare convention: `beta` → `Beta(a,b)`, `normal` → `Normal(mean,sd)`, `inv_gamma` → `InverseGamma(a,b)`).
+A prior for each estimated DSGE parameter. Used by the `dsge bayes` leaves
+(`bayes estimate`, `bayes posterior-mode`, and every leaf that re-estimates).
+Write them in a card, in the model file's preamble or on the command line.
+
+### Model card
+
+A prior line is `name ~ dist(a, b)`. Distributions: `beta`, `normal`,
+`inv_gamma` (also spelled `inverse_gamma` / `invgamma`), `gamma`, `uniform`;
+`gaussian` is accepted for `normal`. Every distribution takes exactly two
+numbers.
+
+```text
+priors:
+  rho ~ beta(2, 2)
+  sigma ~ inv_gamma(2, 0.5)
+```
+
+### On the command line
+
+`--prior` is repeatable, and each repetition is one prior line. It adds to the
+`priors:` stanza and to a `[priors]` TOML file — naming the same parameter in
+two of those three is a `config/invalid` error naming the parameter and both
+sources.
+
+```bash
+friedman dsge bayes posterior-mode model.jl --data data.csv --params rho,sigma \
+  --prior 'rho ~ beta(2, 2)' --prior 'sigma ~ inv_gamma(2, 0.5)'
+```
+
+### TOML, still accepted
+
+Each `[priors.<name>]` table gives a distribution name plus its two positional
+constructor arguments (`beta` → `Beta(a,b)`, `normal` → `Normal(mean,sd)`,
+`inv_gamma` → `InverseGamma(a,b)`).
 
 ```toml
 [priors.rho]
@@ -456,7 +623,42 @@ Use `grids = [[...], [...]]` (one value list per parameter, ≥ 2 values each; a
 
 ## OccBin Constraints
 
-Used by `dsge solve --constraints=...`, `dsge irf --constraints=...`, `dsge steady-state --constraints=...`. The `--constraint-solver` flag selects the backend (`nonlinearsolve|optim|nlopt|ipopt|path`).
+Used by `dsge solve`, `dsge irf`, `dsge steady-state` and
+`dsge perfect-foresight`. The `--constraint-solver` flag selects the backend
+(`nonlinearsolve|optim|nlopt|ipopt|path`).
+
+### Model card
+
+A constraint line is `var[t] >= expr`, `var[t] <= expr`, or the two-sided
+`lo <= var[t] <= hi`. The `[t]` index is required, and the bound is a plain
+numeric expression (`0.5 * 2` is fine; a variable name is not).
+
+```text
+constraints:
+  i_rate[t] >= 0.0
+  0.0 <= investment[t] <= 100.0
+```
+
+Put the stanza in the model file's preamble and it applies on its own — no flag
+needed. `--constraint 'var[t] >= expr'` is repeatable and can be given several
+times on the command line instead; the stanza and the flag are one set, so
+constraining the same variable and side twice is a `config/invalid` error.
+
+```bash
+friedman dsge solve model.jl --periods 8 --constraint 'i_rate[t] >= 0.0'
+```
+
+Note that an `@dsge constraint:` declaration **inside** the model block is a
+different thing: it marks the binding regime for an equation and is stored on
+that equation. It is not an OccBin constraint. OccBin arguments come from the
+`constraints:` stanza or from `--constraint`.
+
+### TOML, still accepted
+
+Each `[[constraints.bounds]]` block specifies a variable with optional `lower`
+and/or `upper` bounds. The OccBin algorithm solves the piecewise-linear system
+respecting these occasionally binding constraints. The TOML form also takes
+nonlinear constraints, which a card does not spell.
 
 ```toml
 [constraints]
@@ -476,8 +678,6 @@ expr = "i_rate[t] - 0.5 * y[t]"
 label = "taylor-gap"
 ```
 
-Each `[[constraints.bounds]]` block specifies a variable with optional `lower` and/or `upper` bounds. The OccBin algorithm solves the piecewise-linear system respecting these occasionally binding constraints.
-
 | Key | Where | Description |
 |-----|-------|-------------|
 | `variable` | each `[[constraints.bounds]]` | Constrained variable name (required) |
@@ -491,6 +691,25 @@ Each `[[constraints.bounds]]` block specifies a variable with optional `lower` a
 
 Used by `estimate regression smm --config=...` (required — SMM matches simulated moments to sample
 moments, so it needs a data-generating `model` and an initial parameter vector `theta0`).
+
+### Model card
+
+```text
+smm:
+  model: ar1
+  theta0: 0.4, 0.5
+  lags: 2
+  lower: -0.99, 1.0e-4
+  upper: 0.99, 10.0
+```
+
+Keys: `model`, `theta0`, `lags`, `p`, `weighting`, `sim_ratio`, `burn`,
+`lower`, `upper`. Numeric lists are comma-separated on one line; `lower` and
+`upper` must be given together and have the same length as `theta0`. Defaults
+match the TOML loader: `lags` 1, `weighting` `two_step`, `sim_ratio` 5, `burn`
+100.
+
+### TOML, still accepted
 
 ```toml
 [smm]
@@ -546,10 +765,46 @@ upper  = [0.99, 10.0]
 
 ## Systems Specification (SUR / 3SLS)
 
-Used by `estimate regression sur --config=...` and `estimate regression 3sls --config=...`. Each `[[equations]]`
-block defines one equation of the system by naming a dependent column (`dep`) and its
-regressor columns (`indep`) — all column names come from the data CSV. A per-equation
-constant is added unless `--no-intercept` is passed.
+Used by `estimate regression sur --config=...` and `estimate regression 3sls --config=...`. Each equation
+names a dependent column and its regressor columns — all column names come from the data CSV. A
+per-equation constant is added unless `--no-intercept` is passed.
+
+### Model card
+
+An equation line is `name: dep = col, col`, where the `name:` prefix is
+optional (equations are then named `eq1`, `eq2`, … by position) and the list
+after `=` is the regressors.
+
+```text
+equations:
+  consumption: cons = income, wealth
+  investment: inv = income, interest
+```
+
+For **3SLS**, instruments are either a shared set in an `instruments:` stanza
+(the default, `--instruments common`):
+
+```text
+equations:
+  consumption: cons = income, wealth
+  investment: inv = income, interest
+
+instruments:
+  common: gov, taxes, lag_income
+```
+
+or per-equation, appended after a `|`, with `--instruments perequation`:
+
+```text
+equations:
+  consumption: cons = income, wealth | gov, lag_income
+  investment: inv = income, interest | gov, taxes
+```
+
+Mixing the two — a `|` list on any equation **and** an `instruments:` stanza —
+is a `config/invalid` error rather than a silent choice between them.
+
+### TOML, still accepted
 
 ```toml
 [[equations]]

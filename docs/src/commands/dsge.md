@@ -54,6 +54,53 @@ The file must evaluate to a representative-agent `ModelSpec` — typically an `@
 end
 ```
 
+### Model cards in a model file
+
+A `.jl` model file may carry a **model card** above its `@dsge` block: a
+`priors:` stanza, a `constraints:` stanza, or both, with each body line
+indented. The stanzas must be written **above** the block — a stanza below it
+is a typed `config/invalid` naming the line. The seven stanza headers, the
+grammar, and the `.toml`-is-always-TOML rule are documented in
+[Configuration](../configuration.md#model-cards-and-toml-files).
+
+```julia
+priors:
+  rho ~ beta(2, 2)
+  sigma ~ inv_gamma(2, 0.5)
+
+constraints:
+  C[t] >= 0.0
+
+@dsge begin
+    parameters: rho = 0.9, sigma = 0.01
+    endogenous: Y, C
+    exogenous: e
+    linear: true
+
+    Y[t] = rho * Y[t-1] + sigma * e[t]
+    C[t] = Y[t]
+end
+```
+
+**A stanza the command cannot use is refused, not ignored.** `dsge bayes` leaves
+read `priors:` and refuse a `constraints:` stanza; `dsge solve`, `dsge irf`,
+`dsge steady-state` and `dsge perfect-foresight` read `constraints:` and refuse a
+`priors:` stanza. So the file above is the *shape*, and each command uses the
+stanza it was written for — in practice you keep the two stanzas in separate
+files. The error names the stanza, the commands that can read it, and the
+alternative, so nothing is silently dropped.
+
+The same settings can also come from `--prior` / `--constraint` (both
+repeatable), or from a TOML file via `--priors` / `--constraints`. Those three
+sources are one set: naming the same prior or the same constraint in two of
+them is a `config/invalid` error naming the parameter and both sources.
+
+Two things that look similar but are not: an `@dsge constraint:` declaration
+**inside** the block is the binding-regime marker stored on an equation, not an
+OccBin argument; and OccBin bounds written for a variable that has no defining
+equation fail inside the solver with a message about regimes, not a parse
+error.
+
 Three outcomes, three exit classes. A file that does not evaluate is `config/invalid` (exit 4). A file that evaluates to something other than a `ModelSpec` is `config/invalid` (exit 4). A file that evaluates to a spec *with* agent populations — a heterogeneous-agent or other agent-kind model — is `usage/wrong-command` (exit 2), never silently remapped into an RA solver; run it under `hadsge` (or the matching `dsge` family command) instead. The mirror rule holds on the HA side: an RA spec passed to `hadsge` is rejected the same way.
 
 Equations use `@dsge` `var[t]` syntax throughout — index every variable by time (`x[t]`, `x[t-1]`, `x[t+1]`); `x[t+1]` is `E_t x_{t+1}`. The `E[t](...)` operator no longer exists upstream and is a typed `config/invalid` (exit 4) on both `.toml` and `.jl` — there is no auto-rewrite.

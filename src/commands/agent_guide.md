@@ -195,6 +195,13 @@ machine-actionable:
   so an exact argv can be reconstructed from a validated object. Handle slots
   also carry **`x-handle`** (`role`: `data|model|result`, plus `kinds` /
   `types` from the registry) — see *Typed handles* below.
+  An option you may give more than once also carries **`x-cli.repeatable:
+  true`**, and its property is typed `"array"` with a single-element `items`
+  schema instead of a scalar. Repeat the array entry once per occurrence to
+  build the argv — `["rho ~ beta(2, 2)", "sigma ~ inv_gamma(2, 0.5)"]` for
+  `--prior` becomes `--prior 'rho ~ beta(2, 2)' --prior 'sigma ~
+  inv_gamma(2, 0.5)'`, not a comma-joined string and not one value that wins.
+  An option without the key takes one value; repeating it keeps the last.
 - **`tables`** (leaf docs): the registry-declared result-table keys — `name`,
   `description`, and `family` (`true` means keys are `<name>_<variable-slug>`,
   one per variable/shock; see *Stable table keys*). This is the same
@@ -337,6 +344,89 @@ them at load through an AST allowlist (`Core.eval`), the same risk class as
 `Serialization.deserialize` — only load files you trust. Programmatic payloads with
 anonymous closures (household utilities, `ss_fn`) fail at `--save-model` time with
 `data/serialization`; persist named functions or callable structs (`CRRAUtility`) instead.
+
+---
+
+## Model cards
+
+Complex model specifications come in two formats, and both lower to the same
+settings, so the estimator sees one set of values either way. A **model card**
+is plain text with named stanzas; **TOML** is still fully supported everywhere,
+with its precedence rules unchanged.
+
+**The extension decides the format: a `.toml` file is always TOML**, even when
+it fails to parse, so a broken TOML file keeps its `config/malformed-toml`
+error with the parser's own message — a card misnamed `config.toml` is reported
+as broken TOML, and the message shows the `stanza:` line the parser tripped on.
+The reverse — a TOML file under a non-`.toml` name — is a typed error whose hint
+names the format you actually wrote. A file with **no** extension is read as a
+card. `--set` and `--config-json` merge into TOML files only — against a card
+they are refused with a hint, not silently ignored.
+
+Exactly seven stanza headers exist. Any other `word:` at the start of a line is
+a `config/invalid` error naming the line, never a silently ignored section:
+`priors:`, `constraints:`, `gmm lp:`, `gmm iv:`, `smm:`, `equations:`,
+`instruments:`. Body lines must be indented (two spaces, or a tab); a stanza
+ends at the first line at column 0; `#` starts a comment; numbers are plain
+decimal literals, and card text is never run as code. An empty stanza is
+refused — a stanza that says nothing is a mistake, not a default.
+
+**A stanza the command cannot use is refused, not ignored.** `dsge bayes` reads
+`priors:` and refuses `constraints:`; `dsge solve` / `irf` / `steady-state` /
+`perfect-foresight` read `constraints:` and refuse `priors:`. The error names
+the stanza and the commands that can read it, so nothing is silently dropped.
+
+### Where an option can go
+
+1. **Inside `@dsge`** — model structure, on the equation or as a declaration.
+2. **In a card line, or a repeatable flag** — `--prior 'name ~ dist(a, b)'`
+   and `--constraint 'var[t] >= expr'` may each be given several times, and add
+   to the matching stanza and TOML file. Those three sources are **one set**:
+   the same prior or constraint in two of them is `config/invalid`, naming the
+   parameter and both sources.
+3. **On an existing run flag** — `--method`, `--order`, `--prior-scale`, and
+   the rest of the run surface override nothing; they are the way to vary a
+   setting between runs of the same model.
+
+Grammar: a prior is `name ~ dist(a, b)`; a constraint is `var[t] >= expr`,
+`var[t] <= expr`, or `lo <= var[t] <= hi`. `gmm lp:` refuses `instruments`,
+`dep`, `endogenous`, `exogenous` and `theta0`; the TOML form has no header, so
+it still infers IV-vs-LP from `dep` and `theta0` together. An `@dsge
+constraint:` declaration inside a block is the binding-regime marker on an
+equation, not an OccBin argument. Heterogeneous-agent declarations
+(`heterogeneous:`, `idiosyncratic:`, `aggregation:`) have no card header and no
+TOML section — they stay inside `@dsge`.
+
+### Example
+
+```bash
+cat > model.jl <<'EOF'
+priors:
+  rho ~ beta(2, 2)
+  sigma ~ inv_gamma(2, 0.5)
+
+@dsge begin
+    parameters: rho = 0.9, sigma = 0.01
+    endogenous: Y
+    exogenous: e
+    linear: true
+
+    Y[t] = rho * Y[t-1] + sigma * e[t]
+end
+EOF
+friedman dsge bayes posterior-mode model.jl --data data.csv --params rho,sigma
+```
+
+The same two priors on the command line, or in a `[priors]` TOML file, with the
+card stanza deleted:
+
+```bash
+friedman dsge bayes posterior-mode model.jl --data data.csv --params rho,sigma \
+  --prior 'rho ~ beta(2, 2)' --prior 'sigma ~ inv_gamma(2, 0.5)'
+```
+
+Full per-family card reference: the `Model cards and TOML files` section of
+the configuration page on the docs site.
 
 ---
 
