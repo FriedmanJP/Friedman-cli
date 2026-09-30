@@ -8,3 +8,5 @@ end
 include(joinpath(@__DIR__, "card", "task_1_grammar.jl"))
 include(joinpath(@__DIR__, "card", "task_2_priors_constraints.jl"))
 include(joinpath(@__DIR__, "card", "task_3_gmm_smm_system.jl"))
+include(joinpath(@__DIR__, "card", "task_7_config_routing.jl"))
+include(joinpath(@__DIR__, "card", "task_9_model_file_splitter.jl"))
