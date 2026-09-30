@@ -56,12 +56,37 @@ end
 end
 
 @testset "lowerers — config/invalid with a line number" begin
-    for src in ["priors:\n  rho ~ cauchy(2, 2)\n",       # unknown dist
-                "priors:\n  rho ~ beta(2)\n",              # wrong arity
-                "priors:\n  rho ~~ beta(2,2)\n",           # malformed
-                "constraints:\n  i[t] ~= 0\n",             # no comparison
-                "constraints:\n  i >= 0\n"]                 # missing [t]
-        err = try; lower_constraints(parse_card(src), "c"); nothing; catch e; e; end
+    # Each case names the lowerer its stanza belongs to AND the reason it is
+    # rejected, so a case cannot pass on some other lowerer's error.
+    for (src, f, reason) in [
+            ("priors:\n  rho ~ cauchy(2, 2)\n",       lower_priors,      "cauchy"),   # unknown dist
+            ("priors:\n  rho ~ beta(2)\n",            lower_priors,      "exactly 2"),# wrong arity
+            ("priors:\n  rho ~~ beta(2,2)\n",         lower_priors,      "name ~"),   # malformed
+            ("constraints:\n  i[t] ~= 0\n",           lower_constraints, "constraints stanza"),
+            ("constraints:\n  i >= 0\n",              lower_constraints, "constraints stanza")] # missing [t]
+        err = try; f(parse_card(src), "c"); nothing; catch e; e; end
         @test err isa CliError && err.code == "config/invalid"
+        @test occursin(reason, err.message)
+        @test occursin("line 2", err.message)
+    end
+
+    # A card for the wrong family, a duplicate prior, a reversed two-sided
+    # bound, and an out-of-range literal are all typed too.
+    err = try; lower_constraints(parse_card("priors:\n  rho ~ beta(2, 2)\n"), "c"); nothing; catch e; e; end
+    @test err isa CliError && err.code == "config/invalid"
+    @test occursin("no 'constraints' stanza", err.message)
+    for (src, f, reason) in [
+            ("priors:\n  rho ~ beta(2, 2)\n  rho ~ beta(3, 3)\n", lower_priors, "duplicate prior"),
+            ("constraints:\n  i[t] >= -2.5 <= 0.5\n",            lower_constraints, "mixed ordering"),
+            ("constraints:\n  i[t] >= 1e400\n",                  lower_constraints, "not a numeric literal")]
+        err = try; f(parse_card(src), "c"); nothing; catch e; e; end
+        @test err isa CliError && err.code == "config/invalid"
+        @test occursin(reason, err.message)
+    end
+
+    # An out-of-range literal is rejected by the evaluator, not by `parse`
+    # throwing: `_card_bounds_expr` answers nothing rather than an exception.
+    for s in ["1e400", "1e309", "1e-400", "1e-999", "0.1e-999", join(fill("9", 400))]
+        @test _card_bounds_expr(s) === nothing
     end
 end

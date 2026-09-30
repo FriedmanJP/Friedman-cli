@@ -173,8 +173,11 @@ end
 
 # ─── Lowerers (W0 / #206) ──────────────────────────────────────────────────────
 
-"""Drop a trailing `#` comment and surrounding blanks from a body line."""
-_card_strip_comment(s::AbstractString) = strip(first(split(s, '#'; limit=2)))
+"""Drop a trailing `#` comment and surrounding blanks from a body line.
+
+Only a WHITESPACE-preceded `#` opens a comment, so a value that legitimately
+contains one is not silently truncated."""
+_card_strip_comment(s::AbstractString) = strip(replace(s, r"\s#.*$" => ""))
 
 """The single stanza named `header`, or `config/invalid` when the card has none.
 
@@ -296,8 +299,10 @@ function _card_num_unary(p::_CardNumParser)
         return t == "-" ? -v : v
     end
     occursin(_CARD_NUM_RE, t) || return nothing
+    v = tryparse(Float64, t)
+    (v === nothing || !isfinite(v)) && return nothing
     p.i += 1
-    return parse(Float64, t)
+    return v
 end
 
 """
@@ -359,6 +364,8 @@ function lower_priors(stanzas, path::AbstractString)
                 throw(_card_error(path, lineno, "prior argument $(k) of '$(name)' is not a number"))
             push!(vals, v)
         end
+        haskey(out, name) &&
+            throw(_card_error(path, lineno, "duplicate prior '$(name)'"))
         out[name] = Dict{String,Any}("dist" => dist, "a" => vals[1], "b" => vals[2])
     end
     isempty(out) &&
@@ -392,17 +399,16 @@ function lower_constraints(stanzas, path::AbstractString)
         var = String(m.captures[3])
         d = Dict{String,Any}("variable" => var)
         if m.captures[1] === nothing          # var[t] >= expr / var[t] <= expr
-            if m.captures[4] == ">="
-                v = _card_bounds_expr(String(m.captures[5]))
-                v === nothing &&
-                    throw(_card_error(path, lineno, "the lower bound of '$(var)' is not a numeric literal"))
-                d["lower"] = v
-            else
-                v = _card_bounds_expr(String(m.captures[5]))
-                v === nothing &&
-                    throw(_card_error(path, lineno, "the upper bound of '$(var)' is not a numeric literal"))
-                d["upper"] = v
-            end
+            side = m.captures[4] == ">=" ? "lower" : "upper"
+            occursin(r"[<>]", String(m.captures[5])) &&
+                throw(_card_error(path, lineno,
+                    "'$(var)' uses a mixed ordering; expected 'lo <= var[t] <= hi', " *
+                    "'var[t] >= bound' or 'var[t] <= bound'"))
+            v = _card_bounds_expr(String(m.captures[5]))
+            v === nothing &&
+                throw(_card_error(path, lineno,
+                    "the $(side) bound of '$(var)' is not a numeric literal"))
+            d[side] = v
         else                                   # lo <= var[t] <= hi
             lo = _card_bounds_expr(String(m.captures[1]))
             hi = _card_bounds_expr(String(m.captures[5]))
