@@ -39,8 +39,7 @@ ParsedArgs(pos, opts, flags) = ParsedArgs(pos, opts, flags, Dict{String,Vector{S
 """True if `t` looks like an option value (not a flag), including negative numbers (F2)."""
 _looks_like_value(t::AbstractString) = !startswith(t, "-") || occursin(r"^-(\.?\d)", t)
 
-# Option names that may be repeated (`--set a=1 --set b=2`)
-const _MULTI_OPTIONS = Set(["set"])
+
 
 """
     tokenize(tokens) → ParsedArgs
@@ -69,17 +68,11 @@ function tokenize(tokens::Vector{String})
             body = tok[3:end]
             if contains(body, '=')
                 k, v = split(body, '='; limit=2)
-                if k in _MULTI_OPTIONS
-                    push!(get!(multi, k, String[]), v)
-                else
-                    options[k] = v
-                end
+                options[k] = v
+                push!(get!(multi, k, String[]), v)
             elseif i + 1 <= length(tokens) && _looks_like_value(tokens[i+1])
-                if body in _MULTI_OPTIONS
-                    push!(get!(multi, body, String[]), tokens[i+1])
-                else
-                    options[body] = tokens[i+1]
-                end
+                options[body] = tokens[i+1]
+                push!(get!(multi, body, String[]), tokens[i+1])
                 i += 1
             else
                 # Treat as flag
@@ -92,6 +85,7 @@ function tokenize(tokens::Vector{String})
                 # Single short option
                 if i + 1 <= length(tokens) && _looks_like_value(tokens[i+1])
                     options[short] = tokens[i+1]
+                    push!(get!(multi, short, String[]), tokens[i+1])
                     i += 1
                 else
                     push!(flags, short)
@@ -267,19 +261,21 @@ function bind_args(parsed::ParsedArgs, cmd::LeafCommand)
             throw(ParseError("unknown option --$k$hint"))
         end
     end
+    for k in keys(parsed.multi)
+        if !(k in known)
+            sugg = _nearest(k, known)
+            hint = sugg === nothing ? "" : " — did you mean --$sugg?"
+            throw(ParseError("unknown option --$k$hint"))
+        end
+    end
 
     # Bind options
     opt_values = Dict{Symbol,Any}()
     for opt in cmd.options
         key = Symbol(replace(opt.name, "-" => "_"))
-        if opt.name in _MULTI_OPTIONS
-            # Repeatable: prefer multi-vector; fall back to single options entry
-            vals = get(parsed.multi, opt.name, String[])
-            if isempty(vals)
-                single = get(parsed.options, opt.name, nothing)
-                vals = isnothing(single) ? String[] : String[single]
-            end
-            opt_values[key] = vals
+        if opt.repeatable
+            # Repeatable: the handler receives every occurrence, in order
+            opt_values[key] = get(parsed.multi, opt.name, String[])
         else
             opt_values[key] = resolve_option(parsed, opt)
         end

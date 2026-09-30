@@ -15203,5 +15203,35 @@ end
     end))
     @test any(f -> String(f.name) == "volatility", node.families)
 end
+@testset "repeatable options (CARD-W1 #209)" begin
+    @testset "tokenize — multi is a superset, options keeps last-wins" begin
+        p = tokenize(["--lags", "1", "--lags", "2"])
+        @test p.options["lags"] == "2"        # non-repeatable behaviour is unchanged
+        @test p.multi["lags"] == ["1", "2"]   # the superset
+        q = tokenize(["--lags=1", "--lags=2"])
+        @test q.options["lags"] == "2"
+        @test q.multi["lags"] == ["1", "2"]
+    end
+
+    @testset "bind_args — repeatable yields a Vector{String}" begin
+        leaf = LeafCommand("x", identity;
+                          options=[Option("prior"; repeatable=true)],
+                          args=[Argument("data")])
+        b = bind_args(tokenize(["d.csv", "--prior", "a ~ beta(2,2)", "--prior", "b ~ normal(0,1)"]), leaf)
+        @test b.prior == ["a ~ beta(2,2)", "b ~ normal(0,1)"]
+    end
+
+    @testset "bind_args — undeclared repeatable name is a ParseError" begin
+        leaf = LeafCommand("x", identity; options=[Option("prior"; repeatable=true)], args=[Argument("data")])
+        @test_throws ParseError bind_args(tokenize(["d.csv", "--set", "a=1"]), leaf)
+        @test_throws ParseError bind_args(tokenize(["d.csv", "--constraint", "i[t] >= 0"]), leaf)
+    end
+
+    @testset "negative numbers still bind as values (F2 regression)" begin
+        p = tokenize(["--lo", "-2.5", "--n", "-3"])
+        @test p.options["lo"] == "-2.5" && p.options["n"] == "-3"
+        @test p.multi["lo"] == ["-2.5"]
+    end
+end
 
 include(joinpath(project_root, "test", "test_handles.jl"))

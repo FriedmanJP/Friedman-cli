@@ -17,6 +17,7 @@ Base.@kwdef struct OptionSpec
     description::String = ""
     since::VersionNumber = v"0.5.0"
     handle::Bool = false
+    repeatable::Bool = false
 end
 
 Base.@kwdef struct FlagSpec
@@ -113,7 +114,7 @@ end
 const CONFIG_ERGONOMICS_OPTIONS = [
     OptionSpec(name="config-json", type=String, default="",
                description="JSON object merged over --config (file < json < --set)"),
-    OptionSpec(name="set", type=String, default="",
+    OptionSpec(name="set", type=String, default="", repeatable=true,
                description="Override config key=value; repeatable; dotted keys OK"),
 ]
 const STRICT_FLAG = FlagSpec(name="strict",
