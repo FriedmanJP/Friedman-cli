@@ -738,22 +738,16 @@ so a broken TOML keeps its `config/malformed-toml` exit."""
 _is_card_path(path::AbstractString) =
     !isempty(path) && !endswith(lowercase(String(path)), ".toml")
 
-"""True when an override directive was supplied at all, whether the caller
-passed it as one string, a vector, or `nothing`."""
-_override_given(x::AbstractString) = !isempty(strip(x))
-_override_given(x::Union{AbstractVector,Nothing}) = x !== nothing && !isempty(x)
-_override_given(x) = false
-
 """
     _card_config_path(path, set_vals, config_json) -> String
 
 The `--config` value a card leaf receives. `--set` and `--config-json` are
 merging directives for TOML files, so against a card they are a typed refusal
 (`config/invalid`), never a silent no-op."""
-function _card_config_path(path::AbstractString, set_vals, config_json)
-    if _override_given(set_vals) || _override_given(config_json)
+function _card_config_path(path::AbstractString, set_vals::Vector{String}, config_json::String)
+    if !isempty(set_vals) || !isempty(config_json)
         throw(CliError("config/invalid",
-            "--set / --config-json apply to TOML config files; '$(basename(String(path)))' is a model card";
+            "--set / --config-json apply to TOML config files; '$(basename(path))' is a model card";
             hint="put the overrides in the card, or pass a .toml file"))
     end
     return String(path)
@@ -764,11 +758,16 @@ header. Used only to pick a better hint, never to decide the format."""
 _text_looks_like_card(text::AbstractString) =
     any(l -> occursin(_CARD_HEADER, strip(l)), split(text, '\n'))
 
-"""True when `text` holds at least one TOML table header (`[section]`)."""
+"""True when `text` holds at least one TOML table header. Both `[section]` and
+the array-of-tables `[[section]]` count: `[[equations]]` is the canonical
+SUR/3SLS config shape, so missing it would silently drop the format hint on
+exactly the configs the SUR leaves document."""
 _text_looks_like_toml(text::AbstractString) =
-    any(l -> occursin(r"^\s*\[[A-Za-z0-9_.\"'-]+\]\s*$", l), split(text, '\n'))
+    any(l -> occursin(r"^\s*\[\[?[A-Za-z0-9_.\"'-]+\]\]?\s*$", l), split(text, '\n'))
 
-_slurp_ignoring(path, ex) = try read(String(path), String) catch; "" end
+"""Re-read a file for hint text, answering `""` when that is not possible (the
+file is gone, or it is unreadable for another reason)."""
+_slurp_ignoring(path) = try read(String(path), String) catch; "" end
 
 """
     _load_config_or_card(path, family) -> Dict
@@ -784,7 +783,7 @@ function _load_config_or_card(path::AbstractString, family::Symbol)
             return load_config(p)
         catch e
             if e isa CliError && e.code == "config/malformed-toml" &&
-               _text_looks_like_card(_slurp_ignoring(p, e))
+               _text_looks_like_card(_slurp_ignoring(p))
                 throw(CliError("config/malformed-toml", e.message;
                     hint="'$(basename(p))' is written as a model card; rename it to .card, or write the config as TOML"))
             end
@@ -793,7 +792,7 @@ function _load_config_or_card(path::AbstractString, family::Symbol)
     end
     q = _validate_input_path(_expanduser(p))
     isfile(q) ||
-        throw(CliError("data/file-not-found", "file not found: $q"; hint="check the path"))
+        throw(CliError("config/file-not-found", "config file not found: $q"; hint="check the path"))
     text = read(q, String)
     try
         return lowered_card(text, family, q)

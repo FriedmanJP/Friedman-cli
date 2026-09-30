@@ -40,17 +40,16 @@ end
         @test get_gmm(got)["weighting"] == "twostep"
     end
 
-    @testset "a .toml path keeps the --set override merge" begin
-        # The adapter's TOML branch must stay on merge_config; a card branch
-        # that swallowed this would make --set a silent no-op on 40 leaves.
+    @testset "a .toml path keeps the file's own values" begin
+        # The loader must not invent or drop values on the TOML path: a .toml
+        # config still yields exactly what load_config yields.
         toml = (write(_task7_tmp, """
         [gmm]
         moment_conditions = ["output"]
         weighting = "twostep"
         """); _task7_tmp)
-        merged = merge_config(toml; set=["gmm.weighting=identity"])
-        @test get_gmm(merged)["weighting"] == "identity"
-        # And the routing helper refuses --set on a card instead.
+        @test get_gmm(_load_config_or_card(toml, :gmm))["weighting"] == "twostep"
+        # And --set on a card is refused, not merged.
         card = _task7_card("gmm lp:\n  moments: output\n")
         err = _task7_err(() -> _card_config_path(card, ["gmm.weighting=identity"], ""))
         @test err isa CliError && err.code == "config/invalid"
@@ -97,15 +96,36 @@ end
         @test occursin("card", lowercase(err.hint))
     end
 
+    @testset "a SUR TOML ([[equations]]) saved as .card also names TOML (F1)" begin
+        # [[equations]] is the canonical SUR/3SLS shape — no [instruments]
+        # table — so the array-of-tables header must be recognised too.
+        card = _task7_card("""
+        [[equations]]
+        lhs = "y"
+        rhs = "x"
+        """)
+        err = _task7_err(() -> _load_config_or_card(card, :system))
+        @test err isa CliError && err.code == "config/invalid"
+        @test occursin("toml", lowercase(err.hint))
+        @test _text_looks_like_toml("[[equations]]\n") &&
+              _text_looks_like_toml("[gmm]\n") &&
+              !_text_looks_like_toml("gmm lp:\n  moments: output\n")
+    end
+
     @testset "--set against a card is config/invalid, never a silent no-op" begin
         card = _task7_card("gmm lp:\n  moments: output\n")
-        err = _task7_err(() -> _card_config_path(card, "gmm.weighting=identity", String[]))
+        err = _task7_err(() -> _card_config_path(card, ["gmm.weighting=identity"], ""))
         @test err isa CliError && err.code == "config/invalid"
     end
 
-    @testset "a missing card is data/file-not-found, never exit 1" begin
-        err = _task7_err(() -> _load_config_or_card(tempname() * ".card", :gmm))
-        @test err isa CliError && err.code == "data/file-not-found"
+    @testset "a missing --config file is config/file-not-found, never exit 1" begin
+        # One option, one missing-file code (F6): `load_config` already uses
+        # config/file-not-found for the .toml half, so the card half matches it
+        # rather than exiting 3 for the same mistake.
+        carderr = _task7_err(() -> _load_config_or_card(tempname() * ".card", :gmm))
+        @test carderr isa CliError && carderr.code == "config/file-not-found"
+        tomlerr = _task7_err(() -> _load_config_or_card(tempname() * ".toml", :gmm))
+        @test tomlerr isa CliError && tomlerr.code == carderr.code
     end
 end
 
@@ -129,7 +149,10 @@ end
         @test seen[] == card
     end
 
-    @testset "a .toml reaches the handler merged, with --set applied" begin
+    @testset "a .toml reaches the handler merged, with --set applied (F4 guard)" begin
+        # THIS is the guard for the ~40 TOML config leaves: it drives the real
+        # wrap_legacy branch, so dropping the card branch out of the condition
+        # (or making it unconditional) reddens here and nowhere else.
         toml = (write(_task7_tmp, """
         [gmm]
         moment_conditions = ["output"]
@@ -150,8 +173,29 @@ end
     end
 
     @testset "no --config and no --set leaves the handler at its default" begin
+        # Smoke check only. The guard for an empty --config staying on the TOML
+        # side is `@test !_is_card_path("")` above — `_card_config_path("")`
+        # returns "" either way, so this testset cannot detect that mutation.
         seen, run = _probe(["probe", "none"])
         run()
-        @test seen[] == ""                         # default, not a card path
+        @test seen[] == ""
+    end
+
+    @testset "extension decides, globally (F7)" begin
+        # The routing lives in the adapter, so it applies to EVERY --config
+        # leaf: a non-.toml suffix is a card whether or not this leaf's family
+        # has a lowerer yet. Pinned so a later wave cannot change the rule by
+        # accident.
+        @test _is_card_path("x.conf")      # TOML without a .toml suffix -> card
+        @test !_is_card_path("x.toml")
+        # Consequence 1: a non-swapped leaf (handler still calling load_config)
+        # receives the user's card path unchanged and rejects it itself,
+        # rather than the adapter silently reinterpreting it.
+        card = _task7_card("gmm lp:\n  moments: output\n")
+        plain = CommandSpec(path=["probe", "plain"], args=[], summary="probe",
+            options=[OptionSpec(name="config", type=String, default="")],
+            handler=wrap_legacy((; config="", format="", output="") -> load_config(config)))
+        err = _task7_err(() -> to_leaf(plain).handler(; config=card))
+        @test err isa CliError && err.code == "config/malformed-toml"
     end
 end
