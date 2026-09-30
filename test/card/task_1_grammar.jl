@@ -72,8 +72,61 @@ end
 end
 
 @testset "parse_card — every card header the lowerers use is accepted" begin
-    for h in ("priors", "constraints", "gmm lp", "gmm iv", "smm", "equations", "instruments")
+    # Compared against the constant, not a second copy of it: Tasks 2-3 extend
+    # CARD_HEADERS and a spelled-out list here would leave the new ones uncovered.
+    @test CARD_HEADERS == Set(["priors", "constraints", "gmm lp", "gmm iv", "smm",
+                               "equations", "instruments"])
+    for h in CARD_HEADERS
         st = parse_card("$h:\n  a: 1\n")
         @test length(st) == 1 && st[1].header == h
     end
+end
+
+@testset "parse_card — a tab between header words normalises" begin
+    st = parse_card("gmm\tlp:\n  moments: y\n")
+    @test st[1].header == "gmm lp"
+    @test st[1].header in CARD_HEADERS
+end
+
+@testset "parse_card — a leading UTF-8 BOM is stripped" begin
+    st = parse_card("﻿priors:\n  rho ~ beta(2, 2)\n")
+    @test st[1].header == "priors"
+    @test st[1].lineno == 1
+end
+
+@testset "parse_card — an unterminated @dsge block is config/invalid" begin
+    err = try
+        parse_card("priors:\n  a: 1\n@dsge begin\n  parameters: rho = 0.9\n")
+        nothing
+    catch e
+        e
+    end
+    @test err isa CliError
+    @test err.code == "config/invalid"
+    @test occursin("line 3", err.message)   # names the @dsge line, not the last line
+end
+
+@testset "parse_card — an indented 'end' does not close a @dsge block" begin
+    src = "priors:\n  a: 1\n@dsge begin\n  for i in 1:2\n  end\nend\nconstraints:\n  b: 2\n"
+    st = parse_card(src)
+    @test [s.header for s in st] == ["priors", "constraints"]
+    @test st[1].lines == [(2, "a: 1")]
+end
+
+@testset "read_card — a missing card is typed data/file-not-found" begin
+    err = try
+        read_card(joinpath(tempdir(), "definitely-not-here-93f1.card"))
+        nothing
+    catch e
+        e
+    end
+    @test err isa CliError
+    @test err.code == "data/file-not-found"
+    @test exit_class(err.code) == 3
+end
+
+@testset "read_card — accepts a SubString path" begin
+    p = tempname() * ".card"
+    write(p, "smm:\n  lags: 2\n")
+    @test length(read_card(SubString(p, 1))) == 1
 end

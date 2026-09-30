@@ -37,7 +37,6 @@ struct CardStanza
     lines::Vector{Tuple{Int,String}}
 end
 
-const _CARD_IDENT = r"^[A-Za-z][A-Za-z0-9_-]*"
 const _CARD_HEADER = r"^([A-Za-z][A-Za-z0-9_-]*(?:[ \t]+[A-Za-z][A-Za-z0-9_-]*)?):[ \t]*$"
 
 """Every stanza header the format defines. Anything else is `config/invalid`."""
@@ -51,48 +50,62 @@ const CARD_HEADERS = Set([
 _card_error(path, lineno, reason) =
     CliError("config/invalid", "$(path) line $(lineno): $(reason)")
 
+"""Split a card into lines, dropping a leading UTF-8 BOM and surrounding blanks.
+
+Notepad on Windows has written a BOM by default since 1903, and a card is
+user-authored text, so the byte-order mark would otherwise fail the first header
+with a message naming a cause the user cannot see."""
+_card_lines(src::AbstractString) =
+    [endswith(l, '\r') ? chop(l) : l for l in split(lstrip(src, '\ufeff'), '\n')]
+
 """True when `line`'s leading whitespace is at least two spaces wide, or a tab.
 
 Editors differ on what they emit for an indent (Review Focus 4), so both a tab
 and two or more spaces open a body line."""
 function _card_is_body_indent(line::AbstractString)
-    m = match(r"^[ \t]*", line)
-    ws = m === nothing ? "" : m.match
+    ws = match(r"^[ \t]*", line).match      # always matches, empty string included
     return occursin('\t', ws) || count(==(' '), ws) >= 2
 end
 
 """Does `line` open a `@dsge` block at column 0?"""
 _card_is_dsge_open(line) = startswith(line, "@dsge")
 
-"""Does `line` close a `@dsge` block at column 0?"""
+"""Does `line` close a `@dsge` block? Only a column-0 `end` does.
+
+An inner block's `end` is indented; treating the first one as the close would
+end the skip early and let the rest of the model be absorbed as body lines."""
 _card_is_dsge_close(line) = occursin(r"^end\b", line)
 
 """
     parse_card(src, path="<card>") -> Vector{CardStanza}
 
-Scan `src` into stanzas. `src` is split on `\\n` and each line loses a trailing
-`\\r`, so a Windows-authored card parses identically (Review Focus 2).
+Scan `src` into stanzas.
 
 A line at column 0 that looks like `word:` or `word word:` opens a stanza;
 inside a stanza a line indented by at least two spaces (or a tab) is a body
-line. Blank lines and `#` comments are skipped anywhere, and a `@dsge` block
-is passed over untouched so a model file's preamble can hold both.
+line. Blank lines and `#` comments are skipped anywhere, a `@dsge` block is
+passed over untouched so a model file's preamble can hold both, and every line
+arrives free of a trailing `\\r` or leading BOM so a Windows-authored card
+parses identically (Review Focus 2).
 
-Every rejection is a `config/invalid` `CliError` naming the 1-based line.
+Every rejection is a `config/invalid` `CliError` naming the 1-based line —
+including an unterminated `@dsge` block, which would otherwise silently drop
+the rest of the file.
 """
 function parse_card(src::AbstractString, path::AbstractString="<card>")
     stanzas = CardStanza[]
-    open = CardStanza[]            # stack depth is at most 1; a vector keeps the close path uniform
+    open = CardStanza[]            # at most one stanza is open at a time
     seen = Set{String}()
     in_dsge = false
+    dsge_line = 0
 
-    raw = split(src, '\n')
-    for (i, rawline) in enumerate(raw)
-        line = endswith(rawline, '\r') ? chop(rawline) : rawline
+    for (i, line) in enumerate(_card_lines(src))
         stripped = strip(line)
 
         if in_dsge
-            _card_is_dsge_close(stripped) && (in_dsge = false)
+            if _card_is_dsge_close(line)
+                in_dsge = false
+            end
             continue
         end
         isempty(stripped) && continue
@@ -100,7 +113,10 @@ function parse_card(src::AbstractString, path::AbstractString="<card>")
 
         m = match(_CARD_HEADER, line)
         if m !== nothing
+            # The header pattern accepts any whitespace between the two words,
+            # so `gmm<TAB>lp:` must normalise to the canonical space form.
             header = String(m.captures[1])
+            occursin(r"[ \t]", header) && (header = join(split(header), " "))
             header in CARD_HEADERS ||
                 throw(_card_error(path, i, "unknown stanza header '$(header)'"))
             header in seen &&
@@ -112,7 +128,12 @@ function parse_card(src::AbstractString, path::AbstractString="<card>")
         end
 
         # A `@dsge` block is ordinary Julia, not card content (Task 9).
-        _card_is_dsge_open(stripped) && (in_dsge = true; continue)
+        if _card_is_dsge_open(stripped)
+            in_dsge = true
+            dsge_line = i
+            continue
+        end
+
         if !isempty(open)
             if _card_is_body_indent(line)
                 push!(open[1].lines, (i, stripped))
@@ -129,6 +150,8 @@ function parse_card(src::AbstractString, path::AbstractString="<card>")
                 "expected a stanza header or an indented body line"))
     end
 
+    in_dsge &&
+        throw(_card_error(path, dsge_line, "unterminated '@dsge' block; no closing 'end'"))
     isempty(open) || push!(stanzas, pop!(open))
     return stanzas
 end
@@ -136,8 +159,13 @@ end
 """
     read_card(path) -> Vector{CardStanza}
 
-Read and scan the card at `path`. The path is validated as an input file first,
-so a missing card is the same typed failure as any other missing input.
+Read and scan the card at `path`. The path is confined and resolved first, then
+checked for existence, so a typo'd card is the same typed `data/file-not-found`
+as any other missing input — never an untyped `SystemError` (exit 1).
 """
-read_card(path::AbstractString) =
-    parse_card(read(_validate_input_path(path), String), path)
+function read_card(path::AbstractString)
+    p = _validate_input_path(String(path))
+    isfile(p) ||
+        throw(CliError("data/file-not-found", "file not found: $p"; hint="check the path"))
+    return parse_card(read(p, String), p)
+end

@@ -4041,12 +4041,13 @@ using TOML
             "type" => "floor", "horizons" => "8:1")]))
         @test_throws CliError get_opp_constraints(Dict{String,Any}())
     end
-end
 
-# ──────────────────────────────────────────────────────────────
-# Model card grammar (W0 / #206)
-# ──────────────────────────────────────────────────────────────
-include(joinpath(@__DIR__, "model_card.jl"))
+    # ────────────────────────────────────────────────────────────
+    # Model card grammar (W0 / #206) — inside the aggregate testset so a
+    # grammar failure is contained here rather than aborting the script.
+    # ────────────────────────────────────────────────────────────
+    include(joinpath(@__DIR__, "model_card.jl"))
+end
 
 # ──────────────────────────────────────────────────────────────
 # Command handler tests (uses mock MacroEconometricModels)
