@@ -32,14 +32,12 @@ struct ParsedArgs
     positional::Vector{String}
     options::Dict{String,String}
     flags::Set{String}
-    multi::Dict{String,Vector{String}}  # repeatable options e.g. --set (C030)
+    multi::Dict{String,Vector{String}}  # every valued option occurrence, in order (superset of `options`; the repeatable subset is read by name) (CARD-W1 #209)
 end
 ParsedArgs(pos, opts, flags) = ParsedArgs(pos, opts, flags, Dict{String,Vector{String}}())
 
 """True if `t` looks like an option value (not a flag), including negative numbers (F2)."""
 _looks_like_value(t::AbstractString) = !startswith(t, "-") || occursin(r"^-(\.?\d)", t)
-
-
 
 """
     tokenize(tokens) → ParsedArgs
@@ -247,21 +245,7 @@ function bind_args(parsed::ParsedArgs, cmd::LeafCommand)
         isempty(f.short) || push!(known, f.short)
     end
     push!(known, "help"); push!(known, "h")
-    for k in keys(parsed.options)
-        if !(k in known)
-            sugg = _nearest(k, known)
-            hint = sugg === nothing ? "" : " — did you mean --$sugg?"
-            throw(ParseError("unknown option --$k$hint"))
-        end
-    end
-    for k in parsed.flags
-        if !(k in known)
-            sugg = _nearest(k, known)
-            hint = sugg === nothing ? "" : " — did you mean --$sugg?"
-            throw(ParseError("unknown option --$k$hint"))
-        end
-    end
-    for k in keys(parsed.multi)
+    for k in union(keys(parsed.options), parsed.flags, keys(parsed.multi))
         if !(k in known)
             sugg = _nearest(k, known)
             hint = sugg === nothing ? "" : " — did you mean --$sugg?"
@@ -274,8 +258,13 @@ function bind_args(parsed::ParsedArgs, cmd::LeafCommand)
     for opt in cmd.options
         key = Symbol(replace(opt.name, "-" => "_"))
         if opt.repeatable
-            # Repeatable: the handler receives every occurrence, in order
-            opt_values[key] = get(parsed.multi, opt.name, String[])
+            # Repeatable: the handler receives every occurrence, in order,
+            # whether given by long name or short alias.
+            vals = get(parsed.multi, opt.name, String[])
+            if isempty(vals) && !isempty(opt.short)
+                vals = get(parsed.multi, opt.short, String[])
+            end
+            opt_values[key] = vals
         else
             opt_values[key] = resolve_option(parsed, opt)
         end

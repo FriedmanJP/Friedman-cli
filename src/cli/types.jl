@@ -58,9 +58,6 @@ Option(name::String; short::String="", type::Type=String, default=nothing,
 # Backward-compatible positional forms (pre-`repeatable` call sites).
 Option(name::String, short::String, type::Type, default, description::String) =
     Option(name, short, type, default, description, nothing, false)
-Option(name::String, short::String, type::Type, default, description::String,
-       choices::Union{Nothing,Vector{String}}) =
-    Option(name, short, type, default, description, choices, false)
 
 """
     Flag(name, short, description)

@@ -15211,6 +15211,8 @@ end
         q = tokenize(["--lags=1", "--lags=2"])
         @test q.options["lags"] == "2"
         @test q.multi["lags"] == ["1", "2"]
+        r = tokenize(["-o", "out.csv"])          # short-alias values land in `multi` too
+        @test r.multi["o"] == ["out.csv"] && r.options["o"] == "out.csv"
     end
 
     @testset "bind_args — repeatable yields a Vector{String}" begin
@@ -15225,6 +15227,23 @@ end
         leaf = LeafCommand("x", identity; options=[Option("prior"; repeatable=true)], args=[Argument("data")])
         @test_throws ParseError bind_args(tokenize(["d.csv", "--set", "a=1"]), leaf)
         @test_throws ParseError bind_args(tokenize(["d.csv", "--constraint", "i[t] >= 0"]), leaf)
+        # the single unknown-name loop covers options, flags and multi alike,
+        # and still offers the did-you-mean hint
+        hintleaf = LeafCommand("x", identity;
+                              options=[Option("prior"; repeatable=true),
+                                       Option("constraint"; repeatable=true)],
+                              args=[Argument("data")])
+        err = try bind_args(tokenize(["d.csv", "--prio", "a"]), hintleaf) catch e; e end
+        @test err isa ParseError
+        @test occursin("did you mean --prior", err.message)
+    end
+
+    @testset "bind_args — repeatable binds through its short alias" begin
+        leaf = LeafCommand("x", identity;
+                          options=[Option("prior"; short="p", repeatable=true)],
+                          args=[Argument("data")])
+        b = bind_args(tokenize(["d.csv", "-p", "a", "-p", "b"]), leaf)
+        @test b.prior == ["a", "b"]
     end
 
     @testset "negative numbers still bind as values (F2 regression)" begin
