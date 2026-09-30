@@ -585,17 +585,22 @@ Keys:
 """
 function get_smm(config::Dict)
     smm = get(config, "smm", Dict())
-    model = get(smm, "model", nothing)
+    # A `nothing` value means "this card does not set the key".  TOML cannot
+    # spell that, but a lowered model card carries every key with `nothing` for
+    # the ones it omits, so it is read as an ABSENT key — never as a value.
+    _v(k, fallback) = (haskey(smm, k) && smm[k] !== nothing) ? smm[k] : fallback
+    _vec(k) = (x = _v(k, nothing)) === nothing ? nothing : _smm_floatvec(x, k)
+    model = _v("model", nothing)
     Dict{String,Any}(
         "model"     => model === nothing ? nothing : String(model),
-        "theta0"    => haskey(smm, "theta0") ? _smm_floatvec(smm["theta0"], "theta0") : nothing,
-        "lags"      => haskey(smm, "lags") ? _smm_int(smm["lags"], "lags") : 1,
-        "p"         => haskey(smm, "p") ? _smm_int(smm["p"], "p") : nothing,
-        "lower"     => haskey(smm, "lower") ? _smm_floatvec(smm["lower"], "lower") : nothing,
-        "upper"     => haskey(smm, "upper") ? _smm_floatvec(smm["upper"], "upper") : nothing,
-        "weighting" => String(get(smm, "weighting", "two_step")),
-        "sim_ratio" => _smm_int(get(smm, "sim_ratio", 5), "sim_ratio"),
-        "burn"      => _smm_int(get(smm, "burn", 100), "burn"),
+        "theta0"    => _vec("theta0"),
+        "lags"      => _smm_int(_v("lags", 1), "lags"),
+        "p"         => (_pk = _v("p", nothing)) === nothing ? nothing : _smm_int(_pk, "p"),
+        "lower"     => _vec("lower"),
+        "upper"     => _vec("upper"),
+        "weighting" => String(_v("weighting", "two_step")),
+        "sim_ratio" => _smm_int(_v("sim_ratio", 5), "sim_ratio"),
+        "burn"      => _smm_int(_v("burn", 100), "burn"),
     )
 end
 
@@ -619,11 +624,10 @@ end
 Extract a multi-equation **systems** specification (SUR / 3SLS) from a config dict.
 Each `[[equations]]` block names a dependent column (`dep`) and regressor columns
 (`indep`); a block may add its own instruments (`instr`) and/or a shared
-`[instruments].common` set may be given (3SLS).
+`[instruments].common` set may be given (3SLS).  A model card lowers to the
+same dict with the shared set under `common_instruments` and an equation's
+absent instruments as `instr => nothing`; both spellings are accepted here.
 
-Returns `Dict("equations" => [Dict("name","dep","indep","instr"), ...],
-"common_instruments" => Vector{String} | nothing)`. Column *names* only — the
-handler resolves them against the data CSV. Raises typed `config/*` CliErrors.
 """
 function get_system(config::Dict)
     eqs_raw = get(config, "equations", nothing)
@@ -640,13 +644,25 @@ function get_system(config::Dict)
             "name"  => haskey(e, "name") ? String(e["name"]) : "eq$(j)",
             "dep"   => dep,
             "indep" => _system_strvec(e["indep"], "[[equations]] entry $j `indep`"),
-            "instr" => haskey(e, "instr") ? _system_strvec(e["instr"], "[[equations]] entry $j `instr`") : nothing,
+            # `instr => nothing` means "no instruments on this equation".  A
+            # TOML `[[equations]]` block cannot spell that (no such value), but
+            # a model card lowers to it, so it is treated as an absent key.
+            "instr" => (haskey(e, "instr") && e["instr"] !== nothing) ?
+                       _system_strvec(e["instr"], "[[equations]] entry $j `instr`") : nothing,
         ))
     end
     common = nothing
-    instr_tbl = get(config, "instruments", nothing)
-    if instr_tbl isa AbstractDict && haskey(instr_tbl, "common")
-        common = _system_strvec(instr_tbl["common"], "[instruments] `common`")
+    # `instruments.common` is the TOML spelling; `common_instruments` is the
+    # key a model card lowers to.  Accept either, so a card reaches 3SLS with
+    # its shared instruments instead of silently losing them.
+    direct = get(config, "common_instruments", nothing)
+    if direct !== nothing
+        common = _system_strvec(direct, "`common_instruments`")
+    else
+        instr_tbl = get(config, "instruments", nothing)
+        if instr_tbl isa AbstractDict && haskey(instr_tbl, "common")
+            common = _system_strvec(instr_tbl["common"], "[instruments] `common`")
+        end
     end
     Dict{String,Any}("equations" => equations, "common_instruments" => common)
 end

@@ -769,13 +769,18 @@ _text_looks_like_toml(text::AbstractString) =
 file is gone, or it is unreadable for another reason)."""
 _slurp_ignoring(path) = try read(String(path), String) catch; "" end
 
+"""TOML section a lowered card family must be nested under for the matching
+`get_*` loader to see it. Families absent here are already top-level."""
+const _CARD_SECTIONS = Dict{Symbol,String}(:gmm => "gmm", :smm => "smm")
+
 """
     _load_config_or_card(path, family) -> Dict
 
 Load a `--config` value: `.toml` goes to `load_config` exactly as before,
-anything else is a model card lowered to the same dict the `get_*` loaders
-return. A file saved under the wrong extension is still an error — the hint
-just names the format the user actually wrote."""
+anything else is a model card lowered into the dict the matching `get_*`
+loader reads, so the handler keeps calling that loader unchanged. A file
+saved under the wrong extension is still an error — the hint just names the
+format the user actually wrote."""
 function _load_config_or_card(path::AbstractString, family::Symbol)
     p = String(path)
     if !_is_card_path(p)
@@ -795,7 +800,14 @@ function _load_config_or_card(path::AbstractString, family::Symbol)
         throw(CliError("config/file-not-found", "config file not found: $q"; hint="check the path"))
     text = read(q, String)
     try
-        return lowered_card(text, family, q)
+        lowered = lowered_card(text, family, q)
+        # `get_gmm` / `get_smm` read their keys out of the `[gmm]` / `[smm]`
+        # SECTION of the TOML dict, so a card has to arrive in that shape or the
+        # handler's `get_*` call sees an empty spec and the card's values are
+        # silently dropped.  `get_system` reads the top level, and the lowerer
+        # already emits that shape, so nothing is wrapped for it.
+        section = get(_CARD_SECTIONS, family, "")
+        return isempty(section) ? lowered : Dict{String,Any}(section => lowered)
     catch e
         if e isa CliError && e.code == "config/invalid" && _text_looks_like_toml(text)
             throw(CliError("config/invalid", e.message;

@@ -61,9 +61,11 @@ end
 
     @testset "a non-.toml path is a card" begin
         card = _task7_card("gmm lp:\n  moments: output, inflation\n  weighting: twostep\n")
+        # NESTED under `[gmm]`: `get_gmm` reads the section, so a flat dict
+        # would hand the handler an empty spec (see task_8's regression pin).
         g = _load_config_or_card(card, :gmm)
-        @test g["moment_conditions"] == ["output", "inflation"]
-        @test g["dep"] == "" && g["theta0"] == Float64[]
+        @test get_gmm(g)["moment_conditions"] == ["output", "inflation"]
+        @test get_gmm(g)["dep"] == "" && get_gmm(g)["theta0"] == Float64[]
     end
 
     @testset "a card path passes --config through the adapter untouched" begin
