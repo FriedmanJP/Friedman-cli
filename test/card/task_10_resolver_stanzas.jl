@@ -607,3 +607,59 @@ end
     @test occursin("gmm lp", e.message)
     @test occursin("is not allowed in a .jl model file", e.message)
 end
+
+@testset "round 3: the empty-source advice and the dcegm loader (CARD-W2 #210)" begin
+    @testset "an empty --constraint value is not told to delete a stanza header (NEW-4)" begin
+        # `_card_inline("constraints", [""])` is `"constraints:\n  "`, which lowers to
+        # ZERO bounds — so `--constraint ""` reaches the SAME guard as an empty
+        # stanza and must not be advised to remove a header the user never wrote.
+        # That is the rule the duplicate-bound message already follows.
+        e = _t10_err(() -> _resolve_dsge_constraints("", [""]))
+        @test e isa CliError
+        @test e.code == "config/invalid"
+        @test occursin("--constraint", e.message)
+        @test occursin("var[t] >= 0", e.message)
+        @test !occursin("stanza", e.message)          # ← the pin
+
+        # …and the branch is not one-directional: the STANZA still gets the stanza
+        # advice, so neither message can absorb the other.
+        empty_st = Dict{Symbol,Any}(
+            :constraints => lower_constraints(parse_card("constraints:\n"), "m.jl"))
+        e2 = _t10_err(() -> _resolve_dsge_constraints("", String[]; stanzas=empty_st))
+        @test e2 isa CliError && e2.code == "config/invalid"
+        @test occursin("stanza", e2.message)
+        @test !occursin("--constraint", e2.message)
+
+        # At a leaf, on the path a user actually types.
+        leaf = _t10_err(() -> _dsge_steady_state(; model=_t10_model(""),
+                             constraint=[""], output=tempname() * ".json", format="json"))
+        @test leaf isa CliError && leaf.code == "config/invalid"
+        @test !occursin("stanza", leaf.message)
+        @test occursin("--constraint", leaf.message)
+    end
+
+    @testset "dsge dcegm is governed by the same policy (NEW-3)" begin
+        # `_load_dcegm_source` is the THIRD `.jl` model loader in src/ and it does
+        # not go through `_load_dsge_model`, so the docstring's enumeration used to
+        # claim coverage that did not exist. `dsge dcegm` consumes NEITHER stanza, so
+        # a `priors:` card in its model file is refused like everywhere else.
+        carded = _t10_model("priors:\n  rho ~ beta(2, 2)\n")
+        e = _t10_err(() -> _load_dcegm_source(carded))
+        @test e isa CliError
+        @test e.code == "config/invalid"
+        @test occursin("priors:", e.message)
+
+        cons = _t10_model("constraints:\n  i[t] >= -10\n")
+        e1 = _t10_err(() -> _load_dcegm_source(cons))
+        @test e1 isa CliError && e1.code == "config/invalid"
+        @test occursin("constraints:", e1.message)
+
+        # The control that makes the two above mean something: a CARD-FREE dcegm
+        # model file still reaches the loader body and fails there for its own
+        # reason (this RA spec has no DCEGMSystem), so the policy did not fire.
+        e2 = _t10_err(() -> _load_dcegm_source(_t10_model("")))
+        @test e2 isa CliError
+        @test e2.code != "config/invalid"
+        @test !occursin("stanza", e2.message)
+    end
+end

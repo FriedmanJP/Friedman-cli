@@ -4374,9 +4374,21 @@ function _load_dcegm_source(model::String; n_periods=20, beta=0.98, r=1.0, wage=
     ext = lowercase(splitext(model)[2])
     ext == ".jl" || throw(CliError("usage/invalid-option",
         "DCEGM model must be builtin `retirement` or a .jl file (got '$ext')"))
+    # Same preamble rule as the other two loaders: a `.jl` model file may carry a
+    # model card above its @dsge block, and a stanza this leaf cannot CONSUME is
+    # refused rather than left for `Base.include` to fail on as Julia
+    # (`dsge dcegm` estimates neither priors nor OccBin constraints).
+    #
+    # One documented limit: `_split_card_and_model` only recognises a preamble
+    # above a column-0 `@dsge` block — deliberately, and not widened here — so a
+    # dcegm file that builds a `DCEGMProblem` from ordinary Julia is still included
+    # whole, and a card written in one is a Julia parse error rather than this
+    # policy's `config/invalid`. Loud either way, never silent.
+    card, model_src = _split_card_and_model(model)
+    card === nothing || _model_card_stanza_policy(_model_card_stanzas(model))
     mod = _dsge_sandbox()
     result = try
-        Base.include(mod, model)
+        card === nothing ? Base.include(mod, model) : include_string(mod, model_src, model)
     catch e
         e isa CliError && rethrow()
         _dsge_eval_invalid(e, "could not evaluate the DCEGM model file '$model'";

@@ -3214,6 +3214,12 @@ identity of a bound is `(variable, direction)`: the same variable bounded from
 both sides is two bounds, but bounded twice from one side is a conflict. No
 source is not an error here — the caller decides whether constraints apply.
 """
+
+# The source label a lowered `constraints:` stanza is merged under. A const
+# because `_resolve_dsge_constraints` branches on it when reporting an empty
+# source, so the label and the advice about it cannot drift apart.
+const _CONSTRAINTS_STANZA_SOURCE = "the model's constraints: stanza"
+
 function _resolve_dsge_constraints(file::String, lines::Vector{String};
                                    stanzas::AbstractDict=Dict{Symbol,Any}(), spec=nothing)
     out = Any[]
@@ -3238,12 +3244,17 @@ function _resolve_dsge_constraints(file::String, lines::Vector{String};
         # Mirror of `lower_priors`' own empty-stanza refusal: a bare `constraints:`
         # header lowered to zero bounds, and the four OccBin leaves would then enter
         # the constrained branch with an EMPTY constraint vector — `dsge solve` even
-        # printed "Solving with OccBin constraints..." on that path. A non-empty
-        # `--constraint` list can never reach this (the lowerer raises first), so
-        # the message names the stanza.
+        # printed "Solving with OccBin constraints..." on that path.
+        #
+        # The advice branches on the SOURCE, because `--constraint ""` reaches here
+        # too (`_card_inline("constraints", [""])` is `"constraints:\n  "`, which
+        # lowers to zero bounds) and must not be told to delete a stanza header the
+        # user never wrote. Same rule as the duplicate-bound message above.
         isempty(lowered["bounds"]) && throw(CliError("config/invalid",
-            "the constraints stanza is empty — supply at least one bound such as " *
-            "'i[t] >= 0', or delete the stanza header"))
+            src == _CONSTRAINTS_STANZA_SOURCE ?
+                "the constraints stanza is empty — supply at least one bound such as " *
+                "'i[t] >= 0', or delete the stanza header" :
+                "a --constraint value produced no bound — write 'var[t] >= 0'"))
         # The card grammar has no nonlinear form, so `lower_constraints` always
         # returns an empty `nonlinear` list; a hand-built stanza dict carrying one
         # is refused rather than silently dropped.
@@ -3274,7 +3285,7 @@ function _resolve_dsge_constraints(file::String, lines::Vector{String};
         lower_constraints(parse_card(_card_inline("constraints", lines), "<--constraint>"),
                           "<--constraint>"), "--constraint")
     haskey(stanzas, :constraints) && add_bounds(stanzas[:constraints],
-                                                "the model's constraints: stanza")
+                                                _CONSTRAINTS_STANZA_SOURCE)
 
     return out
 end
@@ -3289,25 +3300,34 @@ it, never silently ignored. Silently ignoring is the failure that matters —
 `dsge solve` refused a `priors:` stanza while `dsge estimate` accepted the very
 same file, so the same model file behaved two ways.
 
-Who allows what, and why (the sets come from grepping what each handler actually
-consumes, not from guessing):
+Who allows what, and why. The sets come from grepping what each handler actually
+READS — `stanzas[:priors]` and `stanzas[:constraints]` have exactly two and four
+read sites in `src/`, listed below — not from guessing which leaf "seems" Bayesian:
 
-- `allow_priors` — the Bayesian leaves only: `_dsge_bayes_inputs` (every
-  `dsge bayes` handler, and `dsge bayes compare` for BOTH models) and
-  `_dsge_ha_estimate`. They read `stanzas[:priors]` into
-  [`_resolve_dsge_priors`](@ref).
+- `allow_priors` — the Bayesian leaves only: [`_dsge_bayes_inputs`](@ref) (every
+  `dsge bayes` handler that takes priors, plus `dsge bayes compare` for BOTH
+  models) and `_dsge_ha_estimate` (`hadsge estimate`). They read
+  `stanzas[:priors]` into [`_resolve_dsge_priors`](@ref). **`dsge bayes
+  identification` is deliberately NOT here**: it bypasses `_dsge_bayes_inputs`
+  (it feeds `--params` straight to a MEMs call and takes no priors), so it consumes
+  neither stanza and the default refusal is correct for it.
 - `allow_constraints` — the four OccBin leaves that declare
   `--constraints`/`--constraint`: `dsge solve`, `dsge steady-state`, `dsge irf`,
   `dsge perfect-foresight`. They read `stanzas[:constraints]` into
   [`_resolve_dsge_constraints`](@ref).
-- Everything else that loads a model file — `dsge moments`, `dsge estimate`,
-  `dsge fevd`, `dsge hd`, `dsge simulate`, `dsge determinacy-map`, the
-  `ct`/`bank`/`firm`/`lifecycle`/`dcegm` families, every `dsge ha` / `hadsge`
-  leaf, `data simulate dsge|ha`, and the `policy news dsge|ha` / `jacobian ha` /
-  `sufficiency dsge` paths — consumes NEITHER, so the default refuses both. They
-  reach the model through [`_load_dsge_model`](@ref) / [`_load_ha_model`](@ref),
-  which apply this policy with both flags off, so the rule is enforced in one
-  place for ~25 leaves rather than at each call site.
+- Everything else that reaches a model file through [`_load_dsge_model`](@ref) or
+  [`_load_ha_model`](@ref) consumes NEITHER, so the default refuses both: the
+  remaining RA leaves (`dsge moments`, `dsge estimate`, `dsge fevd`, `dsge hd`,
+  `dsge simulate`, `dsge determinacy-map`), every other `hadsge` leaf,
+  `data simulate dsge|ha`, and the `policy news dsge|ha` / `jacobian ha` /
+  `sufficiency dsge` paths. Both loaders apply this policy with both flags off, so
+  the rule is enforced in two places rather than at ~25 call sites.
+
+Two families are NOT model-file families and are deliberately absent from the list
+above: the `ct`, `bank`, `firm` and `lifecycle` families build their model from
+kwargs and never call either loader, so there is no file for a stanza to live in.
+`dsge dcegm` is the third `.jl` loader in `src/` and does not go through
+`_load_dsge_model`; see [`_load_dcegm_source`](@ref) for what it does with a card.
 
 The two flags are independent on purpose: no leaf allows both, because no leaf
 estimates with priors AND solves under OccBin constraints.

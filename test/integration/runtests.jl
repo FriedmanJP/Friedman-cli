@@ -819,6 +819,222 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rm(csv; force=true); rm(surcfg; force=true)
     end
 
+    # ─── Model cards as --config (CARD-W3 #208, CARD-W4 #207) ──────────────────
+    # Each case copies a neighbouring PASSING testset's inline setup verbatim and
+    # changes only the `--config` argument to a `.card` file, so the card run is
+    # provably the same estimation as the TOML run it is compared against.
+    @testset "model cards as --config — gmm / smm / sur / 3sls (CARD-W4 #207)" begin
+        # Locally defined on purpose: `_syscoef`/`coltable_sys` above are scoped to
+        # their own testset (this file has been bitten by that twice).
+        _card_syscoef(doc) = begin
+            for (_, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :rows)) || continue
+                ("equation" in table_cols(v) && "term" in table_cols(v)) && return v
+            end
+            nothing
+        end
+        _card_gmmcoef(doc) = begin
+            for (_, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :rows)) || continue
+                c = table_cols(v)
+                ("parameter" in c && "estimate" in c) && return v
+            end
+            nothing
+        end
+
+        @testset "gmm lp card reproduces the TOML fit (CARD-W3 #208)" begin
+            # Inline setup copied from the green LP control above (:649-655): the
+            # `dgp_var2` CSV and the LP moment list.  `instruments` is dropped
+            # from BOTH configs — `gmm lp:` refuses the key by design
+            # (_CARD_GMM_LP_REFUSED), so keeping it on the TOML side would make
+            # the two runs differ in more than the file format.
+            cfg_lp = tempname() * "_gmm_lp.toml"
+            write(cfg_lp, """
+            [gmm]
+            moment_conditions = ["y1", "y2"]
+            """)
+            csv_lp = dgp_var2(; T=200, seed=9)
+            card = tempname() * "_gmm_lp.card"
+            write(card, """
+            gmm lp:
+              moments: y1, y2
+            """)
+            # LP with 2 moments and 2 parameters is just-identified: the leaf
+            # emits no table (its neighbour checks exactly that at :656-660), so
+            # the observable is stderr — and "Moment conditions: 2" is the line
+            # that proves the CARD's moment list was read at all.
+            rt = run_cli_capture(["estimate", "regression", "gmm", csv_lp, "--config", cfg_lp,
+                                  "--weighting", "identity"])
+            rc = run_cli_capture(["estimate", "regression", "gmm", csv_lp, "--config", card,
+                                  "--weighting", "identity"])
+            @test rt.code == 0 && rc.code == 0
+            @test occursin("Moment conditions: 2", rc.err)
+            @test rc.err == rt.err
+            @test occursin("Degrees of freedom: 0", rc.err)
+            rm(csv_lp; force=true); rm(cfg_lp; force=true); rm(card; force=true)
+        end
+
+        @testset "gmm iv card reproduces the TOML first stage (CARD-W3 #208)" begin
+            # Inline setup copied verbatim from the green IV testset (:626-631).
+            Random.seed!(195)
+            n = 400
+            z1 = randn(n); z2 = randn(n)
+            x = 0.9 .* z1 .+ 0.9 .* z2 .+ 0.1 .* randn(n)
+            y = 1.0 .+ 0.5 .* x .+ randn(n)
+            csv = write_csv(DataFrame(y=y, x=x, z1=z1, z2=z2); prefix="gmm_iv_card")
+            cfg = tempname() * "_gmm_iv.toml"
+            write(cfg, """
+            [gmm]
+            dep = "y"
+            endogenous = ["x"]
+            instruments = ["z1", "z2"]
+            theta0 = [0.0, 0.0]
+            """)
+            card = tempname() * "_gmm_iv.card"
+            write(card, """
+            gmm iv:
+              dep: y
+              endogenous: x
+              instruments: z1, z2
+              theta0: 0.0, 0.0
+            """)
+            rt = run_json(["estimate", "regression", "gmm", csv, "--config", cfg, "--weighting", "twostep"])
+            rc = run_json(["estimate", "regression", "gmm", csv, "--config", card, "--weighting", "twostep"])
+            assert_envelope_ok(rt; label="gmm iv toml")
+            assert_envelope_ok(rc; label="gmm iv card")
+            a, b = _card_gmmcoef(rt.doc), _card_gmmcoef(rc.doc)
+            @test a !== nothing && b !== nothing
+            @test numeric_tables_agree(a, b; rtol=1e-8)
+            # The IV opt-in diagnostic: present on BOTH runs, and finite on both.
+            kv_t = collect_named_kv(rt.doc, "metric", "value")
+            kv_c = collect_named_kv(rc.doc, "metric", "value")
+            @test haskey(kv_t, "first_stage_F") && haskey(kv_c, "first_stage_F")
+            @test isapprox(numv(kv_c["first_stage_F"]), numv(kv_t["first_stage_F"]); rtol=1e-8)
+            rm(csv; force=true); rm(cfg; force=true); rm(card; force=true)
+        end
+
+        @testset "smm card reproduces the TOML AR(1) fit (CARD-W4 #207)" begin
+            # Inline setup copied from the green SMM testset (:519).
+            csv = dgp_ar1(; T=400, φ=0.7, σ=1.0, seed=71)
+            cfg = tempname() * "_smm_card.toml"
+            write(cfg, """
+            [smm]
+            model = "ar1"
+            theta0 = [0.4, 0.5]
+            lags = 2
+            weighting = "two_step"
+            sim_ratio = 3
+            burn = 100
+            lower = [-0.99, 1.0e-4]
+            upper = [0.99, 10.0]
+            """)
+            card = tempname() * "_smm_card.card"
+            write(card, """
+            smm:
+              model: ar1
+              theta0: 0.4, 0.5
+              lags: 2
+              weighting: two_step
+              sim_ratio: 3
+              burn: 100
+              lower: -0.99, 1.0e-4
+              upper: 0.99, 10.0
+            """)
+            rt = run_json(["--seed", "20240722", "estimate", "regression", "smm", csv, "--config", cfg])
+            rc = run_json(["--seed", "20240722", "estimate", "regression", "smm", csv, "--config", card])
+            assert_envelope_ok(rt; label="smm toml")
+            assert_envelope_ok(rc; label="smm card")
+            a, b = _card_gmmcoef(rt.doc), _card_gmmcoef(rc.doc)
+            @test a !== nothing && b !== nothing
+            @test numeric_tables_agree(a, b; rtol=1e-6)
+            # Same recovery check the neighbour makes, so the card run is not
+            # merely self-consistent with a broken TOML run.
+            cols = table_cols(b)
+            pidx = findfirst(==("parameter"), cols); eidx = findfirst(==("estimate"), cols)
+            rows = [collect(row) for row in table_rows(b)]
+            phi_row = rows[findfirst(row -> string(row[pidx]) == "phi", rows)]
+            @test 0.3 < Float64(phi_row[eidx]) < 0.99
+            rm(csv; force=true); rm(cfg; force=true); rm(card; force=true)
+        end
+
+        @testset "sur / 3sls cards keep the TOML coefficients (CARD-W4 #207)" begin
+            # Inline setup copied from the green systems testset (:681-693).
+            Random.seed!(4242)
+            Tn = 300
+            x1 = randn(Tn); x2 = randn(Tn); x3 = randn(Tn)
+            U = ([1.0 0.0; 0.6 0.8] * randn(2, Tn))'    # cross-equation error correlation
+            y1 = 1.0 .+ 0.5 .* x1 .+ 0.3 .* x2 .+ U[:, 1]
+            y2 = -0.5 .+ 0.8 .* x2 .+ 0.2 .* x3 .+ U[:, 2]
+            csv = tempname() * "_sur_card.csv"
+            open(csv, "w") do io
+                println(io, "y1,y2,x1,x2,x3")
+                for t in 1:Tn
+                    println(io, join((y1[t], y2[t], x1[t], x2[t], x3[t]), ","))
+                end
+            end
+            surcfg = tempname() * "_sur_card.toml"
+            write(surcfg, """
+            [[equations]]
+            name = "consumption"
+            dep = "y1"
+            indep = ["x1", "x2"]
+            [[equations]]
+            name = "investment"
+            dep = "y2"
+            indep = ["x2", "x3"]
+            """)
+            surcard = tempname() * "_sur_card.card"
+            write(surcard, """
+            equations:
+              consumption: y1 = x1, x2
+              investment: y2 = x2, x3
+            """)
+            rt = run_json(["estimate", "regression", "sur", csv, "--config", surcfg])
+            rc = run_json(["estimate", "regression", "sur", csv, "--config", surcard])
+            assert_envelope_ok(rt; label="sur toml")
+            assert_envelope_ok(rc; label="sur card")
+            a, b = _card_syscoef(rt.doc), _card_syscoef(rc.doc)
+            @test a !== nothing && b !== nothing
+            # Equation names come from the card, so this also pins the naming.
+            qi = findfirst(==("equation"), table_cols(b))
+            names = [string(collect(r)[qi]) for r in table_rows(b)]
+            @test Set(names) == Set(["consumption", "investment"])
+            @test numeric_tables_agree(a, b; rtol=1e-8)
+
+            # 3SLS: the shared instrument set is the whole point of the card's
+            # `instruments:` stanza, and it is the path get_system used to drop.
+            tslscfg = tempname() * "_3sls_card.toml"
+            write(tslscfg, """
+            [[equations]]
+            dep = "y1"
+            indep = ["x1", "x2"]
+            [[equations]]
+            dep = "y2"
+            indep = ["x2", "x3"]
+            [instruments]
+            common = ["x1", "x2", "x3"]
+            """)
+            tslscard = tempname() * "_3sls_card.card"
+            write(tslscard, """
+            equations:
+              y1 = x1, x2
+              y2 = x2, x3
+            instruments:
+              common: x1, x2, x3
+            """)
+            r3t = run_json(["estimate", "regression", "3sls", csv, "--config", tslscfg])
+            r3c = run_json(["estimate", "regression", "3sls", csv, "--config", tslscard])
+            assert_envelope_ok(r3t; label="3sls toml")
+            assert_envelope_ok(r3c; label="3sls card")
+            c3t, c3c = _card_syscoef(r3t.doc), _card_syscoef(r3c.doc)
+            @test c3t !== nothing && c3c !== nothing
+            @test numeric_tables_agree(c3t, c3c; rtol=1e-8)
+
+            rm(csv; force=true); rm(surcfg; force=true); rm(surcard; force=true)
+            rm(tslscfg; force=true); rm(tslscard; force=true)
+        end
+    end
+
     @testset "estimate regression lasso/ridge/elastic-net/robust/tobit — penalized & LDV (C067a, M5c)" begin
         # Real cross-section DGP: sparse true β=[-1.0, 0.8, -0.6, 0, 0], plus a
         # left-censored yc for Tobit. Teeth: sparse recovery, large-λ shrinkage, robust≈OLS
@@ -5292,49 +5508,62 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         end
 
         @testset "CARD-W2 #210 — a .jl model file with a card stanza solves like the plain file" begin
-            # A model file may carry `priors:` above its @dsge block. Only the
-            # @dsge slice is executed, so the result must equal the same model
-            # written without the stanza — the card text is parsed, never eval'd.
+            # A model file may carry a `constraints:` card above its @dsge block.
+            # Only the @dsge slice is executed, so the result must equal the same
+            # model solved with the same bound passed on the command line — the card
+            # text is parsed, never eval'd.
+            #
+            # `constraints:` and NOT `priors:` (round 3): `dsge solve` is the OccBin
+            # leaf and CONSUMES a `constraints:` stanza, while `priors:` is Bayesian
+            # and the symmetric stanza policy refuses it. The plain twin is given
+            # the SAME bound as a `--constraint` so BOTH runs take the OccBin path and
+            # the comparison is table-for-table — a carded OccBin run and a plain
+            # gensys run share no table. The model is the 3-variable shape Task 6's
+            # OccBin case already exercises on real MEMs.
+            body = """
+                @dsge begin
+                    parameters: rho = 0.9, sigma = 0.01, phi_pi = 1.5
+                    endogenous: Y, C, i
+                    exogenous: e
+                    linear: true
+
+                    Y[t] = rho * Y[t-1] + sigma * e[t]
+                    C[t] = Y[t]
+                    i[t] = phi_pi * Y[t]
+                end
+                """
             card_jl = joinpath(dir, "card_model.jl")
-            write(card_jl, """
-            priors:
-              rho ~ beta(2, 2)
-              sigma ~ inv_gamma(3, 0.01)
+            write(card_jl, "constraints:\n  i[t] >= -10\n" * body)
+            plain_jl = joinpath(dir, "plain_twin.jl")
+            write(plain_jl, body)
 
-            @dsge begin
-                parameters: rho = 0.9, sigma = 0.01
-                endogenous: Y, C
-                exogenous: e
-                linear: true
-
-                Y[t] = rho * Y[t-1] + sigma * e[t]
-                C[t] = Y[t]
-            end
-            """)
             r_card = run_json(["dsge", "solve", card_jl])
             assert_envelope_ok(r_card; label="dsge solve card stanza")
-            r_plain = run_json(["dsge", "solve", model_jl])
-            assert_envelope_ok(r_plain; label="dsge solve plain jl")
+            r_plain = run_json(["dsge", "solve", plain_jl,
+                                "--constraint", "i[t] >= -10"])
+            assert_envelope_ok(r_plain; label="dsge solve plain twin")
 
             # Select by COLUMNS, not key order (JSON3 does not preserve insertion
-            # order and `dsge solve` emits several tables).
-            pc = _dsge_policy_table(r_card.doc)
-            pp = _dsge_policy_table(r_plain.doc)
+            # order and `dsge solve` emits several tables). The OccBin path is the
+            # only table carrying BOTH the leading `period` index and every model
+            # variable.
+            occbin_path = function (doc)
+                doc === nothing && return nothing
+                for (_, v) in pairs(doc.data)
+                    (v isa JSON3.Object && haskey(v, :rows)) || continue
+                    Set(table_cols(v)) == Set(["period", "Y", "C", "i"]) && return v
+                end
+                return nothing
+            end
+            pc = occbin_path(r_card.doc)
+            pp = occbin_path(r_plain.doc)
             @test pc !== nothing && pp !== nothing
             @test table_cols(pc) == table_cols(pp)
-            ncols = table_cols(pc)
-            numcols = [j for (j, c) in enumerate(ncols) if startswith(c, "G1_")]
-            @test !isempty(numcols)
-            # Numeric, not byte, comparison — sized off the substantive scale of a
-            # policy loading (~1), never an exact float equality (the standing T3
-            # lesson: Linux BLAS can differ by a ULP).
-            for (rc, rp) in zip(table_rows(pc), table_rows(pp))
-                for j in numcols
-                    @test numv(rc[j]) ≈ numv(rp[j]) atol=1e-8
-                end
-            end
-            @test named_table(r_card.doc, :determinacy_verdict)["rows"] ==
-                  named_table(r_plain.doc, :determinacy_verdict)["rows"]
+            # Numeric, not byte, with a tolerance sized off the substantive scale of
+            # an order-1 path — never an exact float equality (the standing T3
+            # lesson: Linux BLAS can differ by a ULP). `numeric_tables_agree` is
+            # this file's own helper and applies the same rule per cell.
+            @test numeric_tables_agree(pc, pp; atol=1e-8, rtol=1e-6)
         end
 
         @testset "CARD-W2 #210 — a helper-only .jl preamble is unchanged, a bad header is loud" begin
@@ -5430,15 +5659,23 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             # ModelSpec, and the no-card path includes the whole file. Slicing the
             # FIRST block instead meant adding a card silently switched which
             # economic model got solved — exit 0, different numbers, no warning.
+            #
+            # A `constraints:` card, not `priors:` (round 3): `dsge solve` CONSUMES a
+            # `constraints:` stanza and REFUSES a `priors:` one, so a `priors:` card
+            # could only be asserted as a refusal here and the case would lose its
+            # substance — which block got solved is exactly what it is about. The
+            # plain twin gets the same `--constraint` so both runs take the OccBin
+            # path and are comparable table-for-table.
             two = (rho) -> """
                 @dsge begin
-                    parameters: rho = $(rho), sigma = 0.01
-                    endogenous: Y, C
+                    parameters: rho = $(rho), sigma = 0.01, phi_pi = 1.5
+                    endogenous: Y, C, i
                     exogenous: e
                     linear: true
 
                     Y[t] = rho * Y[t-1] + sigma * e[t]
                     C[t] = Y[t]
+                    i[t] = phi_pi * Y[t]
                 end
                 """
             blocks = string(two("0.5"), "\n", two("0.9"))
@@ -5446,24 +5683,46 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             plain = joinpath(dir, "two_blocks.jl")
             write(plain, blocks)
             cardj = joinpath(dir, "two_blocks_card.jl")
-            write(cardj, "priors:\n  rho ~ beta(2, 2)\n" * blocks)
+            write(cardj, "constraints:\n  i[t] >= -10\n" * blocks)
 
+            # The PLAIN file, unconstrained, keeps the closed-form proof: the LAST
+            # block's rho = 0.9 is what it solves, asserted on the closed form of
+            # this model (Y[t] = rho*Y[t-1] + sigma*e[t] loads exactly rho on Y), not
+            # on key order. Adding `i[t] = phi_pi * Y[t]` leaves the Y equation
+            # untouched, so `G1_Y` is still rho.
             r_plain = run_json(["dsge", "solve", plain])
-            r_card = run_json(["dsge", "solve", cardj])
             assert_envelope_ok(r_plain; label="dsge solve two blocks no card")
-            assert_envelope_ok(r_card; label="dsge solve two blocks with card")
-
-            # The LAST block's rho = 0.9 must be what BOTH solve. Asserted on the
-            # closed form of this model (Y[t] = rho*Y[t-1] + sigma*e[t] loads
-            # exactly rho on Y), not on key order.
-            for r in (r_plain, r_card)
-                tbl = _dsge_policy_table(r.doc)
-                @test tbl !== nothing
+            tbl = _dsge_policy_table(r_plain.doc)
+            @test tbl !== nothing
+            if tbl !== nothing
                 yi = col_index(tbl, "variable")
                 gi = col_index(tbl, "G1_Y")
                 row = only([r for r in table_rows(tbl) if String(r[yi]) == "Y"])
                 @test numv(row[gi]) ≈ 0.9 atol=1e-8
             end
+
+            # …and the CARDED file must solve the same block. That is only observable
+            # through the path the card itself selects, so both sides get the bound.
+            # `occbin_path` is a local helper of each testset on purpose (the file
+            # already relies on that scoping rule elsewhere).
+            occbin_path = function (doc)
+                doc === nothing && return nothing
+                for (_, v) in pairs(doc.data)
+                    (v isa JSON3.Object && haskey(v, :rows)) || continue
+                    Set(table_cols(v)) == Set(["period", "Y", "C", "i"]) && return v
+                end
+                return nothing
+            end
+            r_plain_c = run_json(["dsge", "solve", plain, "--constraint", "i[t] >= -10"])
+            r_card = run_json(["dsge", "solve", cardj])
+            assert_envelope_ok(r_plain_c; label="dsge solve two blocks with --constraint")
+            assert_envelope_ok(r_card; label="dsge solve two blocks with card")
+            pc = occbin_path(r_card.doc)
+            pp = occbin_path(r_plain_c.doc)
+            @test pc !== nothing && pp !== nothing
+            # A card that selected the FIRST block (rho = 0.5) would move the path,
+            # so this is the block-selection claim, table-for-table.
+            @test numeric_tables_agree(pc, pp; atol=1e-8, rtol=1e-6)
         end
 
         @testset "CARD-W2 #210 — a card below the @dsge block is rejected, not executed" begin
@@ -5671,25 +5930,31 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         end
         @testset "CARD-W2 #210 — a stanza no leaf can use is refused the same way everywhere (T3)" begin
             # The symmetry rule, end to end on real MEMs and the real dispatcher. The
-            # same model file must behave the SAME way on a leaf that consumes
-            # `constraints:` and on one that consumes neither — pre-fix `dsge solve`
-            # refused a `priors:` stanza while `dsge moments` accepted and ignored it.
-            # Exit code + error code only; no numbers to compare.
-            for (name, card, token) in (("priors", "priors:\n  rho ~ beta(2, 2)\n", "priors:"),
-                                        ("constraints", "constraints:\n  Y[t] >= -10\n", "constraints:"))
+            # LEAF SETS DIFFER PER STANZA and that is the point: `dsge solve` is the
+            # OccBin leaf, so it CONSUMES `constraints:` and REFUSES `priors:`, while
+            # `dsge moments` consumes neither and refuses both. A single leaf set for
+            # both stanzas asserted the opposite of the design for the
+            # (constraints, solve) cell — the testset contradicted the paragraph
+            # directly below it, and contradicted two older cases in this file.
+            for (name, card, token, leaves) in
+                    (("priors", "priors:\n  rho ~ beta(2, 2)\n", "priors:",
+                      (["dsge", "solve"], ["dsge", "moments"])),
+                     ("constraints", "constraints:\n  i[t] >= -10\n", "constraints:",
+                      (["dsge", "moments"],)))
                 f = joinpath(dir, "unused_$(name).jl")
                 write(f, card * """
                 @dsge begin
-                    parameters: rho = 0.9, sigma = 0.01
-                    endogenous: Y, C
+                    parameters: rho = 0.9, sigma = 0.01, phi_pi = 1.5
+                    endogenous: Y, C, i
                     exogenous: e
                     linear: true
 
                     Y[t] = rho * Y[t-1] + sigma * e[t]
                     C[t] = Y[t]
+                    i[t] = phi_pi * Y[t]
                 end
                 """)
-                for leaf in (["dsge", "solve"], ["dsge", "moments"])
+                for leaf in leaves
                     r = run_json(vcat(leaf, [f]))
                     @test r.code == 4
                     @test String(r.doc.error.code) == "config/invalid"
@@ -5697,13 +5962,23 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                 end
             end
 
-            # …and the mirror: `dsge solve` CONSUMES a `constraints:` stanza rather
-            # than refusing it, so the same file is not refused everywhere.
-            ok = run_json(["dsge", "steady-state", joinpath(dir, "unused_constraints.jl")])
-            assert_envelope_ok(ok; label="dsge steady-state — constraints: stanza consumed")
-            @test named_table(ok.doc, :dsge_steady_state) !== nothing ||
+            # …and the mirror, on BOTH consuming leaves: the same `constraints:` file
+            # is not refused there. The refusals above and these are two halves of one
+            # rule, so neither can be dropped without the other becoming a blanket.
+            cf = joinpath(dir, "unused_constraints.jl")
+            for leaf in (["dsge", "solve"], ["dsge", "steady-state"])
+                ok = run_json(vcat(leaf, [cf]))
+                assert_envelope_ok(ok; label="$(join(leaf, " ")) — constraints: stanza consumed")
+            end
+            # `dsge steady-state --constraints` with a card is the FIRST real-MEMs
+            # exercise of `compute_steady_state(spec; constraints=…)`: the wave's other
+            # OccBin coverage reaches `dsge solve` and `dsge irf` only. Kept, and
+            # flagged as the least-proven line in the wave (it cannot be run until
+            # T3 is gated).
+            ss = run_json(["dsge", "steady-state", cf])
+            @test named_table(ss.doc, :dsge_steady_state) !== nothing ||
                   any(t -> t isa JSON3.Object && haskey(t, :columns) &&
-                           "steady_state" in String.(t.columns), values(ok.doc.data))
+                           "steady_state" in String.(t.columns), values(ss.doc.data))
         end
 
         @testset "CARD-W2 #210 — dsge bayes compare accepts model 2's priors: stanza (T3)" begin
