@@ -421,3 +421,268 @@ function lower_constraints(stanzas, path::AbstractString)
     end
     return Dict{String,Any}("bounds" => bounds, "nonlinear" => Dict{String,Any}[])
 end
+
+# ─── GMM (W0 / #206) ───────────────────────────────────────────────────────────
+
+const _CARD_GMM_KEYS = Set(["moments", "weighting", "dep", "endogenous",
+                            "exogenous", "instruments", "theta0"])
+
+const _CARD_GMM_LP_REFUSED = Set(["instruments", "dep", "theta0",
+                                  "endogenous", "exogenous"])
+
+"""Parse a comma-separated numeric card value into a `Vector{Float64}`.
+…
+Every element goes through the hand-written literal evaluator, so a card is
+never evaluated as code and a non-numeric element is a typed `config/invalid`
+rather than a parse crash."""
+function _card_floatvec(s::AbstractString, key::AbstractString, path::AbstractString, lineno::Int)
+    items = _card_vec(s)
+    isempty(items) && throw(_card_error(path, lineno, "'$(key)' lists no numbers"))
+    out = Float64[]
+    for item in items
+        v = _card_bounds_expr(item)
+        v === nothing &&
+            throw(_card_error(path, lineno, "'$(key)' value '$(item)' is not a numeric literal"))
+        push!(out, v)
+    end
+    return out
+end
+
+"""Read a `key: value` body line into `(key, value, lineno)`."""
+function _card_kv(raw::AbstractString, path::AbstractString, lineno::Int)
+    text = _card_strip_comment(raw)
+    i = findfirst(==(':'), text)
+    i === nothing && throw(_card_error(path, lineno, "expected a 'key: value' line, got '$(text)'"))
+    key = strip(text[1:prevind(text, i)])
+    val = strip(text[nextind(text, i):end])
+    isempty(key) && throw(_card_error(path, lineno, "empty key before ':'"))
+    return (key, val, lineno)
+end
+
+"""
+    lower_gmm(stanzas, path) -> Dict
+
+Lower a `gmm lp:` or `gmm iv:` stanza into the 7-key `get_gmm` dict. LP GMM
+fixes the dependent/parameter side, so those five keys are refused outright
+rather than silently ignored; IV GMM requires `dep`, `endogenous` and
+`theta0`. `weighting` defaults to `"twostep"`, matching the TOML loader.
+"""
+function lower_gmm(stanzas, path::AbstractString)
+    header = nothing
+    for s in stanzas
+        (s.header == "gmm lp" || s.header == "gmm iv") && (header = s.header; break)
+    end
+    header === nothing &&
+        throw(_card_error(path, 1, "card has no 'gmm lp' or 'gmm iv' stanza"))
+    lp = header == "gmm lp"
+
+    d = Dict{String,Any}(
+        "moment_conditions" => String[],
+        "instruments"      => String[],
+        "weighting"        => "twostep",
+        "dep"              => "",
+        "endogenous"       => String[],
+        "exogenous"        => String[],
+        "theta0"           => Float64[],
+    )
+    seen = Set{String}()
+    for (lineno, raw) in stanzas[findfirst(s -> s.header == header, stanzas)].lines
+        key, val, ln = _card_kv(raw, path, lineno)
+        key in _CARD_GMM_KEYS ||
+            throw(_card_error(path, ln, "unknown '$(header)' key '$(key)'"))
+        lp && key in _CARD_GMM_LP_REFUSED &&
+            throw(_card_error(path, ln, "'$(key)' has no meaning for 'gmm lp'"))
+        key in seen && throw(_card_error(path, ln, "duplicate key '$(key)'"))
+        push!(seen, key)
+        if key == "moments"
+            d["moment_conditions"] = _card_vec(val)
+        elseif key == "weighting"
+            d["weighting"] = val
+        elseif key == "dep"
+            d["dep"] = val
+        elseif key == "instruments"
+            d["instruments"] = _card_vec(val)
+        elseif key == "endogenous"
+            d["endogenous"] = _card_vec(val)
+        elseif key == "exogenous"
+            d["exogenous"] = _card_vec(val)
+        else                                   # theta0
+            d["theta0"] = _card_floatvec(val, "theta0", path, ln)
+        end
+    end
+
+    if !lp
+        isempty(d["dep"]) && throw(_card_error(path, 1, "'gmm iv' requires a 'dep' column"))
+        isempty(d["endogenous"]) &&
+            throw(_card_error(path, 1, "'gmm iv' requires 'endogenous' columns"))
+        isempty(d["theta0"]) &&
+            throw(_card_error(path, 1, "'gmm iv' requires a 'theta0' starting value"))
+    end
+    return d
+end
+
+# ─── SMM (W0 / #206) ───────────────────────────────────────────────────────────
+
+const _CARD_SMM_KEYS = Set(["model", "theta0", "lags", "p", "lower", "upper",
+                            "weighting", "sim_ratio", "burn"])
+
+"""Read an integer card value, or `config/invalid`."""
+function _card_int(s::AbstractString, key::AbstractString, path::AbstractString, lineno::Int)
+    v = tryparse(Int, strip(s))
+    v === nothing &&
+        throw(_card_error(path, lineno, "'$(key)' must be an integer, got '$(strip(s))'"))
+    return v
+end
+
+"""
+    lower_smm(stanzas, path) -> Dict
+
+Lower an `smm:` stanza into the 9-key `get_smm` dict. `model` is `nothing`
+when absent; `weighting` defaults to `"two_step"`, `sim_ratio` to 5 and
+`burn` to 100 — the same defaults `get_smm` applies."""
+function lower_smm(stanzas, path::AbstractString)
+    d = Dict{String,Any}(
+        "model"     => nothing,
+        "theta0"    => nothing,
+        "lags"      => 1,
+        "p"         => nothing,
+        "lower"     => nothing,
+        "upper"     => nothing,
+        "weighting" => "two_step",
+        "sim_ratio" => 5,
+        "burn"      => 100,
+    )
+    seen = Set{String}()
+    for (lineno, raw) in _card_stanza(stanzas, "smm", path).lines
+        key, val, ln = _card_kv(raw, path, lineno)
+        key in _CARD_SMM_KEYS ||
+            throw(_card_error(path, ln, "unknown 'smm' key '$(key)'"))
+        key in seen && throw(_card_error(path, ln, "duplicate key '$(key)'"))
+        push!(seen, key)
+        if key == "model"
+            d["model"] = isempty(val) ? nothing : val
+        elseif key == "weighting"
+            d["weighting"] = val
+        elseif key == "theta0" || key == "lower" || key == "upper"
+            d[key] = _card_floatvec(val, key, path, ln)
+        else                                   # lags / p / sim_ratio / burn
+            d[key] = _card_int(val, key, path, ln)
+        end
+    end
+    return d
+end
+
+# ─── Systems estimation (W0 / #206) ────────────────────────────────────────────
+
+"""
+    lower_system(stanzas, path) -> Dict
+
+Lower `equations:` and `instruments:` into the `get_system` dict. Each equation
+body line is `name? : dep = indep, …  ( | instr, … )?`; an equation without a
+`name:` prefix is named `eqN` by position. `indep` is required and must name
+at least one column. Per-equation `| instr` and a shared `instruments: common:`
+are mutually exclusive — mixing them is ambiguous, so it is refused rather
+than silently resolved."""
+function lower_system(stanzas, path::AbstractString)
+    common = String[]
+    has_common = false
+    for s in stanzas
+        s.header == "instruments" || continue
+        for (lineno, raw) in s.lines
+            key, val, ln = _card_kv(raw, path, lineno)
+            key == "common" ||
+                throw(_card_error(path, ln, "'instruments' accepts only the 'common' key"))
+            has_common = true
+            common = _card_vec(val)
+        end
+    end
+
+    equations = Vector{Dict{String,Any}}()
+    any_instr = false
+    for (lineno, raw) in _card_stanza(stanzas, "equations", path).lines
+        text = _card_strip_comment(raw)
+        eq = findfirst(==('='), text)
+        eq === nothing &&
+            throw(_card_error(path, lineno, "expected 'name: dep = col, col | col, col'"))
+        lhs = strip(text[1:prevind(text, eq)])
+        rhs = strip(text[nextind(text, eq):end])
+        isempty(lhs) && throw(_card_error(path, lineno, "no dependent column before '='"))
+
+        name = ""
+        ci = findfirst(==(':'), lhs)
+        if ci !== nothing
+            name = strip(lhs[1:prevind(lhs, ci)])
+            lhs = strip(lhs[nextind(lhs, ci):end])
+            isempty(name) && throw(_card_error(path, lineno, "empty equation name before ':'"))
+        end
+
+        instr = nothing
+        bar = findfirst(==('|'), rhs)
+        if bar !== nothing
+            instr = _card_vec(rhs[nextind(rhs, bar):end])
+            rhs = strip(rhs[1:prevind(rhs, bar)])
+            any_instr = true
+        end
+        indep = _card_vec(rhs)
+        isempty(indep) &&
+            throw(CliError("config/shape", "$(path) line $(lineno): an equation must list at least one regressor column after '='"))
+        isempty(strip(lhs)) &&
+            throw(CliError("config/shape", "$(path) line $(lineno): an equation must name a dependent column"))
+
+        push!(equations, Dict{String,Any}(
+            "name"  => isempty(name) ? "eq$(length(equations) + 1)" : name,
+            "dep"   => strip(lhs),
+            "indep" => indep,
+            "instr" => instr,
+        ))
+    end
+    isempty(equations) &&
+        throw(_card_error(path, 1, "'equations' stanza lists no equations"))
+
+    any_instr && has_common &&
+        throw(_card_error(path, 1,
+            "per-equation '|' instruments and 'instruments: common:' cannot both be given"))
+
+    return Dict{String,Any}(
+        "equations" => equations,
+        "common_instruments" => has_common ? common : nothing,
+    )
+end
+
+# ─── Family dispatch (W0 / #206) ───────────────────────────────────────────────
+
+const _CARD_FAMILIES = Dict{String,Symbol}(
+    "priors"       => :priors,
+    "constraints"  => :constraints,
+    "gmm lp"       => :gmm,
+    "gmm iv"       => :gmm,
+    "smm"          => :smm,
+    "equations"    => :system,
+    "instruments"  => :system,
+)
+
+"""The family a stanza header belongs to, or `nothing` when it is not a header
+the format defines."""
+card_family(header::AbstractString) = get(_CARD_FAMILIES, String(header), nothing)
+
+"""
+    lowered_card(src, family, path) -> Dict
+
+Parse `src` and lower it with the lowerer `family` names. A card whose stanzas
+belong to a different family names the offending header in the error rather
+than lowering to an empty spec."""
+function lowered_card(src::AbstractString, family::Symbol, path::AbstractString="<card>")
+    stanzas = parse_card(src, path)
+    for s in stanzas
+        f = card_family(s.header)
+        (f === nothing || f === family) && continue
+        throw(_card_error(path, s.lineno,
+            "'$(s.header)' is a $(f) stanza, but this command needs a $(family) card"))
+    end
+    family === :gmm && return lower_gmm(stanzas, path)
+    family === :smm && return lower_smm(stanzas, path)
+    family === :system && return lower_system(stanzas, path)
+    family === :priors && return lower_priors(stanzas, path)
+    family === :constraints && return lower_constraints(stanzas, path)
+    throw(_card_error(path, 1, "no lowerer for the '$(family)' family"))
+end

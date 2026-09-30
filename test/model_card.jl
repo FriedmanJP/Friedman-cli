@@ -7,3 +7,4 @@ end
 
 include(joinpath(@__DIR__, "card", "task_1_grammar.jl"))
 include(joinpath(@__DIR__, "card", "task_2_priors_constraints.jl"))
+include(joinpath(@__DIR__, "card", "task_3_gmm_smm_system.jl"))
