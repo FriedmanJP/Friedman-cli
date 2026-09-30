@@ -3360,7 +3360,26 @@ function _model_card_stanza_policy(stanzas::AbstractDict;
     return stanzas
 end
 
-"""Convert loaded constraints to 1 or 2 `OccBinConstraint`s (upstream's only shapes)."""
+"""
+    _as_occbin_constraints(constraints, spec) → Vector{OccBinConstraint}
+
+Convert loaded constraints to 1 or 2 `OccBinConstraint`s (the only two shapes this
+solver accepts).
+
+A `VariableBound` carrying BOTH a lower and an upper is refused here, not split
+into two constraints. A constraint in this solver does not clamp a variable to a
+range — it REPLACES the variable's defining equation with `var[t] = bound`, so
+two constraints on one variable are read as two alternative regimes competing for
+the same equation, not as a lower and an upper bound. There is no
+single-constraint two-sided form, and the error upstream raises for the split
+names a Julia overload rather than telling the user what to do. The refusal lives
+in this conversion so BOTH the `--constraint`/card path and the `--constraints`
+TOML path get it.
+
+The advice is deliberately NOT "write two constraints" — that is the split that
+fails. It is `dsge perfect-foresight`, which takes a box: the same
+`lo <= var[t] <= hi` text there binds the variable at whichever bound it reaches.
+"""
 function _as_occbin_constraints(constraints, spec)
     out = MacroEconometricModels.OccBinConstraint[]
     for c in constraints
@@ -3368,6 +3387,16 @@ function _as_occbin_constraints(constraints, spec)
             push!(out, c)
         elseif c isa MacroEconometricModels.VariableBound
             var = c.var_name
+            if c.lower !== nothing && c.upper !== nothing
+                throw(CliError("config/invalid",
+                    "a two-sided bound on '$(var)' is not something this solver can " *
+                    "express: a constraint here replaces the equation that defines the " *
+                    "variable, so two constraints on one variable are read as two " *
+                    "alternative regimes, not as a lower and an upper bound. Solve it " *
+                    "with 'dsge perfect-foresight', which accepts the same " *
+                    "'$(c.lower) <= $(var)[t] <= $(c.upper)' text, or keep one side " *
+                    "here and move the other into the model"))
+            end
             if c.lower !== nothing
                 expr = Expr(:call, :(>=), Expr(:ref, var, :t), c.lower)
                 bind = Expr(:(=), Expr(:ref, var, :t), c.lower)
@@ -3394,27 +3423,62 @@ function _as_occbin_constraints(constraints, spec)
     return out
 end
 
+"""
+    _occbin_error(e, label) → CliError
+
+Every way this solver refuses a constraint is a statement about the CONSTRAINT,
+so every one of them is `config/invalid`, never `internal/error`. Upstream's own
+text is kept verbatim underneath — it names the equation to use and the
+alternative to write — so wrapping costs the user no detail.
+
+The collision case gets a lead sentence because upstream's text answers a Julia
+caller ("pass alternative regimes via the Dict overload") that no `friedman` user
+can act on; the plain statement is the same fact in the user's terms.
+"""
+function _occbin_error(e, label::String)
+    e isa CliError && return e
+    if e isa ArgumentError
+        msg = sprint(showerror, e)
+        lead = occursin("replace the same defining equation", msg) ?
+            "two constraints were given on the same variable, which this solver " *
+            "reads as two alternative regimes rather than two sides of one bound — " *
+            "keep one constraint per variable here, and use 'dsge perfect-foresight' " *
+            "for a two-sided bound. " : ""
+        return CliError("config/invalid", "$label: $lead$msg")
+    end
+    return _domain_or_data_error(e, label)
+end
+
 function _occbin_solve_call(spec, cons; periods::Int)
     obs = _as_occbin_constraints(cons, spec)
     shock_path = zeros(Float64, periods, spec.n_exog)
     shock_path[1, 1] = 1.0
-    if length(obs) == 1
-        return _dsge_call(occbin_solve, spec, obs[1];
-                          shock_path=shock_path, nperiods=periods)
-    else
-        return _dsge_call(occbin_solve, spec, obs[1], obs[2];
-                          shock_path=shock_path, nperiods=periods)
+    try
+        if length(obs) == 1
+            return _dsge_call(occbin_solve, spec, obs[1];
+                              shock_path=shock_path, nperiods=periods)
+        else
+            return _dsge_call(occbin_solve, spec, obs[1], obs[2];
+                              shock_path=shock_path, nperiods=periods)
+        end
+    catch e
+        throw(_occbin_error(e, "solving with OccBin constraints"))
     end
 end
 
+
 function _occbin_irf_call(spec, cons; shock_idx::Int, horizon::Int, magnitude::Real)
     obs = _as_occbin_constraints(cons, spec)
-    if length(obs) == 1
-        return _dsge_call(occbin_irf, spec, obs[1], shock_idx, horizon;
-                          magnitude=magnitude)
-    else
-        return _dsge_call(occbin_irf, spec, obs[1], obs[2], shock_idx, horizon;
-                          magnitude=magnitude)
+    try
+        if length(obs) == 1
+            return _dsge_call(occbin_irf, spec, obs[1], shock_idx, horizon;
+                              magnitude=magnitude)
+        else
+            return _dsge_call(occbin_irf, spec, obs[1], obs[2], shock_idx, horizon;
+                              magnitude=magnitude)
+        end
+    catch e
+        throw(_occbin_error(e, "computing the OccBin impulse response"))
     end
 end
 

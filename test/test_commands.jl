@@ -9800,6 +9800,77 @@ end  # Plot Support
             @test exit_class(err) == 2
         end
     end
+
+    # Two-sided bound: typed, names the variable, and never reaches the solver.
+    # Mutation: split the VariableBound back into two OccBinConstraints (the
+    # pre-fix body) — no error is thrown and every @test below reds.
+    @testset "_as_occbin_constraints — a two-sided bound is config/invalid" begin
+        spec = MacroEconometricModels.ModelSpec(; n_endog=3, n_exog=1)
+        vb = MacroEconometricModels.variable_bound(:y1; lower=-1.0, upper=2.0)
+        err = try
+            _as_occbin_constraints([vb], spec)
+            nothing
+        catch e
+            e
+        end
+        @test err isa CliError
+        @test err.code == "config/invalid"
+        @test exit_class(err) == 4
+        # The variable is named, and the advice is a real route (dsge
+        # perfect-foresight), not the split that fails.
+        @test occursin("y1", err.message)
+        @test occursin("perfect-foresight", err.message)
+    end
+
+    # The surviving ArgumentError is typed, and it is config/invalid rather than
+    # the generic data/invalid: a constraint is configuration, and the resolver
+    # already reports a bad constraint that way.
+    # Mutation: drop the ArgumentError branch from `_occbin_error` (fall through to
+    # `_domain_or_data_error`) — the class becomes data/invalid, exit 3, and the
+    # class/exit/message @tests red.
+    @testset "_occbin_error — an upstream ArgumentError is config/invalid" begin
+        cli = _occbin_error(ArgumentError("OccBin: no equation defines :c"), "solving")
+        @test cli isa CliError
+        @test cli.code == "config/invalid"
+        @test exit_class(cli) == 4
+        @test occursin("no equation defines :c", cli.message)
+        # A CliError passes through unchanged, so this can never re-wrap a refusal.
+        inner = CliError("usage/invalid", "kept")
+        @test _occbin_error(inner, "solving") === inner
+    end
+
+    # End to end through the mock solver: a variable the model does not define is
+    # a typed refusal, not an escaping ArgumentError. The mock now raises it too,
+    # so this exercises the wrap and the mock's new check together.
+    # Mutation: remove the try/catch in `_occbin_solve_call` — the raw
+    # ArgumentError escapes and `@test err isa CliError` reds; removing the
+    # mock's `_mock_occbin_check` reds it the same way (mock laxer than real).
+    @testset "_occbin_solve_call — a variable the model does not define is typed" begin
+        spec = MacroEconometricModels.ModelSpec(; n_endog=3, n_exog=1)
+        vb = MacroEconometricModels.variable_bound(:c; lower=-100.0)
+        err = try
+            _occbin_solve_call(spec, [vb]; periods=3)
+            nothing
+        catch e
+            e
+        end
+        @test err isa CliError
+        @test err.code == "config/invalid"
+        @test exit_class(err) == 4
+    end
+
+    # One-sided bounds on DIFFERENT variables still convert, so the refusal above
+    # did not narrow the accepted set. Mutation: refuse every VariableBound (drop
+    # the `&&` on the two-sided condition) — this reds.
+    @testset "_as_occbin_constraints — one-sided bounds on two variables convert" begin
+        spec = MacroEconometricModels.ModelSpec(; n_endog=3, n_exog=1)
+        cons = [MacroEconometricModels.variable_bound(:y1; lower=-10.0),
+                MacroEconometricModels.variable_bound(:y2; upper=0.0)]
+        out = _as_occbin_constraints(cons, spec)
+        @test length(out) == 2
+        @test [c.variable for c in out] == [:y1, :y2]
+        @test [c.direction for c in out] == [:geq, :leq]
+    end
 end
 
 @testset "DSGE commands" begin
@@ -9883,10 +9954,14 @@ end
             [[model.equations]]
             expr = "K[t] = e[t]"
             """)
+            # `variable` must be one of the model's own variables: this model
+            # defines Y, C and K, and a bound on anything else is refused by the
+            # solver (`config/invalid`, "not found in endogenous variables") — the
+            # mock enforces the same rule, so `i` here never reached the solver.
             con_path = joinpath(dir, "constraints.toml")
             write(con_path, """
             [[constraints.bounds]]
-            variable = "i"
+            variable = "C"
             lower = 0.0
             """)
             out = _capture() do
@@ -10215,10 +10290,13 @@ end
             [[model.equations]]
             expr = "K[t] = e[t]"
             """)
+            # `C` is one of this model's variables; a bound on anything else is
+            # refused by the solver, so naming a real variable is what makes this
+            # an OccBin smoke check rather than a refusal check.
             con_path = joinpath(dir, "constraints.toml")
             write(con_path, """
             [[constraints.bounds]]
-            variable = "i"
+            variable = "C"
             lower = 0.0
             """)
             out = _capture() do

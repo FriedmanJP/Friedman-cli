@@ -3327,7 +3327,33 @@ function perfect_foresight(spec::ModelSpec{T}; shock_path=nothing, T_periods=100
     PerfectForesightPath{T}(path, devs, true, 25, spec)
 end
 
+"""
+The two refusals real OccBin makes, so the mock fails in the same PLACE with the
+same CLASS. A mock that accepts what real refuses hides the failure, and these
+two are the ones a user reaches: a variable the model does not have (lowercase
+`c` for `C` slips past the resolver, which never checks the spec), and two
+constraints that would replace the same defining equation.
+
+Real compares DEFINING-EQUATION indices; the mock's ModelSpec has no equations,
+so it compares the constrained variable itself. That is laxer only in the case
+real additionally refuses — two DIFFERENT variables sharing one equation — which
+the mock cannot represent, and never laxer on the case that actually reaches it.
+"""
+function _mock_occbin_check(spec::ModelSpec{T}, cons::Vector) where T
+    for c in cons
+        v = c.variable
+        v in spec.endog || throw(ArgumentError(
+            "Variable :$v not found in endogenous variables"))
+    end
+    length(cons) == 2 && cons[1].variable == cons[2].variable && throw(ArgumentError(
+        "OccBin: constraints on :$(cons[1].variable) and :$(cons[2].variable) replace " *
+        "the same defining equation ($(cons[1].variable)). Pass explicit alternative " *
+        "regimes via the Dict overload."))
+    return nothing
+end
+
 function _mock_occbin_sol(spec::ModelSpec{T}, cons; shock_path=nothing, nperiods::Int=40) where T
+    _mock_occbin_check(spec, cons)
     n = spec.n_endog
     np = shock_path === nothing ? nperiods : size(shock_path, 1)
     lp = zeros(T, np, n)

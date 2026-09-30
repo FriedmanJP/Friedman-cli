@@ -629,15 +629,26 @@ Used by `dsge solve`, `dsge irf`, `dsge steady-state` and
 
 ### Model card
 
-A constraint line is `var[t] >= expr`, `var[t] <= expr`, or the two-sided
-`lo <= var[t] <= hi`. The `[t]` index is required, and the bound is a plain
-numeric expression (`0.5 * 2` is fine; a variable name is not).
+A constraint line is `var[t] >= expr` or `var[t] <= expr`. The `[t]` index is
+required, and the bound is a plain numeric expression (`0.5 * 2` is fine; a
+variable name is not).
 
 ```text
 constraints:
   i_rate[t] >= 0.0
-  0.0 <= investment[t] <= 100.0
+  investment[t] <= 100.0
 ```
+
+Each constraint names its own variable, and each variable takes one side only.
+On `dsge solve` and `dsge irf` a two-sided bound is refused: a constraint there
+replaces the equation that defines the variable, so two constraints on one
+variable are read as two alternative regimes competing for that equation, not
+as a lower and an upper limit. Writing the two sides on separate lines does not
+help — it is the same thing. Move one side into the model, or solve it with
+`dsge perfect-foresight`, which takes the two-sided form `lo <= var[t] <= hi`
+and holds the variable between the two limits. `dsge steady-state` also accepts
+both sides of one variable, through the same steady-state solver
+`perfect-foresight` uses.
 
 Put the stanza in the model file's preamble and it applies on its own — no flag
 needed. `--constraint 'var[t] >= expr'` is repeatable and can be given several
@@ -670,6 +681,9 @@ lower = 0.0
 [[constraints.bounds]]
 variable = "investment"
 lower = 0.0
+
+[[constraints.bounds]]
+variable = "capacity"
 upper = 100.0
 
 # Optional nonlinear constraints (each needs an expression; label optional)

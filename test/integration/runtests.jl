@@ -5818,24 +5818,60 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                             "--constraint", "i[t] >= -10", "--constraint", "i[t] >= -5"])
             @test dup.code == 4 && String(dup.doc.error.code) == "config/invalid"
 
-            # Two bounds in OPPOSITE directions are both kept, and the second one is
-            # in force. Unconstrained, i = phi_pi * Y oscillates around +0.75, so a
-            # dropped second flag leaves the path ~0.75 — six orders of magnitude
-            # above the bound. The slack below is sized off that SUBSTANTIVE scale,
-            # not off the bound: `i[t] <= 0` is BINDING, so the solved path sits
-            # within the solver's own feasibility tolerance of zero, and a fixed 1e-8
-            # would fail a correct Linux solution for a reason that cannot be
-            # reproduced on macOS (T3 runs on ubuntu only; CLAUDE.md's ULP gotcha).
+            # Two bounds in OPPOSITE directions on DIFFERENT variables are both
+            # kept, and the second one is in force. It must be a different
+            # variable: a constraint replaces the equation that defines its
+            # variable, so `i[t] <= 0` alongside `i[t] >= -10` is two alternative
+            # regimes on one equation, which the solver refuses. `C[t] <= 0` is
+            # in force and detectable: unconstrained, C tracks Y and is ~0.01 at
+            # period 1, so a dropped second flag leaves it six orders of magnitude
+            # above the bound, while a bound C = 0 exactly.
             r2 = run_json(["dsge", "solve", cmodel, "--periods", "8",
-                           "--constraint", "i[t] >= -10", "--constraint", "i[t] <= 0"])
+                           "--constraint", "i[t] >= -10", "--constraint", "C[t] <= 0"])
             assert_envelope_ok(r2; label="dsge solve two --constraint")
             tbl2 = ipath(r2.doc)
             @test tbl2 !== nothing
             if tbl2 !== nothing
                 i2 = ipath_vals(tbl2)
+                ccol = findfirst(==(:C), Symbol.(tbl2.columns))
+                c2 = [Float64(collect(rp)[ccol]) for rp in tbl2.rows]
                 @test all(v -> v >= -10 - 1e-8, i2)   # slack bound, holds exactly
-                @test all(v -> v <= 1e-6, i2)         # binding bound, solver tolerance
+                @test all(v -> abs(v) <= 1e-6, c2)   # binding bound, C is pinned at 0
             end
+
+            # The dropped-flag contrast, so the binding @test above cannot pass by
+            # a dropped second flag alone: the SAME run without it leaves C ~0.01.
+            r2nc = run_json(["dsge", "solve", cmodel, "--periods", "8",
+                             "--constraint", "i[t] >= -10"])
+            tbl2nc = ipath(r2nc.doc)
+            if tbl2nc !== nothing
+                ccol = findfirst(==(:C), Symbol.(tbl2nc.columns))
+                c2nc = [Float64(collect(rp)[ccol]) for rp in tbl2nc.rows]
+                @test all(v -> v > 1e-3, c2nc)
+            end
+
+            # A two-sided bound is a typed refusal, not exit 1 — the regression pin
+            # for the conversion. Both the single-flag two-sided form and the split
+            # across two flags are pinned, and the message must NAME the variable,
+            # so a refusal that names the wrong one (or a different code path
+            # producing config/invalid) cannot satisfy it.
+            two = run_json(["dsge", "solve", cmodel, "--periods", "8",
+                            "--constraint", "-1.0 <= i[t] <= 2.0"])
+            @test two.code == 4
+            @test String(two.doc.error.code) == "config/invalid"
+            @test occursin("i", String(two.doc.error.message))
+            split2 = run_json(["dsge", "solve", cmodel, "--periods", "8",
+                               "--constraint", "i[t] >= -10", "--constraint", "i[t] <= 0"])
+            @test split2.code == 4
+            @test String(split2.doc.error.code) == "config/invalid"
+            @test occursin("i", String(split2.doc.error.message))
+
+            # A constraint naming a variable the model does not define (lowercase
+            # `c` for `C` — the resolver never checks the spec) is typed too.
+            undef = run_json(["dsge", "solve", cmodel, "--periods", "8",
+                              "--constraint", "c[t] >= -100"])
+            @test undef.code == 4
+            @test String(undef.doc.error.code) == "config/invalid"
 
             # A bound the OccBin parser rejects (no [t]) is a typed config/invalid —
             # proof the --constraint VALUE reaches the resolver instead of being ignored.
