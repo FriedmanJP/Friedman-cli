@@ -5851,27 +5851,39 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             end
 
             # A two-sided bound is a typed refusal, not exit 1 — the regression pin
-            # for the conversion. Both the single-flag two-sided form and the split
-            # across two flags are pinned, and the message must NAME the variable,
-            # so a refusal that names the wrong one (or a different code path
-            # producing config/invalid) cannot satisfy it.
+            # for the conversion. Both spellings are pinned, and each asserts wording
+            # ONLY its own path can produce: `dsge solve` has several reachable
+            # `config/invalid` routes (duplicate bound, empty stanza, a bad
+            # `--constraint` value), so asserting the code alone would let the guard
+            # be deleted and the try/catch carry the case. Note `occursin("i", …)`
+            # would NOT: the letter i is in ordinary English prose.
             two = run_json(["dsge", "solve", cmodel, "--periods", "8",
                             "--constraint", "-1.0 <= i[t] <= 2.0"])
+            two_msg = String(two.doc.error.message)
             @test two.code == 4
             @test String(two.doc.error.code) == "config/invalid"
-            @test occursin("i", String(two.doc.error.message))
+            @test occursin("two-sided bound", two_msg)      # the conversion's own refusal
+            @test occursin("'i'", two_msg)                  # QUOTED — names the variable
+            @test occursin("perfect-foresight", two_msg)    # the route that does work
+
+            # The split spelling fails later, inside the solve, so it is the try/catch
+            # that types it — a different wording, which is what tells the two apart.
             split2 = run_json(["dsge", "solve", cmodel, "--periods", "8",
                                "--constraint", "i[t] >= -10", "--constraint", "i[t] <= 0"])
+            split_msg = String(split2.doc.error.message)
             @test split2.code == 4
             @test String(split2.doc.error.code) == "config/invalid"
-            @test occursin("i", String(split2.doc.error.message))
+            @test occursin("two constraints were given on the same variable", split_msg)
+            @test !occursin("two-sided bound on", split_msg)
 
             # A constraint naming a variable the model does not define (lowercase
-            # `c` for `C` — the resolver never checks the spec) is typed too.
+            # `c` for `C` — the resolver never checks the spec) is typed too, and
+            # carries MEMs' own guidance rather than a generic refusal.
             undef = run_json(["dsge", "solve", cmodel, "--periods", "8",
                               "--constraint", "c[t] >= -100"])
             @test undef.code == 4
             @test String(undef.doc.error.code) == "config/invalid"
+            @test occursin("Variable :c not found", String(undef.doc.error.message))
 
             # A bound the OccBin parser rejects (no [t]) is a typed config/invalid —
             # proof the --constraint VALUE reaches the resolver instead of being ignored.
