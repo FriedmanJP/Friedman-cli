@@ -2303,6 +2303,102 @@ function _dsge_solve_error(e, label::String)
 end
 
 """
+    _card_preamble_header(lines, path) → (lineno, header) | nothing
+
+The first column-0 line of a `.jl` model preamble that looks like `word:` (or
+`word word:`) — the shape both a card stanza header and a mistyped Julia
+assignment take. Found here, and *before* [`parse_card`], because
+`parse_card` reports such a line as a generic "expected a stanza header" and
+the user needs the offending text to find it. The pattern is deliberately
+looser than `_CARD_HEADER` (it does not require end-of-line after the colon),
+because `labels: = ["a", "b"]` is exactly the mistake this must catch.
+"""
+const _CARD_PREAMBLE_HEADER =
+    r"^([A-Za-z][A-Za-z0-9_-]*(?:[ \t]+[A-Za-z][A-Za-z0-9_-]*)?):"
+
+function _card_preamble_header(lines, path::AbstractString)
+    for (i, line) in enumerate(lines)
+        m = match(_CARD_PREAMBLE_HEADER, line)
+        m === nothing && continue
+        return (i, String(m.captures[1]))
+    end
+    return nothing
+end
+
+"""
+    _split_card_and_model(path) → (card, model)
+
+Split a `.jl` model file into the optional model-card preamble and the
+`@dsge` block, so a model and its priors/constraints can live in one file.
+
+- `.toml` → `(nothing, nothing)`: a `.toml` is always TOML, never a card, so
+  the caller keeps its existing branch untouched.
+- No column-0 `@dsge` → `(nothing, whole_source)`.
+- A column-0 `@dsge` with a preamble that holds a stanza header →
+  `(preamble, @dsge slice)`. A preamble of only comments/blanks, or of
+  ordinary Julia helper code, keeps the whole file: existing `.jl` models with
+  a `n_extra = 3` constant must not change behaviour.
+- A column-0 `ident:` that is not a card header → `config/invalid` naming that
+  line (a mistyped `labels: = […]` is silently un-Julia otherwise).
+
+Only the `@dsge` slice is ever executed, and it comes from the user's own
+Julia file — card stanza text is parsed, never evaluated.
+"""
+function _split_card_and_model(path::AbstractString)
+    ext = lowercase(splitext(String(path))[2])
+    ext == ".toml" && return (nothing, nothing)
+
+    src = read(String(path), String)
+    lines = _card_lines(src)
+    idx = findfirst(_card_is_dsge_open, lines)
+    idx === nothing && return (nothing, src)
+
+    pre = lines[1:idx-1]
+    header = _card_preamble_header(pre, path)
+    if header !== nothing
+        (lineno, text) = header
+        occursin(r"[ \t]", text) && (text = join(split(text), " "))
+        text in CARD_HEADERS ||
+            throw(_card_error(path, lineno,
+                "'$(text)' is not a model-card stanza header — a .jl model file " *
+                "may declare only $(join(sort(collect(CARD_HEADERS)), ", ")) " *
+                "above its @dsge block; write the Julia assignment without the colon"))
+        # Validates the rest of the preamble (body lines, stray column-0 code).
+        parse_card(join(pre, "\n"), path)
+    end
+    # No card header: the whole file is the model, helper code included. This is
+    # what keeps an ordinary `.jl` model working exactly as it did before.
+    header === nothing && return (nothing, src)
+    return (join(pre, "\n"), join(lines[idx:end], "\n"))
+end
+
+"""
+    _model_card_stanzas(path) → Dict{Symbol,Any}
+
+The lowered `priors` / `constraints` a `.jl` model file declares above its
+`@dsge` block, or an empty dict when it declares none. Any other stanza
+(`gmm lp`, `smm`, `equations`, …) is `config/invalid` naming its header: a
+model file is not the place for a GMM/SMM/equation-system card, and silently
+ignoring one would drop configuration the user believed was applied.
+"""
+function _model_card_stanzas(path::AbstractString)
+    card, _ = _split_card_and_model(path)
+    card === nothing && return Dict{Symbol,Any}()
+    stanzas = parse_card(card, path)
+    out = Dict{Symbol,Any}()
+    for s in stanzas
+        f = card_family(s.header)
+        f === :priors && (out[:priors] = lower_priors([s], path))
+        f === :constraints && (out[:constraints] = lower_constraints([s], path))
+        f === :priors || f === :constraints ||
+            throw(_card_error(path, s.lineno,
+                "'$(s.header)' is not allowed in a .jl model file — a model file " *
+                "declares only 'priors' and 'constraints' above its @dsge block"))
+    end
+    return out
+end
+
+"""
     _load_dsge_model(path) → ModelSpec
 
 Load a representative-agent DSGE model from a `.toml` or `.jl` file.
@@ -2350,9 +2446,13 @@ function _load_dsge_model(path::String)
         return spec
 
     elseif ext == ".jl"
+        # A .jl model file may carry a model card (priors/constraints stanzas)
+        # above its @dsge block; the block alone is the executable text.
+        card, model_src = _split_card_and_model(path)
+        card === nothing || _model_card_stanzas(path)   # validate; never silently ignored
         mod = _dsge_sandbox()
         result = try
-            Base.include(mod, path)
+            card === nothing ? Base.include(mod, path) : include_string(mod, model_src, path)
         catch e
             e isa CliError && rethrow()
             _dsge_eval_invalid(e, "could not evaluate the DSGE model file '$path'";
@@ -2505,9 +2605,12 @@ function _load_ha_model(model::String; distribution::String="young")
         "HA model file must be .jl (got '$ext'); builtins: " *
         join(first.( _HA_BUILTIN_MODELS), ", ")))
 
+    # Same preamble rule as the RA loader: a column-0 `ident:` in helper code is a
+    # loud config/invalid rather than un-Julia that include would report as noise.
+    card, model_src = _split_card_and_model(model)
     mod = _dsge_sandbox()
     result = try
-        Base.include(mod, model)
+        card === nothing ? Base.include(mod, model) : include_string(mod, model_src, model)
     catch e
         e isa CliError && rethrow()
         _dsge_eval_invalid(e, "could not evaluate the HA model file '$model'";

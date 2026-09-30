@@ -5291,6 +5291,88 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test length(table_rows(tbl)) == 2
         end
 
+        @testset "CARD-W2 #210 — a .jl model file with a card stanza solves like the plain file" begin
+            # A model file may carry `priors:` above its @dsge block. Only the
+            # @dsge slice is executed, so the result must equal the same model
+            # written without the stanza — the card text is parsed, never eval'd.
+            card_jl = joinpath(dir, "card_model.jl")
+            write(card_jl, """
+            priors:
+              rho ~ beta(2, 2)
+              sigma ~ inv_gamma(3, 0.01)
+            n_extra = 3
+            @dsge begin
+                parameters: rho = 0.9, sigma = 0.01
+                endogenous: Y, C
+                exogenous: e
+                linear: true
+
+                Y[t] = rho * Y[t-1] + sigma * e[t]
+                C[t] = Y[t]
+            end
+            """)
+            r_card = run_json(["dsge", "solve", card_jl])
+            assert_envelope_ok(r_card; label="dsge solve card stanza")
+            r_plain = run_json(["dsge", "solve", model_jl])
+            assert_envelope_ok(r_plain; label="dsge solve plain jl")
+
+            # Select by COLUMNS, not key order (JSON3 does not preserve insertion
+            # order and `dsge solve` emits several tables).
+            pc = _dsge_policy_table(r_card.doc)
+            pp = _dsge_policy_table(r_plain.doc)
+            @test pc !== nothing && pp !== nothing
+            @test table_cols(pc) == table_cols(pp)
+            ncols = table_cols(pc)
+            numcols = [j for (j, c) in enumerate(ncols) if startswith(c, "G1_")]
+            @test !isempty(numcols)
+            # Numeric, not byte, comparison — sized off the substantive scale of a
+            # policy loading (~1), never an exact float equality (the standing T3
+            # lesson: Linux BLAS can differ by a ULP).
+            for (rc, rp) in zip(table_rows(pc), table_rows(pp))
+                for j in numcols
+                    @test numv(rc[j]) ≈ numv(rp[j]) atol=1e-8
+                end
+            end
+            @test named_table(r_card.doc, :determinacy_verdict)["rows"] ==
+                  named_table(r_plain.doc, :determinacy_verdict)["rows"]
+        end
+
+        @testset "CARD-W2 #210 — a helper-only .jl preamble is unchanged, a bad header is loud" begin
+            # No stanza header: ordinary Julia helper code is included whole, so
+            # the spec still builds. This is the guard that keeps every existing
+            # .jl DSGE model working.
+            helper_jl = joinpath(dir, "helper_only.jl")
+            write(helper_jl, """
+            n_extra = 3
+            labels = ["a", "b"]
+            @dsge begin
+                parameters: rho = 0.9, sigma = 0.01
+                endogenous: Y, C
+                exogenous: e
+                linear: true
+
+                Y[t] = rho * Y[t-1] + sigma * e[t]
+                C[t] = Y[t]
+            end
+            """)
+            r = run_json(["dsge", "solve", helper_jl])
+            assert_envelope_ok(r; label="dsge solve helper-only preamble")
+            @test _dsge_policy_table(r.doc) !== nothing
+
+            # A column-0 `ident:` in helper code is a typed config/invalid (exit 4),
+            # not un-Julia that include would report as a generic eval failure.
+            bad = joinpath(dir, "bad_header.jl")
+            write(bad, "labels: = [\"a\"]\n@dsge begin\nend\n")
+            rbad = run_json(["dsge", "solve", bad])
+            @test rbad.code == 4
+
+            # A `gmm lp:` stanza is not a model-file stanza: loud, not ignored.
+            gmmjl = joinpath(dir, "gmm_in_model.jl")
+            write(gmmjl, "gmm lp:\n  moments: y\n@dsge begin\nend\n")
+            rgmm = run_json(["dsge", "solve", gmmjl])
+            @test rgmm.code == 4
+        end
+
         @testset "dsge solve --method perturbation --order 2 (gx over v=[states; shocks])" begin
             # gx/hx are ny×nv with v = [states; shocks] (Stage-14 #368 layout, ≥0.7.2).
             # The renderer labelled only the state columns → DimensionMismatch exit 1 on
