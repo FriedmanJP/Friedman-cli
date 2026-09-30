@@ -1683,9 +1683,13 @@ function _dsge_solve(; model::String, method::String="gensys", order::Int=1,
     end
 
     spec = _load_dsge_model(model)
+    # CARD-W2 (#210): the model's `constraints:` stanza is a THIRD constraint
+    # source, and it alone can select the constrained branch. A `priors:` stanza is
+    # Bayesian and this leaf is not — it is refused, not ignored.
+    stanzas = _occbin_stanzas(_model_card_stanzas_for(model))
 
-    if !isempty(constraints) || !isempty(constraint)
-        cons = _resolve_dsge_constraints(constraints, constraint; spec=spec)
+    if !isempty(constraints) || !isempty(constraint) || haskey(stanzas, :constraints)
+        cons = _resolve_dsge_constraints(constraints, constraint; stanzas=stanzas, spec=spec)
         if isempty(constraint_solver)
             # Default: OccBin path (backward compatible)
             _status("\nSolving with OccBin constraints...")
@@ -2083,10 +2087,14 @@ function _dsge_steady_state(; model::String, constraints::String="",
     end
 
     spec = _load_dsge_model(model)
+    # CARD-W2 (#210): the model's `constraints:` stanza is a THIRD constraint
+    # source, and it alone can select the constrained branch. A `priors:` stanza is
+    # Bayesian and this leaf is not — it is refused, not ignored.
+    stanzas = _occbin_stanzas(_model_card_stanzas_for(model))
 
     solver_kw = isempty(constraint_solver) ? (;) : (; solver=Symbol(constraint_solver))
-    if !isempty(constraints) || !isempty(constraint)
-        cons = _resolve_dsge_constraints(constraints, constraint; spec=spec)
+    if !isempty(constraints) || !isempty(constraint) || haskey(stanzas, :constraints)
+        cons = _resolve_dsge_constraints(constraints, constraint; stanzas=stanzas, spec=spec)
         spec = _dsge_call(compute_steady_state, spec; constraints=cons, solver_kw...)
     else
         spec = _dsge_call(compute_steady_state, spec; solver_kw...)
@@ -2162,6 +2170,10 @@ function _dsge_irf(; model::String, method::String="gensys", order::Int=1,
                     output::String="", format::String="table",
                     plot::Bool=false, plot_save::String="")
     spec = _load_dsge_model(model)
+    # CARD-W2 (#210): a `constraints:` stanza alone selects the OccBin branch, and a
+    # `priors:` stanza (Bayesian) is refused here.
+    stanzas = _occbin_stanzas(_model_card_stanzas_for(model))
+
     sol = _solve_dsge(spec; method=method, order=order, degree=degree, grid=grid,
                       next_state=next_state, howard_steps=howard_steps,
                       n_grid=n_grid, n_choice=n_choice, n_quad=n_quad,
@@ -2169,9 +2181,9 @@ function _dsge_irf(; model::String, method::String="gensys", order::Int=1,
                       damping=damping, anderson_m=anderson_m,
                       optimizer=optimizer, smolyak_mu=smolyak_mu)
 
-    if !isempty(constraints) || !isempty(constraint)
+    if !isempty(constraints) || !isempty(constraint) || haskey(stanzas, :constraints)
         _status("\nComputing OccBin IRF...")
-        cons = _resolve_dsge_constraints(constraints, constraint; spec=spec)
+        cons = _resolve_dsge_constraints(constraints, constraint; stanzas=stanzas, spec=spec)
         ob_irf = _occbin_irf_call(spec, cons; shock_idx=1, horizon=horizon, magnitude=shock_size)
 
         _maybe_plot(ob_irf; plot=plot, plot_save=plot_save)
@@ -2367,13 +2379,17 @@ function _dsge_perfect_foresight(; model::String, shocks::String="",
     _status("  Shock periods: $(shock_mat === nothing ? periods : size(shock_mat, 1)), transition periods: $periods")
     _status()
 
+    # CARD-W2 (#210): a `constraints:` stanza alone selects the constrained path, and
+    # a `priors:` stanza (Bayesian) is refused here.
+    stanzas = _occbin_stanzas(_model_card_stanzas_for(model))
     solver_kw = isempty(constraint_solver) ? (;) : (; solver=Symbol(constraint_solver))
-    cons_kw = if !isempty(constraints) || !isempty(constraint)
-        cons = _resolve_dsge_constraints(constraints, constraint; spec=spec)
+    cons_kw = if !isempty(constraints) || !isempty(constraint) || haskey(stanzas, :constraints)
+        cons = _resolve_dsge_constraints(constraints, constraint; stanzas=stanzas, spec=spec)
         (; constraints=cons)
     else
         (;)
     end
+
     # Spec must have a steady state first (upstream ArgumentError otherwise).
     spec = _dsge_call(compute_steady_state, spec; solver_kw...)
     pf = _dsge_call(perfect_foresight, spec; shock_path=shock_mat, T_periods=periods,
@@ -2452,7 +2468,13 @@ function _dsge_bayes_inputs(; model::String, data::String, params::String,
     require_data && isempty(data) &&
         throw(CliError("usage/missing", "--data is required (path to CSV data file)"))
     isempty(params) && throw(CliError("usage/missing", "--params is required (comma-separated parameter names)"))
-    isempty(priors) && isempty(prior) &&
+    # CARD-W2 (#210): a `.jl` model's `priors:` stanza is the THIRD source, not a
+    # different path — it merges with --prior and --priors in one resolver. Read
+    # before the guard so the guard can see it; `_model_card_stanzas_for` is a
+    # no-op for a path that is not a file, so a missing model still gets the
+    # loader's own `data/file-not-found` a few lines down.
+    stanzas = _model_card_stanzas_for(model)
+    isempty(priors) && isempty(prior) && !haskey(stanzas, :priors) &&
         throw(CliError("usage/missing", _PRIORS_REQUIRED_MESSAGE))
 
     if !isempty(constraint_solver) && !(constraint_solver in ("nonlinearsolve", "optim", "nlopt", "ipopt", "path"))
@@ -2473,9 +2495,10 @@ function _dsge_bayes_inputs(; model::String, data::String, params::String,
 
     # Bridge {dist,a,b} → Dict{Symbol,<:Distribution} (MEMs requires distribution
     # objects, not the raw config dict — C048; previously passed the wrong type).
-    # CARD-W1 (#209): --prior lines and the --priors file (and, from #213, the
-    # model's `priors:` stanza) merge into ONE map, so there is a single path.
-    priors_dict = _dsge_prior_distributions(_resolve_dsge_priors(priors, prior))
+    # CARD-W1 (#209) and CARD-W2 (#210): --prior lines, the --priors file and the
+    # model's `priors:` stanza merge into ONE map, so there is a single path.
+    priors_dict = _dsge_prior_distributions(
+        _resolve_dsge_priors(priors, prior; stanzas=stanzas))
 
     obs_syms = isempty(observables) ? Symbol[] : Symbol.(strip.(split(observables, ",")))
 
@@ -3822,7 +3845,11 @@ function _dsge_ha_estimate(; model::String, data::String="", priors::String="",
                             output::String="", format::String="table")
     isempty(data) && throw(CliError("usage/missing-option",
         "--data is required (path to observed aggregates CSV)"))
-    isempty(priors) && isempty(prior) &&
+    # CARD-W2 (#210): same third source as the RA guard above — a `priors:` stanza
+    # in the `.jl` model file. `model` may be a BUILTIN symbol here, which is why
+    # the read goes through `_model_card_stanzas_for` rather than reading directly.
+    stanzas = _model_card_stanzas_for(model)
+    isempty(priors) && isempty(prior) && !haskey(stanzas, :priors) &&
         throw(CliError("usage/missing-option", _PRIORS_REQUIRED_MESSAGE))
     meth = _parse_ha_method(method)
     meth === :krusell_smith && throw(CliError("usage/invalid-option",
@@ -3844,7 +3871,8 @@ function _dsge_ha_estimate(; model::String, data::String="", priors::String="",
     df = load_data(data)
     Y = df_to_matrix(df)
 
-    priors_dist = _dsge_prior_distributions(_resolve_dsge_priors(priors, prior))
+    priors_dist = _dsge_prior_distributions(
+        _resolve_dsge_priors(priors, prior; stanzas=stanzas))
     param_names = sort!(collect(keys(priors_dist)))          # match DSGEPrior sorted order
     theta0 = Float64[mean(priors_dist[pn]) for pn in param_names]
     obs_syms = isempty(observables) ? Symbol[] :

@@ -5578,6 +5578,98 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test bad.code == 4 && String(bad.doc.error.code) == "config/invalid"
         end
 
+        @testset "CARD-W2 #210 — bayes reads priors: from the model file (T3)" begin
+            # The wave in one invocation: a `priors:` stanza in the `.jl` model file
+            # and NO --priors. Before #210 the leaf exited 2 (usage/missing) even
+            # though the stanza had been parsed, validated and then discarded.
+            card_model = joinpath(dir, "card_priors.jl")
+            write(card_model, """
+            priors:
+              rho ~ beta(0.5, 0.2)
+              sigma ~ inv_gamma(2.0, 0.1)
+
+            @dsge begin
+                parameters: rho = 0.9, sigma = 0.01
+                endogenous: Y, C
+                exogenous: e
+                linear: true
+
+                Y[t] = rho * Y[t-1] + sigma * e[t]
+                C[t] = Y[t]
+            end
+            """)
+            pdat = joinpath(dir, "data_card_priors.csv")
+            open(pdat, "w") do io
+                println(io, "Y"); y = 0.0
+                for _ in 1:60; y = 0.9y + 0.01randn(); println(io, y); end
+            end
+
+            # Locate the posterior table by a DISTINCTIVE COLUMN SET, never by key
+            # order (JSON3 does not preserve insertion order) and never by a
+            # substring (data tables collide on `mean`/`std`). `parameter` + `q05` +
+            # `median` is a signature nothing else on this leaf carries.
+            function post_tbl(doc)
+                doc === nothing && return nothing
+                for (_, v) in pairs(doc.data)
+                    (v isa JSON3.Object && haskey(v, :rows)) || continue
+                    Set(table_cols(v)) ==
+                        Set(["parameter", "mean", "std", "q05", "median", "q95"]) && return v
+                end
+                return nothing
+            end
+
+            r = run_json(["dsge", "bayes", "estimate", card_model,
+                          "--data", pdat, "--params", "rho,sigma", "--observables", "Y",
+                          "--sampler", "smc", "--n-smc", "20", "--n-particles", "20"])
+            assert_envelope_ok(r; label="dsge bayes estimate — priors: stanza")
+            tbl = post_tbl(r.doc)
+            @test tbl !== nothing
+            if tbl !== nothing
+                # The stanza's parameter SET reached the estimator. No computed float
+                # is compared anywhere in this testset: T3 is Linux-only, so an exact
+                # equality on a posterior number is unreproducible (CLAUDE.md ULP
+                # gotcha). Exit code and this row set carry the proof instead.
+                @test sort(String(collect(row)[1]) for row in table_rows(tbl)) ==
+                      ["rho", "sigma"]
+            end
+
+            # PRIMARY, numerically-free proof that the stanza is a real third SOURCE
+            # and not a decoration: a --prior line naming a parameter the stanza
+            # already declares is a two-of-three collision → exit 4. Drop the stanza
+            # and the very same invocation exits 0. Same for a --priors TOML file.
+            base = ["dsge", "bayes", "estimate", card_model, "--data", pdat,
+                    "--params", "rho,sigma", "--observables", "Y",
+                    "--sampler", "smc", "--n-smc", "20", "--n-particles", "20"]
+            dup_line = run_json(vcat(base, ["--prior", "rho ~ beta(2, 2)"]))
+            @test dup_line.code == 4
+            @test String(dup_line.doc.error.code) == "config/invalid"
+            @test occursin("rho", String(dup_line.doc.error.message))
+            @test occursin("stanza", String(dup_line.doc.error.message))
+
+            cardpri = joinpath(dir, "card_priors.toml")
+            write(cardpri, """
+            [priors.rho]
+            dist = "beta"
+            a = 2.0
+            b = 2.0
+            """)
+            dup_file = run_json(vcat(base, ["--priors", cardpri]))
+            @test dup_file.code == 4
+            @test String(dup_file.doc.error.code) == "config/invalid"
+            @test occursin("rho", String(dup_file.doc.error.message))
+            @test occursin("stanza", String(dup_file.doc.error.message))
+
+            # A model file with NO stanza and no --priors is still the shared
+            # usage/missing naming all three ways to supply them — the guard was not
+            # deleted to make the case above pass.
+            bare = run_json(["dsge", "bayes", "estimate", model_jl, "--data", pdat,
+                             "--params", "rho,sigma", "--observables", "Y",
+                             "--sampler", "smc", "--n-smc", "20", "--n-particles", "20"])
+            @test bare.code == 2
+            msg = lowercase(String(bare.doc.error.message))
+            @test findfirst("--prior", msg) < findfirst("priors:", msg) < findfirst("--priors", msg)
+        end
+
         @testset "W1 dsge solve --method pfi (no order=)" begin
             r = run_json(["dsge", "solve", model_jl, "--method", "pfi"])
             assert_envelope_ok(r; label="dsge solve pfi")

@@ -3033,37 +3033,63 @@ function _load_dsge_constraints(path::String; spec=nothing)
 end
 
 """
-    _resolve_dsge_priors(file::String, lines::Vector{String}) → Dict{String,Any}
+    _model_card_stanzas_for(path) → Dict{Symbol,Any}
+
+[`_model_card_stanzas`](@ref) for a model path that is not necessarily a readable
+file. An HA `model` may be a BUILTIN symbol (`:huggett`) with no file behind it,
+and a missing RA file must keep raising `data/file-not-found` from
+[`_load_dsge_model`](@ref) with the loader's own wording — reading it here would
+raise an untyped `SystemError` (exit 1) instead. `isfile` is checked BEFORE the
+confinement check so a builtin name is never treated as a path; a real file is
+confined and validated exactly as the loader validates it.
+"""
+function _model_card_stanzas_for(path::AbstractString)
+    p = String(path)
+    isfile(p) || return Dict{Symbol,Any}()
+    _validate_input_path(p)
+    return _model_card_stanzas(p)
+end
+
+"""
+    _resolve_dsge_priors(file::String, lines::Vector{String};
+                         stanzas=Dict{Symbol,Any}()) → Dict{String,Any}
 
 Merge every prior source into exactly what `get_dsge_priors` returns — the same
 `{name => {dist, a, b}}` shape the TOML loader produces — so a card and the
 equivalent TOML reach the estimator by ONE path. `file` is `--priors`;
-`lines` are the repeatable `--prior 'name ~ dist(a, b)'` values.
+`lines` are the repeatable `--prior 'name ~ dist(a, b)'` values; `stanzas` is
+the `priors:` dict [`_model_card_stanzas`](@ref) returns for the model file
+(CARD-W2 / #210). A `.jl` model file can therefore carry its priors in the same
+place it carries its equations.
 
-A parameter supplied by both sources (or twice in `lines`) is
-`config/invalid` naming the parameter. A `--priors` file with no `[priors]`
-table is `config/missing-key` from `get_dsge_priors`.
+The three sources are ONE set, not a precedence fight: a parameter supplied by
+two of them (or twice in `lines`) is `config/invalid` naming the parameter AND
+both sources. A `--priors` file with no `[priors]` table is
+`config/missing-key` from `get_dsge_priors`.
 
-With neither source this returns an EMPTY dict rather than throwing: the
+With no source this returns an EMPTY dict rather than throwing: the
 user-facing `usage/missing` lives in the leaf guards
 (`_dsge_bayes_inputs`, `_dsge_ha_estimate`), which run first and are the only
 reachable copy — see `_PRIORS_REQUIRED_MESSAGE`.
 """
-function _resolve_dsge_priors(file::String, lines::Vector{String})
+function _resolve_dsge_priors(file::String, lines::Vector{String};
+                              stanzas::AbstractDict=Dict{Symbol,Any}())
     out = Dict{String,Any}()
-    if !isempty(file)
-        for (k, v) in get_dsge_priors(load_config(file))
+    origin = Dict{String,String}()          # parameter → the source that supplied it
+
+    function take!(src, pairs)
+        for (k, v) in pairs
+            haskey(origin, k) && throw(CliError("config/invalid",
+                "prior '$(k)' is given twice — once by $(origin[k]) and once by $(src)"))
+            origin[k] = src
             out[k] = v
         end
     end
-    if !isempty(lines)
-        for (k, v) in lower_priors(parse_card(_card_inline("priors", lines), "<--prior>"),
-                                    "<--prior>")
-            haskey(out, k) && throw(CliError("config/invalid",
-                "prior '$(k)' is given twice — once by --priors and once by --prior"))
-            out[k] = v
-        end
-    end
+
+    isempty(file) || take!("--priors", get_dsge_priors(load_config(file)))
+    isempty(lines) || take!("--prior",
+        lower_priors(parse_card(_card_inline("priors", lines), "<--prior>"), "<--prior>"))
+    haskey(stanzas, :priors) && take!("the model's priors: stanza", stanzas[:priors])
     return out
 end
 
@@ -3101,45 +3127,51 @@ function _constraint_keys(c)
 end
 
 """
-    _resolve_dsge_constraints(file::String, lines::Vector{String}; spec=nothing)
+    _resolve_dsge_constraints(file::String, lines::Vector{String};
+                              stanzas=Dict{Symbol,Any}(), spec=nothing)
 
-Merge `--constraints <file>` with the repeatable `--constraint 'var[t] >= expr'`
-values into the same `Vector` `_load_dsge_constraints` returns, so the four
-OccBin leaves keep ONE constraint path. `spec` is the loaded DSGE spec, needed
-only when the file carries `[[constraints.nonlinear]]` entries — their
-`config/invalid` propagates unchanged.
+Merge `--constraints <file>`, the repeatable `--constraint 'var[t] >= expr'`
+values, and a `.jl` model file's `constraints:` stanza
+([`_model_card_stanzas`](@ref), CARD-W2 / #210) into the same `Vector`
+`_load_dsge_constraints` returns, so the four OccBin leaves keep ONE constraint
+path. `spec` is the loaded DSGE spec, needed only when the file carries
+`[[constraints.nonlinear]]` entries — their `config/invalid` propagates
+unchanged.
 
-The identity of a bound is `(variable, direction)`: the same variable bounded
-from both sides is two bounds, but bounded twice from one side is a conflict.
-Neither source is not an error here — the caller decides whether constraints
-apply at all.
+The three sources are ONE set: a bound supplied by two of them is
+`config/invalid` naming the variable, the direction, and both sources. The
+identity of a bound is `(variable, direction)`: the same variable bounded from
+both sides is two bounds, but bounded twice from one side is a conflict. No
+source is not an error here — the caller decides whether constraints apply.
 """
-function _resolve_dsge_constraints(file::String, lines::Vector{String}; spec=nothing)
+function _resolve_dsge_constraints(file::String, lines::Vector{String};
+                                   stanzas::AbstractDict=Dict{Symbol,Any}(), spec=nothing)
     out = Any[]
-    seen = Set{Tuple{String,Symbol}}()
+    origin = Dict{Tuple{String,Symbol},String}()   # bound → the source that supplied it
 
-    function add(c, keys)
+    function add(c, keys, src)
         for k in keys
-            k in seen && throw(CliError("config/invalid",
-                "constraint on '$(k[1])' is given twice " *
-                "($(k[2] === :geq ? ">=" : "<=")) — supply it once" *
-                # only blame the file flag when a file was actually given; the
-                # within-`lines` case must not point at --constraints
-                (isempty(file) ? "" : " across --constraints and --constraint")))
-            push!(seen, k)
+            if haskey(origin, k)
+                # Name BOTH sources; a duplicate WITHIN one source names neither,
+                # so the advice never blames a flag the user did not pass.
+                across = origin[k] == src ? "" : " across $(origin[k]) and $(src)"
+                throw(CliError("config/invalid",
+                    "constraint on '$(k[1])' is given twice " *
+                    "($(k[2] === :geq ? ">=" : "<=")) — supply it once$(across)"))
+            end
+            origin[k] = src
         end
         push!(out, c)
     end
 
-    if !isempty(file)
-        for c in _load_dsge_constraints(file; spec=spec)
-            add(c, _constraint_keys(c))
-        end
-    end
-
-    if !isempty(lines)
-        lowered = lower_constraints(parse_card(_card_inline("constraints", lines),
-                                              "<--constraint>"), "<--constraint>")
+    function add_bounds(lowered, src)
+        # The card grammar has no nonlinear form, so `lower_constraints` always
+        # returns an empty `nonlinear` list; a hand-built stanza dict carrying one
+        # is refused rather than silently dropped.
+        nl = get(lowered, "nonlinear", nothing)
+        (nl !== nothing && !isempty(nl)) && throw(CliError("config/invalid",
+            "a model card's constraints stanza declares variable bounds only — a " *
+            "nonlinear OccBin expression belongs in a --constraints TOML file"))
         for b in lowered["bounds"]
             var = String(b["variable"])
             lo = get(b, "lower", nothing)
@@ -3149,11 +3181,40 @@ function _resolve_dsge_constraints(file::String, lines::Vector{String}; spec=not
             ks = Tuple{String,Symbol}[]
             lo === nothing || push!(ks, (var, :geq))
             hi === nothing || push!(ks, (var, :leq))
-            add(variable_bound(Symbol(var); lower=lo, upper=hi), ks)
+            add(variable_bound(Symbol(var); lower=lo, upper=hi), ks, src)
         end
     end
 
+    if !isempty(file)
+        for c in _load_dsge_constraints(file; spec=spec)
+            add(c, _constraint_keys(c), "--constraints")
+        end
+    end
+
+    isempty(lines) || add_bounds(
+        lower_constraints(parse_card(_card_inline("constraints", lines), "<--constraint>"),
+                          "<--constraint>"), "--constraint")
+    haskey(stanzas, :constraints) && add_bounds(stanzas[:constraints],
+                                                "the model's constraints: stanza")
+
     return out
+end
+
+"""
+    _occbin_stanzas(stanzas) → stanzas
+
+Guard for the four OccBin leaves (`dsge solve`, `dsge steady-state`, `dsge irf`,
+`dsge perfect-foresight`). A `.jl` model file may carry a `constraints:` stanza
+and a `priors:` stanza, but `priors:` is a BAYESIAN concept and these leaves are
+frequentist: accepting one would drop configuration the user believed was
+applied, and there is no prior to give it precedence against here. Naming it is
+`config/invalid` at every OccBin leaf instead.
+"""
+function _occbin_stanzas(stanzas::AbstractDict)
+    haskey(stanzas, :priors) && throw(CliError("config/invalid",
+        "this command is frequentist, so a 'priors:' stanza in the model file is not " *
+        "used — run the estimation on a 'dsge bayes' command, or delete the stanza"))
+    return stanzas
 end
 
 """Convert loaded constraints to 1 or 2 `OccBinConstraint`s (upstream's only shapes)."""
