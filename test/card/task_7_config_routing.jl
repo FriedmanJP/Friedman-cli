@@ -41,14 +41,17 @@ end
     end
 
     @testset "a .toml path keeps the file's own values" begin
-        # The loader must not invent or drop values on the TOML path: a .toml
-        # config still yields exactly what load_config yields.
+        # The fixture's weighting is deliberately NOT get_gmm's default
+        # ("twostep"), so this assertion distinguishes "the loader returned
+        # the file's dict" from "the loader returned an empty dict and the
+        # default filled in" — the mutation that made the previous version of
+        # this testset pass 3/3 green.
         toml = (write(_task7_tmp, """
         [gmm]
         moment_conditions = ["output"]
-        weighting = "twostep"
+        weighting = "optimal"
         """); _task7_tmp)
-        @test get_gmm(_load_config_or_card(toml, :gmm))["weighting"] == "twostep"
+        @test get_gmm(_load_config_or_card(toml, :gmm))["weighting"] == "optimal"
         # And --set on a card is refused, not merged.
         card = _task7_card("gmm lp:\n  moments: output\n")
         err = _task7_err(() -> _card_config_path(card, ["gmm.weighting=identity"], ""))
@@ -192,10 +195,17 @@ end
         # receives the user's card path unchanged and rejects it itself,
         # rather than the adapter silently reinterpreting it.
         card = _task7_card("gmm lp:\n  moments: output\n")
+        seen = Ref{Any}(nothing)          # proves the handler RAN
         plain = CommandSpec(path=["probe", "plain"], args=[], summary="probe",
             options=[OptionSpec(name="config", type=String, default="")],
-            handler=wrap_legacy((; config="", format="", output="") -> load_config(config)))
+            handler=wrap_legacy((; config="", format="", output="") ->
+                (seen[] = config; load_config(config))))
         err = _task7_err(() -> to_leaf(plain).handler(; config=card))
+        # The handler observed the user's card path, not a merged temp file:
+        # if the adapter's card branch were unreachable, the handler would
+        # never run (merge_config raises the same code) and seen[] stays
+        # nothing.
+        @test seen[] == card
         @test err isa CliError && err.code == "config/malformed-toml"
     end
 end
