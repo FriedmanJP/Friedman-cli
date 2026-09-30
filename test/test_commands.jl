@@ -15396,7 +15396,7 @@ end
         for (f, code, p) in probes
             err = try f(; p...); nothing catch e; e; end
             @test err isa CliError && err.code == code
-            @test err.message == _priors_required_message()
+            @test err.message == _PRIORS_REQUIRED_MESSAGE
             # the message names the line, the stanza, then the file, in that order
             m = lowercase(err.message)
             @test findfirst("--prior", m) < findfirst("priors:", m) < findfirst("--priors", m)
