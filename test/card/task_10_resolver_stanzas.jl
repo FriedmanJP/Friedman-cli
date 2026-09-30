@@ -127,12 +127,22 @@ end
     prior_model = _t10_model("priors:\n  rho ~ beta(2, 2)\n")
     cons_model = _t10_model("constraints:\n  i[t] >= -10\n")
     for (label, path) in (("priors:", prior_model), ("constraints:", cons_model))
+        # ParseError audit (round 4). `label` IS a card-source token, so this is the
+        # shape that can be satisfied by a raw Julia syntax error: `_dsge_eval_invalid`
+        # wraps a ParseError into `config/invalid` and Julia 1.13 echoes the offending
+        # source line. It is NOT reachable here, for a structural reason worth stating
+        # rather than re-deriving: these fixtures carry a column-0 `@dsge` block, so
+        # `_split_card_and_model` returns the @dsge SLICE and the card text never
+        # reaches `include_string` — a parse error of the evaluated text cannot contain
+        # `priors:`. (A card file with NO `@dsge` block is included whole and COULD
+        # echo; the guard makes that case red rather than silently green.)
         for (which, thunk) in (("_load_dsge_model", () -> _load_dsge_model(path)),
                                ("_load_ha_model", () -> _load_ha_model(path)))
             err = _t10_err(thunk)
             @test err isa CliError
             @test err.code == "config/invalid"
             @test occursin(label, err.message)
+            @test !occursin("ParseError", err.message)
         end
     end
     # …and the opt-in still works, so the refusal is a policy and not a block.
@@ -144,6 +154,11 @@ end
     # the wrong source entirely. Asserting the code, not just the throw, is what
     # tells the two failures apart.
     csv = _t10_csv()
+    # ParseError audit (round 4): the token `constraints:` is in the card source, so
+    # the guard is the same one as at the loader sites above. Unreachable here for a
+    # STRONGER reason: the policy runs as the first thing `_dsge_bayes_inputs` does,
+    # before the priors guard and before any file is evaluated at all, so there is no
+    # evaluation step on this path that could produce a ParseError.
     for (label, thunk) in (
             ("bayes inputs", () -> _dsge_bayes_inputs(; model=cons_model, data=csv,
                         params="rho", priors="", prior=String[], observables="Y",
@@ -156,12 +171,18 @@ end
         @test err.code == "config/invalid"
         @test err.code != "usage/missing" && err.code != "usage/missing-option"
         @test occursin("constraints:", err.message)
+        @test !occursin("ParseError", err.message)
     end
 
     # A representative sample of the leaves that consume NEITHER stanza, one from
     # each family the grep enumeration in the policy docstring names. Each dies at
     # the loader, before any solve, so this is cheap. Drop the policy from either
     # loader and every one of these goes green (silent acceptance).
+    # ParseError audit (round 4): `label` is a card-source token, so the guard is the
+    # same one as above. Unreachable for the SAME structural reason — every one of
+    # these six leaves calls a loader as its first substantive statement, the fixtures
+    # carry a column-0 `@dsge` block, so the card is split out of the evaluated text
+    # and the slice cannot parse-fail on `priors:`.
     plain_csv = _t10_csv()
     for (label, path) in (("priors:", prior_model), ("constraints:", cons_model))
         for (leaf, thunk) in (
@@ -177,6 +198,7 @@ end
             @test err isa CliError
             @test err.code == "config/invalid"
             @test occursin(label, err.message)
+            @test !occursin("ParseError", err.message)
         end
     end
 
@@ -266,12 +288,18 @@ end
     # (e) The two other compare guards are TYPED now. They were bare `error()` →
     # exit 1 with no envelope, which `@test_throws Exception` in test_commands.jl
     # cannot tell but a user could.
+    # ParseError audit (round 4): `token` is a CLI FLAG name (`--model2` /
+    # `--params2`), which appears in no model file, and these two guards are the
+    # first statements in `_dsge_bayes_compare` — nothing has been read or evaluated
+    # when they fire. Unreachable twice over; the guard is a formality that keeps the
+    # next reader from having to re-derive it.
     for (kw, token) in (((; model2="", params2="rho,sigma", priors2=pri_toml), "--model2"),
                         ((; model2=plain_model, params2="", priors2=pri_toml), "--params2"))
         err = _t10_err(() -> cmp(; model=plain_model, kw...))
         @test err isa CliError
         @test err.code == "usage/missing-option"
         @test occursin(token, err.message)
+        @test !occursin("ParseError", err.message)
     end
 end
 
@@ -643,16 +671,32 @@ end
         # not go through `_load_dsge_model`, so the docstring's enumeration used to
         # claim coverage that did not exist. `dsge dcegm` consumes NEITHER stanza, so
         # a `priors:` card in its model file is refused like everywhere else.
+        #
+        # The two `!occursin("ParseError", …)` guards are LOAD-BEARING, not
+        # belt-and-braces. Pre-fix this loader did a bare `Base.include(mod, model)`
+        # on the WHOLE file, so the card text reached Julia, which raised
+        # `ParseError: … line break after ':' in range expression` — and Julia 1.13's
+        # ParseError display ECHOES the offending source line, while
+        # `_dsge_eval_invalid` already wraps it in `config/invalid`. Without the
+        # guards, `occursin("priors:", …)` matched the echoed `priors:` and the
+        # pre-fix code passed this testset 19/19: the assertion was satisfied by a
+        # raw Julia syntax error instead of by the policy, and a later revert of
+        # `dsge.jl:4387-4390` would have shipped silently. `occursin("not used", …)`
+        # is the positive half: only the policy's own wording contains it.
         carded = _t10_model("priors:\n  rho ~ beta(2, 2)\n")
         e = _t10_err(() -> _load_dcegm_source(carded))
         @test e isa CliError
         @test e.code == "config/invalid"
         @test occursin("priors:", e.message)
+        @test !occursin("ParseError", e.message)
+        @test occursin("not used", e.message)
 
         cons = _t10_model("constraints:\n  i[t] >= -10\n")
         e1 = _t10_err(() -> _load_dcegm_source(cons))
         @test e1 isa CliError && e1.code == "config/invalid"
         @test occursin("constraints:", e1.message)
+        @test !occursin("ParseError", e1.message)
+        @test occursin("not used", e1.message)
 
         # The control that makes the two above mean something: a CARD-FREE dcegm
         # model file still reaches the loader body and fails there for its own

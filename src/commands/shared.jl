@@ -3316,12 +3316,22 @@ read sites in `src/`, listed below — not from guessing which leaf "seems" Baye
   `dsge perfect-foresight`. They read `stanzas[:constraints]` into
   [`_resolve_dsge_constraints`](@ref).
 - Everything else that reaches a model file through [`_load_dsge_model`](@ref) or
-  [`_load_ha_model`](@ref) consumes NEITHER, so the default refuses both: the
-  remaining RA leaves (`dsge moments`, `dsge estimate`, `dsge fevd`, `dsge hd`,
-  `dsge simulate`, `dsge determinacy-map`), every other `hadsge` leaf,
-  `data simulate dsge|ha`, and the `policy news dsge|ha` / `jacobian ha` /
-  `sufficiency dsge` paths. Both loaders apply this policy with both flags off, so
-  the rule is enforced in two places rather than at ~25 call sites.
+  [`_load_ha_model`](@ref) consumes NEITHER, so the default refuses both. All 24
+  such call sites, by leaf:
+  - the seven remaining RA leaves — `dsge determinacy-map`, `dsge moments`,
+    `dsge simulate`, `dsge fevd`, `dsge estimate`, `dsge hd`, and
+    `dsge bayes identification`;
+  - the ten remaining `hadsge` leaves — `steady-state`, `accuracy`, `solve`,
+    `irf`, `fevd`, `simulate`, `simulate-panel`, `distribution-irf`,
+    `inequality-irf`, `hd` (`hadsge estimate` is the one that opts in);
+  - `data simulate dsge` and `data simulate ha`;
+  - `policy news dsge`, `policy news ha`, `policy jacobian ha`,
+    `policy spanning var` and `policy sufficiency dsge`.
+
+  Both loaders apply this policy with both flags off, so the rule is enforced in
+  two places rather than at 24 call sites. Adding a leaf that takes a model file
+  needs no change here — it inherits the refusal — unless it also CONSUMES a
+  stanza, which means an `allow_… = true` at its loader call and an entry above.
 
 Two families are NOT model-file families and are deliberately absent from the list
 above: the `ct`, `bank`, `firm` and `lifecycle` families build their model from
