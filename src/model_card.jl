@@ -159,13 +159,259 @@ end
 """
     read_card(path) -> Vector{CardStanza}
 
-Read and scan the card at `path`. The path is confined and resolved first, then
-checked for existence, so a typo'd card is the same typed `data/file-not-found`
-as any other missing input — never an untyped `SystemError` (exit 1).
+Read and scan the card at `path`. A leading `~` is expanded first, then the
+path is confined, then checked for existence, so a typo'd card is the same
+typed `data/file-not-found` as any other missing input — never an untyped
+`SystemError` (exit 1).
 """
 function read_card(path::AbstractString)
-    p = _validate_input_path(String(path))
+    p = _validate_input_path(_expanduser(String(path)))
     isfile(p) ||
         throw(CliError("data/file-not-found", "file not found: $p"; hint="check the path"))
     return parse_card(read(p, String), p)
+end
+
+# ─── Lowerers (W0 / #206) ──────────────────────────────────────────────────────
+
+"""Drop a trailing `#` comment and surrounding blanks from a body line."""
+_card_strip_comment(s::AbstractString) = strip(first(split(s, '#'; limit=2)))
+
+"""The single stanza named `header`, or `config/invalid` when the card has none.
+
+A lowerer handed a card for a different family is a user error, not an empty
+result: an empty dict would silently configure nothing."""
+function _card_stanza(stanzas, header::AbstractString, path::AbstractString)
+    for s in stanzas
+        s.header == header && return s
+    end
+    throw(_card_error(path, 1, "card has no '$(header)' stanza"))
+end
+
+"""
+    _card_vec(s) -> Vector{String}
+
+A bare card value is a length-1 vector; a comma-separated one has one element
+per comma. Shared by the GMM/SMM lowerers.
+"""
+function _card_vec(s::AbstractString)
+    t = strip(s)
+    isempty(t) && return String[]
+    return String[String(strip(x)) for x in split(t, ',')]
+end
+
+# ─── A hand-written numeric-literal evaluator ─────────────────────────────────
+# Stanza text is NEVER executed. `Meta.parse`/`eval` are exactly what the format
+# forbids; this is a recursive-descent reader over a numeric grammar instead.
+#
+#   expr  := term (('+' | '-') term)*
+#   term  := power (('*' | '/') power)*
+#   power := unary ('^' power)?          -- right-associative
+#   unary := ('+' | '-') unary | number
+
+const _CARD_NUM_RE = r"^[0-9]+(\.[0-9]*)?([eE][+-]?[0-9]+)?$|^[0-9]*\.[0-9]+([eE][+-]?[0-9]+)?$"
+
+"""Split a numeric expression into tokens, or return `nothing` if it is not numeric."""
+function _card_num_tokens(s::AbstractString)
+    toks = String[]
+    i = firstindex(s)
+    last_ = lastindex(s)
+    while i <= last_
+        c = s[i]
+        if isspace(c)
+            i = nextind(s, i)
+        elseif c in ('+', '-', '*', '/', '^')
+            push!(toks, string(c))
+            i = nextind(s, i)
+        elseif isdigit(c) || c == '.'
+            j = i
+            while j <= last_ && (isdigit(s[j]) || s[j] == '.' || s[j] in ('e', 'E'))
+                # An exponent sign belongs to the number, not to a binary op.
+                if s[j] in ('e', 'E') && j > i && j < last_ &&
+                   s[nextind(s, j)] in ('+', '-')
+                    k = nextind(s, nextind(s, j))
+                    (k <= last_ && isdigit(s[k])) || return nothing
+                    j = k
+                end
+                j = nextind(s, j)
+            end
+            lit = s[i:prevind(s, j)]
+            occursin(_CARD_NUM_RE, lit) || return nothing
+            push!(toks, lit)
+            i = j
+        else
+            return nothing
+        end
+    end
+    return toks
+end
+
+mutable struct _CardNumParser
+    toks::Vector{String}
+    i::Int
+end
+
+function _card_num_expr(p::_CardNumParser)
+    v = _card_num_term(p)
+    v === nothing && return nothing
+    while p.i <= length(p.toks) && p.toks[p.i] in ("+", "-")
+        op = p.toks[p.i]; p.i += 1
+        r = _card_num_term(p)
+        r === nothing && return nothing
+        v = op == "+" ? v + r : v - r
+    end
+    return v
+end
+
+function _card_num_term(p::_CardNumParser)
+    v = _card_num_power(p)
+    v === nothing && return nothing
+    while p.i <= length(p.toks) && p.toks[p.i] in ("*", "/")
+        op = p.toks[p.i]; p.i += 1
+        r = _card_num_power(p)
+        (r === nothing || (op == "/" && r == 0.0)) && return nothing
+        v = op == "*" ? v * r : v / r
+    end
+    return v
+end
+
+function _card_num_power(p::_CardNumParser)
+    v = _card_num_unary(p)
+    v === nothing && return nothing
+    if p.i <= length(p.toks) && p.toks[p.i] == "^"
+        p.i += 1
+        r = _card_num_power(p)
+        r === nothing && return nothing
+        v = v^r
+    end
+    return v
+end
+
+function _card_num_unary(p::_CardNumParser)
+    p.i <= length(p.toks) || return nothing
+    t = p.toks[p.i]
+    if t == "-" || t == "+"
+        p.i += 1
+        v = _card_num_unary(p)
+        v === nothing && return nothing
+        return t == "-" ? -v : v
+    end
+    occursin(_CARD_NUM_RE, t) || return nothing
+    p.i += 1
+    return parse(Float64, t)
+end
+
+"""
+    _card_bounds_expr(s) -> Union{Float64,Nothing}
+
+Evaluate a bound expression written in the numeric-literal grammar (`literal`
+with `+ - * / ^` and unary signs), or return `nothing` when `s` names
+something that is not a literal.
+
+The evaluator is hand-written recursive descent; it never calls `eval`,
+`include_string`, or `Meta.parse` on stanza text.
+"""
+function _card_bounds_expr(s::AbstractString)
+    toks = _card_num_tokens(s)
+    toks === nothing && return nothing
+    isempty(toks) && return nothing
+    p = _CardNumParser(toks, 1)
+    v = _card_num_expr(p)
+    (v === nothing || p.i <= length(p.toks)) && return nothing
+    return v
+end
+
+const _CARD_DIST_ALIASES = Dict(
+    "gaussian"      => "normal",
+    "inverse_gamma" => "inv_gamma",
+    "invgamma"      => "inv_gamma",
+)
+
+const _CARD_DISTS = Set(["beta", "normal", "inv_gamma", "gamma", "uniform"])
+
+"""
+    lower_priors(stanzas, path) -> Dict{String,Any}
+
+Lower the `priors:` stanza into exactly what `get_dsge_priors` returns, so a
+card and the equivalent TOML reach the estimator by one path.
+
+Each body line is `name ~ dist(a, b)`. An unknown distribution, a wrong arity,
+or a non-numeric argument is `config/invalid` naming its line.
+"""
+function lower_priors(stanzas, path::AbstractString)
+    out = Dict{String,Any}()
+    for (lineno, raw) in _card_stanza(stanzas, "priors", path).lines
+        m = match(r"^([A-Za-z_][A-Za-z0-9_]*)\s*~\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(([^()]*)\)$",
+                  _card_strip_comment(raw))
+        m === nothing &&
+            throw(_card_error(path, lineno, "expected 'name ~ dist(a, b)' in a priors stanza"))
+        name = String(m.captures[1])
+        dist = String(m.captures[2])
+        dist = get(_CARD_DIST_ALIASES, dist, dist)
+        dist in _CARD_DISTS ||
+            throw(_card_error(path, lineno, "unknown prior distribution '$(dist)'"))
+        args = _card_vec(String(m.captures[3]))
+        length(args) == 2 ||
+            throw(_card_error(path, lineno, "prior '$(dist)' takes exactly 2 arguments, got $(length(args))"))
+        vals = Float64[]
+        for (k, a) in enumerate(args)
+            v = _card_bounds_expr(a)
+            v === nothing &&
+                throw(_card_error(path, lineno, "prior argument $(k) of '$(name)' is not a number"))
+            push!(vals, v)
+        end
+        out[name] = Dict{String,Any}("dist" => dist, "a" => vals[1], "b" => vals[2])
+    end
+    isempty(out) &&
+        throw(_card_error(path, _card_stanza(stanzas, "priors", path).lineno,
+                          "priors stanza is empty"))
+    return out
+end
+
+const _CARD_BOUND_RE = r"^(?:(.*?)\s*(<=|>=)\s*)?([A-Za-z_][A-Za-z0-9_]*)\[t\]\s*(<=|>=)\s*(.*)$"
+
+"""
+    lower_constraints(stanzas, path) -> Dict{String,Any}
+
+Lower the `constraints:` stanza into exactly what `get_dsge_constraints`
+returns: a `bounds` list of `{variable, lower?, upper?}` and an empty
+`nonlinear` list.
+
+Each body line is `lo <= var[t] <= hi`, `var[t] >= expr`, or `var[t] <= expr`.
+`var[t]` is required — an unbounded or mis-spelled constraint is a silent
+no-op otherwise — and `expr` must be a numeric literal. Anything else is
+`config/invalid` naming its line.
+"""
+function lower_constraints(stanzas, path::AbstractString)
+    bounds = Dict{String,Any}[]
+    for (lineno, raw) in _card_stanza(stanzas, "constraints", path).lines
+        line = _card_strip_comment(raw)
+        m = match(_CARD_BOUND_RE, line)
+        m === nothing &&
+            throw(_card_error(path, lineno,
+                "expected 'lo <= var[t] <= hi', 'var[t] >= bound' or 'var[t] <= bound' in a constraints stanza"))
+        var = String(m.captures[3])
+        d = Dict{String,Any}("variable" => var)
+        if m.captures[1] === nothing          # var[t] >= expr / var[t] <= expr
+            if m.captures[4] == ">="
+                v = _card_bounds_expr(String(m.captures[5]))
+                v === nothing &&
+                    throw(_card_error(path, lineno, "the lower bound of '$(var)' is not a numeric literal"))
+                d["lower"] = v
+            else
+                v = _card_bounds_expr(String(m.captures[5]))
+                v === nothing &&
+                    throw(_card_error(path, lineno, "the upper bound of '$(var)' is not a numeric literal"))
+                d["upper"] = v
+            end
+        else                                   # lo <= var[t] <= hi
+            lo = _card_bounds_expr(String(m.captures[1]))
+            hi = _card_bounds_expr(String(m.captures[5]))
+            (lo === nothing || hi === nothing) &&
+                throw(_card_error(path, lineno, "both bounds of '$(var)' must be numeric literals"))
+            d["lower"] = lo
+            d["upper"] = hi
+        end
+        push!(bounds, d)
+    end
+    return Dict{String,Any}("bounds" => bounds, "nonlinear" => Dict{String,Any}[])
 end

@@ -4043,7 +4043,7 @@ using TOML
     end
 
     # ────────────────────────────────────────────────────────────
-    # Model card grammar (W0 / #206) — inside the aggregate testset so a
+    # Model card grammar (W0 / #206) — inside the "Config parsing" testset so a
     # grammar failure is contained here rather than aborting the script.
     # ────────────────────────────────────────────────────────────
     include(joinpath(@__DIR__, "model_card.jl"))

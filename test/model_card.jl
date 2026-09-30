@@ -6,3 +6,4 @@ if !isdefined(@__MODULE__, :parse_card)
 end
 
 include(joinpath(@__DIR__, "card", "task_1_grammar.jl"))
+include(joinpath(@__DIR__, "card", "task_2_priors_constraints.jl"))
