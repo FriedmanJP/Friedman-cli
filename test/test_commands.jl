@@ -14997,6 +14997,38 @@ include(joinpath(project_root, "src", "commands", "serve.jl"))
     end
 end
 
+@testset "repeatable in schema and MCP (#209)" begin
+    @testset "_input_schema — array of strings + x-cli.repeatable" begin
+        leaf = LeafCommand("x", identity;
+                           options=[Option("prior"; repeatable=true)], args=[Argument("data")])
+        s = _input_schema(leaf, ["dsge", "bayes", "estimate"])
+        p = s["properties"]["prior"]
+        @test p["type"] == "array"
+        @test p["items"] == Dict("type" => "string")
+        @test p["x-cli"]["repeatable"] == true
+    end
+
+    @testset "_input_schema — a non-repeatable option is unchanged" begin
+        leaf = LeafCommand("x", identity; options=[Option("set")], args=[Argument("data")])
+        p = _input_schema(leaf, ["x"])["properties"]["set"]
+        @test p["type"] == "string"     # set is a string in the schema unless repeatable
+    end
+
+    @testset "_mcp_argv — one flag per array element" begin
+        leaf = LeafCommand("x", identity;
+                           options=[Option("prior"; repeatable=true)], args=[Argument("data")])
+        argv = _mcp_argv(leaf, ["x"], Dict(:data => "d.csv", :prior => ["a", "b"]))
+        @test argv == ["x", "d.csv", "--prior", "a", "--prior", "b"]
+    end
+
+    @testset "_mcp_argv — a JSON string still emits one flag" begin
+        leaf = LeafCommand("x", identity;
+                           options=[Option("prior"; repeatable=true)], args=[Argument("data")])
+        @test _mcp_argv(leaf, ["x"], Dict(:data => "d.csv", :prior => "a")) ==
+              ["x", "d.csv", "--prior", "a"]
+    end
+end
+
 @testset "W3/#167: universal serialization + reproduce" begin
     @testset "_fwd_seed" begin
         _SEED[] = nothing

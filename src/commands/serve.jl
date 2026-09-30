@@ -94,7 +94,13 @@ function _mcp_argv(leaf::LeafCommand, path::Vector{String}, arguments)
         o.name == "format" && (has_format = true)
         k = Symbol(o.name)
         (k in consumed || !haskey(arguments, k)) && continue
-        o.name == "format" || push!(argv, "--" * o.name, string(arguments[k]))
+        if o.repeatable && o.name in _CARD_REPEATABLE
+            for v in (arguments[k] isa AbstractVector ? arguments[k] : Any[arguments[k]])
+                push!(argv, "--" * o.name, string(v))
+            end
+        else
+            o.name == "format" || push!(argv, "--" * o.name, string(arguments[k]))
+        end
         push!(consumed, k)
     end
     for f in leaf.flags
