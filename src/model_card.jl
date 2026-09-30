@@ -47,8 +47,8 @@ const CARD_HEADERS = Set([
     "equations", "instruments",
 ])
 
-_card_error(path, lineno, reason) =
-    CliError("config/invalid", "$(path) line $(lineno): $(reason)")
+_card_error(path, lineno, reason; class::AbstractString="config/invalid") =
+    CliError(class, "$(path) line $(lineno): $(reason)")
 
 """Split a card into lines, dropping a leading UTF-8 BOM and surrounding blanks.
 
@@ -188,6 +188,15 @@ function _card_stanza(stanzas, header::AbstractString, path::AbstractString)
         s.header == header && return s
     end
     throw(_card_error(path, 1, "card has no '$(header)' stanza"))
+end
+
+"""The single stanza whose header is one of `headers`, or `config/invalid`."""
+function _card_stanza_any(stanzas, headers, path::AbstractString)
+    for s in stanzas
+        s.header in headers && return s
+    end
+    quoted = join(("'" .* collect(headers) .* "'"), " or ")
+    throw(_card_error(path, 1, "card has no $(quoted) stanza"))
 end
 
 """
@@ -468,12 +477,8 @@ rather than silently ignored; IV GMM requires `dep`, `endogenous` and
 `theta0`. `weighting` defaults to `"twostep"`, matching the TOML loader.
 """
 function lower_gmm(stanzas, path::AbstractString)
-    header = nothing
-    for s in stanzas
-        (s.header == "gmm lp" || s.header == "gmm iv") && (header = s.header; break)
-    end
-    header === nothing &&
-        throw(_card_error(path, 1, "card has no 'gmm lp' or 'gmm iv' stanza"))
+    st = _card_stanza_any(stanzas, ("gmm lp", "gmm iv"), path)
+    header = st.header
     lp = header == "gmm lp"
 
     d = Dict{String,Any}(
@@ -486,7 +491,7 @@ function lower_gmm(stanzas, path::AbstractString)
         "theta0"           => Float64[],
     )
     seen = Set{String}()
-    for (lineno, raw) in stanzas[findfirst(s -> s.header == header, stanzas)].lines
+    for (lineno, raw) in st.lines
         key, val, ln = _card_kv(raw, path, lineno)
         key in _CARD_GMM_KEYS ||
             throw(_card_error(path, ln, "unknown '$(header)' key '$(key)'"))
@@ -512,11 +517,12 @@ function lower_gmm(stanzas, path::AbstractString)
     end
 
     if !lp
-        isempty(d["dep"]) && throw(_card_error(path, 1, "'gmm iv' requires a 'dep' column"))
+        isempty(d["dep"]) &&
+            throw(_card_error(path, st.lineno, "'gmm iv' requires a 'dep' column"))
         isempty(d["endogenous"]) &&
-            throw(_card_error(path, 1, "'gmm iv' requires 'endogenous' columns"))
+            throw(_card_error(path, st.lineno, "'gmm iv' requires 'endogenous' columns"))
         isempty(d["theta0"]) &&
-            throw(_card_error(path, 1, "'gmm iv' requires a 'theta0' starting value"))
+            throw(_card_error(path, st.lineno, "'gmm iv' requires a 'theta0' starting value"))
     end
     return d
 end
@@ -586,27 +592,37 @@ than silently resolved."""
 function lower_system(stanzas, path::AbstractString)
     common = String[]
     has_common = false
+    common_lineno = 0
     for s in stanzas
         s.header == "instruments" || continue
         for (lineno, raw) in s.lines
             key, val, ln = _card_kv(raw, path, lineno)
             key == "common" ||
                 throw(_card_error(path, ln, "'instruments' accepts only the 'common' key"))
+            cols = _card_colvec(val, "instruments 'common'", path, ln)
+            isempty(cols) &&
+                throw(_card_error(path, ln, "'common' must list at least one instrument column";
+                                  class="config/shape"))
             has_common = true
-            common = _card_vec(val)
+            common = cols
+            common_lineno = ln
         end
     end
 
+    eq_st = _card_stanza(stanzas, "equations", path)
     equations = Vector{Dict{String,Any}}()
     any_instr = false
-    for (lineno, raw) in _card_stanza(stanzas, "equations", path).lines
+    instr_lineno = 0
+    for (lineno, raw) in eq_st.lines
         text = _card_strip_comment(raw)
         eq = findfirst(==('='), text)
         eq === nothing &&
             throw(_card_error(path, lineno, "expected 'name: dep = col, col | col, col'"))
         lhs = strip(text[1:prevind(text, eq)])
         rhs = strip(text[nextind(text, eq):end])
-        isempty(lhs) && throw(_card_error(path, lineno, "no dependent column before '='"))
+        isempty(lhs) &&
+            throw(_card_error(path, lineno, "an equation must name a dependent column before '='";
+                              class="config/shape"))
 
         name = ""
         ci = findfirst(==(':'), lhs)
@@ -619,15 +635,21 @@ function lower_system(stanzas, path::AbstractString)
         instr = nothing
         bar = findfirst(==('|'), rhs)
         if bar !== nothing
-            instr = _card_vec(rhs[nextind(rhs, bar):end])
+            instr = _card_colvec(rhs[nextind(rhs, bar):end], "an equation's instruments", path, lineno)
+            isempty(instr) &&
+                throw(_card_error(path, lineno, "'|' must be followed by at least one instrument column";
+                                  class="config/shape"))
             rhs = strip(rhs[1:prevind(rhs, bar)])
             any_instr = true
+            instr_lineno = lineno
         end
-        indep = _card_vec(rhs)
+        indep = _card_colvec(rhs, "an equation's regressors", path, lineno)
         isempty(indep) &&
-            throw(CliError("config/shape", "$(path) line $(lineno): an equation must list at least one regressor column after '='"))
+            throw(_card_error(path, lineno, "an equation must list at least one regressor column after '='";
+                              class="config/shape"))
         isempty(strip(lhs)) &&
-            throw(CliError("config/shape", "$(path) line $(lineno): an equation must name a dependent column"))
+            throw(_card_error(path, lineno, "an equation must name a dependent column";
+                              class="config/shape"))
 
         push!(equations, Dict{String,Any}(
             "name"  => isempty(name) ? "eq$(length(equations) + 1)" : name,
@@ -637,11 +659,13 @@ function lower_system(stanzas, path::AbstractString)
         ))
     end
     isempty(equations) &&
-        throw(_card_error(path, 1, "'equations' stanza lists no equations"))
+        throw(_card_error(path, eq_st.lineno, "'equations' stanza lists no equations"))
 
     any_instr && has_common &&
-        throw(_card_error(path, 1,
-            "per-equation '|' instruments and 'instruments: common:' cannot both be given"))
+        throw(_card_error(path, instr_lineno,
+            "per-equation '|' instruments and 'instruments: common:' cannot both be given";
+            class="config/invalid"))
+
 
     return Dict{String,Any}(
         "equations" => equations,
@@ -649,8 +673,28 @@ function lower_system(stanzas, path::AbstractString)
     )
 end
 
+"""
+    _card_colvec(s, ctx, path, lineno) -> Vector{String}
+
+A comma-separated column list, with the same rules `_system_strvec` applies to
+the TOML form: an empty column name is a `config/shape` error, so a card and
+the equivalent TOML fail the same way."""
+function _card_colvec(s::AbstractString, ctx::AbstractString, path::AbstractString, lineno::Int)
+    out = _card_vec(s)
+    for name in out
+        isempty(name) &&
+            throw(_card_error(path, lineno, "$(ctx) contains an empty column name";
+                              class="config/shape"))
+    end
+    return out
+end
+
 # ─── Family dispatch (W0 / #206) ───────────────────────────────────────────────
 
+
+# Every header `parse_card` accepts must map to a family. Without this tie, a
+# header added to `CARD_HEADERS` alone would make `card_family` answer
+# `nothing` and `lowered_card` would silently skip that stanza.
 const _CARD_FAMILIES = Dict{String,Symbol}(
     "priors"       => :priors,
     "constraints"  => :constraints,
@@ -660,6 +704,8 @@ const _CARD_FAMILIES = Dict{String,Symbol}(
     "equations"    => :system,
     "instruments"  => :system,
 )
+
+@assert Set(keys(_CARD_FAMILIES)) == CARD_HEADERS "every card header needs a family"
 
 """The family a stanza header belongs to, or `nothing` when it is not a header
 the format defines."""

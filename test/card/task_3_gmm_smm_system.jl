@@ -35,18 +35,45 @@ end
 
 @testset "lower_gmm — refusals" begin
     for (src, why) in [
-        ("gmm lp:\n  moments: output\n  instruments: z\n", "lp refuses instruments"),
-        ("gmm lp:\n  moments: output\n  dep: y\n",          "lp refuses dep"),
-        ("gmm lp:\n  moments: output\n  theta0: 0.5\n",     "lp refuses theta0"),
-        ("gmm lp:\n  moments: output\n  endogenous: y\n",   "lp refuses endogenous"),
-        ("gmm lp:\n  moments: output\n  exogenous: e\n",    "lp refuses exogenous"),
-        ("gmm:\n  moments: output\n",                        "gmm: needs a second word"),
-        ("gmm iv:\n  dep: y\n  endogenous: x\n",            "iv needs theta0"),
-        ("gmm lp:\n  moment_conditions: output\n",           "moment_conditions is not a card key"),
+        ("gmm lp:\n  moments: output\n  instruments: z\n", "no meaning"),
+        ("gmm lp:\n  moments: output\n  dep: y\n",          "no meaning"),
+        ("gmm lp:\n  moments: output\n  theta0: 0.5\n",     "no meaning"),
+        ("gmm lp:\n  moments: output\n  endogenous: y\n",   "no meaning"),
+        ("gmm lp:\n  moments: output\n  exogenous: e\n",    "no meaning"),
+        ("gmm:\n  moments: output\n",                        "unknown stanza header"),
+        ("gmm iv:\n  dep: y\n  endogenous: x\n",            "requires a 'theta0'"),
+        ("gmm lp:\n  moment_conditions: output\n",           "unknown 'gmm lp' key"),
     ]
         err = try; lower_gmm(parse_card(src), "c"); nothing; catch e; e; end
         @test err isa CliError && err.code == "config/invalid"
+        @test occursin(why, err.message)
     end
+end
+
+@testset "lower_gmm — the IV requirements point at the gmm stanza, not line 1" begin
+    src = "priors:\n  rho ~ beta(2, 2)\n\ngmm iv:\n  dep: y\n  endogenous: x\n"
+    err = try; lower_gmm(parse_card(src), "c"); nothing; catch e; e; end
+    @test err isa CliError && err.code == "config/invalid"
+    @test occursin("line 4", err.message)     # the `gmm iv:` header, not `priors`
+end
+
+@testset "lower_gmm/lower_smm — a repeated key is config/invalid" begin
+    err = try
+        lower_gmm(parse_card("gmm lp:\n  moments: a\n  moments: b\n"), "c"); nothing
+    catch e; e; end
+    @test err isa CliError && err.code == "config/invalid"
+    @test occursin("duplicate", err.message)
+
+    err = try
+        lower_smm(parse_card("smm:\n  model: ar1\n  model: ar2\n"), "c"); nothing
+    catch e; e; end
+    @test err isa CliError && err.code == "config/invalid"
+    @test occursin("duplicate", err.message)
+end
+
+@testset "lower_smm — omitted keys take the loader's defaults" begin
+    @test lower_smm(parse_card("smm:\n  model: ar1\n"), "c") ==
+          get_smm(load_config(_toml_fixture("[smm]\nmodel = \"ar1\"\n")))
 end
 
 @testset "lower_smm — oracle" begin
@@ -94,6 +121,39 @@ end
     """), "c")
     @test got["common_instruments"] == ["taxes"]
     @test got["equations"][1]["instr"] === nothing
+end
+
+@testset "lower_system — an empty or blank column list is config/shape" begin
+    for src in ["equations:\n  cons =\n",
+                "equations:\n  = y, x\n",
+                "equations:\n  cons = y, , x\n",
+                "equations:\n  cons = y | , z\n",
+                "equations:\n  cons = y\ninstruments:\n  common:\n",
+                "equations:\n  cons = y\ninstruments:\n  common: z, , w\n"]
+        err = try; lower_system(parse_card(src), "c"); nothing; catch e; e; end
+        @test err isa CliError && err.code == "config/shape"
+    end
+    # a blank equation name is a different mistake and keeps its own class
+    err = try
+        lower_system(parse_card("equations:\n  : cons = y\n"), "c"); nothing
+    catch e; e; end
+    @test err isa CliError && err.code == "config/invalid"
+end
+
+@testset "lower_system — the TOML loader refuses the same column lists" begin
+    for toml in ["[[equations]]\ndep = \"y\"\nindep = [\"y\"]\ninstr = [\"\"]\n",
+                 "[[equations]]\ndep = \"y\"\nindep = []\n",
+                 "[[equations]]\ndep = \"y\"\nindep = [\"y\", \"\", \"x\"]\n",
+                 "[[equations]]\ndep = \"y\"\nindep = [\"y\"]\n[instruments]\ncommon = []\n"]
+        err = try
+            get_system(load_config(_toml_fixture(toml))); nothing
+        catch e; e; end
+        @test err isa CliError && err.code == "config/shape"
+    end
+end
+
+@testset "every card header has a family" begin
+    @test Set(collect(keys(_CARD_FAMILIES))) == Set(collect(CARD_HEADERS))
 end
 
 @testset "lower_system — | with common instruments is config/invalid" begin
