@@ -5795,10 +5795,16 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                 end
                 return nothing
             end
+            # `rows` are JSON3.Arrays, not named objects — a row has no field
+            # access, so the column comes from the header. Located by NAME, not
+            # position, so a column reorder cannot silently rebind the assertion.
+            icol(tbl) = findfirst(==(:i), Symbol.(tbl.columns))
+            ipath_vals(tbl) = [Float64(collect(rp)[icol(tbl)]) for rp in tbl.rows]
+
             tbl = ipath(r.doc)
             @test tbl !== nothing
             if tbl !== nothing
-                ivals = [Float64(getproperty(rp, :i)) for rp in tbl.rows]
+                ivals = ipath_vals(tbl)
                 # The bound holds along the WHOLE path, to a tolerance — never an exact
                 # float equality (T3 is Linux-only; BLAS differs by a ULP).
                 @test all(v -> v >= -10 - 1e-8, ivals)
@@ -5826,7 +5832,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             tbl2 = ipath(r2.doc)
             @test tbl2 !== nothing
             if tbl2 !== nothing
-                i2 = [Float64(getproperty(rp, :i)) for rp in tbl2.rows]
+                i2 = ipath_vals(tbl2)
                 @test all(v -> v >= -10 - 1e-8, i2)   # slack bound, holds exactly
                 @test all(v -> v <= 1e-6, i2)         # binding bound, solver tolerance
             end
@@ -5888,7 +5894,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                 # is compared anywhere in this testset: T3 is Linux-only, so an exact
                 # equality on a posterior number is unreproducible (CLAUDE.md ULP
                 # gotcha). Exit code and this row set carry the proof instead.
-                @test sort(String(collect(row)[1]) for row in table_rows(tbl)) ==
+                @test sort([String(collect(row)[1]) for row in table_rows(tbl)]) ==
                       ["rho", "sigma"]
             end
 
