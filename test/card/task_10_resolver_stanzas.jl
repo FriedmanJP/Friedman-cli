@@ -27,6 +27,254 @@ _t10_constraints(lines...) =
 
 _t10_err(f) = try; f(); nothing; catch e; e; end
 
+"""A `.jl` model file whose card preamble is `card`, over an AR(1) body with a
+`phi_pi`-driven `i`, so a `constraints:` bound has a variable to bind."""
+function _t10_model(card::AbstractString)
+    f = tempname() * ".jl"
+    write(f, string(card, """
+    @dsge begin
+        parameters: rho = 0.9, sigma = 0.01, phi_pi = 1.5
+        endogenous: Y, C, i
+        exogenous: e
+        linear: true
+
+        Y[t] = rho * Y[t-1] + sigma * e[t]
+        C[t] = Y[t]
+        i[t] = phi_pi * Y[t]
+    end
+    """))
+    return f
+end
+
+"""A two-column CSV; the handler-level probes below die at the LOADER, long
+before any of this is read, so the contents only have to be readable."""
+_t10_csv() = (p = tempname() * ".csv"; write(p, "Y\n0.1\n0.2\n0.15\n"); p)
+
+"""The four leaves that declare `--constraints` / `--constraint`, as callables."""
+function _t10_occbin_probes(model::AbstractString)
+    return Any[
+        ("solve", () -> _dsge_solve(; model, periods=3, output=tempname() * ".json", format="json")),
+        ("steady-state", () -> _dsge_steady_state(; model, output=tempname() * ".json", format="json")),
+        ("irf", () -> _dsge_irf(; model, horizon=3, output=tempname() * ".json", format="json")),
+        ("perfect-foresight", () -> _dsge_perfect_foresight(; model, periods=3,
+                                    output=tempname() * ".json", format="json")),
+    ]
+end
+
+@testset "an empty constraints: stanza is refused, exactly like an empty priors: one (CARD-W2 #210)" begin
+    # F3. `lower_priors` refuses an empty `priors:` stanza; `lower_constraints` did
+    # not, so a bare `constraints:` header lowered to ZERO bounds, the four OccBin
+    # leaves' branch guard (`haskey(stanzas, :constraints)`) fired anyway, and
+    # `dsge solve` printed "Solving with OccBin constraints..." while solving with
+    # none. Mirroring the lowerer is the symmetric fix — and the more informative
+    # one: it names the stanza, whereas gating the guard on `!isempty(bounds)`
+    # would silently fall back to the unconstrained path and say nothing.
+    empty_c = lower_constraints(parse_card("constraints:\n"), "m.jl")
+    @test isempty(empty_c["bounds"])                 # the lowerer does NOT refuse it
+    e = _t10_err(() -> _resolve_dsge_constraints("", String[];
+                                                 stanzas=Dict{Symbol,Any}(:constraints => empty_c)))
+    @test e isa CliError
+    @test e.code == "config/invalid"
+    @test occursin("empty", e.message)
+    @test occursin("constraints", e.message)
+
+    # The mirror, and the symmetry itself: same code, same word, from the layer
+    # that already did it. Pinning BOTH is what stops the next asymmetry.
+    p = _t10_err(() -> lower_priors(parse_card("priors:\n"), "m.jl"))
+    @test p isa CliError && p.code == e.code
+    @test occursin("empty", p.message)
+    @test occursin("priors", p.message)
+
+    # At the leaf: all four, not just the resolver. Delete the `isempty(bounds)`
+    # throw and the branch guard still fires, the resolver returns an EMPTY vector
+    # and all four exit 0 — which is the defect.
+    empty_model = _t10_model("constraints:\n")
+    for (label, thunk) in _t10_occbin_probes(empty_model)
+        err = _t10_err(thunk)
+        @test err isa CliError
+        @test err.code == "config/invalid"
+        @test occursin("empty", err.message)
+        @test occursin("constraints", err.message)
+    end
+end
+
+@testset "the stanza policy is symmetric: no leaf ignores a stanza it cannot use (CARD-W2 #210)" begin
+    # F2. The rule, as a table. Every combination is asserted in BOTH directions —
+    # a policy that only ever refuses (or only ever allows) cannot pass.
+    both = Dict{Symbol,Any}(
+        :priors => _t10_priors("rho ~ beta(2, 2)")[:priors],
+        :constraints => _t10_constraints("i[t] >= -10")[:constraints])
+    for (allow_p, allow_c) in ((true, true), (true, false), (false, true), (false, false))
+        if allow_p && allow_c
+            # NOT through `_t10_err`: that helper discards a non-throwing return, so
+            # the "allowed" direction has to be called directly or it is vacuous.
+            @test _model_card_stanza_policy(both; allow_priors=true, allow_constraints=true) === both
+        else
+            got = _t10_err(() -> _model_card_stanza_policy(both;
+                              allow_priors=allow_p, allow_constraints=allow_c))
+            @test got isa CliError
+            @test got.code == "config/invalid"
+            # the refused stanza is the one NAMED: with both off it is priors, which
+            # is checked first
+            @test occursin(allow_p ? "constraints:" : "priors:", got.message)
+        end
+    end
+    # An empty dict is always fine — the overwhelming majority of model files.
+    @test _model_card_stanza_policy(Dict{Symbol,Any}()) == Dict{Symbol,Any}()
+
+    # The two loaders apply it with BOTH flags off, so the ~25 leaves that consume
+    # neither stanza are covered by one call rather than 25 call sites.
+    prior_model = _t10_model("priors:\n  rho ~ beta(2, 2)\n")
+    cons_model = _t10_model("constraints:\n  i[t] >= -10\n")
+    for (label, path) in (("priors:", prior_model), ("constraints:", cons_model))
+        for (which, thunk) in (("_load_dsge_model", () -> _load_dsge_model(path)),
+                               ("_load_ha_model", () -> _load_ha_model(path)))
+            err = _t10_err(thunk)
+            @test err isa CliError
+            @test err.code == "config/invalid"
+            @test occursin(label, err.message)
+        end
+    end
+    # …and the opt-in still works, so the refusal is a policy and not a block.
+    @test _load_dsge_model(prior_model; allow_priors=true) isa MacroEconometricModels.ModelSpec
+    @test _load_dsge_model(cons_model; allow_constraints=true) isa MacroEconometricModels.ModelSpec
+
+    # The Bayesian mirror: a `constraints:` stanza is refused BY NAME, ahead of the
+    # priors guard. Pre-fix this reported "priors are required…" — a message about
+    # the wrong source entirely. Asserting the code, not just the throw, is what
+    # tells the two failures apart.
+    csv = _t10_csv()
+    for (label, thunk) in (
+            ("bayes inputs", () -> _dsge_bayes_inputs(; model=cons_model, data=csv,
+                        params="rho", priors="", prior=String[], observables="Y",
+                        solver="gensys", order=1)),
+            ("ha estimate",  () -> _dsge_ha_estimate(; model=cons_model, data=csv,
+                        priors="", prior=String[], observables="Y",
+                        n_draws=1, burnin=0, n_smc=1)))
+        err = _t10_err(thunk)
+        @test err isa CliError
+        @test err.code == "config/invalid"
+        @test err.code != "usage/missing" && err.code != "usage/missing-option"
+        @test occursin("constraints:", err.message)
+    end
+
+    # A representative sample of the leaves that consume NEITHER stanza, one from
+    # each family the grep enumeration in the policy docstring names. Each dies at
+    # the loader, before any solve, so this is cheap. Drop the policy from either
+    # loader and every one of these goes green (silent acceptance).
+    plain_csv = _t10_csv()
+    for (label, path) in (("priors:", prior_model), ("constraints:", cons_model))
+        for (leaf, thunk) in (
+                ("dsge moments",  () -> _dsge_moments(; model=path, output=tempname() * ".json", format="json")),
+                ("dsge simulate", () -> _dsge_simulate(; model=path, output=tempname() * ".json", format="json")),
+                ("dsge fevd",     () -> _dsge_fevd(; model=path, output=tempname() * ".json", format="json")),
+                ("dsge hd",       () -> _dsge_hd(; model=path, data=plain_csv,
+                                       observables="Y", output=tempname() * ".json", format="json")),
+                ("dsge estimate", () -> _dsge_estimate(; model=path, data=plain_csv, params="rho",
+                                       output=tempname() * ".json", format="json")),
+                ("dsge ha solve", () -> _dsge_ha_solve(; model=path, output=tempname() * ".json", format="json")))
+            err = _t10_err(thunk)
+            @test err isa CliError
+            @test err.code == "config/invalid"
+            @test occursin(label, err.message)
+        end
+    end
+
+    # …and the other direction of the same policy is untouched: the OccBin leaves
+    # still CONSUME a `constraints:` stanza rather than refusing it.
+    @test _t10_err(() -> _dsge_steady_state(; model=cons_model,
+                    output=tempname() * ".json", format="json")) === nothing
+    @test _t10_err(() -> _dsge_bayes_inputs(; model=prior_model, data=csv, params="rho",
+                    priors="", prior=String[], observables="Y", solver="gensys", order=1)) === nothing
+end
+
+@testset "dsge bayes compare gives model 2 the same third source (CARD-W2 #210)" begin
+    # F1. `isempty(priors2) && error(...)` ran before any model was loaded, so the
+    # third source was UNREACHABLE for model 2: a user who put `priors:` in both
+    # model files still had to write a priors TOML for model 2, and any parameter
+    # the two shared became a hard three-source collision.
+    # A 1-endogenous AR(1) so the mock SMC actually completes: case (a) needs the
+    # whole comparison to run, and that is what makes it a proof that model 2's
+    # stanza is CONSUMED rather than merely tolerated.
+    ar1(card) = (f = tempname() * ".jl"; write(f, card * """
+    @dsge begin
+        parameters: rho = 0.9, sigma = 0.01
+        endogenous: Y
+        exogenous: e
+        linear: true
+
+        Y[t] = rho * Y[t-1] + sigma * e[t]
+    end
+    """); f)
+    csv = (p = tempname() * ".csv";
+           write(p, "Y\n" * join([string(0.1 * i) for i in 1:40], "\n") * "\n"); p)
+    plain_model = ar1("")
+    prior_model = ar1("priors:\n  rho ~ beta(2, 2)\n  sigma ~ inv_gamma(2, 0.1)\n")
+    pri_toml = _t10_toml("[priors.rho]\ndist = \"beta\"\na = 2.0\nb = 2.0\n" *
+                         "[priors.sigma]\ndist = \"inv_gamma\"\na = 2.0\nb = 0.1\n")
+    cmp(; model, model2, params2, priors2) = _dsge_bayes_compare(;
+        model, data=csv, params="rho,sigma", priors=pri_toml, sampler="smc",
+        n_smc=2, n_particles=4, n_draws=4, burnin=1, ess_target=0.5,
+        observables="Y", solver="gensys", order=1, delayed_acceptance=false,
+        model2, params2, priors2, output=tempname() * ".json", format="json")
+
+    # (a) Model 2's own `priors:` stanza, with NO --priors2, and the comparison
+    # completes. Pre-fix `isempty(priors2) && error(...)` fired before any model
+    # was loaded, so this was an untyped ErrorException; the guard asserted the
+    # ABSENCE of its message (over both that and a typed CliError), so any revert
+    # goes red. A COMPLETED run is the stronger half: it can only happen if the
+    # stanza was read, merged and bridged into model 2's prior distributions.
+    @test _t10_err(() -> cmp(model=plain_model, model2=prior_model,
+                             params2="rho,sigma", priors2="")) === nothing
+
+    # (b) The trap the review described, now with model 1's behaviour rather than
+    # inverted: a --priors2 file that shares a parameter with model 2's stanza is a
+    # two-of-three collision naming BOTH sources. Revert the guard and this exits 0
+    # instead; keep the guard and skip the merge and it exits 0 too.
+    e = _t10_err(() -> cmp(model=plain_model, model2=prior_model,
+                           params2="rho,sigma", priors2=pri_toml))
+    @test e isa CliError
+    @test e.code == "config/invalid"
+    # WHICH shared parameter is named depends on Dict iteration order, so the test
+    # says so: the message must name a real one of the two, not just "conflict".
+    named = match(r"prior '(\w+)' is given twice", e.message)
+    @test named !== nothing
+    @test named[1] in ("rho", "sigma")
+    @test occursin("stanza", e.message)      # one of the two sources is the stanza
+    @test occursin("--priors", e.message)    # …and the other is the file
+    @test !occursin("--prior ", e.message)   # NOT the --prior line source
+
+    # (c) Neither source for model 2: the guard fires, with the SHARED message
+    # const (one copy, as everywhere else) plus a hint naming the Model-2 flag the
+    # user actually has. The old code raised a bare `error()` → exit 1, no envelope.
+    e2 = _t10_err(() -> cmp(model=plain_model, model2=plain_model,
+                            params2="rho,sigma", priors2=""))
+    @test e2 isa CliError
+    @test e2.code == "usage/missing-option"
+    @test e2.message == _PRIORS_REQUIRED_MESSAGE
+    @test occursin("--priors2", e2.hint)
+    m = lowercase(e2.message)
+    @test findfirst("--prior", m) < findfirst("priors:", m) < findfirst("--priors", m)
+
+    # (d) --priors2 still satisfies it — the guard is not now unconditional.
+    e0 = _t10_err(() -> cmp(model=plain_model, model2=plain_model,
+                            params2="rho,sigma", priors2=pri_toml))
+    m0 = e0 === nothing ? "" : (e0 isa CliError ? e0.message : sprint(showerror, e0))
+    @test !occursin("--priors2", m0)
+    @test !occursin("priors are required", m0)
+
+    # (e) The two other compare guards are TYPED now. They were bare `error()` →
+    # exit 1 with no envelope, which `@test_throws Exception` in test_commands.jl
+    # cannot tell but a user could.
+    for (kw, token) in (((; model2="", params2="rho,sigma", priors2=pri_toml), "--model2"),
+                        ((; model2=plain_model, params2="", priors2=pri_toml), "--params2"))
+        err = _t10_err(() -> cmp(; model=plain_model, kw...))
+        @test err isa CliError
+        @test err.code == "usage/missing-option"
+        @test occursin(token, err.message)
+    end
+end
+
 @testset "stanza + flag + file are one set (CARD-W2 #210)" begin
     @testset "a priors: stanza alone satisfies a required-priors leaf" begin
         # The whole point of the wave: `dsge bayes` is a REQUIRED-priors leaf, and
@@ -258,18 +506,7 @@ end
 @testset "the four OccBin leaves take a constraints: stanza and refuse a priors: one (CARD-W2 #210)" begin
     # `_dsge_solve`, `_dsge_steady_state`, `_dsge_irf`, `_dsge_perfect_foresight`
     # are the four leaves that declare `--constraints` / `--constraint`.
-    mkmodel(card) = (f = tempname() * ".jl"; write(f, string(card, """
-    @dsge begin
-        parameters: rho = 0.9, sigma = 0.01, phi_pi = 1.5
-        endogenous: Y, C, i
-        exogenous: e
-        linear: true
-
-        Y[t] = rho * Y[t-1] + sigma * e[t]
-        C[t] = Y[t]
-        i[t] = phi_pi * Y[t]
-    end
-    """)); f)
+    mkmodel(card) = _t10_model(card)   # hoisted: the policy testset needs it too
 
     cons_model = mkmodel("constraints:\n  i[t] >= -10\n")
     prior_model = mkmodel("priors:\n  rho ~ beta(2, 2)\n")

@@ -1682,11 +1682,11 @@ function _dsge_solve(; model::String, method::String="gensys", order::Int=1,
         error("invalid --constraint-solver value '$constraint_solver'; must be one of: nonlinearsolve, optim, nlopt, ipopt, path")
     end
 
-    spec = _load_dsge_model(model)
-    # CARD-W2 (#210): the model's `constraints:` stanza is a THIRD constraint
-    # source, and it alone can select the constrained branch. A `priors:` stanza is
-    # Bayesian and this leaf is not — it is refused, not ignored.
-    stanzas = _occbin_stanzas(_model_card_stanzas_for(model))
+    # CARD-W2 (#210): this leaf is the one that CONSUMES a `constraints:` stanza, so
+    # it is the only kind the loader lets through; a `priors:` stanza is refused by
+    # the same symmetric policy. The stanza itself is read after the load.
+    spec = _load_dsge_model(model; allow_constraints=true)
+    stanzas = _model_card_stanzas_for(model)
 
     if !isempty(constraints) || !isempty(constraint) || haskey(stanzas, :constraints)
         cons = _resolve_dsge_constraints(constraints, constraint; stanzas=stanzas, spec=spec)
@@ -2086,11 +2086,11 @@ function _dsge_steady_state(; model::String, constraints::String="",
         error("invalid --constraint-solver value '$constraint_solver'; must be one of: nonlinearsolve, optim, nlopt, ipopt, path")
     end
 
-    spec = _load_dsge_model(model)
-    # CARD-W2 (#210): the model's `constraints:` stanza is a THIRD constraint
-    # source, and it alone can select the constrained branch. A `priors:` stanza is
-    # Bayesian and this leaf is not — it is refused, not ignored.
-    stanzas = _occbin_stanzas(_model_card_stanzas_for(model))
+    # CARD-W2 (#210): this leaf CONSUMES a `constraints:` stanza, so it is the only
+    # kind the loader lets through; a `priors:` stanza is refused by the same
+    # symmetric policy. The stanza itself is read after the load.
+    spec = _load_dsge_model(model; allow_constraints=true)
+    stanzas = _model_card_stanzas_for(model)
 
     solver_kw = isempty(constraint_solver) ? (;) : (; solver=Symbol(constraint_solver))
     if !isempty(constraints) || !isempty(constraint) || haskey(stanzas, :constraints)
@@ -2169,10 +2169,11 @@ function _dsge_irf(; model::String, method::String="gensys", order::Int=1,
                     constraints::String="", constraint::Vector{String}=String[],
                     output::String="", format::String="table",
                     plot::Bool=false, plot_save::String="")
-    spec = _load_dsge_model(model)
-    # CARD-W2 (#210): a `constraints:` stanza alone selects the OccBin branch, and a
-    # `priors:` stanza (Bayesian) is refused here.
-    stanzas = _occbin_stanzas(_model_card_stanzas_for(model))
+    # CARD-W2 (#210): this leaf CONSUMES a `constraints:` stanza, so it is the only
+    # kind the loader lets through; a `priors:` stanza is refused by the same
+    # symmetric policy.
+    spec = _load_dsge_model(model; allow_constraints=true)
+    stanzas = _model_card_stanzas_for(model)
 
     sol = _solve_dsge(spec; method=method, order=order, degree=degree, grid=grid,
                       next_state=next_state, howard_steps=howard_steps,
@@ -2359,7 +2360,10 @@ function _dsge_perfect_foresight(; model::String, shocks::String="",
     tol > 0 || throw(CliError("usage/invalid",
         "perfect-foresight: --tol must be > 0 (got $tol)"))
 
-    spec = _load_dsge_model(model)
+    # CARD-W2 (#210): this leaf CONSUMES a `constraints:` stanza, so it is the only
+    # kind the loader lets through; a `priors:` stanza is refused by the same
+    # symmetric policy. The stanza itself is read just before the branch guard.
+    spec = _load_dsge_model(model; allow_constraints=true)
 
     shock_mat = if isempty(shocks)
         nothing
@@ -2379,9 +2383,8 @@ function _dsge_perfect_foresight(; model::String, shocks::String="",
     _status("  Shock periods: $(shock_mat === nothing ? periods : size(shock_mat, 1)), transition periods: $periods")
     _status()
 
-    # CARD-W2 (#210): a `constraints:` stanza alone selects the constrained path, and
-    # a `priors:` stanza (Bayesian) is refused here.
-    stanzas = _occbin_stanzas(_model_card_stanzas_for(model))
+    # CARD-W2 (#210): a `constraints:` stanza alone selects the constrained path.
+    stanzas = _model_card_stanzas_for(model)
     solver_kw = isempty(constraint_solver) ? (;) : (; solver=Symbol(constraint_solver))
     cons_kw = if !isempty(constraints) || !isempty(constraint) || haskey(stanzas, :constraints)
         cons = _resolve_dsge_constraints(constraints, constraint; stanzas=stanzas, spec=spec)
@@ -2472,8 +2475,11 @@ function _dsge_bayes_inputs(; model::String, data::String, params::String,
     # different path — it merges with --prior and --priors in one resolver. Read
     # before the guard so the guard can see it; `_model_card_stanzas_for` is a
     # no-op for a path that is not a file, so a missing model still gets the
-    # loader's own `data/file-not-found` a few lines down.
-    stanzas = _model_card_stanzas_for(model)
+    # loader's own `data/file-not-found` a few lines down. The policy runs HERE,
+    # ahead of the priors guard, so a `constraints:` stanza on a Bayesian leaf is
+    # named as such instead of surfacing as "priors are required".
+    stanzas = _model_card_stanza_policy(_model_card_stanzas_for(model);
+                                        allow_priors=true, allow_constraints=false)
     isempty(priors) && isempty(prior) && !haskey(stanzas, :priors) &&
         throw(CliError("usage/missing", _PRIORS_REQUIRED_MESSAGE))
 
@@ -2482,7 +2488,7 @@ function _dsge_bayes_inputs(; model::String, data::String, params::String,
             "invalid --constraint-solver value '$constraint_solver'; must be one of: nonlinearsolve, optim, nlopt, ipopt, path"))
     end
 
-    spec = _load_dsge_model(model)
+    spec = _load_dsge_model(model; allow_priors=true)
 
     Y = isempty(data) ? zeros(0, 0) : df_to_matrix(load_data(data))
 
@@ -2825,9 +2831,21 @@ function _dsge_bayes_compare(; model::String, data::String="", params::String=""
                               prefilter::String="none", hp_lambda::Float64=1600.0,
                                measurement_error::String="none",
                               output::String="", format::String="table")
-    isempty(model2) && error("--model2 is required for model comparison")
-    isempty(params2) && error("--params2 is required for model comparison")
-    isempty(priors2) && error("--priors2 is required for model comparison")
+    isempty(model2) && throw(CliError("usage/missing-option",
+        "--model2 is required for model comparison"))
+    isempty(params2) && throw(CliError("usage/missing-option",
+        "--params2 is required for model comparison"))
+    # CARD-W2 (#210): Model 2 gets the same THIRD source as Model 1 — a `priors:`
+    # stanza in model2's own `.jl` file. Requiring --priors2 on top of it made the
+    # new source unreachable for Model 2, and any parameter the two shared became a
+    # hard three-source collision: the capability the wave adds, inverted. The
+    # message is the shared const (one copy, as everywhere else); the hint is what
+    # names this invocation's Model-2 flag.
+    isempty(priors2) && !haskey(_model_card_stanza_policy(_model_card_stanzas_for(model2);
+                                                        allow_priors=true), :priors) &&
+        throw(CliError("usage/missing-option", _PRIORS_REQUIRED_MESSAGE;
+                       hint="this is the second model: pass --priors2 <file.toml>, or " *
+                            "give model2 its own 'priors:' stanza"))
 
     _status("Estimating Model 1...")
     r1 = _dsge_bayes_run_estimation(; model, data, params, priors, prior, sampler,
@@ -3848,7 +3866,11 @@ function _dsge_ha_estimate(; model::String, data::String="", priors::String="",
     # CARD-W2 (#210): same third source as the RA guard above — a `priors:` stanza
     # in the `.jl` model file. `model` may be a BUILTIN symbol here, which is why
     # the read goes through `_model_card_stanzas_for` rather than reading directly.
-    stanzas = _model_card_stanzas_for(model)
+    # Same symmetric policy, and it runs ahead of the priors guard for the same
+    # reason: a `constraints:` stanza here is named, not swallowed by "priors are
+    # required".
+    stanzas = _model_card_stanza_policy(_model_card_stanzas_for(model);
+                                        allow_priors=true, allow_constraints=false)
     isempty(priors) && isempty(prior) && !haskey(stanzas, :priors) &&
         throw(CliError("usage/missing-option", _PRIORS_REQUIRED_MESSAGE))
     meth = _parse_ha_method(method)
@@ -3866,7 +3888,7 @@ function _dsge_ha_estimate(; model::String, data::String="", priors::String="",
          (measurement_error in ("none", "") ? nothing :
           throw(CliError("usage/invalid-option", "--measurement-error must be none|auto")))
 
-    spec = _load_ha_model(model; distribution=distribution)
+    spec = _load_ha_model(model; distribution=distribution, allow_priors=true)
     hh = _parse_hh_solver(hh_solver)
     df = load_data(data)
     Y = df_to_matrix(df)

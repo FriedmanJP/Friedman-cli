@@ -2551,8 +2551,14 @@ call that evaluates them must go through [`_dsge_call`] (world-age barrier).
 
 An HA spec, or any other agent kind reachable via `to_spec`, is `usage/wrong-command`
 (exit 2) — never silently remapped into an RA solver.
+
+`allow_priors` / `allow_constraints` declare which card stanzas this caller
+CONSUMES; a stanza the caller does not consume is `config/invalid` via
+[`_model_card_stanza_policy`](@ref) rather than silently ignored. Both default to
+false, so a caller that reads a stanza must say so.
 """
-function _load_dsge_model(path::String)
+function _load_dsge_model(path::String; allow_priors::Bool=false,
+                          allow_constraints::Bool=false)
     _validate_input_path(path)
     isfile(path) || throw(CliError("data/file-not-found", "model file not found: $path"))
     ext = lowercase(splitext(path)[2])
@@ -2585,9 +2591,15 @@ function _load_dsge_model(path::String)
 
     elseif ext == ".jl"
         # A .jl model file may carry a model card (priors/constraints stanzas)
-        # above its @dsge block; the block alone is the executable text.
+        # above its @dsge block; the block alone is the executable text. A stanza
+        # this leaf cannot CONSUME is refused, not just one that fails to parse —
+        # see `_model_card_stanza_policy`. Both flags default to false, so every
+        # RA leaf except the Bayesian and OccBin ones is covered by this one call.
         card, model_src = _split_card_and_model(path)
-        card === nothing || _model_card_stanzas(path)   # validate; never silently ignored
+        card === nothing ||
+            _model_card_stanza_policy(_model_card_stanzas(path);
+                                      allow_priors=allow_priors,
+                                      allow_constraints=allow_constraints)
         mod = _dsge_sandbox()
         result = try
             card === nothing ? Base.include(mod, path) : include_string(mod, model_src, path)
@@ -2722,8 +2734,13 @@ file that evaluates to a `ModelSpec` carrying a `HouseholdSystem`.
 The `.jl` path goes through [`_dsge_sandbox`]. At MEMs 0.9.0 the HA SSJ path evaluates
 the spec's `NamedEquation` residual closures, so downstream `compute_steady_state` /
 `solve` of a `.jl` spec must go through [`_dsge_call`] (world-age barrier).
+
+`allow_priors` / `allow_constraints` are as on [`_load_dsge_model`](@ref): both
+default to false, so the single Bayesian HA caller opts in and every other HA
+leaf refuses a stanza it cannot use.
 """
-function _load_ha_model(model::String; distribution::String="young")
+function _load_ha_model(model::String; distribution::String="young",
+                        allow_priors::Bool=false, allow_constraints::Bool=false)
     isempty(strip(model)) && throw(CliError("usage/missing-arg",
         "HA model is required (builtin name or path to .jl ModelSpec)"))
     dist = _parse_ha_distribution(distribution)
@@ -2747,7 +2764,13 @@ function _load_ha_model(model::String; distribution::String="young")
     # `ident:` in helper code is a loud config/invalid, and a stanza that is not
     # a model card (`gmm lp:`) is rejected rather than silently ignored.
     card, model_src = _split_card_and_model(model)
-    card === nothing || _model_card_stanzas(model)
+    # A stanza this leaf cannot CONSUME is refused too, not just one that fails to
+    # parse — see `_model_card_stanza_policy`. Both flags default to false, so every
+    # HA leaf except the Bayesian one is covered by this one call.
+    card === nothing ||
+        _model_card_stanza_policy(_model_card_stanzas(model);
+                                  allow_priors=allow_priors,
+                                  allow_constraints=allow_constraints)
     mod = _dsge_sandbox()
     result = try
         card === nothing ? Base.include(mod, model) : include_string(mod, model_src, model)
@@ -3212,6 +3235,15 @@ function _resolve_dsge_constraints(file::String, lines::Vector{String};
     end
 
     function add_bounds(lowered, src)
+        # Mirror of `lower_priors`' own empty-stanza refusal: a bare `constraints:`
+        # header lowered to zero bounds, and the four OccBin leaves would then enter
+        # the constrained branch with an EMPTY constraint vector — `dsge solve` even
+        # printed "Solving with OccBin constraints..." on that path. A non-empty
+        # `--constraint` list can never reach this (the lowerer raises first), so
+        # the message names the stanza.
+        isempty(lowered["bounds"]) && throw(CliError("config/invalid",
+            "the constraints stanza is empty — supply at least one bound such as " *
+            "'i[t] >= 0', or delete the stanza header"))
         # The card grammar has no nonlinear form, so `lower_constraints` always
         # returns an empty `nonlinear` list; a hand-built stanza dict carrying one
         # is refused rather than silently dropped.
@@ -3248,19 +3280,53 @@ function _resolve_dsge_constraints(file::String, lines::Vector{String};
 end
 
 """
-    _occbin_stanzas(stanzas) → stanzas
+    _model_card_stanza_policy(stanzas; allow_priors=false, allow_constraints=false)
+        → stanzas
 
-Guard for the four OccBin leaves (`dsge solve`, `dsge steady-state`, `dsge irf`,
-`dsge perfect-foresight`). A `.jl` model file may carry a `constraints:` stanza
-and a `priors:` stanza, but `priors:` is a BAYESIAN concept and these leaves are
-frequentist: accepting one would drop configuration the user believed was
-applied, and there is no prior to give it precedence against here. Naming it is
-`config/invalid` at every OccBin leaf instead.
+The ONE rule for what a command does with a `.jl` model file's card stanzas, and
+it is symmetric: a stanza this command cannot consume is `config/invalid` naming
+it, never silently ignored. Silently ignoring is the failure that matters —
+`dsge solve` refused a `priors:` stanza while `dsge estimate` accepted the very
+same file, so the same model file behaved two ways.
+
+Who allows what, and why (the sets come from grepping what each handler actually
+consumes, not from guessing):
+
+- `allow_priors` — the Bayesian leaves only: `_dsge_bayes_inputs` (every
+  `dsge bayes` handler, and `dsge bayes compare` for BOTH models) and
+  `_dsge_ha_estimate`. They read `stanzas[:priors]` into
+  [`_resolve_dsge_priors`](@ref).
+- `allow_constraints` — the four OccBin leaves that declare
+  `--constraints`/`--constraint`: `dsge solve`, `dsge steady-state`, `dsge irf`,
+  `dsge perfect-foresight`. They read `stanzas[:constraints]` into
+  [`_resolve_dsge_constraints`](@ref).
+- Everything else that loads a model file — `dsge moments`, `dsge estimate`,
+  `dsge fevd`, `dsge hd`, `dsge simulate`, `dsge determinacy-map`, the
+  `ct`/`bank`/`firm`/`lifecycle`/`dcegm` families, every `dsge ha` / `hadsge`
+  leaf, `data simulate dsge|ha`, and the `policy news dsge|ha` / `jacobian ha` /
+  `sufficiency dsge` paths — consumes NEITHER, so the default refuses both. They
+  reach the model through [`_load_dsge_model`](@ref) / [`_load_ha_model`](@ref),
+  which apply this policy with both flags off, so the rule is enforced in one
+  place for ~25 leaves rather than at each call site.
+
+The two flags are independent on purpose: no leaf allows both, because no leaf
+estimates with priors AND solves under OccBin constraints.
 """
-function _occbin_stanzas(stanzas::AbstractDict)
-    haskey(stanzas, :priors) && throw(CliError("config/invalid",
-        "this command is frequentist, so a 'priors:' stanza in the model file is not " *
-        "used — run the estimation on a 'dsge bayes' command, or delete the stanza"))
+function _model_card_stanza_policy(stanzas::AbstractDict;
+                                    allow_priors::Bool=false,
+                                    allow_constraints::Bool=false)
+    if !allow_priors && haskey(stanzas, :priors)
+        throw(CliError("config/invalid",
+            "this command is frequentist, so a 'priors:' stanza in the model file is " *
+            "not used — run the estimation on a 'dsge bayes' command, or delete the stanza"))
+    end
+    if !allow_constraints && haskey(stanzas, :constraints)
+        throw(CliError("config/invalid",
+            "this command does not solve under OccBin constraints, so a " *
+            "'constraints:' stanza in the model file is not used — run it on 'dsge " *
+            "solve', 'dsge irf', 'dsge steady-state' or 'dsge perfect-foresight', or " *
+            "delete the stanza"))
+    end
     return stanzas
 end
 

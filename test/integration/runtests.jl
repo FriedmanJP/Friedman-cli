@@ -5669,6 +5669,107 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             msg = lowercase(String(bare.doc.error.message))
             @test findfirst("--prior", msg) < findfirst("priors:", msg) < findfirst("--priors", msg)
         end
+        @testset "CARD-W2 #210 — a stanza no leaf can use is refused the same way everywhere (T3)" begin
+            # The symmetry rule, end to end on real MEMs and the real dispatcher. The
+            # same model file must behave the SAME way on a leaf that consumes
+            # `constraints:` and on one that consumes neither — pre-fix `dsge solve`
+            # refused a `priors:` stanza while `dsge moments` accepted and ignored it.
+            # Exit code + error code only; no numbers to compare.
+            for (name, card, token) in (("priors", "priors:\n  rho ~ beta(2, 2)\n", "priors:"),
+                                        ("constraints", "constraints:\n  Y[t] >= -10\n", "constraints:"))
+                f = joinpath(dir, "unused_$(name).jl")
+                write(f, card * """
+                @dsge begin
+                    parameters: rho = 0.9, sigma = 0.01
+                    endogenous: Y, C
+                    exogenous: e
+                    linear: true
+
+                    Y[t] = rho * Y[t-1] + sigma * e[t]
+                    C[t] = Y[t]
+                end
+                """)
+                for leaf in (["dsge", "solve"], ["dsge", "moments"])
+                    r = run_json(vcat(leaf, [f]))
+                    @test r.code == 4
+                    @test String(r.doc.error.code) == "config/invalid"
+                    @test occursin(token, String(r.doc.error.message))
+                end
+            end
+
+            # …and the mirror: `dsge solve` CONSUMES a `constraints:` stanza rather
+            # than refusing it, so the same file is not refused everywhere.
+            ok = run_json(["dsge", "steady-state", joinpath(dir, "unused_constraints.jl")])
+            assert_envelope_ok(ok; label="dsge steady-state — constraints: stanza consumed")
+            @test named_table(ok.doc, :dsge_steady_state) !== nothing ||
+                  any(t -> t isa JSON3.Object && haskey(t, :columns) &&
+                           "steady_state" in String.(t.columns), values(ok.doc.data))
+        end
+
+        @testset "CARD-W2 #210 — dsge bayes compare accepts model 2's priors: stanza (T3)" begin
+            # F1. Both cases below stop BEFORE any estimation, so they cost seconds
+            # rather than two SMC runs, and each one is a different direction.
+            card2 = joinpath(dir, "compare_model2_card.jl")
+            write(card2, """
+            priors:
+              rho ~ beta(0.5, 0.2)
+              sigma ~ inv_gamma(2.0, 0.1)
+
+            @dsge begin
+                parameters: rho = 0.9, sigma = 0.01
+                endogenous: Y, C
+                exogenous: e
+                linear: true
+
+                Y[t] = rho * Y[t-1] + sigma * e[t]
+                C[t] = Y[t]
+            end
+            """)
+            # model 1 carries a `constraints:` stanza, which no Bayesian leaf can
+            # use — so model 1's estimation is REFUSED. That is what makes this a
+            # proof the model-2 guard passed: reaching model 1 at all means the
+            # `--priors2` guard let it through, and it happens without sampling.
+            m1 = joinpath(dir, "compare_model1_cons.jl")
+            write(m1, "constraints:\n  Y[t] >= -10\n" * read(card2, String))
+            pdat = joinpath(dir, "data_compare.csv")
+            open(pdat, "w") do io
+                println(io, "Y"); y = 0.0
+                for _ in 1:60; y = 0.9y + 0.01randn(); println(io, y); end
+            end
+            pri = joinpath(dir, "compare_priors.toml")
+            write(pri, """
+            [priors.rho]
+            dist = "beta"
+            a = 0.5
+            b = 0.2
+            [priors.sigma]
+            dist = "inv_gamma"
+            a = 2.0
+            b = 0.1
+            """)
+
+            # (i) model2 has its own `priors:` stanza and --priors2 is ABSENT: the
+            # guard must NOT fire. Pre-fix this was a bare `error()` → exit 1 with no
+            # envelope, so `r.code == 4` (model 1's refusal) is the whole assertion.
+            r = run_json(["dsge", "bayes", "compare", m1,
+                          "--data", pdat, "--params", "rho,sigma", "--priors", pri,
+                          "--observables", "Y", "--model2", card2, "--params2", "rho,sigma"])
+            @test r.code == 4
+            @test String(r.doc.error.code) == "config/invalid"
+            @test !occursin("--priors2", String(r.doc.error.message))
+
+            # (ii) model2 with NO stanza and no --priors2 is the shared
+            # usage/missing, on the REAL dispatcher's exit code, with a hint naming
+            # the Model-2 flag the user actually has.
+            bare = run_json(["dsge", "bayes", "compare", model_jl,
+                             "--data", pdat, "--params", "rho,sigma", "--priors", pri,
+                             "--observables", "Y", "--model2", model_jl,
+                             "--params2", "rho,sigma"])
+            @test bare.code == 2
+            @test String(bare.doc.error.code) == "usage/missing-option"
+            @test occursin("--priors2", String(bare.doc.error.hint))
+            @test String(bare.doc.error.message) == Friedman._PRIORS_REQUIRED_MESSAGE
+        end
 
         @testset "W1 dsge solve --method pfi (no order=)" begin
             r = run_json(["dsge", "solve", model_jl, "--method", "pfi"])
