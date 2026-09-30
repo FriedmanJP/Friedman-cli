@@ -5397,6 +5397,75 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test _dsge_policy_table(r.doc) !== nothing
         end
 
+        @testset "CARD-W2 #210 — a docstring preamble is not a card (NEW-1)" begin
+            # Docstring prose is written as `Model: …` / `Parameters: …`, and a
+            # docstring is the most common preamble idiom in a Julia model file.
+            # Reading that as a card-header attempt rejected a file that loaded
+            # before the splitter existed, with wording about "the assignment"
+            # that does not apply to prose.
+            docj = joinpath(dir, "docstring_preamble.jl")
+            write(docj, """
+            \"\"\"
+            Model: AR(1) with a constant.
+            Parameters: rho, sigma.
+            \"\"\"
+            const MODEL_NOTE = "AR(1)"
+            @dsge begin
+                parameters: rho = 0.9, sigma = 0.01
+                endogenous: Y, C
+                exogenous: e
+                linear: true
+
+                Y[t] = rho * Y[t-1] + sigma * e[t]
+                C[t] = Y[t]
+            end
+            """)
+            r = run_json(["dsge", "solve", docj])
+            assert_envelope_ok(r; label="dsge solve docstring preamble")
+            @test _dsge_policy_table(r.doc) !== nothing
+        end
+
+        @testset "CARD-W2 #210 — a card must not change which @dsge block is solved (NEW-2)" begin
+            # The loader's contract is that the file's LAST expression is the
+            # ModelSpec, and the no-card path includes the whole file. Slicing the
+            # FIRST block instead meant adding a card silently switched which
+            # economic model got solved — exit 0, different numbers, no warning.
+            two = (rho) -> """
+                @dsge begin
+                    parameters: rho = $(rho), sigma = 0.01
+                    endogenous: Y, C
+                    exogenous: e
+                    linear: true
+
+                    Y[t] = rho * Y[t-1] + sigma * e[t]
+                    C[t] = Y[t]
+                end
+                """
+            blocks = string(two("0.5"), "\n", two("0.9"))
+
+            plain = joinpath(dir, "two_blocks.jl")
+            write(plain, blocks)
+            cardj = joinpath(dir, "two_blocks_card.jl")
+            write(cardj, "priors:\n  rho ~ beta(2, 2)\n" * blocks)
+
+            r_plain = run_json(["dsge", "solve", plain])
+            r_card = run_json(["dsge", "solve", cardj])
+            assert_envelope_ok(r_plain; label="dsge solve two blocks no card")
+            assert_envelope_ok(r_card; label="dsge solve two blocks with card")
+
+            # The LAST block's rho = 0.9 must be what BOTH solve. Asserted on the
+            # closed form of this model (Y[t] = rho*Y[t-1] + sigma*e[t] loads
+            # exactly rho on Y), not on key order.
+            for r in (r_plain, r_card)
+                tbl = _dsge_policy_table(r.doc)
+                @test tbl !== nothing
+                yi = col_index(tbl, "variable")
+                gi = col_index(tbl, "G1_Y")
+                row = only([r for r in table_rows(tbl) if String(r[yi]) == "Y"])
+                @test numv(row[gi]) ≈ 0.9 atol=1e-8
+            end
+        end
+
         @testset "CARD-W2 #210 — a card below the @dsge block is rejected, not executed" begin
             # The model slice runs to the matching `end`, so a stanza below the
             # model can never reach the evaluator; it is a typed config/invalid

@@ -2315,6 +2315,10 @@ end
 # requires end-of-line after the colon, which is exactly what this mistake
 # lacks. Hence the separate, looser probe with the two Julia escapes.
 
+# The keywords that can legitimately precede a `:` in Julia. This is NOT the full
+# keyword list — only the ones that can head a `Keyword word:` line — so a card
+# header can never be swallowed by it (verified: no member of `CARD_HEADERS`
+# begins with one of these).
 const _CARD_JULIA_KEYWORDS = Set([
     "using", "import", "export", "module", "baremodule", "const", "global",
     "local", "function", "macro", "struct", "mutable", "abstract", "primitive",
@@ -2328,19 +2332,55 @@ const _CARD_PREAMBLE_HEADER =
     r"^([A-Za-z][A-Za-z0-9_-]*(?:[ \t]+[A-Za-z][A-Za-z0-9_-]*)?):(?!:)"
 
 """
+    _card_doc_delims(line) → count of `\"\"\"` delimiters in `line`
+
+Triple-quote state is tracked by counting delimiters per line: an odd count
+opens or closes a region, an even count (`x = \"\"\"a\"\"\"`) does neither.
+Escaped delimiters inside a string literal are not distinguished — the failure
+mode is then a skipped line, never a wrong model.
+"""
+function _card_doc_delims(line::AbstractString)
+    n = 0
+    for _ in eachmatch(r"\"\"\"", line); n += 1; end
+    return n
+end
+
+"""
+    _card_code_part(line) → the part of `line` before any `\"\"\"` delimiter
+
+A docstring is the most common preamble idiom in a Julia model file, and its
+prose is written as `Model: …` / `Parameters: …`, so only the code before the
+first delimiter may be read as a card-header attempt.
+"""
+_card_code_part(line::AbstractString) =
+    (i = findfirst("\"\"\"", line); i === nothing ? line : line[1:prevind(line, first(i))])
+
+"""
     _card_preamble_header(lines, path) → (lineno, header) | nothing
 
 The first column-0 line of a `.jl` model preamble that is *trying* to be a card
-stanza header, as `(lineno, "text")`, or `nothing` when there is none. `using X: y`
-and `x::T` are skipped as ordinary Julia; see the block comment above.
+stanza header, as `(lineno, "text")`, or `nothing` when there is none. `using X: y`,
+`x::T` and anything inside a `\"\"\"…\"\"\"` region are skipped as ordinary Julia;
+see the block comment above.
 """
 function _card_preamble_header(lines, path::AbstractString)
+    in_doc = false
     for (i, line) in enumerate(lines)
-        m = match(_CARD_PREAMBLE_HEADER, line)
-        m === nothing && continue
-        text = String(m.captures[1])
-        first(split(text)) in _CARD_JULIA_KEYWORDS && continue
-        return (i, text)
+        nd = _card_doc_delims(line)
+        # Parity first: a line inside an open docstring is prose whatever it
+        # looks like — including the line that closes it.
+        if in_doc
+            isodd(nd) && (in_doc = false)
+            continue
+        end
+        m = match(_CARD_PREAMBLE_HEADER, _card_code_part(line))
+        if m !== nothing
+            text = String(m.captures[1])
+            if !(first(split(text)) in _CARD_JULIA_KEYWORDS)
+                return (i, text)
+            end
+        end
+        isodd(nd) && (in_doc = true)
     end
     return nothing
 end
@@ -2355,17 +2395,26 @@ Split a `.jl` model file into the optional model-card preamble and the
   the caller keeps its existing branch untouched.
 - No column-0 `@dsge` → `(nothing, whole_source)`.
 - A column-0 `@dsge` with a preamble that holds a stanza header →
-  `(preamble, @dsge slice)`. A preamble of only comments/blanks, or of
-  ordinary Julia helper code, keeps the whole file: existing `.jl` models with
-  a `n_extra = 3` constant must not change behaviour.
+  `(preamble, @dsge slice)`. A preamble of only comments/blanks, docstrings, or
+  ordinary Julia helper code keeps the whole file: existing `.jl` models with a
+  `n_extra = 3` constant must not change behaviour.
 - A column-0 `ident:` that is not a card header → `config/invalid` naming that
   line (a mistyped `labels: = […]` is silently un-Julia otherwise).
 - A stanza header BELOW the `@dsge` block → `config/invalid` naming that line:
   the card belongs above the model, and a card below it would otherwise ride
   into the executed text.
 
-The model slice runs from `@dsge` to its matching column-0 `end` — never to EOF —
-so nothing after the block can reach `include_string`.
+Which block: the card region is everything before the FIRST column-0 `@dsge`, and
+the model slice runs from the LAST column-0 `@dsge` to its matching column-0 `end`.
+That is deliberate and it is the only choice that cannot silently change an answer:
+the no-card path `Base.include`s the whole file and the loader's documented
+contract is that its LAST expression is the `ModelSpec`, so a card-bearing file with
+several blocks must resolve to the same one. Taking the first block instead would
+mean adding a card switched which economic model got solved — exit 0, wrong
+numbers, no warning. Blocks between the first and the last are dropped rather than
+executed, which cannot change the returned spec for the same reason.
+
+The slice never reaches EOF, so nothing after the block can hit `include_string`.
 """
 function _split_card_and_model(path::AbstractString)
     ext = lowercase(splitext(String(path))[2])
@@ -2373,10 +2422,11 @@ function _split_card_and_model(path::AbstractString)
 
     src = read(String(path), String)
     lines = _card_lines(src)
-    idx = findfirst(_card_is_dsge_open, lines)
-    idx === nothing && return (nothing, src)
+    opens = findall(_card_is_dsge_open, lines)
+    isempty(opens) && return (nothing, src)
+    idx = last(opens)
 
-    pre = lines[1:idx-1]
+    pre = lines[1:first(opens)-1]
     header = _card_preamble_header(pre, path)
     if header !== nothing
         (lineno, text) = header

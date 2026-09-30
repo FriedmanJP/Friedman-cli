@@ -96,6 +96,73 @@ end
         end
     end
 
+    @testset "docstring prose is not a card header" begin
+        # A docstring is the most common preamble idiom in a Julia model file,
+        # and its prose is written as `Model: …` / `Parameters: …`. Reading that
+        # as a header attempt rejects a file that loaded before the splitter
+        # existed — with the actively-misleading "write the assignment without
+        # the colon" wording, since there is no assignment in prose.
+        doc = "\"\"\"\nModel: AR(1) with a constant.\nParameters: rho, sigma.\n\"\"\"\n"
+        f = tempname() * ".jl"
+        write(f, doc * "const MODEL_NOTE = \"AR(1)\"\n@dsge begin\nend\n")
+        card, model = _split_card_and_model(f)
+        @test card === nothing
+        @test model == read(f, String)          # byte-for-byte, docstring intact
+
+        # The same text in a TRAILING docstring must not be reported as a
+        # misplaced card either — that was the second call site.
+        f2 = tempname() * ".jl"
+        write(f2, "priors:\n  rho ~ beta(2, 2)\n@dsge begin\nend\n" *
+                   "\"\"\"\nModel: trailing note.\n\"\"\"\n")
+        card2, model2 = _split_card_and_model(f2)
+        @test occursin("priors:", card2)
+        @test !occursin("Model:", model2)
+
+        # A real header immediately AFTER a closed docstring is still found —
+        # the parity flag must reset, not latch.
+        f3 = tempname() * ".jl"
+        write(f3, "\"\"\"\nDoc: prose.\n\"\"\"\nlabels: = [\"a\"]\n@dsge begin\nend\n")
+        err = try; _split_card_and_model(f3); nothing; catch e; e; end
+        @test err isa CliError && err.code == "config/invalid"
+        @test occursin("is not a model-card stanza header", err.message)
+        @test occursin("labels", err.message)
+
+        # `x = """Model: a"""` is one line with an EVEN delimiter count, so it
+        # opens nothing; the `x` keyword check would also cover it, but the
+        # code-part cut is what keeps the prose out of the match.
+        f4 = tempname() * ".jl"
+        write(f4, "const NOTE = \"\"\"Model: inline\"\"\"\n@dsge begin\nend\n")
+        @test _split_card_and_model(f4)[1] === nothing
+    end
+
+    @testset "two @dsge blocks — the LAST one is the model, with or without a card" begin
+        # The loader's documented contract is that the file's LAST expression is
+        # the ModelSpec, and the no-card path `include`s the whole file. A card
+        # must not change which model is solved: taking the FIRST block would
+        # silently swap the answer with exit 0 and no warning.
+        two = "@dsge begin\n    parameters: rho = 0.5\n    endogenous: Y\n" *
+              "    exogenous: e\n    Y[t] = rho * Y[t-1] + e[t]\nend\n" *
+              "@dsge begin\n    parameters: rho = 0.9\n    endogenous: Y\n" *
+              "    exogenous: e\n    Y[t] = rho * Y[t-1] + e[t]\nend\n"
+        f1 = tempname() * ".jl"
+        write(f1, two)
+        @test _split_card_and_model(f1)[1] === nothing       # no card: whole file
+
+        f2 = tempname() * ".jl"
+        write(f2, "priors:\n  rho ~ beta(2, 2)\n" * two)
+        card, model = _split_card_and_model(f2)
+        @test occursin("priors:", card)
+        @test occursin("rho = 0.9", model)     # the LAST block
+        @test !occursin("rho = 0.5", model)    # the first block is not the model
+
+        # And at the loader: both files must yield the same rho-dependent spec.
+        s1 = _load_dsge_model(f1)
+        s2 = _load_dsge_model(f2)
+        @test s1 isa MacroEconometricModels.ModelSpec
+        @test s2 isa MacroEconometricModels.ModelSpec
+        @test s1.n_endog == s2.n_endog == 1
+    end
+
     @testset "a stanza below the @dsge block is rejected and never executed" begin
         f = tempname() * ".jl"
         write(f, "@dsge begin\nend\nconstraints:\n  Y[t] >= -10\n")
