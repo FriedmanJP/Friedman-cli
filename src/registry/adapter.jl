@@ -26,7 +26,8 @@ end
 function _to_option(o::OptionSpec)
     _check_reserved("option", o.name, o.short)
     return Option(o.name; short=o.short, type=o.type, default=o.default,
-                  description=o.description, choices=o.choices)
+                  description=o.description, choices=o.choices,
+                  repeatable=o.repeatable)
 end
 
 function _to_flag(f::FlagSpec)
@@ -205,7 +206,12 @@ function wrap_legacy(handler::Function)
         _CONFIG_STRICT[] = strict
         try
             config_path = string(get(kwargs, :config, ""))
-            if !isempty(config_path) || !isempty(config_json) || !isempty(set_vals)
+            if !isempty(config_path) && _is_card_path(config_path)
+                # Card (W3/#208): pass the path through untouched. The TOML
+                # branch below is unchanged, so --set / --config-json keep
+                # merging exactly as they do today.
+                kwargs[:config] = _card_config_path(config_path, set_vals, config_json)
+            elseif !isempty(config_path) || !isempty(config_json) || !isempty(set_vals)
                 merged = merge_config(config_path; config_json=config_json,
                                       set=set_vals, strict=strict)
                 kwargs[:config] = write_merged_config_toml(merged)

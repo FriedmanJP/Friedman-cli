@@ -48,6 +48,24 @@ function _vol_specs(verb::Symbol)::Vector{CommandSpec}
         OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file"),
     ]
     flags = [FlagSpec(name="plot", description="Open interactive plot in browser")]
+    # Issue #227: verb-aware summaries. Estimate leaves get per-model verb phrases;
+    # forecast leaves share one forecast-flavored summary (no interval level; horizons only).
+    est_summaries = Dict(
+        "arch" => "Estimate an ARCH(q) model by Gaussian QMLE",
+        "garch" => "Estimate a GARCH(p,q) model with normal, Student-t or GED innovations",
+        "egarch" => "Estimate an EGARCH(p,q) model with normal, Student-t or GED innovations",
+        "gjr_garch" => "Estimate a GJR-GARCH(p,q) model with normal, Student-t or GED innovations",
+        "sv" => "Estimate a stochastic-volatility model by MCMC (draws via --draws)",
+    )
+    # Issue #227: coefficient-table descriptions name the model WITHOUT the (p,q)
+    # order pin (orders live in titles only); SV reports posterior means, no SEs.
+    coef_descs = Dict(
+        "arch" => "ARCH parameter estimates with standard errors, z-statistics and p-values",
+        "garch" => "GARCH parameter estimates with standard errors, z-statistics and p-values",
+        "egarch" => "EGARCH parameter estimates with standard errors, z-statistics and p-values",
+        "gjr_garch" => "GJR-GARCH parameter estimates with standard errors, z-statistics and p-values",
+        "sv" => "SV posterior-mean parameter estimates (mu, phi, sigma_eta; no standard errors)",
+    )
     specs = CommandSpec[]
     for vol in VOL_MODELS
         opts = OptionSpec[
@@ -68,11 +86,12 @@ function _vol_specs(verb::Symbol)::Vector{CommandSpec}
         append!(opts, out_opts)
         cli_name = get(_VOL_CLI_NAMES, vol.name, vol.name)
         label = vol.label(1, 1)
+        summary = verb === :forecast ? "$label volatility forecast (no interval level; horizons only)" : est_summaries[vol.name]
         # W3/#138: the four verbs share the shared.jl emitters, so their keys are
         # `<vol.name>_<what>` — `<label>` (which carries p/q) stays in the title only.
         tables = if verb === :estimate
             t = TableSpec[TableSpec(name=Symbol("$(vol.name)_coefficients"),
-                    description="$label parameter estimates with standard errors, z-statistics and p-values")]
+                    description=coef_descs[vol.name])]
             # Only emitted when --dist selects a non-Gaussian innovation law; the shape
             # parameter is estimated jointly but lives outside coef(model).
             vol.supports_dist && push!(t, TableSpec(name=:conditional_distribution,
@@ -90,7 +109,7 @@ function _vol_specs(verb::Symbol)::Vector{CommandSpec}
         end
         push!(specs, CommandSpec(
             path=[string(verb), cli_name],
-            summary="Path to CSV data file",
+            summary=summary,
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=opts,
             flags=flags,
@@ -106,11 +125,11 @@ function estimate_specs()::Vector{CommandSpec}
     return [
         CommandSpec(
             path=["estimate", "var"],
-            summary="Path to CSV data file",
+            summary="Frequentist VAR(p) by OLS with AIC lag auto-selection",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
-                OptionSpec(name="trend", type=String, default="constant", description="none|constant|trend|both"),
+                OptionSpec(name="trend", type=String, default="constant", description="Deterministic terms (accepted but has no effect: the VAR always includes an intercept)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -124,14 +143,14 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "bvar"],
-            summary="Path to CSV data file",
+            summary="Bayesian VAR with Minnesota prior (GLP/grid hyperopt)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="Lag order"),
-                OptionSpec(name="prior", type=String, default="minnesota", description="Prior type: minnesota"),
-                OptionSpec(name="draws", short="n", type=Int, default=2000, description="MCMC draws"),
-                OptionSpec(name="sampler", type=String, default="direct", description="direct|gibbs"),
-                OptionSpec(name="method", type=String, default="mean", description="mean|median (posterior extraction)"),
+                OptionSpec(name="prior", type=String, default="minnesota", description="Prior: minnesota|normal", choices=["minnesota", "normal"]),
+                OptionSpec(name="draws", short="n", type=Int, default=2000, description="Posterior draws kept (direct: i.i.d.; gibbs: MCMC)"),
+                OptionSpec(name="sampler", type=String, default="direct", description="direct|gibbs", choices=["direct", "gibbs"]),
+                OptionSpec(name="method", type=String, default="mean", description="mean|median (posterior extraction)", choices=["mean", "median"]),
                 OptionSpec(name="hyperopt", type=String, default="glp",
                            description="Minnesota hyperparameter selection: glp|grid",
                            choices=["glp", "grid"]),
@@ -204,7 +223,7 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="draws", short="n", type=Int, default=2000, description="Retained Gibbs draws"),
                 OptionSpec(name="burnin", type=Int, default=1000, description="Burn-in sweeps discarded"),
                 OptionSpec(name="thin", type=Int, default=1, description="Keep every k-th draw"),
-                OptionSpec(name="n-train", type=Int, default=0, description="Training sample used to calibrate priors"),
+                OptionSpec(name="n-train", type=Int, default=0, description="Training observations for prior calibration (0 = auto: max(4p+n+2, T/4))"),
                 OptionSpec(name="k-q", type=Float64, default=0.01, description="Coefficient random-walk prior scale (> 0)"),
                 OptionSpec(name="k-s", type=Float64, default=0.1, description="Covariance random-walk prior scale (> 0)"),
                 OptionSpec(name="k-w", type=Float64, default=0.01, description="Log-volatility random-walk prior scale (> 0)"),
@@ -245,22 +264,22 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "lp"],
-            summary="Path to CSV data file",
+            summary="Jorda local projections: standard|iv|smooth|state|propensity|robust",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
-                OptionSpec(name="method", type=String, default="standard", description="standard|iv|smooth|state|propensity|robust"),
+                OptionSpec(name="method", type=String, default="standard", description="standard|iv|smooth|state|propensity|robust", choices=["standard", "iv", "smooth", "state", "propensity", "robust"]),
                 OptionSpec(name="shock", type=Int, default=1, description="Shock variable index (1-based)"),
                 OptionSpec(name="horizons", type=Int, default=20, description="IRF horizon"),
-                OptionSpec(name="control-lags", type=Int, default=4, description="Number of control lags"),
-                OptionSpec(name="vcov", type=String, default="newey_west", description="newey_west|white|driscoll_kraay"),
+                OptionSpec(name="control-lags", type=Int, default=4, description="Number of control lags (standard/iv only; ignored by smooth|state|propensity|robust)"),
+                OptionSpec(name="vcov", type=String, default="newey_west", description="newey_west|white|driscoll_kraay (standard/iv only; ignored by smooth|state|propensity|robust)", choices=["newey_west", "white", "driscoll_kraay"]),
                 OptionSpec(name="instruments", type=String, default="", description="Path to instruments CSV (iv only)"),
                 OptionSpec(name="knots", type=Int, default=3, description="Number of B-spline knots (smooth only)"),
                 OptionSpec(name="lambda", type=Float64, default=0.0, description="Smoothing penalty, 0=auto CV (smooth only)"),
                 OptionSpec(name="state-var", type=Int, default=nothing, description="State variable index (state only)"),
                 OptionSpec(name="gamma", type=Float64, default=1.5, description="Transition steepness (state only)"),
-                OptionSpec(name="transition", type=String, default="logistic", description="logistic|exponential|indicator (state only)"),
+                OptionSpec(name="transition", type=String, default="logistic", description="Transition shape (logistic only)", choices=["logistic"]),
                 OptionSpec(name="treatment", type=Int, default=1, description="Treatment variable index (propensity/robust only)"),
-                OptionSpec(name="score-method", type=String, default="logit", description="logit|probit (propensity/robust only)"),
+                OptionSpec(name="score-method", type=String, default="logit", description="logit|probit (propensity/robust only)", choices=["logit", "probit"]),
                 # W10/#112 weak-instrument-robust LP-IV (iv only). Both are OFF by default so
                 # the existing `estimate lp --method iv` envelope is unchanged; the AR band in
                 # particular inverts a test over a grid at every horizon × response and is far
@@ -299,7 +318,7 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "arima"],
-            summary="Path to CSV data file",
+            summary="Fit ARIMA(p,d,q) or auto-select by IC",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -310,7 +329,7 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="max-d", type=Int, default=2, description="Max differencing order for auto selection"),
                 OptionSpec(name="max-q", type=Int, default=5, description="Max MA order for auto selection"),
                 OptionSpec(name="criterion", type=String, default="bic", description="aic|bic (for auto selection)"),
-                OptionSpec(name="method", short="m", type=String, default="css_mle", description="ols|css|mle|css_mle"),
+                OptionSpec(name="method", short="m", type=String, default="css_mle", description="ols|css|mle|css_mle (pure AR fits use MLE)"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
@@ -324,7 +343,7 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "arfima"],
-            summary="Path to CSV data file",
+            summary="Fit ARFIMA(p,d,q) with fractional integration",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -346,11 +365,11 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "gmm"],
-            summary="Path to CSV data file",
+            summary="Estimate GMM from TOML moment conditions (identity/optimal/two-step/iterated)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
-                OptionSpec(name="config", type=String, default="", description="TOML config for moment conditions and instruments"),
-                OptionSpec(name="weighting", short="w", type=String, default="twostep", description="identity|optimal|twostep|iterated"),
+                OptionSpec(name="config", type=String, default="", description="Config file for moment conditions and instruments; TOML or a model card"),
+                OptionSpec(name="weighting", short="w", type=String, default="twostep", description="identity|optimal|twostep|iterated", choices=["identity", "optimal", "twostep", "iterated"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -364,11 +383,11 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "static"],
-            summary="Path to CSV data file",
+            summary="Static PCA factor model with Bai-Ng count selection",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="nfactors", short="r", type=Int, default=nothing, description="Number of factors (default: auto via IC)"),
-                OptionSpec(name="criterion", type=String, default="ic1", description="ic1|ic2|ic3 for auto selection"),
+                OptionSpec(name="criterion", type=String, default="ic1", description="ic1|ic2|ic3 for auto selection", choices=["ic1", "ic2", "ic3"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
@@ -377,7 +396,7 @@ function estimate_specs()::Vector{CommandSpec}
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
             tables=[TableSpec(name=:scree_data_eigenvalues_variance_shares,
-                              description="Eigenvalue, explained-variance and cumulative-variance share per component"),
+                              description="Explained-variance share and cumulative share per component (scree)"),
                     TableSpec(name=:factor_loadings,
                               description="Estimated factor loadings, one row per observed variable")],
             category="estimate",
@@ -385,12 +404,12 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "dynamic"],
-            summary="Path to CSV data file",
+            summary="Dynamic factor model (two-step/EM) with IC count selection",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
-                OptionSpec(name="nfactors", short="r", type=Int, default=nothing, description="Number of factors (default: auto)"),
+                OptionSpec(name="nfactors", short="r", type=Int, default=nothing, description="Number of factors (default: auto via IC1)"),
                 OptionSpec(name="factor-lags", short="p", type=Int, default=1, description="Factor VAR lag order"),
-                OptionSpec(name="method", type=String, default="twostep", description="twostep|em"),
+                OptionSpec(name="method", type=String, default="twostep", description="twostep|em", choices=["twostep", "em"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
@@ -405,7 +424,7 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "gdfm"],
-            summary="Path to CSV data file",
+            summary="Generalized dynamic factor model (FHLR) with static/dynamic rank selection",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="nfactors", short="r", type=Int, default=nothing, description="Number of static factors (default: auto)"),
@@ -430,7 +449,7 @@ function estimate_specs()::Vector{CommandSpec}
         # the coefficient table is hand-built (the documented C051 exception).
         CommandSpec(
             path=["estimate", "igarch"],
-            summary="Path to CSV data file",
+            summary="Estimate an IGARCH(p,q) model (unit-persistence GARCH)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -449,7 +468,7 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "cgarch"],
-            summary="Path to CSV data file",
+            summary="Estimate a Component-GARCH(1,1) model (permanent/transitory decomposition)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -466,7 +485,7 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "aparch"],
-            summary="Path to CSV data file",
+            summary="Estimate an APARCH(p,q) model with power delta and leverage gamma",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -481,13 +500,13 @@ function estimate_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:aparch_coefficients,
                               description="APARCH parameter estimates including the power delta and asymmetry gamma"),
                     TableSpec(name=:aparch_diagnostics,
-                              description="Log-likelihood, AIC/BIC, persistence, estimated delta and parameter count")],
+                              description="Log-likelihood, AIC/BIC, persistence, delta (estimated or fixed) and parameter count")],
             category="estimate",
             handler=wrap_legacy(_estimate_aparch),
         ),
         CommandSpec(
             path=["estimate", "figarch"],
-            summary="Path to CSV data file",
+            summary="Estimate a FIGARCH(p,d,q) model (fractionally integrated GARCH, Gaussian QMLE)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -495,7 +514,7 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="q", type=Int, default=1, description="ARCH φ(L) order q"),
                 OptionSpec(name="d0", type=Float64, default=0.4, description="Initial fractional-integration order d ∈ (0,1)"),
                 OptionSpec(name="truncation", type=Int, default=1000, description="ARCH(∞) truncation lag"),
-                OptionSpec(name="dist", type=String, default="normal", description="Innovation distribution (Gaussian QMLE)", choices=["normal"]),
+                OptionSpec(name="dist", type=String, default="normal", description="Innovation distribution (only normal is accepted)", choices=["normal"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -509,7 +528,7 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "fiegarch"],
-            summary="Path to CSV data file",
+            summary="Estimate a FIEGARCH(p,d,q) model (fractionally integrated EGARCH, Gaussian QMLE)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -517,7 +536,7 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="q", type=Int, default=1, description="ARCH φ(L) order q"),
                 OptionSpec(name="d0", type=Float64, default=0.4, description="Initial fractional-integration order d ∈ (0,1)"),
                 OptionSpec(name="truncation", type=Int, default=1000, description="MA(∞) truncation lag"),
-                OptionSpec(name="dist", type=String, default="normal", description="Innovation distribution (Gaussian QMLE)", choices=["normal"]),
+                OptionSpec(name="dist", type=String, default="normal", description="Innovation distribution (only normal is accepted)", choices=["normal"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -531,7 +550,7 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "garch-midas"],
-            summary="Path to CSV data file",
+            summary="Estimate a GARCH-MIDAS model (short-run GARCH plus MIDAS long-run component)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="High-frequency return series column (1-based)"),
@@ -547,7 +566,7 @@ function estimate_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:garch_midas_coefficients,
                               description="GARCH-MIDAS short-run and long-run (MIDAS weight) parameter estimates"),
                     TableSpec(name=:garch_midas_diagnostics,
-                              description="Log-likelihood, AIC/BIC, variance ratio, K, m_freq and the block count")],
+                              description="Log-likelihood, AIC/BIC, variance ratio, K, m_freq, the block count, rv driver and span")],
             category="estimate",
             handler=wrap_legacy(_estimate_garch_midas),
         ),
@@ -555,7 +574,7 @@ function estimate_specs()::Vector{CommandSpec}
         # Multivariate — no --column; input is the full numeric matrix (T×n).
         CommandSpec(
             path=["estimate", "ccc"],
-            summary="Path to CSV data file",
+            summary="Estimate a CCC-GARCH model with constant conditional correlations",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="p", type=Int, default=1, description="GARCH order p for the univariate margins"),
@@ -567,13 +586,13 @@ function estimate_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:ccc_garch_conditional_correlation,
                               description="Constant conditional-correlation matrix, series x series"),
                     TableSpec(name=:ccc_garch_diagnostics,
-                              description="Log-likelihood, AIC/BIC, series and observation counts, convergence")],
+                              description="Log-likelihood, AIC/BIC, series and observation counts, convergence and kind")],
             category="estimate",
             handler=wrap_legacy(_estimate_ccc),
         ),
         CommandSpec(
             path=["estimate", "dcc"],
-            summary="Path to CSV data file",
+            summary="Estimate a DCC/cDCC-GARCH model with dynamic conditional correlations",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="p", type=Int, default=1, description="GARCH order p for the univariate margins"),
@@ -594,7 +613,7 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "bekk"],
-            summary="Path to CSV data file",
+            summary="Estimate a scalar/diagonal BEKK(1,1) multivariate GARCH model",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="kind", type=String, default="scalar", description="BEKK(1,1) parameterization: scalar | diagonal", choices=["scalar","diagonal"]),
@@ -616,7 +635,7 @@ function estimate_specs()::Vector{CommandSpec}
         # numeric columns except --dep, no constant prepended (same as `estimate reg`).
         CommandSpec(
             path=["estimate", "lasso"],
-            summary="Path to CSV data file",
+            summary="Fit L1-penalized (lasso) regression with CV/IC lambda selection",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (default: first numeric column)"),
@@ -635,7 +654,7 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "ridge"],
-            summary="Path to CSV data file",
+            summary="Fit L2-penalized (ridge) regression with CV/IC lambda selection",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (default: first numeric column)"),
@@ -654,7 +673,7 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "elastic-net"],
-            summary="Path to CSV data file",
+            summary="Fit elastic-net regression with L1/L2 mixing and CV/IC lambda selection",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (default: first numeric column)"),
@@ -674,7 +693,7 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "robust"],
-            summary="Path to CSV data file",
+            summary="Fit robust M/MM regression resistant to outliers",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (default: first numeric column)"),
@@ -693,7 +712,7 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "tobit"],
-            summary="Path to CSV data file",
+            summary="Fit censored (tobit) regression with censoring bounds",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (default: first numeric column)"),
@@ -715,7 +734,7 @@ function estimate_specs()::Vector{CommandSpec}
         # (lower, upper) or MEMs throws → mapped to data/invalid.
         CommandSpec(
             path=["estimate", "truncreg"],
-            summary="Path to CSV data file",
+            summary="Fit truncated-normal regression over a strictly interior sample",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (default: first numeric column)"),
@@ -740,7 +759,7 @@ function estimate_specs()::Vector{CommandSpec}
         # variable not in --outcome-vars (else MEMs warns and identification is nonlinear).
         CommandSpec(
             path=["estimate", "heckman"],
-            summary="Path to CSV data file",
+            summary="Fit a Heckman sample-selection model (two-step Heckit or FIML)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Outcome variable column name (default: first numeric column)"),
@@ -766,7 +785,7 @@ function estimate_specs()::Vector{CommandSpec}
         # `_garch_variant_error` (never an uncaught exit-1 on bad input).
         CommandSpec(
             path=["estimate", "statespace"],
-            summary="Path to CSV data file",
+            summary="Fit a local-level/local-linear-trend (or general --config) state-space model",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="1-based numeric column to model"),
@@ -791,7 +810,7 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "tvp"],
-            summary="Path to CSV data file",
+            summary="Fit time-varying-parameter regression with random-walk coefficients",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (default: first numeric column)"),
@@ -812,7 +831,7 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "kde"],
-            summary="Path to CSV data file",
+            summary="Estimate a univariate kernel density on an evaluation grid",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="1-based numeric column"),
@@ -833,7 +852,7 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "kernel-reg"],
-            summary="Path to CSV data file",
+            summary="Fit Nadaraya-Watson/local-linear/local-polynomial kernel regression",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Response variable column name (default: first numeric column)"),
@@ -855,7 +874,7 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "lowess"],
-            summary="Path to CSV data file",
+            summary="Fit LOWESS locally-weighted smoothing with robustifying passes",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Response variable column name (default: first numeric column)"),
@@ -880,7 +899,7 @@ function estimate_specs()::Vector{CommandSpec}
         # are declared String and parsed in-handler (`_parse_cointreg_*`).
         CommandSpec(
             path=["estimate", "cointreg"],
-            summary="Path to CSV data file",
+            summary="Estimate a cointegrating regression by FMOLS/CCR/DOLS",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent (levels) column name (default: first numeric column)"),
@@ -905,7 +924,7 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "xtcointreg"],
-            summary="Path to CSV data file",
+            summary="Estimate a panel cointegrating regression by FMOLS/DOLS (group-mean or pooled)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="id-col", type=String, default="", description="Panel group id column (default: first column)"),
@@ -942,7 +961,7 @@ function estimate_specs()::Vector{CommandSpec}
         # cointreg none|const|linear, NOT PMG's :constant). `--p`/`--q` accept auto|int|list.
         CommandSpec(
             path=["estimate", "ardl"],
-            summary="Path to CSV data file",
+            summary="Fit linear ARDL with long-run multipliers and ECM speed",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent column name (default: first numeric column)"),
@@ -968,7 +987,7 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "nardl"],
-            summary="Path to CSV data file",
+            summary="Fit asymmetric NARDL with theta+/theta- and dynamic multipliers",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent column name (default: first numeric column)"),
@@ -1009,7 +1028,7 @@ function estimate_specs()::Vector{CommandSpec}
         # vocab is PMG-specific: none|constant|trend (`:constant` spelled out — NOT ARDL's :const).
         CommandSpec(
             path=["estimate", "pmg"],
-            summary="Path to CSV data file",
+            summary="Fit a dynamic heterogeneous-panel ARDL (PMG/MG/DFE)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="id-col", type=String, default="", description="Panel group id column (default: first column)"),
@@ -1047,7 +1066,7 @@ function estimate_specs()::Vector{CommandSpec}
         # and is real since 0.7.3 (MEMs#574, adopted W10/#131). `forecast midas` exists.
         CommandSpec(
             path=["estimate", "midas"],
-            summary="Path to CSV data file",
+            summary="Fit MIDAS mixed-frequency regression of LF target on HF lags",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to the low-frequency target CSV")],
             options=[
                 OptionSpec(name="column", type=Int, default=1, description="Low-frequency target column in --data (1-based)"),
@@ -1059,7 +1078,7 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="p-ar", type=Int, default=0, description="Autoregressive lags of the target (ADL-MIDAS, ≥ 0)"),
                 OptionSpec(name="poly-degree", type=Int, default=2, description="Polynomial degree for --weights almon"),
                 OptionSpec(name="horizon", type=Int, default=1, description="Direct forecast horizon h stored in the model (1 = nowcast)"),
-                OptionSpec(name="max-iter", type=Int, default=500, description="LBFGS iteration cap per NLS start"),
+                OptionSpec(name="max-iter", type=Int, default=500, description="Optimizer iteration cap (forwarded as max_iter)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -1080,7 +1099,7 @@ function estimate_specs()::Vector{CommandSpec}
         # sentinel; `--ci-level` MUST be exactly 0.90/0.95/0.99 (Hansen 2000 tabulation).
         CommandSpec(
             path=["estimate", "threshold"],
-            summary="Path to CSV data file",
+            summary="Fit threshold regression splitting the sample at gamma",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
@@ -1106,21 +1125,21 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "setar"],
-            summary="Path to CSV data file",
+            summary="Fit two-regime self-exciting SETAR with Hansen CI",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
                 OptionSpec(name="p", type=Int, default=1, description="AR order (≥ 1)"),
                 OptionSpec(name="d", type=String, default="1", description="Delay lag: an integer ≥ 1, or 'auto' (=1:p grid)"),
                 OptionSpec(name="trim", type=Float64, default=0.15, description="Trimming fraction for the threshold grid (0 < trim < 0.5)"),
-                OptionSpec(name="reps", type=Int, default=1000, description="Bootstrap reps for the Hansen test / threshold CI (≥ 1)"),
+                OptionSpec(name="reps", type=Int, default=1000, description="Bootstrap replications for the linearity test (>= 1)"),
                 OptionSpec(name="ci-level", type=Float64, default=0.95, description="Threshold CI level: 0.90|0.95|0.99", choices=["0.90", "0.95", "0.99"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table", "csv", "json"]),
                 PLOT_OPTIONS...
             ],
             flags=[
-                FlagSpec(name="het", description="Heteroskedastic (White) bootstrap for the linearity test / CI"),
+                FlagSpec(name="het", description="Heteroskedastic (White) bootstrap for the linearity test"),
                 FlagSpec(name="no-linearity", description="Skip the attached Hansen (1996) linearity test")
             , PLOT_FLAGS...],
             tables=[TableSpec(name=:setar_coefficients,
@@ -1138,7 +1157,7 @@ function estimate_specs()::Vector{CommandSpec}
         # transition variable can be supplied via `--transition-col` (else self-exciting y[t-d]).
         CommandSpec(
             path=["estimate", "star"],
-            summary="Path to CSV data file",
+            summary="Fit smooth-transition STAR with lstr1|lstr2|estr transition",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -1147,7 +1166,7 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="type", type=String, default="auto", description="Transition shape: lstr1|lstr2|estr|auto", choices=["lstr1", "lstr2", "estr", "auto"]),
                 OptionSpec(name="n-gamma", type=Int, default=15, description="Grid points for the γ start values (≥ 2)"),
                 OptionSpec(name="n-c", type=Int, default=15, description="Grid points for the c start values (≥ 2)"),
-                OptionSpec(name="transition-col", type=Int, default=0, description="Column index of an external transition var s (0 = self-exciting y[t-d])"),
+                OptionSpec(name="transition-col", type=Int, default=0, description="External transition-variable column (1-based; 0 = self-exciting y[t-d])"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table", "csv", "json"]),
                 PLOT_OPTIONS...
@@ -1171,7 +1190,7 @@ function estimate_specs()::Vector{CommandSpec}
         # the OPPOSITE polarity of `estimate ms`; do not unify.
         CommandSpec(
             path=["estimate", "ms-ar"],
-            summary="Path to CSV data file",
+            summary="Fit Hamilton mean-switching MS-AR with common AR block",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -1206,7 +1225,7 @@ function estimate_specs()::Vector{CommandSpec}
         # the OPPOSITE polarity of `estimate ms-ar`.
         CommandSpec(
             path=["estimate", "ms"],
-            summary="Path to CSV data file",
+            summary="Fit K-state Markov-switching regression, all coefficients switch",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
@@ -1233,11 +1252,11 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "fastica"],
-            summary="Path to CSV data file",
+            summary="Non-Gaussian SVAR identification (fastica|jade|sobi|dcov|hsic) on a VAR",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
-                OptionSpec(name="method", type=String, default="fastica", description="fastica|jade|sobi|dcov|hsic"),
+                OptionSpec(name="method", type=String, default="fastica", description="fastica|jade|sobi|dcov|hsic", choices=["fastica", "jade", "sobi", "dcov", "hsic"]),
                 OptionSpec(name="contrast", type=String, default="logcosh", description="logcosh|exp|kurtosis (for FastICA)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
@@ -1252,11 +1271,11 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "ml"],
-            summary="Path to CSV data file",
+            summary="Non-Gaussian SVAR identification by ML over Student-t/mixture/PML/skew-normal shocks",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
-                OptionSpec(name="distribution", short="d", type=String, default="student_t", description="student_t|skew_t|ghd|mixture_normal|pml|skew_normal"),
+                OptionSpec(name="distribution", short="d", type=String, default="student_t", description="student_t|mixture_normal|pml|skew_normal", choices=["student_t", "mixture_normal", "pml", "skew_normal"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -1266,32 +1285,32 @@ function estimate_specs()::Vector{CommandSpec}
                     TableSpec(name=:model_fit,
                               description="Non-Gaussian and Gaussian log-likelihoods, AIC/BIC and the assumed distribution"),
                     TableSpec(name=:parameter_estimates_with_standard_errors,
-                              description="B0 elements with standard errors, when the estimator returns them")],
+                              description="B0 elements with standard errors, when the estimator returns them (shown only when standard errors are available)")],
             category="estimate",
             handler=wrap_legacy(_estimate_ml),
         ),
         CommandSpec(
             path=["estimate", "pvar"],
-            summary="Path to CSV panel data file",
+            summary="Fit a panel VAR by GMM (difference/system) or FEOLS",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
             options=[
                 OptionSpec(name="id-col", type=String, default="", description="Panel group identifier column (required)"),
                 OptionSpec(name="time-col", type=String, default="", description="Time period column (required)"),
                 OptionSpec(name="lags", short="p", type=Int, default=1, description="Lag order"),
                 OptionSpec(name="dependent", type=String, default="", description="Dependent variables (comma-separated)"),
-                OptionSpec(name="predet", type=String, default="", description="Predetermined variables (comma-separated)"),
+                OptionSpec(name="predet", type=String, default="", description="Predetermined variables (comma-separated) (GMM only; ignored with --method feols)"),
                 OptionSpec(name="exog", type=String, default="", description="Exogenous variables (comma-separated)"),
-                OptionSpec(name="transformation", type=String, default="fd", description="fd|fod (first-difference or forward orthogonal)"),
-                OptionSpec(name="steps", type=String, default="twostep", description="onestep|twostep"),
+                OptionSpec(name="transformation", type=String, default="fd", description="fd|fod (first-difference or forward orthogonal) (GMM only; ignored with --method feols)"),
+                OptionSpec(name="steps", type=String, default="twostep", description="onestep|twostep (GMM only; ignored with --method feols)"),
                 OptionSpec(name="method", type=String, default="gmm", description="gmm|feols"),
-                OptionSpec(name="min-lag-endo", type=Int, default=2, description="Minimum lag for endogenous instruments"),
-                OptionSpec(name="max-lag-endo", type=Int, default=99, description="Maximum lag for endogenous instruments"),
+                OptionSpec(name="min-lag-endo", type=Int, default=2, description="Minimum lag for endogenous instruments (GMM only; ignored with --method feols)"),
+                OptionSpec(name="max-lag-endo", type=Int, default=99, description="Maximum lag for endogenous instruments (GMM only; ignored with --method feols)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=[
-                FlagSpec(name="system", description="Use system GMM (adds level equations)"),
-                FlagSpec(name="collapse", description="Collapse instruments to limit count")
+                FlagSpec(name="system", description="Use system GMM (adds level equations) (GMM only; ignored with --method feols)"),
+                FlagSpec(name="collapse", description="Collapse instruments to limit count (GMM only; ignored with --method feols)")
             ],
             tables=[TableSpec(name=:panel_var_coefficients,
                               description="Panel VAR coefficients, one row per equation x lagged regressor"),
@@ -1302,13 +1321,13 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "vecm"],
-            summary="Path to CSV data file",
+            summary="Johansen/Engle-Granger VECM with automatic rank selection",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels, VECM uses p-1)"),
-                OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
-                OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
-                OptionSpec(name="method", type=String, default="johansen", description="johansen|engle_granger"),
+                OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|0|1|2|…)"),
+                OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend", choices=["none", "constant", "trend"]),
+                OptionSpec(name="method", type=String, default="johansen", description="johansen|engle_granger", choices=["johansen", "engle_granger"]),
                 OptionSpec(name="significance", type=Float64, default=0.05, description="Significance level for rank selection"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
@@ -1325,7 +1344,7 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "svar"],
-            summary="Path to CSV data file",
+            summary="AB-model SVAR by ML over a recursive/BQ/restriction pattern",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
@@ -1351,13 +1370,13 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "svec"],
-            summary="Path to CSV data file",
+            summary="Structural VECM (KPSW default or custom long/short-run zeros)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels, VECM uses p-1)"),
-                OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
-                OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
-                OptionSpec(name="method", type=String, default="johansen", description="johansen|engle_granger"),
+                OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|0|1|2|…)"),
+                OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend", choices=["none", "constant", "trend"]),
+                OptionSpec(name="method", type=String, default="johansen", description="johansen|engle_granger", choices=["johansen", "engle_granger"]),
                 OptionSpec(name="significance", type=Float64, default=0.05, description="Significance level for rank selection"),
                 OptionSpec(name="config", type=String, default="", description="TOML config with optional [svec] long/short-run zero matrices"),
                 OptionSpec(name="n-starts", type=Int, default=5, description="Optimizer starting values (restricted patterns)"),
@@ -1380,11 +1399,11 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "smm"],
-            summary="Path to CSV data file",
+            summary="Estimate SMM by simulating moments from a TOML specification",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
-                OptionSpec(name="config", type=String, default="", description="TOML config for SMM specification"),
-                OptionSpec(name="weighting", type=String, default="two_step", description="identity|optimal|two_step|iterated"),
+                OptionSpec(name="config", type=String, default="", description="Config file for the SMM specification; TOML or a model card"),
+                OptionSpec(name="weighting", type=String, default="two_step", description="identity|two_step (optimal|iterated|twostep accepted as aliases of two_step)"),
                 OptionSpec(name="sim-ratio", type=Int, default=5, description="Simulation-to-sample ratio"),
                 OptionSpec(name="burn", type=Int, default=100, description="Burn-in periods"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -1398,13 +1417,13 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "favar"],
-            summary="Path to CSV data file",
+            summary="Factor-augmented VAR (two-step or Bayesian)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="factors", short="r", type=Int, default=nothing, description="Number of factors (default: auto via IC)"),
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="VAR lag order"),
                 OptionSpec(name="key-vars", type=String, default="", description="Key variable names or indices (comma-separated)"),
-                OptionSpec(name="method", type=String, default="two_step", description="two_step|bayesian"),
+                OptionSpec(name="method", type=String, default="two_step", description="two_step|bayesian", choices=["two_step", "bayesian"]),
                 OptionSpec(name="draws", short="n", type=Int, default=5000, description="MCMC draws (bayesian only)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -1422,7 +1441,7 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "sdfm"],
-            summary="Path to CSV data file",
+            summary="Structural DFM (FGLR or legacy GDFM-VAR) with q auto-selection",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="factors", short="q", type=Int, default=nothing, description="Number of dynamic factors (default: auto via --q-method)"),
@@ -1433,9 +1452,9 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="instrument", type=String, default="", description="Proxy-instrument CSV column (only with --id proxy)"),
                 OptionSpec(name="var-lags", type=Int, default=1, description="Factor VAR lag order"),
                 OptionSpec(name="horizon", type=Int, default=40, description="Structural IRF horizon"),
-                OptionSpec(name="config", type=String, default="", description="TOML config for sign restrictions"),
+                OptionSpec(name="config", type=String, default="", description="TOML config for sign/narrative checks and --id lewis-tvv|sv-em knobs"),
                 OptionSpec(name="bandwidth", type=Int, default=0, description="Spectral bandwidth (0=auto)"),
-                OptionSpec(name="kernel", type=String, default="bartlett", description="bartlett|parzen|quadratic_spectral"),
+                OptionSpec(name="kernel", type=String, default="bartlett", description="bartlett|parzen|tukey", choices=["bartlett", "parzen", "tukey"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
@@ -1453,7 +1472,7 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "reg"],
-            summary="Path to CSV data file",
+            summary="Fit OLS (or WLS with --weights) linear regression",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 # W10/#112: cov-type is WIDENED with `conley` for THIS leaf only. REG_OPTIONS
@@ -1496,7 +1515,7 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "select"],
-            summary="Path to CSV data file",
+            summary="Select regressors by forward/backward/bidirectional/best-subset/GETS search and refit",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
@@ -1520,7 +1539,7 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "iv"],
-            summary="Path to CSV data file",
+            summary="Fit 2SLS/LIML/Fuller/k-class IV regression with first-stage diagnostics",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (default: first numeric column)"),
@@ -1543,10 +1562,10 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "sur"],
-            summary="Path to CSV data file",
+            summary="Fit seemingly-unrelated regressions (SUR) by FGLS over an equation system",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
-                OptionSpec(name="config", type=String, default="", description="TOML config: [[equations]] blocks (dep + indep) (required)"),
+                OptionSpec(name="config", type=String, default="", description="Config file listing the equations as dep = indep, ...; required; TOML or a model card"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -1563,10 +1582,10 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "3sls"],
-            summary="Path to CSV data file",
+            summary="Fit three-stage least squares (3SLS) over an instrumented equation system",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
-                OptionSpec(name="config", type=String, default="", description="TOML config: [[equations]] + instruments (required)"),
+                OptionSpec(name="config", type=String, default="", description="Config file listing the equations as dep = indep, ... plus instruments; required; TOML or a model card"),
                 OptionSpec(name="instruments", type=String, default="common", choices=["common","perequation"], description="common|perequation instrument sets"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
@@ -1586,7 +1605,7 @@ function estimate_specs()::Vector{CommandSpec}
             # which has a real plot_result recipe (an ABSTRACT dispatch — a by-name grep for
             # plot_result(::SARIMAModel) finds nothing and would have wrongly ruled plots out).
             path=["estimate", "sarima"],
-            summary="Path to CSV data file",
+            summary="Fit seasonal SARIMA(p,d,q)(P,D,Q)[s] with auto-selection",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[SARIMA_OPTIONS...,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -1602,7 +1621,7 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "poisson"],
-            summary="Path to CSV data file",
+            summary="Fit Poisson count regression by pseudo-ML (QMLE sandwich by default)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[COUNT_COMMON_OPTIONS...,
                 # Upstream's own choice set and default: estimate_poisson defaults to the
@@ -1630,7 +1649,7 @@ function estimate_specs()::Vector{CommandSpec}
             # NO --cov-type/--clusters: estimate_nbreg accepts neither (its vcov is the
             # joint (beta, log alpha) information matrix).
             path=["estimate", "nbreg"],
-            summary="Path to CSV data file",
+            summary="Fit negative-binomial (NB2) count regression with an overdispersion parameter",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[COUNT_COMMON_OPTIONS...,
                 OptionSpec(name="maxiter", type=Int, default=1000, description="Maximum iterations (≥ 1)"),
@@ -1650,7 +1669,7 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "logit"],
-            summary="Path to CSV data file",
+            summary="Fit binary logit regression by IRLS",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 REG_OPTIONS...,
@@ -1667,7 +1686,7 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "probit"],
-            summary="Path to CSV data file",
+            summary="Fit binary probit regression by IRLS",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 REG_OPTIONS...,
@@ -1684,7 +1703,7 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "preg"],
-            summary="Path to CSV panel data file",
+            summary="Fit panel regression (within/between/RE/FD/CRE/GMM) with cluster-robust SEs",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
             options=[
                 # cov-type is WIDENED to include pcse for THIS leaf only, and the two new
@@ -1696,7 +1715,10 @@ function estimate_specs()::Vector{CommandSpec}
                 map(o -> o.name == "cov-type" ?
                         OptionSpec(name="cov-type", type=String, default="cluster",
                                    choices=["ols","cluster","twoway","driscoll-kraay","pcse"],
-                                   description="ols|cluster|twoway|driscoll-kraay|pcse (Beck-Katz panel-corrected SEs)") : o,
+                                   description="ols|cluster|twoway|driscoll-kraay|pcse (Beck-Katz panel-corrected SEs)") :
+                    o.name == "dep" ?
+                        OptionSpec(name="dep", type=String, default="",
+                                   description="Dependent variable column name (required)") : o,
                     PREG_OPTIONS)...;
                 OptionSpec(name="ar1", type=String, default="none", description="Prais-Winsten AR(1) correction", choices=["none","common","panel-specific"]);
                 OptionSpec(name="pcse-unbalanced", type=String, default="casewise", description="Unbalanced-panel handling for --cov-type pcse", choices=["casewise","pairwise"]);
@@ -1735,15 +1757,15 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "piv"],
-            summary="Path to CSV panel data file",
+            summary="Fit panel IV regression (FE-IV, EC2SLS, FD-IV or Hausman-Taylor)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
             options=[
-                OptionSpec(name="dep", type=String, default="", description="Dependent variable column name"),
+                OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (required)"),
                 OptionSpec(name="exog", type=String, default="", description="Exogenous variables (comma-separated)"),
-                OptionSpec(name="endog", type=String, default="", description="Endogenous variables (comma-separated)"),
+                OptionSpec(name="endog", type=String, default="", description="Endogenous variables (comma-separated) (required)"),
                 OptionSpec(name="instruments", type=String, default="", description="Instruments (comma-separated)"),
-                OptionSpec(name="method", short="m", type=String, default="fe", description="fe|re|fd|hausman-taylor"),
-                OptionSpec(name="cov-type", type=String, default="cluster", description="ols|cluster|twoway|driscoll-kraay"),
+                OptionSpec(name="method", short="m", type=String, default="fe", description="fe|re|fd|hausman-taylor", choices=["fe", "re", "fd", "hausman-taylor"]),
+                OptionSpec(name="cov-type", type=String, default="cluster", description="ols|cluster|twoway|driscoll-kraay", choices=["ols", "cluster", "twoway", "driscoll-kraay"]),
                 OptionSpec(name="id-col", type=String, default="", description="Panel group ID column"),
                 OptionSpec(name="time-col", type=String, default="", description="Panel time column"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -1759,9 +1781,16 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "plogit"],
-            summary="Path to CSV panel data file",
+            summary="Fit panel logit regression (pooled|fe|re|cre)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
-            options=with_default(PREG_OPTIONS, "method", "pooled"),
+            options=map(o -> o.name == "cov-type" ?
+                    OptionSpec(name="cov-type", type=String, default="cluster",
+                               choices=["ols", "cluster"],
+                               description="ols|cluster") :
+                    o.name == "dep" ?
+                    OptionSpec(name="dep", type=String, default="",
+                               description="Dependent variable column name (required)") : o,
+                with_default(PREG_OPTIONS, "method", "pooled")),
             flags=FlagSpec[],
             tables=[TableSpec(name=:panel_logit_coefficients,
                               description="Panel logit coefficients with standard errors, z-statistics and p-values"),
@@ -1772,9 +1801,20 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "pprobit"],
-            summary="Path to CSV panel data file",
+            summary="Fit panel probit regression (pooled|re|cre; no within estimator)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
-            options=with_default(PREG_OPTIONS, "method", "pooled"),
+            options=map(o -> o.name == "cov-type" ?
+                    OptionSpec(name="cov-type", type=String, default="cluster",
+                               choices=["ols", "cluster"],
+                               description="ols|cluster") :
+                    o.name == "method" ?
+                    OptionSpec(name="method", short="m", type=String, default="pooled",
+                               choices=["pooled", "re", "cre"],
+                               description="pooled|re|cre (no within estimator: incidental-parameters problem)") :
+                    o.name == "dep" ?
+                    OptionSpec(name="dep", type=String, default="",
+                               description="Dependent variable column name (required)") : o,
+                with_default(PREG_OPTIONS, "method", "pooled")),
             flags=FlagSpec[],
             tables=[TableSpec(name=:panel_probit_coefficients,
                               description="Panel probit coefficients with standard errors, z-statistics and p-values"),
@@ -1785,10 +1825,14 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "ologit"],
-            summary="Path to CSV data file",
+            summary="Fit ordered logit regression with estimated cutpoints",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
-                REG_OPTIONS...
+                map(o -> o.name == "cov-type" ?
+                        OptionSpec(name="cov-type", type=String, default="hc1",
+                                   choices=["ols", "hc0", "hc1", "cluster"],
+                                   description="ols|hc0|hc1|cluster") : o,
+                    REG_OPTIONS)...,
             ],
             flags=FlagSpec[],
             tables=[TableSpec(name=:ordered_logit_coefficients,
@@ -1801,10 +1845,14 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "oprobit"],
-            summary="Path to CSV data file",
+            summary="Fit ordered probit regression with estimated cutpoints",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
-                REG_OPTIONS...
+                map(o -> o.name == "cov-type" ?
+                        OptionSpec(name="cov-type", type=String, default="hc1",
+                                   choices=["ols", "hc0", "hc1", "cluster"],
+                                   description="ols|hc0|hc1|cluster") : o,
+                    REG_OPTIONS)...,
             ],
             flags=FlagSpec[],
             tables=[TableSpec(name=:ordered_probit_coefficients,
@@ -1817,11 +1865,12 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "mlogit"],
-            summary="Path to CSV data file",
+            summary="Fit multinomial logit regression over unordered categories",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column name"),
-                OptionSpec(name="cov-type", type=String, default="ols", description="ols|hc0|hc1|hc2|hc3"),
+                OptionSpec(name="cov-type", type=String, default="ols", description="ols|hc0|hc1|cluster"),
+                OptionSpec(name="clusters", type=String, default="", description="Cluster variable column name"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -2537,9 +2586,9 @@ function _forecast_sarima(; data::String="", result=nothing, column::Int=1, p=no
     catch e
         throw(_domain_or_data_error(e, "SARIMA forecast"))
     end
-    output_result(long_table(fc); format=Symbol(format), output=output,
-                  title="$lbl Forecast for $vname (h=$horizons, $(Int(round(ci_level*100)))% CI)",
-                  key="sarima_forecast")
+    # #217: via the central helper (same long_table, key frozen).
+    _emit_result(fc; title="$lbl Forecast for $vname (h=$horizons, $(Int(round(ci_level*100)))% CI)",
+                 key="sarima_forecast", format=Symbol(format), output=output)
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
     return (; model, result=fc)
 end
@@ -2691,13 +2740,12 @@ function _forecast_arfima(; data::String="", result=nothing, column::Int=1, p::I
         throw(_long_memory_error(e, "ARFIMA forecast"))
     end
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
-    output_result(DataFrame(
-            horizon = collect(1:horizons),
-            forecast = round.(Float64.(collect(fc.forecast)); digits=6),
-            lower = round.(Float64.(collect(fc.ci_lower)); digits=6),
-            upper = round.(Float64.(collect(fc.ci_upper)); digits=6));
-        format=Symbol(format), output=output,
-        title="ARFIMA($p,d,$q) Forecast for $vname", key="arfima_forecast")
+    # #220: forecast(::ARFIMAModel) returns ARIMAForecast — route via the central
+    # helper (was a same-grain hand-build with renamed columns). Columns change
+    # horizon|forecast|lower|upper → horizon|variable|value|lower|upper
+    # (Option-A minor-evolvable), unrounded; accessors read the same fields.
+    _emit_result(fc; title="ARFIMA($p,d,$q) Forecast for $vname", key="arfima_forecast",
+                 format=Symbol(format), output=output)
     return (; model=m, result=fc)
 end
 
@@ -2800,7 +2848,7 @@ function _estimate_gmm(; data::String, config::String="",
                         output::String="", format::String="table")
     isempty(config) && error("GMM requires a --config=<file.toml> specifying moment conditions and instruments")
 
-    cfg = load_config(config)
+    cfg = _load_config_or_card(config, :gmm)
     gmm_cfg = get_gmm(cfg)
 
     weighting_map = Dict("identity" => :identity, "optimal" => :optimal,
@@ -3518,7 +3566,7 @@ function _estimate_smm(; data::String, config::String="",
         "data-generating `model` (ar1|arp|var1|iid_normal) and `theta0`. SMM matches " *
         "simulated moments to sample moments, so it needs a model to simulate."))
 
-    cfg = load_config(config)
+    cfg = _load_config_or_card(config, :smm)
     smm = get_smm(cfg)
     weighting = smm["weighting"]
     sim_ratio = smm["sim_ratio"]
@@ -4046,7 +4094,7 @@ function _sur_refit(data, config, iterate, no_intercept)
         "requires --config <toml> with [[equations]] blocks (each `dep` + `indep`)"))
     df = load_data(data)
     numcols = variable_names(df)
-    spec = get_system(load_config(config))
+    spec = get_system(_load_config_or_card(config, :system))
     intercept = !no_intercept
     eqs = [_system_eq_matrix(df, numcols, eq, intercept) for eq in spec["equations"]]
     eqnames = String[eq["name"] for eq in spec["equations"]]
@@ -4064,7 +4112,7 @@ function _3sls_refit(data, config, instruments, no_intercept)
         "requires --config <toml> with [[equations]] and instruments"))
     df = load_data(data)
     numcols = variable_names(df)
-    spec = get_system(load_config(config))
+    spec = get_system(_load_config_or_card(config, :system))
     intercept = !no_intercept
     imode = Symbol(instruments)
     eqs = [_system_eq_matrix(df, numcols, eq, intercept) for eq in spec["equations"]]
@@ -4130,7 +4178,7 @@ function _estimate_sur(; data::String, config::String="", iterate::Bool=false,
         "estimate sur requires --config <toml> with [[equations]] blocks (each `dep` + `indep`)"))
     df = load_data(data)
     numcols = variable_names(df)
-    spec = get_system(load_config(config))
+    spec = get_system(_load_config_or_card(config, :system))
     intercept = !no_intercept
     eqs = [_system_eq_matrix(df, numcols, eq, intercept) for eq in spec["equations"]]
     eqnames = String[eq["name"] for eq in spec["equations"]]
@@ -4164,7 +4212,7 @@ function _estimate_3sls(; data::String, config::String="", instruments::String="
         "estimate 3sls requires --config <toml> with [[equations]] and instruments"))
     df = load_data(data)
     numcols = variable_names(df)
-    spec = get_system(load_config(config))
+    spec = get_system(_load_config_or_card(config, :system))
     intercept = !no_intercept
     eqs = [_system_eq_matrix(df, numcols, eq, intercept) for eq in spec["equations"]]
     eqnames = String[eq["name"] for eq in spec["equations"]]
@@ -4543,7 +4591,7 @@ end
 function _estimate_ologit(; data::String, dep::String="", cov_type::String="ols",
                            clusters::String="",
                            output::String="", format::String="table")
-    y, X, xcols = _load_reg_data(data, dep)
+    y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
     cl = _load_clusters(data, clusters)
     dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
 
@@ -4580,7 +4628,7 @@ end
 function _estimate_oprobit(; data::String, dep::String="", cov_type::String="ols",
                             clusters::String="",
                             output::String="", format::String="table")
-    y, X, xcols = _load_reg_data(data, dep)
+    y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
     cl = _load_clusters(data, clusters)
     dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
 
@@ -4610,14 +4658,16 @@ end
 # ── Multinomial Logit ──────────────────────────────────
 
 function _estimate_mlogit(; data::String, dep::String="", cov_type::String="ols",
+                           clusters::String="",
                            output::String="", format::String="table")
-    y, X, xcols = _load_reg_data(data, dep)
+    y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
+    cl = _load_clusters(data, clusters)
     dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
 
     _status("Multinomial Logit: $dep_name ~ $(join(xcols, " + "))")
     _status()
 
-    model = estimate_mlogit(y, X; cov_type=Symbol(cov_type), varnames=xcols)
+    model = estimate_mlogit(y, X; cov_type=Symbol(cov_type), varnames=xcols, clusters=cl)
 
     # C051: MEMs tidy coef table keyed by alternative — all categories in one table
     # (alternative|term|estimate|std_error|stat|p_value|ci_lower|ci_upper), replacing the
@@ -7590,9 +7640,9 @@ same gap that keeps the flags off `forecast setar|star` — so the leaves declar
 function _ms_forecast_output(fc, label::String, vname::String, horizons::Int,
                              ci_level::Float64, format::String, output::String;
                              key_prefix::String="")
-    output_result(long_table(fc); format=Symbol(format), output=output,
-                  title="$label Forecast for $vname (h=$horizons, $(Int(round(ci_level*100)))% CI)",
-                  key="$(key_prefix)_forecast")
+    # #217: via the central helper (same long_table, key frozen).
+    _emit_result(fc; title="$label Forecast for $vname (h=$horizons, $(Int(round(ci_level*100)))% CI)",
+                 key="$(key_prefix)_forecast", format=Symbol(format), output=output)
     K = size(fc.regime_prob, 2)
     rp = DataFrame(horizon=1:size(fc.regime_prob, 1))
     for k in 1:K
@@ -7870,11 +7920,9 @@ function _irf_tvpvar(; data::String="", result=nothing, date::Int=0, horizons::I
     end
 
     shock_name = birf.shocks[shock]
-    df = long_table(birf)
-    df = df[df.shock .== shock_name, :]
-    output_result(df; format=Symbol(format), output=output,
-                  title="TVP-VAR IRF at date $date to $shock_name (68% credible interval)",
-                  key="tvpvar_irf")
+    # #217: via the central helper (same long_table + shock filter, key frozen).
+    _emit_result(birf; title="TVP-VAR IRF at date $date to $shock_name (90% credible interval)",
+                 key="tvpvar_irf", format=Symbol(format), output=output, shocks=shock_name)
     return (; model=post, result=birf)
 end
 

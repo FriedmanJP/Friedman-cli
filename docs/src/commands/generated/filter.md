@@ -58,7 +58,7 @@ Baxter-King band-pass filter
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `baxter_king_filter` (Per-variable band-pass trend and cycle over the untrimmed range)
+**Output tables:** `baxter_king_filter` (Per-variable band-pass trend and cycle over the trimmed valid range)
 
 ---
 
@@ -73,8 +73,8 @@ Beveridge-Nelson decomposition
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--method` | — | `String` | `arima` | `arima`, `statespace` | arima\|statespace |
-| `--p` | — | `Int64` | — | — | AR order (default: auto) |
-| `--q` | — | `Int64` | — | — | MA order (default: auto) |
+| `--p` | — | `Int64` | — | — | AR order (default: auto; arima method only, ignored with statespace) |
+| `--q` | — | `Int64` | — | — | MA order (default: auto; arima method only, ignored with statespace) |
 | `--columns` | `-c` | `String` | `""` | — | Column indices, comma-separated (default: all numeric) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |

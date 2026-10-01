@@ -16,7 +16,7 @@ Autocorrelation / partial autocorrelation / cross-correlation
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
-| `--max-lag` | — | `Int64` | — | — | Maximum lag (default: min(20, T-1)) |
+| `--max-lag` | — | `Int64` | — | — | Maximum lag (default: automatic, capped at min(T-1, 10*log10(T))) |
 | `--ccf-with` | — | `Int64` | — | — | Column index for cross-correlation |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |

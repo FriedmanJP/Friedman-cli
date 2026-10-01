@@ -524,7 +524,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         theta0 = [0.4, 0.5]
         lags = 2
         weighting = "two_step"
-        sim_ratio = 5
+        sim_ratio = 3
         burn = 100
         lower = [-0.99, 1.0e-4]
         upper = [0.99, 10.0]
@@ -561,7 +561,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         theta0 = [0.4, 0.5]
         lags = 2
         weighting = "identity"
-        sim_ratio = 5
+        sim_ratio = 3
         burn = 100
         lower = [-0.99, 1.0e-4]
         upper = [0.99, 10.0]
@@ -817,6 +817,222 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         end
 
         rm(csv; force=true); rm(surcfg; force=true)
+    end
+
+    # ─── Model cards as --config (CARD-W3 #208, CARD-W4 #207) ──────────────────
+    # Each case copies a neighbouring PASSING testset's inline setup verbatim and
+    # changes only the `--config` argument to a `.card` file, so the card run is
+    # provably the same estimation as the TOML run it is compared against.
+    @testset "model cards as --config — gmm / smm / sur / 3sls (CARD-W4 #207)" begin
+        # Locally defined on purpose: `_syscoef`/`coltable_sys` above are scoped to
+        # their own testset (this file has been bitten by that twice).
+        _card_syscoef(doc) = begin
+            for (_, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :rows)) || continue
+                ("equation" in table_cols(v) && "term" in table_cols(v)) && return v
+            end
+            nothing
+        end
+        _card_gmmcoef(doc) = begin
+            for (_, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :rows)) || continue
+                c = table_cols(v)
+                ("parameter" in c && "estimate" in c) && return v
+            end
+            nothing
+        end
+
+        @testset "gmm lp card reproduces the TOML fit (CARD-W3 #208)" begin
+            # Inline setup copied from the green LP control above (:649-655): the
+            # `dgp_var2` CSV and the LP moment list.  `instruments` is dropped
+            # from BOTH configs — `gmm lp:` refuses the key by design
+            # (_CARD_GMM_LP_REFUSED), so keeping it on the TOML side would make
+            # the two runs differ in more than the file format.
+            cfg_lp = tempname() * "_gmm_lp.toml"
+            write(cfg_lp, """
+            [gmm]
+            moment_conditions = ["y1", "y2"]
+            """)
+            csv_lp = dgp_var2(; T=200, seed=9)
+            card = tempname() * "_gmm_lp.card"
+            write(card, """
+            gmm lp:
+              moments: y1, y2
+            """)
+            # LP with 2 moments and 2 parameters is just-identified: the leaf
+            # emits no table (its neighbour checks exactly that at :656-660), so
+            # the observable is stderr — and "Moment conditions: 2" is the line
+            # that proves the CARD's moment list was read at all.
+            rt = run_cli_capture(["estimate", "regression", "gmm", csv_lp, "--config", cfg_lp,
+                                  "--weighting", "identity"])
+            rc = run_cli_capture(["estimate", "regression", "gmm", csv_lp, "--config", card,
+                                  "--weighting", "identity"])
+            @test rt.code == 0 && rc.code == 0
+            @test occursin("Moment conditions: 2", rc.err)
+            @test rc.err == rt.err
+            @test occursin("Degrees of freedom: 0", rc.err)
+            rm(csv_lp; force=true); rm(cfg_lp; force=true); rm(card; force=true)
+        end
+
+        @testset "gmm iv card reproduces the TOML first stage (CARD-W3 #208)" begin
+            # Inline setup copied verbatim from the green IV testset (:626-631).
+            Random.seed!(195)
+            n = 400
+            z1 = randn(n); z2 = randn(n)
+            x = 0.9 .* z1 .+ 0.9 .* z2 .+ 0.1 .* randn(n)
+            y = 1.0 .+ 0.5 .* x .+ randn(n)
+            csv = write_csv(DataFrame(y=y, x=x, z1=z1, z2=z2); prefix="gmm_iv_card")
+            cfg = tempname() * "_gmm_iv.toml"
+            write(cfg, """
+            [gmm]
+            dep = "y"
+            endogenous = ["x"]
+            instruments = ["z1", "z2"]
+            theta0 = [0.0, 0.0]
+            """)
+            card = tempname() * "_gmm_iv.card"
+            write(card, """
+            gmm iv:
+              dep: y
+              endogenous: x
+              instruments: z1, z2
+              theta0: 0.0, 0.0
+            """)
+            rt = run_json(["estimate", "regression", "gmm", csv, "--config", cfg, "--weighting", "twostep"])
+            rc = run_json(["estimate", "regression", "gmm", csv, "--config", card, "--weighting", "twostep"])
+            assert_envelope_ok(rt; label="gmm iv toml")
+            assert_envelope_ok(rc; label="gmm iv card")
+            a, b = _card_gmmcoef(rt.doc), _card_gmmcoef(rc.doc)
+            @test a !== nothing && b !== nothing
+            @test numeric_tables_agree(a, b; rtol=1e-8)
+            # The IV opt-in diagnostic: present on BOTH runs, and finite on both.
+            kv_t = collect_named_kv(rt.doc, "metric", "value")
+            kv_c = collect_named_kv(rc.doc, "metric", "value")
+            @test haskey(kv_t, "first_stage_F") && haskey(kv_c, "first_stage_F")
+            @test isapprox(numv(kv_c["first_stage_F"]), numv(kv_t["first_stage_F"]); rtol=1e-8)
+            rm(csv; force=true); rm(cfg; force=true); rm(card; force=true)
+        end
+
+        @testset "smm card reproduces the TOML AR(1) fit (CARD-W4 #207)" begin
+            # Inline setup copied from the green SMM testset (:519).
+            csv = dgp_ar1(; T=400, φ=0.7, σ=1.0, seed=71)
+            cfg = tempname() * "_smm_card.toml"
+            write(cfg, """
+            [smm]
+            model = "ar1"
+            theta0 = [0.4, 0.5]
+            lags = 2
+            weighting = "two_step"
+            sim_ratio = 3
+            burn = 100
+            lower = [-0.99, 1.0e-4]
+            upper = [0.99, 10.0]
+            """)
+            card = tempname() * "_smm_card.card"
+            write(card, """
+            smm:
+              model: ar1
+              theta0: 0.4, 0.5
+              lags: 2
+              weighting: two_step
+              sim_ratio: 3
+              burn: 100
+              lower: -0.99, 1.0e-4
+              upper: 0.99, 10.0
+            """)
+            rt = run_json(["--seed", "20240722", "estimate", "regression", "smm", csv, "--config", cfg])
+            rc = run_json(["--seed", "20240722", "estimate", "regression", "smm", csv, "--config", card])
+            assert_envelope_ok(rt; label="smm toml")
+            assert_envelope_ok(rc; label="smm card")
+            a, b = _card_gmmcoef(rt.doc), _card_gmmcoef(rc.doc)
+            @test a !== nothing && b !== nothing
+            @test numeric_tables_agree(a, b; rtol=1e-6)
+            # Same recovery check the neighbour makes, so the card run is not
+            # merely self-consistent with a broken TOML run.
+            cols = table_cols(b)
+            pidx = findfirst(==("parameter"), cols); eidx = findfirst(==("estimate"), cols)
+            rows = [collect(row) for row in table_rows(b)]
+            phi_row = rows[findfirst(row -> string(row[pidx]) == "phi", rows)]
+            @test 0.3 < Float64(phi_row[eidx]) < 0.99
+            rm(csv; force=true); rm(cfg; force=true); rm(card; force=true)
+        end
+
+        @testset "sur / 3sls cards keep the TOML coefficients (CARD-W4 #207)" begin
+            # Inline setup copied from the green systems testset (:681-693).
+            Random.seed!(4242)
+            Tn = 300
+            x1 = randn(Tn); x2 = randn(Tn); x3 = randn(Tn)
+            U = ([1.0 0.0; 0.6 0.8] * randn(2, Tn))'    # cross-equation error correlation
+            y1 = 1.0 .+ 0.5 .* x1 .+ 0.3 .* x2 .+ U[:, 1]
+            y2 = -0.5 .+ 0.8 .* x2 .+ 0.2 .* x3 .+ U[:, 2]
+            csv = tempname() * "_sur_card.csv"
+            open(csv, "w") do io
+                println(io, "y1,y2,x1,x2,x3")
+                for t in 1:Tn
+                    println(io, join((y1[t], y2[t], x1[t], x2[t], x3[t]), ","))
+                end
+            end
+            surcfg = tempname() * "_sur_card.toml"
+            write(surcfg, """
+            [[equations]]
+            name = "consumption"
+            dep = "y1"
+            indep = ["x1", "x2"]
+            [[equations]]
+            name = "investment"
+            dep = "y2"
+            indep = ["x2", "x3"]
+            """)
+            surcard = tempname() * "_sur_card.card"
+            write(surcard, """
+            equations:
+              consumption: y1 = x1, x2
+              investment: y2 = x2, x3
+            """)
+            rt = run_json(["estimate", "regression", "sur", csv, "--config", surcfg])
+            rc = run_json(["estimate", "regression", "sur", csv, "--config", surcard])
+            assert_envelope_ok(rt; label="sur toml")
+            assert_envelope_ok(rc; label="sur card")
+            a, b = _card_syscoef(rt.doc), _card_syscoef(rc.doc)
+            @test a !== nothing && b !== nothing
+            # Equation names come from the card, so this also pins the naming.
+            qi = findfirst(==("equation"), table_cols(b))
+            names = [string(collect(r)[qi]) for r in table_rows(b)]
+            @test Set(names) == Set(["consumption", "investment"])
+            @test numeric_tables_agree(a, b; rtol=1e-8)
+
+            # 3SLS: the shared instrument set is the whole point of the card's
+            # `instruments:` stanza, and it is the path get_system used to drop.
+            tslscfg = tempname() * "_3sls_card.toml"
+            write(tslscfg, """
+            [[equations]]
+            dep = "y1"
+            indep = ["x1", "x2"]
+            [[equations]]
+            dep = "y2"
+            indep = ["x2", "x3"]
+            [instruments]
+            common = ["x1", "x2", "x3"]
+            """)
+            tslscard = tempname() * "_3sls_card.card"
+            write(tslscard, """
+            equations:
+              y1 = x1, x2
+              y2 = x2, x3
+            instruments:
+              common: x1, x2, x3
+            """)
+            r3t = run_json(["estimate", "regression", "3sls", csv, "--config", tslscfg])
+            r3c = run_json(["estimate", "regression", "3sls", csv, "--config", tslscard])
+            assert_envelope_ok(r3t; label="3sls toml")
+            assert_envelope_ok(r3c; label="3sls card")
+            c3t, c3c = _card_syscoef(r3t.doc), _card_syscoef(r3c.doc)
+            @test c3t !== nothing && c3c !== nothing
+            @test numeric_tables_agree(c3t, c3c; rtol=1e-8)
+
+            rm(csv; force=true); rm(surcfg; force=true); rm(surcard; force=true)
+            rm(tslscfg; force=true); rm(tslscard; force=true)
+        end
     end
 
     @testset "estimate regression lasso/ridge/elastic-net/robust/tobit — penalized & LDV (C067a, M5c)" begin
@@ -1340,7 +1556,9 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         csv = dgp_threshold(; n=400, seed=7001)
 
         @testset "recovers the true threshold and both regime slopes" begin
-            r = run_json(["estimate", "regime", "threshold", csv, "--dep", "y", "--threshold-col", "z", "--reps", "199"])
+            # Diet (v1.0.1): Hansen bootstrap --reps 199 → 99 (p-resolution 0.01
+            # still resolves the pvalue < 0.10 rejection on this strong signal).
+            r = run_json(["estimate", "regime", "threshold", csv, "--dep", "y", "--threshold-col", "z", "--reps", "99"])
             assert_envelope_ok(r; label="estimate regime threshold")
             ct = _coef(r.doc)
             @test ct !== nothing
@@ -1432,7 +1650,9 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
 
         @testset "estimate regime setar — two regimes, γ in CI, attached Hansen rejects" begin
             csv = dgp_setar(; n=400, seed=651)
-            r = run_json(["estimate", "regime", "setar", csv, "--column", "1", "--p", "1", "--d", "1", "--reps", "199"])
+            # Diet (v1.0.1): --reps 199 → 99 (linearity-bootstrap teeth are
+            # reject/not-reject directions on strong signals, not p-precision).
+            r = run_json(["estimate", "regime", "setar", csv, "--column", "1", "--p", "1", "--d", "1", "--reps", "99"])
             assert_envelope_ok(r; label="estimate regime setar")
             # coef table: regime|term|estimate|std_error|z_stat|p_value, 2 regimes × 2 terms
             ct = nothing
@@ -1462,7 +1682,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
 
         @testset "test hansen-linearity — rejects on the SETAR DGP" begin
             csv = dgp_setar(; n=400, seed=652)
-            r = run_json(["test", "hansen-linearity", csv, "--column", "1", "--p", "1", "--d", "1", "--reps", "199"])
+            r = run_json(["test", "hansen-linearity", csv, "--column", "1", "--p", "1", "--d", "1", "--reps", "99"])
             assert_envelope_ok(r; label="test hansen-linearity")
             @test Set(["sup_lm", "pvalue_lm", "sup_wald", "pvalue_wald", "gamma_sup", "n_grid"]) ⊆
                   Set(String(string(collect(row)[1])) for row in table_rows(_diag(r.doc)))
@@ -1476,7 +1696,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         @testset "forecast regime setar — h=6 finite paths, lower ≤ value ≤ upper" begin
             csv = dgp_setar(; n=400, seed=653)
             r = run_json(["forecast", "regime", "setar", csv, "--column", "1", "--p", "1", "--d", "1",
-                          "--horizons", "6", "--reps", "199"])
+                          "--horizons", "6", "--reps", "99"])
             assert_envelope_ok(r; label="forecast regime setar")
             _, tbl = first_table(r.doc)
             @test tbl !== nothing
@@ -1557,7 +1777,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         @testset "forecast regime star — h=6 finite paths, coherent bands" begin
             csv = dgp_star(; n=400, seed=663)
             r = run_json(["forecast", "regime", "star", csv, "--column", "1", "--p", "1", "--d", "1",
-                          "--horizons", "6", "--reps", "199"])
+                          "--horizons", "6", "--reps", "99"])
             assert_envelope_ok(r; label="forecast regime star")
             _, tbl = first_table(r.doc)
             @test tbl !== nothing
@@ -1595,7 +1815,10 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         mv(doc, name) = (d = _diag(doc); d === nothing ? nothing : metric_value(d, name))
 
         @testset "estimate regime ms-ar — converged, ordered mu, row-stochastic P, finite loglik" begin
-            csv = dgp_msar(; n=500, seed=671)
+            # Diet (v1.0.1): n=500 → 350 on the three EM fits (a pinned-stream
+            # PREFIX, so the same regimes — EM cost is superlinear in n and the
+            # teeth are qualitative: ordering, stochasticity, finiteness).
+            csv = dgp_msar(; n=350, seed=671)
             r = run_json(["estimate", "regime", "ms-ar", csv, "--column", "1", "--p", "1"])
             assert_envelope_ok(r; label="estimate regime ms-ar")
             # coef table: per-regime `mu` rows (ordered increasing) + a common-AR block
@@ -1627,7 +1850,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         end
 
         @testset "estimate regime ms — intercept-only recovers two distinct regime means" begin
-            csv = dgp_msar(; n=500, seed=672)
+            csv = dgp_msar(; n=350, seed=672)
             r = run_json(["estimate", "regime", "ms", csv])
             assert_envelope_ok(r; label="estimate regime ms")
             ct = _find(r.doc, "regime", "term", "estimate")
@@ -1646,7 +1869,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             # The headline MS output. Real `filtered_prob` and `smoothed_prob` are genuinely
             # different objects (smoothed conditions on the whole sample), which is what makes
             # this worth asserting on REAL MEMs rather than only against the mock.
-            csv = dgp_msar(; n=500, seed=673)
+            csv = dgp_msar(; n=350, seed=673)
             r = run_json(["estimate", "regime", "ms-ar", csv, "--column", "1", "--p", "1"])
             assert_envelope_ok(r; label="estimate regime ms-ar probabilities")
             pt = _find(r.doc, "period", "regime", "filtered", "smoothed")
@@ -2683,11 +2906,14 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         @testset "sadf/gsadf — explosive episode vs pure random walk" begin
             bub = dgp_bubble(; T=300, seed=129)
             rw  = dgp_random_walk(; T=300, seed=131)
+            # Diet (v1.0.1): --mc-reps 199 → 99. The tooth compares the sample
+            # STATISTIC (bubble > random walk), which Monte-Carlo reps do not
+            # affect — they only simulate the p-value tail.
             for leaf in ("sadf", "gsadf")
-                rb = run_json(vcat(_head("test", leaf), [bub, "--mc-reps", "199"]))
+                rb = run_json(vcat(_head("test", leaf), [bub, "--mc-reps", "99"]))
                 assert_envelope_ok(rb; label="$leaf bubble")
                 sb = scan_metric(rb.doc, "statistic")
-                rr = run_json(vcat(_head("test", leaf), [rw, "--mc-reps", "199"]))
+                rr = run_json(vcat(_head("test", leaf), [rw, "--mc-reps", "99"]))
                 assert_envelope_ok(rr; label="$leaf random walk")
                 sr = scan_metric(rr.doc, "statistic")
                 # the explosive series must score strictly higher than the pure I(1) one
@@ -2873,11 +3099,12 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             assert_envelope_ok(rf; label="forecast univariate arfima")
             t = first_table(rf.doc)[2]
             @test t !== nothing && length(table_rows(t)) == 6
-            @test Set(["horizon", "forecast", "lower", "upper"]) ⊆ Set(String.(table_cols(t)))
+            # #220: routes via upstream long_table (ARIMAForecast) — value, not forecast.
+            @test Set(["horizon", "variable", "value", "lower", "upper"]) ⊆ Set(String.(table_cols(t)))
             # intervals must bracket the point forecast and widen with the horizon
             lo1 = Float64(collect(first(table_rows(t)))[col_index(t, "lower")])
             hi1 = Float64(collect(first(table_rows(t)))[col_index(t, "upper")])
-            f1  = Float64(collect(first(table_rows(t)))[col_index(t, "forecast")])
+            f1  = Float64(collect(first(table_rows(t)))[col_index(t, "value")])
             @test lo1 <= f1 <= hi1
             last_row = collect(table_rows(t))[end]
             @test (Float64(collect(last_row)[col_index(t, "upper")]) -
@@ -3906,9 +4133,11 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         @testset "did estimate has finite SE column (#164-169)" begin
             r = run_json(vcat(["did", "estimate", panel], D, P))
             assert_envelope_ok(r; label="did estimate")
-            _, tbl = first_table(r.doc)
+            # #216: routes via upstream _coef_nt(::DIDResult) — lowercase columns + stat/p_value.
+            tbl = named_table(r.doc, :did_estimation)
             @test tbl !== nothing
-            si = col_index(tbl, "SE")
+            @test "event_time" in table_cols(tbl)
+            si = col_index(tbl, "std_error")
             @test si !== nothing
             ses = [collect(row)[si] for row in table_rows(tbl)]
             @test all(x -> x isa Real && isfinite(x) && x >= 0, ses)
@@ -4095,8 +4324,10 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         # ReproManifest on the saved SVModel, so reproduce re-runs from the
         # seed and compares bit-for-bit.
         vjld = tempname() * ".jld2"
+        # Diet (v1.0.1): --draws 150 → 100 (the reproduce pin is bit-for-bit
+        # from the recorded seed, so it is exact at any draw count).
         rv = run_json(["--seed", "7", "estimate", "volatility", "sv", csv, "--column", "1",
-                       "--draws", "150", "--save-model", vjld])
+                       "--draws", "100", "--save-model", vjld])
         assert_envelope_ok(rv; label="w3 seeded sv save")
         rvi = run_json(["model", "info", vjld])
         assert_envelope_ok(rvi; label="w3 sv info")
@@ -4172,9 +4403,10 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rm(ss; force=true)
 
         ks = tempname() * ".jld2"
+        # Diet (v1.0.1): smaller KS solve (type-string teeth only).
         rk = run_json(["--seed", "7", "hadsge", "solve", "krusell-smith",
-                       "--method", "krusell-smith", "--n-reduced", "6",
-                       "--t-horizon", "20", "--save-model", ks])
+                       "--method", "krusell-smith", "--n-reduced", "4",
+                       "--t-horizon", "12", "--save-model", ks])
         assert_envelope_ok(rk; label="w3 ks solve save")
         rki = run_json(["model", "info", ks])
         assert_envelope_ok(rki; label="w3 ks info")
@@ -4567,8 +4799,10 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
     # ── W7/#109: TVP-VAR-SV, MF-VAR, BVAR hyperopt ──────────────────────────
     @testset "estimate multivariate tvpvar + irf tvpvar (W7/#109)" begin
         csv = dgp_var2(; T=120, seed=21)
+        # Diet (v1.0.1): Gibbs 60/30 → 40/20, --irf-draws 40 → 25 (teeth are
+        # tidy shapes + positive volatilities + row counts, all draw-robust).
         r = run_json(["estimate", "multivariate", "tvpvar", csv, "--lags", "1",
-                      "--draws", "60", "--burnin", "30"])
+                      "--draws", "40", "--burnin", "20"])
         assert_envelope_ok(r; label="estimate multivariate tvpvar")
         vol = nothing
         for (_, v) in pairs(r.doc.data)
@@ -4596,8 +4830,8 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         @test occursin("date", lowercase(String(rmiss.doc["error"]["message"])))
 
         rirf = run_json(["irf", "tvpvar", csv, "--date", "40", "--horizons", "4",
-                         "--lags", "1", "--draws", "60", "--burnin", "30",
-                         "--irf-draws", "40"])
+                         "--lags", "1", "--draws", "40", "--burnin", "20",
+                         "--irf-draws", "25"])
         assert_envelope_ok(rirf; label="irf tvpvar")
         it = nothing
         for (_, v) in pairs(rirf.doc.data)
@@ -4632,8 +4866,10 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                 end
             end
         end
-        r = run_json(["estimate", "multivariate", "mfvar", csv, "--lags", "2", "--draws", "80",
-                      "--burnin", "40", "--freq-ratio", "3", "--aggregation", "average"])
+        # Diet (v1.0.1): Gibbs 80/40 → 50/25 (the tooth is the 96×2 latent-path
+        # length — the interpolation existing, not its posterior precision).
+        r = run_json(["estimate", "multivariate", "mfvar", csv, "--lags", "2", "--draws", "50",
+                      "--burnin", "25", "--freq-ratio", "3", "--aggregation", "average"])
         assert_envelope_ok(r; label="estimate multivariate mfvar")
         lat = nothing
         for (_, v) in pairs(r.doc.data)
@@ -4665,7 +4901,10 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             return nothing
         end
 
-        rg = run_json(["estimate", "multivariate", "bvar", csv, "--lags", "2", "--draws", "200"])
+        # Diet (v1.0.1): --draws 200 → 100 on the three hyperopt runs (the
+        # GLP/grid/config teeth are selection-table shapes + the log_ml
+        # improvement inequality, all draw-count-robust).
+        rg = run_json(["estimate", "multivariate", "bvar", csv, "--lags", "2", "--draws", "100"])
         assert_envelope_ok(rg; label="estimate multivariate bvar --hyperopt glp (default)")
         tg = hyper_tbl(rg.doc)
         @test tg !== nothing
@@ -4681,7 +4920,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test vals["tau"] > 0
         end
 
-        rr = run_json(["estimate", "multivariate", "bvar", csv, "--lags", "2", "--draws", "200",
+        rr = run_json(["estimate", "multivariate", "bvar", csv, "--lags", "2", "--draws", "100",
                        "--hyperopt", "grid"])
         assert_envelope_ok(rr; label="estimate multivariate bvar --hyperopt grid")
         tr = hyper_tbl(rr.doc)
@@ -4704,7 +4943,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         lambda2 = 0.5
         lambda3 = 1.0
         """)
-        rc = run_json(["estimate", "multivariate", "bvar", csv, "--lags", "2", "--draws", "200",
+        rc = run_json(["estimate", "multivariate", "bvar", csv, "--lags", "2", "--draws", "100",
                        "--config", cfg])
         assert_envelope_ok(rc; label="estimate multivariate bvar --config minnesota")
         # Config pins the values, so no selection table is emitted.
@@ -4733,8 +4972,12 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         has_metric(t, m) = any(rw -> String(collect(rw)[col_index(t, "metric")]) == m,
                                table_rows(t))
         # Short simulation: this solves Krusell-Smith first, so keep the horizon small.
+        # Diet (v1.0.1): 1500/200 → 800/100; the dh ordering/finiteness teeth only
+        # need a stable-enough simulation, not a long one.
+        # Diet (v1.0.1): --n-reduced 8 → 6 (the dh teeth are ordering +
+        # finiteness, not solution precision; the ssj/reiter legs already run 6).
         r = run_json(["hadsge", "accuracy", "krusell-smith",
-                      "--t-sim", "1500", "--t-burn", "200", "--n-reduced", "8"])
+                      "--t-sim", "800", "--t-burn", "100", "--n-reduced", "6"])
         assert_envelope_ok(r; label="hadsge accuracy")
         t = cols_table(r.doc, ["metric", "value"]; where=v -> has_metric(v, "dh_max"))
         @test t !== nothing
@@ -4770,8 +5013,9 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         # implied law by regression over --t-fit periods. Both must work, and --t-fit is
         # guarded only on that branch (upstream asserts T_fit > 100 untyped).
         for m in ("ssj", "reiter")
+            # Diet (v1.0.1): --t-fit 600 → 400 (same rationale as above).
             rm_ = run_json(["hadsge", "accuracy", "krusell-smith", "--method", m,
-                            "--t-sim", "400", "--t-burn", "50", "--t-fit", "600",
+                            "--t-sim", "400", "--t-burn", "50", "--t-fit", "400",
                             "--n-reduced", "6"])
             assert_envelope_ok(rm_; label="hadsge accuracy --method $m")
             tm = cols_table(rm_.doc, ["metric", "value"]; where=v -> has_metric(v, "dh_max"))
@@ -4908,7 +5152,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             Z[t] = rho_z * Z[t-1] + sigma_z * eps_Z[t]
         end
         """)
-        r = run_json(["hadsge", "solve", spec, "--n-reduced", "8"])
+        r = run_json(["hadsge", "solve", spec, "--n-reduced", "6"])
         assert_envelope_ok(r; label="hadsge solve .jl ssj")
         @test r.doc !== nothing
 
@@ -4947,8 +5191,10 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
     end
 
     @testset "hadsge solve reiter huggett" begin
+        # Diet (v1.0.1): --n-reduced 8 → 6 on the reiter solve/irf/fevd trio
+        # (shape + sweep-exists teeth, not solution precision).
         r = run_json(["hadsge", "solve", "huggett",
-                      "--method", "reiter", "--n-reduced", "8"])
+                      "--method", "reiter", "--n-reduced", "6"])
         assert_envelope_ok(r; label="hadsge solve reiter")
         _, tbl = first_table(r.doc)
         @test tbl !== nothing
@@ -4956,7 +5202,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
 
     @testset "hadsge irf reiter huggett" begin
         r = run_json(["hadsge", "irf", "huggett",
-                      "--method", "reiter", "--horizon", "5", "--n-reduced", "8"])
+                      "--method", "reiter", "--horizon", "5", "--n-reduced", "6"])
         assert_envelope_ok(r; label="hadsge irf")
         _, tbl = first_table(r.doc)
         @test tbl !== nothing
@@ -4965,7 +5211,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
 
     @testset "W0 hadsge fevd zero-row proportion (#702)" begin
         r = run_json(["hadsge", "fevd", "huggett",
-                      "--method", "reiter", "--horizon", "4", "--n-reduced", "8"])
+                      "--method", "reiter", "--horizon", "4", "--n-reduced", "6"])
         assert_envelope_ok(r; label="hadsge fevd")
         # MEMs#702: an identically-zero IRF row now gets proportion 1.0, never 0.
         for (_, t) in pairs(r.doc.data)
@@ -5001,10 +5247,13 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         priors = tempname() * "_ha_priors.toml"
         write(priors, "[priors]\n[priors.alpha]\ndist = \"normal\"\na = 0.36\nb = 0.05\n")
         try
+            # Diet (v1.0.1): RWMH re-solves HA per draw (~9 min at 4 draws);
+            # 2 draws + smaller SSJ state/horizon keep the shape teeth
+            # (envelope ok + ≥1 posterior row) at a fraction of the cost.
             r = run_json(["hadsge", "estimate", "krusell-smith",
                           "--data", csv, "--priors", priors, "--observables", "K",
-                          "--method", "ssj", "--n-draws", "4", "--burnin", "1",
-                          "--t-horizon", "20", "--n-reduced", "6", "--seed", "1"])
+                          "--method", "ssj", "--n-draws", "2", "--burnin", "1",
+                          "--t-horizon", "12", "--n-reduced", "4", "--seed", "1"])
             assert_envelope_ok(r; label="hadsge estimate")
             _, tbl = first_table(r.doc)
             @test tbl !== nothing
@@ -5048,21 +5297,23 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             return nothing
         end
 
-        @testset "two-asset-hank B == B_supply" begin
-            # Cap GE iters: the production 50×50×7 example does not clear, and a
-            # full 200-iter closer blew the 60 min CI T3 budget. Keys still come
-            # from the shipped leaf; numeric B≈B_supply is the CT GE pin below.
+        @testset "two-asset-hank steady-state keys (1 GE iter)" begin
+            # Diet (v1.0.1): ONE GE iteration. Each closer iteration re-solves
+            # the production 50×50×7 two-asset household problem (~8-16 min),
+            # so --max-iter 2 alone cost ~32 min — the single slowest T3 call.
+            # This pins keys-only (B/B_supply present, B_supply == 2); numeric
+            # B≈B_supply is the CT GE pin below. GE convergence itself is
+            # upstream-tested (MEMs#709); T3 does not need to re-prove it.
             r = run_json(["hadsge", "steady-state", "two-asset-hank",
-                          "--max-iter", "2"])
+                          "--max-iter", "1"])
             assert_envelope_ok(r; label="two-asset-hank ss")
             kv = collect_named_kv(r.doc, "name", "value")
             @test haskey(kv, "B")
             @test haskey(kv, "B_supply")
             @test isapprox(Float64(kv["B_supply"]), 2.0; atol=0)
-            # Discrete two-asset-hank GE on MEMs 0.9.0 does not clear the
-            # production 50×50×7 example (measured B≈24.7 vs B_supply=2; upstream
-            # tests document the same for coarse grids). Numeric B≈B_supply is
-            # pinned on the CT closer, which does clear the liquid market.
+            # Numeric B≈B_supply is pinned on the CT closer, which clears
+            # the liquid market (90s); the discrete production-grid closer
+            # above is keys-only by design (see note).
             ct = run_json(["dsge", "ct", "solve", "--two-asset", "--ge",
                            "--rho", "0.06", "--max-iter", "120", "--tol", "1e-3"])
             assert_envelope_ok(ct; label="ct two-asset ge")
@@ -5088,7 +5339,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                 end
             end
             r = run_json(["hadsge", "hd", "krusell-smith", "--data", csv,
-                          "--observables", "K", "--method", "ssj", "--n-reduced", "8",
+                          "--observables", "K", "--method", "ssj", "--n-reduced", "6",
                           "--t-horizon", "40"])
             assert_envelope_ok(r; label="ha hd")
             t = cols_table(r.doc, ["t"])
@@ -5256,6 +5507,246 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test length(table_rows(tbl)) == 2
         end
 
+        @testset "CARD-W2 #210 — a .jl model file with a card stanza solves like the plain file" begin
+            # A model file may carry a `constraints:` card above its @dsge block.
+            # Only the @dsge slice is executed, so the result must equal the same
+            # model solved with the same bound passed on the command line — the card
+            # text is parsed, never eval'd.
+            #
+            # `constraints:` and NOT `priors:` (round 3): `dsge solve` is the OccBin
+            # leaf and CONSUMES a `constraints:` stanza, while `priors:` is Bayesian
+            # and the symmetric stanza policy refuses it. The plain twin is given
+            # the SAME bound as a `--constraint` so BOTH runs take the OccBin path and
+            # the comparison is table-for-table — a carded OccBin run and a plain
+            # gensys run share no table. The model is the 3-variable shape Task 6's
+            # OccBin case already exercises on real MEMs.
+            body = """
+                @dsge begin
+                    parameters: rho = 0.9, sigma = 0.01, phi_pi = 1.5
+                    endogenous: Y, C, i
+                    exogenous: e
+                    linear: true
+
+                    Y[t] = rho * Y[t-1] + sigma * e[t]
+                    C[t] = Y[t]
+                    i[t] = phi_pi * Y[t]
+                end
+                """
+            card_jl = joinpath(dir, "card_model.jl")
+            write(card_jl, "constraints:\n  i[t] >= -10\n" * body)
+            plain_jl = joinpath(dir, "plain_twin.jl")
+            write(plain_jl, body)
+
+            r_card = run_json(["dsge", "solve", card_jl])
+            assert_envelope_ok(r_card; label="dsge solve card stanza")
+            r_plain = run_json(["dsge", "solve", plain_jl,
+                                "--constraint", "i[t] >= -10"])
+            assert_envelope_ok(r_plain; label="dsge solve plain twin")
+
+            # Select by COLUMNS, not key order (JSON3 does not preserve insertion
+            # order and `dsge solve` emits several tables). The OccBin path is the
+            # only table carrying BOTH the leading `period` index and every model
+            # variable.
+            occbin_path = function (doc)
+                doc === nothing && return nothing
+                for (_, v) in pairs(doc.data)
+                    (v isa JSON3.Object && haskey(v, :rows)) || continue
+                    Set(table_cols(v)) == Set(["period", "Y", "C", "i"]) && return v
+                end
+                return nothing
+            end
+            pc = occbin_path(r_card.doc)
+            pp = occbin_path(r_plain.doc)
+            @test pc !== nothing && pp !== nothing
+            @test table_cols(pc) == table_cols(pp)
+            # Numeric, not byte, with a tolerance sized off the substantive scale of
+            # an order-1 path — never an exact float equality (the standing T3
+            # lesson: Linux BLAS can differ by a ULP). `numeric_tables_agree` is
+            # this file's own helper and applies the same rule per cell.
+            @test numeric_tables_agree(pc, pp; atol=1e-8, rtol=1e-6)
+        end
+
+        @testset "CARD-W2 #210 — a helper-only .jl preamble is unchanged, a bad header is loud" begin
+            # No stanza header: ordinary Julia helper code is included whole, so
+            # the spec still builds. This is the guard that keeps every existing
+            # .jl DSGE model working.
+            helper_jl = joinpath(dir, "helper_only.jl")
+            write(helper_jl, """
+            n_extra = 3
+            labels = ["a", "b"]
+            @dsge begin
+                parameters: rho = 0.9, sigma = 0.01
+                endogenous: Y, C
+                exogenous: e
+                linear: true
+
+                Y[t] = rho * Y[t-1] + sigma * e[t]
+                C[t] = Y[t]
+            end
+            """)
+            r = run_json(["dsge", "solve", helper_jl])
+            assert_envelope_ok(r; label="dsge solve helper-only preamble")
+            @test _dsge_policy_table(r.doc) !== nothing
+
+            # A column-0 `ident:` in helper code is a typed config/invalid (exit 4),
+            # not un-Julia that include would report as a generic eval failure.
+            bad = joinpath(dir, "bad_header.jl")
+            write(bad, "labels: = [\"a\"]\n@dsge begin\nend\n")
+            rbad = run_json(["dsge", "solve", bad])
+            @test rbad.code == 4
+
+            # A `gmm lp:` stanza is not a model-file stanza: loud, not ignored.
+            gmmjl = joinpath(dir, "gmm_in_model.jl")
+            write(gmmjl, "gmm lp:\n  moments: y\n@dsge begin\nend\n")
+            rgmm = run_json(["dsge", "solve", gmmjl])
+            @test rgmm.code == 4
+        end
+
+        @testset "CARD-W2 #210 — Julia `using X: y` and `x::T` preambles still load" begin
+            # A colon at column 0 is NOT a card header: `using Statistics: mean`
+            # and `const rho_default::Float64 = 0.9` are ordinary Julia that every
+            # existing .jl model may already rely on. A probe that treated them as
+            # a bad header would break files that used to load.
+            kern = joinpath(dir, "julia_colon.jl")
+            write(kern, """
+            using LinearAlgebra: I
+            const rho_default::Float64 = 0.9
+            @dsge begin
+                parameters: rho = 0.9, sigma = 0.01
+                endogenous: Y, C
+                exogenous: e
+                linear: true
+
+                Y[t] = rho * Y[t-1] + sigma * e[t]
+                C[t] = Y[t]
+            end
+            """)
+            r = run_json(["dsge", "solve", kern])
+            assert_envelope_ok(r; label="dsge solve using/x::T preamble")
+            @test _dsge_policy_table(r.doc) !== nothing
+        end
+
+        @testset "CARD-W2 #210 — a docstring preamble is not a card (NEW-1)" begin
+            # Docstring prose is written as `Model: …` / `Parameters: …`, and a
+            # docstring is the most common preamble idiom in a Julia model file.
+            # Reading that as a card-header attempt rejected a file that loaded
+            # before the splitter existed, with wording about "the assignment"
+            # that does not apply to prose.
+            docj = joinpath(dir, "docstring_preamble.jl")
+            write(docj, """
+            \"\"\"
+            Model: AR(1) with a constant.
+            Parameters: rho, sigma.
+            \"\"\"
+            const MODEL_NOTE = "AR(1)"
+            @dsge begin
+                parameters: rho = 0.9, sigma = 0.01
+                endogenous: Y, C
+                exogenous: e
+                linear: true
+
+                Y[t] = rho * Y[t-1] + sigma * e[t]
+                C[t] = Y[t]
+            end
+            """)
+            r = run_json(["dsge", "solve", docj])
+            assert_envelope_ok(r; label="dsge solve docstring preamble")
+            @test _dsge_policy_table(r.doc) !== nothing
+        end
+
+        @testset "CARD-W2 #210 — a card must not change which @dsge block is solved (NEW-2)" begin
+            # The loader's contract is that the file's LAST expression is the
+            # ModelSpec, and the no-card path includes the whole file. Slicing the
+            # FIRST block instead meant adding a card silently switched which
+            # economic model got solved — exit 0, different numbers, no warning.
+            #
+            # A `constraints:` card, not `priors:` (round 3): `dsge solve` CONSUMES a
+            # `constraints:` stanza and REFUSES a `priors:` one, so a `priors:` card
+            # could only be asserted as a refusal here and the case would lose its
+            # substance — which block got solved is exactly what it is about. The
+            # plain twin gets the same `--constraint` so both runs take the OccBin
+            # path and are comparable table-for-table.
+            two = (rho) -> """
+                @dsge begin
+                    parameters: rho = $(rho), sigma = 0.01, phi_pi = 1.5
+                    endogenous: Y, C, i
+                    exogenous: e
+                    linear: true
+
+                    Y[t] = rho * Y[t-1] + sigma * e[t]
+                    C[t] = Y[t]
+                    i[t] = phi_pi * Y[t]
+                end
+                """
+            blocks = string(two("0.5"), "\n", two("0.9"))
+
+            plain = joinpath(dir, "two_blocks.jl")
+            write(plain, blocks)
+            cardj = joinpath(dir, "two_blocks_card.jl")
+            write(cardj, "constraints:\n  i[t] >= -10\n" * blocks)
+
+            # The PLAIN file, unconstrained, keeps the closed-form proof: the LAST
+            # block's rho = 0.9 is what it solves, asserted on the closed form of
+            # this model (Y[t] = rho*Y[t-1] + sigma*e[t] loads exactly rho on Y), not
+            # on key order. Adding `i[t] = phi_pi * Y[t]` leaves the Y equation
+            # untouched, so `G1_Y` is still rho.
+            r_plain = run_json(["dsge", "solve", plain])
+            assert_envelope_ok(r_plain; label="dsge solve two blocks no card")
+            tbl = _dsge_policy_table(r_plain.doc)
+            @test tbl !== nothing
+            if tbl !== nothing
+                yi = col_index(tbl, "variable")
+                gi = col_index(tbl, "G1_Y")
+                row = only([r for r in table_rows(tbl) if String(r[yi]) == "Y"])
+                @test numv(row[gi]) ≈ 0.9 atol=1e-8
+            end
+
+            # …and the CARDED file must solve the same block. That is only observable
+            # through the path the card itself selects, so both sides get the bound.
+            # `occbin_path` is a local helper of each testset on purpose (the file
+            # already relies on that scoping rule elsewhere).
+            occbin_path = function (doc)
+                doc === nothing && return nothing
+                for (_, v) in pairs(doc.data)
+                    (v isa JSON3.Object && haskey(v, :rows)) || continue
+                    Set(table_cols(v)) == Set(["period", "Y", "C", "i"]) && return v
+                end
+                return nothing
+            end
+            r_plain_c = run_json(["dsge", "solve", plain, "--constraint", "i[t] >= -10"])
+            r_card = run_json(["dsge", "solve", cardj])
+            assert_envelope_ok(r_plain_c; label="dsge solve two blocks with --constraint")
+            assert_envelope_ok(r_card; label="dsge solve two blocks with card")
+            pc = occbin_path(r_card.doc)
+            pp = occbin_path(r_plain_c.doc)
+            @test pc !== nothing && pp !== nothing
+            # A card that selected the FIRST block (rho = 0.5) would move the path,
+            # so this is the block-selection claim, table-for-table.
+            @test numeric_tables_agree(pc, pp; atol=1e-8, rtol=1e-6)
+        end
+
+        @testset "CARD-W2 #210 — a card below the @dsge block is rejected, not executed" begin
+            # The model slice runs to the matching `end`, so a stanza below the
+            # model can never reach the evaluator; it is a typed config/invalid
+            # that names the line and says where the card belongs.
+            below = joinpath(dir, "card_below.jl")
+            write(below, """
+            @dsge begin
+                parameters: rho = 0.9, sigma = 0.01
+                endogenous: Y, C
+                exogenous: e
+                linear: true
+
+                Y[t] = rho * Y[t-1] + sigma * e[t]
+                C[t] = Y[t]
+            end
+            constraints:
+              Y[t] >= -10
+            """)
+            r = run_json(["dsge", "solve", below])
+            @test r.code == 4
+        end
+
         @testset "dsge solve --method perturbation --order 2 (gx over v=[states; shocks])" begin
             # gx/hx are ny×nv with v = [states; shocks] (Stage-14 #368 layout, ≥0.7.2).
             # The renderer labelled only the state columns → DimensionMismatch exit 1 on
@@ -5272,6 +5763,341 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             # C[t] = Y[t] = rho*Y[t-1] + sigma*e[t] → loadings are exactly (rho, sigma)
             @test numv(row[2]) ≈ 0.9 atol=1e-8
             @test numv(row[3]) ≈ 0.01 atol=1e-8
+        end
+
+        @testset "CARD-W1 #209 — repeatable --constraint on dsge solve (T3)" begin
+            cmodel = joinpath(dir, "cconstraint.jl")
+            write(cmodel, """
+            @dsge begin
+                parameters: rho = 0.9, sigma = 0.01, phi_pi = 1.5
+                endogenous: Y, C, i
+                exogenous: e
+                linear: true
+
+                Y[t] = rho * Y[t-1] + sigma * e[t]
+                C[t] = Y[t]
+                i[t] = phi_pi * Y[t]
+            end
+            """)
+            r = run_json(["dsge", "solve", cmodel, "--periods", "8",
+                          "--constraint", "i[t] >= -10"])
+            assert_envelope_ok(r; label="dsge solve --constraint")
+            # Locate the OccBin path by a DISTINCTIVE COLUMN SET, never by key order:
+            # JSON3 does not preserve insertion order, and data tables collide on shared
+            # substrings (W12/#114). Only the path table carries BOTH the leading
+            # `period` index and every model variable.
+            function ipath(doc)
+                doc === nothing && return nothing
+                for (_, v) in pairs(doc.data)
+                    (v isa JSON3.Object && haskey(v, :rows)) || continue
+                    v.columns isa JSON3.Array || continue
+                    Set(Symbol.(v.columns)) == Set([:period, :Y, :C, :i]) && return v
+                end
+                return nothing
+            end
+            # `rows` are JSON3.Arrays, not named objects — a row has no field
+            # access, so the column comes from the header. Located by NAME, not
+            # position, so a column reorder cannot silently rebind the assertion.
+            icol(tbl) = findfirst(==(:i), Symbol.(tbl.columns))
+            ipath_vals(tbl) = [Float64(collect(rp)[icol(tbl)]) for rp in tbl.rows]
+
+            tbl = ipath(r.doc)
+            @test tbl !== nothing
+            if tbl !== nothing
+                ivals = ipath_vals(tbl)
+                # The bound holds along the WHOLE path, to a tolerance — never an exact
+                # float equality (T3 is Linux-only; BLAS differs by a ULP).
+                @test all(v -> v >= -10 - 1e-8, ivals)
+            end
+
+            # PRIMARY proof that the SECOND --constraint reached the resolver and was
+            # not silently dropped: two bounds on the same variable in the SAME
+            # direction are a conflict (exit 4). A dropped second flag would exit 0,
+            # and this case is numerically free — no solver tolerance involved.
+            dup = run_json(["dsge", "solve", cmodel, "--periods", "8",
+                            "--constraint", "i[t] >= -10", "--constraint", "i[t] >= -5"])
+            @test dup.code == 4 && String(dup.doc.error.code) == "config/invalid"
+
+            # Two bounds in OPPOSITE directions on DIFFERENT variables are both
+            # kept, and the second one is in force. It must be a different
+            # variable: a constraint replaces the equation that defines its
+            # variable, so `i[t] <= 0` alongside `i[t] >= -10` is two alternative
+            # regimes on one equation, which the solver refuses. `C[t] <= 0` is
+            # in force and detectable: unconstrained, C tracks Y and is ~0.01 at
+            # period 1, so a dropped second flag leaves it six orders of magnitude
+            # above the bound, while a bound C = 0 exactly.
+            r2 = run_json(["dsge", "solve", cmodel, "--periods", "8",
+                           "--constraint", "i[t] >= -10", "--constraint", "C[t] <= 0"])
+            assert_envelope_ok(r2; label="dsge solve two --constraint")
+            tbl2 = ipath(r2.doc)
+            @test tbl2 !== nothing
+            if tbl2 !== nothing
+                i2 = ipath_vals(tbl2)
+                ccol = findfirst(==(:C), Symbol.(tbl2.columns))
+                c2 = [Float64(collect(rp)[ccol]) for rp in tbl2.rows]
+                @test all(v -> v >= -10 - 1e-8, i2)   # slack bound, holds exactly
+                @test all(v -> abs(v) <= 1e-6, c2)   # binding bound, C is pinned at 0
+            end
+
+            # The dropped-flag contrast, so the binding @test above cannot pass by
+            # a dropped second flag alone: the SAME run without it leaves C ~0.01.
+            r2nc = run_json(["dsge", "solve", cmodel, "--periods", "8",
+                             "--constraint", "i[t] >= -10"])
+            tbl2nc = ipath(r2nc.doc)
+            if tbl2nc !== nothing
+                ccol = findfirst(==(:C), Symbol.(tbl2nc.columns))
+                c2nc = [Float64(collect(rp)[ccol]) for rp in tbl2nc.rows]
+                @test all(v -> v > 1e-3, c2nc)
+            end
+
+            # A two-sided bound is a typed refusal, not exit 1 — the regression pin
+            # for the conversion. Both spellings are pinned, and each asserts wording
+            # ONLY its own path can produce: `dsge solve` has several reachable
+            # `config/invalid` routes (duplicate bound, empty stanza, a bad
+            # `--constraint` value), so asserting the code alone would let the guard
+            # be deleted and the try/catch carry the case. Note `occursin("i", …)`
+            # would NOT: the letter i is in ordinary English prose.
+            two = run_json(["dsge", "solve", cmodel, "--periods", "8",
+                            "--constraint", "-1.0 <= i[t] <= 2.0"])
+            two_msg = String(two.doc.error.message)
+            @test two.code == 4
+            @test String(two.doc.error.code) == "config/invalid"
+            @test occursin("two-sided bound", two_msg)      # the conversion's own refusal
+            @test occursin("'i'", two_msg)                  # QUOTED — names the variable
+            @test occursin("perfect-foresight", two_msg)    # the route that does work
+
+            # The split spelling fails later, inside the solve, so it is the try/catch
+            # that types it — a different wording, which is what tells the two apart.
+            split2 = run_json(["dsge", "solve", cmodel, "--periods", "8",
+                               "--constraint", "i[t] >= -10", "--constraint", "i[t] <= 0"])
+            split_msg = String(split2.doc.error.message)
+            @test split2.code == 4
+            @test String(split2.doc.error.code) == "config/invalid"
+            @test occursin("two constraints were given on the same variable", split_msg)
+            @test !occursin("two-sided bound on", split_msg)
+
+            # A constraint naming a variable the model does not define (lowercase
+            # `c` for `C` — the resolver never checks the spec) is typed too, and
+            # carries MEMs' own guidance rather than a generic refusal.
+            undef = run_json(["dsge", "solve", cmodel, "--periods", "8",
+                              "--constraint", "c[t] >= -100"])
+            @test undef.code == 4
+            @test String(undef.doc.error.code) == "config/invalid"
+            @test occursin("Variable :c not found", String(undef.doc.error.message))
+
+            # A bound the OccBin parser rejects (no [t]) is a typed config/invalid —
+            # proof the --constraint VALUE reaches the resolver instead of being ignored.
+            bad = run_json(["dsge", "solve", cmodel, "--constraint", "i >= -10"])
+            @test bad.code == 4 && String(bad.doc.error.code) == "config/invalid"
+        end
+
+        @testset "CARD-W2 #210 — bayes reads priors: from the model file (T3)" begin
+            # The wave in one invocation: a `priors:` stanza in the `.jl` model file
+            # and NO --priors. Before #210 the leaf exited 2 (usage/missing) even
+            # though the stanza had been parsed, validated and then discarded.
+            card_model = joinpath(dir, "card_priors.jl")
+            write(card_model, """
+            priors:
+              rho ~ beta(0.5, 0.2)
+              sigma ~ inv_gamma(2.0, 0.1)
+
+            @dsge begin
+                parameters: rho = 0.9, sigma = 0.01
+                endogenous: Y, C
+                exogenous: e
+                linear: true
+
+                Y[t] = rho * Y[t-1] + sigma * e[t]
+                C[t] = Y[t]
+            end
+            """)
+            pdat = joinpath(dir, "data_card_priors.csv")
+            open(pdat, "w") do io
+                println(io, "Y"); y = 0.0
+                for _ in 1:60; y = 0.9y + 0.01randn(); println(io, y); end
+            end
+
+            # Locate the posterior table by a DISTINCTIVE COLUMN SET, never by key
+            # order (JSON3 does not preserve insertion order) and never by a
+            # substring (data tables collide on `mean`/`std`). `parameter` + `q05` +
+            # `median` is a signature nothing else on this leaf carries.
+            function post_tbl(doc)
+                doc === nothing && return nothing
+                for (_, v) in pairs(doc.data)
+                    (v isa JSON3.Object && haskey(v, :rows)) || continue
+                    Set(table_cols(v)) ==
+                        Set(["parameter", "mean", "std", "q05", "median", "q95"]) && return v
+                end
+                return nothing
+            end
+
+            r = run_json(["dsge", "bayes", "estimate", card_model,
+                          "--data", pdat, "--params", "rho,sigma", "--observables", "Y",
+                          "--sampler", "smc", "--n-smc", "20", "--n-particles", "20"])
+            assert_envelope_ok(r; label="dsge bayes estimate — priors: stanza")
+            tbl = post_tbl(r.doc)
+            @test tbl !== nothing
+            if tbl !== nothing
+                # The stanza's parameter SET reached the estimator. No computed float
+                # is compared anywhere in this testset: T3 is Linux-only, so an exact
+                # equality on a posterior number is unreproducible (CLAUDE.md ULP
+                # gotcha). Exit code and this row set carry the proof instead.
+                @test sort([String(collect(row)[1]) for row in table_rows(tbl)]) ==
+                      ["rho", "sigma"]
+            end
+
+            # PRIMARY, numerically-free proof that the stanza is a real third SOURCE
+            # and not a decoration: a --prior line naming a parameter the stanza
+            # already declares is a two-of-three collision → exit 4. Drop the stanza
+            # and the very same invocation exits 0. Same for a --priors TOML file.
+            base = ["dsge", "bayes", "estimate", card_model, "--data", pdat,
+                    "--params", "rho,sigma", "--observables", "Y",
+                    "--sampler", "smc", "--n-smc", "20", "--n-particles", "20"]
+            dup_line = run_json(vcat(base, ["--prior", "rho ~ beta(2, 2)"]))
+            @test dup_line.code == 4
+            @test String(dup_line.doc.error.code) == "config/invalid"
+            @test occursin("rho", String(dup_line.doc.error.message))
+            @test occursin("stanza", String(dup_line.doc.error.message))
+
+            cardpri = joinpath(dir, "card_priors.toml")
+            write(cardpri, """
+            [priors.rho]
+            dist = "beta"
+            a = 2.0
+            b = 2.0
+            """)
+            dup_file = run_json(vcat(base, ["--priors", cardpri]))
+            @test dup_file.code == 4
+            @test String(dup_file.doc.error.code) == "config/invalid"
+            @test occursin("rho", String(dup_file.doc.error.message))
+            @test occursin("stanza", String(dup_file.doc.error.message))
+
+            # A model file with NO stanza and no --priors is still the shared
+            # usage/missing naming all three ways to supply them — the guard was not
+            # deleted to make the case above pass.
+            bare = run_json(["dsge", "bayes", "estimate", model_jl, "--data", pdat,
+                             "--params", "rho,sigma", "--observables", "Y",
+                             "--sampler", "smc", "--n-smc", "20", "--n-particles", "20"])
+            @test bare.code == 2
+            msg = lowercase(String(bare.doc.error.message))
+            @test findfirst("--prior", msg) < findfirst("priors:", msg) < findfirst("--priors", msg)
+        end
+        @testset "CARD-W2 #210 — a stanza no leaf can use is refused the same way everywhere (T3)" begin
+            # The symmetry rule, end to end on real MEMs and the real dispatcher. The
+            # LEAF SETS DIFFER PER STANZA and that is the point: `dsge solve` is the
+            # OccBin leaf, so it CONSUMES `constraints:` and REFUSES `priors:`, while
+            # `dsge moments` consumes neither and refuses both. A single leaf set for
+            # both stanzas asserted the opposite of the design for the
+            # (constraints, solve) cell — the testset contradicted the paragraph
+            # directly below it, and contradicted two older cases in this file.
+            for (name, card, token, leaves) in
+                    (("priors", "priors:\n  rho ~ beta(2, 2)\n", "priors:",
+                      (["dsge", "solve"], ["dsge", "moments"])),
+                     ("constraints", "constraints:\n  i[t] >= -10\n", "constraints:",
+                      (["dsge", "moments"],)))
+                f = joinpath(dir, "unused_$(name).jl")
+                write(f, card * """
+                @dsge begin
+                    parameters: rho = 0.9, sigma = 0.01, phi_pi = 1.5
+                    endogenous: Y, C, i
+                    exogenous: e
+                    linear: true
+
+                    Y[t] = rho * Y[t-1] + sigma * e[t]
+                    C[t] = Y[t]
+                    i[t] = phi_pi * Y[t]
+                end
+                """)
+                for leaf in leaves
+                    r = run_json(vcat(leaf, [f]))
+                    @test r.code == 4
+                    @test String(r.doc.error.code) == "config/invalid"
+                    @test occursin(token, String(r.doc.error.message))
+                end
+            end
+
+            # …and the mirror, on BOTH consuming leaves: the same `constraints:` file
+            # is not refused there. The refusals above and these are two halves of one
+            # rule, so neither can be dropped without the other becoming a blanket.
+            cf = joinpath(dir, "unused_constraints.jl")
+            for leaf in (["dsge", "solve"], ["dsge", "steady-state"])
+                ok = run_json(vcat(leaf, [cf]))
+                assert_envelope_ok(ok; label="$(join(leaf, " ")) — constraints: stanza consumed")
+            end
+            # `dsge steady-state --constraints` with a card is the FIRST real-MEMs
+            # exercise of `compute_steady_state(spec; constraints=…)`: the wave's other
+            # OccBin coverage reaches `dsge solve` and `dsge irf` only. Kept, and
+            # flagged as the least-proven line in the wave (it cannot be run until
+            # T3 is gated).
+            ss = run_json(["dsge", "steady-state", cf])
+            @test named_table(ss.doc, :dsge_steady_state) !== nothing ||
+                  any(t -> t isa JSON3.Object && haskey(t, :columns) &&
+                           "steady_state" in String.(t.columns), values(ss.doc.data))
+        end
+
+        @testset "CARD-W2 #210 — dsge bayes compare accepts model 2's priors: stanza (T3)" begin
+            # F1. Both cases below stop BEFORE any estimation, so they cost seconds
+            # rather than two SMC runs, and each one is a different direction.
+            card2 = joinpath(dir, "compare_model2_card.jl")
+            write(card2, """
+            priors:
+              rho ~ beta(0.5, 0.2)
+              sigma ~ inv_gamma(2.0, 0.1)
+
+            @dsge begin
+                parameters: rho = 0.9, sigma = 0.01
+                endogenous: Y, C
+                exogenous: e
+                linear: true
+
+                Y[t] = rho * Y[t-1] + sigma * e[t]
+                C[t] = Y[t]
+            end
+            """)
+            # model 1 carries a `constraints:` stanza, which no Bayesian leaf can
+            # use — so model 1's estimation is REFUSED. That is what makes this a
+            # proof the model-2 guard passed: reaching model 1 at all means the
+            # `--priors2` guard let it through, and it happens without sampling.
+            m1 = joinpath(dir, "compare_model1_cons.jl")
+            write(m1, "constraints:\n  Y[t] >= -10\n" * read(card2, String))
+            pdat = joinpath(dir, "data_compare.csv")
+            open(pdat, "w") do io
+                println(io, "Y"); y = 0.0
+                for _ in 1:60; y = 0.9y + 0.01randn(); println(io, y); end
+            end
+            pri = joinpath(dir, "compare_priors.toml")
+            write(pri, """
+            [priors.rho]
+            dist = "beta"
+            a = 0.5
+            b = 0.2
+            [priors.sigma]
+            dist = "inv_gamma"
+            a = 2.0
+            b = 0.1
+            """)
+
+            # (i) model2 has its own `priors:` stanza and --priors2 is ABSENT: the
+            # guard must NOT fire. Pre-fix this was a bare `error()` → exit 1 with no
+            # envelope, so `r.code == 4` (model 1's refusal) is the whole assertion.
+            r = run_json(["dsge", "bayes", "compare", m1,
+                          "--data", pdat, "--params", "rho,sigma", "--priors", pri,
+                          "--observables", "Y", "--model2", card2, "--params2", "rho,sigma"])
+            @test r.code == 4
+            @test String(r.doc.error.code) == "config/invalid"
+            @test !occursin("--priors2", String(r.doc.error.message))
+
+            # (ii) model2 with NO stanza and no --priors2 is the shared
+            # usage/missing, on the REAL dispatcher's exit code, with a hint naming
+            # the Model-2 flag the user actually has.
+            bare = run_json(["dsge", "bayes", "compare", model_jl,
+                             "--data", pdat, "--params", "rho,sigma", "--priors", pri,
+                             "--observables", "Y", "--model2", model_jl,
+                             "--params2", "rho,sigma"])
+            @test bare.code == 2
+            @test String(bare.doc.error.code) == "usage/missing-option"
+            @test occursin("--priors2", String(bare.doc.error.hint))
+            @test String(bare.doc.error.message) == Friedman._PRIORS_REQUIRED_MESSAGE
         end
 
         @testset "W1 dsge solve --method pfi (no order=)" begin
@@ -5431,10 +6257,18 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             # No --degree here either: it is tensor-path-only like --n-grid
             # (upstream ignores it on Smolyak; the guard rejects it — rd4).
             # Tensor-path calls below pass it explicitly.
-            base = ["--n-choice", "15",
+            # Diet (v1.0.1): this testset runs 16 full VFI solves (~17 min).
+            # Tensor grids dominate (12²=144 nodes vs Smolyak's 13-41), so the
+            # tensor path runs --n-grid 8 (64 nodes) here; the SHIPPED default
+            # stays 12 — these pins are routing/identity pins, not default pins.
+            # --n-choice 15 → 10 rides base/b4 into every solve. --tol stays
+            # 1e-4: loosening it to 2e-4 pushed optimizer agreement to 9.2e-4
+            # against the 1e-3 band (Howard/Newton stopping lands erratically),
+            # while the grid coarsening keeps 100×+ margin on every tooth.
+            base = ["--n-choice", "10",
                     "--max-iter", "200", "--tol", "1e-4", "--howard-steps", "10",
                     "--next-state", "residual"]
-            base_fm = filter(x -> x != "--n-choice" && x != "15", base)
+            base_fm = filter(x -> x != "--n-choice" && x != "10", base)
             # Interior state points (exact values immaterial: identity
             # compares use the same point on both runs).
             pt2 = "38.0,0.0"
@@ -5454,10 +6288,10 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test Int(_diag(rs.doc, "smolyak_blocks")) > 0
             @test isfinite(_V(rs.doc))
             # μ-refinement toward tensor: N(2,3)=29 nodes, strictly closer.
-            # Explicit --n-grid 12 == the default, so this is bit-exact
-            # with the auto run below while still exercising the knob.
+            # --n-grid 8 here AND on the auto run below (diet, not the default),
+            # so the pair stays bit-exact while still exercising the knob.
             rt = run_json(["dsge", "solve", rbc, "--method", "vfi",
-                           "--grid", "tensor", "--n-grid", "12",
+                           "--grid", "tensor", "--n-grid", "8",
                            "--degree", "3",
                            base..., "--evaluate-at", pt2])
             assert_envelope_ok(rt; label="vfi tensor baseline")
@@ -5484,24 +6318,27 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             # Same-path identities are bit-exact (same binary, same point):
             # auto→tensor on nx=2, and auto→grid1d on 1 control.
             ra = run_json(["dsge", "solve", rbc, "--method", "vfi",
-                           "--grid", "auto", "--degree", "3",
+                           "--grid", "auto", "--n-grid", "8", "--degree", "3",
                            base..., "--evaluate-at", pt2])
             assert_envelope_ok(ra; label="vfi auto")
             @test String(_diag(ra.doc, "grid_type")) == "tensor"
             @test _V(ra.doc) == _V(rt.doc)
             rg1 = run_json(["dsge", "solve", rbc, "--method", "vfi",
-                            "--optimizer", "grid1d", "--degree", "3", base...,
+                            "--optimizer", "grid1d", "--n-grid", "8",
+                            "--degree", "3", base...,
                             "--evaluate-at", pt2])
             assert_envelope_ok(rg1; label="vfi grid1d")
             @test _V(rg1.doc) == _V(ra.doc)
             # fminbox agrees loosely on 1 control (measured ≈ 2.6e-6).
             rnm = run_json(["dsge", "solve", rbc, "--method", "vfi",
-                            "--optimizer", "fminbox-nm", "--degree", "3",
+                            "--optimizer", "fminbox-nm", "--n-grid", "8",
+                            "--degree", "3",
                             base_fm..., "--evaluate-at", pt2])
             assert_envelope_ok(rnm; label="vfi fminbox-nm")
             @test abs(_V(rnm.doc) - _V(rg1.doc)) < 1e-3
             rlb = run_json(["dsge", "solve", rbc, "--method", "vfi",
-                            "--optimizer", "fminbox-lbfgs", "--degree", "3",
+                            "--optimizer", "fminbox-lbfgs", "--n-grid", "8",
+                            "--degree", "3",
                             base_fm..., "--evaluate-at", pt2])
             assert_envelope_ok(rlb; label="vfi fminbox-lbfgs")
             @test abs(_V(rlb.doc) - _V(rg1.doc)) < 1e-3
@@ -5523,7 +6360,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test rd4.code == 2
             @test String(rd4.doc.error.code) == "usage/invalid"
             # nx=4 routing: auto→smolyak, N(4,2)=41 nodes, bit-exact.
-            b4 = ["--n-choice", "15", "--max-iter", "150",
+            b4 = ["--n-choice", "10", "--max-iter", "150",
                   "--tol", "1e-3", "--howard-steps", "5",
                   "--next-state", "residual"]
             r4a = run_json(["dsge", "solve", rbc4s, "--method", "vfi",
@@ -5536,14 +6373,18 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                             "--grid", "smolyak", b4..., "--evaluate-at", pt4])
             assert_envelope_ok(r4s; label="vfi smolyak nx=4")
             @test _V(r4a.doc) == _V(r4s.doc)
-            # Two-control labor: auto→fminbox-nm bit-exact (same path).
+            # Two-control labor: auto→fminbox-nm bit-exact (same path). rl strips
+            # --n-choice like rln: upstream's auto+fminbox path CONSUMES n_choice
+            # (n-choice 10 vs unset differ by ~1.8 in V), so the pair must agree
+            # on it for the routing identity to hold.
             rl = run_json(["dsge", "solve", labor, "--method", "vfi",
-                           "--degree", "3",
-                           base..., "--evaluate-at", ptL])
+                           "--n-grid", "8", "--degree", "3",
+                           base_fm..., "--evaluate-at", ptL])
             assert_envelope_ok(rl; label="vfi 2-control auto")
             @test Bool(_diag(rl.doc, "converged")) === true
             rln = run_json(["dsge", "solve", labor, "--method", "vfi",
-                            "--optimizer", "fminbox-nm", "--degree", "3",
+                            "--optimizer", "fminbox-nm", "--n-grid", "8",
+                            "--degree", "3",
                             base_fm..., "--evaluate-at", ptL])
             assert_envelope_ok(rln; label="vfi 2-control nm")
             @test _V(rl.doc) == _V(rln.doc)
@@ -5566,20 +6407,19 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             ri = run_json(["dsge", "irf", rbc, "--method", "vfi",
                            "--grid", "smolyak", base..., "--horizon", "4"])
             assert_envelope_ok(ri; label="vfi irf smolyak")
+            # Diet (v1.0.1): the old standalone --seed twin (rss) only pinned
+            # "seed accepted + runs", so the seed rides this call instead —
+            # one fewer full VFI re-solve, same coverage.
             rsm = run_json(["dsge", "simulate", rbc, "--method", "vfi",
                             "--grid", "smolyak", base..., "--periods", "20",
-                            "--burn", "5"])
+                            "--burn", "5", "--seed", "7"])
             assert_envelope_ok(rsm; label="vfi simulate smolyak")
             tsm = named_table(rsm.doc, :dsge_simulation)
             @test tsm !== nothing && length(table_rows(tsm)) == 20
             rst = run_json(["dsge", "simulate", rbc, "--method", "vfi",
-                            "--degree", "3",
+                            "--n-grid", "8", "--degree", "3",
                             base..., "--periods", "20", "--burn", "5"])
             assert_envelope_ok(rst; label="vfi simulate tensor")
-            rss = run_json(["dsge", "simulate", rbc, "--method", "vfi",
-                            "--grid", "smolyak", base..., "--periods", "20",
-                            "--burn", "5", "--seed", "7"])
-            assert_envelope_ok(rss; label="vfi simulate smolyak seed")
         end
 
         @testset "W1 dsge solve --method projection (no order=)" begin
@@ -5729,7 +6569,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             # would be a false requirement, so the leaf does not accept it.
             rp = run_json(["dsge", "bayes", "prior-predictive", model_toml,
                            "--params", "rho,sigma", "--priors", pri,
-                           "--observables", "Y", "--n-draws", "40", "--periods", "80"])
+                           "--observables", "Y", "--n-draws", "25", "--periods", "60"])
             assert_envelope_ok(rp; label="dsge bayes prior-predictive")
             pt = find_tbl(rp.doc, "statistic")
             @test pt !== nothing && length(table_rows(pt)) >= 1
@@ -5785,11 +6625,14 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                     println(io, y)
                 end
             end
+            # Diet (v1.0.1): SMC cost is ~linear in stages × particles; 50×25 keeps
+            # the linear-Gaussian chains healthy while cutting ~4× per estimation.
+            # The assertions here are shapes + finite logML, never tight numbers.
             r = run_json(["dsge", "bayes", "compare", model_jl,
                           "--data", data, "--observables", "Y",
                           "--params", "rho,sigma", "--priors", priors,
                           "--model2", model_jl, "--params2", "rho", "--priors2", priors2,
-                          "--sampler", "smc", "--n-smc", "100", "--n-particles", "50",
+                          "--sampler", "smc", "--n-smc", "50", "--n-particles", "25",
                           "--n-draws", "100", "--burnin", "10"])
             assert_envelope_ok(r; label="dsge bayes compare")
             tbl = named_table(r.doc, :bayesian_model_comparison)
@@ -5833,7 +6676,9 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                     println(io, y)
                 end
             end
-            smc = ["--sampler", "smc", "--n-smc", "100", "--n-particles", "50",
+            # Diet (v1.0.1): 100×50 → 50×25 (see compare above); every leaf
+            # re-estimates, so the diagnostics family pays this 4×.
+            smc = ["--sampler", "smc", "--n-smc", "50", "--n-particles", "25",
                    "--n-draws", "100", "--burnin", "10"]
             base = vcat(["--data", data, "--observables", "Y",
                          "--params", "rho,sigma", "--priors", priors], smc)
@@ -5878,7 +6723,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
 
             @testset "learning-rate (Koop-Pesaran-Smith)" begin
                 r = run_json(vcat(["dsge", "bayes", "learning-rate", model_jl], base,
-                                  ["--refit-n-smc", "30"]))
+                                  ["--refit-n-smc", "15"]))
                 assert_envelope_ok(r; label="dsge bayes learning-rate")
                 tbl = named_table(r.doc, :learning_rate_check)
                 @test tbl !== nothing
@@ -7099,6 +7944,24 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             # probit has no odds ratio → unknown option is a usage error
             @test run_json(["predict", "choice", "probit", logit, "--dep", "y", "--odds-ratio"]).code == 2
         end
+
+        @testset "predict logit/probit --marginal-effects use upstream tidy columns (#216)" begin
+            # Vector-form MarginalEffects routes via _emit_result → upstream
+            # term|estimate|std_error|stat|p_value|ci_lower|ci_upper (unrounded;
+            # non-finite rows dropped as report() does). Keys frozen.
+            for (leaf, key) in (("logit", :average_marginal_effects_logit),
+                                ("probit", :average_marginal_effects_probit))
+                r = run_json(["predict", "choice", leaf, logit, "--dep", "y", "--marginal-effects"])
+                assert_envelope_ok(r; label="predict choice $leaf --marginal-effects")
+                me = named_table(r.doc, key)
+                @test me !== nothing
+                if me !== nothing
+                    @test table_cols(me) == ["term", "estimate", "std_error", "stat",
+                                             "p_value", "ci_lower", "ci_upper"]
+                    @test length(table_rows(me)) >= 1
+                end
+            end
+        end
         rm(ord; force=true)
     end
 
@@ -8306,8 +9169,10 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         end
 
         # Webb weights and the WCU variant both run; --no-ci drops the interval.
+        # Diet (v1.0.1): --boot-reps 199 → 99 on the webb/no-enumerate legs
+        # (shape + flag teeth; the exact enumerated 999 leg is untouched).
         rw = run_json(["test", "iv", "wild-cluster", csv, "--dep", "y", "--clusters", "cl",
-                       "--coefficient", "x", "--boot-weights", "webb", "--boot-reps", "199"])
+                       "--coefficient", "x", "--boot-weights", "webb", "--boot-reps", "99"])
         assert_envelope_ok(rw; label="test iv wild-cluster webb")
         ru = run_json(["test", "iv", "wild-cluster", csv, "--dep", "y", "--clusters", "cl",
                        "--coefficient", "x", "--no-impose-null", "--no-ci"])
@@ -8319,7 +9184,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         end
         # Forcing enumeration off must change `enumerated`.
         rn = run_json(["test", "iv", "wild-cluster", csv, "--dep", "y", "--clusters", "cl",
-                       "--coefficient", "x", "--enumerate-signs", "no", "--boot-reps", "199"])
+                       "--coefficient", "x", "--enumerate-signs", "no", "--boot-reps", "99"])
         assert_envelope_ok(rn; label="test iv wild-cluster --enumerate-signs no")
         tn = first_table(rn.doc)[2]
         tn === nothing || @test metric_value(tn, "enumerated") in (false, "false")

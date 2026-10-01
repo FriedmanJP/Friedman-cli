@@ -1526,7 +1526,7 @@ function register_policy_commands!()
     for route in ("var", "bvar", "lp", "sign")
         push!(specs, CommandSpec(
             path=["policy", "effects", route],
-            summary="Path to CSV data file",
+            summary="McKay-Wolf causal-effects menu (Theta_x/Theta_z) from an estimated IRF",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing,
                           description="Path to CSV data file")],
             options=[_POLICY_COMMON...; _policy_route_options(route)...;
@@ -1534,12 +1534,12 @@ function register_policy_commands!()
                      # draws are dropped (count surfaced in the summary table)
                      OptionSpec(name="normalize", type=String, default="none",
                                 choices=["none", "instrument-impact"],
-                                description="none | instrument-impact (rescale so the first instrument's impact is +1)")],
+                                description=route == "lp" ? "none (the lp route keeps the estimator's scale; instrument-impact is var|bvar|sign only)" : "none | instrument-impact (rescale so the first instrument's impact is +1)")],
             flags=FlagSpec[],   # PolicyCausalEffects has NO plot_result recipe
             tables=[TableSpec(name=:policy_causal_effects_menu,
                               description="Causal-effect menu entries by outcome, instrument and horizon"),
                     TableSpec(name=:policy_causal_effects_summary,
-                              description="Menu shape, normalization and dropped-draw honesty counts")],
+                              description="Menu shape (square/thin), normalization and draw count")],
             category="policy",
             handler=wrap_legacy((; kw...) -> _policy_effects(route; kw...)),
         ))
@@ -1547,14 +1547,14 @@ function register_policy_commands!()
     for route in ("var", "bvar", "lp")
         push!(specs, CommandSpec(
             path=["policy", "counterfactual", route],
-            summary="Path to CSV data file",
+            summary="Rule counterfactual: enforce a PolicyRule on the menu with exact/ls projection",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing,
                           description="Path to CSV data file")],
             options=[_POLICY_COMMON...; _policy_route_options(route)...;
                      _POLICY_CF_OPTIONS...;
                      OptionSpec(name="normalize", type=String, default="none",
                                 choices=["none", "instrument-impact"],
-                                description="none | instrument-impact");
+                                description=route == "lp" ? "none (the lp route keeps the estimator's scale; instrument-impact is var|bvar|sign only)" : "none | instrument-impact");
                      PLOT_OPTIONS...],
             flags=[FlagSpec(name="negate",
                             description="Flip the non-policy shock's sign (e.g. the contractionary version)"),
@@ -1575,7 +1575,7 @@ function register_policy_commands!()
     for route in ("var", "bvar", "lp")
         push!(specs, CommandSpec(
             path=["policy", "optimal", route],
-            summary="Path to CSV data file",
+            summary="Optimal policy: minimize a quadratic PolicyLoss over the menu (spanned_tol fixed 0.05)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing,
                           description="Path to CSV data file")],
             options=[_POLICY_COMMON...; _policy_route_options(route)...;
@@ -1594,7 +1594,7 @@ function register_policy_commands!()
                      # NO --spanned-tol: optimal_policy hardcodes 0.05 upstream.
                      OptionSpec(name="normalize", type=String, default="none",
                                 choices=["none", "instrument-impact"],
-                                description="none | instrument-impact");
+                                description=route == "lp" ? "none (the lp route keeps the estimator's scale; instrument-impact is var|bvar|sign only)" : "none | instrument-impact");
                      PLOT_OPTIONS...],
             flags=[FlagSpec(name="negate",
                             description="Flip the non-policy shock's sign"),
@@ -1614,7 +1614,7 @@ function register_policy_commands!()
     for route in ("var", "bvar")
         push!(specs, CommandSpec(
             path=["policy", "moments", route],
-            summary="Path to CSV data file",
+            summary="Counterfactual second moments (sd/corr), rule XOR loss",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing,
                           description="Path to CSV data file")],
             options=[_POLICY_COMMON...; _policy_route_options(route)...;
@@ -1664,7 +1664,7 @@ function register_policy_commands!()
     for route in ("var", "bvar")
         push!(specs, CommandSpec(
             path=["policy", "opp", route],
-            summary="Path to CSV data file",
+            summary="Barnichon-Mesters optimal policy perturbation (unconstrained or constrained)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing,
                           description="Path to CSV data file")],
             options=[_POLICY_COMMON...; _policy_route_options(route)...;
@@ -1706,13 +1706,13 @@ function register_policy_commands!()
                     TableSpec(name=:instrument_paths_announced_vs_recommended,
                               description="Announced vs recommended instrument path by horizon (when instrument paths are available)"),
                     TableSpec(name=:opp_summary,
-                              description="Baseline/OPP loss, horizon, forecast origin, failure count and constrained-solver diagnostics")],
+                              description="Baseline/OPP loss, horizon, forecast origin, failure count (plus constrained-solver diagnostics when --constraints-file is given)")],
             category="policy",
             handler=wrap_legacy((; kw...) -> _policy_opp(route; kw...)),
         ))
         push!(specs, CommandSpec(
             path=["policy", "opp-sequence", route],
-            summary="Path to CSV data file",
+            summary="OPP rerun over a sequence of dated gap forecasts with news/preference/aging split",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing,
                           description="Path to CSV data file")],
             options=[_POLICY_COMMON...; _policy_route_options(route)...;
@@ -1743,7 +1743,7 @@ function register_policy_commands!()
                     TableSpec(name=:opp_revision_decomposition,
                               description="Per-date split of the revision into news, preference and aging components"),
                     TableSpec(name=:opp_sequence_summary,
-                              description="Sequence span, loss path and draw/failure counts across dates")],
+                              description="Loss name, date span and shock labels for the OPP sequence")],
             category="policy",
             handler=wrap_legacy((; kw...) -> _policy_opp_sequence(route; kw...)),
         ))
@@ -1763,7 +1763,7 @@ function register_policy_commands!()
     ]
     push!(specs, CommandSpec(
         path=["policy", "news", "dsge"],
-        summary="DSGE model file (TOML or .jl ModelSpec)",
+        summary="Square DSGE news menu (policy_news_matrix) for one exogenous shock",
         args=[ArgSpec(name="model", type=String, required=true, default=nothing,
                       description="DSGE model file (TOML or .jl ModelSpec)")],
         options=[OptionSpec(name="policy-shock", type=String, default="",
@@ -1790,7 +1790,7 @@ function register_policy_commands!()
     ))
     push!(specs, CommandSpec(
         path=["policy", "news", "ha"],
-        summary="HA model (builtin name or .jl HA ModelSpec)",
+        summary="Square HA sequence-space news menu under a rate-wedge closure",
         args=[ArgSpec(name="model", type=String, required=true, default=nothing,
                       description="HA model (builtin name or .jl HA ModelSpec)")],
         options=[OptionSpec(name="outcomes", type=String, default="",
@@ -1817,7 +1817,7 @@ function register_policy_commands!()
     ))
     push!(specs, CommandSpec(
         path=["policy", "jacobian", "ha"],
-        summary="HA model (builtin name or .jl HA ModelSpec)",
+        summary="Sequence-space household Jacobian d(output)/d(input) as a tidy T² table",
         args=[ArgSpec(name="model", type=String, required=true, default=nothing,
                       description="HA model (builtin name or .jl HA ModelSpec)")],
         options=[OptionSpec(name="input", type=String, default="r",
@@ -1838,12 +1838,12 @@ function register_policy_commands!()
     for route in ("var", "bvar")
         push!(specs, CommandSpec(
             path=["policy", "history", route],
-            summary="Path to CSV data file",
+            summary="Counterfactual history: re-run an observation window under the policy",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing,
                           description="Path to CSV data file")],
             options=[_POLICY_COMMON...; _policy_route_options(route)...;
                      OptionSpec(name="t-range", type=String, default="",
-                                description="Observation window lo:hi to re-run under the rule (REQUIRED; length ≤ H−1)");
+                                description="Observation window lo:hi to re-run under the rule or optimal policy (REQUIRED; length ≤ H−1)");
                      OptionSpec(name="rule", type=String, default="",
                                 description="Builtin counterfactual rule");
                      OptionSpec(name="rule-config", type=String, default="",
@@ -1861,16 +1861,16 @@ function register_policy_commands!()
                      PLOT_OPTIONS...],
             flags=[FlagSpec(name="plot", description="Open interactive plot in browser")],
             tables=[TableSpec(name=:counterfactual_history,
-                              description="Realized vs counterfactual value per date and variable, with bands when propagated"),
+                              description="Realized vs counterfactual value per date and variable (uncertainty as draw counts in the summary, not bands)"),
                     TableSpec(name=:history_summary,
-                              description="Rule, window, spanned flag and draw counts for the historical re-run")],
+                              description="Policy, window and draw counts for the historical re-run")],
             category="policy",
             handler=wrap_legacy((; kw...) -> _policy_history(route; kw...)),
         ))
     end
     push!(specs, CommandSpec(
         path=["policy", "spanning", "var"],
-        summary="Path to CSV data file",
+        summary="Spanning diagnostic: thin empirical menu vs full DSGE news menu",
         args=[ArgSpec(name="data", type=String, required=true, default=nothing,
                       description="Path to CSV data file"),
               ArgSpec(name="model", type=String, required=true, default=nothing,
@@ -1896,7 +1896,7 @@ function register_policy_commands!()
                  OptionSpec(name="rule-config", type=String, default="",
                             description="TOML [rule] section");
                  OptionSpec(name="tol", type=Float64, default=0.1,
-                            description="Spanned-verdict tolerance on gap_rel");
+                            description="Spanned-verdict tolerance on gap_rel and the loading share");
                  OptionSpec(name="n-sim", type=Int, default=200,
                             description="Draw propagation for gap bands");
                  OptionSpec(name="quantiles", type=String, default="0.16,0.5,0.84",
@@ -1912,7 +1912,7 @@ function register_policy_commands!()
     ))
     push!(specs, CommandSpec(
         path=["policy", "sufficiency", "dsge"],
-        summary="DSGE model file (TOML or .jl ModelSpec)",
+        summary="Forecast-sufficiency FEV ratios for an observable set (population laboratory, no data)",
         args=[ArgSpec(name="model", type=String, required=true, default=nothing,
                       description="DSGE model file (TOML or .jl ModelSpec)")],
         options=[OptionSpec(name="observables", type=String, default="",

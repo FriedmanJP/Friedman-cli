@@ -94,7 +94,13 @@ function _mcp_argv(leaf::LeafCommand, path::Vector{String}, arguments)
         o.name == "format" && (has_format = true)
         k = Symbol(o.name)
         (k in consumed || !haskey(arguments, k)) && continue
-        o.name == "format" || push!(argv, "--" * o.name, string(arguments[k]))
+        if o.repeatable && o.name in _CARD_REPEATABLE
+            for v in (arguments[k] isa AbstractVector ? arguments[k] : Any[arguments[k]])
+                push!(argv, "--" * o.name, string(v))
+            end
+        else
+            o.name == "format" || push!(argv, "--" * o.name, string(arguments[k]))
+        end
         push!(consumed, k)
     end
     for f in leaf.flags
@@ -223,11 +229,11 @@ function serve_specs()::Vector{CommandSpec}
     return [
         CommandSpec(
             path=["serve"],
-            summary="Serve every command as a Model Context Protocol tool over stdio (--mcp)",
+            summary="Serve every other command as a Model Context Protocol tool over stdio (--mcp)",
             args=ArgSpec[],
             options=OptionSpec[],
             flags=[FlagSpec(name="mcp",
-                            description="MCP server: JSON-RPC 2.0 on stdio; tools/list mirrors the registry, tools/call returns the JSON envelope verbatim")],
+                            description="MCP server: JSON-RPC 2.0 on stdio; tools/list mirrors the commands, tools/call returns each command's plain output (JSON for commands that produce JSON)")],
             # No envelope tables: stdout is the JSON-RPC channel (gate-exempt).
             tables=TableSpec[],
             category="serve",

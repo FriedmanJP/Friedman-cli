@@ -585,17 +585,22 @@ Keys:
 """
 function get_smm(config::Dict)
     smm = get(config, "smm", Dict())
-    model = get(smm, "model", nothing)
+    # A `nothing` value means "this card does not set the key".  TOML cannot
+    # spell that, but a lowered model card carries every key with `nothing` for
+    # the ones it omits, so it is read as an ABSENT key — never as a value.
+    _v(k, fallback) = (haskey(smm, k) && smm[k] !== nothing) ? smm[k] : fallback
+    _vec(k) = (x = _v(k, nothing)) === nothing ? nothing : _smm_floatvec(x, k)
+    model = _v("model", nothing)
     Dict{String,Any}(
         "model"     => model === nothing ? nothing : String(model),
-        "theta0"    => haskey(smm, "theta0") ? _smm_floatvec(smm["theta0"], "theta0") : nothing,
-        "lags"      => haskey(smm, "lags") ? _smm_int(smm["lags"], "lags") : 1,
-        "p"         => haskey(smm, "p") ? _smm_int(smm["p"], "p") : nothing,
-        "lower"     => haskey(smm, "lower") ? _smm_floatvec(smm["lower"], "lower") : nothing,
-        "upper"     => haskey(smm, "upper") ? _smm_floatvec(smm["upper"], "upper") : nothing,
-        "weighting" => String(get(smm, "weighting", "two_step")),
-        "sim_ratio" => _smm_int(get(smm, "sim_ratio", 5), "sim_ratio"),
-        "burn"      => _smm_int(get(smm, "burn", 100), "burn"),
+        "theta0"    => _vec("theta0"),
+        "lags"      => _smm_int(_v("lags", 1), "lags"),
+        "p"         => (_pk = _v("p", nothing)) === nothing ? nothing : _smm_int(_pk, "p"),
+        "lower"     => _vec("lower"),
+        "upper"     => _vec("upper"),
+        "weighting" => String(_v("weighting", "two_step")),
+        "sim_ratio" => _smm_int(_v("sim_ratio", 5), "sim_ratio"),
+        "burn"      => _smm_int(_v("burn", 100), "burn"),
     )
 end
 
@@ -624,6 +629,12 @@ Each `[[equations]]` block names a dependent column (`dep`) and regressor column
 Returns `Dict("equations" => [Dict("name","dep","indep","instr"), ...],
 "common_instruments" => Vector{String} | nothing)`. Column *names* only — the
 handler resolves them against the data CSV. Raises typed `config/*` CliErrors.
+
+A model card lowers to the same shape with two differences this function
+accepts: the shared set arrives under `common_instruments` rather than
+`[instruments].common`, and an equation with no `|` arrives with `instr =>
+nothing`. A config carrying BOTH spellings of the shared set is refused
+(`config/invalid`) rather than resolved by an invisible precedence.
 """
 function get_system(config::Dict)
     eqs_raw = get(config, "equations", nothing)
@@ -640,13 +651,32 @@ function get_system(config::Dict)
             "name"  => haskey(e, "name") ? String(e["name"]) : "eq$(j)",
             "dep"   => dep,
             "indep" => _system_strvec(e["indep"], "[[equations]] entry $j `indep`"),
-            "instr" => haskey(e, "instr") ? _system_strvec(e["instr"], "[[equations]] entry $j `instr`") : nothing,
+            # `instr => nothing` means "no instruments on this equation".  A
+            # TOML `[[equations]]` block cannot spell that (no such value), but
+            # a model card lowers to it, so it is treated as an absent key.
+            "instr" => (haskey(e, "instr") && e["instr"] !== nothing) ?
+                       _system_strvec(e["instr"], "[[equations]] entry $j `instr`") : nothing,
         ))
     end
     common = nothing
+    # `instruments.common` is the documented TOML spelling; `common_instruments`
+    # is the key a model card lowers to.  Both are accepted, and the documented
+    # one is read FIRST: a config carrying both is a contradiction, so it is
+    # refused rather than resolved by precedence the user cannot see.  (A card
+    # lowers to the direct key alone, so this never fires on the card path.)
     instr_tbl = get(config, "instruments", nothing)
-    if instr_tbl isa AbstractDict && haskey(instr_tbl, "common")
-        common = _system_strvec(instr_tbl["common"], "[instruments] `common`")
+    nested = (instr_tbl isa AbstractDict && haskey(instr_tbl, "common")) ?
+             instr_tbl["common"] : nothing
+    direct = get(config, "common_instruments", nothing)
+    if nested !== nothing && direct !== nothing
+        throw(CliError("config/invalid",
+            "shared instruments are given twice: `[instruments] common` and `common_instruments`. " *
+            "Keep one."))
+    end
+    if nested !== nothing
+        common = _system_strvec(nested, "[instruments] `common`")
+    elseif direct !== nothing
+        common = _system_strvec(direct, "`common_instruments`")
     end
     Dict{String,Any}("equations" => equations, "common_instruments" => common)
 end

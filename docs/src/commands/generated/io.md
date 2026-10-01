@@ -11,7 +11,7 @@ Aggregate an IO/MRIO table over regions and/or sector types
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, :wiot (bundled example, the default), or another :example |
+| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -32,7 +32,7 @@ Repair intermediate flows so row and column accounts close (RAS/GRAS)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, :wiot (bundled example, the default), or another :example |
+| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -54,7 +54,7 @@ Baqaee & Farhi (2019) nonlinear IO: Domar weights, centralities
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, :wiot (bundled example, the default), or another :example |
+| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -73,11 +73,11 @@ Baqaee & Farhi (2019) nonlinear IO: Domar weights, centralities
 
 ### `friedman io bf elasticities`
 
-Factor-price, goods-price and Domar-share incidence at the base point
+Factor-price and goods-price incidence at the base point
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, :wiot (bundled example, the default), or another :example |
+| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -109,7 +109,7 @@ Exact nested-CES counterfactual equilibrium (Baqaee–Farhi 2019/2020)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, :wiot (bundled example, the default), or another :example |
+| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -148,7 +148,7 @@ Local Hulten + second-order Hessian on a ProductionNetwork
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, :wiot (bundled example, the default), or another :example |
+| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -182,7 +182,7 @@ Baqaee–Farhi (2020) Prop. 5 Harberger misallocation distance
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, :wiot (bundled example, the default), or another :example |
+| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -216,7 +216,7 @@ Calibrate a Baqaee–Farhi ProductionNetwork from an IO table
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, :wiot (bundled example, the default), or another :example |
+| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -248,7 +248,7 @@ One-sector productivity shock: exact vs Hulten vs second-order Taylor
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, :wiot (bundled example, the default), or another :example |
+| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -283,7 +283,7 @@ Baqaee–Farhi (2020) Theorem 1 technology vs allocative-efficiency split
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, :wiot (bundled example, the default), or another :example |
+| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -318,7 +318,7 @@ Bilateral intermediate/final/total trade from exporter to importer
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, :wiot (bundled example, the default), or another :example |
+| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -329,7 +329,7 @@ Bilateral intermediate/final/total trade from exporter to importer
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
-**Output tables:** `bilateral_trade_summary` (Intermediate, final and total bilateral flows); `bilateral_trade_by_sector` (Per-sector gross exports from exporter to importer)
+**Output tables:** `bilateral_trade_summary` (Intermediate, final and total bilateral flows); `bilateral_trade_by_sector` (Per-sector bilateral flow of the requested kind from exporter to importer)
 
 ---
 
@@ -343,7 +343,7 @@ Download an IO/MRIO table (network); respects --offline
 | `--storage` | — | `String` | `""` | — | Destination folder for downloaded archives (required) |
 | `--source-version` | — | `String` | `""` | — | Source version (e.g. OECD v2023) |
 | `--years` | — | `String` | `""` | — | Comma-separated year filter (default: all) |
-| `--system` | — | `String` | `pxp` | `pxp`, `ixi` | EXIOBASE product-by-product\|industry-by-industry |
+| `--system` | — | `String` | `pxp` | `pxp`, `ixi` | EXIOBASE pxp (product-by-product) \| ixi (industry-by-industry) |
 | `--email` | — | `String` | `""` | — | Account email (EORA26 only) |
 | `--password` | — | `String` | `""` | — | Account password (EORA26 only) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
@@ -365,7 +365,7 @@ Koopman–Wang–Wei (2014) DVA/RDV/FVA/PDC decomposition of gross exports
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, :wiot (bundled example, the default), or another :example |
+| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -389,11 +389,11 @@ Hypothetical extraction: output loss from removing sector(s)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, :wiot (bundled example, the default), or another :example |
+| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
-| `--sectors-extract` | — | `String` | `""` | — | Sector(s) to extract: names or 1-based indices, comma-separated (required) |
+| `--sectors-extract` | — | `String` | `""` | — | Sector(s) to extract: names or 1-based indices, comma-separated (required unless --region) |
 | `--mode` | — | `String` | `complete` | `complete`, `backward`, `forward`, `partial` | Extraction variant: complete\|backward\|forward\|partial |
 | `--share` | — | `Float64` | `1.0` | — | Partial extraction share in (0, 1] |
 | `--region` | — | `String` | `""` | — | Extract a whole MRIO region block |
@@ -415,11 +415,11 @@ Consumption-based footprint of a satellite (environmental) account
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, :wiot (bundled example, the default), or another :example |
+| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
-| `--account` | — | `String` | `""` | — | Satellite account name (default: first available, e.g. CO2) |
+| `--account` | — | `String` | `""` | — | Satellite account name (default: first alphabetically, e.g. CO2) |
 | `--by` | — | `String` | `sector` | `sector`, `region` | sector (default) \| region (MRIO production vs consumption) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
@@ -438,7 +438,7 @@ Ghosh (supply-driven) representation: B and inverse G
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, :wiot (bundled example, the default), or another :example |
+| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -452,11 +452,11 @@ Ghosh (supply-driven) representation: B and inverse G
 
 ### `friedman io impact`
 
-Final-demand impact / scenario through the Leontief inverse
+Final-demand impact / scenario through the (extended) Leontief inverse
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, :wiot (bundled example, the default), or another :example |
+| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -482,7 +482,7 @@ Key-sector classification (Rasmussen quadrants)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, :wiot (bundled example, the default), or another :example |
+| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -500,7 +500,7 @@ Leontief (demand-driven) representation: A and inverse L
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, :wiot (bundled example, the default), or another :example |
+| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -518,7 +518,7 @@ Backward/forward linkages + Rasmussen dispersion indices
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, :wiot (bundled example, the default), or another :example |
+| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -532,15 +532,15 @@ Backward/forward linkages + Rasmussen dispersion indices
 
 ### `friedman io load`
 
-Parse/inspect an IO table: dimensions, balance, per-sector totals
+Parse/inspect an IO table: dimensions and per-sector totals
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, :wiot (bundled example, the default), or another :example |
+| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
-| `--parser` | — | `String` | `csv` | `csv`, `icio` | Input parser: csv (parse_io) \| icio (OECD ICIO text; .zip needs ZipFile, deferred W9) |
+| `--parser` | — | `String` | `csv` | `csv`, `icio` | Input parser: csv (parse_io) \| icio (OECD ICIO text) |
 | `--year` | — | `String` | `""` | — | ICIO year filter |
 | `--member` | — | `String` | `""` | — | ICIO member filter |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
@@ -562,7 +562,7 @@ Sectoral output/income/employment multipliers (Type I & II)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, :wiot (bundled example, the default), or another :example |
+| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -577,11 +577,11 @@ Sectoral output/income/employment multipliers (Type I & II)
 
 ### `friedman io network-stats`
 
-Domar weights, Herfindahl, APL, degrees, upstreamness/downstreamness
+Domar weights, Herfindahl, degrees, upstreamness/downstreamness
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, :wiot (bundled example, the default), or another :example |
+| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -604,7 +604,7 @@ Leontief cost-push (or Ghosh dual) price model
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, :wiot (bundled example, the default), or another :example |
+| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -626,16 +626,16 @@ Leontief cost-push (or Ghosh dual) price model
 
 ### `friedman io sda`
 
-Structural decomposition of Δoutput between two periods
+Structural decomposition of Δoutput (or Δemissions with --on) between two periods
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, :wiot (bundled example, the default), or another :example |
+| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
 | `--data2` | — | `String` | `""` | — | Second-period IO table (CSV path / :example; default: same as --data) |
-| `--method` | — | `String` | `additive` | `additive`, `multiplicative` | additive (exact, zero residual) \| multiplicative |
+| `--method` | — | `String` | `additive` | `additive`, `multiplicative` | additive (exact, zero residual) \| multiplicative (two-factor output path only) |
 | `--factors` | — | `String` | `""` | — | Comma-separated SDA factors (kebab); omit for legacy L_effect/Y_effect |
 | `--on` | — | `String` | `output` | — | output \| satellite account name (emission SDA) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
@@ -669,7 +669,7 @@ Hummels–Ishii–Yi / KWW import content of exports
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, :wiot (bundled example, the default), or another :example |
+| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -683,7 +683,7 @@ Hummels–Ishii–Yi / KWW import content of exports
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `vertical_specialization` (VS, VS share, VS1, domestic content and gross exports); `vertical_specialization_by_sector` (Per-sector foreign content in that sector's exports)
+**Output tables:** `vertical_specialization` (VS, VS share, VS1, domestic content, domestic-content share and gross exports); `vertical_specialization_by_sector` (Per-sector foreign content in that sector's exports)
 
 ---
 

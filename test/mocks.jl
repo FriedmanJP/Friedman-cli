@@ -27,7 +27,7 @@ import DataFrames
 using DataFrames: DataFrame   # for long_table (Tables.jl tidy exports, real MEMs #346)
 
 # ─── Distributions re-export (real MEMs re-exports Distributions) ──────────
-# Minimal stand-in so the CLI's prior bridge (_dsge_priors_distributions →
+# Minimal stand-in so the CLI's prior bridge (_dsge_prior_distribution →
 # MacroEconometricModels.Distributions.Beta/Normal/...) resolves under the mock.
 # Stores constructor args and supports Statistics.mean (used to seed theta0).
 module Distributions
@@ -182,6 +182,11 @@ end
 abstract type AbstractMGARCHModel end
 abstract type AbstractNonlinearTSModel end
 abstract type AbstractStateSpaceModel end
+# #217: real MEMs cores all forecast result types under AbstractForecastResult{T}
+# (core/types.jl) with long_table(::AbstractForecastResult); the mock mirrors the
+# hierarchy so the CLI's explicit _TIDY_LONG_TYPES union resolves in both worlds.
+abstract type AbstractForecastResult{T<:AbstractFloat} end
+export AbstractForecastResult
 
 # ─── Core Types ───────────────────────────────────────────
 
@@ -402,7 +407,7 @@ end
 LPFEVD(R2::Array{T,3}, lp_a, lp_b, bc, bse, h::Int, v::Int, s::Int) where T =
     LPFEVD(R2, bc, bse, R2, R2, :R2, h, 200, T(0.95), true)
 
-struct LPForecast{T}
+struct LPForecast{T} <: AbstractForecastResult{T}
     forecast::Matrix{T}; ci_lower::Matrix{T}; ci_upper::Matrix{T}
     se::Matrix{T}; horizon::Int; response_vars::Vector{Int}; shock_var::Int
     shock_path::Vector{T}; conf_level::T; ci_method::Symbol
@@ -452,7 +457,7 @@ struct GeneralizedDynamicFactorModel{T}
     standardized::Bool
     variance_explained::Vector{T}
 end
-struct FactorForecast{T}
+struct FactorForecast{T} <: AbstractForecastResult{T}
     factors::Matrix{T}; observables::Matrix{T}
     factors_lower::Matrix{T}; factors_upper::Matrix{T}
     observables_lower::Matrix{T}; observables_upper::Matrix{T}
@@ -532,7 +537,7 @@ struct ARIMAModel{T}
     converged::Bool
     iterations::Int
 end
-struct ARIMAForecast{T}
+struct ARIMAForecast{T} <: AbstractForecastResult{T}
     forecast::Vector{T}; ci_lower::Vector{T}; ci_upper::Vector{T}; se::Vector{T}
     horizon::Int; conf_level::T
 end
@@ -594,7 +599,7 @@ end
 
 # ─── VAR Forecast Type ──────────────────────────────────
 
-struct VARForecast{T<:AbstractFloat}
+struct VARForecast{T<:AbstractFloat} <: AbstractForecastResult{T}
     forecast::Matrix{T}
     ci_lower::Matrix{T}
     ci_upper::Matrix{T}
@@ -823,7 +828,7 @@ SVModel(c::Vector{T}) where T = SVModel(zeros(T, 100), zeros(T, 10, 100),
     zeros(T, 10), zeros(T, 10), zeros(T, 10), ones(T, 100),
     ones(T, 100, 3), T[0.16, 0.5, 0.84], :normal, false, 10)
 
-struct VolatilityForecast{T<:Real}
+struct VolatilityForecast{T<:Real} <: AbstractForecastResult{T}
     forecast::Vector{T}; ci_lower::Vector{T}; ci_upper::Vector{T}; se::Vector{T}
     horizon::Int; conf_level::T; model_type::Symbol
 end
@@ -905,7 +910,7 @@ struct VECMRestrictionTest{T<:Real}
     restricted_model::VECMModel{T}
 end
 
-struct VECMForecast{T<:Real}
+struct VECMForecast{T<:Real} <: AbstractForecastResult{T}
     levels::Matrix{T}; differences::Matrix{T}
     ci_lower::Union{Matrix{T},Nothing}; ci_upper::Union{Matrix{T},Nothing}
     horizon::Int; ci_method::Symbol
@@ -3322,7 +3327,33 @@ function perfect_foresight(spec::ModelSpec{T}; shock_path=nothing, T_periods=100
     PerfectForesightPath{T}(path, devs, true, 25, spec)
 end
 
+"""
+The two refusals real OccBin makes, so the mock fails in the same PLACE with the
+same CLASS. A mock that accepts what real refuses hides the failure, and these
+two are the ones a user reaches: a variable the model does not have (lowercase
+`c` for `C` slips past the resolver, which never checks the spec), and two
+constraints that would replace the same defining equation.
+
+Real compares DEFINING-EQUATION indices; the mock's ModelSpec has no equations,
+so it compares the constrained variable itself. That is laxer only in the case
+real additionally refuses — two DIFFERENT variables sharing one equation — which
+the mock cannot represent, and never laxer on the case that actually reaches it.
+"""
+function _mock_occbin_check(spec::ModelSpec{T}, cons::Vector) where T
+    for c in cons
+        v = c.variable
+        v in spec.endog || throw(ArgumentError(
+            "Variable :$v not found in endogenous variables"))
+    end
+    length(cons) == 2 && cons[1].variable == cons[2].variable && throw(ArgumentError(
+        "OccBin: constraints on :$(cons[1].variable) and :$(cons[2].variable) replace " *
+        "the same defining equation ($(cons[1].variable)). Pass explicit alternative " *
+        "regimes via the Dict overload."))
+    return nothing
+end
+
 function _mock_occbin_sol(spec::ModelSpec{T}, cons; shock_path=nothing, nperiods::Int=40) where T
+    _mock_occbin_check(spec, cons)
     n = spec.n_endog
     np = shock_path === nothing ? nperiods : size(shock_path, 1)
     lp = zeros(T, np, n)
@@ -4626,7 +4657,7 @@ export kernel_density, kernel_reg, lowess
 
 # ─── BVARForecast Type & Forecast Accessors ──────────────────
 
-struct BVARForecast{T<:AbstractFloat}
+struct BVARForecast{T<:AbstractFloat} <: AbstractForecastResult{T}
     forecast::Matrix{T}
     ci_lower::Matrix{T}
     ci_upper::Matrix{T}
@@ -4721,6 +4752,13 @@ function _mock_fc_lt(pf, lo, hi, varnames::Vector{String})
 end
 long_table(f::BVARForecast)       = _mock_fc_lt(f.forecast, f.ci_lower, f.ci_upper, f.varnames)
 long_table(f::LPForecast)         = _mock_fc_lt(f.forecast, f.ci_lower, f.ci_upper, String[])
+# #220: generic fallback mirroring real `long_table(::AbstractForecastResult)`
+# (core/tables.jl) — catches ConditionalForecast/MidasForecast, for which the mock
+# previously defined no method (concrete methods above keep precedence).
+function long_table(f::AbstractForecastResult)
+    vn = hasproperty(f, :varnames) ? String[String(x) for x in f.varnames] : String[]
+    return _mock_fc_lt(f.forecast, f.ci_lower, f.ci_upper, vn)
+end
 
 # Coefficient-bearing models expose a tidy coef table via Tables.jl in real MEMs
 # (`DataFrame(model)` → equation|term|estimate|std_error|stat|p_value|ci_lower|ci_upper,
@@ -4802,7 +4840,7 @@ struct ThresholdModel{T<:AbstractFloat} <: AbstractNonlinearTSModel
     linearity::Union{Nothing,HansenLinearityTest{T}}
 end
 
-struct ThresholdForecast{T<:AbstractFloat}
+struct ThresholdForecast{T<:AbstractFloat} <: AbstractForecastResult{T}
     forecast::Vector{T}
     ci_lower::Vector{T}
     ci_upper::Vector{T}
@@ -5044,7 +5082,7 @@ struct STARModel{T<:AbstractFloat} <: AbstractNonlinearTSModel
     converged::Bool
 end
 
-struct STARForecast{T<:AbstractFloat}
+struct STARForecast{T<:AbstractFloat} <: AbstractForecastResult{T}
     forecast::Vector{T}
     ci_lower::Vector{T}
     ci_upper::Vector{T}
@@ -5446,7 +5484,7 @@ end
 # Plain struct, matching the mock's ThresholdForecast/STARForecast: this mock module defines
 # no AbstractForecastResult hierarchy, and the CLI reaches MSForecast only through the
 # explicit `long_table(::MSForecast)` below, never through an abstract dispatch.
-struct MSForecast{T<:AbstractFloat}
+struct MSForecast{T<:AbstractFloat} <: AbstractForecastResult{T}
     forecast::Vector{T}
     ci_lower::Vector{T}
     ci_upper::Vector{T}
@@ -8364,6 +8402,24 @@ function DataFrames.DataFrame(m::MultinomialLogitModel)
     df = _mock_coef_df_base(term, est)
     DataFrames.insertcols!(df, 1, :alternative => alt)
     return df
+end
+# #216: vector-form MarginalEffects → upstream `_coef_nt` shape (term first, no
+# equation). Drops non-finite (intercept) rows exactly as real does; p_value is a
+# placeholder (mock has no Distributions — same pattern as _mock_coef_df_base).
+function DataFrames.DataFrame(me::MarginalEffects)
+    keep = findall(isfinite, me.effects)
+    est = Float64.(me.effects[keep]); s = Float64.(me.se[keep])
+    DataFrames.DataFrame(term=me.varnames[keep], estimate=est, std_error=s,
+        stat=est ./ s, p_value=fill(0.5, length(keep)),
+        ci_lower=Float64.(me.ci_lower[keep]), ci_upper=Float64.(me.ci_upper[keep]))
+end
+# #216: DIDResult → upstream `_coef_nt` shape (event_time key + "e=.." terms).
+function DataFrames.DataFrame(r::DIDResult)
+    est = Float64.(r.att); s = Float64.(r.se)
+    DataFrames.DataFrame(event_time=collect(r.event_times),
+        term=["e=$(e)" for e in r.event_times], estimate=est, std_error=s,
+        stat=est ./ s, p_value=fill(0.5, length(est)),
+        ci_lower=Float64.(r.ci_lower), ci_upper=Float64.(r.ci_upper))
 end
 
 # Real (0.8.0, MEMs#550): NO kwargs on either family, and TWO different shapes —
@@ -11946,7 +12002,7 @@ end
 # MOST-RECENT-FIRST contract: real applies the decaying weight curve to X_new in that
 # order, and passing the block chronologically does not error — it silently returns a
 # wrong number.
-struct MidasForecast{T<:AbstractFloat}
+struct MidasForecast{T<:AbstractFloat} <: AbstractForecastResult{T}
     forecast::Vector{T}
     ci_lower::Vector{T}
     ci_upper::Vector{T}
@@ -12160,7 +12216,7 @@ end
 forecast_condition(variable::Union{Int,String,Symbol}, horizon::Integer, value::Real;
                    sd::Real=0.0) = ForecastCondition{Float64}(variable, horizon, value, sd)
 
-struct ConditionalForecast{T<:AbstractFloat}
+struct ConditionalForecast{T<:AbstractFloat} <: AbstractForecastResult{T}
     forecast::Matrix{T}
     ci_lower::Matrix{T}
     ci_upper::Matrix{T}

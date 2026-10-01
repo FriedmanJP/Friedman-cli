@@ -151,7 +151,7 @@ Mincer-Zarnowitz (1969) forecast-efficiency regression (exactly 1 forecast)
 
 ### `friedman forecast factor dynamic`
 
-Path to CSV data file
+Dynamic-factor observable forecast reconstructed from factors
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -180,7 +180,7 @@ Path to CSV data file
 
 ### `friedman forecast factor gdfm`
 
-Path to CSV data file
+GDFM observable forecast reconstructed from factors
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -210,7 +210,7 @@ Path to CSV data file
 
 ### `friedman forecast factor sdfm`
 
-Path to CSV data file
+SDFM observable forecast reconstructed from factors
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -249,7 +249,7 @@ Path to CSV data file
 
 ### `friedman forecast factor static`
 
-Path to CSV data file
+Static-factor observable forecast reconstructed from factors
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -278,7 +278,7 @@ Path to CSV data file
 
 ### `friedman forecast multivariate bvar`
 
-Path to CSV data file
+BVAR posterior-mean forecast with fixed 68% credible bands
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -311,7 +311,7 @@ Path to CSV data file
 
 ### `friedman forecast multivariate favar`
 
-Path to CSV data file
+FAVAR factor-level (or --panel-forecast panel-wide) forecast
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -341,7 +341,7 @@ Path to CSV data file
 
 ### `friedman forecast multivariate lp`
 
-Path to CSV data file
+Local-projection forecast along a fixed shock path
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -390,7 +390,7 @@ Waggoner-Zha conditional (scenario) forecast
 | `--confidence` | — | `Float64` | `0.95` | — | Confidence level in (0, 1) |
 | `--draws` | `-n` | `Int64` | `2000` | — | MCMC draws (--method bvar) |
 | `--sampler` | — | `String` | `direct` | — | direct\|gibbs (--method bvar) |
-| `--config` | — | `String` | `""` | — | TOML config for the BVAR prior |
+| `--config` | — | `String` | `""` | — | TOML config for the BVAR prior (--method bvar; ignored with --method var) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
@@ -411,7 +411,7 @@ Waggoner-Zha conditional (scenario) forecast
 
 ### `friedman forecast multivariate var`
 
-Path to CSV data file
+Unconditional VAR forecast with analytical or bootstrap intervals
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -422,7 +422,7 @@ Path to CSV data file
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto) |
 | `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
 | `--confidence` | — | `Float64` | `0.95` | — | Confidence level for intervals |
-| `--ci-method` | — | `String` | `analytical` | — | analytical\|bootstrap |
+| `--ci-method` | — | `String` | `analytical` | `analytical`, `bootstrap`, `none` | Interval method: analytical\|bootstrap\|none (none = point forecast) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
@@ -440,7 +440,7 @@ Path to CSV data file
 
 ### `friedman forecast multivariate vecm`
 
-Path to CSV data file
+Level VECM forecast with optional bootstrap/parametric intervals
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -472,7 +472,7 @@ Path to CSV data file
 
 ### `friedman forecast regime ms`
 
-Path to CSV data file
+Switching-regression forecast over future regressors (or intercept-only horizons)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -504,7 +504,7 @@ Path to CSV data file
 
 ### `friedman forecast regime ms-ar`
 
-Path to CSV data file
+Regime-averaged MS-AR forecast over simulated regime paths
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -535,7 +535,7 @@ Path to CSV data file
 
 ### `friedman forecast regime setar`
 
-Path to CSV data file
+Bootstrap-simulation threshold forecast for self-exciting models
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -561,7 +561,7 @@ Path to CSV data file
 
 ### `friedman forecast regime star`
 
-Path to CSV data file
+Bootstrap-simulation STAR forecast for self-exciting models
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -588,7 +588,7 @@ Path to CSV data file
 
 ### `friedman forecast univariate arfima`
 
-Path to CSV data file
+ARFIMA forecast with fractional-filter truncation and interval bands
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -616,13 +616,13 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Display an interactive plot |
 
-**Output tables:** `arfima_forecast` (Point forecasts with interval bounds: horizon | forecast | lower | upper)
+**Output tables:** `arfima_forecast` (Point forecasts with interval bounds: horizon | variable | value | lower | upper)
 
 ---
 
 ### `friedman forecast univariate arima`
 
-Path to CSV data file
+ARIMA point forecast with interval bands (auto or fixed order)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -658,7 +658,7 @@ Path to CSV data file
 
 ### `friedman forecast univariate midas`
 
-Path to low-frequency target CSV
+Direct h-step ADL-MIDAS forecast from a high-frequency indicator block (horizon fixed at estimation)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -689,7 +689,7 @@ Path to low-frequency target CSV
 
 ### `friedman forecast univariate sarima`
 
-Path to CSV data file
+SARIMA point forecast with interval bands (auto or fixed order)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -733,7 +733,7 @@ Path to CSV data file
 
 ### `friedman forecast volatility aparch`
 
-Path to CSV data file
+APARCH volatility forecast with interval level
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -765,7 +765,7 @@ Path to CSV data file
 
 ### `friedman forecast volatility arch`
 
-Path to CSV data file
+ARCH(1) volatility forecast (no interval level; horizons only)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -793,7 +793,7 @@ Path to CSV data file
 
 ### `friedman forecast volatility cgarch`
 
-Path to CSV data file
+CGARCH volatility forecast with interval level
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -821,7 +821,7 @@ Path to CSV data file
 
 ### `friedman forecast volatility egarch`
 
-Path to CSV data file
+EGARCH(1,1) volatility forecast (no interval level; horizons only)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -851,7 +851,7 @@ Path to CSV data file
 
 ### `friedman forecast volatility fiegarch`
 
-Path to CSV data file
+FIEGARCH volatility forecast with interval level
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -864,7 +864,7 @@ Path to CSV data file
 | `--q` | — | `Int64` | `1` | — | ARCH order q |
 | `--d0` | — | `Float64` | `0.4` | — | Initial fractional differencing parameter |
 | `--truncation` | — | `Int64` | `1000` | — | Truncation lag for the ARCH(inf) expansion |
-| `--dist` | — | `String` | `normal` | — | Innovation distribution |
+| `--dist` | — | `String` | `normal` | `normal` | Innovation distribution (only normal is accepted; use garch\|egarch\|gjr-garch for Student-t or GED) |
 | `--horizons` | `-H` | `Int64` | `10` | — | Forecast horizons (≥ 1) |
 | `--conf-level` | — | `Float64` | `0.95` | — | Forecast interval level in (0,1) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
@@ -884,7 +884,7 @@ Path to CSV data file
 
 ### `friedman forecast volatility figarch`
 
-Path to CSV data file
+FIGARCH volatility forecast with interval level
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -897,7 +897,7 @@ Path to CSV data file
 | `--q` | — | `Int64` | `1` | — | ARCH order q |
 | `--d0` | — | `Float64` | `0.4` | — | Initial fractional differencing parameter |
 | `--truncation` | — | `Int64` | `1000` | — | Truncation lag for the ARCH(inf) expansion |
-| `--dist` | — | `String` | `normal` | — | Innovation distribution |
+| `--dist` | — | `String` | `normal` | `normal` | Innovation distribution (only normal is accepted; use garch\|egarch\|gjr-garch for Student-t or GED) |
 | `--horizons` | `-H` | `Int64` | `10` | — | Forecast horizons (≥ 1) |
 | `--conf-level` | — | `Float64` | `0.95` | — | Forecast interval level in (0,1) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
@@ -917,7 +917,7 @@ Path to CSV data file
 
 ### `friedman forecast volatility garch`
 
-Path to CSV data file
+GARCH(1,1) volatility forecast (no interval level; horizons only)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -947,7 +947,7 @@ Path to CSV data file
 
 ### `friedman forecast volatility garch-midas`
 
-Path to CSV data file
+GARCH-MIDAS variance forecast split into long-run/short-run components (no interval level)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -978,7 +978,7 @@ Path to CSV data file
 
 ### `friedman forecast volatility gjr-garch`
 
-Path to CSV data file
+GJR-GARCH(1,1) volatility forecast (no interval level; horizons only)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1008,7 +1008,7 @@ Path to CSV data file
 
 ### `friedman forecast volatility igarch`
 
-Path to CSV data file
+IGARCH volatility forecast with interval level
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1038,7 +1038,7 @@ Path to CSV data file
 
 ### `friedman forecast volatility sv`
 
-Path to CSV data file
+SV volatility forecast (no interval level; horizons only)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|

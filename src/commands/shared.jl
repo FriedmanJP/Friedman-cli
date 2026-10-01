@@ -2302,6 +2302,246 @@ function _dsge_solve_error(e, label::String)
     return _domain_or_data_error(e, label)
 end
 
+# ── The .jl preamble classifier (W2 / #210) ────────────────────────────────
+#
+# A column-0 colon is not by itself a card header: `x::T`, `using X: y` and
+# `labels: = […]` all contain one, and the first two are ordinary Julia that
+# every existing `.jl` model file may already rely on. The classifier below
+# separates them, and the asymmetry is deliberate — misreading Julia as a
+# header breaks a file that used to load, whereas the one shape we must stay
+# loud on (`labels: = […]`, a colon followed by `=`) is still caught.
+#
+# `labels: = […]` cannot be caught by `_CARD_HEADER` at all: that pattern
+# requires end-of-line after the colon, which is exactly what this mistake
+# lacks. Hence the separate, looser probe with the two Julia escapes.
+
+# The keywords that can legitimately precede a `:` in Julia. This is NOT the full
+# keyword list — only the ones that can head a `Keyword word:` line — so a card
+# header can never be swallowed by it (verified: no member of `CARD_HEADERS`
+# begins with one of these).
+const _CARD_JULIA_KEYWORDS = Set([
+    "using", "import", "export", "module", "baremodule", "const", "global",
+    "local", "function", "macro", "struct", "mutable", "abstract", "primitive",
+    "type", "begin", "let", "quote", "do", "if", "elseif", "else", "end",
+    "while", "for", "return", "break", "continue",
+])
+
+# `(?!:)` excludes a type annotation (`x::T`); the first character is ASCII, so
+# the decision never depends on whether a variable name happens to be ASCII.
+const _CARD_PREAMBLE_HEADER =
+    r"^([A-Za-z][A-Za-z0-9_-]*(?:[ \t]+[A-Za-z][A-Za-z0-9_-]*)?):(?!:)"
+
+"""
+    _card_doc_delims(line) → count of `\"\"\"` delimiters in `line`
+
+Triple-quote state is tracked by counting delimiters per line: an odd count
+opens or closes a region, an even count (`x = \"\"\"a\"\"\"`) does neither.
+Escaped delimiters inside a string literal are not distinguished — the failure
+mode is then a skipped line, never a wrong model.
+"""
+function _card_doc_delims(line::AbstractString)
+    n = 0
+    for _ in eachmatch(r"\"\"\"", line); n += 1; end
+    return n
+end
+
+"""
+    _card_code_part(line) → the part of `line` before any `\"\"\"` delimiter
+
+A docstring is the most common preamble idiom in a Julia model file, and its
+prose is written as `Model: …` / `Parameters: …`, so only the code before the
+first delimiter may be read as a card-header attempt.
+"""
+_card_code_part(line::AbstractString) =
+    (i = findfirst("\"\"\"", line); i === nothing ? line : line[1:prevind(line, first(i))])
+
+"""
+    _card_preamble_header(lines, path) → (lineno, header) | nothing
+
+The first column-0 line of a `.jl` model preamble that is *trying* to be a card
+stanza header, as `(lineno, "text")`, or `nothing` when there is none. `using X: y`,
+`x::T` and anything inside a `\"\"\"…\"\"\"` region are skipped as ordinary Julia;
+see the block comment above.
+"""
+function _card_preamble_header(lines, path::AbstractString)
+    in_doc = false
+    for (i, line) in enumerate(lines)
+        nd = _card_doc_delims(line)
+        # Parity first: a line inside an open docstring is prose whatever it
+        # looks like — including the line that closes it.
+        if in_doc
+            isodd(nd) && (in_doc = false)
+            continue
+        end
+        m = match(_CARD_PREAMBLE_HEADER, _card_code_part(line))
+        if m !== nothing
+            text = String(m.captures[1])
+            if !(first(split(text)) in _CARD_JULIA_KEYWORDS)
+                return (i, text)
+            end
+        end
+        isodd(nd) && (in_doc = true)
+    end
+    return nothing
+end
+
+"""
+    _card_dsge_opens(lines) → indices of the column-0 `@dsge` blocks
+
+The block scan uses the SAME triple-quote parity as `_card_preamble_header`:
+within one pass a `\"\"\"…\"\"\"` region must not be prose for one decision and code
+for the other. A model file that documents its own usage with an example
+`@dsge` block puts a column-0 `@dsge` inside a docstring, and treating that as a
+block would silently solve the documented example instead of the model — exit
+0, different parameters, no warning. The probe also reads only the code part of
+a line, so `x = \"\"\"…@dsge` is not an open either.
+"""
+function _card_dsge_opens(lines)
+    idxs = Int[]
+    in_doc = false
+    for (i, line) in enumerate(lines)
+        nd = _card_doc_delims(line)
+        if in_doc
+            isodd(nd) && (in_doc = false)
+            continue
+        end
+        _card_is_dsge_open(_card_code_part(line)) && push!(idxs, i)
+        isodd(nd) && (in_doc = true)
+    end
+    return idxs
+end
+
+
+"""
+    _split_card_and_model(path) → (card, model)
+
+Split a `.jl` model file into the optional model-card preamble and the
+`@dsge` block, so a model and its priors/constraints can live in one file.
+
+- `.toml` → `(nothing, nothing)`: a `.toml` is always TOML, never a card, so
+  the caller keeps its existing branch untouched.
+- No column-0 `@dsge` → `(nothing, whole_source)`.
+- A column-0 `@dsge` with a preamble that holds a stanza header →
+  `(preamble, @dsge slice)`. A preamble of only comments/blanks, docstrings, or
+  ordinary Julia helper code keeps the whole file: existing `.jl` models with a
+  `n_extra = 3` constant must not change behaviour.
+- A column-0 `ident:` that is not a card header → `config/invalid` naming that
+  line (a mistyped `labels: = […]` is silently un-Julia otherwise).
+- A stanza header BELOW the `@dsge` block → `config/invalid` naming that line:
+  the card belongs above the model, and a card below it would otherwise ride
+  into the executed text.
+
+Which block: the card region is everything before the FIRST column-0 `@dsge`, and
+the model slice runs from the LAST column-0 `@dsge` to its matching column-0 `end`.
+That is deliberate and it is the only choice that cannot silently change an answer:
+the no-card path `Base.include`s the whole file and the loader's documented
+contract is that its LAST expression is the `ModelSpec`, so a card-bearing file with
+several blocks must resolve to the same one. Taking the first block instead would
+mean adding a card switched which economic model got solved — exit 0, wrong
+numbers, no warning. Blocks between the first and the last are dropped rather than
+executed, which cannot change the returned spec for the same reason — and a stanza
+header found among them is rejected by name, not passed to the evaluator.
+
+The scan for column-0 `@dsge` (`_card_dsge_opens`) and the scan for a column-0
+stanza header (`_card_preamble_header`) share one triple-quote parity: within a
+single pass a `\"\"\"…\"\"\"` region is prose for both. A file that documents its own
+usage with an example `@dsge` block is ordinary, and treating that example as the
+model would solve the wrong parameters with exit 0.
+
+The slice never reaches EOF, so nothing after the block can hit `include_string`.
+"""
+function _split_card_and_model(path::AbstractString)
+    ext = lowercase(splitext(String(path))[2])
+    ext == ".toml" && return (nothing, nothing)
+
+    src = read(String(path), String)
+    lines = _card_lines(src)
+    opens = _card_dsge_opens(lines)
+    isempty(opens) && return (nothing, src)
+    idx = last(opens)
+
+    pre = lines[1:first(opens)-1]
+    header = _card_preamble_header(pre, path)
+    # The list is what `_model_card_stanzas` below actually LOWERS in this
+    # position — naming `gmm lp` / `smm` / `equations` here would send the
+    # author straight into the next refusal, one call deeper.
+    if header !== nothing
+
+        (lineno, text) = header
+        occursin(r"[ \t]", text) && (text = join(split(text), " "))
+        text in CARD_HEADERS ||
+            throw(_card_error(path, lineno,
+                "'$(text)' is not a model-card stanza header — a .jl model file " *
+                "may declare only $(join(_JL_PREAMBLE_STANZAS, ", ")) " *
+                "above its @dsge block; write the Julia assignment without the colon"))
+        # Validates the rest of the preamble (body lines, stray column-0 code).
+        parse_card(join(pre, "\n"), path)
+    end
+    # The block runs to its matching column-0 `end`, not to EOF, so a stanza
+    # written below the model can never reach the evaluator. Checked BEFORE the
+    # no-card early return: a lone stanza below the model is a mistake too, and
+    # returning the whole file would hand it to `include`. An unterminated block
+    # falls through to EOF and fails in the evaluator, whose syntax error already
+    # points at the file.
+    stop = length(lines)
+    for j in (idx+1):length(lines)
+        _card_is_dsge_close(lines[j]) && (stop = j; break)
+    end
+    # The region between the FIRST and the LAST block is in neither `pre` (which
+    # stops at the first open) nor the tail (which starts after the last), so
+    # without this it is examined by nothing: a stanza written there would ride
+    # into `include_string` as a bare ParseError instead of the named-line
+    # message. Only when there really are two blocks — with one, this region is
+    # the model's own body.
+    if first(opens) < idx
+        mid = _card_preamble_header(lines[first(opens)+1:idx-1], path)
+        mid === nothing ||
+            throw(_card_error(path, first(opens) + mid[1],
+                "'$(mid[2])' appears below the @dsge block; a model card must be " *
+                "written above it, with its body lines indented"))
+    end
+    if stop < length(lines)
+        tail = _card_preamble_header(lines[stop+1:end], path)
+        tail === nothing ||
+            throw(_card_error(path, stop + tail[1],
+                "'$(tail[2])' appears below the @dsge block; a model card must be " *
+                "written above it, with its body lines indented"))
+    end
+
+    # No card header: the whole file is the model, helper code included. This is
+    # what keeps an ordinary `.jl` model working exactly as it did before.
+    header === nothing && return (nothing, src)
+    return (join(pre, "\n"), join(lines[idx:stop], "\n"))
+end
+
+const _JL_PREAMBLE_STANZAS = ("priors", "constraints")
+
+"""
+    _model_card_stanzas(path) → Dict{Symbol,Any}
+
+The lowered `priors` / `constraints` a `.jl` model file declares above its
+`@dsge` block, or an empty dict when it declares none. Any other stanza
+(`gmm lp`, `smm`, `equations`, …) is `config/invalid` naming its header: a
+model file is not the place for a GMM/SMM/equation-system card, and silently
+ignoring one would drop configuration the user believed was applied.
+"""
+function _model_card_stanzas(path::AbstractString)
+    card, _ = _split_card_and_model(path)
+    card === nothing && return Dict{Symbol,Any}()
+    stanzas = parse_card(card, path)
+    out = Dict{Symbol,Any}()
+    for s in stanzas
+        f = card_family(s.header)
+        f === :priors && (out[:priors] = lower_priors([s], path))
+        f === :constraints && (out[:constraints] = lower_constraints([s], path))
+        f === :priors || f === :constraints ||
+            throw(_card_error(path, s.lineno,
+                "'$(s.header)' is not allowed in a .jl model file — a model file " *
+                "declares only 'priors' and 'constraints' above its @dsge block"))
+    end
+    return out
+end
+
 """
     _load_dsge_model(path) → ModelSpec
 
@@ -2317,8 +2557,14 @@ call that evaluates them must go through [`_dsge_call`] (world-age barrier).
 
 An HA spec, or any other agent kind reachable via `to_spec`, is `usage/wrong-command`
 (exit 2) — never silently remapped into an RA solver.
+
+`allow_priors` / `allow_constraints` declare which card stanzas this caller
+CONSUMES; a stanza the caller does not consume is `config/invalid` via
+[`_model_card_stanza_policy`](@ref) rather than silently ignored. Both default to
+false, so a caller that reads a stanza must say so.
 """
-function _load_dsge_model(path::String)
+function _load_dsge_model(path::String; allow_priors::Bool=false,
+                          allow_constraints::Bool=false)
     _validate_input_path(path)
     isfile(path) || throw(CliError("data/file-not-found", "model file not found: $path"))
     ext = lowercase(splitext(path)[2])
@@ -2350,9 +2596,19 @@ function _load_dsge_model(path::String)
         return spec
 
     elseif ext == ".jl"
+        # A .jl model file may carry a model card (priors/constraints stanzas)
+        # above its @dsge block; the block alone is the executable text. A stanza
+        # this leaf cannot CONSUME is refused, not just one that fails to parse —
+        # see `_model_card_stanza_policy`. Both flags default to false, so every
+        # RA leaf except the Bayesian and OccBin ones is covered by this one call.
+        card, model_src = _split_card_and_model(path)
+        card === nothing ||
+            _model_card_stanza_policy(_model_card_stanzas(path);
+                                      allow_priors=allow_priors,
+                                      allow_constraints=allow_constraints)
         mod = _dsge_sandbox()
         result = try
-            Base.include(mod, path)
+            card === nothing ? Base.include(mod, path) : include_string(mod, model_src, path)
         catch e
             e isa CliError && rethrow()
             _dsge_eval_invalid(e, "could not evaluate the DSGE model file '$path'";
@@ -2484,8 +2740,13 @@ file that evaluates to a `ModelSpec` carrying a `HouseholdSystem`.
 The `.jl` path goes through [`_dsge_sandbox`]. At MEMs 0.9.0 the HA SSJ path evaluates
 the spec's `NamedEquation` residual closures, so downstream `compute_steady_state` /
 `solve` of a `.jl` spec must go through [`_dsge_call`] (world-age barrier).
+
+`allow_priors` / `allow_constraints` are as on [`_load_dsge_model`](@ref): both
+default to false, so the single Bayesian HA caller opts in and every other HA
+leaf refuses a stanza it cannot use.
 """
-function _load_ha_model(model::String; distribution::String="young")
+function _load_ha_model(model::String; distribution::String="young",
+                        allow_priors::Bool=false, allow_constraints::Bool=false)
     isempty(strip(model)) && throw(CliError("usage/missing-arg",
         "HA model is required (builtin name or path to .jl ModelSpec)"))
     dist = _parse_ha_distribution(distribution)
@@ -2505,9 +2766,20 @@ function _load_ha_model(model::String; distribution::String="young")
         "HA model file must be .jl (got '$ext'); builtins: " *
         join(first.( _HA_BUILTIN_MODELS), ", ")))
 
+    # Same preamble rule as the RA loader, validation included: a column-0
+    # `ident:` in helper code is a loud config/invalid, and a stanza that is not
+    # a model card (`gmm lp:`) is rejected rather than silently ignored.
+    card, model_src = _split_card_and_model(model)
+    # A stanza this leaf cannot CONSUME is refused too, not just one that fails to
+    # parse — see `_model_card_stanza_policy`. Both flags default to false, so every
+    # HA leaf except the Bayesian one is covered by this one call.
+    card === nothing ||
+        _model_card_stanza_policy(_model_card_stanzas(model);
+                                  allow_priors=allow_priors,
+                                  allow_constraints=allow_constraints)
     mod = _dsge_sandbox()
     result = try
-        Base.include(mod, model)
+        card === nothing ? Base.include(mod, model) : include_string(mod, model_src, model)
     catch e
         e isa CliError && rethrow()
         _dsge_eval_invalid(e, "could not evaluate the HA model file '$model'";
@@ -2836,7 +3108,284 @@ function _load_dsge_constraints(path::String; spec=nothing)
     return constraints
 end
 
-"""Convert loaded constraints to 1 or 2 `OccBinConstraint`s (upstream's only shapes)."""
+"""
+    _model_card_stanzas_for(path) → Dict{Symbol,Any}
+
+[`_model_card_stanzas`](@ref) for a model path that is not necessarily a readable
+file. An HA `model` may be a BUILTIN symbol (`:huggett`) with no file behind it,
+and a missing RA file must keep raising `data/file-not-found` from
+[`_load_dsge_model`](@ref) with the loader's own wording — reading it here would
+raise an untyped `SystemError` (exit 1) instead. `isfile` is checked BEFORE the
+confinement check so a builtin name is never treated as a path; a real file is
+confined and validated exactly as the loader validates it.
+"""
+function _model_card_stanzas_for(path::AbstractString)
+    p = String(path)
+    isfile(p) || return Dict{Symbol,Any}()
+    _validate_input_path(p)
+    return _model_card_stanzas(p)
+end
+
+"""
+    _resolve_dsge_priors(file::String, lines::Vector{String};
+                         stanzas=Dict{Symbol,Any}()) → Dict{String,Any}
+
+Merge every prior source into exactly what `get_dsge_priors` returns — the same
+`{name => {dist, a, b}}` shape the TOML loader produces — so a card and the
+equivalent TOML reach the estimator by ONE path. `file` is `--priors`;
+`lines` are the repeatable `--prior 'name ~ dist(a, b)'` values; `stanzas` is
+the `priors:` dict [`_model_card_stanzas`](@ref) returns for the model file
+(CARD-W2 / #210). A `.jl` model file can therefore carry its priors in the same
+place it carries its equations.
+
+The three sources are ONE set, not a precedence fight: a parameter supplied by
+two of them (or twice in `lines`) is `config/invalid` naming the parameter AND
+both sources. A `--priors` file with no `[priors]` table is
+`config/missing-key` from `get_dsge_priors`.
+
+With no source this returns an EMPTY dict rather than throwing: the
+user-facing `usage/missing` lives in the leaf guards
+(`_dsge_bayes_inputs`, `_dsge_ha_estimate`), which run first and are the only
+reachable copy — see `_PRIORS_REQUIRED_MESSAGE`.
+"""
+function _resolve_dsge_priors(file::String, lines::Vector{String};
+                              stanzas::AbstractDict=Dict{Symbol,Any}())
+    out = Dict{String,Any}()
+    origin = Dict{String,String}()          # parameter → the source that supplied it
+
+    function take!(src, pairs)
+        for (k, v) in pairs
+            haskey(origin, k) && throw(CliError("config/invalid",
+                "prior '$(k)' is given twice — once by $(origin[k]) and once by $(src)"))
+            origin[k] = src
+            out[k] = v
+        end
+    end
+
+    isempty(file) || take!("--priors", get_dsge_priors(load_config(file)))
+    isempty(lines) || take!("--prior",
+        lower_priors(parse_card(_card_inline("priors", lines), "<--prior>"), "<--prior>"))
+    haskey(stanzas, :priors) && take!("the model's priors: stanza", stanzas[:priors])
+    return out
+end
+
+# The ONE user-facing "no priors supplied" message (#209), shared by every leaf guard
+# so the three sources are named identically wherever the user hits it. It lives here,
+# beside the resolver, because the leaf guards run FIRST — a second copy inside
+# `_resolve_dsge_priors` would be unreachable (a `--priors` file with an empty
+# `[priors]` table is already `config/missing-key` from `get_dsge_priors`), and an
+# unreachable copy is a copy nobody tests. Order is `--prior`, then the `priors:`
+# stanza, then `--priors`: the cheapest source first, the file last.
+const _PRIORS_REQUIRED_MESSAGE =
+    "priors are required: pass --prior 'name ~ dist(a, b)' (repeatable), " *
+    "add a priors: stanza to the model file, or point --priors at a priors TOML"
+
+"""
+    _card_inline(header, lines) → String
+
+Wrap repeated `--prior` / `--constraint` values in the minimal card text they
+are: one stanza header plus its INDENTED body lines. `parse_card` closes a
+stanza at column 0, so an unindented body line is `config/invalid`. No stanza
+text is ever evaluated — only parsed.
+"""
+function _card_inline(header::AbstractString, lines::Vector{String})
+    return string(header, ":\n", join(("  " * l for l in lines), "\n"))
+end
+
+"""`(variable, direction)` identity of a loaded constraint; non-variable bounds
+(nonlinear OccBin expressions) have none and so never collide."""
+function _constraint_keys(c)
+    c isa MacroEconometricModels.VariableBound || return Tuple{String,Symbol}[]
+    ks = Tuple{String,Symbol}[]
+    c.lower !== nothing && push!(ks, (String(c.var_name), :geq))
+    c.upper !== nothing && push!(ks, (String(c.var_name), :leq))
+    return ks
+end
+
+"""
+    _resolve_dsge_constraints(file::String, lines::Vector{String};
+                              stanzas=Dict{Symbol,Any}(), spec=nothing)
+
+Merge `--constraints <file>`, the repeatable `--constraint 'var[t] >= expr'`
+values, and a `.jl` model file's `constraints:` stanza
+([`_model_card_stanzas`](@ref), CARD-W2 / #210) into the same `Vector`
+`_load_dsge_constraints` returns, so the four OccBin leaves keep ONE constraint
+path. `spec` is the loaded DSGE spec, needed only when the file carries
+`[[constraints.nonlinear]]` entries — their `config/invalid` propagates
+unchanged.
+
+The three sources are ONE set: a bound supplied by two of them is
+`config/invalid` naming the variable, the direction, and both sources. The
+identity of a bound is `(variable, direction)`: the same variable bounded from
+both sides is two bounds, but bounded twice from one side is a conflict. No
+source is not an error here — the caller decides whether constraints apply.
+"""
+
+# The source label a lowered `constraints:` stanza is merged under. A const
+# because `_resolve_dsge_constraints` branches on it when reporting an empty
+# source, so the label and the advice about it cannot drift apart.
+const _CONSTRAINTS_STANZA_SOURCE = "the model's constraints: stanza"
+
+function _resolve_dsge_constraints(file::String, lines::Vector{String};
+                                   stanzas::AbstractDict=Dict{Symbol,Any}(), spec=nothing)
+    out = Any[]
+    origin = Dict{Tuple{String,Symbol},String}()   # bound → the source that supplied it
+
+    function add(c, keys, src)
+        for k in keys
+            if haskey(origin, k)
+                # Name BOTH sources; a duplicate WITHIN one source names neither,
+                # so the advice never blames a flag the user did not pass.
+                across = origin[k] == src ? "" : " across $(origin[k]) and $(src)"
+                throw(CliError("config/invalid",
+                    "constraint on '$(k[1])' is given twice " *
+                    "($(k[2] === :geq ? ">=" : "<=")) — supply it once$(across)"))
+            end
+            origin[k] = src
+        end
+        push!(out, c)
+    end
+
+    function add_bounds(lowered, src)
+        # Mirror of `lower_priors`' own empty-stanza refusal: a bare `constraints:`
+        # header lowered to zero bounds, and the four OccBin leaves would then enter
+        # the constrained branch with an EMPTY constraint vector — `dsge solve` even
+        # printed "Solving with OccBin constraints..." on that path.
+        #
+        # The advice branches on the SOURCE, because `--constraint ""` reaches here
+        # too (`_card_inline("constraints", [""])` is `"constraints:\n  "`, which
+        # lowers to zero bounds) and must not be told to delete a stanza header the
+        # user never wrote. Same rule as the duplicate-bound message above.
+        isempty(lowered["bounds"]) && throw(CliError("config/invalid",
+            src == _CONSTRAINTS_STANZA_SOURCE ?
+                "the constraints stanza is empty — supply at least one bound such as " *
+                "'i[t] >= 0', or delete the stanza header" :
+                "a --constraint value produced no bound — write 'var[t] >= 0'"))
+        # The card grammar has no nonlinear form, so `lower_constraints` always
+        # returns an empty `nonlinear` list; a hand-built stanza dict carrying one
+        # is refused rather than silently dropped.
+        nl = get(lowered, "nonlinear", nothing)
+        (nl !== nothing && !isempty(nl)) && throw(CliError("config/invalid",
+            "a model card's constraints stanza declares variable bounds only — a " *
+            "nonlinear OccBin expression belongs in a --constraints TOML file"))
+        for b in lowered["bounds"]
+            var = String(b["variable"])
+            lo = get(b, "lower", nothing)
+            hi = get(b, "upper", nothing)
+            (lo === nothing && hi === nothing) && throw(CliError("config/invalid",
+                "the constraint on '$(var)' needs a finite lower or upper bound"))
+            ks = Tuple{String,Symbol}[]
+            lo === nothing || push!(ks, (var, :geq))
+            hi === nothing || push!(ks, (var, :leq))
+            add(variable_bound(Symbol(var); lower=lo, upper=hi), ks, src)
+        end
+    end
+
+    if !isempty(file)
+        for c in _load_dsge_constraints(file; spec=spec)
+            add(c, _constraint_keys(c), "--constraints")
+        end
+    end
+
+    isempty(lines) || add_bounds(
+        lower_constraints(parse_card(_card_inline("constraints", lines), "<--constraint>"),
+                          "<--constraint>"), "--constraint")
+    haskey(stanzas, :constraints) && add_bounds(stanzas[:constraints],
+                                                _CONSTRAINTS_STANZA_SOURCE)
+
+    return out
+end
+
+"""
+    _model_card_stanza_policy(stanzas; allow_priors=false, allow_constraints=false)
+        → stanzas
+
+The ONE rule for what a command does with a `.jl` model file's card stanzas, and
+it is symmetric: a stanza this command cannot consume is `config/invalid` naming
+it, never silently ignored. Silently ignoring is the failure that matters —
+`dsge solve` refused a `priors:` stanza while `dsge estimate` accepted the very
+same file, so the same model file behaved two ways.
+
+Who allows what, and why. The sets come from grepping what each handler actually
+READS — `stanzas[:priors]` and `stanzas[:constraints]` have exactly two and four
+read sites in `src/`, listed below — not from guessing which leaf "seems" Bayesian:
+
+- `allow_priors` — the Bayesian leaves only: [`_dsge_bayes_inputs`](@ref) (every
+  `dsge bayes` handler that takes priors, plus `dsge bayes compare` for BOTH
+  models) and `_dsge_ha_estimate` (`hadsge estimate`). They read
+  `stanzas[:priors]` into [`_resolve_dsge_priors`](@ref). **`dsge bayes
+  identification` is deliberately NOT here**: it bypasses `_dsge_bayes_inputs`
+  (it feeds `--params` straight to a MEMs call and takes no priors), so it consumes
+  neither stanza and the default refusal is correct for it.
+- `allow_constraints` — the four OccBin leaves that declare
+  `--constraints`/`--constraint`: `dsge solve`, `dsge steady-state`, `dsge irf`,
+  `dsge perfect-foresight`. They read `stanzas[:constraints]` into
+  [`_resolve_dsge_constraints`](@ref).
+- Everything else that reaches a model file through [`_load_dsge_model`](@ref) or
+  [`_load_ha_model`](@ref) consumes NEITHER, so the default refuses both. All 24
+  such call sites, by leaf:
+  - the seven remaining RA leaves — `dsge determinacy-map`, `dsge moments`,
+    `dsge simulate`, `dsge fevd`, `dsge estimate`, `dsge hd`, and
+    `dsge bayes identification`;
+  - the ten remaining `hadsge` leaves — `steady-state`, `accuracy`, `solve`,
+    `irf`, `fevd`, `simulate`, `simulate-panel`, `distribution-irf`,
+    `inequality-irf`, `hd` (`hadsge estimate` is the one that opts in);
+  - `data simulate dsge` and `data simulate ha`;
+  - `policy news dsge`, `policy news ha`, `policy jacobian ha`,
+    `policy spanning var` and `policy sufficiency dsge`.
+
+  Both loaders apply this policy with both flags off, so the rule is enforced in
+  two places rather than at 24 call sites. Adding a leaf that takes a model file
+  needs no change here — it inherits the refusal — unless it also CONSUMES a
+  stanza, which means an `allow_… = true` at its loader call and an entry above.
+
+Two families are NOT model-file families and are deliberately absent from the list
+above: the `ct`, `bank`, `firm` and `lifecycle` families build their model from
+kwargs and never call either loader, so there is no file for a stanza to live in.
+`dsge dcegm` is the third `.jl` loader in `src/` and does not go through
+`_load_dsge_model`; see [`_load_dcegm_source`](@ref) for what it does with a card.
+
+The two flags are independent on purpose: no leaf allows both, because no leaf
+estimates with priors AND solves under OccBin constraints.
+"""
+function _model_card_stanza_policy(stanzas::AbstractDict;
+                                    allow_priors::Bool=false,
+                                    allow_constraints::Bool=false)
+    if !allow_priors && haskey(stanzas, :priors)
+        throw(CliError("config/invalid",
+            "this command is frequentist, so a 'priors:' stanza in the model file is " *
+            "not used — run the estimation on a 'dsge bayes' command, or delete the stanza"))
+    end
+    if !allow_constraints && haskey(stanzas, :constraints)
+        throw(CliError("config/invalid",
+            "this command does not solve under OccBin constraints, so a " *
+            "'constraints:' stanza in the model file is not used — run it on 'dsge " *
+            "solve', 'dsge irf', 'dsge steady-state' or 'dsge perfect-foresight', or " *
+            "delete the stanza"))
+    end
+    return stanzas
+end
+
+"""
+    _as_occbin_constraints(constraints, spec) → Vector{OccBinConstraint}
+
+Convert loaded constraints to 1 or 2 `OccBinConstraint`s (the only two shapes this
+solver accepts).
+
+A `VariableBound` carrying BOTH a lower and an upper is refused here, not split
+into two constraints. A constraint in this solver does not clamp a variable to a
+range — it REPLACES the variable's defining equation with `var[t] = bound`, so
+two constraints on one variable are read as two alternative regimes competing for
+the same equation, not as a lower and an upper bound. There is no
+single-constraint two-sided form, and the error upstream raises for the split
+names a Julia overload rather than telling the user what to do. The refusal lives
+in this conversion so BOTH the `--constraint`/card path and the `--constraints`
+TOML path get it.
+
+The advice is deliberately NOT "write two constraints" — that is the split that
+fails. It is `dsge perfect-foresight`, which takes a box: the same
+`lo <= var[t] <= hi` text there binds the variable at whichever bound it reaches.
+"""
 function _as_occbin_constraints(constraints, spec)
     out = MacroEconometricModels.OccBinConstraint[]
     for c in constraints
@@ -2844,6 +3393,16 @@ function _as_occbin_constraints(constraints, spec)
             push!(out, c)
         elseif c isa MacroEconometricModels.VariableBound
             var = c.var_name
+            if c.lower !== nothing && c.upper !== nothing
+                throw(CliError("config/invalid",
+                    "a two-sided bound on '$(var)' is not something this solver can " *
+                    "express: a constraint here replaces the equation that defines the " *
+                    "variable, so two constraints on one variable are read as two " *
+                    "alternative regimes, not as a lower and an upper bound. Solve it " *
+                    "with 'dsge perfect-foresight', which accepts the same " *
+                    "'$(c.lower) <= $(var)[t] <= $(c.upper)' text, or keep one side " *
+                    "here and move the other into the model"))
+            end
             if c.lower !== nothing
                 expr = Expr(:call, :(>=), Expr(:ref, var, :t), c.lower)
                 bind = Expr(:(=), Expr(:ref, var, :t), c.lower)
@@ -2870,27 +3429,62 @@ function _as_occbin_constraints(constraints, spec)
     return out
 end
 
+"""
+    _occbin_error(e, label) → CliError
+
+Every way this solver refuses a constraint is a statement about the CONSTRAINT,
+so every one of them is `config/invalid`, never `internal/error`. Upstream's own
+text is kept verbatim underneath — it names the equation to use and the
+alternative to write — so wrapping costs the user no detail.
+
+The collision case gets a lead sentence because upstream's text answers a Julia
+caller ("pass alternative regimes via the Dict overload") that no `friedman` user
+can act on; the plain statement is the same fact in the user's terms.
+"""
+function _occbin_error(e, label::String)
+    e isa CliError && return e
+    if e isa ArgumentError
+        msg = sprint(showerror, e)
+        lead = occursin("replace the same defining equation", msg) ?
+            "two constraints were given on the same variable, which this solver " *
+            "reads as two alternative regimes rather than two sides of one bound — " *
+            "keep one constraint per variable here, and use 'dsge perfect-foresight' " *
+            "for a two-sided bound. " : ""
+        return CliError("config/invalid", "$label: $lead$msg")
+    end
+    return _domain_or_data_error(e, label)
+end
+
 function _occbin_solve_call(spec, cons; periods::Int)
     obs = _as_occbin_constraints(cons, spec)
     shock_path = zeros(Float64, periods, spec.n_exog)
     shock_path[1, 1] = 1.0
-    if length(obs) == 1
-        return _dsge_call(occbin_solve, spec, obs[1];
-                          shock_path=shock_path, nperiods=periods)
-    else
-        return _dsge_call(occbin_solve, spec, obs[1], obs[2];
-                          shock_path=shock_path, nperiods=periods)
+    try
+        if length(obs) == 1
+            return _dsge_call(occbin_solve, spec, obs[1];
+                              shock_path=shock_path, nperiods=periods)
+        else
+            return _dsge_call(occbin_solve, spec, obs[1], obs[2];
+                              shock_path=shock_path, nperiods=periods)
+        end
+    catch e
+        throw(_occbin_error(e, "solving with OccBin constraints"))
     end
 end
 
+
 function _occbin_irf_call(spec, cons; shock_idx::Int, horizon::Int, magnitude::Real)
     obs = _as_occbin_constraints(cons, spec)
-    if length(obs) == 1
-        return _dsge_call(occbin_irf, spec, obs[1], shock_idx, horizon;
-                          magnitude=magnitude)
-    else
-        return _dsge_call(occbin_irf, spec, obs[1], obs[2], shock_idx, horizon;
-                          magnitude=magnitude)
+    try
+        if length(obs) == 1
+            return _dsge_call(occbin_irf, spec, obs[1], shock_idx, horizon;
+                              magnitude=magnitude)
+        else
+            return _dsge_call(occbin_irf, spec, obs[1], obs[2], shock_idx, horizon;
+                              magnitude=magnitude)
+        end
+    catch e
+        throw(_occbin_error(e, "computing the OccBin impulse response"))
     end
 end
 
@@ -3219,6 +3813,64 @@ function _reg_coef_table(model, varnames::Vector{String})
     # std_error|stat|p_value|ci_lower|ci_upper. `varnames` is retained for the call sites
     # but the names now come from the model itself.
     DataFrame(model)
+end
+
+# ── #215/#216: central tidy-result router ──────────────────────
+# Mirrors upstream `_COEF_TABLE_TYPES` 1:1 (MEMs core/tables.jl). Explicit Unions,
+# not trait probes: a trait (`applicable(Tables.columns, …)`) would auto-extend to
+# new upstream types with no mock mirror, converting a production crash into a
+# green suite. Explicit unions are grep-able and T3 enforces conformance.
+const _TIDY_COEF_TYPES = Union{RegModel,LogitModel,ProbitModel,PanelRegModel,PanelIVModel,
+    PanelLogitModel,PanelProbitModel,MarginalEffects,OrderedLogitModel,OrderedProbitModel,
+    MultinomialLogitModel,VARModel,DIDResult}
+
+"""Emit a coefficient-bearing result via upstream Tables.jl (`DataFrame(m)`).
+
+Keys stay caller-chosen (frozen per #215 Option A); columns come from upstream.
+Types outside the union hit the fallback: typed `model/unsupported`, never a
+silent hand-build.
+"""
+function _emit_result(m::_TIDY_COEF_TYPES; title::String="Results", key::AbstractString="",
+                      format::Union{String,Symbol}=:table, output::String="")
+    output_result(DataFrame(m); format=format, output=output, title=title, key=key)
+end
+# Mirrors the upstream `long_table` receivers 1:1 (MEMs core/tables.jl). Deliberately
+# NOT extended to BayesianFEVD/LPFEVD/HD — those have no upstream long_table (TIDY-09/
+# TIDY-11/TIDY-12) and must keep hitting the typed fallback until they land.
+const _TIDY_LONG_TYPES = Union{ImpulseResponse,BayesianImpulseResponse,FEVD,
+    LPImpulseResponse,AbstractForecastResult}
+
+"""Emit an array-valued result via upstream `long_table`.
+
+`shocks` (single name or vector) filters the tidy rows to the selected structural
+shock(s) — the per-shock IRF pattern. `extra_cols` appends caller-computed columns
+(`name => values`) for data upstream's table legitimately lacks (scenario
+`unconditional` baseline); a length mismatch is a typed `model/error`, never a
+silent misalignment. Keys stay caller-chosen (frozen per #215 Option A); the base
+columns come from upstream.
+"""
+function _emit_result(r::_TIDY_LONG_TYPES; title::String="Results", key::AbstractString="",
+                      format::Union{String,Symbol}=:table, output::String="",
+                      shocks::Union{Nothing,AbstractString,AbstractVector}=nothing,
+                      extra_cols::Vector{<:Pair{String,<:Any}}=Pair{String,Any}[])
+    df = long_table(r)
+    if shocks !== nothing && "shock" in names(df)
+        keep = shocks isa AbstractString ? [String(shocks)] : String[string(s) for s in shocks]
+        df = df[in.(df.shock, Ref(keep)), :]
+    end
+    for (name, vals) in extra_cols
+        v = collect(vals)
+        length(v) == nrow(df) || throw(CliError("model/error",
+            "extra column '$name' has $(length(v)) rows for a $(nrow(df))-row table"))
+        df[!, name] = v
+    end
+    output_result(df; format=format, output=output, title=title, key=key)
+end
+function _emit_result(x; title::String="Results", key::AbstractString="",
+                      format::Union{String,Symbol}=:table, output::String="")
+    throw(CliError("model/unsupported",
+        "no machine-readable upstream table for $(typeof(x))";
+        hint="this result type has no Tables.jl/long_table coverage yet (tracked upstream under CLI #218)"))
 end
 
 # --- Panel Regression Shared Helpers (v0.4.0) ---

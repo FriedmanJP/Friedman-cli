@@ -72,7 +72,7 @@ end
 
 function data_simulate_specs()::Vector{CommandSpec}
     return [
-        _sim_spec("var", "Reference stationary VAR(1) with population A, B0, Sigma",
+        _sim_spec("var", "Reference stationary VAR(1) with population A, B0, Sigma, c",
                   _data_simulate_var;
                   options=[_opt_periods(200), _opt_burn(50), _opt_seed()]),
         _sim_spec("svar", "Non-Gaussian SVAR (independent structural shocks)",
@@ -84,7 +84,7 @@ function data_simulate_specs()::Vector{CommandSpec}
                       OptionSpec(name="nu", type=Float64, default=5.0,
                                  description="Student-t degrees of freedom (--dist t; must be > 2)"),
                       _opt_periods(200), _opt_burn(50), _opt_seed()]),
-        _sim_spec("heteroskedastic-var", "Heteroskedastic SVAR (Markov, GARCH, smooth, or break)",
+        _sim_spec("heteroskedastic-var", "Heteroskedastic SVAR (markov, garch, smooth, or external regimes)",
                   _data_simulate_hetvar;
                   options=[
                       OptionSpec(name="kind", type=String, default="markov",
@@ -122,7 +122,7 @@ function data_simulate_specs()::Vector{CommandSpec}
                       OptionSpec(name="sigma-eta", type=Float64, default=0.2,
                                  description="Volatility-of-volatility"),
                       _opt_periods(200), _opt_burn(50), _opt_seed()]),
-        _sim_spec("vecm", "Rank-1 VECM with population alpha, beta, Gamma, Sigma",
+        _sim_spec("vecm", "Rank-1 VECM with population alpha, beta, Gamma, mu, Sigma",
                   _data_simulate_vecm;
                   options=[_opt_periods(200), _opt_burn(50), _opt_seed()]),
         _sim_spec("cointreg", "Cointegrating regression with endogenous regressors",
@@ -132,7 +132,9 @@ function data_simulate_specs()::Vector{CommandSpec}
                                  description="Correlation of the equilibrium error with Δx"),
                       OptionSpec(name="sigma-u", type=Float64, default=1.0,
                                  description="Equilibrium-error scale"),
-                      _opt_periods(200), _opt_seed()],
+                      OptionSpec(name="periods", type=Int, default=200,
+                                 description="Sample length"),
+                      _opt_seed()],
                   flags=[FlagSpec(name="spurious",
                                   description="Independent random walks (no cointegration)")]),
         _sim_spec("ardl", "ARDL(1,1) with the long-run multiplier theta",
@@ -151,14 +153,16 @@ function data_simulate_specs()::Vector{CommandSpec}
                       OptionSpec(name="series", type=Int, default=12,
                                  description="Number of observed series N"),
                       _opt_periods(80), _opt_burn(20), _opt_seed()]),
-        _sim_spec("lp-iv", "Local-projection IV (instrument z, endogenous s, outcome y)",
+        _sim_spec("lp-iv", "Local-projection IV (instrument z, endogenous s, outcome y, control x2)",
                   _data_simulate_lpiv;
                   options=[
                       OptionSpec(name="pi1", type=Float64, default=1.5,
                                  description="First-stage coefficient on the instrument"),
                       OptionSpec(name="theta", type=Float64, default=1.0,
                                  description="Impact response of y to s"),
-                      _opt_periods(200), _opt_seed()]),
+                      OptionSpec(name="periods", type=Int, default=200,
+                                 description="Sample length"),
+                      _opt_seed()]),
         _sim_spec("panel", "Linear or binary panel with optional correlated effects",
                   _data_simulate_panel;
                   options=[
@@ -167,19 +171,25 @@ function data_simulate_specs()::Vector{CommandSpec}
                                  choices=_PANEL_KINDS),
                       OptionSpec(name="n", type=Int, default=30,
                                  description="Cross-sectional units"),
-                      _opt_periods(12), _opt_seed()]),
+                      OptionSpec(name="periods", type=Int, default=12,
+                                 description="Sample length"),
+                      _opt_seed()]),
         _sim_spec("pvar", "Panel VAR(1) with random effects",
                   _data_simulate_pvar;
                   options=[
                       OptionSpec(name="n", type=Int, default=15,
                                  description="Cross-sectional units"),
-                      _opt_periods(20), _opt_seed()]),
+                      OptionSpec(name="periods", type=Int, default=20,
+                                 description="Sample length"),
+                      _opt_seed()]),
         _sim_spec("did", "Staggered adoption with the realized ATT",
                   _data_simulate_did;
                   options=[
                       OptionSpec(name="n", type=Int, default=80,
                                  description="Units"),
-                      _opt_periods(20), _opt_seed()]),
+                      OptionSpec(name="periods", type=Int, default=20,
+                                 description="Sample length"),
+                      _opt_seed()]),
         _sim_spec("gmm", "Heteroskedastic OLS or IV moments",
                   _data_simulate_gmm;
                   options=[
@@ -225,7 +235,7 @@ function data_simulate_specs()::Vector{CommandSpec}
                                 description="HA builtin (huggett, krusell-smith, …) or .jl ModelSpec")],
                   options=[
                       OptionSpec(name="method", type=String, default="reiter",
-                                 description="ssj|reiter (krusell-smith has no aggregate simulate)",
+                                 description="ssj|reiter|krusell-smith (krusell-smith: no aggregate path; use ssj/reiter)",
                                  choices=["ssj", "reiter", "krusell-smith"]),
                       OptionSpec(name="n-reduced", type=Int, default=10,
                                  description="Reduced states for the linear solution"),
@@ -246,7 +256,9 @@ function data_simulate_specs()::Vector{CommandSpec}
                       OptionSpec(name="debt", type=Float64, default=0.0, description="Government debt b"),
                       OptionSpec(name="k0", type=Float64, default=0.0,
                                  description="Initial capital (0 = 0.8 × steady state)"),
-                      _opt_periods(40), _opt_seed()]),
+                      OptionSpec(name="periods", type=Int, default=40,
+                                 description="Transition horizon H (emits H+1 rows, t=0:H; deterministic)"),
+                      _opt_seed()]),
         _sim_spec("ct", "Continuous-time Aiyagari MIT transition",
                   _data_simulate_ct;
                   options=[
@@ -262,7 +274,9 @@ function data_simulate_specs()::Vector{CommandSpec}
                       OptionSpec(name="max-iter", type=Int, default=80, description="Steady-state / transition iterations"),
                       OptionSpec(name="tol", type=Float64, default=1e-5, description="Convergence tolerance"),
                       OptionSpec(name="dt", type=Float64, default=0.25, description="Transition step"),
-                      _opt_periods(12), _opt_seed()]),
+                      OptionSpec(name="periods", type=Int, default=12,
+                                 description="Transition horizon in steps (deterministic; no burn-in)"),
+                      _opt_seed()]),
     ]
 end
 

@@ -4,6 +4,154 @@ All notable changes to Friedman-cli are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to
 Semantic Versioning. Releases before v0.6.0 are recorded in the git tag history.
 
+## [1.0.1] — 2026-10-01 — the model card config format
+
+Priors, OccBin bounds, GMM, SMM and SUR/3SLS specifications can now be written as
+a **model card**: a plain-text file of `key: value` stanzas that lowers into the
+same dict shapes the existing TOML path already produces. **Purely additive** — no
+leaf added (477), no path renamed, no alias, no envelope change, no MEMs pin move.
+
+- **Grammar** (`src/model_card.jl`): exactly seven stanza headers; body lines
+  must be indented; a stanza closes at column 0. A `.jl` model file's preamble may
+  carry only `priors:` and `constraints:`.
+- **Model-file form:** stanzas go **above** the `@dsge` block (one below is a loud
+  refusal); with two blocks the last one wins.
+- **Flags:** `--prior` / `--constraint` are repeatable on the Bayesian and the four
+  OccBin leaves; `--config <path>` carries a card on `estimate regression
+  gmm|smm|sur|3sls`. Priors and constraints reach their leaves three ways — flag,
+  stanza and model file — merged into one set, with a clash naming the parameter and
+  both sources.
+- **Three-source rule:** `.toml` is always TOML even when broken, a card misnamed
+  `.toml` is reported as broken TOML pointing at the stanza line, and `--set` /
+  `--config-json` against a card are refused with a hint.
+- **Silent-drop fixes** found while building this, all now typed refusals rather
+  than exit 0 with a wrong or empty result: the three sources were additive in name
+  only; an empty `gmm lp:` stanza produced a GMM with **zero moment conditions** and
+  a J-test of 0.0 on 0 degrees of freedom; a missing `instruments:` list left the
+  IV path writing instead of typing.
+
+### Fixed
+
+- `dsge solve` / `dsge irf` exited **1** (internal error, no envelope) on a
+  user-facing `ArgumentError` from an OccBin constraint — including a two-sided bound
+  like `-1.0 <= i[t] <= 2.0`, which those two solvers cannot express at all. Now a
+  typed `config/invalid` (exit 4) naming the variable and pointing at
+  `dsge perfect-foresight` / `dsge steady-state`, which do accept the form. Found by
+  running the real-MEMs integration suite for the first time in this series; it had
+  survived fourteen review rounds because no test on any tier built that input.
+- The `.jl`-preamble refusal listed all seven stanza headers where only two are
+  accepted there.
+- The shipped TOML DSGE example was never runnable — its exogenous shock was indexed
+  at `[t+1]`, which is rejected (`exogenous shock eps_a can only be indexed at [t]`).
+
+## [Unreleased] — tidy-surface migration waves 1+2 (#216, #217)
+
+Central `_emit_result` router (`src/commands/shared.jl`): coefficient-bearing
+results emit via upstream `DataFrame(model)`, array results via upstream
+`long_table`, everything else hits typed `model/unsupported` (exit 5) instead of
+a silent hand-build. Explicit type unions mirror upstream
+`_COEF_TABLE_TYPES`/`long_table` receivers 1:1 (no trait probes — a mock more
+permissive than real converts a production crash into a green suite).
+
+- **Wave 1 (#216, columns minor-evolvable per #215 Option A — keys frozen):**
+  `did estimate` event-time block `(Event_Time,ATT,SE,CI_Lower,CI_Upper)` →
+  upstream `(event_time,term,estimate,std_error,stat,p_value,ci_lower,ci_upper)`
+  (strict superset; overturns the C051 exception; group-time block untouched);
+  `predict choice logit|probit --marginal-effects` 7 capitalized rounded cols →
+  upstream lowercase unrounded `(term,estimate,std_error,stat,p_value,ci_lower,ci_upper)`
+  with the non-finite-row drop `report()` applies. Ordered/multinomial ME
+  (`variable|category|dydx|se`) unchanged by design — matrix grain, unregistered
+  upstream (TIDY-10).
+- **Wave 2 (#217, byte-identical routing):** all 26 direct `long_table` call sites
+  (`irf`/`fevd`/`forecast` incl. Bayesian variants, sarima/ms/tvpvar) route through
+  the helper with a `shocks` filter knob; `--result` re-render paths already
+  dispatched via `applicable(long_table)` and stay. Still hand-rolled until
+  upstream lands: `fevd bvar` (BayesianFEVD, TIDY-11), `fevd lp` (LPFEVD, TIDY-12),
+  HD (TIDY-09); permanently CLI-side: arias/uhlig/narrative/sign-set/pvar/TVP-band
+  builders (no upstream result type — arrays/NamedTuples by design).
+- Mock mirrors: `DataFrame(::MarginalEffects)`/`(::DIDResult)` in upstream column
+  shape; mock forecast types subtyped under a new `AbstractForecastResult`
+  (real `core/types.jl` hierarchy).
+- **#220 audit fixes (wave-2 misses — the audit enumerated call sites, not
+  result types):** `forecast scenario` (ConditionalForecast) now routes via
+  `long_table` + an `extra_cols` knob for the `unconditional` baseline — rows
+  unify from variable-major to horizon-major, values identical; `forecast
+  arfima` (ARIMAForecast) routes via the helper — columns
+  `horizon|forecast|lower|upper` → `horizon|variable|value|lower|upper`,
+  unrounded. Stay hand-built on correctness grounds: `forecast midas`
+  (generic `long_table` would mislabel the direct horizon as 1 and drop `se`;
+  TIDY-14) and the vol `variance|volatility` table (sqrt transform, different
+  data — deliberate C051 exception kept).
+
+## [Unreleased] — handler-logic follow-ups to #227
+
+- `estimate multivariate lp --method state --transition`: locked to
+  `logistic` (`choices=["logistic"]`) — upstream `estimate_state_lp`
+  hardcodes the logistic shape; other values were silently ignored.
+- `dsge bayes compare`: `--prefilter/--hp-lambda/--measurement-error`
+  now forwarded to the Model 2 estimation (was Model 1 only —
+  asymmetric likelihoods).
+- Clustered choice models: `--clusters` column no longer leaks into `X`
+  as a regressor (`estimate`/`predict`/`residuals` ologit/oprobit/mlogit;
+  `estimate mlogit` gains `--clusters`, wired to upstream `clusters=`).
+- `irf|fevd|hd var`: `--instrument/--target-var` (proxy/max-share only)
+  and irf `--identified-set/--summary` (sign only) guards moved ahead of
+  the arias/uhlig/narrative-adrr early returns, which silently ignored
+  them; narrative-adrr included in the instrument guard.
+- `spectral acf --max-lag`: forwarded as `maxlag=` (upstream takes
+  `lags=`) — every use crashed with `MethodError`. Same fix for `--ccf-with`.
+- `nowcast news`: dead `--method bvar` branch removed (upstream
+  `nowcast_news` takes a `NowcastDFM` only; the call always threw
+  `MethodError`). BVAR news needs an upstream method; parse gate
+  (`choices=["dfm"]`) plus a typed handler error hold the line.
+- NOT fixed (verified against MEMs 1.0.0): `predict|residuals factor
+  gdfm --nfactors` stays accepted-but-inert — upstream builds both
+  tables from the q-factor split only (`predict = common`,
+  `residuals = idiosyncratic`); threading `r` would only add an untyped
+  `r<q` error path. The option text says so.
+
+## [Unreleased] — --help description accuracy (#227)
+
+Every `--help` sentence audited against handler bodies and MEMs 1.0.0
+(18-slice read-only swarm) and rewritten where non-factual. No leaves
+added or removed (477 steady); no estimator logic changed — three small
+CLI-side guard touches only (see below).
+
+- Placeholder summaries replaced everywhere they described the argument
+  instead of the command (`summary="Path to CSV data file"` on ~300
+  `estimate`/`predict`/`residuals`/`forecast`/`did`/`policy`/`data`/`test`
+  leaves; `"Path to DSGE model file"` on all 25 `dsge`/`dsge bayes`
+  leaves). Each summary now states what the command computes.
+- Wrong enums corrected to verified upstream sets: `sdfm --kernel`
+  (quadratic_spectral never worked — now bartlett|parzen|tukey),
+  `adf --trend`, `za --trend`, `lm-unitroot --regression`,
+  `adf-2break --model`, `gregory-hansen --model` (C/T|C/S never parsed —
+  now C|CT|CS), `engle-granger --lags` (tstat silently ran BIC),
+  `llc/ips --criterion` (tstat silently ran HQIC), `ips --deterministic`,
+  choice/panel cov-types and `pprobit --method`, `ml --distribution`,
+  figarch/fiegarch `--dist` (normal-only), `spectral`/`forecast` siblings.
+  `choices=` added so typos fail at parse (exit 2), not downstream.
+- Silently-ignored knobs disclosed with plain scope notes
+  (`(standard/iv only)`, `(GMM only; ignored with --method feols)`,
+  `(arima method only)`, `(one-asset only; ignored with --two-asset)`,
+  `(builtin retirement only; ignored for .jl specs)`,
+  `(accepted but has no effect: …)`); ignored-branch tables reworded
+  (arias/uhlig wide tables, `policy history` bands, `effects`
+  dropped-draw counts, `bf elasticities` Domar share, `network-stats`
+  APL, `io load` balance). Phantom `show show_summary` table declaration
+  removed (never emitted). `serve` summary/flag de-overclaimed.
+- Implemented (behavior): `test coint pedroni` + `test coint westerlund`
+  `--trend none` (upstream accepts `:none`; guards relaxed; help kept
+  `none|constant|trend`). `test coint engle-granger --lags tstat` now a
+  typed usage error instead of silent BIC. `forecast … figarch/fiegarch`
+  and `nowcast news` reject unsupported `--dist`/`--method bvar` at
+  parse. `dsge bayes prior-predictive` effective `--n-draws` 10000 → 500
+  (handler intent; spec default was dead code shadowing it).
+- House style for help text (new managed skill `friedman-help-text`):
+  summaries describe the command, never the argument; plain user
+  language — no `upstream`/`reserved`/`kv`/`envelope`/issue-pointer
+  jargon; every advertised value works; ignored knobs say so.
+
 ## [1.0.0] — 2026-09-20 — v1.0 freeze on MEMs 1.0.0 + Julia 1.13 (v1.0.0 program)
 
 First major. 477 leaves / 21 top-level. MEMs pin

@@ -37,7 +37,7 @@ Model residuals (mlogit)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
-| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster |
+| `--cov-type` | — | `String` | `ols` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster |
 | `--clusters` | — | `String` | `""` | — | Cluster variable column name |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -50,7 +50,7 @@ Model residuals (mlogit)
 
 ### `friedman residuals choice nbreg`
 
-Path to CSV data file
+Model residuals (negative-binomial)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -125,7 +125,7 @@ Model residuals (oprobit)
 
 ### `friedman residuals choice poisson`
 
-Path to CSV data file
+Model residuals (poisson)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -200,7 +200,7 @@ Model residuals (gdfm)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--nfactors` | — | `Int64` | — | — | Number of static factors (unused when --dynamic-rank set) |
+| `--nfactors` | — | `Int64` | — | — | Number of static factors (accepted but has no effect: the number of factors is chosen automatically) |
 | `--dynamic-rank` | `-q` | `Int64` | — | — | Dynamic rank (default: auto) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
@@ -354,7 +354,7 @@ Model residuals (plogit)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name |
+| `--dep` | — | `String` | `""` | — | Dependent variable column name (required) |
 | `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
 | `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
 | `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
@@ -378,7 +378,7 @@ Model residuals (pprobit)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name |
+| `--dep` | — | `String` | `""` | — | Dependent variable column name (required) |
 | `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
 | `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
 | `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
@@ -402,7 +402,7 @@ Model residuals (preg)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name |
+| `--dep` | — | `String` | `""` | — | Dependent variable column name (required) |
 | `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
 | `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
 | `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
@@ -418,7 +418,7 @@ Model residuals (preg)
 
 ### `friedman residuals regime ms`
 
-Path to CSV data file
+Model residuals (ms, smoothed-probability weighted)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -444,7 +444,7 @@ Path to CSV data file
 
 ### `friedman residuals regime ms-ar`
 
-Path to CSV data file
+Model residuals (ms-ar, smoothed-probability weighted)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -470,7 +470,7 @@ Path to CSV data file
 
 ### `friedman residuals regime setar`
 
-Path to CSV data file
+Model residuals (setar, effective-sample errors)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -492,7 +492,7 @@ Path to CSV data file
 
 ### `friedman residuals regime star`
 
-Path to CSV data file
+Model residuals (star, effective-sample errors)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -517,7 +517,7 @@ Path to CSV data file
 
 ### `friedman residuals regression 3sls`
 
-Path to CSV data file
+Model residuals (3sls, long per-equation)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -566,7 +566,7 @@ Model residuals (reg)
 
 ### `friedman residuals regression statespace`
 
-Path to CSV data file
+State-space innovations (raw or standardized one-step prediction errors)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -592,7 +592,7 @@ Path to CSV data file
 
 ### `friedman residuals regression sur`
 
-Path to CSV data file
+Model residuals (sur, long per-equation)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -619,7 +619,7 @@ Path to CSV data file
 
 ### `friedman residuals univariate arfima`
 
-Path to CSV data file
+Model residuals (arfima)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -670,7 +670,7 @@ Model residuals (arima)
 
 ### `friedman residuals univariate sarima`
 
-Path to CSV data file
+Model residuals (sarima)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -708,7 +708,7 @@ Path to CSV data file
 
 ### `friedman residuals volatility aparch`
 
-Path to CSV data file
+Model residuals (aparch, standardized)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -751,7 +751,7 @@ Model residuals (arch)
 
 ### `friedman residuals volatility cgarch`
 
-Path to CSV data file
+Model residuals (cgarch, standardized)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -791,7 +791,7 @@ Model residuals (egarch)
 
 ### `friedman residuals volatility fiegarch`
 
-Path to CSV data file
+Model residuals (fiegarch, standardized)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -804,7 +804,7 @@ Path to CSV data file
 | `--q` | — | `Int64` | `1` | — | ARCH order q |
 | `--d0` | — | `Float64` | `0.4` | — | Initial fractional differencing parameter |
 | `--truncation` | — | `Int64` | `1000` | — | Truncation lag for the ARCH(inf) expansion |
-| `--dist` | — | `String` | `normal` | — | Innovation distribution |
+| `--dist` | — | `String` | `normal` | `normal` | Innovation distribution (Gaussian QMLE) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
@@ -815,7 +815,7 @@ Path to CSV data file
 
 ### `friedman residuals volatility figarch`
 
-Path to CSV data file
+Model residuals (figarch, standardized)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -828,7 +828,7 @@ Path to CSV data file
 | `--q` | — | `Int64` | `1` | — | ARCH order q |
 | `--d0` | — | `Float64` | `0.4` | — | Initial fractional differencing parameter |
 | `--truncation` | — | `Int64` | `1000` | — | Truncation lag for the ARCH(inf) expansion |
-| `--dist` | — | `String` | `normal` | — | Innovation distribution |
+| `--dist` | — | `String` | `normal` | `normal` | Innovation distribution (Gaussian QMLE) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
@@ -860,7 +860,7 @@ Model residuals (garch)
 
 ### `friedman residuals volatility garch-midas`
 
-Path to CSV data file
+Model residuals (garch-midas, standardized)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -911,7 +911,7 @@ Model residuals (gjr-garch)
 
 ### `friedman residuals volatility igarch`
 
-Path to CSV data file
+Model residuals (igarch, standardized)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|

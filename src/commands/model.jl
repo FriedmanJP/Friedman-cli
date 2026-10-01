@@ -124,7 +124,7 @@ function model_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["model", "reproduce"],
-            summary="Verify a saved handle by re-running its estimator from the recorded seed",
+            summary="Verify a saved handle by re-running its estimator from the recorded seed (reports unverifiable when no seed is recorded)",
             args=[ArgSpec(name="path", type=String, required=true, default=nothing,
                           description="Handle path (.jld2, .fmod, or model:// session handle)")],
             options=[
@@ -149,5 +149,5 @@ end
 function register_model_commands!()
     specs = with_default_csv_kinds(model_specs())
     specs = register!(specs)
-    return build_node("model", specs; description="Model handles: inspect .jld2 (native) and .fmod (interim) files")
+    return build_node("model", specs; description="Model handles: inspect and reproduce-verify .jld2, .fmod, and model:// session handles")
 end

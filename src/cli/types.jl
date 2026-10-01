@@ -33,9 +33,11 @@ Argument(name::String; type::Type=String, required::Bool=true, default=nothing, 
     Argument(name, type, required, default, description)
 
 """
-    Option(name, short, type, default, description, choices)
+    Option(name, short, type, default, description, choices, repeatable)
 
 A named command-line option (e.g. `--lags=2` or `-l 2`).
+`repeatable` marks an option that may be given more than once; the handler then
+receives a `Vector{String}` of every occurrence (in order) (CARD-W1 #209).
 `choices` is an optional allow-list of raw string values (F4).
 """
 struct Option
@@ -45,11 +47,17 @@ struct Option
     default::Any
     description::String
     choices::Union{Nothing,Vector{String}}
+    repeatable::Bool
 end
 
 Option(name::String; short::String="", type::Type=String, default=nothing,
-       description::String="", choices::Union{Nothing,Vector{String}}=nothing) =
-    Option(name, short, type, default, description, choices)
+       description::String="", choices::Union{Nothing,Vector{String}}=nothing,
+       repeatable::Bool=false) =
+    Option(name, short, type, default, description, choices, repeatable)
+
+# Backward-compatible positional forms (pre-`repeatable` call sites).
+Option(name::String, short::String, type::Type, default, description::String) =
+    Option(name, short, type, default, description, nothing, false)
 
 """
     Flag(name, short, description)

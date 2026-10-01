@@ -17,6 +17,7 @@ Base.@kwdef struct OptionSpec
     description::String = ""
     since::VersionNumber = v"0.5.0"
     handle::Bool = false
+    repeatable::Bool = false
 end
 
 Base.@kwdef struct FlagSpec
@@ -113,7 +114,7 @@ end
 const CONFIG_ERGONOMICS_OPTIONS = [
     OptionSpec(name="config-json", type=String, default="",
                description="JSON object merged over --config (file < json < --set)"),
-    OptionSpec(name="set", type=String, default="",
+    OptionSpec(name="set", type=String, default="", repeatable=true,
                description="Override config key=value; repeatable; dotted keys OK"),
 ]
 const STRICT_FLAG = FlagSpec(name="strict",
@@ -266,7 +267,7 @@ const COUNT_IRR_FLAG = FlagSpec(name="irr",
     description="Also report incidence-rate ratios exp(beta) with delta-method SEs")
 
 const PREG_OPTIONS = [
-    OptionSpec(name="dep", type=String, default="", description="Dependent variable column name"),
+    OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (required)"),
     OptionSpec(name="indep", type=String, default="", description="Independent variables (comma-separated)"),
     OptionSpec(name="id-col", type=String, default="", description="Panel group ID column (default: first column)"),
     OptionSpec(name="time-col", type=String, default="", description="Panel time column (default: second column)"),
@@ -279,11 +280,29 @@ const PREG_OPTIONS = [
                choices=["table", "csv", "json"], description="table|csv|json"),
 ]
 
+
+# CARD-W1 (#209) — repeatable single prior / OccBin bound. `repeatable=true`
+# makes the option bind to Vector{String}, so every handler that declares one
+# must take the same kwarg TYPE (#85). `set` above is the same mechanism for
+# config keys; these two are the card-line counterparts of `--priors` and
+# `--constraints`, which stay files.
+const PRIOR_OPTION = OptionSpec(
+    name="prior", type=String, default=String[], repeatable=true,
+    description="Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza")
+
+const CONSTRAINT_OPTION = OptionSpec(
+    name="constraint", type=String, default=String[], repeatable=true,
+    description="OccBin bound 'var[t] >= expr' or 'var[t] <= expr'; repeatable; adds to --constraints and the constraints: stanza")
+
 # Bayesian DSGE shared options (replaces _bayes_common_options)
 const BAYES_OPTIONS = [
     OptionSpec(name="data", short="d", type=String, default="", description="Path to CSV data file"),
     OptionSpec(name="params", type=String, default="", description="Comma-separated parameter names"),
     OptionSpec(name="priors", type=String, default="", description="Path to priors TOML file"),
+    # CARD-W1 (#209): repeatable counterpart of --priors. Every leaf that splats
+    # BAYES_OPTIONS therefore declares it, so every bayes handler takes
+    # `prior::Vector{String}`.
+    PRIOR_OPTION,
     # #148 rider: choices enforced — an unknown sampler used to reach upstream as an
     # untyped ArgumentError (exit 1); now it is a usage error at parse (exit 2).
     OptionSpec(name="sampler", type=String, default="smc", choices=["smc", "smc2", "mh"],
@@ -294,7 +313,7 @@ const BAYES_OPTIONS = [
     OptionSpec(name="burnin", type=Int, default=5000, description="Burn-in draws"),
     OptionSpec(name="ess-target", type=Float64, default=0.5, description="ESS target for resampling"),
     OptionSpec(name="observables", type=String, default="", description="Observable variable names (comma-separated)"),
-    OptionSpec(name="solver", type=String, default="gensys", description="gensys|klein|perturbation"),
+    OptionSpec(name="solver", type=String, default="gensys", description="gensys|klein|perturbation", choices=["gensys", "klein", "perturbation"]),
     OptionSpec(name="order", type=Int, default=1, description="Perturbation order (1, 2, or 3)"),
     OptionSpec(name="constraint-solver", type=String, default="",
                description="Constraint solver: nonlinearsolve|optim|nlopt|ipopt|path"),
@@ -327,7 +346,7 @@ function with_default(group::Vector{OptionSpec}, name::String, default)
             push!(out, OptionSpec(name=o.name, short=o.short, type=o.type,
                                   default=default, choices=o.choices,
                                   description=o.description, since=o.since,
-                                  handle=o.handle))
+                                  handle=o.handle, repeatable=o.repeatable))
             found = true
         else
             push!(out, o)
