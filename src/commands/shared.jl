@@ -2462,13 +2462,17 @@ function _split_card_and_model(path::AbstractString)
 
     pre = lines[1:first(opens)-1]
     header = _card_preamble_header(pre, path)
+    # The list is what `_model_card_stanzas` below actually LOWERS in this
+    # position — naming `gmm lp` / `smm` / `equations` here would send the
+    # author straight into the next refusal, one call deeper.
     if header !== nothing
+
         (lineno, text) = header
         occursin(r"[ \t]", text) && (text = join(split(text), " "))
         text in CARD_HEADERS ||
             throw(_card_error(path, lineno,
                 "'$(text)' is not a model-card stanza header — a .jl model file " *
-                "may declare only $(join(sort(collect(CARD_HEADERS)), ", ")) " *
+                "may declare only $(join(_JL_PREAMBLE_STANZAS, ", ")) " *
                 "above its @dsge block; write the Julia assignment without the colon"))
         # Validates the rest of the preamble (body lines, stray column-0 code).
         parse_card(join(pre, "\n"), path)
@@ -2509,6 +2513,8 @@ function _split_card_and_model(path::AbstractString)
     header === nothing && return (nothing, src)
     return (join(pre, "\n"), join(lines[idx:stop], "\n"))
 end
+
+const _JL_PREAMBLE_STANZAS = ("priors", "constraints")
 
 """
     _model_card_stanzas(path) → Dict{Symbol,Any}

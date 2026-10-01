@@ -484,7 +484,9 @@ end
 Lower a `gmm lp:` or `gmm iv:` stanza into the 7-key `get_gmm` dict. LP GMM
 fixes the dependent/parameter side, so those five keys are refused outright
 rather than silently ignored; IV GMM requires `dep`, `endogenous` and
-`theta0`. `weighting` defaults to `"twostep"`, matching the TOML loader.
+`theta0`. `weighting` defaults to `"twostep"`, matching the TOML loader. A `gmm
+lp:` stanza that names no moment conditions is `config/invalid`: it would
+otherwise estimate a GMM with zero moments (W3 / #208).
 """
 function lower_gmm(stanzas, path::AbstractString)
     st = _card_stanza_any(stanzas, ("gmm lp", "gmm iv"), path)
@@ -533,6 +535,16 @@ function lower_gmm(stanzas, path::AbstractString)
             throw(_card_error(path, st.lineno, "'gmm iv' requires 'endogenous' columns"))
         isempty(d["theta0"]) &&
             throw(_card_error(path, st.lineno, "'gmm iv' requires a 'theta0' starting value"))
+    else
+        # A bare `gmm lp:` header — or one carrying only `weighting` — lowered to
+        # ZERO moment conditions, and the estimator then reported a J-statistic
+        # of 0.0 on 0 degrees of freedom at exit 0: a GMM with no moments is
+        # silently not-a-GMM. Refused here, the same way `lower_priors` refuses an
+        # empty priors stanza.
+        isempty(d["moment_conditions"]) &&
+            throw(_card_error(path, st.lineno,
+                "the 'gmm lp' stanza lists no moment conditions — add a " *
+                "'moments: <column>, …' line"))
     end
     return d
 end
