@@ -956,7 +956,7 @@ Fit three-stage least squares (3SLS) over an instrumented equation system
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--config` | — | `String` | `""` | — | TOML config: [[equations]] + instruments (required) |
+| `--config` | — | `String` | `""` | — | Config file listing the equations as dep = indep, ... plus instruments; required; TOML or a model card |
 | `--instruments` | — | `String` | `common` | `common`, `perequation` | common\|perequation instrument sets |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -1032,7 +1032,7 @@ Estimate GMM from TOML moment conditions (identity/optimal/two-step/iterated)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--config` | — | `String` | `""` | — | TOML config for moment conditions and instruments |
+| `--config` | — | `String` | `""` | — | Config file for moment conditions and instruments; TOML or a model card |
 | `--weighting` | `-w` | `String` | `twostep` | `identity`, `optimal`, `twostep`, `iterated` | identity\|optimal\|twostep\|iterated |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -1361,7 +1361,7 @@ Estimate SMM by simulating moments from a TOML specification
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--config` | — | `String` | `""` | — | TOML config for SMM specification |
+| `--config` | — | `String` | `""` | — | Config file for the SMM specification; TOML or a model card |
 | `--weighting` | — | `String` | `two_step` | — | identity\|two_step (optimal\|iterated\|twostep accepted as aliases of two_step) |
 | `--sim-ratio` | — | `Int64` | `5` | — | Simulation-to-sample ratio |
 | `--burn` | — | `Int64` | `100` | — | Burn-in periods |
@@ -1418,7 +1418,7 @@ Fit seemingly-unrelated regressions (SUR) by FGLS over an equation system
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--config` | — | `String` | `""` | — | TOML config: [[equations]] blocks (dep + indep) (required) |
+| `--config` | — | `String` | `""` | — | Config file listing the equations as dep = indep, ...; required; TOML or a model card |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |

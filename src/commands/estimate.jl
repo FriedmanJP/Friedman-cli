@@ -368,7 +368,7 @@ function estimate_specs()::Vector{CommandSpec}
             summary="Estimate GMM from TOML moment conditions (identity/optimal/two-step/iterated)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
-                OptionSpec(name="config", type=String, default="", description="TOML config for moment conditions and instruments"),
+                OptionSpec(name="config", type=String, default="", description="Config file for moment conditions and instruments; TOML or a model card"),
                 OptionSpec(name="weighting", short="w", type=String, default="twostep", description="identity|optimal|twostep|iterated", choices=["identity", "optimal", "twostep", "iterated"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
@@ -1402,7 +1402,7 @@ function estimate_specs()::Vector{CommandSpec}
             summary="Estimate SMM by simulating moments from a TOML specification",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
-                OptionSpec(name="config", type=String, default="", description="TOML config for SMM specification"),
+                OptionSpec(name="config", type=String, default="", description="Config file for the SMM specification; TOML or a model card"),
                 OptionSpec(name="weighting", type=String, default="two_step", description="identity|two_step (optimal|iterated|twostep accepted as aliases of two_step)"),
                 OptionSpec(name="sim-ratio", type=Int, default=5, description="Simulation-to-sample ratio"),
                 OptionSpec(name="burn", type=Int, default=100, description="Burn-in periods"),
@@ -1565,7 +1565,7 @@ function estimate_specs()::Vector{CommandSpec}
             summary="Fit seemingly-unrelated regressions (SUR) by FGLS over an equation system",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
-                OptionSpec(name="config", type=String, default="", description="TOML config: [[equations]] blocks (dep + indep) (required)"),
+                OptionSpec(name="config", type=String, default="", description="Config file listing the equations as dep = indep, ...; required; TOML or a model card"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -1585,7 +1585,7 @@ function estimate_specs()::Vector{CommandSpec}
             summary="Fit three-stage least squares (3SLS) over an instrumented equation system",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
-                OptionSpec(name="config", type=String, default="", description="TOML config: [[equations]] + instruments (required)"),
+                OptionSpec(name="config", type=String, default="", description="Config file listing the equations as dep = indep, ... plus instruments; required; TOML or a model card"),
                 OptionSpec(name="instruments", type=String, default="common", choices=["common","perequation"], description="common|perequation instrument sets"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
