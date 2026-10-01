@@ -75,6 +75,7 @@ Bayesian estimation of HA-DSGE parameters (MH/SMC)
 | `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
 | `--data` | — | `String` | `""` | — | Path to observed aggregates CSV (required) |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML with [priors] section (required) |
+| `--prior` | — | `String` | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--observables` | — | `String` | `""` | — | Comma-separated observed aggregates (e.g. K,Y); default: first aggregates |
 | `--method` | — | `String` | `ssj` | `ssj`, `reiter` | HA solution method re-solved each draw: ssj\|reiter |
 | `--sampler` | — | `String` | `mh` | `mh`, `smc` | Posterior sampler: mh (RWMH) or smc |

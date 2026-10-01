@@ -114,6 +114,7 @@ Estimate two DSGE models with Bayesian sampling and compare log marginal likelih
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
+| `--prior` | — | `String` | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
@@ -154,6 +155,7 @@ Estimate a DSGE model with Bayesian sampling and report the posterior
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
+| `--prior` | — | `String` | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
@@ -192,6 +194,7 @@ Estimate a DSGE model with Bayesian sampling and report posterior-mean FEVD
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
+| `--prior` | — | `String` | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
@@ -232,6 +235,7 @@ Estimate a DSGE model with Bayesian sampling and report the posterior-mean histo
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
+| `--prior` | — | `String` | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
@@ -297,6 +301,7 @@ Estimate a DSGE model with Bayesian sampling and report posterior-mean IRFs
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
+| `--prior` | — | `String` | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
@@ -337,6 +342,7 @@ Estimate a DSGE model with Bayesian sampling and run the Koop-Pesaran-Smith lear
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
+| `--prior` | — | `String` | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
@@ -377,6 +383,7 @@ Estimate a DSGE model with Bayesian sampling and report bridge-sampling and SMC 
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
+| `--prior` | — | `String` | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
@@ -416,6 +423,7 @@ Estimate a DSGE model with Bayesian sampling and report MCMC convergence diagnos
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
+| `--prior` | — | `String` | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
@@ -453,6 +461,7 @@ Estimate a DSGE model with Bayesian sampling and report prior-posterior overlap 
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
+| `--prior` | — | `String` | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
@@ -492,6 +501,7 @@ Maximize the DSGE posterior and report the mode with Laplace standard errors wit
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
+| `--prior` | — | `String` | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
 | `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
@@ -518,6 +528,7 @@ Estimate a DSGE model with Bayesian sampling and report the posterior predictive
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
+| `--prior` | — | `String` | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
@@ -558,6 +569,7 @@ Draw from the DSGE prior and report the prior predictive distribution without da
 |--------|-------|------|---------|---------|-------------|
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
+| `--prior` | — | `String` | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
 | `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
@@ -584,6 +596,7 @@ Estimate a DSGE model with Bayesian sampling and report posterior-mean simulated
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
+| `--prior` | — | `String` | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
@@ -624,6 +637,7 @@ Estimate a DSGE model with Bayesian sampling and report the posterior summary wi
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
+| `--prior` | — | `String` | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
@@ -1207,6 +1221,7 @@ Compute DSGE impulse responses to each structural shock
 | `--shock-size` | — | `Float64` | `1.0` | — | Shock size (std devs; perturbation/projection only; ignored for linear solutions) |
 | `--n-sim` | — | `Int64` | `0` | — | Simulated-path replications for projection solutions (default 0 = analytical; ignored for linear/perturbation solutions) |
 | `--constraints` | — | `String` | `""` | — | Path to OccBin constraints TOML (applied to shock 1 only) |
+| `--constraint` | — | `String` | `String[]` | — | OccBin bound 'var[t] >= expr' or 'var[t] <= expr'; repeatable; adds to --constraints and the constraints: stanza |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
@@ -1509,6 +1524,7 @@ Solve a DSGE model under perfect foresight along a shock path
 |--------|-------|------|---------|---------|-------------|
 | `--shocks` | — | `String` | `""` | — | Path to shock sequence CSV |
 | `--constraints` | — | `String` | `""` | — | Path to constraints TOML |
+| `--constraint` | — | `String` | `String[]` | — | OccBin bound 'var[t] >= expr' or 'var[t] <= expr'; repeatable; adds to --constraints and the constraints: stanza |
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
 | `--periods` | — | `Int64` | `100` | — | Simulation periods |
 | `--sparsity` | — | `String` | `auto` | `auto`, `dense` | Jacobian: auto (sparse BT) or dense (nlopt/path/ipopt ignore this) |
@@ -1596,6 +1612,7 @@ Solve a DSGE model and report the policy solution
 | `--anderson-m` | — | `Int64` | `0` | — | PFI Anderson acceleration memory (PFI only) |
 | `--evaluate-at` | — | `String` | `""` | — | State vector x1,x2,… at which to evaluate the VFI value function |
 | `--constraints` | — | `String` | `""` | — | Path to OccBin constraints TOML |
+| `--constraint` | — | `String` | `String[]` | — | OccBin bound 'var[t] >= expr' or 'var[t] <= expr'; repeatable; adds to --constraints and the constraints: stanza |
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
 | `--periods` | — | `Int64` | `40` | — | Number of periods for the OccBin path (--constraints without --constraint-solver; ignored otherwise) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
@@ -1622,6 +1639,7 @@ Compute the DSGE steady state
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--constraints` | — | `String` | `""` | — | Path to OccBin constraints TOML |
+| `--constraint` | — | `String` | `String[]` | — | OccBin bound 'var[t] >= expr' or 'var[t] <= expr'; repeatable; adds to --constraints and the constraints: stanza |
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |

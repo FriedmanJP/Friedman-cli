@@ -4,6 +4,46 @@ All notable changes to Friedman-cli are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to
 Semantic Versioning. Releases before v0.6.0 are recorded in the git tag history.
 
+## [1.0.1] — 2026-10-01 — the model card config format
+
+Priors, OccBin bounds, GMM, SMM and SUR/3SLS specifications can now be written as
+a **model card**: a plain-text file of `key: value` stanzas that lowers into the
+same dict shapes the existing TOML path already produces. **Purely additive** — no
+leaf added (477), no path renamed, no alias, no envelope change, no MEMs pin move.
+
+- **Grammar** (`src/model_card.jl`): exactly seven stanza headers; body lines
+  must be indented; a stanza closes at column 0. A `.jl` model file's preamble may
+  carry only `priors:` and `constraints:`.
+- **Model-file form:** stanzas go **above** the `@dsge` block (one below is a loud
+  refusal); with two blocks the last one wins.
+- **Flags:** `--prior` / `--constraint` are repeatable on the Bayesian and the four
+  OccBin leaves; `--config <path>` carries a card on `estimate regression
+  gmm|smm|sur|3sls`. Priors and constraints reach their leaves three ways — flag,
+  stanza and model file — merged into one set, with a clash naming the parameter and
+  both sources.
+- **Three-source rule:** `.toml` is always TOML even when broken, a card misnamed
+  `.toml` is reported as broken TOML pointing at the stanza line, and `--set` /
+  `--config-json` against a card are refused with a hint.
+- **Silent-drop fixes** found while building this, all now typed refusals rather
+  than exit 0 with a wrong or empty result: the three sources were additive in name
+  only; an empty `gmm lp:` stanza produced a GMM with **zero moment conditions** and
+  a J-test of 0.0 on 0 degrees of freedom; a missing `instruments:` list left the
+  IV path writing instead of typing.
+
+### Fixed
+
+- `dsge solve` / `dsge irf` exited **1** (internal error, no envelope) on a
+  user-facing `ArgumentError` from an OccBin constraint — including a two-sided bound
+  like `-1.0 <= i[t] <= 2.0`, which those two solvers cannot express at all. Now a
+  typed `config/invalid` (exit 4) naming the variable and pointing at
+  `dsge perfect-foresight` / `dsge steady-state`, which do accept the form. Found by
+  running the real-MEMs integration suite for the first time in this series; it had
+  survived fourteen review rounds because no test on any tier built that input.
+- The `.jl`-preamble refusal listed all seven stanza headers where only two are
+  accepted there.
+- The shipped TOML DSGE example was never runnable — its exogenous shock was indexed
+  at `[t+1]`, which is rejected (`exogenous shock eps_a can only be indexed at [t]`).
+
 ## [Unreleased] — tidy-surface migration waves 1+2 (#216, #217)
 
 Central `_emit_result` router (`src/commands/shared.jl`): coefficient-bearing
