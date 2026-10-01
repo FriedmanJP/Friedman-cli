@@ -64,6 +64,9 @@ Grammar rules that hold everywhere:
 - Numbers are plain decimal literals; card text is never run as code.
 - An **empty stanza is refused** — a stanza that says nothing is a mistake, not
   a default.
+- `gmm lp:` and `gmm iv:` are **alternatives** — one card carries one of them,
+  never both. Giving both is a `config/invalid` error naming both headers and
+  the line of the second one, instead of quietly keeping whichever came first.
 
 `--prior 'name ~ dist(a, b)'` and `--constraint 'var[t] >= expr'` are
 repeatable and may be given several times on one command line. Together with a

@@ -200,11 +200,21 @@ function _card_stanza(stanzas, header::AbstractString, path::AbstractString)
     throw(_card_error(path, 1, "card has no '$(header)' stanza"))
 end
 
-"""The single stanza whose header is one of `headers`, or `config/invalid`."""
+"""The single stanza whose header is one of `headers`, or `config/invalid`.
+
+`headers` names alternatives, so a card that carries two of them is ambiguous
+and is refused rather than resolved by position: `gmm lp:` and `gmm iv:` both
+belong to the gmm family, and returning the first one would silently discard
+the second. The refusal names both headers and points at the later stanza."""
 function _card_stanza_any(stanzas, headers, path::AbstractString)
-    for s in stanzas
-        s.header in headers && return s
+    found = [s for s in stanzas if s.header in headers]
+    if length(found) > 1
+        first_h, second_h = found[1].header, found[2].header
+        throw(_card_error(path, found[2].lineno,
+            "card has a '$(first_h):' stanza and a '$(second_h):' stanza; " *
+            "the two are alternatives, so a card carries only one of them"))
     end
+    length(found) == 1 && return found[1]
     quoted = join(("'" .* collect(headers) .* "'"), " or ")
     throw(_card_error(path, 1, "card has no $(quoted) stanza"))
 end

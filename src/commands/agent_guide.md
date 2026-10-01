@@ -371,6 +371,10 @@ ends at the first line at column 0; `#` starts a comment; numbers are plain
 decimal literals, and card text is never run as code. An empty stanza is
 refused — a stanza that says nothing is a mistake, not a default.
 
+`gmm lp:` and `gmm iv:` are **alternatives** — one card carries one of them,
+never both. Giving both is a `config/invalid` error naming both headers and the
+line of the second one, instead of quietly keeping whichever came first.
+
 **A stanza the command cannot use is refused, not ignored.** `dsge bayes` reads
 `priors:` and refuses `constraints:`; `dsge solve` / `irf` / `steady-state` /
 `perfect-foresight` read `constraints:` and refuse `priors:`. The error names
