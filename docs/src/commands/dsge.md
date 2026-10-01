@@ -97,9 +97,13 @@ them is a `config/invalid` error naming the parameter and both sources.
 
 Two things that look similar but are not: an `@dsge constraint:` declaration
 **inside** the block is the binding-regime marker stored on an equation, not an
-OccBin argument; and OccBin bounds written for a variable that has no defining
-equation fail inside the solver with a message about regimes, not a parse
-error.
+OccBin argument; and an OccBin bound naming a variable the model does not define
+fails inside the solver — `config/invalid: solving with OccBin constraints:
+ArgumentError: Variable :i_rate not found in endogenous variables`. Two
+constraints on **one** variable are a different input and a different message:
+`dsge solve` and `dsge irf` read them as two alternative regimes competing for
+that variable's equation, so they report that reading rather than a missing
+variable.
 
 Three outcomes, three exit classes. A file that does not evaluate is `config/invalid` (exit 4). A file that evaluates to something other than a `ModelSpec` is `config/invalid` (exit 4). A file that evaluates to a spec *with* agent populations — a heterogeneous-agent or other agent-kind model — is `usage/wrong-command` (exit 2), never silently remapped into an RA solver; run it under `hadsge` (or the matching `dsge` family command) instead. The mirror rule holds on the HA side: an RA spec passed to `hadsge` is rejected the same way.
 

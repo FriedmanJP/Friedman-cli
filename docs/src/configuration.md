@@ -1,13 +1,14 @@
 # Configuration
 
 Friedman takes configuration for complex model specifications in two formats:
-**model cards** (plain text with named stanzas) and **TOML** files. Pass either
-one with the `--config` option. Start with [Model cards and TOML
-files](#model-cards-and-toml-files) below for the rules they share.
+**model cards** (plain text with named stanzas) and **TOML** files. Start with
+[Model cards and TOML files](#model-cards-and-toml-files) below for the rules
+they share and for how to hand each one to a command.
 
 Every `toml` and card block below is a **fragment**, not something to run: save
-it to a file and pass it with `--config <file>`. Only `bash` blocks are runnable
-commands. Every TOML key shown is read by a `get_*` parser in `src/config.jl`;
+it to a file and hand it to the command as described above. Only `bash` blocks
+are runnable commands, and each one creates the files it uses.
+Every TOML key shown is read by a `get_*` parser in `src/config.jl`;
 unknown keys warn (error under `--strict`). For command flags and defaults, see
 the [generated command reference](commands/overview.md).
 
@@ -20,8 +21,13 @@ same settings, so the estimator sees one set of values either way.
 
 - A **model card** is plain text with named stanzas, one per family. It is the
   recommended way to write priors, OccBin constraints, GMM, SMM and system
-  (SUR/3SLS) specifications. Pass it with `--config <path>`; the file name can
-  be anything except `.toml`.
+  (SUR/3SLS) specifications. The file name can be anything except `.toml`.
+  - For `gmm lp:`, `gmm iv:`, `smm:`, `equations:` and `instruments:`, pass it
+    with `--config <path>` on `estimate regression gmm`, `smm`, `sur` or
+    `3sls` — those four are the only commands that take `--config`.
+  - For `priors:` and `constraints:`, put the stanza in the model file's
+    preamble above the `@dsge` block, or repeat it on the command line with
+    `--prior` / `--constraint`. No `dsge` command takes `--config`.
 - A **TOML** file is still fully supported for all of these, and its precedence
   rules are unchanged. Sections that begin "TOML, still accepted" below show
   the equivalent file.
@@ -407,7 +413,10 @@ gmm lp:
 `gmm lp:` accepts only `moments` and `weighting`. Giving it `instruments`,
 `dep`, `endogenous`, `exogenous` or `theta0` is a `config/invalid` error naming
 the key — under LP those have no meaning, and the header already says which
-estimator you asked for. IV needs all of:
+estimator you asked for. `gmm iv:` requires `dep`, `endogenous` and `theta0`;
+`exogenous` and `instruments` are optional, and leaving them out surfaces later
+from the estimator as a typed `data/invalid` under-identified-regressors
+message, not as a card error:
 
 ```text
 gmm iv:
@@ -462,32 +471,33 @@ the `@dsge` block, with their body lines indented; a stanza below the block is a
 `config/invalid` error naming the line.
 
 ```julia
-priors:
-  beta ~ beta(2, 2)
-  alpha ~ beta(2, 2)
-  sigma ~ inv_gamma(2, 0.5)
-
-constraints:
-  c[t] >= 0.0
-  0.0 <= k[t] <= 10.0
-
 @dsge begin
-    parameters: alpha = 0.36, beta = 0.99, delta = 0.025, sigma = 1.0
+    parameters: alpha = 0.36, beta = 0.99, delta = 0.025, sigma = 1.0, phi_n = 1.0
     endogenous: y, c, k, n
     exogenous: eps_a
 
-    c[t]^(-sigma) = beta * c[t+1]^(-sigma) * (alpha * exp(eps_a[t+1]) * k[t]^(alpha-1) * n[t+1]^(1-alpha) + 1 - delta)
+    c[t]^(-sigma) = beta * c[t+1]^(-sigma) * (alpha * k[t]^(alpha-1) * n[t+1]^(1-alpha) + 1 - delta)
     k[t] = (1-delta) * k[t-1] + y[t] - c[t]
     y[t] = exp(eps_a[t]) * k[t-1]^alpha * n[t]^(1-alpha)
+    phi_n * n[t]^phi_n = c[t]^(-sigma) * (1-alpha) * exp(eps_a[t]) * k[t-1]^alpha * n[t]^(-alpha)
 end
 ```
+
+One equation per endogenous variable, and `parameters:` must list every name the
+equations use — the block above evaluates and solves with `dsge solve
+<path>/model.jl --periods 8`. An exogenous shock may only be written at `[t]`;
+`exp(eps_a[t+1])` is a typed `config/invalid`.
 
 A `priors:` stanza and a `constraints:` stanza cannot travel together in one
 file: the `dsge bayes` leaves read priors and refuse a `constraints:` stanza,
 and the constraint-solving leaves read constraints and refuse a `priors:`
 stanza. Either error names the stanza, the command that can use it, and the
-alternative. Keep the two in separate files — the priors stanza beside the
-model, the constraints file passed with `--constraints`.
+alternative. Keep the two apart: the `priors:` stanza goes in the model file's
+preamble (or on the command line with `--prior`); the constraints go in a
+preamble of their own, or repeated with `--constraint`. A constraints *file* can
+only be TOML — `--constraints` reads TOML, so a card handed to it comes back as
+`config/malformed-toml` — and no `dsge` command takes `--config`, so there is no
+flag that takes a constraints card as a file.
 
 **`@dsge constraint:` is a different thing.** A `constraint:` declaration
 inside an `@dsge` block marks an equation as the binding regime for the model
@@ -540,9 +550,10 @@ solution; choose the method with the `--method`, `--order`, `--degree` and
 
 Equations use `var[t]` time notation: `x[t]` = current, `x[t-1]` = lag, `x[t+1]`
 is the lead (`x[t+1]` is `E_t x_{t+1}`). The expectations operator `E[t](expr)`
-not available — both `.toml` and `.jl` fail as a typed `config/invalid` with
-that message. (Bare `x` and the older `x(+1)`/`x(-1)` forms are **not** accepted
-— always index by `[t]`.)
+was removed and is not available, and there is no automatic rewrite — both
+`.toml` and `.jl` fail as a typed `config/invalid` with that message. (Bare `x`
+and the older `x(+1)`/`x(-1)` forms are **not** accepted — always index by
+`[t]`.)
 
 ---
 
@@ -573,7 +584,19 @@ two of those three is a `config/invalid` error naming the parameter and both
 sources.
 
 ```bash
-friedman dsge bayes posterior-mode model.jl --data data.csv --params rho,sigma \
+cat > model.jl <<'EOF'
+@dsge begin
+    parameters: rho = 0.9, sigma = 0.01
+    endogenous: Y
+    exogenous: e
+    linear: true
+
+    Y[t] = rho * Y[t-1] + sigma * e[t]
+end
+EOF
+friedman data simulate dsge "$PWD/model.jl" --periods=120 --burn=20 --seed=1 -f csv -o sim.csv
+cut -d, -f2 sim.csv > data.csv
+friedman dsge bayes posterior-mode "$PWD/model.jl" --data data.csv --params rho,sigma \
   --prior 'rho ~ beta(2, 2)' --prior 'sigma ~ inv_gamma(2, 0.5)'
 ```
 
@@ -631,7 +654,9 @@ Used by `dsge solve`, `dsge irf`, `dsge steady-state` and
 
 A constraint line is `var[t] >= expr` or `var[t] <= expr`. The `[t]` index is
 required, and the bound is a plain numeric expression (`0.5 * 2` is fine; a
-variable name is not).
+variable name is not). The two-sided form `lo <= var[t] <= hi` is **not**
+accepted by `dsge solve` or `dsge irf`; it works only on `dsge
+perfect-foresight` and `dsge steady-state`.
 
 ```text
 constraints:
@@ -656,7 +681,21 @@ times on the command line instead; the stanza and the flag are one set, so
 constraining the same variable and side twice is a `config/invalid` error.
 
 ```bash
-friedman dsge solve model.jl --periods 8 --constraint 'i_rate[t] >= 0.0'
+cat > model.jl <<'EOF'
+constraints:
+  C[t] >= 0.0
+
+@dsge begin
+    parameters: rho = 0.9, sigma = 0.01
+    endogenous: Y, C
+    exogenous: e
+    linear: true
+
+    Y[t] = rho * Y[t-1] + sigma * e[t]
+    C[t] = Y[t]
+end
+EOF
+friedman dsge solve model.jl --periods 8 --constraint 'Y[t] >= 0.0'
 ```
 
 Note that an `@dsge constraint:` declaration **inside** the model block is a

@@ -377,7 +377,6 @@ refused — a stanza that says nothing is a mistake, not a default.
 the stanza and the commands that can read it, so nothing is silently dropped.
 
 ### Where an option can go
-
 1. **Inside `@dsge`** — model structure, on the equation or as a declaration.
 2. **In a card line, or a repeatable flag** — `--prior 'name ~ dist(a, b)'`
    and `--constraint 'var[t] >= expr'` may each be given several times, and add
@@ -387,15 +386,23 @@ the stanza and the commands that can read it, so nothing is silently dropped.
 3. **On an existing run flag** — `--method`, `--order`, `--prior-scale`, and
    the rest of the run surface override nothing; they are the way to vary a
    setting between runs of the same model.
+4. **As a file** — `--config <path>` is the only flag that takes a whole card,
+   and only `estimate regression gmm`, `smm`, `sur` and `3sls` declare it
+   (it carries `gmm lp:`, `gmm iv:`, `smm:`, `equations:` and `instruments:`).
+   No `dsge` command takes `--config`: a `priors:` or `constraints:` card goes
+   in the model file's preamble above the `@dsge` block, or on the command line
+   with `--prior` / `--constraint`. `--constraints` reads TOML only.
 
-Grammar: a prior is `name ~ dist(a, b)`; a constraint is `var[t] >= expr`,
-`var[t] <= expr`, or `lo <= var[t] <= hi`. `gmm lp:` refuses `instruments`,
-`dep`, `endogenous`, `exogenous` and `theta0`; the TOML form has no header, so
-it still infers IV-vs-LP from `dep` and `theta0` together. An `@dsge
-constraint:` declaration inside a block is the binding-regime marker on an
-equation, not an OccBin argument. Heterogeneous-agent declarations
-(`heterogeneous:`, `idiosyncratic:`, `aggregation:`) have no card header and no
-TOML section — they stay inside `@dsge`.
+Grammar: a prior is `name ~ dist(a, b)`; a constraint is `var[t] >= expr` or
+`var[t] <= expr`. The two-sided form `lo <= var[t] <= hi` is accepted only by
+`dsge perfect-foresight` and `dsge steady-state`; `dsge solve` and `dsge irf`
+refuse it with `config/invalid`.
+`gmm lp:` refuses `instruments`, `dep`, `endogenous`, `exogenous` and `theta0`;
+the TOML form has no header, so it still infers IV-vs-LP from `dep` and `theta0`
+together. An `@dsge constraint:` declaration inside a block is the
+binding-regime marker on an equation, not an OccBin argument. Heterogeneous-agent
+declarations (`heterogeneous:`, `idiosyncratic:`, `aggregation:`) have no card
+header and no TOML section — they stay inside `@dsge`.
 
 ### Example
 
