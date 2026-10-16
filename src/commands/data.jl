@@ -20,7 +20,7 @@ function data_specs()::Vector{CommandSpec}
     return [
         CommandSpec(
             path=["data", "list"],
-            summary="table|csv|json",
+            summary="List bundled example datasets with type, dimensions and description",
             args=ArgSpec[],
             options=[
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -34,17 +34,17 @@ function data_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["data", "load"],
-            summary="Example dataset name (see 'data list'), or omit and pass --path for a CSV",
+            summary="Load a bundled example dataset or CSV file and write it to CSV",
             args=[ArgSpec(name="name", type=String, required=false, default="", description="Example dataset name")],
             options=[
                 OptionSpec(name="output", short="o", type=String, default="", description="Output CSV file path"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
-                OptionSpec(name="vars", type=String, default="", description="Comma-separated variable subset"),
-                OptionSpec(name="country", type=String, default="", description="Country filter (for PWT panel data)"),
-                OptionSpec(name="dates", type=String, default="", description="Column name for date labels"),
+                OptionSpec(name="vars", type=String, default="", description="Comma-separated variable subset (bundled datasets only; ignored with --path)"),
+                OptionSpec(name="country", type=String, default="", description="Country label in status line only (no filtering) (bundled datasets only; ignored with --path)"),
+                OptionSpec(name="dates", type=String, default="", description="CSV/--path and timeseries date-label column (ignored for panels)"),
                 OptionSpec(name="path", type=String, default="", description="Path to CSV file (alternative to named dataset)")
             ],
-            flags=[FlagSpec(name="transform", short="t", description="Apply FRED transformation codes")],
+            flags=[FlagSpec(name="transform", short="t", description="Apply stored FRED tcodes (timeseries only) (bundled datasets only; ignored with --path)")],
             # Emits no envelope table — writes CSV directly; gate-exempt, see check_table_keys.jl
             tables=TableSpec[],
             category="data",
@@ -52,7 +52,7 @@ function data_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["data", "describe"],
-            summary="Handle stem or CSV path",
+            summary="Per-variable descriptive statistics with first/last finite-row window",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Handle stem or CSV path")],
             options=[
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -66,7 +66,7 @@ function data_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["data", "diagnose"],
-            summary="Handle stem or CSV path",
+            summary="Per-variable NaN/Inf counts and constant-series flags",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Handle stem or CSV path")],
             options=[
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -80,10 +80,10 @@ function data_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["data", "fix"],
-            summary="Handle stem or CSV path",
+            summary="Repair missing/non-finite cells (listwise, interpolate, or mean)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Handle stem or CSV path")],
             options=[
-                OptionSpec(name="method", short="m", type=String, default="listwise", description="listwise|interpolate|mean"),
+                OptionSpec(name="method", short="m", type=String, default="listwise", description="listwise|interpolate|mean", choices=["listwise","interpolate","mean"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Output stem or CSV path"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -95,10 +95,10 @@ function data_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["data", "transform"],
-            summary="Handle stem or CSV path",
+            summary="Apply per-variable FRED transformation codes",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Handle stem or CSV path")],
             options=[
-                OptionSpec(name="tcodes", type=String, default="", description="Comma-separated FRED transformation codes"),
+                OptionSpec(name="tcodes", type=String, default="", description="Required comma-separated FRED tcodes, one per variable (1-7)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Output stem or CSV path"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -110,14 +110,14 @@ function data_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["data", "filter"],
-            summary="Path to CSV data file",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            summary="Extract the cycle or trend component with a time-series filter",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Timeseries CSV, handle, or timeseries :example (panels rejected)")],
             options=[
-                OptionSpec(name="method", short="m", type=String, default="hp", description="hp|hamilton|bn|bk|bhp"),
-                OptionSpec(name="component", type=String, default="cycle", description="cycle|trend"),
+                OptionSpec(name="method", short="m", type=String, default="hp", description="hp|hamilton|bn|bk|bhp", choices=["hp","hamilton","bn","bk","bhp"]),
+                OptionSpec(name="component", type=String, default="cycle", description="cycle|trend", choices=["cycle","trend"]),
                 OptionSpec(name="lambda", short="l", type=Float64, default=1600.0, description="Smoothing parameter (HP/BHP)"),
                 OptionSpec(name="horizon", type=Int, default=8, description="Forecast horizon (Hamilton)"),
-                OptionSpec(name="lags", short="p", type=Int, default=4, description="Number of lags (Hamilton/BN)"),
+                OptionSpec(name="lags", short="p", type=Int, default=4, description="Number of lags (Hamilton only)"),
                 OptionSpec(name="columns", short="c", type=String, default="", description="Column indices, comma-separated (default: all)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
@@ -130,10 +130,10 @@ function data_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["data", "validate"],
-            summary="Handle stem or CSV path",
+            summary="Check data suitability for an estimator family (stderr report)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Handle stem or CSV path")],
             options=[
-                OptionSpec(name="model", type=String, default="", description="Model type (var|bvar|vecm|arima|garch|sv|lp|gmm|factor)"),
+                OptionSpec(name="model", type=String, default="", description="Model type (required; var|bvar|vecm|arima|garch|sv|lp|gmm|factor|arch|egarch|gjr_garch|static|dynamic|gdfm)", choices=["var","bvar","vecm","arima","garch","sv","lp","gmm","factor","arch","egarch","gjr_garch","static","dynamic","gdfm"]),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
@@ -145,10 +145,10 @@ function data_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["data", "balance"],
-            summary="Handle stem or CSV path",
+            summary="Balance an unbalanced panel via the DFM method",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Handle stem or CSV path")],
             options=[
-                OptionSpec(name="method", type=String, default="dfm", description="dfm"),
+                OptionSpec(name="method", type=String, default="dfm", description="dfm", choices=["dfm"]),
                 OptionSpec(name="factors", short="r", type=Int, default=3, description="Number of factors"),
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="Factor VAR lags"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export file"),
@@ -162,7 +162,7 @@ function data_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["data", "dropna"],
-            summary="Handle stem or CSV path",
+            summary="Drop rows containing NaN/Inf, optionally restricted to --vars",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Handle stem or CSV path")],
             options=[
                 OptionSpec(name="vars", type=String, default="", description="Column names to check (comma-separated; default: all)"),
@@ -177,10 +177,10 @@ function data_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["data", "keeprows"],
-            summary="Handle stem or CSV path",
+            summary="Keep a row subset by range or list",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Handle stem or CSV path")],
             options=[
-                OptionSpec(name="rows", type=String, default="", description="Row indices (e.g. 1:100, 1,5,10)"),
+                OptionSpec(name="rows", type=String, default="", description="Required row selection: range (1:100, 1:end) or list (1,5,10)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -200,10 +200,10 @@ function data_specs()::Vector{CommandSpec}
                            description="timeseries|panel|cross-section (required for CSV)",
                            choices=["timeseries", "panel", "cross-section"]),
                 OptionSpec(name="frequency", type=String, default="other",
-                           description="daily|monthly|quarterly|annual|mixed|other",
+                           description="daily|monthly|quarterly|annual|mixed|other (must be other for --kind cross-section)",
                            choices=["daily", "monthly", "quarterly", "annual", "mixed", "other"]),
                 OptionSpec(name="dates", type=String, default="",
-                           description="CSV column of date labels (timeseries)"),
+                           description="CSV column of date labels (timeseries only)"),
                 OptionSpec(name="id-col", type=String, default="",
                            description="Panel group column (required for --kind panel)"),
                 OptionSpec(name="time-col", type=String, default="",
@@ -211,9 +211,9 @@ function data_specs()::Vector{CommandSpec}
                 OptionSpec(name="vars", type=String, default="",
                            description="Comma-separated variable subset"),
                 OptionSpec(name="tcodes", type=String, default="",
-                           description="Comma-separated FRED tcode per variable"),
+                           description="Comma-separated FRED tcode per variable (--kind timeseries only)"),
                 OptionSpec(name="note", type=String, default="",
-                           description="Free-form note stored in the handle header"),
+                           description="Free-form note stored in the handle header (when the backend supports it)"),
                 OptionSpec(name="output", short="o", type=String, default="",
                            description="Output stem or path (default: input basename)"),
                 OptionSpec(name="format", short="f", type=String, default="table",
@@ -230,7 +230,7 @@ function data_specs()::Vector{CommandSpec}
             path=["data", "export"],
             summary="Export a typed handle to CSV (frequency/tcode/dates dropped)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing,
-                          description="Handle stem or path (TimeSeriesData/PanelData/CrossSectionData)")],
+                          description="Handle stem/path, or :example dataset")],
             options=[
                 OptionSpec(name="output", short="o", type=String, default="",
                            description="Output CSV path (default: <stem>.csv)"),

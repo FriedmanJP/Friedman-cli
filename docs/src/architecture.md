@@ -110,14 +110,19 @@ Central resolver: `src/handles.jl`. Native persist: `src/model_handle.jl`.
 After the library call, results still go through `output_result` (`:table` →
 PrettyTables, `:csv` → CSV.write, `:json` → the versioned envelope).
 
-**Rendering the result to a DataFrame** goes through one of three paths, in order of
-preference:
+**Rendering the result to a DataFrame** goes through the central `_emit_result` router
+(`src/commands/shared.jl`), which dispatches on explicit type unions mirroring upstream
+1:1 (never trait probes — the mock must mirror real exactly):
 
-1. `long_table(result)` — MEMs' tidy renderer for array-valued results (IRF, FEVD, forecasts): one row per `(horizon, variable[, shock])` cell. Used by `irf` var/vecm/bvar/lp/tvpvar/favar/sdfm (cholesky-family paths; Arias/Uhlig/sign-identified-set paths are hand-built, see 3), `fevd` var/vecm/favar/sdfm (cholesky-family paths), and `forecast` var/vecm/lp/arima/sarima/arfima/static/bvar/dynamic/gdfm/favar/sdfm/setar/star/ms-ar/ms (`forecast midas` and the volatility forecasts are hand-built, see 3).
+1. `long_table(result)` — MEMs' tidy renderer for array-valued results (IRF, FEVD, forecasts): one row per `(horizon, variable[, shock])` cell. Used by `irf` var/vecm/bvar/lp/tvpvar/favar/sdfm (cholesky-family paths; Arias/Uhlig/sign-identified-set paths are hand-built, see 3), `fevd` var/vecm/favar/sdfm (cholesky-family paths; bvar/lp/pvar are hand-built, see 3), and `forecast` var/vecm/lp/arima/sarima/arfima/static/bvar/dynamic/gdfm/favar/sdfm/setar/star/ms-ar/ms/scenario (scenario appends the `unconditional` baseline via the helper's `extra_cols`; `forecast midas` and the volatility forecasts are hand-built, see 3).
 2. **`DataFrame(model)`** — MEMs' tidy renderer for coefficient-bearing models: one row per
    term, columns `term|estimate|std_error|stat|p_value|ci_lower|ci_upper` (plus an
-   `equation`/`alternative`/`block` prefix for VAR/multinomial/ordered models). Used by
-   `estimate` var/reg/iv/logit/probit/preg/piv/plogit/pprobit/ologit/oprobit/mlogit.
+   `equation`/`alternative`/`block` prefix for VAR/multinomial/ordered models, and an
+   `event_time` key for DiD). Used by
+   `estimate` var/reg/iv/logit/probit/preg/piv/plogit/pprobit/ologit/oprobit/mlogit,
+   `did estimate` (event-time block; the group-time block is hand-built, see 3), and
+   `predict choice logit|probit --marginal-effects` (vector-form `MarginalEffects`; the
+   ordered/multinomial matrix forms stay hand-built, see 3).
 3. **Hand-built `DataFrame(...)`** — kept only where MEMs has no
    matching result type (notably `irf`/`fevd pvar`, `hd`, `predict`/`residuals`, Arias/Uhlig/sign
    IRF paths, the whole `io` family, the SUR/3SLS systems and MGARCH (CCC/DCC/BEKK) commands,
@@ -129,8 +134,9 @@ preference:
    dynamic heterogeneous-panel ARDL family (`PMGModel` — `estimate panel pmg`, `test panel pmg-hausman`), and the
    nonlinear-TS family (`ThresholdModel`/`STARModel`/`MSRegModel` — `estimate regime setar`/`star`/`ms-ar`/`ms`; all three `*Forecast` types (`ThresholdForecast`/`STARForecast`/`MSForecast`) render via `long_table`, with ms-ar/ms adding a hand-built predicted-regime-probabilities table) — none of
    these result types are Tables.jl-registered upstream) or where the tidy schema would lose information the command
-   needs to convey (volatility `forecast`'s `variance|volatility` table, `did estimate`'s ATT
-   summary). The `io` matrices (Leontief/Ghosh inverses, coefficients), MGARCH conditional
+   needs to convey (volatility `forecast`'s `variance|volatility` table — a sqrt transform,
+   different data; `forecast midas` — the generic `long_table` would mislabel the direct
+   horizon as 1 and drop `se`; `did estimate`'s group-time block). The `io` matrices (Leontief/Ghosh inverses, coefficients), MGARCH conditional
    correlations, and the Markov-switching K×K regime-transition matrix (`estimate regime ms-ar`/`ms`) render
    **wide** (sector×sector / series×series / regime×regime); vector results render one row
    per sector/term.

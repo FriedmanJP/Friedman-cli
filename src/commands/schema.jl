@@ -39,6 +39,13 @@ function _json_type(T::Type)
     return "string"  # unreached today (String/Int/Float64 are the full set); safe fallback
 end
 
+"""Options advertised as array-typed in `input_schema` / `inputSchema`.
+
+Task 4 marks every repeatable option with `Option.repeatable`, but #209
+requires `--set` to stay a plain string in the schema (a client sends one
+merged override), so the array branch is gated on the card options only."""
+const _CARD_REPEATABLE = Set(["prior", "constraint"])
+
 """Last-wins CommandSpec for `path` (`register!` appends)."""
 function _spec_for_path(path::Vector{String})
     i = findlast(s -> s.path == path, REGISTRY)
@@ -119,7 +126,17 @@ function _input_schema(leaf::LeafCommand, path::Vector{String})
         p = Dict{String,Any}("type" => _json_type(o.type), "x-cli" => xcli)
         isempty(o.description) || (p["description"] = o.description)
         o.default === nothing || (p["default"] = _default_json(o.default))
-        o.choices === nothing || (p["enum"] = o.choices)
+        if o.repeatable && o.name in _CARD_REPEATABLE
+            # draft-07: `enum` constrains the whole value, so for an array it
+            # belongs on the element schema, not beside the array.
+            items = Dict{String,Any}("type" => _json_type(o.type))
+            o.choices === nothing || (items["enum"] = o.choices)
+            p["type"] = "array"
+            p["items"] = items
+            xcli["repeatable"] = true
+        else
+            o.choices === nothing || (p["enum"] = o.choices)
+        end
         if spec !== nothing
             xh = _x_handle_dict(spec, o.name)
             xh !== nothing && (p["x-handle"] = xh)

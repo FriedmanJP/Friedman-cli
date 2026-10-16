@@ -18,8 +18,8 @@ Compute Bayesian impulse response functions with credible intervals
 | `--lags` | `-p` | `Int64` | `4` | — | Lag order |
 | `--shock` | — | `Int64` | `1` | — | Shock variable index (1-based) |
 | `--horizons` | — | `Int64` | `20` | — | IRF horizon |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|robust-bayes |
-| `--draws` | `-n` | `Int64` | `2000` | — | MCMC draws |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|fastica\|jade\|sobi\|dcov\|hsic\|student_t\|mixture_normal\|pml\|skew_normal\|markov_switching\|garch_id\|uhlig\|lewis-tvv\|sv-em\|robust-bayes |
+| `--draws` | `-n` | `Int64` | `2000` | — | Posterior draws |
 | `--sampler` | — | `String` | `direct` | — | direct\|gibbs |
 | `--config` | — | `String` | `""` | — | TOML config for identification/prior |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
@@ -34,7 +34,7 @@ Compute Bayesian impulse response functions with credible intervals
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
-| `--cumulative` | — | Compute cumulative IRFs (for differenced data) |
+| `--cumulative` | — | Compute cumulative IRFs (for differenced data) (not with --id robust-bayes) |
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
 **Output tables:** `bayesian_irf` (Posterior-mean responses to the selected shock with 68% credible bands: horizon | variable | shock | value | lower | upper); `robust_bayes_bands` (Giacomini-Kitagawa robust bands for the selected shock: horizon | one lower/upper/robust_lower/robust_upper column per variable (--id robust-bayes)); `robust_bayes_diagnostics` (Empty-set probability, informativeness and credibility level (--id robust-bayes))
@@ -55,7 +55,7 @@ FAVAR impulse response functions
 | `--lags` | `-p` | `Int64` | `2` | — | VAR lag order |
 | `--key-vars` | — | `String` | `""` | — | Key variable names or indices (comma-separated) |
 | `--horizons` | — | `Int64` | `20` | — | IRF horizon |
-| `--id` | — | `String` | `cholesky` | — | Identification method |
+| `--id` | — | `String` | `cholesky` | — | Identification method: cholesky\|sign\|narrative\|longrun\|… (base set; see irf var) |
 | `--config` | — | `String` | `""` | — | TOML config for restrictions |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -86,12 +86,12 @@ Compute structural LP impulse response functions
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--shock` | — | `Int64` | `1` | — | Single shock index (1-based) |
-| `--shocks` | — | `String` | `""` | — | Comma-separated shock indices (e.g. 1,2,3) |
+| `--shock` | — | `Int64` | `1` | — | Single shock index (1-based; overridden by --shocks when both are given) |
+| `--shocks` | — | `String` | `""` | — | Comma-separated shock indices, e.g. 1,2,3 (overrides --shock when both are given) |
 | `--horizons` | — | `Int64` | `20` | — | IRF horizon |
 | `--lags` | `-p` | `Int64` | `4` | — | LP control lags |
 | `--var-lags` | — | `Int64` | — | — | VAR lag order for identification (default: same as --lags) |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|fastica\|jade\|sobi\|dcov\|hsic\|student_t\|mixture_normal\|pml\|skew_normal\|markov_switching\|garch_id\|uhlig\|lewis-tvv\|sv-em |
 | `--ci` | — | `String` | `none` | — | none\|bootstrap |
 | `--replications` | — | `Int64` | `200` | — | Bootstrap replications |
 | `--conf-level` | — | `Float64` | `0.95` | — | Confidence level |
@@ -219,7 +219,7 @@ Date-specific IRF from a TVP-VAR-SV
 | `--no-sv` | — | Hold volatilities constant |
 | `--no-stationary-only` | — | Include explosive draws instead of discarding them |
 
-**Output tables:** `tvpvar_irf` (Date-t responses to the selected shock with 68% credible bands: horizon | variable | shock | value | lower | upper)
+**Output tables:** `tvpvar_irf` (Date-t responses to the selected shock with 90% credible bands: horizon | variable | shock | value | lower | upper)
 
 ---
 
@@ -237,16 +237,16 @@ Compute frequentist impulse response functions
 | `--shock` | — | `Int64` | `1` | — | Shock variable index (1-based) |
 | `--horizons` | — | `Int64` | `20` | — | IRF horizon |
 | `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|arias\|uhlig\|fastica\|jade\|sobi\|dcov\|hsic\|student_t\|mixture_normal\|pml\|skew_normal\|markov_switching\|garch_id\|proxy\|max-share\|gmm-moments\|narrative-adrr\|lewis-tvv\|sv-em |
-| `--ci` | — | `String` | `bootstrap` | — | none\|bootstrap\|theoretical |
-| `--replications` | — | `Int64` | `1000` | — | Bootstrap replications |
+| `--ci` | — | `String` | `bootstrap` | — | none\|bootstrap\|theoretical (ignored with --id arias\|uhlig\|narrative-adrr and --identified-set) |
+| `--replications` | — | `Int64` | `1000` | — | Bootstrap replications (also the sign-draw cap with --identified-set; ignored with --id arias\|uhlig) |
 | `--instrument` | — | `String` | `""` | — | Proxy-instrument CSV column (only with --id proxy) |
 | `--target-var` | — | `String` | `""` | — | Max-share target: column name or 1-based index (only with --id max-share) |
-| `--bootstrap` | — | `String` | `iid` | `iid`, `wild`, `block` | Bootstrap scheme (--ci bootstrap): iid\|wild\|block |
-| `--block-length` | — | `Int64` | `0` | — | Block length for --bootstrap block (0 = library default) |
-| `--wild-dist` | — | `String` | `rademacher` | `rademacher`, `mammen` | Wild-bootstrap multiplier: rademacher\|mammen |
-| `--bias-reps` | — | `Int64` | `0` | — | Inner reps for --bias-correct (0 = same as --replications) |
+| `--bootstrap` | — | `String` | `iid` | `iid`, `wild`, `block` | Bootstrap scheme (--ci bootstrap): iid\|wild\|block (ignored with --id arias\|uhlig\|narrative-adrr and --identified-set) |
+| `--block-length` | — | `Int64` | `0` | — | Block length for --bootstrap block (0 = library default) (ignored with --id arias\|uhlig\|narrative-adrr and --identified-set) |
+| `--wild-dist` | — | `String` | `rademacher` | `rademacher`, `mammen` | Wild-bootstrap multiplier: rademacher\|mammen (ignored with --id arias\|uhlig\|narrative-adrr and --identified-set) |
+| `--bias-reps` | — | `Int64` | `0` | — | Inner reps for --bias-correct (0 = same as --replications) (ignored with --id arias\|uhlig\|narrative-adrr and --identified-set) |
 | `--config` | — | `String` | `""` | — | TOML config for identification |
-| `--summary` | — | `String` | `none` | `none`, `median-target`, `modal-model`, `joint-band`, `sup-t-band` | Set-identified summary (only with --identified-set) |
+| `--summary` | — | `String` | `none` | `none`, `median-target`, `modal-model`, `joint-band`, `sup-t-band` | Set-identified summary (only with --identified-set and --id sign) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
@@ -259,19 +259,19 @@ Compute frequentist impulse response functions
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
-| `--cumulative` | — | Compute cumulative IRFs (for differenced data) |
+| `--cumulative` | — | Compute cumulative IRFs (for differenced data) (ignored with --id arias\|uhlig\|narrative-adrr and --identified-set) |
 | `--identified-set` | — | Return full identified set for sign restrictions |
-| `--stationary-only` | — | Filter non-stationary bootstrap draws |
-| `--bias-correct` | — | Kilian (1998) bias-corrected bootstrap bands |
+| `--stationary-only` | — | Filter non-stationary bootstrap draws (bootstrap path only; ignored with --id arias\|uhlig\|narrative-adrr and --identified-set) |
+| `--bias-correct` | — | Kilian (1998) bias-corrected bootstrap bands (ignored with --id arias\|uhlig\|narrative-adrr and --identified-set) |
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
-**Output tables:** `irf` (Responses to the selected shock: horizon | variable | shock | value | lower | upper (wide horizon-by-variable under --id arias|uhlig)); `irf_identified_set` (Median and bounds over the sign-identified set (--identified-set with --id sign)); `arias_importance_sampling_diagnostics` (Acceptance rate, draws, ESS and ESS fraction of the Arias importance sampler (--id arias))
+**Output tables:** `irf` (Responses to the selected shock: horizon | variable | shock | value | lower | upper (arias|uhlig tables are wide horizon-by-variable, 0-based horizons, no bands)); `irf_identified_set` (Median (and bounds except under --summary median-target|modal-model) over the sign-identified set (--identified-set with --id sign)); `arias_importance_sampling_diagnostics` (Acceptance rate, draws, ESS and ESS fraction of the Arias importance sampler (--id arias))
 
 ---
 
 ### `friedman irf vecm`
 
-Compute impulse response functions via VECM → VAR representation
+Compute impulse response functions via VECM → VAR representation (direct VECM under --id svec)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -284,7 +284,7 @@ Compute impulse response functions via VECM → VAR representation
 | `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
 | `--shock` | — | `Int64` | `1` | — | Shock variable index (1-based) |
 | `--horizons` | — | `Int64` | `20` | — | IRF horizon |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|svec\|lewis-tvv\|sv-em |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|fastica\|jade\|sobi\|dcov\|hsic\|student_t\|mixture_normal\|pml\|skew_normal\|markov_switching\|garch_id\|uhlig\|lewis-tvv\|sv-em\|svec (uhlig: generic path) |
 | `--ci` | — | `String` | `bootstrap` | — | none\|bootstrap\|theoretical |
 | `--replications` | — | `Int64` | `1000` | — | Bootstrap replications |
 | `--config` | — | `String` | `""` | — | TOML config for identification |

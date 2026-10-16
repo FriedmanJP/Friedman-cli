@@ -6608,6 +6608,21 @@ end  # VECM handlers
         end
     end
 
+    @testset "_predict_logit — ME upstream tidy columns (#216)" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=4)
+            out = _capture() do
+                _predict_logit(; data=csv, dep="var1", cov_type="hc1",
+                                 clusters="", threshold=0.5,
+                                 marginal_effects=true, odds_ratio=false,
+                                 classification_table=false,
+                                 format="table", output="")
+            end
+            @test occursin("std_error", out)
+            @test !occursin("CI_Lower", out)
+        end
+    end
+
     @testset "_predict_logit — odds ratio" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=4)
@@ -6664,6 +6679,21 @@ end  # VECM handlers
                                   classification_table=false,
                                   format="table", output="")
             end
+        end
+    end
+
+    @testset "_predict_probit — ME upstream tidy columns (#216)" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=4)
+            out = _capture() do
+                _predict_probit(; data=csv, dep="var1", cov_type="hc1",
+                                  clusters="", threshold=0.5,
+                                  marginal_effects=true,
+                                  classification_table=false,
+                                  format="table", output="")
+            end
+            @test occursin("std_error", out)
+            @test !occursin("CI_Lower", out)
         end
     end
 
@@ -6936,8 +6966,10 @@ end
                                    format="table", output="")
             end
             # the result type is ARIMAForecast: its interval fields are ci_lower/ci_upper,
-            # NOT lower/upper (an early draft used the latter and FieldError'd)
-            @test contains(out, "forecast") && contains(out, "lower") && contains(out, "upper")
+            # NOT lower/upper (an early draft used the latter and FieldError'd).
+            # #220: routes via _emit_result → upstream horizon|variable|value|lower|upper.
+            @test contains(out, "value") && contains(out, "variable")
+            @test contains(out, "lower") && contains(out, "upper")
         end
 
         @testset "predict / residuals — read the model's fields" begin
@@ -9191,7 +9223,7 @@ end  # Data handlers
         end
     end
 
-    @testset "_nowcast_news — bvar method" begin
+    @testset "_nowcast_news — bvar method is rejected (no upstream BVAR news)" begin
         mktempdir() do dir
             csv_old = _make_csv(dir; T=100, n=5, colnames=["m1","m2","m3","m4","q1"])
             csv_new = joinpath(dir, "data_new.csv")
@@ -9201,10 +9233,15 @@ end  # Data handlers
             end
             CSV.write(csv_new, DataFrame(data))
 
-            out = _capture() do
+            e = try
                 _nowcast_news(; data_new=csv_new, data_old=csv_old,
                     monthly_vars=4, quarterly_vars=1, method="bvar")
+                nothing
+            catch ex
+                ex
             end
+            @test e isa CliError
+            @test e.code == "usage/invalid"
         end
     end
 
@@ -9763,6 +9800,77 @@ end  # Plot Support
             @test exit_class(err) == 2
         end
     end
+
+    # Two-sided bound: typed, names the variable, and never reaches the solver.
+    # Mutation: split the VariableBound back into two OccBinConstraints (the
+    # pre-fix body) — no error is thrown and every @test below reds.
+    @testset "_as_occbin_constraints — a two-sided bound is config/invalid" begin
+        spec = MacroEconometricModels.ModelSpec(; n_endog=3, n_exog=1)
+        vb = MacroEconometricModels.variable_bound(:y1; lower=-1.0, upper=2.0)
+        err = try
+            _as_occbin_constraints([vb], spec)
+            nothing
+        catch e
+            e
+        end
+        @test err isa CliError
+        @test err.code == "config/invalid"
+        @test exit_class(err) == 4
+        # The variable is named, and the advice is a real route (dsge
+        # perfect-foresight), not the split that fails.
+        @test occursin("y1", err.message)
+        @test occursin("perfect-foresight", err.message)
+    end
+
+    # The surviving ArgumentError is typed, and it is config/invalid rather than
+    # the generic data/invalid: a constraint is configuration, and the resolver
+    # already reports a bad constraint that way.
+    # Mutation: drop the ArgumentError branch from `_occbin_error` (fall through to
+    # `_domain_or_data_error`) — the class becomes data/invalid, exit 3, and the
+    # class/exit/message @tests red.
+    @testset "_occbin_error — an upstream ArgumentError is config/invalid" begin
+        cli = _occbin_error(ArgumentError("OccBin: no equation defines :c"), "solving")
+        @test cli isa CliError
+        @test cli.code == "config/invalid"
+        @test exit_class(cli) == 4
+        @test occursin("no equation defines :c", cli.message)
+        # A CliError passes through unchanged, so this can never re-wrap a refusal.
+        inner = CliError("usage/invalid", "kept")
+        @test _occbin_error(inner, "solving") === inner
+    end
+
+    # End to end through the mock solver: a variable the model does not define is
+    # a typed refusal, not an escaping ArgumentError. The mock now raises it too,
+    # so this exercises the wrap and the mock's new check together.
+    # Mutation: remove the try/catch in `_occbin_solve_call` — the raw
+    # ArgumentError escapes and `@test err isa CliError` reds; removing the
+    # mock's `_mock_occbin_check` reds it the same way (mock laxer than real).
+    @testset "_occbin_solve_call — a variable the model does not define is typed" begin
+        spec = MacroEconometricModels.ModelSpec(; n_endog=3, n_exog=1)
+        vb = MacroEconometricModels.variable_bound(:c; lower=-100.0)
+        err = try
+            _occbin_solve_call(spec, [vb]; periods=3)
+            nothing
+        catch e
+            e
+        end
+        @test err isa CliError
+        @test err.code == "config/invalid"
+        @test exit_class(err) == 4
+    end
+
+    # One-sided bounds on DIFFERENT variables still convert, so the refusal above
+    # did not narrow the accepted set. Mutation: refuse every VariableBound (drop
+    # the `&&` on the two-sided condition) — this reds.
+    @testset "_as_occbin_constraints — one-sided bounds on two variables convert" begin
+        spec = MacroEconometricModels.ModelSpec(; n_endog=3, n_exog=1)
+        cons = [MacroEconometricModels.variable_bound(:y1; lower=-10.0),
+                MacroEconometricModels.variable_bound(:y2; upper=0.0)]
+        out = _as_occbin_constraints(cons, spec)
+        @test length(out) == 2
+        @test [c.variable for c in out] == [:y1, :y2]
+        @test [c.direction for c in out] == [:geq, :leq]
+    end
 end
 
 @testset "DSGE commands" begin
@@ -9846,10 +9954,14 @@ end
             [[model.equations]]
             expr = "K[t] = e[t]"
             """)
+            # `variable` must be one of the model's own variables: this model
+            # defines Y, C and K, and a bound on anything else is refused by the
+            # solver (`config/invalid`, "not found in endogenous variables") — the
+            # mock enforces the same rule, so `i` here never reached the solver.
             con_path = joinpath(dir, "constraints.toml")
             write(con_path, """
             [[constraints.bounds]]
-            variable = "i"
+            variable = "C"
             lower = 0.0
             """)
             out = _capture() do
@@ -10178,10 +10290,13 @@ end
             [[model.equations]]
             expr = "K[t] = e[t]"
             """)
+            # `C` is one of this model's variables; a bound on anything else is
+            # refused by the solver, so naming a real variable is what makes this
+            # an OccBin smoke check rather than a refusal check.
             con_path = joinpath(dir, "constraints.toml")
             write(con_path, """
             [[constraints.bounds]]
-            variable = "i"
+            variable = "C"
             lower = 0.0
             """)
             out = _capture() do
@@ -10761,6 +10876,19 @@ end
         end
     end
 
+    @testset "_did_estimate — upstream tidy columns (#216)" begin
+        mktempdir() do dir
+            csv = _make_did_csv(dir)
+            out = _capture() do
+                _did_estimate(; data=csv, outcome="outcome", treatment="treat",
+                    id_col="unit", time_col="time", format="table")
+            end
+            @test occursin("event_time", out)
+            @test occursin("std_error", out)
+            @test !occursin("Event_Time", out)
+        end
+    end
+
     @testset "_did_estimate — callaway_santanna with group-time" begin
         mktempdir() do dir
             csv = _make_did_csv(dir)
@@ -10959,6 +11087,102 @@ end
         @test haskey(test_node.subcmds, "negweight")
         @test haskey(test_node.subcmds, "honest")
         @test length(test_node.subcmds) == 4
+    end
+end
+
+@testset "_emit_result routing (#216)" begin
+    @testset "unsupported type throws model/unsupported, never silent hand-build" begin
+        y = Float64.(rand(0:5, 50))  # integer-valued: the mock mirrors real's count guard
+        X = hcat(ones(50), randn(50, 2))
+        m = estimate_poisson(y, X)
+        e = try
+            _emit_result(m; title="t", key="k", format="table", output="")
+            nothing
+        catch ex
+            ex
+        end
+        @test e isa CliError && e.code == "model/unsupported"
+    end
+end
+
+@testset "_emit_result long_table branch (#217)" begin
+    @testset "ImpulseResponse routes via long_table" begin
+        irf = ImpulseResponse(rand(4, 2, 2), nothing, nothing)
+        out = _capture() do
+            _emit_result(irf; title="t", key="k", format="table", output="")
+        end
+        @test occursin("shock1", out) && occursin("shock2", out)
+        @test occursin("horizon", out)
+    end
+    @testset "single-shock filter" begin
+        irf = ImpulseResponse(rand(4, 2, 2), nothing, nothing)
+        out = _capture() do
+            _emit_result(irf; title="t", key="k", format="table", output="", shocks="shock1")
+        end
+        @test occursin("shock1", out) && !occursin("shock2", out)
+    end
+    @testset "multi-shock filter" begin
+        irf = ImpulseResponse(rand(4, 2, 3), nothing, nothing)
+        out = _capture() do
+            _emit_result(irf; title="t", key="k", format="table", output="",
+                         shocks=["shock1", "shock3"])
+        end
+        @test occursin("shock1", out) && occursin("shock3", out) && !occursin("shock2", out)
+    end
+    @testset "FEVD routes via long_table" begin
+        f = FEVD(rand(2, 2, 4), rand(2, 2, 4))
+        out = _capture() do
+            _emit_result(f; title="t", key="k", format="table", output="")
+        end
+        @test occursin("shock1", out)
+    end
+    @testset "BayesianFEVD/LPFEVD/HD throw until upstream lands (TIDY-09/11/12)" begin
+        for x in (BayesianFEVD(rand(2, 2, 4), rand(4, 2, 2, 3), [0.16, 0.5, 0.84]),
+                  LPFEVD(rand(2, 2, 4), nothing, nothing, rand(2, 2, 4), rand(2, 2, 4), 4, 2, 2),
+                  HistoricalDecomposition(rand(4, 2, 2), rand(4, 2), rand(4, 2), rand(4, 2), 4))
+            e = try
+                _emit_result(x; title="t", key="k", format="table", output="")
+                nothing
+            catch ex
+                ex
+            end
+            @test e isa CliError && e.code == "model/unsupported"
+        end
+    end
+end
+
+@testset "_emit_result scenario + extra_cols (#220)" begin
+    @testset "scenario routes via long_table + unconditional baseline" begin
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            cond = joinpath(dir, "cond.csv")
+            write(cond, "variable,period,value\nvar1,1,2.5\n")
+            out = _capture() do
+                _forecast_scenario(; data=csv, conditions_file=cond, lags=2, horizons=6,
+                                   replications=100, format="table", output="")
+            end
+            @test contains(out, "unconditional")
+            @test contains(out, "Implied Structural Shocks")
+        end
+    end
+    @testset "extra_cols appends aligned columns" begin
+        irf = ImpulseResponse(rand(4, 2, 2), nothing, nothing)  # 4*2*2 = 16 rows
+        out = _capture() do
+            _emit_result(irf; title="t", key="k", format="table", output="",
+                         extra_cols=["xcol" => fill(1.5, 16)])
+        end
+        @test contains(out, "xcol")
+    end
+    @testset "extra_cols length mismatch is typed model/error, never silent" begin
+        irf = ImpulseResponse(rand(4, 2, 2), nothing, nothing)
+        e = try
+            _emit_result(irf; title="t", key="k", format="table", output="",
+                         extra_cols=["bad" => [1.0, 2.0]])
+            nothing
+        catch ex
+            ex
+        end
+        @test e isa CliError && e.code == "model/error"
     end
 end
 
@@ -14731,7 +14955,10 @@ end
                 @test s["additionalProperties"] === false
                 @test issubset(Set(s["required"]), Set(keys(s["properties"])))
                 for (_, pv) in s["properties"]
-                    @test pv["type"] in ("string", "integer", "number", "boolean")
+                    # "array" admitted for CARD-W1 #209's repeatable --prior/--constraint,
+                    # whose schema form is an array of strings. The card-named-but-
+                    # non-repeatable discrimination is pinned separately below.
+                    @test pv["type"] in ("string", "integer", "number", "boolean", "array")
                     @test haskey(pv, "x-cli")
                 end
                 nchecked[] += 1
@@ -14848,6 +15075,83 @@ include(joinpath(project_root, "src", "commands", "serve.jl"))
     @testset "serve leaf guard" begin
         err = try; _serve(; mcp=false); catch e; e; end
         @test err isa CliError && err.code == "usage/missing"
+    end
+end
+
+@testset "repeatable in schema and MCP (#209)" begin
+    @testset "_input_schema — array of strings + x-cli.repeatable" begin
+        leaf = LeafCommand("x", identity;
+                           options=[Option("prior"; repeatable=true)], args=[Argument("data")])
+        s = _input_schema(leaf, ["dsge", "bayes", "estimate"])
+        p = s["properties"]["prior"]
+        @test p["type"] == "array"
+        @test p["items"] == Dict("type" => "string")
+        @test p["x-cli"]["repeatable"] == true
+    end
+
+    # The load-bearing gate: `set` IS repeatable in the registry (Task 4) and must
+    # still be a plain string in the schema, per #209. A `repeatable=true` option
+    # that is NOT a card option is the case that fails if the branch ever loses
+    # its `in _CARD_REPEATABLE` half.
+    @testset "_input_schema — a repeatable non-card option stays a string" begin
+        leaf = LeafCommand("x", identity; options=[Option("set"; repeatable=true)],
+                           args=[Argument("data")])
+        p = _input_schema(leaf, ["x"])["properties"]["set"]
+        @test p["type"] == "string"
+        @test !haskey(p, "items")
+        @test !haskey(p["x-cli"], "repeatable")
+    end
+
+    @testset "_input_schema — a plain non-repeatable option is unchanged" begin
+        leaf = LeafCommand("x", identity; options=[Option("lags"; type=Int)],
+                           args=[Argument("data")])
+        p = _input_schema(leaf, ["x"])["properties"]["lags"]
+        @test p["type"] == "integer"
+        @test !haskey(p, "items")
+        @test !haskey(p["x-cli"], "repeatable")
+    end
+
+    # The name half of the gate is only half the gate: `_CARD_REPEATABLE` is a NAME
+    # set, and three live options are named `prior` while being non-repeatable
+    # (`estimate multivariate bvar --prior` ×2 and `nowcast --prior`, all with
+    # choices). This mirrors the registry, not the card world: it fails if the
+    # `o.repeatable` half of the gate is ever dropped, which would advertise an
+    # array for an option the CLI binds — and `_mcp_argv` emits — as a scalar.
+    @testset "_input_schema — a card-named but non-repeatable option stays a string" begin
+        leaf = LeafCommand("x", identity;
+                           options=[Option("prior"; type=String, choices=["minnesota", "normal"])],
+                           args=[Argument("data")])
+        p = _input_schema(leaf, ["x"])["properties"]["prior"]
+        @test p["type"] == "string"
+        @test p["enum"] == ["minnesota", "normal"]
+        @test !haskey(p, "items")
+        @test !haskey(p["x-cli"], "repeatable")
+    end
+
+    @testset "_input_schema — a card option's items carry its own type" begin
+        leaf = LeafCommand("x", identity;
+                           options=[Option("constraint"; type=Int, repeatable=true,
+                                           choices=["a", "b"])],
+                           args=[Argument("data")])
+        p = _input_schema(leaf, ["x"])["properties"]["constraint"]
+        @test p["type"] == "array"
+        @test p["items"]["type"] == "integer"   # items type follows the option, not a literal
+        @test p["items"]["enum"] == ["a", "b"]   # enum moves into items, not the value
+        @test !haskey(p, "enum")
+    end
+
+    @testset "_mcp_argv — one flag per array element" begin
+        leaf = LeafCommand("x", identity;
+                           options=[Option("prior"; repeatable=true)], args=[Argument("data")])
+        argv = _mcp_argv(leaf, ["x"], Dict(:data => "d.csv", :prior => ["a", "b"]))
+        @test argv == ["x", "d.csv", "--prior", "a", "--prior", "b"]
+    end
+
+    @testset "_mcp_argv — a JSON string still emits one flag" begin
+        leaf = LeafCommand("x", identity;
+                           options=[Option("prior"; repeatable=true)], args=[Argument("data")])
+        @test _mcp_argv(leaf, ["x"], Dict(:data => "d.csv", :prior => "a")) ==
+              ["x", "d.csv", "--prior", "a"]
     end
 end
 
@@ -15056,6 +15360,360 @@ end
         dispatch_schema(["estimate"])
     end))
     @test any(f -> String(f.name) == "volatility", node.families)
+end
+@testset "repeatable options (CARD-W1 #209)" begin
+    @testset "tokenize — multi is a superset, options keeps last-wins" begin
+        p = tokenize(["--lags", "1", "--lags", "2"])
+        @test p.options["lags"] == "2"        # non-repeatable behaviour is unchanged
+        @test p.multi["lags"] == ["1", "2"]   # the superset
+        q = tokenize(["--lags=1", "--lags=2"])
+        @test q.options["lags"] == "2"
+        @test q.multi["lags"] == ["1", "2"]
+        r = tokenize(["-o", "out.csv"])          # short-alias values land in `multi` too
+        @test r.multi["o"] == ["out.csv"] && r.options["o"] == "out.csv"
+    end
+
+    @testset "bind_args — repeatable yields a Vector{String}" begin
+        leaf = LeafCommand("x", identity;
+                          options=[Option("prior"; repeatable=true)],
+                          args=[Argument("data")])
+        b = bind_args(tokenize(["d.csv", "--prior", "a ~ beta(2,2)", "--prior", "b ~ normal(0,1)"]), leaf)
+        @test b.prior == ["a ~ beta(2,2)", "b ~ normal(0,1)"]
+    end
+
+    @testset "bind_args — undeclared repeatable name is a ParseError" begin
+        leaf = LeafCommand("x", identity; options=[Option("prior"; repeatable=true)], args=[Argument("data")])
+        @test_throws ParseError bind_args(tokenize(["d.csv", "--set", "a=1"]), leaf)
+        @test_throws ParseError bind_args(tokenize(["d.csv", "--constraint", "i[t] >= 0"]), leaf)
+        # the single unknown-name loop covers options, flags and multi alike,
+        # and still offers the did-you-mean hint
+        hintleaf = LeafCommand("x", identity;
+                              options=[Option("prior"; repeatable=true),
+                                       Option("constraint"; repeatable=true)],
+                              args=[Argument("data")])
+        err = try bind_args(tokenize(["d.csv", "--prio", "a"]), hintleaf) catch e; e end
+        @test err isa ParseError
+        @test occursin("did you mean --prior", err.message)
+    end
+
+    @testset "bind_args — repeatable binds through its short alias" begin
+        leaf = LeafCommand("x", identity;
+                          options=[Option("prior"; short="p", repeatable=true)],
+                          args=[Argument("data")])
+        b = bind_args(tokenize(["d.csv", "-p", "a", "-p", "b"]), leaf)
+        @test b.prior == ["a", "b"]
+    end
+
+    @testset "negative numbers still bind as values (F2 regression)" begin
+        p = tokenize(["--lo", "-2.5", "--n", "-3"])
+        @test p.options["lo"] == "-2.5" && p.options["n"] == "-3"
+        @test p.multi["lo"] == ["-2.5"]
+    end
+end
+
+# ── CARD-W1 #209: the prior/constraint resolvers and their declarations ─────
+
+"""Write `content` to a temp TOML file and return its path."""
+function _toml_fixture(content::AbstractString)
+    p = tempname() * ".toml"
+    write(p, content)
+    return p
+end
+
+@testset "CARD-W1 #209 — resolvers and declarations" begin
+    @testset "_resolve_dsge_priors — file plus lines" begin
+        toml = _toml_fixture("[priors.sigma]\ndist = \"inv_gamma\"\na = 2.0\nb = 0.5\n")
+        got = _resolve_dsge_priors(toml, ["rho ~ beta(2, 2)"])
+        @test sort(collect(keys(got))) == ["rho", "sigma"]
+        @test got["rho"] == Dict("dist" => "beta", "a" => 2.0, "b" => 2.0)
+        @test got["sigma"] == Dict("dist" => "inv_gamma", "a" => 2.0, "b" => 0.5)
+    end
+
+    @testset "_resolve_dsge_priors — one source alone is enough" begin
+        only_lines = _resolve_dsge_priors("", ["rho ~ beta(2, 2)"])
+        @test only_lines == Dict("rho" => Dict("dist" => "beta", "a" => 2.0, "b" => 2.0))
+        only_file = _resolve_dsge_priors(_toml_fixture("[priors.rho]\ndist = \"beta\"\na = 2.0\nb = 2.0\n"), String[])
+        @test only_file == only_lines
+    end
+
+    @testset "_resolve_dsge_priors — duplicates are config/invalid" begin
+        toml = _toml_fixture("[priors.rho]\ndist = \"beta\"\na = 2.0\nb = 2.0\n")
+        # line duplicates file
+        e1 = try _resolve_dsge_priors(toml, ["rho ~ beta(2, 2)"]); nothing catch e; e end
+        @test e1 isa CliError && e1.code == "config/invalid"
+        @test occursin("rho", e1.message)
+        # Line duplicates line. NOTE: this is caught by `lower_priors`'s own
+        # within-stanza duplicate guard (src/model_card.jl), which fires BEFORE the
+        # resolver's `haskey(out, k)` merge check — it is here to pin that the
+        # resolver does not silently COLLAPSE a within-lines duplicate. The
+        # file-vs-line case above is the one that exercises the resolver's own guard.
+        e2 = try _resolve_dsge_priors("", ["rho ~ beta(2, 2)", "rho ~ normal(0, 1)"]); nothing catch e; e end
+        @test e2 isa CliError && e2.code == "config/invalid"
+        # distinct names coexist
+        merged = _resolve_dsge_priors(toml, ["alpha ~ normal(0, 1)"])
+        @test sort(collect(keys(merged))) == ["alpha", "rho"]
+    end
+
+    @testset "neither source — the REACHABLE usage/missing, in order" begin
+        # The resolver deliberately does NOT throw here (it returns an empty dict);
+        # the user-facing error lives in the leaf guards, which run first. So the
+        # ordering contract is asserted on the message a user actually receives,
+        # reached by calling the guard — not on a dead branch inside the resolver.
+        # Each guard gets its OWN probe: the two signatures share no superset
+        # (`_dsge_bayes_inputs` takes no sampler, `_dsge_ha_estimate` takes no
+        # params/solver/order), so one merged probe would MethodError on the kwarg
+        # set rather than reach the guard.
+        probes = Any[
+            (_dsge_bayes_inputs, "usage/missing",
+             (model="", data="d.csv", params="rho", priors="", prior=String[],
+              observables="", solver="gensys", order=1, constraint_solver="")),
+            (_dsge_ha_estimate, "usage/missing-option",
+             (model="", data="d.csv", priors="", prior=String[], observables="",
+              method="ssj", sampler="mh", n_draws=1, burnin=0, n_smc=1, ess_target=0.5)),
+        ]
+        for (f, code, p) in probes
+            err = try f(; p...); nothing catch e; e; end
+            @test err isa CliError && err.code == code
+            @test err.message == _PRIORS_REQUIRED_MESSAGE
+            # the message names the line, the stanza, then the file, in that order
+            m = lowercase(err.message)
+            @test findfirst("--prior", m) < findfirst("priors:", m) < findfirst("--priors", m)
+        end
+        # the resolver's own contract at that point: empty, not an exception
+        @test _resolve_dsge_priors("", String[]) == Dict{String,Any}()
+    end
+
+    @testset "_resolve_dsge_constraints — variable plus direction" begin
+        a = _resolve_dsge_constraints("", ["i[t] >= 0"])
+        # the card grammar has NO strict operator: `>=` / `<=` only, so a different
+        # DIRECTION is expressed with the other one
+        b = _resolve_dsge_constraints("", ["i[t] <= 0"])
+        @test length(a) == 1
+        @test length(b) == 1
+        @test a[1].var_name == :i && a[1].lower == 0.0 && a[1].upper === nothing
+        @test b[1].upper == 0.0 && b[1].lower === nothing
+        # the same variable bounded from BOTH sides is two distinct keys
+        two = _resolve_dsge_constraints("", ["-1 <= i[t] <= 1"])
+        @test length(two) == 1 && two[1].lower == -1.0 && two[1].upper == 1.0
+        mixed = _resolve_dsge_constraints("", ["i[t] >= 0", "i[t] <= 5"])
+        @test length(mixed) == 2
+        # but the SAME direction twice is a conflict
+        err = try; _resolve_dsge_constraints("", ["i[t] >= 0", "i[t] >= 0.5"]); nothing
+        catch e; e; end
+        @test err isa CliError && err.code == "config/invalid"
+        # no constraints FILE was given, so the message must not blame --constraints
+        @test !occursin("--constraints", err.message)
+        @test occursin("supply it once", err.message)
+    end
+
+    @testset "_resolve_dsge_constraints — file plus lines merge" begin
+        toml = _toml_fixture("[[constraints.bounds]]\nvariable = \"c\"\nlower = -2.0\n")
+        got = _resolve_dsge_constraints(toml, ["i[t] >= 0"]; spec=nothing)
+        @test length(got) == 2
+        vars = sort([String(c.var_name) for c in got])
+        @test vars == ["c", "i"]
+        # a line repeating a file bound collides
+        err = try; _resolve_dsge_constraints(toml, ["c[t] >= 0"]; spec=nothing); nothing
+        catch e; e; end
+        @test err isa CliError && err.code == "config/invalid"
+        # a FILE was given here, so naming --constraints is the right advice
+        @test occursin("--constraints", err.message)
+    end
+
+    @testset "_resolve_dsge_constraints — neither source is empty, not an error" begin
+        @test isempty(_resolve_dsge_constraints("", String[]))
+    end
+
+    @testset "declarations — --prior / --constraint are repeatable" begin
+        @test PRIOR_OPTION.name == "prior" && PRIOR_OPTION.repeatable
+        @test CONSTRAINT_OPTION.name == "constraint" && CONSTRAINT_OPTION.repeatable
+        @test PRIOR_OPTION.type === String && CONSTRAINT_OPTION.type === String
+        @test PRIOR_OPTION.choices === nothing && CONSTRAINT_OPTION.choices === nothing
+    end
+
+    @testset "with_default preserves every OptionSpec field of the option it REBUILDS" begin
+        # `with_default` rebuilds ONLY the option whose name matches; every other
+        # member is passed through by reference. So the assertion that bites must be
+        # about the REBUILT option — a passthrough member compares equal to itself
+        # under any implementation. Here the rebuilt option is the REPEATABLE one,
+        # which is exactly the field the function used to drop: delete
+        # `repeatable=o.repeatable` from src/registry/spec.jl and
+        # `out[1].repeatable` below goes false, which is the regression.
+        group = OptionSpec[OptionSpec(name="prior", type=String, default=String[],
+                                      repeatable=true, description="d"),
+                           OptionSpec(name="n-draws", type=Int, default=10000,
+                                      description="n")]
+        out = with_default(group, "prior", ["rho ~ beta(2, 2)"])
+        @test length(out) == 2
+        rebuilt = out[1]
+        @test rebuilt.repeatable === true            # ← the pin that turns red
+        @test rebuilt.default == ["rho ~ beta(2, 2)"]
+        # every other field of the rebuilt option survives too
+        src = group[1]
+        @test rebuilt.name == src.name
+        @test rebuilt.short == src.short
+        @test rebuilt.type === src.type
+        @test rebuilt.choices === src.choices
+        @test rebuilt.description == src.description
+        @test rebuilt.since == src.since
+        @test rebuilt.handle == src.handle
+        # …and the untouched member is passed through unchanged
+        @test out[2] === group[2]
+        # a NON-repeatable option rebuilds to a non-repeatable one
+        out2 = with_default(group, "n-draws", 500)
+        @test out2[2].default == 500 && out2[2].repeatable === false
+        @test out2[1] === group[1]
+    end
+
+    @testset "every declared prior/constraint option matches its binding in the live registry" begin
+        # The reverse direction of the `with_default` bug: an option added WITHOUT
+        # `repeatable` binds as a String while every handler declares
+        # `::Vector{String}` — a TypeError, exit 1, caught here at the registry
+        # rather than at call time.
+        #
+        # `_CARD_REPEATABLE` is a NAME set, and three live options are named `prior`
+        # while being ordinary scalars with `choices` (the BVAR hyperparameter knob,
+        # surfaced on both `estimate multivariate bvar` and `… mfvar`, and the
+        # `nowcast bvar` default). So `prior` + non-repeatable is CORRECT for those
+        # three and a TypeError only for the rest — both directions are pinned here.
+        offenders = Tuple{String,String}[]
+        repeatable = Tuple{String,String}[]
+        scalar = Tuple{String,String}[]
+        function walk(node, path)
+            for (name, sub) in node.subcmds
+                p = vcat(path, [name])
+                if sub isa LeafCommand
+                    for o in sub.options
+                        o.name in ("prior", "constraint") || continue
+                        if o.choices !== nothing        # the pre-existing scalar knobs
+                            o.repeatable && push!(offenders, (join(p, " "), o.name))
+                            push!(scalar, (join(p, " "), o.name))
+                        else
+                            o.repeatable || push!(offenders, (join(p, " "), o.name))
+                            push!(repeatable, (join(p, " "), o.name))
+                        end
+                    end
+                else
+                    walk(sub, p)
+                end
+            end
+        end
+        walk(APP.root, String[])
+        @test offenders == []
+        # The three scalar name collisions are exactly these — not a growing set.
+        @test sort(unique(scalar)) == [("estimate multivariate bvar", "prior"),
+                                       ("estimate multivariate mfvar", "prior"),
+                                       ("nowcast bvar", "prior")]
+        # …and the repeatable set is non-empty, so neither walk above is vacuous.
+        @test length(repeatable) == 19      # 15 --priors leaves + 4 --constraints leaves
+        @test count(p -> last(p) == "prior", repeatable) == 15
+        @test count(p -> last(p) == "constraint", repeatable) == 4
+    end
+
+    @testset "declarations — reach the leaves that use them" begin
+        function names_at(path)
+            want = join(path, " ")
+            exact = nothing
+            loose = nothing
+            function walk(n, p)
+                for (nm, sub) in n.subcmds
+                    q = vcat(p, [nm])
+                    if sub isa LeafCommand
+                        joined = join(q, " ")
+                        joined == want && (exact = sub)
+                        # NOT endswith alone: "hadsge solve" ends with "dsge solve".
+                        endswith(joined, want) && (loose = sub)
+                    else
+                        walk(sub, q)
+                    end
+                end
+            end
+            walk(APP.root, String[])
+            found = exact === nothing ? loose : exact
+            found === nothing && error("no leaf matching $path")
+            return [o.name for o in found.options]
+        end
+        # every Bayesian DSGE leaf that takes --priors also takes --prior
+        for p in (["dsge", "bayes", "estimate"], ["dsge", "bayes", "irf"],
+                  ["dsge", "bayes", "fevd"], ["dsge", "bayes", "simulate"],
+                  ["dsge", "bayes", "summary"], ["dsge", "bayes", "compare"],
+                  ["dsge", "bayes", "predictive"], ["dsge", "bayes", "hd"],
+                  ["dsge", "bayes", "mcmc-diag"], ["dsge", "bayes", "learning-rate"],
+                  ["dsge", "bayes", "overlap"], ["dsge", "bayes", "marginal-lik"],
+                  ["dsge", "bayes", "posterior-mode"], ["dsge", "bayes", "prior-predictive"],
+                  ["hadsge", "estimate"])
+            @test "prior" in names_at(p)
+        end
+        # compare keeps priors2 a FILE: no --prior2 is invented
+        @test !("prior2" in names_at(["dsge", "bayes", "compare"]))
+        # identification never had --priors, so it must not gain --prior. The
+        # PREMISE is asserted alongside the conclusion, so the conclusion cannot
+        # keep passing after someone adds --priors to that leaf without --prior.
+        ident = names_at(["dsge", "bayes", "identification"])
+        @test !("priors" in ident)
+        @test !("prior" in ident)
+        # the four OccBin leaves gain --constraint beside --constraints
+        for p in (["dsge", "solve"], ["dsge", "irf"],
+                  ["dsge", "perfect-foresight"], ["dsge", "steady-state"])
+            n = names_at(p)
+            @test "constraints" in n && "constraint" in n
+        end
+    end
+
+    @testset "handlers declare the repeatable kwargs with the TYPE they bind to" begin
+        # #85: a declared option must match its handler kwarg in NAME and in TYPE.
+        # A repeatable String option binds to `Vector{String}`; a handler declaring
+        # `prior::String` accepts the name and then TypeErrors on every call.
+        # `Base.kwarg_decl` yields NAMES only, so the type is checked the way it
+        # actually bites: the kwsorter enforces a declared keyword type BEFORE the
+        # body runs, so a `Vector{String}` probe must not TypeError and a `String`
+        # probe must. Every probe below dies on a usage/config guard instead — no
+        # model, no data, no estimation.
+        function kwnames(f)
+            for m in methods(f)
+                Base.isdispatchtuple(m.sig) || continue
+                return Base.kwarg_decl(m)
+            end
+            return Symbol[]
+        end
+        p_in = (model="", data="d.csv", params="rho", priors="", observables="",
+                solver="gensys", order=1, constraint_solver="")
+        p_run = merge(p_in, (sampler="smc", n_smc=1, n_particles=1, n_draws=1,
+                             burnin=0, ess_target=0.5, delayed_acceptance=false))
+        bayes = Any[
+            (_dsge_bayes_inputs, p_in),
+            (_dsge_bayes_run_estimation, p_run),
+            (_dsge_bayes_estimate, p_run), (_dsge_bayes_irf, p_run),
+            (_dsge_bayes_fevd, p_run), (_dsge_bayes_simulate, p_run),
+            (_dsge_bayes_summary, p_run), (_dsge_bayes_compare, p_run),
+            (_dsge_bayes_predictive, p_run), (_dsge_bayes_hd, p_run),
+            (_dsge_bayes_mcmc_diag, p_run), (_dsge_bayes_learning_rate, p_run),
+            (_dsge_bayes_overlap, p_run), (_dsge_bayes_marginal_lik, p_run),
+            (_dsge_bayes_posterior_mode, p_in),
+            # no --data on prior-predictive: it draws from the PRIOR
+            (_dsge_bayes_prior_predictive,
+             (model="", params="rho", priors="", observables="", solver="gensys",
+              order=1, constraint_solver="")),
+            (_dsge_ha_estimate,
+             (model="", data="d.csv", priors="", observables="", method="ssj",
+              sampler="mh", n_draws=1, burnin=0, n_smc=1, ess_target=0.5)),
+        ]
+        for (f, p) in bayes
+            @test :prior in kwnames(f)
+            ok = try f(; p..., prior=String[]); nothing catch e; e end
+            @test !(ok isa TypeError) && !(ok isa MethodError)
+            bad = try f(; p..., prior="rho ~ beta(2, 2)"); nothing catch e; e end
+            @test bad isa TypeError        # ← fails if the kwarg is declared ::String
+        end
+        p_c = (model="",)
+        for f in (_dsge_solve, _dsge_irf, _dsge_steady_state, _dsge_perfect_foresight)
+            @test :constraint in kwnames(f)
+            ok = try f(; p_c..., constraint=String[]); nothing catch e; e end
+            @test !(ok isa TypeError) && !(ok isa MethodError)
+            bad = try f(; p_c..., constraint="i[t] >= 0"); nothing catch e; e end
+            @test bad isa TypeError        # ← fails if the kwarg is declared ::String
+        end
+    end
 end
 
 include(joinpath(project_root, "test", "test_handles.jl"))

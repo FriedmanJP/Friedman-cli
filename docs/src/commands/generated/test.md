@@ -7,7 +7,7 @@ Generated reference for `friedman test` and its subcommands.
 
 ### `friedman test brant`
 
-Path to CSV data file
+Brant parallel-regression test for ordered logit
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -28,7 +28,7 @@ Path to CSV data file
 
 ### `friedman test coint ardl-bounds`
 
-Path to CSV data file
+Pesaran-Shin-Smith ARDL bounds test: F/t vs I(0)/I(1) bounds, no p-value
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -57,7 +57,7 @@ Path to CSV data file
 
 ### `friedman test coint engle-granger`
 
-Path to CSV data file
+Engle-Granger residual-ADF cointegration test (H0: no cointegration)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -67,7 +67,7 @@ Path to CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
 | `--trend` | — | `String` | `constant` | `none`, `constant`, `trend` | Deterministic terms in the cointegrating regression |
-| `--lags` | — | `String` | `aic` | — | ADF lags on the residuals: aic\|bic\|tstat or a non-negative integer |
+| `--lags` | — | `String` | `aic` | — | ADF lags on the residuals: aic\|bic or a non-negative integer |
 | `--max-lags` | — | `String` | `""` | — | Upper bound for automatic lag selection |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
@@ -80,7 +80,7 @@ Path to CSV data file
 
 ### `friedman test coint fisher-johansen`
 
-Path to CSV data file
+Fisher-combined per-unit Johansen panel cointegration test by rank (H0: rank <= r)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -105,7 +105,7 @@ Path to CSV data file
 
 ### `friedman test coint gregory-hansen`
 
-Path to CSV data file
+Gregory-Hansen cointegration test with one structural break: ADF*, Zt*, Za* (H0: no cointegration)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -113,7 +113,7 @@ Path to CSV data file
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--model` | — | `String` | `C` | — | C\|C/T\|C/S (level shift/trend/regime) |
+| `--model` | — | `String` | `C` | — | C\|CT\|CS (level shift/trend/regime) |
 | `--lags` | — | `String` | `aic` | — | Lag order (aic\|bic\|N) |
 | `--max-lags` | — | `Int64` | — | — | Max lags (default: auto) |
 | `--trim` | — | `Float64` | `0.15` | — | Trimming proportion |
@@ -128,7 +128,7 @@ Path to CSV data file
 
 ### `friedman test coint johansen`
 
-Path to CSV data file
+Johansen cointegration-rank test: trace and max-eigenvalue tables by rank
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -149,7 +149,7 @@ Path to CSV data file
 
 ### `friedman test coint kao`
 
-Path to CSV panel data file
+Kao DF/ADF residual-based panel cointegration test (H0: no cointegration)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -172,7 +172,7 @@ Path to CSV panel data file
 
 ### `friedman test coint pedroni`
 
-Path to CSV panel data file
+Pedroni residual-based panel cointegration test, seven statistics (H0: no cointegration)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -184,7 +184,7 @@ Path to CSV panel data file
 | `--time-col` | — | `String` | `""` | — | Time period column (default: second column) |
 | `--dep` | — | `String` | `""` | — | Dependent variable (default: first panel variable) |
 | `--indep` | — | `String` | `""` | — | Comma-separated regressors (default: all other panel variables) |
-| `--trend` | — | `String` | `constant` | `constant`, `trend` | constant\|trend |
+| `--trend` | — | `String` | `constant` | `none`, `constant`, `trend` | none\|constant\|trend |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
@@ -196,7 +196,7 @@ Path to CSV panel data file
 
 ### `friedman test coint phillips-ouliaris`
 
-Path to CSV data file
+Phillips-Ouliaris semiparametric cointegration test: Z_t and Z_alpha (H0: no cointegration)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -219,7 +219,7 @@ Path to CSV data file
 
 ### `friedman test coint westerlund`
 
-Path to CSV panel data file
+Westerlund ECM panel cointegration test: Gt, Ga, Pt, Pa (H0: no error correction)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -231,7 +231,7 @@ Path to CSV panel data file
 | `--time-col` | — | `String` | `""` | — | Time period column (default: second column) |
 | `--dep` | — | `String` | `""` | — | Dependent variable (default: first panel variable) |
 | `--indep` | — | `String` | `""` | — | Comma-separated regressors (default: all other panel variables) |
-| `--trend` | — | `String` | `constant` | `constant`, `trend` | constant\|trend |
+| `--trend` | — | `String` | `constant` | `none`, `constant`, `trend` | none\|constant\|trend |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
@@ -243,7 +243,7 @@ Path to CSV panel data file
 
 ### `friedman test did bacon`
 
-Path to panel CSV data file
+Goodman-Bacon (2021) decomposition of TWFE into 2x2 DiD comparisons with weights
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -269,7 +269,7 @@ Path to panel CSV data file
 
 ### `friedman test did honest`
 
-Path to panel CSV data file
+HonestDiD sensitivity analysis (Rambachan-Roth 2023) with violation bound Mbar
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -287,7 +287,7 @@ Path to panel CSV data file
 | `--lags` | `-p` | `Int64` | `4` | — | Control lags (event-study only) |
 | `--cluster` | — | `String` | `unit` | — | unit\|time\|twoway |
 | `--conf-level` | — | `Float64` | `0.95` | — | Confidence level |
-| `--method` | — | `String` | `did` | — | did\|event-study |
+| `--method` | — | `String` | `did` | `did`, `event-study` | did\|event-study |
 | `--did-method` | — | `String` | `twfe` | `twfe`, `cs`, `sa`, `bjs`, `dcdh` | twfe\|cs\|sa\|bjs\|dcdh (did method only) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -303,7 +303,7 @@ Path to panel CSV data file
 
 ### `friedman test did negweight`
 
-Path to panel CSV data file
+Negative-weight diagnostic for TWFE (de Chaisemartin-D'Haultfoeuille 2020)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -323,7 +323,7 @@ Path to panel CSV data file
 
 ### `friedman test did pretrend`
 
-Path to panel CSV data file
+Joint pre-trend (parallel-trends) test from a DiD or event-study fit
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -340,7 +340,7 @@ Path to panel CSV data file
 | `--lags` | `-p` | `Int64` | `4` | — | Control lags (event-study only) |
 | `--cluster` | — | `String` | `unit` | — | unit\|time\|twoway |
 | `--conf-level` | — | `Float64` | `0.95` | — | Confidence level |
-| `--method` | — | `String` | `did` | — | did\|event-study |
+| `--method` | — | `String` | `did` | `did`, `event-study` | did\|event-study |
 | `--did-method` | — | `String` | `twfe` | `twfe`, `cs`, `sa`, `bjs`, `dcdh` | twfe\|cs\|sa\|bjs\|dcdh (did method only) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -351,7 +351,7 @@ Path to panel CSV data file
 
 ### `friedman test dispersion`
 
-Path to CSV data file
+Cameron-Trivedi overdispersion test on a Poisson fit (directional decision)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -378,7 +378,7 @@ Path to CSV data file
 
 ### `friedman test edf`
 
-Path to CSV data file
+EDF goodness-of-fit test for --dist
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -402,7 +402,7 @@ Path to CSV data file
 
 ### `friedman test fisher`
 
-Path to CSV data file
+Fisher periodicity test for a hidden cycle
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -422,7 +422,7 @@ Path to CSV data file
 
 ### `friedman test gph`
 
-Path to CSV data file
+GPH log-periodogram estimate of long-memory d
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -444,7 +444,7 @@ Path to CSV data file
 
 ### `friedman test hansen-linearity`
 
-Path to CSV data file
+Hansen sup-LM/sup-Wald linearity test vs two-regime SETAR
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -468,7 +468,7 @@ Path to CSV data file
 
 ### `friedman test hausman-iia`
 
-Path to CSV data file
+Hausman-McFadden IIA test omitting one mlogit category
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -477,7 +477,7 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--dep` | — | `String` | `""` | — | Dependent variable |
-| `--omit-category` | — | `Int64` | — | — | Category to omit for IIA test |
+| `--omit-category` | — | `Int64` | — | — | Category to omit for IIA test (required) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
@@ -489,7 +489,7 @@ Path to CSV data file
 
 ### `friedman test identifiability`
 
-Path to CSV data file
+Non-Gaussian/SVAR identification diagnostics battery for a VAR
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -499,7 +499,7 @@ Path to CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto via AIC) |
 | `--test` | `-t` | `String` | `all` | — | strength\|gaussianity\|independence\|overidentification\|lambda-distinct\|gaussian-count\|label-stability\|all (the last three are opt-in only) |
-| `--method` | — | `String` | `fastica` | — | fastica\|jade\|sobi\|dcov\|hsic (for gaussianity/independence/overidentification tests) |
+| `--method` | — | `String` | `fastica` | — | fastica\|jade\|sobi\|dcov\|hsic (for gaussianity/independence/overidentification tests; label-stability bootstraps the chosen estimator) |
 | `--contrast` | — | `String` | `logcosh` | — | logcosh\|exp\|kurtosis (for FastICA) |
 | `--n-bootstrap` | — | `Int64` | `999` | — | Bootstrap replications (for label-stability) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
@@ -511,7 +511,7 @@ Path to CSV data file
 
 ### `friedman test influence`
 
-Path to CSV data file
+OLS influence diagnostics (leverage, studentized residuals, DFFITS, Cook D)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -532,7 +532,7 @@ Path to CSV data file
 
 ### `friedman test iv anderson-rubin`
 
-Path to CSV data file
+Weak-instrument-robust Anderson-Rubin test + inverted confidence set
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -564,7 +564,7 @@ Path to CSV data file
 
 ### `friedman test iv weak-instrument`
 
-Path to CSV data file
+Stock-Yogo weak-instrument diagnostics for 2SLS
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -582,13 +582,13 @@ Path to CSV data file
 | `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
 | `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 
-**Output tables:** `weak_instrument_diagnostics` (First-stage, Cragg-Donald and Kleibergen-Paap F against the Stock-Yogo critical value, with the weak verdict)
+**Output tables:** `weak_instrument_diagnostics` (First-stage, Cragg-Donald and Kleibergen-Paap F against the Stock-Yogo critical value, with the weak verdict (or --threshold fallback))
 
 ---
 
 ### `friedman test iv wild-cluster`
 
-Path to CSV data file
+Wild cluster bootstrap (WCR/WCU) inference for one coefficient
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -621,7 +621,7 @@ Path to CSV data file
 
 ### `friedman test local-whittle`
 
-Path to CSV data file
+Local Whittle estimate of long-memory d
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -636,13 +636,13 @@ Path to CSV data file
 | `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
 | `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 
-**Output tables:** `local_whittle_test` (Local Whittle estimate of d with standard error, z-statistic and objective value)
+**Output tables:** `local_whittle_test` (Local Whittle estimate of d with standard error, z-statistic and objective value, p-value)
 
 ---
 
 ### `friedman test multivariate granger`
 
-Path to CSV data file
+Granger causality (VAR pairwise incl. --all, or VECM short/long-run/joint)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -653,9 +653,9 @@ Path to CSV data file
 | `--cause` | — | `Int64` | `1` | — | Cause variable index (1-based) |
 | `--effect` | — | `Int64` | `2` | — | Effect variable index (1-based) |
 | `--lags` | `-p` | `Int64` | `2` | — | Lag order (in levels) |
-| `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto\|1\|2\|...) |
-| `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
-| `--model` | — | `String` | `vecm` | — | var\|vecm (model type for Granger test) |
+| `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto\|1\|2\|...) (vecm only; ignored with --model var) |
+| `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend (vecm only; ignored with --model var) |
+| `--model` | — | `String` | `vecm` | `var`, `vecm` | var\|vecm (model type for Granger test) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
@@ -671,7 +671,7 @@ Path to CSV data file
 
 ### `friedman test multivariate lagselect`
 
-Path to CSV data file
+VAR lag-order selection by AIC/BIC/HQC
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -692,7 +692,7 @@ Path to CSV data file
 
 ### `friedman test multivariate lm`
 
-Path to CSV data file for restricted model
+Lagrange-multiplier test of VAR restrictions (restricted vs unrestricted data)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -714,7 +714,7 @@ Path to CSV data file for restricted model
 
 ### `friedman test multivariate lr`
 
-Path to CSV data file for restricted model
+Likelihood-ratio test of VAR restrictions (restricted vs unrestricted data)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -736,7 +736,7 @@ Path to CSV data file for restricted model
 
 ### `friedman test multivariate stability`
 
-Path to CSV data file
+VAR stability check via companion-matrix eigenvalues
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -756,7 +756,7 @@ Path to CSV data file
 
 ### `friedman test nardl-symmetry`
 
-Path to CSV data file
+NARDL long/short-run symmetry Wald tests per asymmetric regressor
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -783,7 +783,7 @@ Path to CSV data file
 
 ### `friedman test normality`
 
-Path to CSV data file
+VAR-residual normality test suite
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -803,7 +803,7 @@ Path to CSV data file
 
 ### `friedman test panel dh-causality`
 
-Path to CSV data file
+Dumitrescu-Hurlin panel Granger non-causality test for --cause -> --effect
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -829,7 +829,7 @@ Path to CSV data file
 
 ### `friedman test panel f-fe`
 
-Path to CSV panel data file
+F test of fixed effects vs pooled OLS on panel data
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -837,7 +837,7 @@ Path to CSV panel data file
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name |
+| `--dep` | — | `String` | `""` | — | Dependent variable column name (required) |
 | `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
 | `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
 | `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
@@ -852,7 +852,7 @@ Path to CSV panel data file
 
 ### `friedman test panel hausman`
 
-Path to CSV panel data file
+Hausman FE-vs-RE specification test on panel data
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -860,7 +860,7 @@ Path to CSV panel data file
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name |
+| `--dep` | — | `String` | `""` | — | Dependent variable column name (required) |
 | `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
 | `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
 | `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
@@ -875,7 +875,7 @@ Path to CSV panel data file
 
 ### `friedman test panel modified-wald`
 
-Path to CSV panel data file
+Modified Wald groupwise-heteroskedasticity test on panel FE residuals
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -883,7 +883,7 @@ Path to CSV panel data file
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name |
+| `--dep` | — | `String` | `""` | — | Dependent variable column name (required) |
 | `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
 | `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
 | `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
@@ -898,15 +898,15 @@ Path to CSV panel data file
 
 ### `friedman test panel panic`
 
-Path to CSV data file (rows=T, cols=N)
+PANIC panel unit-root test after removing common factors
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — |  |
+| `data` | `String` | yes | — | Path to panel CSV (or T×N matrix CSV) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--factors` | — | `String` | `auto` | — | Number of factors (auto\|N) |
+| `--factors` | — | `String` | `auto` | — | Number of factors: auto or a positive integer |
 | `--method` | — | `String` | `pooled` | — | pooled\|individual |
 | `--id-col` | — | `String` | `""` | — | Panel unit ID column (optional) |
 | `--time-col` | — | `String` | `""` | — | Time column (optional) |
@@ -921,7 +921,7 @@ Path to CSV data file (rows=T, cols=N)
 
 ### `friedman test panel pesaran-cd`
 
-Path to CSV panel data file
+Pesaran CD cross-sectional-dependence test on panel FE residuals
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -929,7 +929,7 @@ Path to CSV panel data file
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name |
+| `--dep` | — | `String` | `""` | — | Dependent variable column name (required) |
 | `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
 | `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
 | `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
@@ -944,7 +944,7 @@ Path to CSV panel data file
 
 ### `friedman test panel pmg-hausman`
 
-Path to CSV data file
+Hausman long-run-homogeneity test (efficient PMG/DFE vs MG)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -973,7 +973,7 @@ Path to CSV data file
 
 ### `friedman test panel wooldridge-ar`
 
-Path to CSV panel data file
+Wooldridge serial-correlation test on panel FE residuals
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -981,7 +981,7 @@ Path to CSV panel data file
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name |
+| `--dep` | — | `String` | `""` | — | Dependent variable column name (required) |
 | `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
 | `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
 | `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
@@ -996,7 +996,7 @@ Path to CSV panel data file
 
 ### `friedman test park-added`
 
-Path to CSV data file
+Park added-variables test of genuine vs spurious cointegration
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1025,7 +1025,7 @@ Path to CSV data file
 
 ### `friedman test pvar hansen-j`
 
-Path to CSV panel data file
+Hansen J overidentification test for a panel VAR
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1033,8 +1033,8 @@ Path to CSV panel data file
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--id-col` | — | `String` | `""` | — | Panel group identifier column |
-| `--time-col` | — | `String` | `""` | — | Time period column |
+| `--id-col` | — | `String` | `""` | — | Panel group identifier column (required) |
+| `--time-col` | — | `String` | `""` | — | Time period column (required) |
 | `--lags` | `-p` | `Int64` | `1` | — | Lag order |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
@@ -1047,7 +1047,7 @@ Path to CSV panel data file
 
 ### `friedman test pvar lagselect`
 
-Path to CSV panel data file
+Panel VAR lag selection (BIC/AIC/HQIC table + --criterion pick)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1055,8 +1055,8 @@ Path to CSV panel data file
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--id-col` | — | `String` | `""` | — | Panel group identifier column |
-| `--time-col` | — | `String` | `""` | — | Time period column |
+| `--id-col` | — | `String` | `""` | — | Panel group identifier column (required) |
+| `--time-col` | — | `String` | `""` | — | Time period column (required) |
 | `--max-lags` | — | `Int64` | `4` | — | Maximum lag order to test |
 | `--criterion` | — | `String` | `bic` | — | bic\|aic\|hqic |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -1070,7 +1070,7 @@ Path to CSV panel data file
 
 ### `friedman test pvar mmsc`
 
-Path to CSV panel data file
+Panel VAR lag selection (BIC/AIC/HQIC table + --criterion pick)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1078,8 +1078,8 @@ Path to CSV panel data file
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--id-col` | — | `String` | `""` | — | Panel group identifier column |
-| `--time-col` | — | `String` | `""` | — | Time period column |
+| `--id-col` | — | `String` | `""` | — | Panel group identifier column (required) |
+| `--time-col` | — | `String` | `""` | — | Time period column (required) |
 | `--max-lags` | — | `Int64` | `4` | — | Maximum lag order to test |
 | `--criterion` | — | `String` | `bic` | — | bic\|aic\|hqic |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -1093,7 +1093,7 @@ Path to CSV panel data file
 
 ### `friedman test pvar stability`
 
-Path to CSV panel data file
+Panel VAR stability check via companion-matrix eigenvalues
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1101,8 +1101,8 @@ Path to CSV panel data file
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--id-col` | — | `String` | `""` | — | Panel group identifier column |
-| `--time-col` | — | `String` | `""` | — | Time period column |
+| `--id-col` | — | `String` | `""` | — | Panel group identifier column (required) |
+| `--time-col` | — | `String` | `""` | — | Time period column (required) |
 | `--lags` | `-p` | `Int64` | `1` | — | Lag order |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
@@ -1115,7 +1115,7 @@ Path to CSV panel data file
 
 ### `friedman test serial arch-lm`
 
-Path to CSV data file
+Engle ARCH-LM test for conditional heteroskedasticity in a series
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1134,7 +1134,7 @@ Path to CSV data file
 
 ### `friedman test serial bartlett-wn`
 
-Path to CSV data file
+Bartlett cumulative-periodogram white-noise test
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1154,7 +1154,7 @@ Path to CSV data file
 
 ### `friedman test serial bds`
 
-Path to CSV data file
+BDS test for iid against nonlinear dependence by embedding dimension
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1176,7 +1176,7 @@ Path to CSV data file
 
 ### `friedman test serial box-pierce`
 
-Path to CSV data file
+Box-Pierce portmanteau test for autocorrelation to --lags
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1197,7 +1197,7 @@ Path to CSV data file
 
 ### `friedman test serial breusch-pagan`
 
-Path to CSV panel data file
+Breusch-Pagan LM test of random effects vs pooled OLS on panel data
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1205,7 +1205,7 @@ Path to CSV panel data file
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name |
+| `--dep` | — | `String` | `""` | — | Dependent variable column name (required) |
 | `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
 | `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
 | `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
@@ -1220,7 +1220,7 @@ Path to CSV panel data file
 
 ### `friedman test serial durbin-watson`
 
-Path to CSV data file
+Durbin-Watson first-order autocorrelation diagnostic for a series
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1240,7 +1240,7 @@ Path to CSV data file
 
 ### `friedman test serial glejser`
 
-Path to CSV data file
+Glejser heteroskedasticity test from an OLS fit
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1261,7 +1261,7 @@ Path to CSV data file
 
 ### `friedman test serial harvey`
 
-Path to CSV data file
+Harvey multiplicative-heteroskedasticity test from an OLS fit
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1282,7 +1282,7 @@ Path to CSV data file
 
 ### `friedman test serial heteroskedasticity`
 
-Path to CSV data file
+Identify a structural VAR via heteroskedasticity regimes (--method)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1291,9 +1291,9 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto via AIC) |
-| `--method` | — | `String` | `markov` | — | markov\|garch\|smooth_transition\|external |
+| `--method` | — | `String` | `markov` | `markov`, `garch`, `smooth_transition`, `external` | markov\|garch\|smooth_transition\|external |
 | `--config` | — | `String` | `""` | — | TOML config (for transition/regime variables) |
-| `--regimes` | — | `Int64` | `2` | — | Number of regimes |
+| `--regimes` | — | `Int64` | `2` | — | Number of regimes (markov/external only) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
@@ -1311,7 +1311,7 @@ Path to CSV data file
 
 ### `friedman test serial ljung-box`
 
-Path to CSV data file
+Ljung-Box test on squared residuals for ARCH effects
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1332,7 +1332,7 @@ Path to CSV data file
 
 ### `friedman test serial sign-bias`
 
-Path to CSV data file
+Engle-Ng sign/size-bias test on a fitted volatility model
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1353,7 +1353,7 @@ Path to CSV data file
 
 ### `friedman test serial white`
 
-Path to CSV data file
+White heteroskedasticity test from an OLS fit (optional cross terms)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1378,7 +1378,7 @@ Path to CSV data file
 
 ### `friedman test stability andrews`
 
-Path to CSV data file
+Andrews unknown-breakpoint test on a multivariate regression
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1399,13 +1399,13 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `andrews_break_test` (sup-Wald or sup-LM statistic, p-value and the estimated break index)
+**Output tables:** `andrews_break_test` (Requested Andrews statistic, p-value and the estimated break index)
 
 ---
 
 ### `friedman test stability bai-perron`
 
-Path to CSV data file
+Bai-Perron multiple-break estimation with --criterion selection
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1433,7 +1433,7 @@ Path to CSV data file
 
 ### `friedman test stability chow`
 
-Path to CSV data file
+Chow breakpoint/forecast break test at --break-at from an OLS fit
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1457,7 +1457,7 @@ Path to CSV data file
 
 ### `friedman test stability cusum`
 
-Path to CSV data file
+Brown-Durbin-Evans CUSUM stability path with significance band
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1479,7 +1479,7 @@ Path to CSV data file
 
 ### `friedman test stability cusumsq`
 
-Path to CSV data file
+CUSUM-of-squares stability path with significance band
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1501,11 +1501,11 @@ Path to CSV data file
 
 ### `friedman test stability factor-break`
 
-Path to CSV data file (rows=T, cols=N)
+Test a panel factor structure for a break (--method)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — |  |
+| `data` | `String` | yes | — | Path to panel CSV (or T×N matrix CSV) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -1524,7 +1524,7 @@ Path to CSV data file (rows=T, cols=N)
 
 ### `friedman test stability gsadf`
 
-Path to CSV data file
+GSADF explosive-bubble test with date-stamped episodes
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1549,7 +1549,7 @@ Path to CSV data file
 
 ### `friedman test stability hansen-instability`
 
-Path to CSV data file
+Hansen L_c test of stable cointegration on a cointreg fit
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1575,7 +1575,7 @@ Path to CSV data file
 
 ### `friedman test stability nyblom`
 
-Path to CSV data file
+Nyblom parameter-stability test on a fitted volatility model
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1596,7 +1596,7 @@ Path to CSV data file
 
 ### `friedman test stability recursive-residuals`
 
-Path to CSV data file
+Brown-Durbin-Evans recursive residuals from an OLS fit
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1615,7 +1615,7 @@ Path to CSV data file
 
 ### `friedman test stability sadf`
 
-Path to CSV data file
+SADF explosive-bubble test with date-stamped episodes
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1640,7 +1640,7 @@ Path to CSV data file
 
 ### `friedman test star-linearity`
 
-Path to CSV data file
+STAR LM3 linearity test vs smooth-transition alternative
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1663,7 +1663,7 @@ Path to CSV data file
 
 ### `friedman test unit-root adf`
 
-Path to CSV data file
+Augmented Dickey-Fuller unit-root test on one CSV column (H0: unit root)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1672,8 +1672,8 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
-| `--max-lags` | — | `Int64` | — | — | Max lags (default: auto via AIC) |
-| `--trend` | — | `String` | `constant` | — | none\|constant\|trend\|both |
+| `--max-lags` | — | `Int64` | — | — | Fixed augmenting lags (default: automatic AIC selection) |
+| `--trend` | — | `String` | `constant` | `none`, `constant`, `trend` | none\|constant\|trend |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
@@ -1685,7 +1685,7 @@ Path to CSV data file
 
 ### `friedman test unit-root adf-2break`
 
-Path to CSV data file
+Narayan-Popp two-break ADF unit-root test with both break dates (H0: unit root with breaks)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1694,7 +1694,7 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
-| `--model` | — | `String` | `level` | — | level\|trend\|regime |
+| `--model` | — | `String` | `level` | `level`, `both` | level\|both |
 | `--lags` | — | `String` | `aic` | — | Lag order (aic\|bic\|N) |
 | `--max-lags` | — | `Int64` | — | — | Max lags (default: auto) |
 | `--trim` | — | `Float64` | `0.1` | — | Trimming proportion |
@@ -1709,7 +1709,7 @@ Path to CSV data file
 
 ### `friedman test unit-root breitung`
 
-Path to CSV data file
+Breitung bias-free pooled panel unit-root test (H0: panel unit root)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1734,16 +1734,16 @@ Path to CSV data file
 
 ### `friedman test unit-root cips`
 
-Path to CSV data file (rows=T, cols=N)
+Pesaran CIPS cross-sectionally augmented panel unit-root test (H0: all units have unit roots)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — |  |
+| `data` | `String` | yes | — | Path to CSV data file in T-by-N matrix form, or long-format panel CSV with --id-col/--time-col |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | — | `String` | `auto` | — | Lag order (auto\|N) |
-| `--deterministic` | — | `String` | `constant` | — | constant\|trend |
+| `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
 | `--id-col` | — | `String` | `""` | — | Panel unit ID column (optional) |
 | `--time-col` | — | `String` | `""` | — | Time column (optional) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -1757,7 +1757,7 @@ Path to CSV data file (rows=T, cols=N)
 
 ### `friedman test unit-root dfgls`
 
-Path to CSV data file
+DF-GLS unit-root test with PT and M-GLS statistics (H0: unit root)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1780,7 +1780,7 @@ Path to CSV data file
 
 ### `friedman test unit-root ers`
 
-Path to CSV data file
+ERS point-optimal unit-root test (H0: unit root; small P_T rejects)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1804,7 +1804,7 @@ Path to CSV data file
 
 ### `friedman test unit-root fourier-adf`
 
-Path to CSV data file
+Enders-Lee Fourier ADF unit-root test with smooth breaks (H0: unit root)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1814,10 +1814,10 @@ Path to CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
 | `--regression` | — | `String` | `constant` | — | constant\|trend |
-| `--fmax` | — | `Int64` | `3` | — | Maximum Fourier frequency |
+| `--fmax` | — | `Int64` | `3` | — | Maximum Fourier frequency (1..5) |
 | `--lags` | — | `String` | `aic` | — | Lag order (aic\|bic\|N) |
 | `--max-lags` | — | `Int64` | — | — | Max lags (default: auto) |
-| `--trim` | — | `Float64` | `0.15` | — | Trimming proportion |
+| `--trim` | — | `Float64` | `0.15` | — | Trimming fraction (accepted for API symmetry; unused — frequency chosen by min SSR) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
@@ -1829,7 +1829,7 @@ Path to CSV data file
 
 ### `friedman test unit-root fourier-kpss`
 
-Path to CSV data file
+Becker-Enders-Lee Fourier KPSS stationarity test with smooth breaks (H0: stationarity)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1852,7 +1852,7 @@ Path to CSV data file
 
 ### `friedman test unit-root hadri`
 
-Path to CSV data file (rows=T, cols=N units)
+Hadri panel stationarity test over a T-by-N CSV (H0: every unit stationary)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1872,7 +1872,7 @@ Path to CSV data file (rows=T, cols=N units)
 
 ### `friedman test unit-root hegy`
 
-Path to CSV data file
+HEGY seasonal unit-root test per frequency with 5% decisions
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1895,7 +1895,7 @@ Path to CSV data file
 
 ### `friedman test unit-root ips`
 
-Path to CSV data file
+Im-Pesaran-Shin mean-group panel unit-root test with per-unit ADF table (H0: all units have a unit root)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1903,10 +1903,10 @@ Path to CSV data file
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--deterministic` | — | `String` | `constant` | `none`, `constant`, `trend` | Deterministic terms |
+| `--deterministic` | — | `String` | `constant` | `constant`, `trend` | Deterministic terms |
 | `--lags` | — | `String` | `auto` | — | Augmentation lags: auto or a non-negative integer |
 | `--max-lags` | — | `String` | `""` | — | Upper bound for automatic lag selection |
-| `--criterion` | — | `String` | `aic` | `aic`, `bic`, `tstat` | Lag-selection criterion |
+| `--criterion` | — | `String` | `aic` | `aic`, `bic`, `hqic` | Lag-selection criterion: aic\|bic\|hqic |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
@@ -1922,7 +1922,7 @@ Path to CSV data file
 
 ### `friedman test unit-root kpss`
 
-Path to CSV data file
+KPSS stationarity test on one CSV column (H0: stationarity)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1943,7 +1943,7 @@ Path to CSV data file
 
 ### `friedman test unit-root llc`
 
-Path to CSV data file
+Levin-Lin-Chu panel unit-root test over CSV columns as units (H0: all units have a unit root)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1954,7 +1954,7 @@ Path to CSV data file
 | `--deterministic` | — | `String` | `constant` | `none`, `constant`, `trend` | Deterministic terms |
 | `--lags` | — | `String` | `auto` | — | Augmentation lags: auto or a non-negative integer |
 | `--max-lags` | — | `String` | `""` | — | Upper bound for automatic lag selection |
-| `--criterion` | — | `String` | `aic` | `aic`, `bic`, `tstat` | Lag-selection criterion |
+| `--criterion` | — | `String` | `aic` | `aic`, `bic`, `hqic` | Lag-selection criterion: aic\|bic\|hqic |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
@@ -1970,7 +1970,7 @@ Path to CSV data file
 
 ### `friedman test unit-root lm-unitroot`
 
-Path to CSV data file
+Lee-Strazicich LM unit-root test with 0-2 breaks (H0: unit root, breaks under H0)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1980,7 +1980,7 @@ Path to CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
 | `--breaks` | — | `Int64` | `0` | — | Number of structural breaks (0\|1\|2) |
-| `--regression` | — | `String` | `level` | — | level\|trend |
+| `--regression` | — | `String` | `level` | `level`, `both` | level\|both |
 | `--lags` | — | `String` | `aic` | — | Lag order (aic\|bic\|N) |
 | `--max-lags` | — | `Int64` | — | — | Max lags (default: auto) |
 | `--trim` | — | `Float64` | `0.15` | — | Trimming proportion |
@@ -1995,11 +1995,11 @@ Path to CSV data file
 
 ### `friedman test unit-root moon-perron`
 
-Path to CSV data file (rows=T, cols=N)
+Moon-Perron factor-adjusted panel unit-root test: t_a*, t_b* (H0: all units have unit roots)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — |  |
+| `data` | `String` | yes | — | Path to CSV data file in T-by-N matrix form, or long-format panel CSV with --id-col/--time-col |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -2017,7 +2017,7 @@ Path to CSV data file (rows=T, cols=N)
 
 ### `friedman test unit-root np`
 
-Path to CSV data file
+Ng-Perron GLS-detrended unit-root test: MZa, MZt, MSB, MPT (H0: unit root)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -2038,7 +2038,7 @@ Path to CSV data file
 
 ### `friedman test unit-root pp`
 
-Path to CSV data file
+Phillips-Perron unit-root test on one CSV column (H0: unit root)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -2059,7 +2059,7 @@ Path to CSV data file
 
 ### `friedman test unit-root za`
 
-Path to CSV data file
+Zivot-Andrews unit-root test with one endogenous break (H0: unit root, no break)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -2068,7 +2068,7 @@ Path to CSV data file
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test |
-| `--trend` | — | `String` | `both` | — | intercept\|trend\|both |
+| `--trend` | — | `String` | `both` | `constant`, `trend`, `both` | constant\|trend\|both |
 | `--trim` | — | `Float64` | `0.15` | — | Trimming proportion |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
@@ -2081,7 +2081,7 @@ Path to CSV data file
 
 ### `friedman test variance-ratio`
 
-Path to CSV data file
+Variance-ratio random-walk test (individual + Chow-Denning joint)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -2091,7 +2091,7 @@ Path to CSV data file
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
 | `--horizons` | — | `String` | `2,4,8,16` | — | Comma-separated holding periods q (each ≥ 2) |
-| `--method` | — | `String` | `lomackinlay` | `lomackinlay` | Variance-ratio method |
+| `--method` | — | `String` | `lomackinlay` | `lomackinlay`, `wright` | lomackinlay\|wright |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
@@ -2103,7 +2103,7 @@ Path to CSV data file
 
 ### `friedman test vecm alpha`
 
-Path to CSV data file
+Johansen LR test of alpha = A*psi on a fitted VECM
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -2134,7 +2134,7 @@ Path to CSV data file
 
 ### `friedman test vecm beta`
 
-Path to CSV data file
+Johansen LR test of beta = H*phi on a fitted VECM
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -2165,7 +2165,7 @@ Path to CSV data file
 
 ### `friedman test vecm joint`
 
-Path to CSV data file
+Joint Johansen LR test of beta and alpha restrictions on a fitted VECM
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -2196,7 +2196,7 @@ Path to CSV data file
 
 ### `friedman test vecm known-beta`
 
-Path to CSV data file
+Johansen LR test of fully specified beta = b on a fitted VECM
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -2227,7 +2227,7 @@ Path to CSV data file
 
 ### `friedman test vecm weak-exog`
 
-Path to CSV data file
+Johansen LR weak-exogeneity test for --vars on a fitted VECM
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -2252,7 +2252,7 @@ Path to CSV data file
 
 ### `friedman test vif`
 
-Path to CSV data file
+Variance-inflation factors from an OLS fit
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|

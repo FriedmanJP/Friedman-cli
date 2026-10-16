@@ -86,7 +86,7 @@ using .MacroEconometricModels
                      Option("threshold"; type=Float64, default=0.5),
                      Option("format"; type=String, default="table",
                             choices=["table", "csv", "json"]),
-                     Option("set"; type=String, default="")],
+                     Option("set"; type=String, default="", repeatable=true)],
             flags=[Flag("verbose"; short="v"), Flag("quiet"; short="q"), Flag("all"; short="a")])
         @test_throws ParseError bind_args(tokenize(["d.csv", "--lgas", "4"]), leaf)
         err = try bind_args(tokenize(["d.csv", "--lgas", "4"]), leaf) catch e; e end
@@ -4041,6 +4041,12 @@ using TOML
             "type" => "floor", "horizons" => "8:1")]))
         @test_throws CliError get_opp_constraints(Dict{String,Any}())
     end
+
+    # ────────────────────────────────────────────────────────────
+    # Model card grammar (W0 / #206) — inside the "Config parsing" testset so a
+    # grammar failure is contained here rather than aborting the script.
+    # ────────────────────────────────────────────────────────────
+    include(joinpath(@__DIR__, "model_card.jl"))
 end
 
 # ──────────────────────────────────────────────────────────────

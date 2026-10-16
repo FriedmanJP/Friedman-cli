@@ -7,7 +7,7 @@ Generated reference for `friedman policy` and its subcommands.
 
 ### `friedman policy counterfactual bvar`
 
-Path to CSV data file
+Rule counterfactual: enforce a PolicyRule on the menu with exact/ls projection
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -46,7 +46,7 @@ Path to CSV data file
 
 ### `friedman policy counterfactual lp`
 
-Path to CSV data file
+Rule counterfactual: enforce a PolicyRule on the menu with exact/ls projection
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -71,7 +71,7 @@ Path to CSV data file
 | `--baseline-draws` | — | `String` | `fixed` | `fixed`, `match` | fixed (MW convention, separate estimations) \| match (pair draw d with draw d; equal counts enforced) |
 | `--quantiles` | — | `String` | `0.16,0.5,0.84` | — | Band quantiles, comma-separated in (0,1) |
 | `--spanned-tol` | — | `Float64` | `0.05` | — | rel_residual threshold for the spanned flag |
-| `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact |
+| `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none (the lp route keeps the estimator's scale; instrument-impact is var\|bvar\|sign only) |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
 
 | Flag | Short | Description |
@@ -85,7 +85,7 @@ Path to CSV data file
 
 ### `friedman policy counterfactual var`
 
-Path to CSV data file
+Rule counterfactual: enforce a PolicyRule on the menu with exact/ls projection
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -123,7 +123,7 @@ Path to CSV data file
 
 ### `friedman policy effects bvar`
 
-Path to CSV data file
+McKay-Wolf causal-effects menu (Theta_x/Theta_z) from an estimated IRF
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -142,13 +142,13 @@ Path to CSV data file
 | `--config` | — | `String` | `""` | — | TOML prior config |
 | `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact (rescale so the first instrument's impact is +1) |
 
-**Output tables:** `policy_causal_effects_menu` (Causal-effect menu entries by outcome, instrument and horizon); `policy_causal_effects_summary` (Menu shape, normalization and dropped-draw honesty counts)
+**Output tables:** `policy_causal_effects_menu` (Causal-effect menu entries by outcome, instrument and horizon); `policy_causal_effects_summary` (Menu shape (square/thin), normalization and draw count)
 
 ---
 
 ### `friedman policy effects lp`
 
-Path to CSV data file
+McKay-Wolf causal-effects menu (Theta_x/Theta_z) from an estimated IRF
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -165,15 +165,15 @@ Path to CSV data file
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
 | `--n-draws` | — | `Int64` | `500` | — | Independent-normal N(value, se) draws (pointwise approximation, NOT a joint posterior) |
 | `--config` | — | `String` | `""` | — | TOML identification config |
-| `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact (rescale so the first instrument's impact is +1) |
+| `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none (the lp route keeps the estimator's scale; instrument-impact is var\|bvar\|sign only) |
 
-**Output tables:** `policy_causal_effects_menu` (Causal-effect menu entries by outcome, instrument and horizon); `policy_causal_effects_summary` (Menu shape, normalization and dropped-draw honesty counts)
+**Output tables:** `policy_causal_effects_menu` (Causal-effect menu entries by outcome, instrument and horizon); `policy_causal_effects_summary` (Menu shape (square/thin), normalization and draw count)
 
 ---
 
 ### `friedman policy effects sign`
 
-Path to CSV data file
+McKay-Wolf causal-effects menu (Theta_x/Theta_z) from an estimated IRF
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -192,13 +192,13 @@ Path to CSV data file
 | `--config` | — | `String` | `""` | — | TOML sign-restriction config (REQUIRED) |
 | `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact (rescale so the first instrument's impact is +1) |
 
-**Output tables:** `policy_causal_effects_menu` (Causal-effect menu entries by outcome, instrument and horizon); `policy_causal_effects_summary` (Menu shape, normalization and dropped-draw honesty counts)
+**Output tables:** `policy_causal_effects_menu` (Causal-effect menu entries by outcome, instrument and horizon); `policy_causal_effects_summary` (Menu shape (square/thin), normalization and draw count)
 
 ---
 
 ### `friedman policy effects var`
 
-Path to CSV data file
+McKay-Wolf causal-effects menu (Theta_x/Theta_z) from an estimated IRF
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -216,13 +216,13 @@ Path to CSV data file
 | `--replications` | — | `Int64` | `0` | — | Bootstrap draws for uncertainty bands (0 = point only) |
 | `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact (rescale so the first instrument's impact is +1) |
 
-**Output tables:** `policy_causal_effects_menu` (Causal-effect menu entries by outcome, instrument and horizon); `policy_causal_effects_summary` (Menu shape, normalization and dropped-draw honesty counts)
+**Output tables:** `policy_causal_effects_menu` (Causal-effect menu entries by outcome, instrument and horizon); `policy_causal_effects_summary` (Menu shape (square/thin), normalization and draw count)
 
 ---
 
 ### `friedman policy history bvar`
 
-Path to CSV data file
+Counterfactual history: re-run an observation window under the policy
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -239,7 +239,7 @@ Path to CSV data file
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
 | `--draws` | `-n` | `Int64` | `2000` | — | Posterior draws |
 | `--config` | — | `String` | `""` | — | TOML prior config |
-| `--t-range` | — | `String` | `""` | — | Observation window lo:hi to re-run under the rule (REQUIRED; length ≤ H−1) |
+| `--t-range` | — | `String` | `""` | — | Observation window lo:hi to re-run under the rule or optimal policy (REQUIRED; length ≤ H−1) |
 | `--rule` | — | `String` | `""` | — | Builtin counterfactual rule |
 | `--rule-config` | — | `String` | `""` | — | TOML [rule] section |
 | `--loss-config` | — | `String` | `""` | — | TOML [loss] section (rule XOR loss) |
@@ -252,13 +252,13 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `counterfactual_history` (Realized vs counterfactual value per date and variable, with bands when propagated); `history_summary` (Rule, window, spanned flag and draw counts for the historical re-run)
+**Output tables:** `counterfactual_history` (Realized vs counterfactual value per date and variable (uncertainty as draw counts in the summary, not bands)); `history_summary` (Policy, window and draw counts for the historical re-run)
 
 ---
 
 ### `friedman policy history var`
 
-Path to CSV data file
+Counterfactual history: re-run an observation window under the policy
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -274,7 +274,7 @@ Path to CSV data file
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
 | `--replications` | — | `Int64` | `0` | — | Bootstrap draws for uncertainty bands (0 = point only) |
-| `--t-range` | — | `String` | `""` | — | Observation window lo:hi to re-run under the rule (REQUIRED; length ≤ H−1) |
+| `--t-range` | — | `String` | `""` | — | Observation window lo:hi to re-run under the rule or optimal policy (REQUIRED; length ≤ H−1) |
 | `--rule` | — | `String` | `""` | — | Builtin counterfactual rule |
 | `--rule-config` | — | `String` | `""` | — | TOML [rule] section |
 | `--loss-config` | — | `String` | `""` | — | TOML [loss] section (rule XOR loss) |
@@ -287,13 +287,13 @@ Path to CSV data file
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `counterfactual_history` (Realized vs counterfactual value per date and variable, with bands when propagated); `history_summary` (Rule, window, spanned flag and draw counts for the historical re-run)
+**Output tables:** `counterfactual_history` (Realized vs counterfactual value per date and variable (uncertainty as draw counts in the summary, not bands)); `history_summary` (Policy, window and draw counts for the historical re-run)
 
 ---
 
 ### `friedman policy jacobian ha`
 
-HA model (builtin name or .jl HA ModelSpec)
+Sequence-space household Jacobian d(output)/d(input) as a tidy T² table
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -314,7 +314,7 @@ HA model (builtin name or .jl HA ModelSpec)
 
 ### `friedman policy moments bvar`
 
-Path to CSV data file
+Counterfactual second moments (sd/corr), rule XOR loss
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -351,7 +351,7 @@ Path to CSV data file
 
 ### `friedman policy moments var`
 
-Path to CSV data file
+Counterfactual second moments (sd/corr), rule XOR loss
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -387,7 +387,7 @@ Path to CSV data file
 
 ### `friedman policy news dsge`
 
-DSGE model file (TOML or .jl ModelSpec)
+Square DSGE news menu (policy_news_matrix) for one exogenous shock
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -412,7 +412,7 @@ DSGE model file (TOML or .jl ModelSpec)
 
 ### `friedman policy news ha`
 
-HA model (builtin name or .jl HA ModelSpec)
+Square HA sequence-space news menu under a rate-wedge closure
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -437,7 +437,7 @@ HA model (builtin name or .jl HA ModelSpec)
 
 ### `friedman policy opp bvar`
 
-Path to CSV data file
+Barnichon-Mesters optimal policy perturbation (unconstrained or constrained)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -477,13 +477,13 @@ Path to CSV data file
 | `--interp-quarterly` | — | External route: interpolate annual SEP paths to quarterly |
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `opp_recommendation_delta` (Recommended policy perturbation delta and gradient by horizon, with bands and rejections); `objective_gap_paths` (Objective gap per outcome and horizon, before vs after the perturbation); `instrument_paths_announced_vs_recommended` (Announced vs recommended instrument path by horizon (when instrument paths are available)); `opp_summary` (Baseline/OPP loss, horizon, forecast origin, failure count and constrained-solver diagnostics)
+**Output tables:** `opp_recommendation_delta` (Recommended policy perturbation delta and gradient by horizon, with bands and rejections); `objective_gap_paths` (Objective gap per outcome and horizon, before vs after the perturbation); `instrument_paths_announced_vs_recommended` (Announced vs recommended instrument path by horizon (when instrument paths are available)); `opp_summary` (Baseline/OPP loss, horizon, forecast origin, failure count (plus constrained-solver diagnostics when --constraints-file is given))
 
 ---
 
 ### `friedman policy opp var`
 
-Path to CSV data file
+Barnichon-Mesters optimal policy perturbation (unconstrained or constrained)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -522,13 +522,13 @@ Path to CSV data file
 | `--interp-quarterly` | — | External route: interpolate annual SEP paths to quarterly |
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `opp_recommendation_delta` (Recommended policy perturbation delta and gradient by horizon, with bands and rejections); `objective_gap_paths` (Objective gap per outcome and horizon, before vs after the perturbation); `instrument_paths_announced_vs_recommended` (Announced vs recommended instrument path by horizon (when instrument paths are available)); `opp_summary` (Baseline/OPP loss, horizon, forecast origin, failure count and constrained-solver diagnostics)
+**Output tables:** `opp_recommendation_delta` (Recommended policy perturbation delta and gradient by horizon, with bands and rejections); `objective_gap_paths` (Objective gap per outcome and horizon, before vs after the perturbation); `instrument_paths_announced_vs_recommended` (Announced vs recommended instrument path by horizon (when instrument paths are available)); `opp_summary` (Baseline/OPP loss, horizon, forecast origin, failure count (plus constrained-solver diagnostics when --constraints-file is given))
 
 ---
 
 ### `friedman policy opp-sequence bvar`
 
-Path to CSV data file
+OPP rerun over a sequence of dated gap forecasts with news/preference/aging split
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -560,13 +560,13 @@ Path to CSV data file
 | `--matched-draws` | — | Pair draw d across sources (independent=false) |
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `opp_sequence_delta_by_date` (Recommended perturbation delta per forecast date and shock); `opp_revision_decomposition` (Per-date split of the revision into news, preference and aging components); `opp_sequence_summary` (Sequence span, loss path and draw/failure counts across dates)
+**Output tables:** `opp_sequence_delta_by_date` (Recommended perturbation delta per forecast date and shock); `opp_revision_decomposition` (Per-date split of the revision into news, preference and aging components); `opp_sequence_summary` (Loss name, date span and shock labels for the OPP sequence)
 
 ---
 
 ### `friedman policy opp-sequence var`
 
-Path to CSV data file
+OPP rerun over a sequence of dated gap forecasts with news/preference/aging split
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -597,13 +597,13 @@ Path to CSV data file
 | `--matched-draws` | — | Pair draw d across sources (independent=false) |
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `opp_sequence_delta_by_date` (Recommended perturbation delta per forecast date and shock); `opp_revision_decomposition` (Per-date split of the revision into news, preference and aging components); `opp_sequence_summary` (Sequence span, loss path and draw/failure counts across dates)
+**Output tables:** `opp_sequence_delta_by_date` (Recommended perturbation delta per forecast date and shock); `opp_revision_decomposition` (Per-date split of the revision into news, preference and aging components); `opp_sequence_summary` (Loss name, date span and shock labels for the OPP sequence)
 
 ---
 
 ### `friedman policy optimal bvar`
 
-Path to CSV data file
+Optimal policy: minimize a quadratic PolicyLoss over the menu (spanned_tol fixed 0.05)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -639,7 +639,7 @@ Path to CSV data file
 
 ### `friedman policy optimal lp`
 
-Path to CSV data file
+Optimal policy: minimize a quadratic PolicyLoss over the menu (spanned_tol fixed 0.05)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -661,7 +661,7 @@ Path to CSV data file
 | `--use-draws` | — | `String` | `auto` | `auto`, `on`, `off` | Propagate menu draws into bands: auto\|on\|off |
 | `--baseline-draws` | — | `String` | `fixed` | `fixed`, `match` | fixed \| match (equal draw counts enforced) |
 | `--quantiles` | — | `String` | `0.16,0.5,0.84` | — | Band quantiles, comma-separated in (0,1) |
-| `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact |
+| `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none (the lp route keeps the estimator's scale; instrument-impact is var\|bvar\|sign only) |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
 
 | Flag | Short | Description |
@@ -675,7 +675,7 @@ Path to CSV data file
 
 ### `friedman policy optimal var`
 
-Path to CSV data file
+Optimal policy: minimize a quadratic PolicyLoss over the menu (spanned_tol fixed 0.05)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -710,7 +710,7 @@ Path to CSV data file
 
 ### `friedman policy spanning var`
 
-Path to CSV data file
+Spanning diagnostic: thin empirical menu vs full DSGE news menu
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -734,7 +734,7 @@ Path to CSV data file
 | `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `blanchard-kahn` | Linear DSGE solver |
 | `--rule` | — | `String` | `""` | — | Builtin counterfactual rule |
 | `--rule-config` | — | `String` | `""` | — | TOML [rule] section |
-| `--tol` | — | `Float64` | `0.1` | — | Spanned-verdict tolerance on gap_rel |
+| `--tol` | — | `Float64` | `0.1` | — | Spanned-verdict tolerance on gap_rel and the loading share |
 | `--n-sim` | — | `Int64` | `200` | — | Draw propagation for gap bands |
 | `--quantiles` | — | `String` | `0.16,0.5,0.84` | — | Band quantiles in (0,1) |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
@@ -749,7 +749,7 @@ Path to CSV data file
 
 ### `friedman policy sufficiency dsge`
 
-DSGE model file (TOML or .jl ModelSpec)
+Forecast-sufficiency FEV ratios for an observable set (population laboratory, no data)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|

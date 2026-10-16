@@ -14,7 +14,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# Dynamic multipliers — new top-level command (C062b, action-first like irf/fevd/hd).
+# Dynamic multipliers — formerly a one-leaf top-level command (C062b, action-first like irf/fevd/hd);
+# the leaf was folded into `estimate univariate nardl` at v1.0.0 (#204), so this file now holds only
+# the shared NARDL-multiplier table helpers (zero registered leaves).
 # `multipliers nardl`: cumulative asymmetric dynamic multipliers m⁺_h/m⁻_h of a NARDL model,
 # with optional recursive-design residual-bootstrap bands. The NARDL is fit via the shared
 # `_load_reg_data` + `_fit_nardl` helpers (estimate.jl). `NARDLMultipliers` is an array-valued

@@ -24,7 +24,7 @@ Inspect a model handle (.jld2 native, .fmod interim, or model:// session handle)
 
 ### `friedman model reproduce`
 
-Verify a saved handle by re-running its estimator from the recorded seed
+Verify a saved handle by re-running its estimator from the recorded seed (reports unverifiable when no seed is recorded)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|

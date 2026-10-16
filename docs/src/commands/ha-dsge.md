@@ -30,13 +30,16 @@ declarations. The file needs no `using MacroEconometricModels` of its own — th
 evaluates it in a sandbox where the package's exports are already in scope:
 
 ```julia
-# sketch (illustrative shape; save to a .jl file to use it)
 @dsge begin
     parameters: alpha = 0.36, beta_hh = 0.96, delta = 0.025, rho_z = 0.95, sigma_z = 0.007
     endogenous: Y, K, r, w, Z
     exogenous: eps_Z
 
-    heterogeneous: a in [0.0, 400.0], n_grid = 60, utility = log, discount = beta_hh, borrowing = 0.0
+    heterogeneous: a in [0.0, 400.0],
+                   n_grid = 60,
+                   utility = log,
+                   discount = beta_hh,
+                   borrowing = 0.0
     idiosyncratic: e ~ Rouwenhorst(0.966, 0.5, 5)
     aggregation: K = sum(a)
 
@@ -47,12 +50,26 @@ evaluates it in a sandbox where the package's exports are already in scope:
 end
 ```
 
+`heterogeneous:` is one Julia statement, so it can be broken across lines — the
+continuation lines are aligned under the first argument, with the commas kept
+at the end of each line. Written on one line it is equally valid; use
+whichever reads better.
+
+**A TOML encoding of an HA model is not a model card.** A
+[model card](../configuration.md#model-cards-and-toml-files) has exactly seven
+stanza headers, and none of them declares a household: there is no `model:` or
+`heterogeneous:` header, and no TOML section expresses one either. The
+heterogeneous-agent declarations stay inside `@dsge`, and a model card
+preamble above the block is accepted for the `priors:` stanza the `hadsge
+estimate` leaf reads. Writing `heterogeneous:` into a card is a typed
+`config/invalid` naming the line.
+
 Pass the file path where a builtin token would go (for example `friedman hadsge steady-state mymodel.jl`).
 
 Set `a in [0.0, a_max]` generously. If too much of the stationary distribution piles up at
 `a_max`, the asset market does not really clear and `excess_demand` cannot detect it,
-because it is measured on the clamped aggregate; MEMs warns about this on stderr, and the
-warning is worth acting on rather than ignoring.
+because it is measured on the clamped aggregate; the library warns about this on stderr, and
+the warning is worth acting on rather than ignoring.
 
 The loader evaluates the file in a sandbox where the package exports are already in scope,
 so the file needs no `using` line of its own. A file that cannot be evaluated is a typed

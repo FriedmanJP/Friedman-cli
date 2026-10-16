@@ -32,7 +32,7 @@ function forecast_specs()::Vector{CommandSpec}
         # --trunc-lag is ARFIMA-specific and has no arima equivalent.
         CommandSpec(
             path=["forecast", "arfima"],
-            summary="Path to CSV data file",
+            summary="ARFIMA forecast with fractional-filter truncation and interval bands",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -49,7 +49,7 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="plot-save", type=String, default="", description="Save interactive plot to HTML file")
             ],
             flags=[FlagSpec(name="plot", description="Display an interactive plot")],
-            tables=[TableSpec(name=:arfima_forecast, description="Point forecasts with interval bounds: horizon | forecast | lower | upper")],
+            tables=[TableSpec(name=:arfima_forecast, description="Point forecasts with interval bounds: horizon | variable | value | lower | upper")],
             category="forecast",
             handler=wrap_legacy(_forecast_arfima),
         ),
@@ -60,7 +60,7 @@ function forecast_specs()::Vector{CommandSpec}
         # curve) but none for MidasForecast.
         CommandSpec(
             path=["forecast", "midas"],
-            summary="Path to low-frequency target CSV",
+            summary="Direct h-step ADL-MIDAS forecast from a high-frequency indicator block (horizon fixed at estimation)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to low-frequency target CSV")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Target column index (1-based)"),
@@ -87,7 +87,7 @@ function forecast_specs()::Vector{CommandSpec}
         # garch-midas has NO --conf-level: forecast(::GarchMidasModel, h) takes none.
         CommandSpec(
             path=["forecast", "igarch"],
-            summary="Path to CSV data file",
+            summary="IGARCH volatility forecast with interval level",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -109,7 +109,7 @@ function forecast_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["forecast", "cgarch"],
-            summary="Path to CSV data file",
+            summary="CGARCH volatility forecast with interval level",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -129,7 +129,7 @@ function forecast_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["forecast", "aparch"],
-            summary="Path to CSV data file",
+            summary="APARCH volatility forecast with interval level",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -153,7 +153,7 @@ function forecast_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["forecast", "figarch"],
-            summary="Path to CSV data file",
+            summary="FIGARCH volatility forecast with interval level",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -161,7 +161,7 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="q", type=Int, default=1, description="ARCH order q"),
                 OptionSpec(name="d0", type=Float64, default=0.4, description="Initial fractional differencing parameter"),
                 OptionSpec(name="truncation", type=Int, default=1000, description="Truncation lag for the ARCH(inf) expansion"),
-                OptionSpec(name="dist", type=String, default="normal", description="Innovation distribution"),
+                OptionSpec(name="dist", type=String, default="normal", description="Innovation distribution (only normal is accepted; use garch|egarch|gjr-garch for Student-t or GED)", choices=["normal"]),
                 OptionSpec(name="horizons", short="H", type=Int, default=10, description="Forecast horizons (≥ 1)"),
                 OptionSpec(name="conf-level", type=Float64, default=0.95, description="Forecast interval level in (0,1)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -178,7 +178,7 @@ function forecast_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["forecast", "fiegarch"],
-            summary="Path to CSV data file",
+            summary="FIEGARCH volatility forecast with interval level",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -186,7 +186,7 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="q", type=Int, default=1, description="ARCH order q"),
                 OptionSpec(name="d0", type=Float64, default=0.4, description="Initial fractional differencing parameter"),
                 OptionSpec(name="truncation", type=Int, default=1000, description="Truncation lag for the ARCH(inf) expansion"),
-                OptionSpec(name="dist", type=String, default="normal", description="Innovation distribution"),
+                OptionSpec(name="dist", type=String, default="normal", description="Innovation distribution (only normal is accepted; use garch|egarch|gjr-garch for Student-t or GED)", choices=["normal"]),
                 OptionSpec(name="horizons", short="H", type=Int, default=10, description="Forecast horizons (≥ 1)"),
                 OptionSpec(name="conf-level", type=Float64, default=0.95, description="Forecast interval level in (0,1)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -203,7 +203,7 @@ function forecast_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["forecast", "garch-midas"],
-            summary="Path to CSV data file",
+            summary="GARCH-MIDAS variance forecast split into long-run/short-run components (no interval level)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -226,13 +226,13 @@ function forecast_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["forecast", "var"],
-            summary="Path to CSV data file",
+            summary="Unconditional VAR forecast with analytical or bootstrap intervals",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto)"),
                 OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon"),
                 OptionSpec(name="confidence", type=Float64, default=0.95, description="Confidence level for intervals"),
-                OptionSpec(name="ci-method", type=String, default="analytical", description="analytical|bootstrap"),
+                OptionSpec(name="ci-method", type=String, default="analytical", description="Interval method: analytical|bootstrap|none (none = point forecast)", choices=["analytical","bootstrap","none"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
@@ -257,7 +257,7 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="confidence", type=Float64, default=0.95, description="Confidence level in (0, 1)"),
                 OptionSpec(name="draws", short="n", type=Int, default=2000, description="MCMC draws (--method bvar)"),
                 OptionSpec(name="sampler", type=String, default="direct", description="direct|gibbs (--method bvar)"),
-                OptionSpec(name="config", type=String, default="", description="TOML config for the BVAR prior"),
+                OptionSpec(name="config", type=String, default="", description="TOML config for the BVAR prior (--method bvar; ignored with --method var)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
@@ -271,7 +271,7 @@ function forecast_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["forecast", "bvar"],
-            summary="Path to CSV data file",
+            summary="BVAR posterior-mean forecast with fixed 68% credible bands",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="Lag order"),
@@ -290,7 +290,7 @@ function forecast_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["forecast", "lp"],
-            summary="Path to CSV data file",
+            summary="Local-projection forecast along a fixed shock path",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="shock", type=Int, default=1, description="Shock variable index (1-based)"),
@@ -314,7 +314,7 @@ function forecast_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["forecast", "arima"],
-            summary="Path to CSV data file",
+            summary="ARIMA point forecast with interval bands (auto or fixed order)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -351,7 +351,7 @@ function forecast_specs()::Vector{CommandSpec}
         # the C051 convention only plot-capable leaves add the flags; revisit if MEMs adds one.
         CommandSpec(
             path=["forecast", "setar"],
-            summary="Path to CSV data file",
+            summary="Bootstrap-simulation threshold forecast for self-exciting models",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -379,7 +379,7 @@ function forecast_specs()::Vector{CommandSpec}
         # leaves add the flags; revisit if MEMs adds a STARForecast recipe.
         CommandSpec(
             path=["forecast", "star"],
-            summary="Path to CSV data file",
+            summary="Bootstrap-simulation STAR forecast for self-exciting models",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -402,7 +402,7 @@ function forecast_specs()::Vector{CommandSpec}
         # — so this leaf legitimately carries the plot flags.
         CommandSpec(
             path=["forecast", "sarima"],
-            summary="Path to CSV data file",
+            summary="SARIMA point forecast with interval bands (auto or fixed order)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[SARIMA_OPTIONS...,
                 OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon (>= 1)"),
@@ -424,7 +424,7 @@ function forecast_specs()::Vector{CommandSpec}
         # advertising them would drive `_maybe_plot` into an uncaught MethodError → exit 1.
         CommandSpec(
             path=["forecast", "ms-ar"],
-            summary="Path to CSV data file",
+            summary="Regime-averaged MS-AR forecast over simulated regime paths",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
@@ -445,7 +445,7 @@ function forecast_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["forecast", "ms"],
-            summary="Path to CSV data file",
+            summary="Switching-regression forecast over future regressors (or intercept-only horizons)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
@@ -467,7 +467,7 @@ function forecast_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["forecast", "static"],
-            summary="Path to CSV data file",
+            summary="Static-factor observable forecast reconstructed from factors",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="nfactors", short="r", type=Int, default=nothing, description="Number of factors (default: auto via IC)"),
@@ -487,7 +487,7 @@ function forecast_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["forecast", "dynamic"],
-            summary="Path to CSV data file",
+            summary="Dynamic-factor observable forecast reconstructed from factors",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="nfactors", short="r", type=Int, default=nothing, description="Number of factors (default: auto)"),
@@ -507,7 +507,7 @@ function forecast_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["forecast", "gdfm"],
-            summary="Path to CSV data file",
+            summary="GDFM observable forecast reconstructed from factors",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="nfactors", short="r", type=Int, default=nothing, description="Number of static factors (default: auto)"),
@@ -528,7 +528,7 @@ function forecast_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["forecast", "sdfm"],
-            summary="Path to CSV data file",
+            summary="SDFM observable forecast reconstructed from factors",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="factors", short="q", type=Int, default=nothing, description="Number of dynamic factors (default: auto via --q-method)"),
@@ -557,7 +557,7 @@ function forecast_specs()::Vector{CommandSpec}
         _vol_specs(:forecast)...,
         CommandSpec(
             path=["forecast", "vecm"],
-            summary="Path to CSV data file",
+            summary="Level VECM forecast with optional bootstrap/parametric intervals",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels)"),
@@ -580,7 +580,7 @@ function forecast_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["forecast", "favar"],
-            summary="Path to CSV data file",
+            summary="FAVAR factor-level (or --panel-forecast panel-wide) forecast",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="factors", short="r", type=Int, default=nothing, description="Number of factors (default: auto)"),
@@ -774,13 +774,13 @@ function _forecast_var(; data::String="", result=nothing, model=nothing, lags=no
         (; ci_method=:bootstrap, reps=500, conf_level=confidence) :
         (; ci_method=ci_sym, conf_level=confidence)
     fc_result = forecast(model, horizons; fc_kw...)
-    fc_df = long_table(fc_result)
 
     ci_label = ci_sym == :bootstrap ? "bootstrap $(Int(round(confidence*100)))% CI" :
                ci_sym == :none      ? "point forecast" :
                "$(Int(round(confidence*100)))% CI"
-    output_result(fc_df; format=Symbol(format), output=output,
-                  title="VAR($p) Forecast (h=$horizons, $ci_label)", key="var_forecast")
+    # #217: via the central helper (same long_table, key frozen).
+    _emit_result(fc_result; title="VAR($p) Forecast (h=$horizons, $ci_label)", key="var_forecast",
+                 format=Symbol(format), output=output)
     _maybe_plot(fc_result; plot=plot, plot_save=plot_save)
     return (; model, result=fc_result)
 end
@@ -828,9 +828,9 @@ function _forecast_bvar(; data::String="", result=nothing, lags::Int=4, horizons
     # #95: BVARForecast has a real plot_result recipe upstream — this leaf simply never
     # advertised it.
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
-    output_result(long_table(fc); format=Symbol(format), output=output,
-                  title="Bayesian VAR($p) Forecast (h=$horizons, 68% credible interval)",
-                  key="bvar_forecast")
+    # #217: via the central helper (same long_table, key frozen).
+    _emit_result(fc; title="Bayesian VAR($p) Forecast (h=$horizons, 68% credible interval)",
+                 key="bvar_forecast", format=Symbol(format), output=output)
     return (; model=post, result=fc)
 end
 
@@ -867,9 +867,9 @@ function _forecast_lp(; data::String="", result=nothing, shock::Int=1, horizons:
 
     shock_name = _shock_name(varnames, shock)
     # C051: MEMs tidy long_table (horizon|variable|value|lower|upper).
-    output_result(long_table(fc); format=Symbol(format), output=output,
-                  title="LP Forecast (shock=$shock_name, h=$horizons, $(Int(round(conf_level*100)))% CI)",
-                  key="lp_forecast")
+    # #217: via the central helper (same long_table, key frozen).
+    _emit_result(fc; title="LP Forecast (shock=$shock_name, h=$horizons, $(Int(round(conf_level*100)))% CI)",
+                 key="lp_forecast", format=Symbol(format), output=output)
     return (; model, result=fc)
 end
 
@@ -918,9 +918,9 @@ function _forecast_arima(; data::String="", result=nothing, column::Int=1, p=not
     label = _model_label(p_sel, d_sel, q_sel)
 
     # C051: MEMs tidy long_table (horizon|variable|value|lower|upper).
-    output_result(long_table(fc); format=Symbol(format), output=output,
-                  title="$label Forecast for $vname (h=$horizons, $(Int(round(confidence*100)))% CI)",
-                  key="arima_forecast")
+    # #217: via the central helper (same long_table, key frozen).
+    _emit_result(fc; title="$label Forecast for $vname (h=$horizons, $(Int(round(confidence*100)))% CI)",
+                 key="arima_forecast", format=Symbol(format), output=output)
     return (; model, result=fc)
 end
 
@@ -960,9 +960,9 @@ function _forecast_setar(; data::String="", result=nothing, column::Int=1, p::In
     end
     # ThresholdForecast <: AbstractForecastResult → MEMs tidy long_table (horizon|variable|value|lower|upper).
     # No _maybe_plot: MEMs ships no plot_result(::ThresholdForecast) recipe (see the CommandSpec note).
-    output_result(long_table(fc); format=Symbol(format), output=output,
-                  title="SETAR Forecast for $vname (h=$horizons, $(Int(round(ci_level*100)))% CI)",
-                  key="setar_forecast")
+    # #217: via the central helper (same long_table, key frozen).
+    _emit_result(fc; title="SETAR Forecast for $vname (h=$horizons, $(Int(round(ci_level*100)))% CI)",
+                 key="setar_forecast", format=Symbol(format), output=output)
     return (; model, result=fc)
 end
 
@@ -1006,9 +1006,9 @@ function _forecast_star(; data::String="", result=nothing, column::Int=1, p::Int
     end
     # STARForecast <: AbstractForecastResult → MEMs tidy long_table (horizon|variable|value|lower|upper).
     # No _maybe_plot: MEMs ships no plot_result(::STARForecast) recipe (see the CommandSpec note).
-    output_result(long_table(fc); format=Symbol(format), output=output,
-                  title="STAR Forecast for $vname (h=$horizons, $(Int(round(ci_level*100)))% CI)",
-                  key="star_forecast")
+    # #217: via the central helper (same long_table, key frozen).
+    _emit_result(fc; title="STAR Forecast for $vname (h=$horizons, $(Int(round(ci_level*100)))% CI)",
+                 key="star_forecast", format=Symbol(format), output=output)
     return (; model, result=fc)
 end
 
@@ -1048,9 +1048,9 @@ function _forecast_static(; data::String="", result=nothing, nfactors=nothing, h
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
 
     # C051: MEMs tidy long_table (horizon|variable|value|lower|upper).
-    output_result(long_table(fc); format=Symbol(format), output=output,
-                  title="Static Factor Forecast (h=$horizons, $(length(varnames)) variables)",
-                  key="static_factor_forecast")
+    # #217: via the central helper (same long_table, key frozen).
+    _emit_result(fc; title="Static Factor Forecast (h=$horizons, $(length(varnames)) variables)",
+                 key="static_factor_forecast", format=Symbol(format), output=output)
 
     if !isnothing(fc.observables_se)
         _status()
@@ -1099,9 +1099,9 @@ function _forecast_dynamic(; data::String="", result=nothing, nfactors=nothing, 
     # C051: render the FactorForecast's observable forecasts through MEMs' tidy
     # long_table (horizon|variable|value|lower|upper), replacing the hand-rolled
     # loadings reconstruction.
-    output_result(long_table(fc); format=Symbol(format), output=output,
-                  title="Dynamic Factor Forecast (h=$horizons, $(length(varnames)) variables)",
-                  key="dynamic_factor_forecast")
+    # #217: via the central helper (same long_table, key frozen).
+    _emit_result(fc; title="Dynamic Factor Forecast (h=$horizons, $(length(varnames)) variables)",
+                 key="dynamic_factor_forecast", format=Symbol(format), output=output)
     return (; model=fm, result=fc)
 end
 
@@ -1163,9 +1163,9 @@ function _forecast_gdfm(; data::String="", result=nothing, nfactors=nothing, dyn
     # are the FHLR 2005 one-sided projection).
     fc = forecast(fm, horizons; method=_GDFM_FORECAST_METHODS[method])
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
-    output_result(long_table(fc); format=Symbol(format), output=output,
-                  title="GDFM Forecast (h=$horizons, $(length(varnames)) variables)",
-                  key="gdfm_forecast")
+    # #217: via the central helper (same long_table, key frozen).
+    _emit_result(fc; title="GDFM Forecast (h=$horizons, $(length(varnames)) variables)",
+                 key="gdfm_forecast", format=Symbol(format), output=output)
 
     _status()
     var_shares = common_variance_share(fm)
@@ -1206,9 +1206,9 @@ function _forecast_sdfm(; data::String="", result=nothing, factors=nothing, id::
         forecast(sdfm, horizons; ci_method=:bootstrap, reps=reps) :
         forecast(sdfm, horizons)
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
-    output_result(long_table(fc); format=Symbol(format), output=output,
-                  title="SDFM Forecast (h=$horizons, $(length(varnames)) variables)",
-                  key="sdfm_forecast")
+    # #217: via the central helper (same long_table, key frozen).
+    _emit_result(fc; title="SDFM Forecast (h=$horizons, $(length(varnames)) variables)",
+                 key="sdfm_forecast", format=Symbol(format), output=output)
     return (; model=sdfm, result=fc)
 end
 
@@ -1244,8 +1244,9 @@ function _forecast_vecm(; data::String="", result=nothing, lags::Int=2, rank::St
 
     ci_label = ci_method == "none" ? "" : ", $(Int(round(confidence*100)))% CI"
     # C051: MEMs tidy long_table (horizon|variable|value|lower|upper).
-    output_result(long_table(fc); format=Symbol(format), output=output,
-                  title="VECM Forecast (rank=$r, h=$horizons$ci_label)", key="vecm_forecast")
+    # #217: via the central helper (same long_table, key frozen).
+    _emit_result(fc; title="VECM Forecast (rank=$r, h=$horizons$ci_label)", key="vecm_forecast",
+                 format=Symbol(format), output=output)
     return (; model=vecm, result=fc)
 end
 
@@ -1279,8 +1280,9 @@ function _forecast_favar(; data::String="", result=nothing, factors=nothing, lag
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
 
     # C051: MEMs tidy long_table (horizon|variable|value|lower|upper).
-    output_result(long_table(fc); format=Symbol(format), output=output,
-                  title="FAVAR Forecast (h=$horizons)", key="favar_forecast")
+    # #217: via the central helper (same long_table, key frozen).
+    _emit_result(fc; title="FAVAR Forecast (h=$horizons)", key="favar_forecast",
+                 format=Symbol(format), output=output)
     return (; model=favar, result=fc)
 end
 
@@ -1729,6 +1731,15 @@ end
 # `"--conditions" in args` across the WHOLE argv to print the GPL notice, so a leaf option
 # of that name is swallowed before dispatch ever runs. Recorded as an engine flaw for the
 # C055 freeze; renaming here is the zero-risk fix.
+"""Unconditional baseline path in upstream `long_table` row order (horizon-major).
+
+Mirrors `long_table(::AbstractForecastResult)`'s documented `for h in 1:H, v in 1:nv`
+loop; `_emit_result`'s length guard turns any drift into a typed error.
+"""
+function _unconditional_col(fc)
+    H, nv = fc.horizon, length(fc.varnames)
+    return [Float64(fc.unconditional[h, v]) for h in 1:H for v in 1:nv]
+end
 function _forecast_scenario(; data::String="", result=nothing, conditions_file::String="", lags=nothing,
                              horizons::Int=12, method::String="var",
                              draws::Int=2000, sampler::String="direct",
@@ -1739,18 +1750,11 @@ function _forecast_scenario(; data::String="", result=nothing, conditions_file::
                              model=nothing)
     loaded = _loaded_result(result; data, model, lags, check_lags=true, leaf="forecast scenario")
     if loaded !== nothing
-        H = loaded.horizon
-        n = length(loaded.varnames)
-        df = DataFrame(
-            horizon       = repeat(1:H, outer=n),
-            variable      = repeat(loaded.varnames; inner=H),
-            value         = vec(Float64.(loaded.forecast)),
-            lower         = vec(Float64.(loaded.ci_lower)),
-            upper         = vec(Float64.(loaded.ci_upper)),
-            unconditional = vec(Float64.(loaded.unconditional)),
-        )
-        output_result(df; format=Symbol(format), output=output,
-                      title="Conditional Forecast", key="conditional_forecast")
+        # #220: upstream long_table + the unconditional baseline (was a variable-major
+        # hand-build; rows are now horizon-major like every other forecast leaf).
+        _emit_result(loaded; title="Conditional Forecast", key="conditional_forecast",
+                     format=Symbol(format), output=output,
+                     extra_cols=["unconditional" => _unconditional_col(loaded)])
         _maybe_plot(loaded; plot=plot, plot_save=plot_save)
         return loaded
     end
@@ -1797,22 +1801,17 @@ function _forecast_scenario(; data::String="", result=nothing, conditions_file::
     _maybe_plot(fc; plot=plot, plot_save=plot_save)
     _status_report(() -> report(fc))
 
-    # Tidy long form, with the UNCONDITIONAL path alongside: the scenario is only
-    # interpretable against the baseline it departs from, and having to run a second
-    # command to get it invites comparing paths from different draws.
-    H = fc.horizon
-    n = length(fc.varnames)
-    df = DataFrame(
-        horizon       = repeat(1:H, outer=n),
-        variable      = repeat(fc.varnames; inner=H),
-        value         = vec(Float64.(fc.forecast)),
-        lower         = vec(Float64.(fc.ci_lower)),
-        upper         = vec(Float64.(fc.ci_upper)),
-        unconditional = vec(Float64.(fc.unconditional)),
-    )
-    output_result(df; format=Symbol(format), output=output,
-                  title="Conditional Forecast ($(round(Int, 100*fc.conf_level))% interval, " *
-                        "$(fc.identification) identification)", key="conditional_forecast")
+    # The UNCONDITIONAL path rides alongside: the scenario is only interpretable
+    # against the baseline it departs from, and having to run a second command to
+    # get it invites comparing paths from different draws. Base columns come from
+    # upstream long_table (#220 — was a variable-major hand-build; rows are now
+    # horizon-major like every other forecast leaf); values identical (the
+    # accessors read the same fields).
+    H = fc.horizon  # used by the Scenario Settings block below
+    _emit_result(fc; title="Conditional Forecast ($(round(Int, 100*fc.conf_level))% interval, " *
+                           "$(fc.identification) identification)", key="conditional_forecast",
+                 format=Symbol(format), output=output,
+                 extra_cols=["unconditional" => _unconditional_col(fc)])
 
     # The implied structural shocks are what actually delivers the scenario; a scenario
     # requiring implausibly large shocks is not a credible one.

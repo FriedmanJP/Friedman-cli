@@ -7,11 +7,11 @@ Generated reference for `friedman serve` and its subcommands.
 
 ### `friedman serve`
 
-Serve every command as a Model Context Protocol tool over stdio (--mcp)
+Serve every other command as a Model Context Protocol tool over stdio (--mcp)
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--mcp` | — | MCP server: JSON-RPC 2.0 on stdio; tools/list mirrors the registry, tools/call returns the JSON envelope verbatim |
+| `--mcp` | — | MCP server: JSON-RPC 2.0 on stdio; tools/list mirrors the commands, tools/call returns each command's plain output (JSON for commands that produce JSON) |
 
 ---
 

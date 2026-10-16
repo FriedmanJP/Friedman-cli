@@ -17,8 +17,8 @@ Compute Bayesian forecast error variance decomposition
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | `4` | — | Lag order |
 | `--horizons` | — | `Int64` | `20` | — | Forecast horizon |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun |
-| `--draws` | `-n` | `Int64` | `2000` | — | MCMC draws |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|fastica\|jade\|sobi\|dcov\|hsic\|student_t\|mixture_normal\|pml\|skew_normal\|markov_switching\|garch_id\|uhlig\|lewis-tvv\|sv-em |
+| `--draws` | `-n` | `Int64` | `2000` | — | Posterior draws |
 | `--sampler` | — | `String` | `direct` | — | direct\|gibbs |
 | `--config` | — | `String` | `""` | — | TOML config for identification/prior |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
@@ -53,7 +53,7 @@ FAVAR forecast error variance decomposition
 | `--lags` | `-p` | `Int64` | `2` | — | VAR lag order |
 | `--key-vars` | — | `String` | `""` | — | Key variable names or indices |
 | `--horizons` | — | `Int64` | `20` | — | FEVD horizon |
-| `--id` | — | `String` | `cholesky` | — | Identification method |
+| `--id` | — | `String` | `cholesky` | — | Identification method: cholesky\|sign\|narrative\|longrun\|… (base set; see irf var) |
 | `--config` | — | `String` | `""` | — | TOML config for restrictions |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -85,8 +85,8 @@ Compute forecast error variance decomposition via structural LP
 |--------|-------|------|---------|---------|-------------|
 | `--horizons` | — | `Int64` | `20` | — | Forecast horizon |
 | `--lags` | `-p` | `Int64` | `4` | — | LP control lags |
-| `--var-lags` | — | `Int64` | — | — | VAR lag order for identification |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun |
+| `--var-lags` | — | `Int64` | — | — | VAR lag order for identification (default: same as --lags) |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|fastica\|jade\|sobi\|dcov\|hsic\|student_t\|mixture_normal\|pml\|skew_normal\|markov_switching\|garch_id\|uhlig\|lewis-tvv\|sv-em |
 | `--vcov` | — | `String` | `newey_west` | — | newey_west\|white\|driscoll_kraay |
 | `--config` | — | `String` | `""` | — | TOML config for identification |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
@@ -183,7 +183,7 @@ Compute forecast error variance decomposition
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto) |
 | `--horizons` | — | `Int64` | `20` | — | Forecast horizon |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|arias\|uhlig\|proxy\|max-share\|gmm-moments\|narrative-adrr\|lewis-tvv\|sv-em |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|arias\|uhlig\|proxy\|max-share\|gmm-moments\|narrative-adrr\|lewis-tvv\|sv-em\|fastica\|jade\|sobi\|dcov\|hsic\|student_t\|mixture_normal\|pml\|skew_normal\|markov_switching\|garch_id |
 | `--config` | — | `String` | `""` | — | TOML config for identification |
 | `--instrument` | — | `String` | `""` | — | Proxy-instrument CSV column (only with --id proxy) |
 | `--target-var` | — | `String` | `""` | — | Max-share target: column name or 1-based index (only with --id max-share) |
@@ -199,8 +199,8 @@ Compute forecast error variance decomposition
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
-| `--generalized` | — | Pesaran-Shin generalized FEVD (identification-free; shares do NOT sum to 1) |
-| `--normalize` | — | Rescale generalized shares to sum to 1 per variable |
+| `--generalized` | — | Pesaran-Shin generalized FEVD (identification-free; shares do NOT sum to 1) (ignored with --id arias\|uhlig\|narrative-adrr) |
+| `--normalize` | — | Rescale generalized shares to sum to 1 per variable (ignored with --id arias\|uhlig\|narrative-adrr) |
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
 **Output tables:** `fevd` (Variance shares in tidy long form: horizon | variable | shock | value); `generalized_fevd` (Pesaran-Shin generalized variance shares (--generalized); tidy long form); `fevd_by_variable_*` (One wide table per variable (horizon | one column per shock) under --id arias|uhlig)
@@ -209,7 +209,7 @@ Compute forecast error variance decomposition
 
 ### `friedman fevd vecm`
 
-Compute FEVD via VECM → VAR representation
+Compute FEVD via VECM → VAR representation (direct VECM under --id svec)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -221,7 +221,7 @@ Compute FEVD via VECM → VAR representation
 | `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto\|1\|2\|...) |
 | `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
 | `--horizons` | — | `Int64` | `20` | — | Forecast horizon |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|svec\|lewis-tvv\|sv-em |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|fastica\|jade\|sobi\|dcov\|hsic\|student_t\|mixture_normal\|pml\|skew_normal\|markov_switching\|garch_id\|uhlig\|lewis-tvv\|sv-em\|svec (uhlig: generic path) |
 | `--config` | — | `String` | `""` | — | TOML config for identification |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |

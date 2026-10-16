@@ -72,8 +72,7 @@ function register_show_commands!()
                        description="Save interactive plot to HTML file"),
         ],
         flags=[FlagSpec(name="plot", description="Open interactive plot if a recipe exists")],
-        tables=[TableSpec(name=:show_payload, description="Rendered payload of the handle"),
-                TableSpec(name=:show_summary, description="Optional kv summary")],
+        tables=[TableSpec(name=:show_payload, description="Rendered payload of the handle")],
         category="show",
         handler=wrap_legacy(_show_handle),
     )]

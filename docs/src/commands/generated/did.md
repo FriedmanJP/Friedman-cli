@@ -7,7 +7,7 @@ Generated reference for `friedman did` and its subcommands.
 
 ### `friedman did estimate`
 
-Path to panel CSV data file
+Staggered-adoption DiD estimation (twfe|cs|sa|bjs|dcdh) with event-time and overall ATT
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -23,11 +23,11 @@ Path to panel CSV data file
 | `--leads` | — | `Int64` | `0` | — | Pre-treatment periods |
 | `--horizon` | — | `Int64` | `5` | — | Post-treatment periods |
 | `--covariates` | — | `String` | `""` | — | Comma-separated covariate column names |
-| `--control-group` | — | `String` | `never_treated` | — | never_treated\|not_yet_treated |
-| `--cluster` | — | `String` | `unit` | — | unit\|time\|twoway |
+| `--control-group` | — | `String` | `never_treated` | `never_treated`, `not_yet_treated` | never_treated\|not_yet_treated |
+| `--cluster` | — | `String` | `unit` | `unit`, `time`, `twoway` | unit\|time\|twoway |
 | `--conf-level` | — | `Float64` | `0.95` | — | Confidence level |
 | `--n-boot` | — | `Int64` | `200` | — | Bootstrap replications (dcdh only) |
-| `--base-period` | — | `String` | `varying` | — | varying\|universal (Callaway-Sant'Anna only) |
+| `--base-period` | — | `String` | `varying` | `varying`, `universal` | varying\|universal (Callaway-Sant'Anna only) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
@@ -36,13 +36,13 @@ Path to panel CSV data file
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `did_estimation` (ATT with standard error and confidence band by event time); `group_time_att_callaway_sant_anna` (Cohort-by-event-time ATT matrix (Callaway-Sant'Anna estimators only))
+**Output tables:** `did_estimation` (ATT with standard error and confidence band by event time); `group_time_att_callaway_sant_anna` (Cohort-by-calendar-period effects table (shown whenever the method reports group-time effects))
 
 ---
 
 ### `friedman did event-study`
 
-Path to panel CSV data file
+Local-projection event-study DiD with pre-trend leads and post-treatment horizon
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -74,7 +74,7 @@ Path to panel CSV data file
 
 ### `friedman did lp-did`
 
-Path to panel CSV data file
+LP-DiD estimation (Dube et al. 2023) with pre/post windows and clean-control options
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -109,8 +109,8 @@ Path to panel CSV data file
 | `--nevertreated` | — | Use never-treated as controls |
 | `--firsttreat` | — | Use first-treatment timing |
 | `--oneoff` | — | One-off treatment specification |
-| `--only-pooled` | — | Only report pooled estimates |
-| `--only-event` | — | Only report event-time estimates |
+| `--only-pooled` | — | Only estimate pooled effects (the event-time table is still shown) |
+| `--only-event` | — | Only estimate event-time effects (the event-time table is still shown) |
 
 **Output tables:** `lp_did_dube_et_al_2023` (LP-DiD coefficient, SE, confidence band and observation count by event time)
 

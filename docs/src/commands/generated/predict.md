@@ -44,7 +44,7 @@ In-sample fitted values (mlogit)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
-| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster |
+| `--cov-type` | — | `String` | `ols` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster |
 | `--clusters` | — | `String` | `""` | — | Cluster variable column name |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -60,7 +60,7 @@ In-sample fitted values (mlogit)
 
 ### `friedman predict choice nbreg`
 
-Path to CSV data file
+Fitted negative-binomial conditional means exp(x'b + offset)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -133,7 +133,7 @@ In-sample fitted values (oprobit)
 
 ### `friedman predict choice poisson`
 
-Path to CSV data file
+Fitted Poisson conditional means exp(x'b + offset)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -214,7 +214,7 @@ In-sample fitted values (gdfm)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--nfactors` | — | `Int64` | — | — | Number of static factors (unused when --dynamic-rank set) |
+| `--nfactors` | — | `Int64` | — | — | Number of static factors (accepted but has no effect: the number of factors is chosen automatically) |
 | `--dynamic-rank` | `-q` | `Int64` | — | — | Dynamic rank (default: auto) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
@@ -368,7 +368,7 @@ In-sample fitted values (plogit)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name |
+| `--dep` | — | `String` | `""` | — | Dependent variable column name (required) |
 | `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
 | `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
 | `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
@@ -392,7 +392,7 @@ In-sample fitted values (pprobit)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name |
+| `--dep` | — | `String` | `""` | — | Dependent variable column name (required) |
 | `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
 | `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
 | `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
@@ -416,7 +416,7 @@ In-sample fitted values (preg)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name |
+| `--dep` | — | `String` | `""` | — | Dependent variable column name (required) |
 | `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
 | `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
 | `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
@@ -432,7 +432,7 @@ In-sample fitted values (preg)
 
 ### `friedman predict regime ms`
 
-Path to CSV data file
+Regime-weighted Markov-switching regression fitted values (--probs smoothed|filtered)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -459,7 +459,7 @@ Path to CSV data file
 
 ### `friedman predict regime ms-ar`
 
-Path to CSV data file
+Regime-weighted MS-AR in-sample fitted values (--probs smoothed|filtered)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -486,7 +486,7 @@ Path to CSV data file
 
 ### `friedman predict regression 3sls`
 
-Path to CSV data file
+Per-equation 3SLS in-sample fitted values (equations and instruments from --config)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -535,7 +535,7 @@ In-sample fitted values (reg)
 
 ### `friedman predict regression statespace`
 
-Path to CSV data file
+State-space filtered/smoothed state paths (--state filtered|smoothed|both)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -558,7 +558,7 @@ Path to CSV data file
 
 ### `friedman predict regression sur`
 
-Path to CSV data file
+Per-equation SUR in-sample fitted values (equations from --config)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -585,7 +585,7 @@ Path to CSV data file
 
 ### `friedman predict univariate arfima`
 
-Path to CSV data file
+In-sample ARFIMA fitted values (fractional-d estimator --method css|mle)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -636,7 +636,7 @@ In-sample fitted values (arima)
 
 ### `friedman predict univariate sarima`
 
-Path to CSV data file
+In-sample SARIMA fitted values
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -674,7 +674,7 @@ Path to CSV data file
 
 ### `friedman predict volatility aparch`
 
-Path to CSV data file
+APARCH in-sample conditional variance and volatility
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -717,7 +717,7 @@ In-sample fitted values (arch)
 
 ### `friedman predict volatility cgarch`
 
-Path to CSV data file
+Component-GARCH in-sample conditional variance and volatility
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -757,7 +757,7 @@ In-sample fitted values (egarch)
 
 ### `friedman predict volatility fiegarch`
 
-Path to CSV data file
+FIEGARCH in-sample conditional variance and volatility
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -770,7 +770,7 @@ Path to CSV data file
 | `--q` | — | `Int64` | `1` | — | ARCH order q |
 | `--d0` | — | `Float64` | `0.4` | — | Initial fractional differencing parameter |
 | `--truncation` | — | `Int64` | `1000` | — | Truncation lag for the ARCH(inf) expansion |
-| `--dist` | — | `String` | `normal` | — | Innovation distribution |
+| `--dist` | — | `String` | `normal` | `normal` | Innovation distribution (Gaussian QMLE) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
@@ -781,7 +781,7 @@ Path to CSV data file
 
 ### `friedman predict volatility figarch`
 
-Path to CSV data file
+FIGARCH in-sample conditional variance and volatility
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -794,7 +794,7 @@ Path to CSV data file
 | `--q` | — | `Int64` | `1` | — | ARCH order q |
 | `--d0` | — | `Float64` | `0.4` | — | Initial fractional differencing parameter |
 | `--truncation` | — | `Int64` | `1000` | — | Truncation lag for the ARCH(inf) expansion |
-| `--dist` | — | `String` | `normal` | — | Innovation distribution |
+| `--dist` | — | `String` | `normal` | `normal` | Innovation distribution (Gaussian QMLE) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation) |
@@ -826,7 +826,7 @@ In-sample fitted values (garch)
 
 ### `friedman predict volatility garch-midas`
 
-Path to CSV data file
+GARCH-MIDAS in-sample conditional variance and volatility
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -877,7 +877,7 @@ In-sample fitted values (gjr-garch)
 
 ### `friedman predict volatility igarch`
 
-Path to CSV data file
+IGARCH in-sample conditional variance and volatility
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|

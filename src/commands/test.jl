@@ -25,12 +25,12 @@ function test_specs()::Vector{CommandSpec}
     return [
         CommandSpec(
             path=["test", "adf"],
-            summary="Path to CSV data file",
+            summary="Augmented Dickey-Fuller unit-root test on one CSV column (H0: unit root)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
-                OptionSpec(name="max-lags", type=Int, default=nothing, description="Max lags (default: auto via AIC)"),
-                OptionSpec(name="trend", type=String, default="constant", description="none|constant|trend|both"),
+                OptionSpec(name="max-lags", type=Int, default=nothing, description="Fixed augmenting lags (default: automatic AIC selection)"),
+                OptionSpec(name="trend", type=String, default="constant", description="none|constant|trend", choices=["none","constant","trend"]),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
@@ -42,7 +42,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "kpss"],
-            summary="Path to CSV data file",
+            summary="KPSS stationarity test on one CSV column (H0: stationarity)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test"),
@@ -58,7 +58,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "pp"],
-            summary="Path to CSV data file",
+            summary="Phillips-Perron unit-root test on one CSV column (H0: unit root)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test"),
@@ -74,11 +74,11 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "za"],
-            summary="Path to CSV data file",
+            summary="Zivot-Andrews unit-root test with one endogenous break (H0: unit root, no break)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test"),
-                OptionSpec(name="trend", type=String, default="both", description="intercept|trend|both"),
+                OptionSpec(name="trend", type=String, default="both", description="constant|trend|both", choices=["constant","trend","both"]),
                 OptionSpec(name="trim", type=Float64, default=0.15, description="Trimming proportion"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
@@ -91,7 +91,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "np"],
-            summary="Path to CSV data file",
+            summary="Ng-Perron GLS-detrended unit-root test: MZa, MZt, MSB, MPT (H0: unit root)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test"),
@@ -107,7 +107,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "gph"],
-            summary="Path to CSV data file",
+            summary="GPH log-periodogram estimate of long-memory d",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test"),
@@ -124,7 +124,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "local-whittle"],
-            summary="Path to CSV data file",
+            summary="Local Whittle estimate of long-memory d",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test"),
@@ -134,13 +134,13 @@ function test_specs()::Vector{CommandSpec}
             ],
             flags=FlagSpec[],
             tables=[TableSpec(name=:local_whittle_test,
-                              description="Local Whittle estimate of d with standard error, z-statistic and objective value")],
+                              description="Local Whittle estimate of d with standard error, z-statistic and objective value, p-value")],
             category="test",
             handler=_test_local_whittle,
         ),
         CommandSpec(
             path=["test", "johansen"],
-            summary="Path to CSV data file",
+            summary="Johansen cointegration-rank test: trace and max-eigenvalue tables by rank",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order"),
@@ -160,7 +160,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "normality"],
-            summary="Path to CSV data file",
+            summary="VAR-residual normality test suite",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
@@ -175,12 +175,12 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "identifiability"],
-            summary="Path to CSV data file",
+            summary="Non-Gaussian/SVAR identification diagnostics battery for a VAR",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
                 OptionSpec(name="test", short="t", type=String, default="all", description="strength|gaussianity|independence|overidentification|lambda-distinct|gaussian-count|label-stability|all (the last three are opt-in only)"),
-                OptionSpec(name="method", type=String, default="fastica", description="fastica|jade|sobi|dcov|hsic (for gaussianity/independence/overidentification tests)"),
+                OptionSpec(name="method", type=String, default="fastica", description="fastica|jade|sobi|dcov|hsic (for gaussianity/independence/overidentification tests; label-stability bootstraps the chosen estimator)"),
                 OptionSpec(name="contrast", type=String, default="logcosh", description="logcosh|exp|kurtosis (for FastICA)"),
                 OptionSpec(name="n-bootstrap", type=Int, default=999, description="Bootstrap replications (for label-stability)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -194,13 +194,13 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "heteroskedasticity"],
-            summary="Path to CSV data file",
+            summary="Identify a structural VAR via heteroskedasticity regimes (--method)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
-                OptionSpec(name="method", type=String, default="markov", description="markov|garch|smooth_transition|external"),
+                OptionSpec(name="method", type=String, default="markov", description="markov|garch|smooth_transition|external", choices=["markov","garch","smooth_transition","external"]),
                 OptionSpec(name="config", type=String, default="", description="TOML config (for transition/regime variables)"),
-                OptionSpec(name="regimes", type=Int, default=2, description="Number of regimes"),
+                OptionSpec(name="regimes", type=Int, default=2, description="Number of regimes (markov/external only)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -212,7 +212,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "arch-lm"],
-            summary="Path to CSV data file",
+            summary="Engle ARCH-LM test for conditional heteroskedasticity in a series",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
@@ -228,7 +228,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "ljung-box"],
-            summary="Path to CSV data file",
+            summary="Ljung-Box test on squared residuals for ARCH effects",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
@@ -245,7 +245,7 @@ function test_specs()::Vector{CommandSpec}
         # C064b: volatility-model residual diagnostics (Engle-Ng sign bias; Nyblom stability).
         CommandSpec(
             path=["test", "sign-bias"],
-            summary="Path to CSV data file",
+            summary="Engle-Ng sign/size-bias test on a fitted volatility model",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Return series column (1-based)"),
@@ -263,7 +263,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "nyblom"],
-            summary="Path to CSV data file",
+            summary="Nyblom parameter-stability test on a fitted volatility model",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Return series column (1-based)"),
@@ -288,12 +288,12 @@ function test_specs()::Vector{CommandSpec}
         # All flat `test` leaves.
         CommandSpec(
             path=["test", "variance-ratio"],
-            summary="Path to CSV data file",
+            summary="Variance-ratio random-walk test (individual + Chow-Denning joint)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
                 OptionSpec(name="horizons", type=String, default="2,4,8,16", description="Comma-separated holding periods q (each ≥ 2)"),
-                OptionSpec(name="method", type=String, default="lomackinlay", description="Variance-ratio method", choices=["lomackinlay"]),
+                OptionSpec(name="method", type=String, default="lomackinlay", description="lomackinlay|wright", choices=["lomackinlay","wright"]),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
@@ -309,7 +309,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "bds"],
-            summary="Path to CSV data file",
+            summary="BDS test for iid against nonlinear dependence by embedding dimension",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
@@ -329,7 +329,7 @@ function test_specs()::Vector{CommandSpec}
         # park-added consume a CointRegModel and use cointreg's none|const|linear.
         CommandSpec(
             path=["test", "hegy"],
-            summary="Path to CSV data file",
+            summary="HEGY seasonal unit-root test per frequency with 5% decisions",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
@@ -351,7 +351,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "ers"],
-            summary="Path to CSV data file",
+            summary="ERS point-optimal unit-root test (H0: unit root; small P_T rejects)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
@@ -366,7 +366,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "sadf"],
-            summary="Path to CSV data file",
+            summary="SADF explosive-bubble test with date-stamped episodes",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
@@ -390,7 +390,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "gsadf"],
-            summary="Path to CSV data file",
+            summary="GSADF explosive-bubble test with date-stamped episodes",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
@@ -414,7 +414,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "edf"],
-            summary="Path to CSV data file",
+            summary="EDF goodness-of-fit test for --dist",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
@@ -433,12 +433,12 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "engle-granger"],
-            summary="Path to CSV data file",
+            summary="Engle-Granger residual-ADF cointegration test (H0: no cointegration)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
                 OptionSpec(name="trend", type=String, default="constant", description="Deterministic terms in the cointegrating regression", choices=["none","constant","trend"]),
-                OptionSpec(name="lags", type=String, default="aic", description="ADF lags on the residuals: aic|bic|tstat or a non-negative integer"),
+                OptionSpec(name="lags", type=String, default="aic", description="ADF lags on the residuals: aic|bic or a non-negative integer"),
                 OptionSpec(name="max-lags", type=String, default="", description="Upper bound for automatic lag selection"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
@@ -451,7 +451,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "phillips-ouliaris"],
-            summary="Path to CSV data file",
+            summary="Phillips-Ouliaris semiparametric cointegration test: Z_t and Z_alpha (H0: no cointegration)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
@@ -473,7 +473,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "hansen-instability"],
-            summary="Path to CSV data file",
+            summary="Hansen L_c test of stable cointegration on a cointreg fit",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
@@ -494,7 +494,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "park-added"],
-            summary="Path to CSV data file",
+            summary="Park added-variables test of genuine vs spurious cointegration",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
@@ -524,13 +524,13 @@ function test_specs()::Vector{CommandSpec}
         # H0 flips: these three test "ALL units have a unit root" (the OPPOSITE of hadri).
         CommandSpec(
             path=["test", "llc"],
-            summary="Path to CSV data file",
+            summary="Levin-Lin-Chu panel unit-root test over CSV columns as units (H0: all units have a unit root)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file (columns = panel units)")],
             options=[
                 OptionSpec(name="deterministic", type=String, default="constant", description="Deterministic terms", choices=["none","constant","trend"]),
                 OptionSpec(name="lags", type=String, default="auto", description="Augmentation lags: auto or a non-negative integer"),
                 OptionSpec(name="max-lags", type=String, default="", description="Upper bound for automatic lag selection"),
-                OptionSpec(name="criterion", type=String, default="aic", description="Lag-selection criterion", choices=["aic","bic","tstat"]),
+                OptionSpec(name="criterion", type=String, default="aic", description="Lag-selection criterion: aic|bic|hqic", choices=["aic","bic","hqic"]),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
@@ -542,13 +542,13 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "ips"],
-            summary="Path to CSV data file",
+            summary="Im-Pesaran-Shin mean-group panel unit-root test with per-unit ADF table (H0: all units have a unit root)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file (columns = panel units)")],
             options=[
-                OptionSpec(name="deterministic", type=String, default="constant", description="Deterministic terms", choices=["none","constant","trend"]),
+                OptionSpec(name="deterministic", type=String, default="constant", description="Deterministic terms", choices=["constant","trend"]),
                 OptionSpec(name="lags", type=String, default="auto", description="Augmentation lags: auto or a non-negative integer"),
                 OptionSpec(name="max-lags", type=String, default="", description="Upper bound for automatic lag selection"),
-                OptionSpec(name="criterion", type=String, default="aic", description="Lag-selection criterion", choices=["aic","bic","tstat"]),
+                OptionSpec(name="criterion", type=String, default="aic", description="Lag-selection criterion: aic|bic|hqic", choices=["aic","bic","hqic"]),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
@@ -564,7 +564,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "breitung"],
-            summary="Path to CSV data file",
+            summary="Breitung bias-free pooled panel unit-root test (H0: panel unit root)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file (columns = panel units)")],
             options=[
                 OptionSpec(name="deterministic", type=String, default="constant", description="Deterministic terms", choices=["none","constant","trend"]),
@@ -580,7 +580,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "fisher-johansen"],
-            summary="Path to CSV data file",
+            summary="Fisher-combined per-unit Johansen panel cointegration test by rank (H0: rank <= r)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to long-format panel CSV")],
             options=[
                 OptionSpec(name="id-col", type=String, default="", description="Panel id column (default: first column)"),
@@ -604,7 +604,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "dh-causality"],
-            summary="Path to CSV data file",
+            summary="Dumitrescu-Hurlin panel Granger non-causality test for --cause -> --effect",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to long-format panel CSV")],
             options=[
                 OptionSpec(name="id-col", type=String, default="", description="Panel id column (default: first column)"),
@@ -625,7 +625,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "white"],
-            summary="Path to CSV data file",
+            summary="White heteroskedasticity test from an OLS fit (optional cross terms)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
@@ -641,7 +641,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "glejser"],
-            summary="Path to CSV data file",
+            summary="Glejser heteroskedasticity test from an OLS fit",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
@@ -657,7 +657,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "harvey"],
-            summary="Path to CSV data file",
+            summary="Harvey multiplicative-heteroskedasticity test from an OLS fit",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
@@ -673,7 +673,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "chow"],
-            summary="Path to CSV data file",
+            summary="Chow breakpoint/forecast break test at --break-at from an OLS fit",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
@@ -693,7 +693,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "cusum"],
-            summary="Path to CSV data file",
+            summary="Brown-Durbin-Evans CUSUM stability path with significance band",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
@@ -714,7 +714,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "cusumsq"],
-            summary="Path to CSV data file",
+            summary="CUSUM-of-squares stability path with significance band",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
@@ -735,7 +735,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "recursive-residuals"],
-            summary="Path to CSV data file",
+            summary="Brown-Durbin-Evans recursive residuals from an OLS fit",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
@@ -755,7 +755,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "influence"],
-            summary="Path to CSV data file",
+            summary="OLS influence diagnostics (leverage, studentized residuals, DFFITS, Cook D)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
@@ -778,7 +778,7 @@ function test_specs()::Vector{CommandSpec}
         # `estimate_setar(...; linearity=true)` fit (identical numbers, no design rebuild).
         CommandSpec(
             path=["test", "hansen-linearity"],
-            summary="Path to CSV data file",
+            summary="Hansen sup-LM/sup-Wald linearity test vs two-regime SETAR",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
@@ -800,7 +800,7 @@ function test_specs()::Vector{CommandSpec}
         # kv). An external transition variable can be supplied via `--transition-col`.
         CommandSpec(
             path=["test", "star-linearity"],
-            summary="Path to CSV data file",
+            summary="STAR LM3 linearity test vs smooth-transition alternative",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
@@ -818,7 +818,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "hadri"],
-            summary="Path to CSV data file (rows=T, cols=N units)",
+            summary="Hadri panel stationarity test over a T-by-N CSV (H0: every unit stationary)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file (rows=T, cols=N units)")],
             options=[
                 OptionSpec(name="deterministic", type=String, default="constant", description="constant|trend", choices=["constant","trend"]),
@@ -833,14 +833,14 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "pedroni"],
-            summary="Path to CSV panel data file",
+            summary="Pedroni residual-based panel cointegration test, seven statistics (H0: no cointegration)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
             options=[
                 OptionSpec(name="id-col", type=String, default="", description="Panel group identifier column (default: first column)"),
                 OptionSpec(name="time-col", type=String, default="", description="Time period column (default: second column)"),
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable (default: first panel variable)"),
                 OptionSpec(name="indep", type=String, default="", description="Comma-separated regressors (default: all other panel variables)"),
-                OptionSpec(name="trend", type=String, default="constant", description="constant|trend", choices=["constant","trend"]),
+                OptionSpec(name="trend", type=String, default="constant", description="none|constant|trend", choices=["none","constant","trend"]),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
@@ -856,7 +856,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "kao"],
-            summary="Path to CSV panel data file",
+            summary="Kao DF/ADF residual-based panel cointegration test (H0: no cointegration)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
             options=[
                 OptionSpec(name="id-col", type=String, default="", description="Panel group identifier column (default: first column)"),
@@ -878,14 +878,14 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "westerlund"],
-            summary="Path to CSV panel data file",
+            summary="Westerlund ECM panel cointegration test: Gt, Ga, Pt, Pa (H0: no error correction)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
             options=[
                 OptionSpec(name="id-col", type=String, default="", description="Panel group identifier column (default: first column)"),
                 OptionSpec(name="time-col", type=String, default="", description="Time period column (default: second column)"),
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable (default: first panel variable)"),
                 OptionSpec(name="indep", type=String, default="", description="Comma-separated regressors (default: all other panel variables)"),
-                OptionSpec(name="trend", type=String, default="constant", description="constant|trend", choices=["constant","trend"]),
+                OptionSpec(name="trend", type=String, default="constant", description="none|constant|trend", choices=["none","constant","trend"]),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
@@ -904,7 +904,7 @@ function test_specs()::Vector{CommandSpec}
         # Kleibergen-Paap F against the Stock-Yogo 10%-maximal-bias critical value.
         CommandSpec(
             path=["test", "weak-instrument"],
-            summary="Path to CSV data file",
+            summary="Stock-Yogo weak-instrument diagnostics for 2SLS",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (default: first numeric column)"),
@@ -917,7 +917,7 @@ function test_specs()::Vector{CommandSpec}
             ],
             flags=FlagSpec[],
             tables=[TableSpec(name=:weak_instrument_diagnostics,
-                              description="First-stage, Cragg-Donald and Kleibergen-Paap F against the Stock-Yogo critical value, with the weak verdict")],
+                              description="First-stage, Cragg-Donald and Kleibergen-Paap F against the Stock-Yogo critical value, with the weak verdict (or --threshold fallback)")],
             category="test",
             handler=_test_weak_instrument,
         ),
@@ -928,7 +928,7 @@ function test_specs()::Vector{CommandSpec}
         # forces every agent consuming it to branch.
         CommandSpec(
             path=["test", "anderson-rubin"],
-            summary="Path to CSV data file",
+            summary="Weak-instrument-robust Anderson-Rubin test + inverted confidence set",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (default: first numeric column)"),
@@ -965,7 +965,7 @@ function test_specs()::Vector{CommandSpec}
         # takes a single --coefficient rather than emitting a whole coefficient table.
         CommandSpec(
             path=["test", "wild-cluster"],
-            summary="Path to CSV data file",
+            summary="Wild cluster bootstrap (WCR/WCU) inference for one coefficient",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (default: first numeric column)"),
@@ -997,7 +997,7 @@ function test_specs()::Vector{CommandSpec}
         # NO p-value (non-standard I(0)/I(1) bounds) → decision symbols, never interpret_test_result.
         CommandSpec(
             path=["test", "ardl-bounds"],
-            summary="Path to CSV data file",
+            summary="Pesaran-Shin-Smith ARDL bounds test: F/t vs I(0)/I(1) bounds, no p-value",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent column name (default: first numeric column)"),
@@ -1025,7 +1025,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "nardl-symmetry"],
-            summary="Path to CSV data file",
+            summary="NARDL long/short-run symmetry Wald tests per asymmetric regressor",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent column name (default: first numeric column)"),
@@ -1055,7 +1055,7 @@ function test_specs()::Vector{CommandSpec}
         # interpret_test_result. H0 = long-run homogeneity; low p favours MG.
         CommandSpec(
             path=["test", "pmg-hausman"],
-            summary="Path to CSV data file",
+            summary="Hausman long-run-homogeneity test (efficient PMG/DFE vs MG)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="id-col", type=String, default="", description="Panel group id column (default: first column)"),
@@ -1082,7 +1082,7 @@ function test_specs()::Vector{CommandSpec}
         # structure; restriction matrices come from a [vecm_restriction] config.
         CommandSpec(
             path=["test", "vecm", "beta"],
-            summary="Path to CSV data file",
+            summary="Johansen LR test of beta = H*phi on a fitted VECM",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="config", type=String, default="", description="TOML config with [vecm_restriction] H = [[...],...] (p×s, s≥r)"),
@@ -1102,7 +1102,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "vecm", "alpha"],
-            summary="Path to CSV data file",
+            summary="Johansen LR test of alpha = A*psi on a fitted VECM",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="config", type=String, default="", description="TOML config with [vecm_restriction] A = [[...],...] (p×a, a≥r)"),
@@ -1122,7 +1122,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "vecm", "weak-exog"],
-            summary="Path to CSV data file",
+            summary="Johansen LR weak-exogeneity test for --vars on a fitted VECM",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="vars", type=String, default="", description="Comma-separated variable indices or names to test for weak exogeneity"),
@@ -1142,7 +1142,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "vecm", "known-beta"],
-            summary="Path to CSV data file",
+            summary="Johansen LR test of fully specified beta = b on a fitted VECM",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="config", type=String, default="", description="TOML config with [vecm_restriction] b = [[...],...] (p×r, exactly r cols)"),
@@ -1162,7 +1162,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "vecm", "joint"],
-            summary="Path to CSV data file",
+            summary="Joint Johansen LR test of beta and alpha restrictions on a fitted VECM",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="config", type=String, default="", description="TOML config with [vecm_restriction] both H and A matrices"),
@@ -1182,7 +1182,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "multivariate", "lagselect"],
-            summary="Path to CSV data file",
+            summary="VAR lag-order selection by AIC/BIC/HQC",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="max-lags", type=Int, default=12, description="Maximum lag order to test"),
@@ -1202,7 +1202,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "multivariate", "stability"],
-            summary="Path to CSV data file",
+            summary="VAR stability check via companion-matrix eigenvalues",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
@@ -1217,15 +1217,15 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "granger"],
-            summary="Path to CSV data file",
+            summary="Granger causality (VAR pairwise incl. --all, or VECM short/long-run/joint)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="cause", type=Int, default=1, description="Cause variable index (1-based)"),
                 OptionSpec(name="effect", type=Int, default=2, description="Effect variable index (1-based)"),
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels)"),
-                OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
-                OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
-                OptionSpec(name="model", type=String, default="vecm", description="var|vecm (model type for Granger test)"),
+                OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...) (vecm only; ignored with --model var)"),
+                OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend (vecm only; ignored with --model var)"),
+                OptionSpec(name="model", type=String, default="vecm", description="var|vecm (model type for Granger test)", choices=["var","vecm"]),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
@@ -1243,11 +1243,11 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "pvar", "hansen-j"],
-            summary="Path to CSV panel data file",
+            summary="Hansen J overidentification test for a panel VAR",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
             options=[
-                OptionSpec(name="id-col", type=String, default="", description="Panel group identifier column"),
-                OptionSpec(name="time-col", type=String, default="", description="Time period column"),
+                OptionSpec(name="id-col", type=String, default="", description="Panel group identifier column (required)"),
+                OptionSpec(name="time-col", type=String, default="", description="Time period column (required)"),
                 OptionSpec(name="lags", short="p", type=Int, default=1, description="Lag order"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
@@ -1260,11 +1260,11 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "pvar", "mmsc"],
-            summary="Path to CSV panel data file",
+            summary="Panel VAR lag selection (BIC/AIC/HQIC table + --criterion pick)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
             options=[
-                OptionSpec(name="id-col", type=String, default="", description="Panel group identifier column"),
-                OptionSpec(name="time-col", type=String, default="", description="Time period column"),
+                OptionSpec(name="id-col", type=String, default="", description="Panel group identifier column (required)"),
+                OptionSpec(name="time-col", type=String, default="", description="Time period column (required)"),
                 OptionSpec(name="max-lags", type=Int, default=4, description="Maximum lag order to test"),
                 OptionSpec(name="criterion", type=String, default="bic", description="bic|aic|hqic"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -1278,11 +1278,11 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "pvar", "lagselect"],
-            summary="Path to CSV panel data file",
+            summary="Panel VAR lag selection (BIC/AIC/HQIC table + --criterion pick)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
             options=[
-                OptionSpec(name="id-col", type=String, default="", description="Panel group identifier column"),
-                OptionSpec(name="time-col", type=String, default="", description="Time period column"),
+                OptionSpec(name="id-col", type=String, default="", description="Panel group identifier column (required)"),
+                OptionSpec(name="time-col", type=String, default="", description="Time period column (required)"),
                 OptionSpec(name="max-lags", type=Int, default=4, description="Maximum lag order to test"),
                 OptionSpec(name="criterion", type=String, default="bic", description="bic|aic|hqic"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -1296,11 +1296,11 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "pvar", "stability"],
-            summary="Path to CSV panel data file",
+            summary="Panel VAR stability check via companion-matrix eigenvalues",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
             options=[
-                OptionSpec(name="id-col", type=String, default="", description="Panel group identifier column"),
-                OptionSpec(name="time-col", type=String, default="", description="Time period column"),
+                OptionSpec(name="id-col", type=String, default="", description="Panel group identifier column (required)"),
+                OptionSpec(name="time-col", type=String, default="", description="Time period column (required)"),
                 OptionSpec(name="lags", short="p", type=Int, default=1, description="Lag order"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
@@ -1313,7 +1313,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "lr"],
-            summary="Path to CSV data file for restricted model",
+            summary="Likelihood-ratio test of VAR restrictions (restricted vs unrestricted data)",
             args=[ArgSpec(name="data1", type=String, required=true, default=nothing, description="Path to CSV data file for restricted model"), ArgSpec(name="data2", type=String, required=true, default=nothing, description="Path to CSV data file for unrestricted model")],
             options=[
                 OptionSpec(name="lags1", type=Int, default=nothing, description="Lag order for restricted model (default: auto)"),
@@ -1329,7 +1329,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "lm"],
-            summary="Path to CSV data file for restricted model",
+            summary="Lagrange-multiplier test of VAR restrictions (restricted vs unrestricted data)",
             args=[ArgSpec(name="data1", type=String, required=true, default=nothing, description="Path to CSV data file for restricted model"), ArgSpec(name="data2", type=String, required=true, default=nothing, description="Path to CSV data file for unrestricted model")],
             options=[
                 OptionSpec(name="lags1", type=Int, default=nothing, description="Lag order for restricted model (default: auto)"),
@@ -1345,7 +1345,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "andrews"],
-            summary="Path to CSV data file",
+            summary="Andrews unknown-breakpoint test on a multivariate regression",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="response", type=Int, default=1, description="Response variable column index (1-based)"),
@@ -1359,13 +1359,13 @@ function test_specs()::Vector{CommandSpec}
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
             tables=[TableSpec(name=:andrews_break_test,
-                              description="sup-Wald or sup-LM statistic, p-value and the estimated break index")],
+                              description="Requested Andrews statistic, p-value and the estimated break index")],
             category="test",
             handler=_test_andrews,
         ),
         CommandSpec(
             path=["test", "bai-perron"],
-            summary="Path to CSV data file",
+            summary="Bai-Perron multiple-break estimation with --criterion selection",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="response", type=Int, default=1, description="Response variable column index (1-based)"),
@@ -1386,10 +1386,10 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "panic"],
-            summary="Path to CSV data file (rows=T, cols=N)",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="")],
+            summary="PANIC panel unit-root test after removing common factors",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to panel CSV (or T×N matrix CSV)")],
             options=[
-                OptionSpec(name="factors", type=String, default="auto", description="Number of factors (auto|N)"),
+                OptionSpec(name="factors", type=String, default="auto", description="Number of factors: auto or a positive integer"),
                 OptionSpec(name="method", type=String, default="pooled", description="pooled|individual"),
                 OptionSpec(name="id-col", type=String, default="", description="Panel unit ID column (optional)"),
                 OptionSpec(name="time-col", type=String, default="", description="Time column (optional)"),
@@ -1404,11 +1404,11 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "cips"],
-            summary="Path to CSV data file (rows=T, cols=N)",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="")],
+            summary="Pesaran CIPS cross-sectionally augmented panel unit-root test (H0: all units have unit roots)",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file in T-by-N matrix form, or long-format panel CSV with --id-col/--time-col")],
             options=[
                 OptionSpec(name="lags", type=String, default="auto", description="Lag order (auto|N)"),
-                OptionSpec(name="deterministic", type=String, default="constant", description="constant|trend"),
+                OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
                 OptionSpec(name="id-col", type=String, default="", description="Panel unit ID column (optional)"),
                 OptionSpec(name="time-col", type=String, default="", description="Time column (optional)"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -1422,8 +1422,8 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "moon-perron"],
-            summary="Path to CSV data file (rows=T, cols=N)",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="")],
+            summary="Moon-Perron factor-adjusted panel unit-root test: t_a*, t_b* (H0: all units have unit roots)",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file in T-by-N matrix form, or long-format panel CSV with --id-col/--time-col")],
             options=[
                 OptionSpec(name="factors", type=String, default="auto", description="Number of factors (auto|N)"),
                 OptionSpec(name="id-col", type=String, default="", description="Panel unit ID column (optional)"),
@@ -1439,8 +1439,8 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "factor-break"],
-            summary="Path to CSV data file (rows=T, cols=N)",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="")],
+            summary="Test a panel factor structure for a break (--method)",
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to panel CSV (or T×N matrix CSV)")],
             options=[
                 OptionSpec(name="factors", type=Int, default=2, description="Number of factors"),
                 OptionSpec(name="method", type=String, default="breitung_eickmeier", description="breitung_eickmeier|chen_dolado_gonzalo|han_inoue"),
@@ -1461,15 +1461,15 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "fourier-adf"],
-            summary="Path to CSV data file",
+            summary="Enders-Lee Fourier ADF unit-root test with smooth breaks (H0: unit root)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
                 OptionSpec(name="regression", type=String, default="constant", description="constant|trend"),
-                OptionSpec(name="fmax", type=Int, default=3, description="Maximum Fourier frequency"),
+                OptionSpec(name="fmax", type=Int, default=3, description="Maximum Fourier frequency (1..5)"),
                 OptionSpec(name="lags", type=String, default="aic", description="Lag order (aic|bic|N)"),
                 OptionSpec(name="max-lags", type=Int, default=nothing, description="Max lags (default: auto)"),
-                OptionSpec(name="trim", type=Float64, default=0.15, description="Trimming proportion"),
+                OptionSpec(name="trim", type=Float64, default=0.15, description="Trimming fraction (accepted for API symmetry; unused — frequency chosen by min SSR)"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
@@ -1481,7 +1481,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "fourier-kpss"],
-            summary="Path to CSV data file",
+            summary="Becker-Enders-Lee Fourier KPSS stationarity test with smooth breaks (H0: stationarity)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
@@ -1499,7 +1499,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "dfgls"],
-            summary="Path to CSV data file",
+            summary="DF-GLS unit-root test with PT and M-GLS statistics (H0: unit root)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
@@ -1517,12 +1517,12 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "lm-unitroot"],
-            summary="Path to CSV data file",
+            summary="Lee-Strazicich LM unit-root test with 0-2 breaks (H0: unit root, breaks under H0)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
                 OptionSpec(name="breaks", type=Int, default=0, description="Number of structural breaks (0|1|2)"),
-                OptionSpec(name="regression", type=String, default="level", description="level|trend"),
+                OptionSpec(name="regression", type=String, default="level", description="level|both", choices=["level","both"]),
                 OptionSpec(name="lags", type=String, default="aic", description="Lag order (aic|bic|N)"),
                 OptionSpec(name="max-lags", type=Int, default=nothing, description="Max lags (default: auto)"),
                 OptionSpec(name="trim", type=Float64, default=0.15, description="Trimming proportion"),
@@ -1537,11 +1537,11 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "adf-2break"],
-            summary="Path to CSV data file",
+            summary="Narayan-Popp two-break ADF unit-root test with both break dates (H0: unit root with breaks)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
-                OptionSpec(name="model", type=String, default="level", description="level|trend|regime"),
+                OptionSpec(name="model", type=String, default="level", description="level|both", choices=["level","both"]),
                 OptionSpec(name="lags", type=String, default="aic", description="Lag order (aic|bic|N)"),
                 OptionSpec(name="max-lags", type=Int, default=nothing, description="Max lags (default: auto)"),
                 OptionSpec(name="trim", type=Float64, default=0.10, description="Trimming proportion"),
@@ -1556,10 +1556,10 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "gregory-hansen"],
-            summary="Path to CSV data file",
+            summary="Gregory-Hansen cointegration test with one structural break: ADF*, Zt*, Za* (H0: no cointegration)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
-                OptionSpec(name="model", type=String, default="C", description="C|C/T|C/S (level shift/trend/regime)"),
+                OptionSpec(name="model", type=String, default="C", description="C|CT|CS (level shift/trend/regime)"),
                 OptionSpec(name="lags", type=String, default="aic", description="Lag order (aic|bic|N)"),
                 OptionSpec(name="max-lags", type=Int, default=nothing, description="Max lags (default: auto)"),
                 OptionSpec(name="trim", type=Float64, default=0.15, description="Trimming proportion"),
@@ -1577,7 +1577,7 @@ function test_specs()::Vector{CommandSpec}
             # other regression-diagnostic tests: it needs a fitted POISSON model, so the
             # spec mirrors `estimate poisson`'s fit options.
             path=["test", "dispersion"],
-            summary="Path to CSV data file",
+            summary="Cameron-Trivedi overdispersion test on a Poisson fit (directional decision)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[COUNT_COMMON_OPTIONS...,
                 OptionSpec(name="cov-type", type=String, default="robust",
@@ -1602,7 +1602,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "vif"],
-            summary="Path to CSV data file",
+            summary="Variance-inflation factors from an OLS fit",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable name (default: first numeric column)"),
@@ -1618,7 +1618,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "hausman"],
-            summary="Path to CSV panel data file",
+            summary="Hausman FE-vs-RE specification test on panel data",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
             options=[select_options(PREG_OPTIONS, "dep", "indep", "id-col", "time-col")...; OUTPUT_OPTIONS...],
             flags=FlagSpec[],
@@ -1629,7 +1629,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "breusch-pagan"],
-            summary="Path to CSV panel data file",
+            summary="Breusch-Pagan LM test of random effects vs pooled OLS on panel data",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
             options=[select_options(PREG_OPTIONS, "dep", "indep", "id-col", "time-col")...; OUTPUT_OPTIONS...],
             flags=FlagSpec[],
@@ -1640,7 +1640,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "f-fe"],
-            summary="Path to CSV panel data file",
+            summary="F test of fixed effects vs pooled OLS on panel data",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
             options=[select_options(PREG_OPTIONS, "dep", "indep", "id-col", "time-col")...; OUTPUT_OPTIONS...],
             flags=FlagSpec[],
@@ -1651,7 +1651,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "pesaran-cd"],
-            summary="Path to CSV panel data file",
+            summary="Pesaran CD cross-sectional-dependence test on panel FE residuals",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
             options=[select_options(PREG_OPTIONS, "dep", "indep", "id-col", "time-col")...; OUTPUT_OPTIONS...],
             flags=FlagSpec[],
@@ -1662,7 +1662,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "wooldridge-ar"],
-            summary="Path to CSV panel data file",
+            summary="Wooldridge serial-correlation test on panel FE residuals",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
             options=[select_options(PREG_OPTIONS, "dep", "indep", "id-col", "time-col")...; OUTPUT_OPTIONS...],
             flags=FlagSpec[],
@@ -1673,7 +1673,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "modified-wald"],
-            summary="Path to CSV panel data file",
+            summary="Modified Wald groupwise-heteroskedasticity test on panel FE residuals",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
             options=[select_options(PREG_OPTIONS, "dep", "indep", "id-col", "time-col")...; OUTPUT_OPTIONS...],
             flags=FlagSpec[],
@@ -1684,7 +1684,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "fisher"],
-            summary="Path to CSV data file",
+            summary="Fisher periodicity test for a hidden cycle",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index"),
@@ -1699,7 +1699,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "bartlett-wn"],
-            summary="Path to CSV data file",
+            summary="Bartlett cumulative-periodogram white-noise test",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index"),
@@ -1714,7 +1714,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "box-pierce"],
-            summary="Path to CSV data file",
+            summary="Box-Pierce portmanteau test for autocorrelation to --lags",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index"),
@@ -1730,7 +1730,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "durbin-watson"],
-            summary="Path to CSV data file",
+            summary="Durbin-Watson first-order autocorrelation diagnostic for a series",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index"),
@@ -1745,7 +1745,7 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "brant"],
-            summary="Path to CSV data file",
+            summary="Brant parallel-regression test for ordered logit",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable"),
@@ -1761,11 +1761,11 @@ function test_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["test", "hausman-iia"],
-            summary="Path to CSV data file",
+            summary="Hausman-McFadden IIA test omitting one mlogit category",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable"),
-                OptionSpec(name="omit-category", type=Int, default=nothing, description="Category to omit for IIA test"),
+                OptionSpec(name="omit-category", type=Int, default=nothing, description="Category to omit for IIA test (required)"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
@@ -3333,7 +3333,7 @@ end
 # unit-root test on a single series.
 function _test_engle_granger(; data::String, dep::String="", trend::String="constant",
         lags::String="aic", max_lags::String="", format::String="table", output::String="")
-    lg = _parse_test_lags(lags, "--lags", ("aic", "bic", "tstat"))
+    lg = _parse_test_lags(lags, "--lags", ("aic", "bic"))
     ml = isempty(max_lags) ? nothing : begin
         v = tryparse(Int, max_lags)
         (v === nothing || v < 0) && throw(CliError("usage/invalid",
@@ -4111,8 +4111,8 @@ end
 function _test_pedroni(; data::String, id_col::String="", time_col::String="",
         dep::String="", indep::String="", trend::String="constant",
         format::String="table", output::String="")
-    trend in ("constant", "trend") || throw(CliError("usage/invalid",
-        "--trend must be constant|trend (got '$trend')"))
+    trend in ("none", "constant", "trend") || throw(CliError("usage/invalid",
+        "--trend must be none|constant|trend (got '$trend')"))
     pd, depsym, indepsyms, depc, indeps = _panel_coint_inputs(data, id_col, time_col, dep, indep)
     _status("Pedroni Panel Cointegration Test: $depc ~ $(join(indeps, " + ")), units=$(pd.n_groups)"); _status()
     res = try
@@ -4142,8 +4142,8 @@ end
 function _test_westerlund(; data::String, id_col::String="", time_col::String="",
         dep::String="", indep::String="", trend::String="constant",
         format::String="table", output::String="")
-    trend in ("constant", "trend") || throw(CliError("usage/invalid",
-        "--trend must be constant|trend (got '$trend')"))
+    trend in ("none", "constant", "trend") || throw(CliError("usage/invalid",
+        "--trend must be none|constant|trend (got '$trend')"))
     pd, depsym, indepsyms, depc, indeps = _panel_coint_inputs(data, id_col, time_col, dep, indep)
     _status("Westerlund Panel Cointegration Test: $depc ~ $(join(indeps, " + ")), units=$(pd.n_groups)"); _status()
     res = try

@@ -30,7 +30,7 @@ function spectral_specs()::Vector{CommandSpec}
                 OptionSpec(name="column", short="c", type=Int, default=1,
                            description="Column index (1-based)"),
                 OptionSpec(name="max-lag", type=Int, default=nothing,
-                           description="Maximum lag (default: min(20, T-1))"),
+                           description="Maximum lag (default: automatic, capped at min(T-1, 10*log10(T)))"),
                 OptionSpec(name="ccf-with", type=Int, default=nothing,
                            description="Column index for cross-correlation"),
                 plot_opts...,
@@ -141,7 +141,7 @@ function _spectral_acf(; data::String, column::Int=1,
     Y = df_to_matrix(df)
     y = Y[:, column]
 
-    kwargs = isnothing(max_lag) ? (;) : (; maxlag=max_lag)
+    kwargs = isnothing(max_lag) ? (;) : (; lags=max_lag)
     result = acf(y; kwargs...)
 
     _status("ACF/PACF: $(vnames[column])  (T = $(length(y)))")

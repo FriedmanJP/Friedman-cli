@@ -117,7 +117,9 @@ jobs:
     # coverage gaps; 13m53 on one PR and 15m17 (timeout) on the next. Same story.
     # 26m40 at 3064 cases, and --code-coverage=user adds instrumentation overhead on
     # top of that. v0.11.0 (3762 cases + HA/CT/DCEGM) cancelled at 60m on ubuntu
-    # coverage; two-asset-hank is now --max-iter 2 and the budget is 90.
+    # coverage; the budget is 90. v1.0.1 dieted the heavy estimators (two-asset
+    # --max-iter 1, coarser VFI grids, smaller SMC chains/sims/draws) to ~half
+    # that; the 90 budget stays as regression headroom, not a target.
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4

@@ -23,7 +23,7 @@ Render any loadable handle (data, model, or result)
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot if a recipe exists |
 
-**Output tables:** `show_payload` (Rendered payload of the handle); `show_summary` (Optional kv summary)
+**Output tables:** `show_payload` (Rendered payload of the handle)
 
 ---
 

@@ -14,7 +14,7 @@ Bewley-bank MIT IRF (variable names from the ImpulseResponse)
 | `--horizon` | — | `Int64` | `20` | — | IRF horizon (≥ 2) |
 | `--shock-size` | — | `Float64` | `0.01` | — | TFP impulse size |
 | `--persist` | — | `Float64` | `0.5` | — | AR(1) decay (default 0.5) |
-| `--n-n` | — | `Int64` | `25` | — | Net-worth grid points |
+| `--n-n` | — | `Int64` | `25` | — | Net-worth grid points (≥ 3) |
 | `--n-xi` | — | `Int64` | `3` | — | Idiosyncratic ξ states |
 | `--z` | — | `Float64` | `0.25` | — | Steady-state TFP |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
@@ -35,10 +35,10 @@ Bewley-bank partial equilibrium at given (R, rᵏ)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--n-n` | — | `Int64` | `25` | — | Net-worth grid points |
+| `--n-n` | — | `Int64` | `25` | — | Net-worth grid points (≥ 3) |
 | `--n-xi` | — | `Int64` | `3` | — | Idiosyncratic ξ states |
 | `--n-min` | — | `Float64` | `0.05` | — | Net-worth grid lower bound (> 0) |
-| `--n-max` | — | `Float64` | `8.0` | — | Net-worth grid upper bound |
+| `--n-max` | — | `Float64` | `8.0` | — | Net-worth grid upper bound (must exceed --n-min) |
 | `--beta` | — | `Float64` | `0.99` | — | Discount factor in (0,1) |
 | `--sigma` | — | `Float64` | `0.95` | — | Survival probability in (0,1] |
 | `--lambda` | — | `Float64` | `0.2` | — | Diversion parameter (> 0) |
@@ -63,10 +63,10 @@ Bewley-bank credit-market stationary equilibrium
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--n-n` | — | `Int64` | `25` | — | Net-worth grid points |
+| `--n-n` | — | `Int64` | `25` | — | Net-worth grid points (≥ 3) |
 | `--n-xi` | — | `Int64` | `3` | — | Idiosyncratic ξ states |
 | `--n-min` | — | `Float64` | `0.05` | — | Net-worth grid lower bound |
-| `--n-max` | — | `Float64` | `8.0` | — | Net-worth grid upper bound |
+| `--n-max` | — | `Float64` | `8.0` | — | Net-worth grid upper bound (must exceed --n-min) |
 | `--beta` | — | `Float64` | `0.99` | — | Discount factor |
 | `--sigma` | — | `Float64` | `0.95` | — | Survival probability |
 | `--lambda` | — | `Float64` | `0.2` | — | Diversion parameter |
@@ -91,7 +91,7 @@ Bewley-bank MIT TFP path
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--z-path` | — | `String` | `""` | — | CSV of TFP path (length ≥ 2, all positive; required) |
-| `--n-n` | — | `Int64` | `25` | — | Net-worth grid points |
+| `--n-n` | — | `Int64` | `25` | — | Net-worth grid points (≥ 3) |
 | `--n-xi` | — | `Int64` | `3` | — | Idiosyncratic ξ states |
 | `--z` | — | `Float64` | `0.25` | — | Steady-state TFP |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
@@ -103,17 +103,18 @@ Bewley-bank MIT TFP path
 
 ### `friedman dsge bayes compare`
 
-Path to DSGE model file (.toml or .jl)
+Estimate two DSGE models with Bayesian sampling and compare log marginal likelihoods
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — |  |
+| `model` | `String` | yes | — | Path to DSGE model file (.toml or .jl) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
+| `--prior` | — | `String` | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
@@ -121,7 +122,7 @@ Path to DSGE model file (.toml or .jl)
 | `--burnin` | — | `Int64` | `5000` | — | Burn-in draws |
 | `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
-| `--solver` | — | `String` | `gensys` | — | gensys\|klein\|perturbation |
+| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
 | `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
@@ -143,17 +144,18 @@ Path to DSGE model file (.toml or .jl)
 
 ### `friedman dsge bayes estimate`
 
-Path to DSGE model file (.toml or .jl)
+Estimate a DSGE model with Bayesian sampling and report the posterior
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — |  |
+| `model` | `String` | yes | — | Path to DSGE model file (.toml or .jl) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
+| `--prior` | — | `String` | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
@@ -161,7 +163,7 @@ Path to DSGE model file (.toml or .jl)
 | `--burnin` | — | `Int64` | `5000` | — | Burn-in draws |
 | `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
-| `--solver` | — | `String` | `gensys` | — | gensys\|klein\|perturbation |
+| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
 | `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
@@ -181,17 +183,18 @@ Path to DSGE model file (.toml or .jl)
 
 ### `friedman dsge bayes fevd`
 
-Path to DSGE model file (.toml or .jl)
+Estimate a DSGE model with Bayesian sampling and report posterior-mean FEVD
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — |  |
+| `model` | `String` | yes | — | Path to DSGE model file (.toml or .jl) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
+| `--prior` | — | `String` | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
@@ -199,7 +202,7 @@ Path to DSGE model file (.toml or .jl)
 | `--burnin` | — | `Int64` | `5000` | — | Burn-in draws |
 | `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
-| `--solver` | — | `String` | `gensys` | — | gensys\|klein\|perturbation |
+| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
 | `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
@@ -221,25 +224,25 @@ Path to DSGE model file (.toml or .jl)
 
 ### `friedman dsge bayes hd`
 
-Path to DSGE model file (.toml or .jl)
+Estimate a DSGE model with Bayesian sampling and report the posterior-mean historical decomposition
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — |  |
+| `model` | `String` | yes | — | Path to DSGE model file (.toml or .jl) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
+| `--prior` | — | `String` | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
 | `--n-draws` | — | `Int64` | `10000` | — | Total posterior draws |
 | `--burnin` | — | `Int64` | `5000` | — | Burn-in draws |
 | `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
-| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
-| `--solver` | — | `String` | `gensys` | — | gensys\|klein\|perturbation |
+| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
 | `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
@@ -247,9 +250,10 @@ Path to DSGE model file (.toml or .jl)
 | `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--observables` | — | `String` | `""` | — | Observable variable names, comma-separated (required — no default) |
 | `--n-hd-draws` | — | `Int64` | `200` | — | Number of posterior draws for HD |
 | `--quantiles` | — | `String` | `0.16,0.5,0.84` | — | Quantile levels |
-| `--horizon` | — | `Int64` | `40` | — | IRF horizon |
+| `--horizon` | — | `Int64` | `40` | — | Horizon (accepted but not used: historical decomposition has no horizon setting) |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 
 | Flag | Short | Description |
@@ -264,11 +268,11 @@ Path to DSGE model file (.toml or .jl)
 
 ### `friedman dsge bayes identification`
 
-Path to DSGE model file (.toml or .jl)
+Test local DSGE parameter identification with the Iskrev rank test without estimating
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — |  |
+| `model` | `String` | yes | — | Path to DSGE model file (.toml or .jl) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -286,17 +290,18 @@ Path to DSGE model file (.toml or .jl)
 
 ### `friedman dsge bayes irf`
 
-Path to DSGE model file (.toml or .jl)
+Estimate a DSGE model with Bayesian sampling and report posterior-mean IRFs
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — |  |
+| `model` | `String` | yes | — | Path to DSGE model file (.toml or .jl) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
+| `--prior` | — | `String` | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
@@ -304,7 +309,7 @@ Path to DSGE model file (.toml or .jl)
 | `--burnin` | — | `Int64` | `5000` | — | Burn-in draws |
 | `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
-| `--solver` | — | `String` | `gensys` | — | gensys\|klein\|perturbation |
+| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
 | `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
@@ -326,17 +331,18 @@ Path to DSGE model file (.toml or .jl)
 
 ### `friedman dsge bayes learning-rate`
 
-Path to DSGE model file (.toml or .jl)
+Estimate a DSGE model with Bayesian sampling and run the Koop-Pesaran-Smith learning-rate check
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — |  |
+| `model` | `String` | yes | — | Path to DSGE model file (.toml or .jl) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
+| `--prior` | — | `String` | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
@@ -344,7 +350,7 @@ Path to DSGE model file (.toml or .jl)
 | `--burnin` | — | `Int64` | `5000` | — | Burn-in draws |
 | `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
-| `--solver` | — | `String` | `gensys` | — | gensys\|klein\|perturbation |
+| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
 | `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
@@ -366,17 +372,18 @@ Path to DSGE model file (.toml or .jl)
 
 ### `friedman dsge bayes marginal-lik`
 
-Path to DSGE model file (.toml or .jl)
+Estimate a DSGE model with Bayesian sampling and report bridge-sampling and SMC log marginal likelihoods
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — |  |
+| `model` | `String` | yes | — | Path to DSGE model file (.toml or .jl) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
+| `--prior` | — | `String` | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
@@ -384,7 +391,7 @@ Path to DSGE model file (.toml or .jl)
 | `--burnin` | — | `Int64` | `5000` | — | Burn-in draws |
 | `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
-| `--solver` | — | `String` | `gensys` | — | gensys\|klein\|perturbation |
+| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
 | `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
@@ -393,7 +400,7 @@ Path to DSGE model file (.toml or .jl)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--proposal` | — | `String` | `normal` | `normal`, `t` | Bridge proposal family: normal\|t |
-| `--df` | — | `Float64` | `5.0` | — | Degrees of freedom for the t proposal |
+| `--df` | — | `Float64` | `5.0` | — | Degrees of freedom for the t proposal (ignored with --proposal normal) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -405,17 +412,18 @@ Path to DSGE model file (.toml or .jl)
 
 ### `friedman dsge bayes mcmc-diag`
 
-Path to DSGE model file (.toml or .jl)
+Estimate a DSGE model with Bayesian sampling and report MCMC convergence diagnostics
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — |  |
+| `model` | `String` | yes | — | Path to DSGE model file (.toml or .jl) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
+| `--prior` | — | `String` | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
@@ -423,7 +431,7 @@ Path to DSGE model file (.toml or .jl)
 | `--burnin` | — | `Int64` | `5000` | — | Burn-in draws |
 | `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
-| `--solver` | — | `String` | `gensys` | — | gensys\|klein\|perturbation |
+| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
 | `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
@@ -442,17 +450,18 @@ Path to DSGE model file (.toml or .jl)
 
 ### `friedman dsge bayes overlap`
 
-Path to DSGE model file (.toml or .jl)
+Estimate a DSGE model with Bayesian sampling and report prior-posterior overlap per parameter
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — |  |
+| `model` | `String` | yes | — | Path to DSGE model file (.toml or .jl) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
+| `--prior` | — | `String` | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
@@ -460,7 +469,7 @@ Path to DSGE model file (.toml or .jl)
 | `--burnin` | — | `Int64` | `5000` | — | Burn-in draws |
 | `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
-| `--solver` | — | `String` | `gensys` | — | gensys\|klein\|perturbation |
+| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
 | `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
@@ -481,19 +490,20 @@ Path to DSGE model file (.toml or .jl)
 
 ### `friedman dsge bayes posterior-mode`
 
-Path to DSGE model file (.toml or .jl)
+Maximize the DSGE posterior and report the mode with Laplace standard errors without sampling
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — |  |
+| `model` | `String` | yes | — | Path to DSGE model file (.toml or .jl) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
+| `--prior` | — | `String` | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
-| `--solver` | — | `String` | `gensys` | — | gensys\|klein\|perturbation |
+| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
@@ -507,17 +517,18 @@ Path to DSGE model file (.toml or .jl)
 
 ### `friedman dsge bayes predictive`
 
-Path to DSGE model file (.toml or .jl)
+Estimate a DSGE model with Bayesian sampling and report the posterior predictive summary
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — |  |
+| `model` | `String` | yes | — | Path to DSGE model file (.toml or .jl) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
+| `--prior` | — | `String` | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
@@ -525,7 +536,7 @@ Path to DSGE model file (.toml or .jl)
 | `--burnin` | — | `Int64` | `5000` | — | Burn-in draws |
 | `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
-| `--solver` | — | `String` | `gensys` | — | gensys\|klein\|perturbation |
+| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
 | `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
@@ -548,21 +559,22 @@ Path to DSGE model file (.toml or .jl)
 
 ### `friedman dsge bayes prior-predictive`
 
-Path to DSGE model file (.toml or .jl)
+Draw from the DSGE prior and report the prior predictive distribution without data
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — |  |
+| `model` | `String` | yes | — | Path to DSGE model file (.toml or .jl) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
+| `--prior` | — | `String` | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
-| `--solver` | — | `String` | `gensys` | — | gensys\|klein\|perturbation |
+| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
-| `--n-draws` | — | `Int64` | `10000` | — | Total posterior draws |
+| `--n-draws` | — | `Int64` | `500` | — | Total posterior draws |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--periods` | — | `Int64` | `200` | — | Periods to simulate per draw (≥ 1) |
@@ -573,17 +585,18 @@ Path to DSGE model file (.toml or .jl)
 
 ### `friedman dsge bayes simulate`
 
-Path to DSGE model file (.toml or .jl)
+Estimate a DSGE model with Bayesian sampling and report posterior-mean simulated paths
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — |  |
+| `model` | `String` | yes | — | Path to DSGE model file (.toml or .jl) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
+| `--prior` | — | `String` | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
@@ -591,7 +604,7 @@ Path to DSGE model file (.toml or .jl)
 | `--burnin` | — | `Int64` | `5000` | — | Burn-in draws |
 | `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
-| `--solver` | — | `String` | `gensys` | — | gensys\|klein\|perturbation |
+| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
 | `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
@@ -613,17 +626,18 @@ Path to DSGE model file (.toml or .jl)
 
 ### `friedman dsge bayes summary`
 
-Path to DSGE model file (.toml or .jl)
+Estimate a DSGE model with Bayesian sampling and report the posterior summary with prior-posterior comparison
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — |  |
+| `model` | `String` | yes | — | Path to DSGE model file (.toml or .jl) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
+| `--prior` | — | `String` | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
@@ -631,7 +645,7 @@ Path to DSGE model file (.toml or .jl)
 | `--burnin` | — | `Int64` | `5000` | — | Burn-in draws |
 | `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
-| `--solver` | — | `String` | `gensys` | — | gensys\|klein\|perturbation |
+| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
 | `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
@@ -663,7 +677,7 @@ FEVD from the CT MIT impulse (single TFP shock)
 | `--shock-size` | — | `Float64` | `0.01` | — | TFP impulse size |
 | `--persist` | — | `Float64` | `0.0` | — | AR(1) decay of the TFP impulse |
 | `--dt` | — | `Float64` | `0.25` | — | Time step |
-| `--grid-size` | — | `Int64` | `100` | — | Asset grid points |
+| `--grid-size` | — | `Int64` | `100` | — | Asset grid points (one-asset only; ignored with --two-asset) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
@@ -692,7 +706,7 @@ MIT impulse response of CT Aiyagari or two-asset GE
 | `--shock-size` | — | `Float64` | `0.01` | — | TFP impulse size |
 | `--persist` | — | `Float64` | `0.0` | — | AR(1) decay of the TFP impulse |
 | `--dt` | — | `Float64` | `0.25` | — | Time step |
-| `--grid-size` | — | `Int64` | `100` | — | Asset grid points |
+| `--grid-size` | — | `Int64` | `100` | — | Asset grid points (one-asset only; ignored with --two-asset) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
@@ -712,14 +726,14 @@ Continuous-time Aiyagari (or two-asset KMV) stationary equilibrium
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--alpha` | — | `Float64` | `0.36` | — | Capital share |
+| `--alpha` | — | `Float64` | `0.36` | — | Capital share (one-asset and --ge; ignored by --two-asset partial-equilibrium solve) |
 | `--rho` | — | `Float64` | `0.05` | — | Discount rate |
 | `--sigma` | — | `Float64` | `2.0` | — | CRRA risk aversion |
-| `--delta` | — | `Float64` | `0.05` | — | Depreciation |
-| `--z` | — | `Float64` | `1.0` | — | TFP level |
-| `--a-min` | — | `Float64` | `0.0` | — | Asset grid lower bound |
-| `--a-max` | — | `Float64` | `30.0` | — | Asset grid upper bound |
-| `--grid-size` | — | `Int64` | `100` | — | Asset grid points (I) |
+| `--delta` | — | `Float64` | `0.05` | — | Depreciation (one-asset and --ge; ignored by --two-asset partial-equilibrium solve) |
+| `--z` | — | `Float64` | `1.0` | — | TFP level (one-asset and --ge; ignored by --two-asset partial-equilibrium solve) |
+| `--a-min` | — | `Float64` | `0.0` | — | Asset grid lower bound (one-asset only; ignored with --two-asset) |
+| `--a-max` | — | `Float64` | `30.0` | — | Asset grid upper bound (one-asset only; ignored with --two-asset) |
+| `--grid-size` | — | `Int64` | `100` | — | Asset grid points (I) (one-asset only; ignored with --two-asset) |
 | `--max-iter` | — | `Int64` | `100` | — | Outer equilibrium iterations |
 | `--tol` | — | `Float64` | `1.0e-6` | — | Convergence tolerance |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
@@ -736,7 +750,7 @@ Continuous-time Aiyagari (or two-asset KMV) stationary equilibrium
 
 ### `friedman dsge ct transition`
 
-MIT-shock perfect-foresight transition (ct_mit_shock)
+MIT-shock perfect-foresight transition (ct_mit_shock; ct_two_asset_mit with --two-asset)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -748,18 +762,18 @@ MIT-shock perfect-foresight transition (ct_mit_shock)
 | `--shock-size` | — | `Float64` | `0.95` | — | Impact TFP multiplier (Z_0 = shock-size * z) |
 | `--periods` | — | `Int64` | `40` | — | Transition length (time points) |
 | `--dt` | — | `Float64` | `0.25` | — | Time step |
-| `--a-max` | — | `Float64` | `30.0` | — | Asset grid upper bound |
-| `--grid-size` | — | `Int64` | `100` | — | Asset grid points |
+| `--a-max` | — | `Float64` | `30.0` | — | Asset grid upper bound (one-asset only; ignored with --two-asset) |
+| `--grid-size` | — | `Int64` | `100` | — | Asset grid points (one-asset only; ignored with --two-asset) |
 | `--max-iter` | — | `Int64` | `100` | — | Shooting iterations |
 | `--tol` | — | `Float64` | `1.0e-6` | — | Convergence tolerance |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--z-path` | — | `String` | `""` | — | CSV of TFP path (two-asset MIT; length ≥ 2, all positive) |
+| `--z-path` | — | `String` | `""` | — | CSV of TFP path (required with --two-asset; ignored otherwise; length ≥ 2, all positive) |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser (one-asset CTTransition only) |
+| `--plot` | — | Plot the transition table in browser (one-asset only; --two-asset has no plot recipe) |
 | `--two-asset` | — | Two-asset MIT (ct_two_asset_mit; no plot) |
 
 **Output tables:** `ct_mit_shock_transition` (MIT-shock transition path of t, Z, K, r, w and C); `ct_two_asset_transition` (Two-asset MIT path of t, Z, K, r_a, r_b, w, B, C (--two-asset))
@@ -772,7 +786,7 @@ FEVD of a DCEGM equilibrium (single TFP shock)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — | Builtin `retirement` or .jl DCEGMProblem / DCEGMSystem spec |
+| `model` | `String` | yes | — | Builtin `retirement` or .jl DCEGMProblem / DCEGMSystem spec (household flags apply to the builtin only; ignored for .jl specs) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -805,7 +819,7 @@ MIT IRF of a DCEGM equilibrium (needs GE, not DCEGMSolution)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — | Builtin `retirement` or .jl DCEGMProblem / DCEGMSystem spec |
+| `model` | `String` | yes | — | Builtin `retirement` or .jl DCEGMProblem / DCEGMSystem spec (household flags apply to the builtin only; ignored for .jl specs) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -838,7 +852,7 @@ MIT simulation of a DCEGM equilibrium (levels)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — | Builtin `retirement` or .jl DCEGMProblem / DCEGMSystem spec |
+| `model` | `String` | yes | — | Builtin `retirement` or .jl DCEGMProblem / DCEGMSystem spec (household flags apply to the builtin only; ignored for .jl specs) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -862,11 +876,11 @@ MIT simulation of a DCEGM equilibrium (levels)
 
 ### `friedman dsge dcegm solve`
 
-Discrete-continuous EGM household (builtin retirement or .jl DCEGMProblem)
+Discrete-continuous EGM household (builtin retirement or .jl DCEGMProblem/DCEGMSystem)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — | Builtin `retirement` or .jl DCEGMProblem / DCEGMSystem spec |
+| `model` | `String` | yes | — | Builtin `retirement` or .jl DCEGMProblem / DCEGMSystem spec (household flags apply to the builtin only; ignored for .jl specs) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -884,9 +898,9 @@ Discrete-continuous EGM household (builtin retirement or .jl DCEGMProblem)
 | `--credit-limit` | — | `Float64` | `0.0` | — | Borrowing limit |
 | `--curvature` | — | `Float64` | `2.0` | — | Grid curvature (≥ 1) |
 | `--max-iter` | — | `Int64` | `500` | — | Infinite-horizon iteration cap |
-| `--tol` | — | `Float64` | `1.0e-8` | — | Policy tolerance |
-| `--period` | — | `Int64` | `1` | — | Stored period for the policy table |
-| `--income` | — | `Int64` | `1` | — | Income-state index for the policy table |
+| `--tol` | — | `Float64` | `1.0e-8` | — | Sup-norm policy tolerance (infinite horizon) |
+| `--period` | — | `Int64` | `1` | — | Stored period for the policy table (clamped to the solved range) |
+| `--income` | — | `Int64` | `1` | — | Income-state index for the policy table (clamped to the solved range) |
 | `--view` | — | `String` | `policy` | `policy`, `threshold` | plot_result view: policy\|threshold |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -896,7 +910,7 @@ Discrete-continuous EGM household (builtin retirement or .jl DCEGMProblem)
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser (DCEGMSolution) |
 
-**Output tables:** `dcegm_solve_diagnostics` (Convergence, iterations, kinks and sup-norm policy change); `dcegm_policy` (Long policy: one row per option knot at --period/--income); `dcegm_kinks` (Switching-threshold counts per period × option × income)
+**Output tables:** `dcegm_solve_diagnostics` (Convergence, iterations, sup-norm policy change and solved dimensions); `dcegm_policy` (Long policy: one row per option knot at --period/--income); `dcegm_kinks` (Switching-threshold counts per period × option × income)
 
 ---
 
@@ -906,7 +920,7 @@ DCEGM capital-market equilibrium (dcegm_steady_state)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — | Builtin `retirement` or .jl DCEGMProblem / DCEGMSystem spec |
+| `model` | `String` | yes | — | Builtin `retirement` or .jl DCEGMProblem / DCEGMSystem spec (household flags apply to the builtin only; ignored for .jl specs) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -916,12 +930,12 @@ DCEGM capital-market equilibrium (dcegm_steady_state)
 | `--wage` | — | `Float64` | `20.0` | — | Work-option wage |
 | `--disutility` | — | `Float64` | `1.0` | — | Work disutility |
 | `--sigma` | — | `Float64` | `0.0` | — | Income-shock s.d. |
-| `--n-shocks` | — | `Int64` | `1` | — | Income quadrature nodes |
+| `--n-shocks` | — | `Int64` | `1` | — | Income quadrature nodes (≥ 1) |
 | `--a-max` | — | `Float64` | `50.0` | — | Asset grid upper bound |
 | `--n-a` | — | `Int64` | `200` | — | Asset grid points |
 | `--pension` | — | `Float64` | `0.0` | — | Retirement income |
 | `--credit-limit` | — | `Float64` | `0.0` | — | Borrowing limit |
-| `--curvature` | — | `Float64` | `2.0` | — | Grid curvature |
+| `--curvature` | — | `Float64` | `2.0` | — | Grid curvature (≥ 1) |
 | `--alpha` | — | `Float64` | `0.36` | — | Firm capital share |
 | `--delta` | — | `Float64` | `0.08` | — | Firm depreciation |
 | `--z` | — | `Float64` | `1.0` | — | Firm TFP |
@@ -950,7 +964,7 @@ MIT TFP path of a DCEGM equilibrium
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — | Builtin `retirement` or .jl DCEGMProblem / DCEGMSystem spec |
+| `model` | `String` | yes | — | Builtin `retirement` or .jl DCEGMProblem / DCEGMSystem spec (household flags apply to the builtin only; ignored for .jl specs) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -972,11 +986,11 @@ MIT TFP path of a DCEGM equilibrium
 
 ### `friedman dsge determinacy-map`
 
-Path to DSGE model file (.toml or .jl)
+Map the DSGE determinacy region over two parameters
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — |  |
+| `model` | `String` | yes | — | TOML (synthesized @dsge block) or .jl evaluating to a ModelSpec |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -998,24 +1012,24 @@ Path to DSGE model file (.toml or .jl)
 
 ### `friedman dsge estimate`
 
-Path to DSGE model file (.toml or .jl)
+Estimate DSGE parameters by moment matching
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — |  |
+| `model` | `String` | yes | — | TOML (synthesized @dsge block) or .jl evaluating to a ModelSpec |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
-| `--method` | — | `String` | `irf_matching` | — | Estimation method: irf_matching\|likelihood\|bayesian\|smm |
+| `--method` | — | `String` | `irf_matching` | `irf_matching`, `euler_gmm`, `smm`, `analytical_gmm` | Estimation method: irf_matching\|euler_gmm\|smm\|analytical_gmm |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names to estimate |
-| `--solve-method` | — | `String` | `gensys` | — | DSGE solution method |
-| `--solve-order` | — | `Int64` | `1` | — | Perturbation order for solution |
-| `--weighting` | — | `String` | `optimal` | — | Weighting matrix: identity\|optimal\|diagonal |
-| `--irf-horizon` | — | `Int64` | `20` | — | IRF horizon for matching |
-| `--var-lags` | — | `Int64` | `4` | — | VAR lags for empirical IRF |
-| `--sim-ratio` | — | `Int64` | `5` | — | Simulation-to-data ratio (SMM) |
-| `--bounds` | — | `String` | `""` | — | Path to parameter bounds TOML |
+| `--solve-method` | — | `String` | `gensys` | — | DSGE solution method (analytical_gmm only) |
+| `--solve-order` | — | `Int64` | `1` | — | Perturbation order for solution (analytical_gmm only) |
+| `--weighting` | — | `String` | `optimal` | — | Weighting matrix: identity\|optimal\|diagonal\|two_step\|efficient\|cee (default two_step) |
+| `--irf-horizon` | — | `Int64` | `20` | — | IRF horizon for matching (irf_matching only) |
+| `--var-lags` | — | `Int64` | `4` | — | VAR lags for empirical IRF (irf_matching only) |
+| `--sim-ratio` | — | `Int64` | `5` | — | Simulation-to-data ratio (smm only) |
+| `--bounds` | — | `String` | `""` | — | Path to parameter bounds TOML (currently not used) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
@@ -1025,15 +1039,15 @@ Path to DSGE model file (.toml or .jl)
 
 ### `friedman dsge fevd`
 
-Path to DSGE model file (.toml or .jl)
+Decompose the DSGE forecast-error variance by shock
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — |  |
+| `model` | `String` | yes | — | TOML (synthesized @dsge block) or .jl evaluating to a ModelSpec |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--method` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi`, `vfi`, `blanchard-kahn` | Solution method: gensys\|klein\|perturbation\|projection\|pfi\|vfi\|blanchard-kahn |
+| `--method` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi`, `vfi`, `blanchard-kahn` | Solution method: gensys\|klein\|perturbation\|projection\|pfi\|vfi\|blanchard-kahn (fevd/hd reject projection\|pfi\|vfi) |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--degree` | — | `Int64` | `5` | — | Polynomial degree (projection/pfi/vfi) |
 | `--grid` | — | `String` | `auto` | — | Grid type: auto\|chebyshev\|smolyak (vfi: auto\|tensor\|smolyak; auto routes nx≥4 to Smolyak) |
@@ -1138,17 +1152,16 @@ Khan–Thomas MIT TFP path (--prices ss|ge)
 
 ### `friedman dsge hd`
 
-Path to DSGE model file (.toml or .jl)
+Decompose DSGE observables into historical shock contributions
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — |  |
+| `model` | `String` | yes | — | TOML (synthesized @dsge block) or .jl evaluating to a ModelSpec |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--method` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi`, `vfi`, `blanchard-kahn` | Solution method: gensys\|klein\|perturbation\|projection\|pfi\|vfi\|blanchard-kahn |
+| `--method` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi`, `vfi`, `blanchard-kahn` | Solution method: gensys\|klein\|perturbation\|projection\|pfi\|vfi\|blanchard-kahn (fevd/hd reject projection\|pfi\|vfi) |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
-| `--degree` | — | `Int64` | `5` | — | Polynomial degree (projection/pfi/vfi) |
 | `--grid` | — | `String` | `auto` | — | Grid type: auto\|chebyshev\|smolyak (vfi: auto\|tensor\|smolyak; auto routes nx≥4 to Smolyak) |
 | `--next-state` | — | `String` | `""` | — | VFI: auto\|linear\|residual; PFI: linear\|policy\|nonlinear |
 | `--howard-steps` | — | `Int64` | `-1` | — | Howard policy-evaluation steps (vfi default 20, pfi 0; -1 = method default) |
@@ -1180,15 +1193,15 @@ Path to DSGE model file (.toml or .jl)
 
 ### `friedman dsge irf`
 
-Path to DSGE model file (.toml or .jl)
+Compute DSGE impulse responses to each structural shock
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — |  |
+| `model` | `String` | yes | — | TOML (synthesized @dsge block) or .jl evaluating to a ModelSpec |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--method` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi`, `vfi`, `blanchard-kahn` | Solution method: gensys\|klein\|perturbation\|projection\|pfi\|vfi\|blanchard-kahn |
+| `--method` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi`, `vfi`, `blanchard-kahn` | Solution method: gensys\|klein\|perturbation\|projection\|pfi\|vfi\|blanchard-kahn (fevd/hd reject projection\|pfi\|vfi) |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--degree` | — | `Int64` | `5` | — | Polynomial degree (projection/pfi/vfi) |
 | `--grid` | — | `String` | `auto` | — | Grid type: auto\|chebyshev\|smolyak (vfi: auto\|tensor\|smolyak; auto routes nx≥4 to Smolyak) |
@@ -1205,9 +1218,10 @@ Path to DSGE model file (.toml or .jl)
 | `--damping` | — | `Float64` | `0.0` | — | VFI/PFI mixing factor (0 = default 1.0) |
 | `--anderson-m` | — | `Int64` | `0` | — | PFI Anderson acceleration memory (PFI only) |
 | `--horizon` | — | `Int64` | `40` | — | IRF horizon |
-| `--shock-size` | — | `Float64` | `1.0` | — | Shock size (std devs) |
-| `--n-sim` | — | `Int64` | `0` | — | Simulation-based IRF draws (0=analytical) |
-| `--constraints` | — | `String` | `""` | — | Path to OccBin constraints TOML |
+| `--shock-size` | — | `Float64` | `1.0` | — | Shock size (std devs; perturbation/projection only; ignored for linear solutions) |
+| `--n-sim` | — | `Int64` | `0` | — | Simulated-path replications for projection solutions (default 0 = analytical; ignored for linear/perturbation solutions) |
+| `--constraints` | — | `String` | `""` | — | Path to OccBin constraints TOML (applied to shock 1 only) |
+| `--constraint` | — | `String` | `String[]` | — | OccBin bound 'var[t] >= expr' or 'var[t] <= expr'; repeatable; adds to --constraints and the constraints: stanza |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
@@ -1366,15 +1380,15 @@ Life-cycle OLG perfect-foresight transition (--k0 XOR --z-path)
 
 ### `friedman dsge moments`
 
-Path to DSGE model file (.toml or .jl)
+Report closed-form DSGE theoretical moments without simulation
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — |  |
+| `model` | `String` | yes | — | TOML (synthesized @dsge block) or .jl evaluating to a ModelSpec |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--method` | — | `String` | `perturbation` | — | Solution method (moments need a PerturbationSolution) |
+| `--method` | — | `String` | `perturbation` | — | Solution method: perturbation (the only supported value; moments need a PerturbationSolution) |
 | `--order` | — | `Int64` | `2` | — | Perturbation order: 1, 2 or 3 (default 2; for linear models order 2 equals order 1 exactly) |
 | `--lags` | — | `Int64` | `1` | — | Autocovariance lags to report (>= 1) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
@@ -1402,7 +1416,7 @@ Blanchard OLG FEVD via to_spec (TFP; NK adds monetary)
 | `--kappa` | — | `Float64` | `0.1` | — | NK Phillips slope (--nk) |
 | `--phi-pi` | — | `Float64` | `1.5` | — | NK Taylor φπ (--nk) |
 | `--phi-y` | — | `Float64` | `0.125` | — | NK Taylor φy (--nk) |
-| `--rho-i` | — | `Float64` | `0.0` | — | NK interest smoothing (--nk) |
+| `--rho-i` | — | `Float64` | `0.0` | — | NK interest smoothing in [0,1) (--nk) |
 | `--sigma-i` | — | `Float64` | `0.0` | — | NK monetary shock scale (--nk) |
 | `--omega` | — | `Float64` | `0.0` | — | NK indexation ω in [0,1] (--nk) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
@@ -1437,7 +1451,7 @@ Blanchard OLG IRF via to_spec (TFP; NK adds monetary)
 | `--kappa` | — | `Float64` | `0.1` | — | NK Phillips slope (--nk) |
 | `--phi-pi` | — | `Float64` | `1.5` | — | NK Taylor φπ (--nk) |
 | `--phi-y` | — | `Float64` | `0.125` | — | NK Taylor φy (--nk) |
-| `--rho-i` | — | `Float64` | `0.0` | — | NK interest smoothing (--nk) |
+| `--rho-i` | — | `Float64` | `0.0` | — | NK interest smoothing in [0,1) (--nk) |
 | `--sigma-i` | — | `Float64` | `0.0` | — | NK monetary shock scale (--nk) |
 | `--omega` | — | `Float64` | `0.0` | — | NK indexation ω in [0,1] (--nk) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
@@ -1500,16 +1514,17 @@ Blanchard perpetual-youth OLG: steady state + saddle path
 
 ### `friedman dsge perfect-foresight`
 
-Path to DSGE model file (.toml or .jl)
+Solve a DSGE model under perfect foresight along a shock path
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — |  |
+| `model` | `String` | yes | — | TOML (synthesized @dsge block) or .jl evaluating to a ModelSpec |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--shocks` | — | `String` | `""` | — | Path to shock sequence CSV |
 | `--constraints` | — | `String` | `""` | — | Path to constraints TOML |
+| `--constraint` | — | `String` | `String[]` | — | OccBin bound 'var[t] >= expr' or 'var[t] <= expr'; repeatable; adds to --constraints and the constraints: stanza |
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
 | `--periods` | — | `Int64` | `100` | — | Simulation periods |
 | `--sparsity` | — | `String` | `auto` | `auto`, `dense` | Jacobian: auto (sparse BT) or dense (nlopt/path/ipopt ignore this) |
@@ -1529,15 +1544,15 @@ Path to DSGE model file (.toml or .jl)
 
 ### `friedman dsge simulate`
 
-Path to DSGE model file (.toml or .jl)
+Simulate a DSGE model and report the simulated paths
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — |  |
+| `model` | `String` | yes | — | TOML (synthesized @dsge block) or .jl evaluating to a ModelSpec |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--method` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi`, `vfi`, `blanchard-kahn` | Solution method: gensys\|klein\|perturbation\|projection\|pfi\|vfi\|blanchard-kahn |
+| `--method` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi`, `vfi`, `blanchard-kahn` | Solution method: gensys\|klein\|perturbation\|projection\|pfi\|vfi\|blanchard-kahn (fevd/hd reject projection\|pfi\|vfi) |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--degree` | — | `Int64` | `5` | — | Polynomial degree (projection/pfi/vfi) |
 | `--grid` | — | `String` | `auto` | — | Grid type: auto\|chebyshev\|smolyak (vfi: auto\|tensor\|smolyak; auto routes nx≥4 to Smolyak) |
@@ -1562,7 +1577,7 @@ Path to DSGE model file (.toml or .jl)
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--antithetic` | — | Use antithetic sampling for variance reduction |
+| `--antithetic` | — | Use antithetic sampling for variance reduction (ignored for projection/pfi/vfi simulations) |
 | `--plot` | — | Open interactive plot in browser |
 
 **Output tables:** `dsge_simulation` (Simulated path of every endogenous variable, burn-in dropped)
@@ -1571,15 +1586,15 @@ Path to DSGE model file (.toml or .jl)
 
 ### `friedman dsge solve`
 
-Path to DSGE model file (.toml or .jl)
+Solve a DSGE model and report the policy solution
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — |  |
+| `model` | `String` | yes | — | TOML (synthesized @dsge block) or .jl evaluating to a ModelSpec |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--method` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi`, `vfi`, `blanchard-kahn` | Solution method: gensys\|klein\|perturbation\|projection\|pfi\|vfi\|blanchard-kahn |
+| `--method` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi`, `vfi`, `blanchard-kahn` | Solution method: gensys\|klein\|perturbation\|projection\|pfi\|vfi\|blanchard-kahn (fevd/hd reject projection\|pfi\|vfi) |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--degree` | — | `Int64` | `5` | — | Polynomial degree (projection/pfi/vfi) |
 | `--grid` | — | `String` | `auto` | — | Grid type: auto\|chebyshev\|smolyak (vfi: auto\|tensor\|smolyak; auto routes nx≥4 to Smolyak) |
@@ -1597,8 +1612,9 @@ Path to DSGE model file (.toml or .jl)
 | `--anderson-m` | — | `Int64` | `0` | — | PFI Anderson acceleration memory (PFI only) |
 | `--evaluate-at` | — | `String` | `""` | — | State vector x1,x2,… at which to evaluate the VFI value function |
 | `--constraints` | — | `String` | `""` | — | Path to OccBin constraints TOML |
+| `--constraint` | — | `String` | `String[]` | — | OccBin bound 'var[t] >= expr' or 'var[t] <= expr'; repeatable; adds to --constraints and the constraints: stanza |
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
-| `--periods` | — | `Int64` | `40` | — | Number of periods for OccBin simulation |
+| `--periods` | — | `Int64` | `40` | — | Number of periods for the OccBin path (--constraints without --constraint-solver; ignored otherwise) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
@@ -1608,21 +1624,22 @@ Path to DSGE model file (.toml or .jl)
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Output tables:** `dsge_solution` (Gensys/Klein state-transition policy matrix G1, one column per variable); `perturbation_policy_gx` (Perturbation control policy gx: control responses to states and shocks); `projection_solution` (Projection/PFI/VFI basis coefficients, one row per control); `projection_diagnostics` (Projection/PFI/VFI convergence, iterations, residual norm, grid and degree); `vfi_value_function` (Bellman value on physical collocation nodes (--method vfi)); `vfi_value_coefficients` (Chebyshev coefficients of the Bellman value (--method vfi)); `vfi_value_at` (evaluate_value at --evaluate-at (--method vfi)); `determinacy_verdict` (Sims existence/uniqueness pair and the collapsed determinacy verdict); `dsge_occbin_solution` (OccBin piecewise path per variable (--constraints without --constraint-solver))
+**Output tables:** `dsge_solution` (Gensys/Klein/Blanchard-Kahn state-transition policy matrix G1, one column per variable); `perturbation_policy_gx` (Perturbation control policy gx: control responses to states and shocks); `projection_solution` (Projection/PFI/VFI basis coefficients, one row per control); `projection_diagnostics` (Projection/PFI/VFI convergence, iterations, residual norm, grid and degree); `vfi_value_function` (Bellman value on physical collocation nodes (--method vfi)); `vfi_value_coefficients` (Chebyshev coefficients of the Bellman value (--method vfi)); `vfi_value_at` (evaluate_value at --evaluate-at (--method vfi)); `determinacy_verdict` (Sims existence/uniqueness pair and the collapsed determinacy verdict); `dsge_occbin_solution` (OccBin piecewise path per variable (--constraints without --constraint-solver))
 
 ---
 
 ### `friedman dsge steady-state`
 
-Path to DSGE model file (.toml or .jl)
+Compute the DSGE steady state
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — |  |
+| `model` | `String` | yes | — | TOML (synthesized @dsge block) or .jl evaluating to a ModelSpec |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--constraints` | — | `String` | `""` | — | Path to OccBin constraints TOML |
+| `--constraint` | — | `String` | `String[]` | — | OccBin bound 'var[t] >= expr' or 'var[t] <= expr'; repeatable; adds to --constraints and the constraints: stanza |
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |

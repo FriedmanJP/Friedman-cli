@@ -11,11 +11,11 @@ Den Haan (2010) accuracy of the aggregate law of motion
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `model` | `String` | yes | — | Capital builtin (krusell-smith\|one-asset-hank) or .jl HA ModelSpec |
+| `model` | `String` | yes | — | Builtin name (krusell-smith\|one-asset-hank recommended; huggett refused) or .jl HA ModelSpec |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (SS + Reiter; SSJ is EGM; not with krusell-smith) |
+| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (not with krusell-smith) |
 | `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
 | `--method` | — | `String` | `krusell-smith` | `krusell-smith`, `ssj`, `reiter` | Solution to score: krusell-smith\|ssj\|reiter |
 | `--n-reduced` | — | `Int64` | `30` | — | Reduced distribution states |
@@ -47,7 +47,7 @@ Wealth distribution IRF after an aggregate shock (Reiter only)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (SS + Reiter; SSJ is EGM; not with krusell-smith) |
+| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (not with krusell-smith) |
 | `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
 | `--method` | — | `String` | `reiter` | `reiter` | Must be reiter (SSJ has no distribution basis) |
 | `--horizon` | — | `Int64` | `40` | — | IRF horizon |
@@ -63,7 +63,7 @@ Wealth distribution IRF after an aggregate shock (Reiter only)
 
 ### `friedman hadsge estimate`
 
-Bayesian estimation of HA-DSGE parameters (MH/SMC; MEMs#228 fixed in 0.6.7)
+Bayesian estimation of HA-DSGE parameters (MH/SMC)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -71,10 +71,11 @@ Bayesian estimation of HA-DSGE parameters (MH/SMC; MEMs#228 fixed in 0.6.7)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (SS + Reiter; SSJ is EGM; not with krusell-smith) |
+| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (not with krusell-smith) |
 | `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
 | `--data` | — | `String` | `""` | — | Path to observed aggregates CSV (required) |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML with [priors] section (required) |
+| `--prior` | — | `String` | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--observables` | — | `String` | `""` | — | Comma-separated observed aggregates (e.g. K,Y); default: first aggregates |
 | `--method` | — | `String` | `ssj` | `ssj`, `reiter` | HA solution method re-solved each draw: ssj\|reiter |
 | `--sampler` | — | `String` | `mh` | `mh`, `smc` | Posterior sampler: mh (RWMH) or smc |
@@ -83,7 +84,7 @@ Bayesian estimation of HA-DSGE parameters (MH/SMC; MEMs#228 fixed in 0.6.7)
 | `--n-smc` | — | `Int64` | `500` | — | SMC particles (HA default 500) |
 | `--n-mh-steps` | — | `Int64` | `1` | — | MH mutation steps per SMC stage |
 | `--ess-target` | — | `Float64` | `0.5` | — | ESS target for SMC resampling |
-| `--t-horizon` | — | `Int64` | `300` | — | Sequence-space truncation length (SSJ); default 300 (ABRS 2021) |
+| `--t-horizon` | — | `Int64` | `300` | — | Sequence-space truncation length (SSJ/Reiter); default 300 (ABRS 2021) |
 | `--n-reduced` | — | `Int64` | `15` | — | Reduced distribution states |
 | `--proposal-scale` | — | `Float64` | `0.01` | — | Initial RWMH proposal scale |
 | `--adapt-interval` | — | `Int64` | `100` | — | Adapt proposal covariance every N draws |
@@ -106,7 +107,7 @@ Aggregate FEVD from linearized HA-DSGE solution
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (SS + Reiter; SSJ is EGM; not with krusell-smith) |
+| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (not with krusell-smith) |
 | `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
 | `--method` | — | `String` | `reiter` | `ssj`, `reiter` | HA solution method: ssj\|reiter |
 | `--horizon` | — | `Int64` | `40` | — | FEVD horizon |
@@ -133,14 +134,14 @@ Historical decomposition of HA-DSGE aggregates
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (SS + Reiter; SSJ is EGM; not with krusell-smith) |
+| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (not with krusell-smith) |
 | `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
 | `--method` | — | `String` | `ssj` | `ssj`, `reiter` | HA solution method: ssj\|reiter |
 | `--data` | `-d` | `String` | `""` | — | Path to CSV data file (levels) |
 | `--observables` | — | `String` | `""` | — | Observable aggregates (comma-separated; keys of ss.aggregates/ss.prices) |
 | `--measurement-error` | — | `String` | `""` | — | Measurement error std devs (comma-separated) or auto |
 | `--n-reduced` | — | `Int64` | `30` | — | Reduced states |
-| `--t-horizon` | — | `Int64` | `300` | — | Sequence-space horizon (SSJ) |
+| `--t-horizon` | — | `Int64` | `300` | — | Sequence-space horizon (SSJ/Reiter) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
@@ -163,7 +164,7 @@ Gini and wealth-percentile IRFs after an aggregate shock
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (SS + Reiter; SSJ is EGM; not with krusell-smith) |
+| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (not with krusell-smith) |
 | `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
 | `--method` | — | `String` | `reiter` | `reiter` | Must be reiter for dynamic inequality IRF |
 | `--horizon` | — | `Int64` | `40` | — | IRF horizon |
@@ -192,7 +193,7 @@ Aggregate IRFs from linearized HA-DSGE solution
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (SS + Reiter; SSJ is EGM; not with krusell-smith) |
+| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (not with krusell-smith) |
 | `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
 | `--method` | — | `String` | `reiter` | `ssj`, `reiter` | HA solution method: ssj\|reiter (krusell-smith has no linear IRF) |
 | `--horizon` | — | `Int64` | `40` | — | IRF horizon |
@@ -219,7 +220,7 @@ Simulate aggregate paths from linearized HA-DSGE
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (SS + Reiter; SSJ is EGM; not with krusell-smith) |
+| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (not with krusell-smith) |
 | `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
 | `--method` | — | `String` | `reiter` | `ssj`, `reiter` | HA solution method: ssj\|reiter |
 | `--periods` | — | `Int64` | `200` | — | Simulation periods |
@@ -247,7 +248,7 @@ Simulate individual asset holdings from steady-state policies
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (SS + Reiter; SSJ is EGM; not with krusell-smith) |
+| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (not with krusell-smith) |
 | `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
 | `--n-agents` | — | `Int64` | `1000` | — | Number of agents |
 | `--periods` | — | `Int64` | `100` | — | Time periods |
@@ -269,16 +270,16 @@ Solve HA-DSGE (SSJ / Reiter / Krusell-Smith)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (SS + Reiter; SSJ is EGM; not with krusell-smith) |
+| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (not with krusell-smith) |
 | `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
 | `--method` | — | `String` | `ssj` | `ssj`, `reiter`, `krusell-smith` | HA solution method: ssj\|reiter\|krusell-smith |
 | `--n-reduced` | — | `Int64` | `30` | — | Reduced distribution states (SSJ/Reiter) |
-| `--t-horizon` | — | `Int64` | `300` | — | Sequence-space horizon (SSJ) |
+| `--t-horizon` | — | `Int64` | `300` | — | Sequence-space horizon (SSJ/Reiter; ignored with krusell-smith) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
 
-**Output tables:** `ha_dsge_solve_diagnostics` (Solution method with its size and fit diagnostics); `krusell_smith_plm_coefficients` (Fitted perceived-law-of-motion coefficients (--method krusell-smith)); `ha_steady_state_aggregates` (Steady-state aggregate quantities); `ha_steady_state_prices` (Steady-state prices); `ha_steady_state_diagnostics` (Steady-state convergence, iterations, Euler error and excess demand); `ha_euler_accuracy_log10_by_convention` (log10 Euler errors under both the midpoints and nodes conventions)
+**Output tables:** `ha_dsge_solve_diagnostics` (Solution method with its size and fit diagnostics); `krusell_smith_plm_coefficients` (Fitted perceived-law-of-motion coefficients (--method krusell-smith)); `ha_steady_state_aggregates` (Steady-state aggregate quantities); `ha_steady_state_prices` (Steady-state prices); `ha_steady_state_diagnostics` (Steady-state convergence, iterations, Euler error and excess demand); `ha_euler_accuracy_log10_by_convention` (log10 Euler errors by convention (one row per measured convention; absent when the steady-state path records no accuracy))
 
 ---
 
@@ -292,16 +293,16 @@ Compute HA-DSGE stationary equilibrium
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (SS + Reiter; SSJ is EGM; not with krusell-smith) |
+| `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (not with krusell-smith) |
 | `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
 | `--euler-points` | — | `String` | `midpoints` | `midpoints`, `nodes` | Euler-error evaluation points: midpoints\|nodes |
-| `--max-iter` | — | `Int64` | `0` | — | GE iterations (0 = upstream default: 200 one-asset, 60 two-asset closer) |
-| `--tol` | — | `Float64` | `0.0` | — | Market-clearing tolerance (0 = upstream default) |
+| `--max-iter` | — | `Int64` | `0` | — | GE iterations (0 = automatic: 200 one-asset, 60 two-asset) |
+| `--tol` | — | `Float64` | `0.0` | — | Market-clearing tolerance (0 = automatic) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
 
-**Output tables:** `ha_steady_state_aggregates` (Steady-state aggregate quantities); `ha_steady_state_prices` (Steady-state prices); `ha_steady_state_diagnostics` (Convergence, iterations, Euler error and excess demand); `ha_euler_accuracy_log10_by_convention` (log10 Euler errors under both the midpoints and nodes conventions)
+**Output tables:** `ha_steady_state_aggregates` (Steady-state aggregate quantities); `ha_steady_state_prices` (Steady-state prices); `ha_steady_state_diagnostics` (Convergence, iterations, Euler error and excess demand); `ha_euler_accuracy_log10_by_convention` (log10 Euler errors by convention (one row per measured convention; absent when the steady-state path records no accuracy))
 
 ---
 
