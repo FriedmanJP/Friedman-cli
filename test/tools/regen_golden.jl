@@ -31,7 +31,10 @@ include(joinpath(ROOT, "src", "io.jl"))
 include(joinpath(ROOT, "src", "output", "envelope.jl"))
 include(joinpath(ROOT, "src", "output", "render.jl"))
 include(joinpath(ROOT, "src", "config.jl"))
-const FRIEDMAN_VERSION = VersionNumber(TOML.parsefile(joinpath(ROOT, "Project.toml"))["version"])
+include(joinpath(ROOT, "src", "model_card.jl"))
+const FRIEDMAN_VERSION = VersionNumber(
+    TOML.parsefile(joinpath(ROOT, "Project.toml"))["version"],
+)
 
 include(joinpath(ROOT, "src", "cli", "types.jl"))
 include(joinpath(ROOT, "src", "cli", "parser.jl"))

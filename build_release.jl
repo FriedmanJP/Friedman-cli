@@ -40,6 +40,9 @@ cp(joinpath(project_dir, "src"), joinpath(build_project_dir, "src"))
 # `friedman schema` contract const via include_dependency) — without it the
 # build_env precompile fails "No such file or directory".
 cp(joinpath(project_dir, "schema"), joinpath(build_project_dir, "schema"))
+if isdir(joinpath(project_dir, "completions"))
+    cp(joinpath(project_dir, "completions"), joinpath(build_project_dir, "completions"))
+end
 
 # Read original Project.toml. Friedman declares no weakdeps/extensions of its own;
 # these deletes are defensive so a future weak dep never forces an extension into
@@ -112,7 +115,8 @@ open(precompile_script, "w") do io
                             "--format", "json"])
     Friedman.dispatch(app, ["estimate", "multivariate", "var", fixture, "--lags", "1",
                             "--format", "csv", "--output", joinpath(outdir, "o.csv")])
-    Friedman.dispatch(app, ["irf", "var", fixture, "--lags", "1"])
+    Friedman.dispatch(app, ["irf", "var", fixture, "--lags", "1",
+                            "--plot-save", joinpath(outdir, "irf.html")])
     Friedman.dispatch(app, ["test", "unit-root", "adf", fixture])
     Friedman.dispatch(app, ["filter", "hp", fixture])
     Friedman.dispatch(app, ["forecast", "multivariate", "var", fixture, "--lags", "1"])
@@ -167,6 +171,9 @@ end
 cp(joinpath(build_project_dir, "src"), joinpath(app_dir, "src"))
 # Ship schema/ beside src/ so a non-sysimage fallback load can precompile too
 cp(joinpath(build_project_dir, "schema"), joinpath(app_dir, "schema"))
+if isdir(joinpath(build_project_dir, "completions"))
+    cp(joinpath(build_project_dir, "completions"), joinpath(app_dir, "completions"))
+end
 
 # --- Step 5a: Create platform-appropriate launcher ---
 if Sys.iswindows()

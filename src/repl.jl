@@ -234,6 +234,48 @@ function repl_dispatch(s::Session, app::Entry, args::Vector{String})
 end
 
 """
+    _strip_csi_escapes(s) → String
+
+Remove ANSI CSI escape sequences (such as raw arrow keys `\\e[A`..`\\e[D`) that
+reach the fallback line reader when no cooked/LineEdit terminal is active.
+"""
+_strip_csi_escapes(s::AbstractString) = replace(String(s), r"\e\[[0-9;]*[A-Za-z~]" => "")
+
+"""
+    _exec_repl_line!(s, app, raw_line; output=stdout, err=stderr) → Bool
+
+Execute a single REPL line. Returns `true` to keep the session running, or
+`false` when `exit`/`quit` terminates the session.
+"""
+function _exec_repl_line!(
+    s::Session,
+    app::Entry,
+    raw_line::AbstractString;
+    output::IO=stdout,
+    err::IO=stderr,
+)::Bool
+    line = _strip_csi_escapes(raw_line)
+    isempty(strip(line)) && return true
+
+    args = _split_repl_line(line)
+    try
+        repl_dispatch(s, app, args)
+    catch e
+        if e isa InterruptException
+            println(output, "Goodbye!")
+            return false
+        elseif e isa ParseError || e isa DispatchError || e isa CliError
+            printstyled(err, "Error: "; bold=true, color=:red)
+            println(err, e.message)
+        else
+            printstyled(err, "Error: "; bold=true, color=:red)
+            println(err, sprint(showerror, e))
+        end
+    end
+    return true
+end
+
+"""
     start_repl()
 
 Launch the interactive REPL with a `friedman>` prompt.
@@ -244,10 +286,12 @@ function start_repl()
     session_clear!(s)
     # F63: build completion candidates once at session start
     idx = _reset_completion_index!(app)
-    try
+    lineedit_ready = try
         _init_completion_provider()
+        true
     catch
-        # REPL stdlib not available (e.g. compiled sysimage); tab completion disabled
+        # REPL stdlib not available; fall back to readline loop
+        false
     end
     # Keep index on provider if LineEdit path is active (rebuild after init)
     _COMPLETION_INDEX[] = idx
@@ -256,35 +300,40 @@ function start_repl()
     println("Type commands as you would on the command line. Type 'exit' to quit.")
     println()
 
+    if lineedit_ready && stdin isa Base.TTY && stdout isa Base.TTY &&
+       stderr isa Base.TTY && lowercase(get(ENV, "TERM", "")) != "dumb"
+        try
+            Base.invokelatest(_run_lineedit_repl, app, s, idx)
+            return nothing
+        catch
+            # Fall back to readline loop if terminal initialization fails
+        end
+    end
     _repl_readline_loop(app, s)
+    return nothing
 end
 
-function _repl_readline_loop(app::Entry, s::Session)
+function _repl_readline_loop(
+    app::Entry,
+    s::Session;
+    input::IO=stdin,
+    output::IO=stdout,
+    err::IO=stderr,
+)
     while true
         try
-            printstyled("friedman> "; color=:blue, bold=true)
-            line = readline(stdin)
-            isempty(strip(line)) && continue
-
-            args = _split_repl_line(line)
-            try
-                repl_dispatch(s, app, args)
-            catch e
-                if e isa InterruptException
-                    println("Goodbye!")
-                    return
-                elseif e isa ParseError || e isa DispatchError
-                    printstyled(stderr, "Error: "; bold=true, color=:red)
-                    println(stderr, e.message)
-                else
-                    printstyled(stderr, "Error: "; bold=true, color=:red)
-                    println(stderr, sprint(showerror, e))
-                end
+            printstyled(output, "friedman> "; color=:blue, bold=true)
+            flush(output)
+            if eof(input)
+                println(output, "\nGoodbye!")
+                return nothing
             end
+            line = readline(input)
+            _exec_repl_line!(s, app, line; output=output, err=err) || return nothing
         catch e
             if e isa EOFError || e isa InterruptException
-                println("\nGoodbye!")
-                return
+                println(output, "\nGoodbye!")
+                return nothing
             end
             rethrow()
         end
@@ -308,10 +357,10 @@ function _split_repl_line(line::String)
         if line[i] == '"'
             j = findnext('"', line, i + 1)
             if isnothing(j)
-                push!(tokens, line[i+1:end])
+                push!(tokens, line[(i + 1):end])
                 break
             end
-            push!(tokens, line[i+1:j-1])
+            push!(tokens, line[(i + 1):(j - 1)])
             i = j + 1
         else
             j = findnext(isspace, line, i)
@@ -319,7 +368,7 @@ function _split_repl_line(line::String)
                 push!(tokens, line[i:end])
                 break
             end
-            push!(tokens, line[i:j-1])
+            push!(tokens, line[i:(j - 1)])
             i = j
         end
     end
@@ -382,29 +431,36 @@ end
 Return completion candidates for the current partial input line.
 Uses a precomputed `CompletionIndex` (F63) when available.
 """
-function complete_command(app::Entry, partial::String; index::Union{Nothing,CompletionIndex}=nothing)
+function complete_command(
+    app::Entry,
+    partial::String;
+    index::Union{Nothing,CompletionIndex}=nothing,
+)
     idx = isnothing(index) ? _completion_index(app) : index
     tokens = _split_repl_line(partial)
     isempty(tokens) && return get(idx.children, String[], String[])
 
+    has_trailing_space = !isempty(partial) && isspace(last(partial))
+    consumed = has_trailing_space ? tokens : tokens[1:(end - 1)]
+    prefix = has_trailing_space ? "" : tokens[end]
+
     path = String[]
-    for tok in tokens[1:end-1]
+    for tok in consumed
+        if haskey(idx.leaf_opts, path)
+            continue
+        end
         startswith(tok, "-") && return String[]
         if haskey(idx.children, path) && tok in idx.children[path]
             push!(path, tok)
-            if haskey(idx.leaf_opts, path)
-                return _filter_prefix(idx.leaf_opts[path], tokens[end])
-            end
         else
             return String[]
         end
     end
 
-    prefix = tokens[end]
-    if startswith(prefix, "-")
-        # Completing options for a leaf reached by path (no trailing partial subcmd)
-        return haskey(idx.leaf_opts, path) ? _filter_prefix(idx.leaf_opts[path], prefix) : String[]
+    if haskey(idx.leaf_opts, path)
+        return _filter_prefix(idx.leaf_opts[path], prefix)
     end
+    startswith(prefix, "-") && return String[]
     kids = get(idx.children, path, String[])
     return _filter_prefix(kids, prefix)
 end
@@ -422,27 +478,78 @@ end
 
 # FriedmanCompletionProvider is defined at runtime when REPL is loaded
 # to avoid requiring REPL as a compile-time dependency
+const _REPL_PKG_ID = Base.PkgId(
+    Base.UUID("3fa0cd96-eef1-5676-8a61-b3b8758bbffb"),
+    "REPL",
+)
+
 function _init_completion_provider()
-    REPLmod = Base.require(Base.PkgId(Base.UUID("3fa0cd96-eef1-5676-8a61-b3b8758bbdc5"), "REPL"))
+    isdefined(@__MODULE__, :FriedmanCompletionProvider) && return nothing
+    REPLmod = Base.require(_REPL_PKG_ID)
     LineEditmod = getfield(REPLmod, :LineEdit)
+    Terminalsmod = getfield(REPLmod, :Terminals)
     CompletionProvider = getfield(LineEditmod, :CompletionProvider)
 
     @eval begin
+        const _REPL = $REPLmod
         const _LineEdit = $LineEditmod
+        const _Terminals = $Terminalsmod
 
         struct FriedmanCompletionProvider <: $CompletionProvider
             app::Entry
             index::CompletionIndex
         end
 
-        function $_LineEdit.complete_line(c::FriedmanCompletionProvider, state)
-            partial = String($_LineEdit.buffer(state))
+        function $LineEditmod.complete_line(c::FriedmanCompletionProvider, state)
+            partial = String($LineEditmod.buffer(state))
             completions = complete_command(c.app, partial; index=c.index)
+            has_trailing_space = !isempty(partial) && isspace(last(partial))
             tokens = _split_repl_line(partial)
-            last_token = isempty(tokens) ? "" : tokens[end]
+            last_token = (isempty(tokens) || has_trailing_space) ? "" : tokens[end]
             return completions, last_token, !isempty(completions)
         end
+
+        function _run_lineedit_repl(app::Entry, s::Session, idx::CompletionIndex)
+            term = _Terminals.TTYTerminal(get(ENV, "TERM", "xterm"), stdin, stdout, stderr)
+            panel = _LineEdit.Prompt(
+                "friedman> ";
+                prompt_prefix="\e[1m\e[34m",
+                prompt_suffix="\e[0m",
+                complete=FriedmanCompletionProvider(app, idx),
+                on_enter=Returns(true),
+            )
+            hp = _REPL.REPLHistoryProvider(Dict{Symbol,Any}(:friedman => panel))
+            _REPL.history_reset_state(hp)
+            panel.hist = hp
+            panel.on_done = (mi, buf, ok) -> begin
+                if !ok
+                    _LineEdit.transition(mi, :abort)
+                    println(stdout, "Goodbye!")
+                    return nothing
+                end
+                line = String(take!(buf))
+                if !isempty(strip(line))
+                    _REPL.add_history(hp, line)
+                end
+                _LineEdit.reset_state(mi)
+                if !_exec_repl_line!(s, app, line; output=stdout, err=stderr)
+                    _LineEdit.transition(mi, :abort)
+                end
+                return nothing
+            end
+            main_keymap = _LineEdit.setup_keymap([
+                panel.keymap_dict,
+                _LineEdit.history_keymap,
+                _LineEdit.default_keymap,
+                _LineEdit.escape_defaults,
+            ])
+            panel.keymap_dict = main_keymap
+            modal = _LineEdit.ModalInterface([panel])
+            _LineEdit.run_interface(term, modal)
+            return nothing
+        end
     end
+    return nothing
 end
 
 const SESSION = Session()

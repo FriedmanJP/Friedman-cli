@@ -5,6 +5,9 @@
 if !isdefined(@__MODULE__, :_split_card_and_model)
     include(joinpath(dirname(@__DIR__), "..", "src", "commands", "shared.jl"))
 end
+if !isdefined(@__MODULE__, :_load_dcegm_source)
+    include(joinpath(dirname(@__DIR__), "..", "src", "commands", "dsge.jl"))
+end
 
 @testset "_split_card_and_model (CARD-W2 #210)" begin
     @testset "no stanza header — whole file is the model" begin
@@ -377,5 +380,47 @@ end
     write(f4, "using LinearAlgebra: I\nconst k::Float64 = 1.0\n" *
                 "MacroEconometricModels.load_ha_example(:huggett)\n")
     @test _load_ha_model(f4) isa MacroEconometricModels.ModelSpec
+end
+
+@testset "relative .jl model file paths & SystemError message (#231)" begin
+    mktempdir() do dir
+        cd(dir) do
+            write(
+                "rel_ra.jl",
+                "@dsge begin\n    parameters: rho = 0.9\n    endogenous: Y\n" *
+                "    exogenous: e\n    Y[t] = rho * Y[t-1] + e[t]\nend\n",
+            )
+            @test _load_dsge_model("./rel_ra.jl") isa MacroEconometricModels.ModelSpec
+            @test _load_dsge_model("rel_ra.jl") isa MacroEconometricModels.ModelSpec
+
+            write("rel_ha.jl", "MacroEconometricModels.load_ha_example(:huggett)\n")
+            @test _load_ha_model("./rel_ha.jl") isa MacroEconometricModels.ModelSpec
+            @test _load_ha_model("rel_ha.jl") isa MacroEconometricModels.ModelSpec
+
+            write(
+                "rel_dcegm.jl",
+                "MacroEconometricModels.dcegm_retirement_model()\n",
+            )
+            @test _load_dcegm_source("./rel_dcegm.jl") isa
+                MacroEconometricModels.DCEGMProblem
+            @test _load_dcegm_source("rel_dcegm.jl") isa
+                MacroEconometricModels.DCEGMProblem
+        end
+    end
+
+    # SystemError in _dsge_eval_invalid reports file-open failure without @dsge syntax hint
+    err = try
+        _dsge_eval_invalid(
+            SystemError("opening file \"missing.jl\"", 2),
+            "could not evaluate the DSGE model file 'missing.jl'";
+            hint="the file should be an `@dsge begin … end` block",
+        )
+        nothing
+    catch e
+        e
+    end
+    @test err isa CliError && err.code == "config/invalid"
+    @test startswith(err.message, "could not open model file:")
+    @test isempty(err.hint)
 end
 end

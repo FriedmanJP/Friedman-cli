@@ -11,18 +11,38 @@ function _completions_root()::String
     return joinpath(dirname(dirname(@__DIR__)), "completions")
 end
 
-function _print_completions(; shell::String="bash", output::String="", format::String="table")
+const _BUNDLED_COMPLETIONS = let
+    d = Dict{String,String}()
+    root = joinpath(dirname(dirname(@__DIR__)), "completions")
+    for (sh, fname) in _COMPLETION_FILES
+        p = joinpath(root, fname)
+        if isfile(p)
+            include_dependency(p)
+            d[sh] = read(p, String)
+        end
+    end
+    d
+end
+
+function _print_completions(;
+    shell::String="bash", output::String="", format::String="table",
+)
     haskey(_COMPLETION_FILES, shell) || throw(CliError(
         "usage/bad-shell",
         "unknown shell '$shell' (want bash|zsh|fish)",
     ))
     path = joinpath(_completions_root(), _COMPLETION_FILES[shell])
-    isfile(path) || throw(CliError(
-        "env/completions-missing",
-        "completion file not found: $path",
-        hint="run: julia --project docs/generate_cli_reference.jl",
-    ))
-    text = read(path, String)
+    text = if isfile(path)
+        read(path, String)
+    elseif haskey(_BUNDLED_COMPLETIONS, shell)
+        _BUNDLED_COMPLETIONS[shell]
+    else
+        throw(CliError(
+            "env/completions-missing",
+            "completion file not found: $path",
+            hint="run: julia --project docs/generate_cli_reference.jl",
+        ))
+    end
     if !isempty(output)
         open(output, "w") do io
             write(io, text)

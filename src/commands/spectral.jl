@@ -21,6 +21,11 @@ function spectral_specs()::Vector{CommandSpec}
     plot_opts = [OUTPUT_OPTIONS; PLOT_OPTIONS]
     plot_flags = copy(PLOT_FLAGS)
 
+    log_scale_flag = FlagSpec(
+        name="log-scale",
+        description="Plot spectral density on a log10 vertical axis (default: linear)",
+    )
+
     return [
         CommandSpec(
             path=["spectral", "acf"],
@@ -54,7 +59,7 @@ function spectral_specs()::Vector{CommandSpec}
                            description="Column index (1-based)"),
                 plot_opts...,
             ],
-            flags=plot_flags,
+            flags=[plot_flags; log_scale_flag],
             tables=[TableSpec(name=:periodogram,
                               description="Raw periodogram power by Fourier frequency")],
             category="spectral",
@@ -74,7 +79,7 @@ function spectral_specs()::Vector{CommandSpec}
                            description="Smoothing bandwidth"),
                 plot_opts...,
             ],
-            flags=plot_flags,
+            flags=[plot_flags; log_scale_flag],
             tables=[TableSpec(name=:spectral_density,
                               description="Estimated spectral density with confidence band by frequency")],
             category="spectral",
@@ -174,7 +179,8 @@ end
 
 function _spectral_periodogram(; data::String, column::Int=1,
                                 output::String="", format::String="table",
-                                plot::Bool=false, plot_save::String="")
+                                plot::Bool=false, plot_save::String="",
+                                log_scale::Bool=false)
     df = load_data(data)
     vnames = variable_names(df)
     y = df_to_matrix(df)[:, column]
@@ -189,7 +195,8 @@ function _spectral_periodogram(; data::String, column::Int=1,
         Power     = round.(result.density; digits=6),
     )
     output_result(peri_df; format=Symbol(format), output=output, title="Periodogram")
-    _maybe_plot(result; plot=plot, plot_save=plot_save)
+    plot_kw = log_scale ? (; log_scale=true) : NamedTuple()
+    _maybe_plot(result; plot=plot, plot_save=plot_save, plot_kw...)
     return result
 end
 
@@ -197,7 +204,8 @@ function _spectral_density(; data::String, column::Int=1,
                             method::String="welch",
                             bandwidth::Union{Float64,Nothing}=nothing,
                             output::String="", format::String="table",
-                            plot::Bool=false, plot_save::String="")
+                            plot::Bool=false, plot_save::String="",
+                            log_scale::Bool=false)
     df = load_data(data)
     vnames = variable_names(df)
     y = df_to_matrix(df)[:, column]
@@ -216,7 +224,8 @@ function _spectral_density(; data::String, column::Int=1,
         CI_Upper  = round.(result.ci_upper; digits=6),
     )
     output_result(sd_df; format=Symbol(format), output=output, title="Spectral Density")
-    _maybe_plot(result; plot=plot, plot_save=plot_save)
+    plot_kw = log_scale ? (; log_scale=true) : NamedTuple()
+    _maybe_plot(result; plot=plot, plot_save=plot_save, plot_kw...)
     return result
 end
 

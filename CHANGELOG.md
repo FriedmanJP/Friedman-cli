@@ -4,47 +4,57 @@ All notable changes to Friedman-cli are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to
 Semantic Versioning. Releases before v0.6.0 are recorded in the git tag history.
 
-## [1.0.1] — 2026-10-01 — the model card config format
+## [1.0.2] — 2026-10-16 — MEMs 1.0.1, tidy-surface migration, help audit & runtime fixes (#226)
 
-Priors, OccBin bounds, GMM, SMM and SUR/3SLS specifications can now be written as
-a **model card**: a plain-text file of `key: value` stanzas that lowers into the
-same dict shapes the existing TOML path already produces. **Purely additive** — no
-leaf added (477), no path renamed, no alias, no envelope change, no MEMs pin move.
+MacroEconometricModels pin **1.0.0 → 1.0.1** (`#221`–`#226`), tidy-surface routing
+(`#216`, `#217`, `#220`), full `--help` accuracy sweep (`#227`), and fixes for REPL
+tab completion (`#228`), standalone binary assets & `irf var` plots (`#229`), and
+relative/tilde model-file paths (`#231`). 477 leaves / 21 top-level unchanged.
 
-- **Grammar** (`src/model_card.jl`): exactly seven stanza headers; body lines
-  must be indented; a stanza closes at column 0. A `.jl` model file's preamble may
-  carry only `priors:` and `constraints:`.
-- **Model-file form:** stanzas go **above** the `@dsge` block (one below is a loud
-  refusal); with two blocks the last one wins.
-- **Flags:** `--prior` / `--constraint` are repeatable on the Bayesian and the four
-  OccBin leaves; `--config <path>` carries a card on `estimate regression
-  gmm|smm|sur|3sls`. Priors and constraints reach their leaves three ways — flag,
-  stanza and model file — merged into one set, with a clash naming the parameter and
-  both sources.
-- **Three-source rule:** `.toml` is always TOML even when broken, a card misnamed
-  `.toml` is reported as broken TOML pointing at the stanza line, and `--set` /
-  `--config-json` against a card are refused with a hint.
-- **Silent-drop fixes** found while building this, all now typed refusals rather
-  than exit 0 with a wrong or empty result: the three sources were additive in name
-  only; an empty `gmm lp:` stanza produced a GMM with **zero moment conditions** and
-  a J-test of 0.0 on 0 degrees of freedom; a missing `instruments:` list left the
-  IV path writing instead of typing.
+### MacroEconometricModels 1.0.1 (#221–#225)
 
-### Fixed
+- **MEMs `=1.0.1` pin (#221):** `Project.toml` and `test/integration/Project.toml`
+  moved to `=1.0.1`. Native JLD2 serialization registry grows **352 → 353 types**
+  (`NowcastForecast` added upstream, `MEMs#785`). Plot-coverage baseline updated to
+  **182** `plot_result` methods (`NowcastForecast` added).
+- **`nowcast bridge` typed forecast (#222):** upstream `forecast(::NowcastBridge, h; target_var=nothing)`
+  now returns `NowcastForecast{T}` (`MEMs#785`, fields `values`, `h`, `target_var`, `varnames`,
+  forwarding `size`/`length`/`getindex`/`iterate` to `values`). Mock mirror added to
+  `test/mocks.jl` (`check_mock_surface` 0 hard violations).
+- **`dsge ct` KFE singularity guard (#223):** upstream `ct_kfe` (`MEMs#784`) now checks
+  `!issuccess(F)` and `rcond < eps(T)` before solving, throwing `SingularSystemError`
+  instead of returning NaN/Inf on singular transition matrices. Mock `ct_kfe` and
+  `:ct_kfe` solver mirror this (`SingularSystemError` → `model/singular`, exit 5).
+- **`spectral periodogram` / `spectral density` `--log-scale` (#224):** new `--log-scale`
+  boolean flag on both leaves, forwarded as `log_scale=log_scale` to `_maybe_plot` →
+  `plot_result(::SpectralDensityResult; log_scale=...)` (`MEMs#786`).
 
-- `dsge solve` / `dsge irf` exited **1** (internal error, no envelope) on a
-  user-facing `ArgumentError` from an OccBin constraint — including a two-sided bound
-  like `-1.0 <= i[t] <= 2.0`, which those two solvers cannot express at all. Now a
-  typed `config/invalid` (exit 4) naming the variable and pointing at
-  `dsge perfect-foresight` / `dsge steady-state`, which do accept the form. Found by
-  running the real-MEMs integration suite for the first time in this series; it had
-  survived fourteen review rounds because no test on any tier built that input.
-- The `.jl`-preamble refusal listed all seven stanza headers where only two are
-  accepted there.
-- The shipped TOML DSGE example was never runnable — its exogenous shock was indexed
-  at `[t+1]`, which is rejected (`exogenous shock eps_a can only be indexed at [t]`).
+### Fixed (#228, #229, #231)
 
-## [Unreleased] — tidy-surface migration waves 1+2 (#216, #217)
+- **REPL tab completion, piped stdin & arrow keys (#228):** fixed `REPL` stdlib UUID in
+  `_init_completion_provider()` (`3fa0cd96-eef1-5676-8a61-b3b8758bbffb` so
+  `Base.loaded_modules` lookup succeeds and `LineEdit.complete_line` is registered),
+  fixed `Prompt` completion-provider wiring on `ModalInterface`, preserved trailing-space
+  context in `_complete_line` so subcommand completion triggers after `"friedman estimate "`,
+  exited cleanly when stdin is piped/non-TTY without `MethodError` on `RawFD(-1)`, and
+  stripped raw CSI arrow escape sequences (`\e[A`–`\e[D`) in the fallback `readline` loop.
+- **Standalone binary `--plot-save`, `completions` & `irf var` plots (#229):** embedded
+  D3.js bundle (`_BUNDLED_D3_SOURCE`) at compile time in `src/commands/shared.jl` so
+  `--plot` / `--plot-save` work when the MacroEconometricModels source tree is absent at
+  runtime; embedded bash/zsh/fish completion scripts (`_BUNDLED_COMPLETIONS`) in
+  `src/commands/completions.jl` and copied `completions/` into the release staging dir in
+  `build_release.jl`; wired `_maybe_plot` into `irf var` early-return branches for
+  `--id arias|narrative-adrr`, `--id uhlig`, and `--identified-set` (`--id sign`).
+- **Relative and `~`-prefixed `.jl` model files & configs (#231):** `_load_dsge_model`,
+  `_load_ha_model`, and `_load_dcegm_source` now resolve paths via `_resolve_path` before
+  `Base.include` / `include_string` (`Base.include(mod, relpath)` resolves relative to the
+  module's directory `src/`, not `pwd()`, which misclassified relative paths like
+  `models/rbc.jl` as `@dsge` evaluation errors); `expanduser` added to
+  `_split_card_and_model`, `_model_card_stanzas_for`, `load_config`, and `merge_config`;
+  `_dsge_eval_invalid` rethrows `SystemError` instead of misreporting missing files as
+  invalid `@dsge` specs.
+
+### Tidy-surface migration waves 1+2 (#216, #217, #220)
 
 Central `_emit_result` router (`src/commands/shared.jl`): coefficient-bearing
 results emit via upstream `DataFrame(model)`, array results via upstream
@@ -83,7 +93,7 @@ permissive than real converts a production crash into a green suite).
   TIDY-14) and the vol `variance|volatility` table (sqrt transform, different
   data — deliberate C051 exception kept).
 
-## [Unreleased] — handler-logic follow-ups to #227
+### Handler-logic follow-ups to #227
 
 - `estimate multivariate lp --method state --transition`: locked to
   `logistic` (`choices=["logistic"]`) — upstream `estimate_state_lp`
@@ -110,7 +120,7 @@ permissive than real converts a production crash into a green suite).
   `residuals = idiosyncratic`); threading `r` would only add an untyped
   `r<q` error path. The option text says so.
 
-## [Unreleased] — --help description accuracy (#227)
+### `--help` description accuracy (#227)
 
 Every `--help` sentence audited against handler bodies and MEMs 1.0.0
 (18-slice read-only swarm) and rewritten where non-factual. No leaves
@@ -151,6 +161,46 @@ CLI-side guard touches only (see below).
   summaries describe the command, never the argument; plain user
   language — no `upstream`/`reserved`/`kv`/`envelope`/issue-pointer
   jargon; every advertised value works; ignored knobs say so.
+
+## [1.0.1] — 2026-10-01 — the model card config format
+
+Priors, OccBin bounds, GMM, SMM and SUR/3SLS specifications can now be written as
+a **model card**: a plain-text file of `key: value` stanzas that lowers into the
+same dict shapes the existing TOML path already produces. **Purely additive** — no
+leaf added (477), no path renamed, no alias, no envelope change, no MEMs pin move.
+
+- **Grammar** (`src/model_card.jl`): exactly seven stanza headers; body lines
+  must be indented; a stanza closes at column 0. A `.jl` model file's preamble may
+  carry only `priors:` and `constraints:`.
+- **Model-file form:** stanzas go **above** the `@dsge` block (one below is a loud
+  refusal); with two blocks the last one wins.
+- **Flags:** `--prior` / `--constraint` are repeatable on the Bayesian and the four
+  OccBin leaves; `--config <path>` carries a card on `estimate regression
+  gmm|smm|sur|3sls`. Priors and constraints reach their leaves three ways — flag,
+  stanza and model file — merged into one set, with a clash naming the parameter and
+  both sources.
+- **Three-source rule:** `.toml` is always TOML even when broken, a card misnamed
+  `.toml` is reported as broken TOML pointing at the stanza line, and `--set` /
+  `--config-json` against a card are refused with a hint.
+- **Silent-drop fixes** found while building this, all now typed refusals rather
+  than exit 0 with a wrong or empty result: the three sources were additive in name
+  only; an empty `gmm lp:` stanza produced a GMM with **zero moment conditions** and
+  a J-test of 0.0 on 0 degrees of freedom; a missing `instruments:` list left the
+  IV path writing instead of typing.
+
+### Fixed
+
+- `dsge solve` / `dsge irf` exited **1** (internal error, no envelope) on a
+  user-facing `ArgumentError` from an OccBin constraint — including a two-sided bound
+  like `-1.0 <= i[t] <= 2.0`, which those two solvers cannot express at all. Now a
+  typed `config/invalid` (exit 4) naming the variable and pointing at
+  `dsge perfect-foresight` / `dsge steady-state`, which do accept the form. Found by
+  running the real-MEMs integration suite for the first time in this series; it had
+  survived fourteen review rounds because no test on any tier built that input.
+- The `.jl`-preamble refusal listed all seven stanza headers where only two are
+  accepted there.
+- The shipped TOML DSGE example was never runnable — its exogenous shock was indexed
+  at `[t+1]`, which is rejected (`exogenous shock eps_a can only be indexed at [t]`).
 
 ## [1.0.0] — 2026-09-20 — v1.0 freeze on MEMs 1.0.0 + Julia 1.13 (v1.0.0 program)
 

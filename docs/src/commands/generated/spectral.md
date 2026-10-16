@@ -74,6 +74,7 @@ Spectral density estimation
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
+| `--log-scale` | — | Plot spectral density on a log10 vertical axis (default: linear) |
 
 **Output tables:** `spectral_density` (Estimated spectral density with confidence band by frequency)
 
@@ -97,6 +98,7 @@ Raw periodogram
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
+| `--log-scale` | — | Plot spectral density on a log10 vertical axis (default: linear) |
 
 **Output tables:** `periodogram` (Raw periodogram power by Fourier frequency)
 

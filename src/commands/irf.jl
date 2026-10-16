@@ -314,13 +314,17 @@ function _irf_var(; data::String="", result=nothing, model=nothing, lags=nothing
     # Arias identification handled separately (narrative-adrr shares the Arias
     # pipeline via identify_narrative — same AriasSVARResult shape)
     if id in ("arias", "narrative-adrr")
-        arias = _var_irf_arias(model, config, horizons, varnames, shock; format=format, output=output, estimator=id)
+        arias = _var_irf_arias(model, config, horizons, varnames, shock;
+                               format=format, output=output, estimator=id,
+                               plot=plot, plot_save=plot_save)
         return (; model, result=arias)
     end
 
     # Uhlig identification handled separately
     if id == "uhlig"
-        uhlig = _var_irf_uhlig(model, config, horizons, varnames, shock; format=format, output=output)
+        uhlig = _var_irf_uhlig(model, config, horizons, varnames, shock;
+                               format=format, output=output,
+                               plot=plot, plot_save=plot_save)
         return (; model, result=uhlig)
     end
 
@@ -348,7 +352,11 @@ function _irf_var(; data::String="", result=nothing, model=nothing, lags=nothing
             lower, upper = summary == "joint-band" ? joint_band(set) : sup_t_band(set)
             sum_label = " [$summary]"
         end
-        _status("Sign-Identified Set: $(set.n_accepted)/$(set.n_total) accepted ($(round(set.acceptance_rate*100; digits=1))%)")
+        acc_pct = round(set.acceptance_rate * 100; digits=1)
+        _status(
+            "Sign-Identified Set: $(set.n_accepted)/$(set.n_total) accepted ($acc_pct%)",
+        )
+        _maybe_plot(set; plot=plot, plot_save=plot_save)
         # Set arrays carry `horizons` rows, impact-first — label them 0..H-1
         # (build_irf_table's default), not 0..H.
         irf_df = build_irf_table(med, lower, upper, varnames, shock)
@@ -430,8 +438,10 @@ function _irf_var(; data::String="", result=nothing, model=nothing, lags=nothing
 end
 
 function _var_irf_arias(model, config::String, horizons::Int,
-                        varnames::Vector{String}, shock::Int; format::String="table", output::String="",
-                        estimator::String="arias")
+                        varnames::Vector{String}, shock::Int;
+                        format::String="table", output::String="",
+                        estimator::String="arias",
+                        plot::Bool=false, plot_save::String="")
     cfg, restrictions = _load_svar_restrictions(config, nvars(model),
         estimator == "narrative-adrr" ? "Narrative-ADRR" : "Arias")
     if estimator == "narrative-adrr"
@@ -456,6 +466,7 @@ function _var_irf_arias(model, config::String, horizons::Int,
                        "of the draws; the weighted IRF rests on very few of them\n";
                        color=:yellow)
     end
+    _maybe_plot(result; plot=plot, plot_save=plot_save)
     shock_name = _shock_name(varnames, shock)
     irf_df = build_irf_table(irf_mean(result), nothing, nothing, varnames, shock)
     output_result(irf_df; format=Symbol(format), output=output,
@@ -470,7 +481,9 @@ function _var_irf_arias(model, config::String, horizons::Int,
 end
 
 function _var_irf_uhlig(model, config::String, horizons::Int,
-                        varnames::Vector{String}, shock::Int; format::String="table", output::String="")
+                        varnames::Vector{String}, shock::Int;
+                        format::String="table", output::String="",
+                        plot::Bool=false, plot_save::String="")
     cfg, restrictions = _load_svar_restrictions(config, nvars(model), "Uhlig")
     uhlig_params = get_uhlig_params(cfg)
     result = identify_uhlig(model, restrictions, horizons;
@@ -483,6 +496,7 @@ function _var_irf_uhlig(model, config::String, horizons::Int,
         _status("  Shock $si penalty: $(round(sp; digits=6))")
     end
     _status()
+    _maybe_plot(result; plot=plot, plot_save=plot_save)
     irf_df = build_irf_table(result.irf, nothing, nothing, varnames, shock)
     shock_name = _shock_name(varnames, shock)
     output_result(irf_df; format=Symbol(format), output=output,

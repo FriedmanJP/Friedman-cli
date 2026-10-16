@@ -7672,6 +7672,22 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             r = run_json(["nowcast", "forecast", multi, "--factors", "1",
                           "--lags", "1", "--horizons", "3"])
             assert_envelope_ok(r; label="nowcast forecast")
+
+            rb = run_json(["nowcast", "forecast", multi, "--method", "bridge",
+                           "--monthly-vars", "4", "--quarterly-vars", "1",
+                           "--horizons", "3"])
+            assert_envelope_ok(rb; label="nowcast forecast bridge")
+            t = named_table(rb.doc, :nowcast_forecast)
+            rows = [collect(row) for row in table_rows(t)]
+            @test length(rows) == 3
+            # Bridge forecasts only the target variable (column 6 after Horizon);
+            # non-target series (columns 2..5) are NaN -> null in JSON, and the
+            # target column is constant across horizons (MEMs 1.0.1 / #222).
+            for row in rows
+                @test all(isnothing, row[2:5])
+                @test row[6] isa Real && isfinite(Float64(row[6]))
+            end
+            @test Float64(rows[1][6]) == Float64(rows[2][6]) == Float64(rows[3][6])
         end
 
         @testset "nowcast tolerates ragged-edge NaN; strict leaves reject it" begin
@@ -10034,9 +10050,9 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                             "--periods", "2"]).code == 2
 
             # I=12 is below the robust grid floor: ct_kfe's UMFPACK factor hits an
-            # exact-zero pivot on Linux (SingularException, exit 5) while the same
-            # call converges on macOS. I>=16 verified on both (PR #205 debug sweep);
-            # stay on the leaf default 40 (same as the dsge ct solve T3 above).
+            # exact-zero pivot on Linux (SingularSystemError → model/singular, exit 5)
+            # while the same call converges on macOS. I>=16 verified on both
+            # (PR #205 debug sweep); stay on the leaf default 40.
             ct = run_json(["data", "simulate", "ct", "--grid-size", "40", "--periods", "4",
                            "--max-iter", "40", "--seed", "1"])
             assert_envelope_ok(ct; label="data simulate ct")

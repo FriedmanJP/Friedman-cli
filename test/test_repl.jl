@@ -601,6 +601,56 @@ end
         completions = Friedman.complete_command(app, "nonexistent sub")
         @test isempty(completions)
     end
+
+    @testset "trailing-space completions (#228)" begin
+        # Trailing space after node name completes child subcommands
+        kids = Friedman.complete_command(app, "estimate ")
+        @test kids == ["multivariate"]
+        subkids = Friedman.complete_command(app, "estimate multivariate ")
+        @test Set(subkids) == Set(["var", "bvar", "vecm"])
+        # Trailing space after leaf name completes leaf options
+        leaf_opts = Friedman.complete_command(app, "estimate multivariate var ")
+        @test "--lags" in leaf_opts
+        @test "--format" in leaf_opts
+        @test "--plot" in leaf_opts
+        # Option completion after a positional argument
+        after_pos = Friedman.complete_command(
+            app, "estimate multivariate var data.csv --la",
+        )
+        @test after_pos == ["--lags"]
+    end
+
+    @testset "REPL stdlib UUID and LineEdit completion provider (#228)" begin
+        @test Friedman._REPL_PKG_ID.uuid ==
+            Base.UUID("3fa0cd96-eef1-5676-8a61-b3b8758bbffb")
+        @test Friedman._init_completion_provider() === nothing
+        @test isdefined(Friedman, :FriedmanCompletionProvider)
+    end
+end
+
+@testset "REPL readline loop & CSI handling (#228)" begin
+    app = Friedman.build_app()
+
+    @testset "piped stdin EOF exits cleanly without spinning" begin
+        s = Friedman.Session()
+        inp = IOBuffer("estimate multivariate var data.csv\n")
+        out = IOBuffer()
+        err = IOBuffer()
+        Friedman._repl_readline_loop(app, s; input=inp, output=out, err=err)
+        @test s.results[:var] == "mock_var_model"
+        @test occursin("Goodbye!", String(take!(out)))
+        @test isempty(take!(err))
+    end
+
+    @testset "bare CSI arrow sequences are stripped in readline fallback" begin
+        s = Friedman.Session()
+        inp = IOBuffer("\e[A\e[B\e[C\e[Destimate multivariate var data.csv\nexit\n")
+        out = IOBuffer()
+        err = IOBuffer()
+        Friedman._repl_readline_loop(app, s; input=inp, output=out, err=err)
+        @test s.results[:var] == "mock_var_model"
+        @test isempty(take!(err))
+    end
 end
 
 @testset "REPL integration" begin

@@ -84,12 +84,15 @@ Load and validate a TOML configuration file.
 """
 function load_config(path::String)
     _validate_input_path(path)
-    isfile(path) || throw(CliError("config/file-not-found", "config file not found: $path"))
+    resolved = _expanduser(path)
+    isfile(resolved) ||
+        throw(CliError("config/file-not-found", "config file not found: $path"))
     cfg = try
-        TOML.parsefile(path)
+        TOML.parsefile(resolved)
     catch e
         e isa CliError && rethrow()
-        throw(CliError("config/malformed-toml", "failed to parse config file '$path': $(sprint(showerror, e))"))
+        throw(CliError("config/malformed-toml",
+                       "failed to parse config file '$path': $(sprint(showerror, e))"))
     end
     validate_config_schema!(cfg; strict=_CONFIG_STRICT[])
     return cfg
@@ -107,9 +110,11 @@ function merge_config(path::String=""; config_json::String="",
     if !isempty(path)
         # load without double-validating intermediate — validate once at end
         _validate_input_path(path)
-        isfile(path) || throw(CliError("config/file-not-found", "config file not found: $path"))
+        resolved = _expanduser(path)
+        isfile(resolved) ||
+            throw(CliError("config/file-not-found", "config file not found: $path"))
         file_cfg = try
-            TOML.parsefile(path)
+            TOML.parsefile(resolved)
         catch e
             e isa CliError && rethrow()
             throw(CliError("config/malformed-toml",

@@ -4370,7 +4370,9 @@ function _load_dcegm_source(model::String; n_periods=20, beta=0.98, r=1.0, wage=
             curvature=curvature)
     end
     _validate_input_path(model)
-    isfile(model) || throw(CliError("data/file-not-found", "DCEGM model file not found: $model"))
+    resolved = _resolve_path(model)
+    isfile(resolved) ||
+        throw(CliError("data/file-not-found", "DCEGM model file not found: $model"))
     ext = lowercase(splitext(model)[2])
     ext == ".jl" || throw(CliError("usage/invalid-option",
         "DCEGM model must be builtin `retirement` or a .jl file (got '$ext')"))
@@ -4388,7 +4390,8 @@ function _load_dcegm_source(model::String; n_periods=20, beta=0.98, r=1.0, wage=
     card === nothing || _model_card_stanza_policy(_model_card_stanzas(model))
     mod = _dsge_sandbox()
     result = try
-        card === nothing ? Base.include(mod, model) : include_string(mod, model_src, model)
+        card === nothing ? Base.include(mod, resolved) :
+            include_string(mod, model_src, resolved)
     catch e
         e isa CliError && rethrow()
         _dsge_eval_invalid(e, "could not evaluate the DCEGM model file '$model'";

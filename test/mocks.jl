@@ -2798,7 +2798,12 @@ struct PlotOutput
     html::String
 end
 
-plot_result(x; kwargs...) = PlotOutput("<html><body>mock plot for $(typeof(x))</body></html>")
+const _LAST_PLOT_KWARGS = Ref{Dict{Symbol,Any}}(Dict{Symbol,Any}())
+
+function plot_result(x; kwargs...)
+    _LAST_PLOT_KWARGS[] = Dict{Symbol,Any}(kwargs)
+    return PlotOutput("<html><body>mock plot for $(typeof(x))</body></html>")
+end
 save_plot(p::PlotOutput, path::String) = (write(path, p.html); path)
 display_plot(p::PlotOutput) = nothing  # no-op in tests
 
@@ -2851,12 +2856,38 @@ struct NowcastNews{T<:AbstractFloat}
     impact_reestimation::T; group_impacts::Vector{T}; variable_names::Vector{String}
 end
 
-function nowcast_dfm(Y::AbstractMatrix, nM::Int, nQ::Int; r=2, p=1, idio=:ar1, blocks=nothing, max_iter=100, thresh=1e-4)
+struct NowcastForecast{T<:AbstractFloat}
+    values::Union{Vector{T},Matrix{T}}
+    h::Int
+    target_var::Union{Int,Nothing}
+    varnames::Union{Vector{String},Nothing}
+end
+Base.size(nf::NowcastForecast) = size(nf.values)
+Base.size(nf::NowcastForecast, d::Integer) = size(nf.values, d)
+Base.length(nf::NowcastForecast) = length(nf.values)
+Base.getindex(nf::NowcastForecast, I...) = getindex(nf.values, I...)
+Base.iterate(nf::NowcastForecast, state...) = iterate(nf.values, state...)
+Base.eltype(::Type{NowcastForecast{T}}) where {T} = T
+
+function nowcast_dfm(
+    Y::AbstractMatrix,
+    nM::Int,
+    nQ::Int;
+    r=2,
+    p=1,
+    idio=:ar1,
+    blocks=nothing,
+    max_iter=100,
+    thresh=1e-4,
+)
     T_obs, N = size(Y)
     sd = r * p
-    NowcastDFM{Float64}(copy(Y), randn(T_obs, sd), randn(N, sd), randn(sd, sd),
+    return NowcastDFM{Float64}(
+        copy(Y), randn(T_obs, sd), randn(N, sd), randn(sd, sd),
         Matrix{Float64}(I(sd)), Matrix{Float64}(I(N)), zeros(N), ones(N),
-        zeros(sd), Matrix{Float64}(I(sd)), r, p, ones(Int, N, 1), -100.0, 50, nM, nQ, idio, copy(Y))
+        zeros(sd), Matrix{Float64}(I(sd)), r, p, ones(Int, N, 1), -100.0, 50,
+        nM, nQ, idio, copy(Y),
+    )
 end
 
 # Mirror the real kwarg surface (bvar_nowcast.jl) — no `kwargs...` catch-all: a
@@ -2907,7 +2938,25 @@ function forecast(model::AbstractNowcastModel, h::Int; target_var=nothing)
     randn(h, N)
 end
 
-export AbstractNowcastModel, NowcastDFM, NowcastBVAR, NowcastBridge, NowcastResult, NowcastNews
+function forecast(model::NowcastBridge{T}, h::Int;
+                  target_var::Union{Int,Nothing}=nothing) where {T<:AbstractFloat}
+    h >= 1 || throw(ArgumentError("Horizon h must be >= 1, got $h"))
+    N = size(model.X_sm, 2)
+    if target_var !== nothing
+        1 <= target_var <= N ||
+            throw(ArgumentError("target_var ($target_var) must be in 1:$N"))
+    end
+    target_idx = model.nM + model.nQ
+    valid = filter(!isnan, model.Y_nowcast)
+    last_nc = isempty(valid) ? zero(T) : valid[end]
+    fc_mat = fill(T(NaN), h, N)
+    fc_mat[:, target_idx] .= last_nc
+    vals = target_var !== nothing ? fc_mat[:, target_var] : fc_mat
+    return NowcastForecast{T}(vals, h, target_var, nothing)
+end
+
+export AbstractNowcastModel, NowcastDFM, NowcastBVAR, NowcastBridge
+export NowcastResult, NowcastNews, NowcastForecast
 export nowcast_dfm, nowcast_bvar, nowcast_bridge, nowcast, nowcast_news
 
 export TimeSeriesData, CrossSectionData, DataDiagnostic, DataSummary
@@ -10950,11 +10999,19 @@ end
 # mock-surface gate. Tests must always reset it (try/finally).
 const _CT_THROW_SOLVER = Ref{Symbol}(:none)
 
+function ct_kfe(A::AbstractMatrix{T}, I::Int, da::T) where {T<:AbstractFloat}
+    _CT_THROW_SOLVER[] === :ct_kfe &&
+        throw(SingularSystemError("ct_kfe: KFE matrix is singular on a grid with I=$I"))
+    return ones(T, I, 2) ./ (T(2 * I) * da)
+end
+
 function ct_steady_state(m::CTAiyagari{T}; r_bounds=nothing, max_iter::Int=100,
                           tol::Real=1e-6, hjb_max_iter::Int=100, hjb_tol::Real=1e-6,
                           Delta::Real=1000.0) where T
     _CT_THROW_SOLVER[] === :ct_steady_state &&
         throw(LinearAlgebra.SingularException(0))
+    _CT_THROW_SOLVER[] === :ct_kfe &&
+        throw(SingularSystemError("ct_kfe: KFE matrix is singular on a grid with I=$(m.I)"))
     a = collect(range(m.a_min, m.a_max; length=m.I))
     g = ones(T, m.I, 2) ./ T(2 * m.I)
     v = ones(T, m.I, 2)
@@ -11295,9 +11352,10 @@ export DenHaanAccuracy, den_haan_test
 export CTAiyagari, CTSteadyState, CTTransition, CTTwoAsset, CTTwoAssetSolution, CTPoissonIncome
 export BlanchardOLG, BlanchardOLGSteadyState, BlanchardOLGSolution
 export X13FilterResult, IOData
-export load_ha_example, compute_steady_state, distribution_irf, inequality_irf, simulate_panel
-export ct_steady_state, ct_mit_shock, ct_two_asset_solve
-export x13_filter, parse_io, parse_icio, region_indices, blanchard_steady_state, blanchard_solve, blanchard_transition
+export load_ha_example, compute_steady_state, distribution_irf, inequality_irf
+export simulate_panel, ct_kfe, ct_steady_state, ct_mit_shock, ct_two_asset_solve
+export x13_filter, parse_io, parse_icio, region_indices
+export blanchard_steady_state, blanchard_solve, blanchard_transition
 export HAGrid, IncomeProcess
 export DCEGMProblem, DCEGMSystem, DCEGMSolution, DCEGMFirm, DCEGMEquilibrium, DCEGMTransition, DCEGMDistribution
 export dcegm_retirement_model, dcegm_solve, dcegm_steady_state, dcegm_mit

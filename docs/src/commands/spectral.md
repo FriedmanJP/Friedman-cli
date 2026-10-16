@@ -31,11 +31,13 @@ The raw **periodogram**: squared magnitude of the discrete Fourier transform at 
 
 ```bash
 friedman spectral periodogram :nile --column 1
+friedman spectral periodogram :nile --column 1 --plot --log-scale
 ```
 
 | Option | Short | Type | Default | Description |
 |--------|-------|------|---------|-------------|
 | `--column` | `-c` | Int | 1 | Column index (1-based) |
+| `--log-scale` | | Flag | `false` | Plot spectral density on a $\log_{10}$ vertical axis (default: linear) |
 
 ---
 
@@ -45,7 +47,7 @@ Estimated **spectral density** with a confidence band by frequency. The `--metho
 
 ```bash
 friedman spectral density :nile --method welch
-friedman spectral density :nile --method smoothed --bandwidth 0.1
+friedman spectral density :nile --method smoothed --bandwidth 0.1 --plot --log-scale
 ```
 
 | Option | Short | Type | Default | Description |
@@ -53,6 +55,7 @@ friedman spectral density :nile --method smoothed --bandwidth 0.1
 | `--column` | `-c` | Int | 1 | Column index (1-based) |
 | `--method` | `-m` | String | `welch` | `periodogram`, `welch`, `smoothed`, `ar` |
 | `--bandwidth` | | Float | auto | Smoothing bandwidth (smoothed method) |
+| `--log-scale` | | Flag | `false` | Plot spectral density on a $\log_{10}$ vertical axis (default: linear) |
 
 ---
 

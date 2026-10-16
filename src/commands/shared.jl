@@ -2104,6 +2104,18 @@ end
 
 # ── Plot Helpers ──────────────────────────────────────────
 
+# Issue #229: MacroEconometricModels._d3_script() lazily reads d3.min.js from
+# joinpath(@__DIR__, "assets", "d3.min.js") when _D3_SOURCE[] is empty. In a
+# relocatable PackageCompiler sysimage, @__DIR__ points to the build-machine
+# runner depot path, which does not exist on user machines. Embed the D3 asset
+# at compile time and seed MacroEconometricModels._D3_SOURCE[] before plotting.
+const _BUNDLED_D3_SOURCE = let
+    pkg_root = pkgdir(MacroEconometricModels)
+    d3_path = pkg_root === nothing ? "" :
+        joinpath(pkg_root, "src", "plotting", "assets", "d3.min.js")
+    !isempty(d3_path) && isfile(d3_path) ? read(d3_path, String) : ""
+end
+
 """
     _maybe_plot(result; plot, plot_save, kwargs...)
 
@@ -2113,6 +2125,12 @@ If `plot` is true, opens in browser. If `plot_save` is non-empty, saves to HTML 
 function _maybe_plot(result; plot::Bool=false, plot_save::String="", kwargs...)
     !plot && isempty(plot_save) && return
     _validate_output_path(plot_save)
+    if !isempty(_BUNDLED_D3_SOURCE) && isdefined(MacroEconometricModels, :_D3_SOURCE)
+        d3_ref = getfield(MacroEconometricModels, :_D3_SOURCE)
+        if d3_ref isa Base.RefValue{String} && isempty(d3_ref[])
+            d3_ref[] = _BUNDLED_D3_SOURCE
+        end
+    end
     # W5/#95 — defence in depth. The rule is still "only advertise --plot when a real
     # plot_result(::that type) EXISTS" (grep the real plotting/ before adding the flags;
     # the mock's generic fallback will not tell you). But an unguarded call here turns any
@@ -2286,6 +2304,10 @@ end
 function _dsge_eval_invalid(e, msg::String; hint::String="")
     inner = _unwrap_loaderror(e)
     inner isa CliError && rethrow(inner)
+    if inner isa SystemError
+        throw(CliError("config/invalid",
+            "could not open model file: $(sprint(showerror, inner))"))
+    end
     throw(CliError("config/invalid",
         msg * ": $(sprint(showerror, inner))"; hint=hint))
 end
@@ -2454,7 +2476,7 @@ function _split_card_and_model(path::AbstractString)
     ext = lowercase(splitext(String(path))[2])
     ext == ".toml" && return (nothing, nothing)
 
-    src = read(String(path), String)
+    src = read(_expanduser(String(path)), String)
     lines = _card_lines(src)
     opens = _card_dsge_opens(lines)
     isempty(opens) && return (nothing, src)
@@ -2566,7 +2588,9 @@ false, so a caller that reads a stanza must say so.
 function _load_dsge_model(path::String; allow_priors::Bool=false,
                           allow_constraints::Bool=false)
     _validate_input_path(path)
-    isfile(path) || throw(CliError("data/file-not-found", "model file not found: $path"))
+    resolved = _resolve_path(path)
+    isfile(resolved) ||
+        throw(CliError("data/file-not-found", "model file not found: $path"))
     ext = lowercase(splitext(path)[2])
 
     if ext == ".toml"
@@ -2608,7 +2632,8 @@ function _load_dsge_model(path::String; allow_priors::Bool=false,
                                       allow_constraints=allow_constraints)
         mod = _dsge_sandbox()
         result = try
-            card === nothing ? Base.include(mod, path) : include_string(mod, model_src, path)
+            card === nothing ? Base.include(mod, resolved) :
+                include_string(mod, model_src, resolved)
         catch e
             e isa CliError && rethrow()
             _dsge_eval_invalid(e, "could not evaluate the DSGE model file '$path'";
@@ -2758,7 +2783,8 @@ function _load_ha_model(model::String; distribution::String="young",
     end
 
     _validate_input_path(model)
-    isfile(model) || throw(CliError("data/file-not-found",
+    resolved = _resolve_path(model)
+    isfile(resolved) || throw(CliError("data/file-not-found",
         "HA model file not found: $model (hint: use a builtin name like huggett, " *
         "or a .jl file evaluating to a heterogeneous-agent ModelSpec)"))
     ext = lowercase(splitext(model)[2])
@@ -2779,7 +2805,8 @@ function _load_ha_model(model::String; distribution::String="young",
                                   allow_constraints=allow_constraints)
     mod = _dsge_sandbox()
     result = try
-        card === nothing ? Base.include(mod, model) : include_string(mod, model_src, model)
+        card === nothing ? Base.include(mod, resolved) :
+            include_string(mod, model_src, resolved)
     catch e
         e isa CliError && rethrow()
         _dsge_eval_invalid(e, "could not evaluate the HA model file '$model'";
@@ -3121,7 +3148,7 @@ confined and validated exactly as the loader validates it.
 """
 function _model_card_stanzas_for(path::AbstractString)
     p = String(path)
-    isfile(p) || return Dict{Symbol,Any}()
+    isfile(_expanduser(p)) || return Dict{Symbol,Any}()
     _validate_input_path(p)
     return _model_card_stanzas(p)
 end

@@ -9265,13 +9265,30 @@ end  # Data handlers
         end
     end
 
-    @testset "_nowcast_forecast — bridge" begin
+    @testset "_nowcast_forecast — bridge (#222)" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=5)
             out = _capture() do
                 _nowcast_forecast(; data=csv, monthly_vars=4, quarterly_vars=1,
                     method="bridge", horizons=4)
             end
+            @test occursin("Nowcast Forecast", out)
+
+            m = nowcast_bridge(zeros(20, 5), 4, 1)
+            fc = forecast(m, 4)
+            @test fc isa NowcastForecast
+            @test size(fc) == (4, 5)
+            @test all(isnan, fc[:, 1:4])
+            @test all(isfinite, fc[:, 5])
+            @test all(==(fc[1, 5]), fc[:, 5])
+
+            fc1 = forecast(m, 4; target_var=5)
+            @test fc1 isa NowcastForecast
+            @test size(fc1) == (4,)
+            @test length(fc1) == 4
+            @test all(==(fc1[1]), collect(fc1))
+            @test_throws ArgumentError forecast(m, 0)
+            @test_throws ArgumentError forecast(m, 4; target_var=99)
         end
     end
 
@@ -9368,6 +9385,44 @@ end  # Nowcast handlers
                 end
                 @test isfile(html_path)
                 content = read(html_path, String)
+
+                # Issue #229: --plot-save on arias, narrative-adrr, uhlig, --identified-set
+                arias_cfg = _make_arias_config(dir)
+                arias_html = joinpath(dir, "irf_arias.html")
+                _capture() do
+                    _irf_var(; data=csv, lags=2, horizons=10, id="arias",
+                        config=arias_cfg, format="table", output="",
+                        plot=false, plot_save=arias_html)
+                end
+                @test isfile(arias_html)
+
+                adrr_cfg = _make_adrr_config(dir)
+                adrr_html = joinpath(dir, "irf_adrr.html")
+                _capture() do
+                    _irf_var(; data=csv, lags=2, horizons=10, id="narrative-adrr",
+                        config=adrr_cfg, format="table", output="",
+                        plot=false, plot_save=adrr_html)
+                end
+                @test isfile(adrr_html)
+
+                uhlig_cfg = _make_uhlig_config(dir)
+                uhlig_html = joinpath(dir, "irf_uhlig.html")
+                _capture() do
+                    _irf_var(; data=csv, lags=2, horizons=10, id="uhlig",
+                        config=uhlig_cfg, format="table", output="",
+                        plot=false, plot_save=uhlig_html)
+                end
+                @test isfile(uhlig_html)
+
+                sign_cfg = _make_sign_config(dir)
+                set_html = joinpath(dir, "irf_set.html")
+                _capture() do
+                    _irf_var(; data=csv, lags=2, horizons=10, id="sign",
+                        config=sign_cfg, ci="none", identified_set=true,
+                        format="table", output="",
+                        plot=false, plot_save=set_html)
+                end
+                @test isfile(set_html)
             end
         end
     end
@@ -10742,31 +10797,38 @@ end
         end
     end
 
-    @testset "solver failure → typed model/error, never raw exit-1 (PR #205)" begin
-        # Runs f with the mock CT solver `name` throwing SingularException
-        # (mirrors the coarse-grid UMFPACK failure real MEMs raises on Linux);
-        # returns the caught exception. Always resets the flag. (Do-block
-        # passes the block as the FIRST argument, hence (f, name) order.)
-        _run_ct_fault(f, name) = begin
+    @testset "solver failure → typed model/error or model/singular (#205, #223)" begin
+        # Runs f with the mock CT solver `name` throwing SingularException or
+        # SingularSystemError (mirrors the coarse-grid UMFPACK failure real MEMs
+        # raises on Linux); maps MacroModelError via _domain_error_class just like
+        # run_cli does, and returns the resulting CliError. Always resets the flag.
+        function _run_ct_fault(f, name)
             MacroEconometricModels._CT_THROW_SOLVER[] = name
             try
                 try
                     _capture(f)
-                    nothing
+                    return nothing
                 catch ex
-                    ex
+                    return something(_domain_error_class(ex), ex)
                 end
             finally
                 MacroEconometricModels._CT_THROW_SOLVER[] = :none
             end
         end
-        _is_model_error(e) =
-            e isa CliError && e.code == "model/error" && exit_class(e) == 5
+        _is_model_error(e) = e isa CliError && e.code == "model/error" && exit_class(e) == 5
+        function _is_model_singular(e)
+            return e isa CliError && e.code == "model/singular" && exit_class(e) == 5
+        end
         e = _run_ct_fault(:ct_steady_state) do
             _dsge_ct_solve(; grid_size=30, max_iter=20, tol=1e-4,
                            format="table", output="")
         end
         @test _is_model_error(e)
+        e = _run_ct_fault(:ct_kfe) do
+            _dsge_ct_solve(; grid_size=30, max_iter=20, tol=1e-4,
+                           format="table", output="")
+        end
+        @test _is_model_singular(e)
         e = _run_ct_fault(:ct_two_asset_solve) do
             _dsge_ct_solve(; two_asset=true, max_iter=20, tol=1e-4,
                            format="table", output="")
@@ -10778,6 +10840,12 @@ end
                                 plot=false, plot_save="")
         end
         @test _is_model_error(e)
+        e = _run_ct_fault(:ct_kfe) do
+            _dsge_ct_transition(; grid_size=30, periods=8, max_iter=20, tol=1e-4,
+                                shock_size=0.95, format="table", output="",
+                                plot=false, plot_save="")
+        end
+        @test _is_model_singular(e)
         e = _run_ct_fault(:ct_mit_shock) do
             _dsge_ct_transition(; grid_size=30, periods=8, max_iter=20, tol=1e-4,
                                 shock_size=0.95, format="table", output="",
@@ -12202,6 +12270,26 @@ end
                 out = _capture() do
                     _spectral_periodogram(; data=csv, column=1, format="table", output="")
                 end
+
+                # W3 (#224): --log-scale forwards log_scale=true only when set
+                pkw = MacroEconometricModels._LAST_PLOT_KWARGS
+                empty!(pkw[])
+                _capture() do
+                    _spectral_periodogram(;
+                        data=csv, column=1, format="table", output="",
+                        plot=true, log_scale=false,
+                    )
+                end
+                @test !haskey(pkw[], :log_scale)
+
+                empty!(pkw[])
+                _capture() do
+                    _spectral_periodogram(;
+                        data=csv, column=1, format="table", output="",
+                        plot=true, log_scale=true,
+                    )
+                end
+                @test get(pkw[], :log_scale, false) === true
             end
         end
 
@@ -12209,8 +12297,30 @@ end
             mktempdir() do dir
                 csv = _make_csv(dir; T=100, n=3)
                 out = _capture() do
-                    _spectral_density(; data=csv, column=1, method="welch", format="table", output="")
+                    _spectral_density(;
+                        data=csv, column=1, method="welch", format="table", output="",
+                    )
                 end
+
+                # W3 (#224): --log-scale forwards log_scale=true only when set
+                pkw = MacroEconometricModels._LAST_PLOT_KWARGS
+                empty!(pkw[])
+                _capture() do
+                    _spectral_density(;
+                        data=csv, column=1, method="welch", format="table", output="",
+                        plot=true, log_scale=false,
+                    )
+                end
+                @test !haskey(pkw[], :log_scale)
+
+                empty!(pkw[])
+                _capture() do
+                    _spectral_density(;
+                        data=csv, column=1, method="welch", format="table", output="",
+                        plot=true, log_scale=true,
+                    )
+                end
+                @test get(pkw[], :log_scale, false) === true
             end
         end
 
