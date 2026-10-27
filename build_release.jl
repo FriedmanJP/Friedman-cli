@@ -21,50 +21,56 @@
 
 using Pkg
 
-project_dir = @__DIR__
-build_project_dir = joinpath(project_dir, "build_env")
-app_dir = joinpath(project_dir, "build", "friedman")
+const _PROJECT_DIR = @__DIR__
+const _BUILD_PROJECT_DIR = joinpath(_PROJECT_DIR, "build_env")
+const _APP_DIR = joinpath(_PROJECT_DIR, "build", "friedman")
 
 # --- Platform detection ---
-sysimage_ext = Sys.iswindows() ? ".dll" : Sys.isapple() ? ".dylib" : ".so"
-sysimage_name = "friedman$(sysimage_ext)"
+const _SYSIMAGE_EXT = if Sys.iswindows()
+    ".dll"
+elseif Sys.isapple()
+    ".dylib"
+else
+    ".so"
+end
+const _SYSIMAGE_NAME = "friedman$(_SYSIMAGE_EXT)"
 
 # --- Step 1: Create build environment with all deps ---
 println("Setting up build environment...")
-rm(build_project_dir; force=true, recursive=true)
-mkpath(build_project_dir)
+rm(_BUILD_PROJECT_DIR; force=true, recursive=true)
+mkpath(_BUILD_PROJECT_DIR)
 
 # Copy source files (launcher is regenerated later — do not copy bin/)
-cp(joinpath(project_dir, "src"), joinpath(build_project_dir, "src"))
+cp(joinpath(_PROJECT_DIR, "src"), joinpath(_BUILD_PROJECT_DIR, "src"))
 # schema/ is read at PRECOMPILE time (W5/#140: envelope-v1.json baked into the
 # `friedman schema` contract const via include_dependency) — without it the
 # build_env precompile fails "No such file or directory".
-cp(joinpath(project_dir, "schema"), joinpath(build_project_dir, "schema"))
-if isdir(joinpath(project_dir, "completions"))
-    cp(joinpath(project_dir, "completions"), joinpath(build_project_dir, "completions"))
+cp(joinpath(_PROJECT_DIR, "schema"), joinpath(_BUILD_PROJECT_DIR, "schema"))
+if isdir(joinpath(_PROJECT_DIR, "completions"))
+    cp(joinpath(_PROJECT_DIR, "completions"), joinpath(_BUILD_PROJECT_DIR, "completions"))
 end
 
 # Read original Project.toml. Friedman declares no weakdeps/extensions of its own;
 # these deletes are defensive so a future weak dep never forces an extension into
 # the build. What actually gets bundled is fixed by the seeded Manifest (above).
-original_toml = Pkg.TOML.parsefile(joinpath(project_dir, "Project.toml"))
-delete!(original_toml, "weakdeps")
-delete!(original_toml, "extensions")
+const _ORIGINAL_TOML = Pkg.TOML.parsefile(joinpath(_PROJECT_DIR, "Project.toml"))
+delete!(_ORIGINAL_TOML, "weakdeps")
+delete!(_ORIGINAL_TOML, "extensions")
 
 # Write Project.toml without weakdeps
-open(joinpath(build_project_dir, "Project.toml"), "w") do io
-    Pkg.TOML.print(io, original_toml)
+open(joinpath(_BUILD_PROJECT_DIR, "Project.toml"), "w") do io
+    Pkg.TOML.print(io, _ORIGINAL_TOML)
 end
 
 # Seed the resolved Manifest so build_env gets EXACTLY the source env's
 # dependency graph (incl. the pinned MEMs commit), not a fresh resolve (F50).
-src_manifest = joinpath(project_dir, "Manifest.toml")
-if isfile(src_manifest)
-    cp(src_manifest, joinpath(build_project_dir, "Manifest.toml"))
+const _SRC_MANIFEST = joinpath(_PROJECT_DIR, "Manifest.toml")
+if isfile(_SRC_MANIFEST)
+    cp(_SRC_MANIFEST, joinpath(_BUILD_PROJECT_DIR, "Manifest.toml"))
 end
 
 # Activate build env and install exactly the Manifest's dependency graph
-Pkg.activate(build_project_dir)
+Pkg.activate(_BUILD_PROJECT_DIR)
 Pkg.instantiate()
 
 # Add REPL stdlib so interactive mode can load it at runtime
@@ -76,14 +82,14 @@ println("Loading PackageCompiler...")
 Pkg.activate(; temp=true)
 Pkg.add("PackageCompiler")
 using PackageCompiler
-Pkg.activate(build_project_dir)
+Pkg.activate(_BUILD_PROJECT_DIR)
 
 # --- Step 3: Generate precompile script ---
 # Real handler paths (estimate/irf/test/filter/forecast + all formats), not just
 # --help (F45). No in-package PrecompileTools.@compile_workload (F46): that would
 # run on every dev Pkg.precompile; the sysimage script owns the heavy paths.
-precompile_script = joinpath(build_project_dir, "precompile_app.jl")
-open(precompile_script, "w") do io
+const _PRECOMPILE_SCRIPT = joinpath(_BUILD_PROJECT_DIR, "precompile_app.jl")
+open(_PRECOMPILE_SCRIPT, "w") do io
     write(io, """
     using Friedman
 
@@ -124,8 +130,8 @@ open(precompile_script, "w") do io
 end
 
 # --- Step 4: Build sysimage ---
-sysimage_path = joinpath(build_project_dir, sysimage_name)
-println("Building sysimage ($(sysimage_name))...")
+const _SYSIMAGE_PATH = joinpath(_BUILD_PROJECT_DIR, _SYSIMAGE_NAME)
+println("Building sysimage ($(_SYSIMAGE_NAME))...")
 println("This will take several minutes.")
 
 # --strip-metadata: size win when StructUtils/JSON3 path stays healthy (F47).
@@ -143,49 +149,52 @@ println("This will take several minutes.")
 # "sysimage" there is generic;apple-m1,clone_all, and macos-14 (3-core M1,
 # 7 GB) was still in that compile when the 120-minute step timeout fired
 # (run 36456649455). Later Apple Silicon runs apple-m1 code.
-cpu_target = Sys.ARCH === :x86_64 ? "generic" : "apple-m1"
-println("Sysimage cpu_target: $cpu_target")
+const _CPU_TARGET = Sys.ARCH === :x86_64 ? "generic" : "apple-m1"
+println("Sysimage cpu_target: $_CPU_TARGET")
 create_sysimage(
     [:Friedman];
-    sysimage_path=sysimage_path,
-    precompile_execution_file=precompile_script,
-    project=build_project_dir,
-    cpu_target=cpu_target,
+    sysimage_path=_SYSIMAGE_PATH,
+    precompile_execution_file=_PRECOMPILE_SCRIPT,
+    project=_BUILD_PROJECT_DIR,
+    cpu_target=_CPU_TARGET,
     sysimage_build_args=`--strip-metadata`,
 )
 
 # --- Step 5: Bundle into app directory ---
 println("Bundling app...")
-rm(app_dir; force=true, recursive=true)
-mkpath(joinpath(app_dir, "bin"))
-mkpath(joinpath(app_dir, "lib"))
+rm(_APP_DIR; force=true, recursive=true)
+mkpath(joinpath(_APP_DIR, "bin"))
+mkpath(joinpath(_APP_DIR, "lib"))
 
 # Copy sysimage
-cp(sysimage_path, joinpath(app_dir, "lib", sysimage_name))
+cp(_SYSIMAGE_PATH, joinpath(_APP_DIR, "lib", _SYSIMAGE_NAME))
 
 # Copy project files for LOAD_PATH
-cp(joinpath(build_project_dir, "Project.toml"), joinpath(app_dir, "Project.toml"))
-if isfile(joinpath(build_project_dir, "Manifest.toml"))
-    cp(joinpath(build_project_dir, "Manifest.toml"), joinpath(app_dir, "Manifest.toml"))
+cp(joinpath(_BUILD_PROJECT_DIR, "Project.toml"), joinpath(_APP_DIR, "Project.toml"))
+if isfile(joinpath(_BUILD_PROJECT_DIR, "Manifest.toml"))
+    cp(joinpath(_BUILD_PROJECT_DIR, "Manifest.toml"), joinpath(_APP_DIR, "Manifest.toml"))
 end
-cp(joinpath(build_project_dir, "src"), joinpath(app_dir, "src"))
+cp(joinpath(_BUILD_PROJECT_DIR, "src"), joinpath(_APP_DIR, "src"))
 # Ship schema/ beside src/ so a non-sysimage fallback load can precompile too
-cp(joinpath(build_project_dir, "schema"), joinpath(app_dir, "schema"))
-if isdir(joinpath(build_project_dir, "completions"))
-    cp(joinpath(build_project_dir, "completions"), joinpath(app_dir, "completions"))
+cp(joinpath(_BUILD_PROJECT_DIR, "schema"), joinpath(_APP_DIR, "schema"))
+if isdir(joinpath(_BUILD_PROJECT_DIR, "completions"))
+    cp(joinpath(_BUILD_PROJECT_DIR, "completions"), joinpath(_APP_DIR, "completions"))
 end
 
 # --- Step 5a: Create platform-appropriate launcher ---
 if Sys.iswindows()
     # Windows batch launcher
-    launcher = joinpath(app_dir, "bin", "friedman.cmd")
+    launcher = joinpath(_APP_DIR, "bin", "friedman.cmd")
     open(launcher, "w") do io
         write(io, """@echo off
 rem Friedman-cli — compiled launcher
 rem Uses precompiled sysimage for instant startup
 
 set "SCRIPT_DIR=%~dp0.."
-set "SYSIMAGE=%SCRIPT_DIR%\\lib\\$(sysimage_name)"
+set "SYSIMAGE=%SCRIPT_DIR%\\lib\\$(_SYSIMAGE_NAME)"
+set "READY=%SCRIPT_DIR%\\.artifacts_ready"
+set "INIT_EXPR=using Pkg; Pkg.instantiate()"
+set "MAIN_EXPR=using Friedman; Friedman.main(ARGS)"
 
 set "JULIA_LOAD_PATH=%SCRIPT_DIR%;@stdlib"
 
@@ -195,7 +204,13 @@ where julia >nul 2>&1
 if %errorlevel% neq 0 goto :nojulia
 julia +1.13 --version >nul 2>&1
 if %errorlevel% equ 0 (
-    julia +1.13 --project="%SCRIPT_DIR%" --sysimage="%SYSIMAGE%" --startup-file=no -e "using Friedman; Friedman.main(ARGS)" -- %*
+    if not exist "%READY%" (
+        set "JULIA_PKG_PRECOMPILE_AUTO=0"
+        julia +1.13 --project="%SCRIPT_DIR%" --startup-file=no ^
+            -e "%INIT_EXPR%" 1>&2 && type nul > "%READY%"
+    )
+    julia +1.13 --project="%SCRIPT_DIR%" --sysimage="%SYSIMAGE%" ^
+        --startup-file=no -e "%MAIN_EXPR%" -- %*
     exit /b %errorlevel%
 )
 for /f "tokens=3" %%v in ('julia --version 2^>nul') do set "JULIA_VER=%%v"
@@ -206,7 +221,13 @@ for /f "tokens=1,2 delims=." %%a in ("%JULIA_VER%") do (
 if "%JMAJ%"=="" goto :nojulia
 if %JMAJ% lss 1 goto :nojulia
 if %JMAJ% equ 1 if %JMIN% lss 13 goto :nojulia
-julia --project="%SCRIPT_DIR%" --sysimage="%SYSIMAGE%" --startup-file=no -e "using Friedman; Friedman.main(ARGS)" -- %*
+if not exist "%READY%" (
+    set "JULIA_PKG_PRECOMPILE_AUTO=0"
+    julia --project="%SCRIPT_DIR%" --startup-file=no ^
+        -e "%INIT_EXPR%" 1>&2 && type nul > "%READY%"
+)
+julia --project="%SCRIPT_DIR%" --sysimage="%SYSIMAGE%" ^
+    --startup-file=no -e "%MAIN_EXPR%" -- %*
 exit /b %errorlevel%
 
 :nojulia
@@ -218,7 +239,7 @@ exit /b 1
     end
 else
     # macOS/Linux bash launcher
-    launcher = joinpath(app_dir, "bin", "friedman")
+    launcher = joinpath(_APP_DIR, "bin", "friedman")
     open(launcher, "w") do io
         write(io, """#!/bin/bash
 # Friedman-cli — compiled launcher
@@ -232,7 +253,7 @@ while [ -L "\$SOURCE" ]; do
     [[ "\$SOURCE" != /* ]] && SOURCE="\$DIR/\$SOURCE"
 done
 SCRIPT_DIR="\$(cd "\$(dirname "\$SOURCE")/.." && pwd)"
-SYSIMAGE="\$SCRIPT_DIR/lib/$(sysimage_name)"
+SYSIMAGE="\$SCRIPT_DIR/lib/$(_SYSIMAGE_NAME)"
 
 export JULIA_LOAD_PATH="\$SCRIPT_DIR:@stdlib"
 
@@ -240,6 +261,13 @@ export JULIA_LOAD_PATH="\$SCRIPT_DIR:@stdlib"
 # Note: `juliaup run` is not portable across juliaup versions (1.20.x has no `run`).
 if command -v julia >/dev/null 2>&1; then
     if julia +1.13 --version >/dev/null 2>&1; then
+        if [ ! -f "\$SCRIPT_DIR/.artifacts_ready" ]; then
+            JULIA_PKG_PRECOMPILE_AUTO=0 julia +1.13 \\
+                --project="\$SCRIPT_DIR" \\
+                --startup-file=no \\
+                -e 'using Pkg; Pkg.instantiate()' >&2 \\
+                && touch "\$SCRIPT_DIR/.artifacts_ready"
+        fi
         exec julia +1.13 \\
             --project="\$SCRIPT_DIR" \\
             --sysimage="\$SYSIMAGE" \\
@@ -251,6 +279,13 @@ if command -v julia >/dev/null 2>&1; then
     JULIA_MAJOR=\$(echo "\$JULIA_VER" | cut -d. -f1)
     JULIA_MINOR=\$(echo "\$JULIA_VER" | cut -d. -f2)
     if [ "\$JULIA_MAJOR" -ge 1 ] && [ "\$JULIA_MINOR" -ge 13 ]; then
+        if [ ! -f "\$SCRIPT_DIR/.artifacts_ready" ]; then
+            JULIA_PKG_PRECOMPILE_AUTO=0 julia \\
+                --project="\$SCRIPT_DIR" \\
+                --startup-file=no \\
+                -e 'using Pkg; Pkg.instantiate()' >&2 \\
+                && touch "\$SCRIPT_DIR/.artifacts_ready"
+        fi
         exec julia \\
             --project="\$SCRIPT_DIR" \\
             --sysimage="\$SYSIMAGE" \\
@@ -270,8 +305,8 @@ exit 1
 end
 
 # --- Step 6: Clean up build env ---
-rm(build_project_dir; force=true, recursive=true)
+rm(_BUILD_PROJECT_DIR; force=true, recursive=true)
 
 println()
-println("Done! Compiled app: $(app_dir)/bin/friedman$(Sys.iswindows() ? ".cmd" : "")")
-println("Sysimage: $(app_dir)/lib/$(sysimage_name)")
+println("Done! Compiled app: $(_APP_DIR)/bin/friedman$(Sys.iswindows() ? ".cmd" : "")")
+println("Sysimage: $(_APP_DIR)/lib/$(_SYSIMAGE_NAME)")

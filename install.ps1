@@ -131,6 +131,25 @@ try {
     }
     Move-Item -Path $Extracted -Destination $InstallDir
 
+    # --- Instantiate runtime JLL artifacts ---
+    Write-Host "Ensuring runtime artifacts..."
+    $PrevPrecompile = $env:JULIA_PKG_PRECOMPILE_AUTO
+    $env:JULIA_PKG_PRECOMPILE_AUTO = "0"
+    try {
+        & julia +1.13 --version *> $null
+        if ($LASTEXITCODE -eq 0) {
+            & julia +1.13 --project="$InstallDir" --startup-file=no -e "using Pkg; Pkg.instantiate()"
+        } else {
+            & julia --project="$InstallDir" --startup-file=no -e "using Pkg; Pkg.instantiate()"
+        }
+        if ($LASTEXITCODE -ne 0) {
+            throw "Failed to instantiate runtime artifacts."
+        }
+        New-Item -ItemType File -Path (Join-Path $InstallDir ".artifacts_ready") -Force | Out-Null
+    } finally {
+        $env:JULIA_PKG_PRECOMPILE_AUTO = $PrevPrecompile
+    }
+
     # --- Add to PATH ---
     $CurrentPath = [System.Environment]::GetEnvironmentVariable("PATH", "User")
     if ($CurrentPath -notlike "*$BinDir*") {

@@ -177,9 +177,26 @@ fi
 rm -rf "$INSTALL_DIR"
 mv "$EXTRACTED" "$INSTALL_DIR"
 
+# --- Instantiate runtime JLL artifacts ---
+# The precompiled sysimage links JLL packages (XML2_jll, Ipopt_jll, FFTW_jll, etc.)
+# whose __init__() hooks look up artifact hashes in ~/.julia/artifacts/ at startup.
+# JULIA_PKG_PRECOMPILE_AUTO=0 fetches missing artifacts/packages without precompiling.
+echo "Ensuring runtime artifacts..."
+if julia +1.13 --version >/dev/null 2>&1; then
+    JULIA_PKG_PRECOMPILE_AUTO=0 julia +1.13 --project="$INSTALL_DIR" --startup-file=no -e 'using Pkg; Pkg.instantiate()'
+else
+    JULIA_PKG_PRECOMPILE_AUTO=0 julia --project="$INSTALL_DIR" --startup-file=no -e 'using Pkg; Pkg.instantiate()'
+fi
+touch "$INSTALL_DIR/.artifacts_ready"
+
 # --- Create PATH shim ---
 mkdir -p "$BIN_DIR"
 ln -sf "$INSTALL_DIR/bin/friedman" "$BIN_DIR/friedman"
+
+# --- Verify (also warms up LazyArtifacts such as oneTBB_jll) ---
+echo ""
+"$INSTALL_DIR/bin/friedman" --version
+echo "Friedman-cli installed successfully!"
 
 # --- PATH guidance ---
 if ! echo "$PATH" | tr ':' '\n' | grep -qx "$BIN_DIR"; then
@@ -194,17 +211,6 @@ if ! echo "$PATH" | tr ':' '\n' | grep -qx "$BIN_DIR"; then
     esac
     echo ""
     echo "Then restart your shell or run: export PATH=\"${BIN_DIR}:\$PATH\""
-fi
-
-# --- Verify ---
-if command -v friedman >/dev/null 2>&1; then
-    echo ""
-    friedman --version
-    echo "Friedman-cli installed successfully!"
-else
-    echo ""
-    echo "Friedman-cli installed to ${INSTALL_DIR}"
-    echo "Run: export PATH=\"${BIN_DIR}:\$PATH\" && friedman --version"
 fi
 
 echo ""
