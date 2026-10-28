@@ -7673,21 +7673,29 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                           "--lags", "1", "--horizons", "3"])
             assert_envelope_ok(r; label="nowcast forecast")
 
-            rb = run_json(["nowcast", "forecast", multi, "--method", "bridge",
-                           "--monthly-vars", "4", "--quarterly-vars", "1",
-                           "--horizons", "3"])
+            rb = run_json([
+                "nowcast",
+                "forecast",
+                multi,
+                "--method",
+                "bridge",
+                "--monthly-vars",
+                "2",
+                "--quarterly-vars",
+                "1",
+                "--horizons",
+                "3",
+            ])
             assert_envelope_ok(rb; label="nowcast forecast bridge")
             t = named_table(rb.doc, :nowcast_forecast)
             rows = [collect(row) for row in table_rows(t)]
             @test length(rows) == 3
-            # Bridge forecasts only the target variable (column 6 after Horizon);
-            # non-target series (columns 2..5) are NaN -> null in JSON, and the
-            # target column is constant across horizons (MEMs 1.0.1 / #222).
+            # Bridge carries the last smoothed indicators and quarterly nowcast
+            # forward as a flat path across horizons (MEMs 1.0.1 / #222).
             for row in rows
-                @test all(isnothing, row[2:5])
-                @test row[6] isa Real && isfinite(Float64(row[6]))
+                @test all(x -> x isa Real && isfinite(Float64(x)), row[2:4])
             end
-            @test Float64(rows[1][6]) == Float64(rows[2][6]) == Float64(rows[3][6])
+            @test Float64.(rows[1][2:4]) == Float64.(rows[2][2:4]) == Float64.(rows[3][2:4])
         end
 
         @testset "nowcast tolerates ragged-edge NaN; strict leaves reject it" begin

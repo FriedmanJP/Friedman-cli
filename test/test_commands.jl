@@ -9278,8 +9278,7 @@ end  # Data handlers
             fc = forecast(m, 4)
             @test fc isa NowcastForecast
             @test size(fc) == (4, 5)
-            @test all(isnan, fc[:, 1:4])
-            @test all(isfinite, fc[:, 5])
+            @test all(isfinite, fc[:, 1:5])
             @test all(==(fc[1, 5]), fc[:, 5])
 
             fc1 = forecast(m, 4; target_var=5)
@@ -9288,7 +9287,7 @@ end  # Data handlers
             @test length(fc1) == 4
             @test all(==(fc1[1]), collect(fc1))
             @test_throws ArgumentError forecast(m, 0)
-            @test_throws ArgumentError forecast(m, 4; target_var=99)
+            @test_throws BoundsError forecast(m, 4; target_var=99)
         end
     end
 

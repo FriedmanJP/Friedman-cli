@@ -2940,19 +2940,22 @@ end
 
 function forecast(model::NowcastBridge{T}, h::Int;
                   target_var::Union{Int,Nothing}=nothing) where {T<:AbstractFloat}
-    h >= 1 || throw(ArgumentError("Horizon h must be >= 1, got $h"))
+    h >= 1 || throw(ArgumentError("h must be >= 1"))
     N = size(model.X_sm, 2)
-    if target_var !== nothing
-        1 <= target_var <= N ||
-            throw(ArgumentError("target_var ($target_var) must be in 1:$N"))
+    n_quarters = length(model.Y_nowcast)
+    now_val = model.Y_nowcast[n_quarters]
+    fc_val = if isnan(now_val)
+        q = findlast(!isnan, model.Y_nowcast)
+        q === nothing ? now_val : model.Y_nowcast[q]
+    else
+        now_val
     end
-    target_idx = model.nM + model.nQ
-    valid = filter(!isnan, model.Y_nowcast)
-    last_nc = isempty(valid) ? zero(T) : valid[end]
-    fc_mat = fill(T(NaN), h, N)
-    fc_mat[:, target_idx] .= last_nc
-    vals = target_var !== nothing ? fc_mat[:, target_var] : fc_mat
-    return NowcastForecast{T}(vals, h, target_var, nothing)
+    fc = repeat(model.X_sm[end:end, :], h, 1)
+    fc[:, N] .= fc_val
+    if target_var !== nothing
+        return NowcastForecast{T}(Vector{T}(fc[:, target_var]), h, target_var, nothing)
+    end
+    return NowcastForecast{T}(Matrix{T}(fc), h, nothing, nothing)
 end
 
 export AbstractNowcastModel, NowcastDFM, NowcastBVAR, NowcastBridge
