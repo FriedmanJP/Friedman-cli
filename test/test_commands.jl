@@ -4620,6 +4620,33 @@ end  # Test handlers
                               config=cfg, format="table")
                 end
             end
+            # Custom vector scale (n=3) succeeds; wrong length throws config/invalid
+            cfg_vec = joinpath(dir, "uhlig_vec.toml")
+            write(cfg_vec, read(cfg, String) * "\nscale = [1.0, 2.0, 3.0]\n")
+            cd(dir) do
+                _capture() do
+                    _irf_var(;
+                        data=csv, lags=2, shock=1, horizons=10, id="uhlig",
+                        config=cfg_vec, format="table",
+                    )
+                end
+            end
+            cfg_bad_len = joinpath(dir, "uhlig_bad_len.toml")
+            write(cfg_bad_len, read(cfg, String) * "\nscale = [1.0, 2.0]\n")
+            e = try
+                cd(dir) do
+                    _capture() do
+                        _irf_var(;
+                            data=csv, lags=2, shock=1, horizons=10, id="uhlig",
+                            config=cfg_bad_len, format="table",
+                        )
+                    end
+                end
+                nothing
+            catch ex
+                ex
+            end
+            @test e isa CliError && e.code == "config/invalid"
         end
     end
 
@@ -6806,12 +6833,15 @@ end
 
         @testset "single direct forecast at the fixed horizon" begin
             out = _capture() do
-                _forecast_midas(; data=lf, column=1, hf_data=hf, hf_column=1,
-                                  m=3, k=6, format="table", output="")
+                _forecast_midas(;
+                    data=lf, column=1, hf_data=hf, hf_column=1,
+                    m=3, k=6, horizon=3, format="table", output="",
+                )
             end
-            @test contains(out, "forecast") && contains(out, "lower") && contains(out, "upper")
+            @test contains(out, "value") && contains(out, "lower") &&
+                contains(out, "upper") && contains(out, "se") && contains(out, "variable")
             # the horizon is fixed at estimation (m.h) — there is no --horizons here
-            @test contains(out, "horizon (h)")
+            @test contains(out, "horizon (h)") && contains(out, "3")
         end
 
         @testset "X_new is passed MOST-RECENT-FIRST" begin
@@ -9223,19 +9253,36 @@ end  # Data handlers
         end
     end
 
-    @testset "_nowcast_news — bvar method is rejected (no upstream BVAR news)" begin
+    @testset "_nowcast_news — bvar method succeeds and bridge is rejected (#234)" begin
         mktempdir() do dir
-            csv_old = _make_csv(dir; T=100, n=5, colnames=["m1","m2","m3","m4","q1"])
+            csv_old = _make_csv(dir; T=100, n=5, colnames=["m1", "m2", "m3", "m4", "q1"])
             csv_new = joinpath(dir, "data_new.csv")
             data = Dict{String,Vector{Float64}}()
-            for name in ["m1","m2","m3","m4","q1"]
+            for name in ["m1", "m2", "m3", "m4", "q1"]
                 data[name] = randn(100) .+ 1.0
             end
             CSV.write(csv_new, DataFrame(data))
 
+            out = _capture() do
+                _nowcast_news(;
+                    data_new=csv_new,
+                    data_old=csv_old,
+                    monthly_vars=4,
+                    quarterly_vars=1,
+                    method="bvar",
+                    lags=2,
+                )
+            end
+            @test contains(out, "method=bvar")
+
             e = try
-                _nowcast_news(; data_new=csv_new, data_old=csv_old,
-                    monthly_vars=4, quarterly_vars=1, method="bvar")
+                _nowcast_news(;
+                    data_new=csv_new,
+                    data_old=csv_old,
+                    monthly_vars=4,
+                    quarterly_vars=1,
+                    method="bridge",
+                )
                 nothing
             catch ex
                 ex

@@ -486,12 +486,19 @@ function _var_irf_uhlig(model, config::String, horizons::Int,
                         plot::Bool=false, plot_save::String="")
     cfg, restrictions = _load_svar_restrictions(config, nvars(model), "Uhlig")
     uhlig_params = get_uhlig_params(cfg)
-    result = identify_uhlig(model, restrictions, horizons;
+    scale = _validate_uhlig_scale(uhlig_params["scale"], nvars(model), "irf var")
+    result = identify_uhlig(
+        model, restrictions, horizons;
         n_starts=uhlig_params["n_starts"], n_refine=uhlig_params["n_refine"],
-        max_iter_coarse=uhlig_params["max_iter_coarse"], max_iter_fine=uhlig_params["max_iter_fine"],
+        max_iter_coarse=uhlig_params["max_iter_coarse"],
+        max_iter_fine=uhlig_params["max_iter_fine"],
         tol_coarse=uhlig_params["tol_coarse"], tol_fine=uhlig_params["tol_fine"],
-        _fwd_seed()...)
-    _status("Uhlig identification: penalty=$(round(result.penalty; digits=6)), converged=$(result.converged)")
+        scale=scale, _fwd_seed()...,
+    )
+    _status(
+        "Uhlig identification: penalty=$(round(result.penalty; digits=6)), " *
+        "converged=$(result.converged)",
+    )
     for (si, sp) in enumerate(result.shock_penalties)
         _status("  Shock $si penalty: $(round(sp; digits=6))")
     end

@@ -683,7 +683,7 @@ Direct h-step ADL-MIDAS forecast from a high-frequency indicator block (horizon 
 | `--result` | — | `String` | `""` | — | Load a result handle (skip computation) |
 | `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native) |
 
-**Output tables:** `midas_forecast` (Direct h-step forecast of the low-frequency target: horizon | forecast | lower | upper | se); `midas_forecast_summary` (Horizon, HF lags K, HF-per-LF ratio m, AR lags, weight family and interval level)
+**Output tables:** `midas_forecast` (Direct h-step forecast of the low-frequency target: horizon | variable | value | se | lower | upper); `midas_forecast_summary` (Horizon, HF lags K, HF-per-LF ratio m, AR lags, weight family and interval level)
 
 ---
 

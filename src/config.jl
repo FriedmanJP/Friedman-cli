@@ -49,7 +49,7 @@ const CONFIG_NESTED_SCHEMA = Dict{String,Vector{String}}(
     "identification.sign_matrix" => ["matrix", "horizons"],
     "identification.narrative" => ["shock_index", "periods", "signs"],
     "identification.uhlig" => ["n_starts", "n_refine", "max_iter_coarse",
-                               "max_iter_fine", "tol_coarse", "tol_fine"],
+                               "max_iter_fine", "tol_coarse", "tol_fine", "scale"],
     "identification.lewis_tvv" => ["weighting"],
     "identification.sv_svar" => ["hetero_shocks", "maxiter", "gibbs_burn",
                                  "gibbs_draws", "init"],
@@ -386,6 +386,59 @@ function get_nongaussian(config::Dict)
     return result
 end
 
+const _UHLIG_SCALE_SYMBOLS = (
+    "diff", "first_difference", "residual", "sigma", "none", "unit",
+)
+
+function _parse_uhlig_scale(raw)
+    if raw isa AbstractString
+        raw in _UHLIG_SCALE_SYMBOLS || throw(CliError(
+            "config/invalid",
+            "identification.uhlig.scale must be diff|first_difference|residual|sigma|" *
+            "none|unit or a positive numeric vector (got '$raw')",
+        ))
+        return Symbol(raw)
+    elseif raw isa Symbol
+        string(raw) in _UHLIG_SCALE_SYMBOLS || throw(CliError(
+            "config/invalid",
+            "identification.uhlig.scale must be diff|first_difference|residual|sigma|" *
+            "none|unit or a positive numeric vector (got :$raw)",
+        ))
+        return raw
+    elseif raw isa AbstractVector
+        !isempty(raw) || throw(CliError(
+            "config/invalid",
+            "identification.uhlig.scale vector must not be empty",
+        ))
+        out = Float64[]
+        for v in raw
+            (v isa Real && !(v isa Bool) && isfinite(v) && v > 0) || throw(CliError(
+                "config/invalid",
+                "identification.uhlig.scale vector must hold positive finite numbers " *
+                "(got $v)",
+            ))
+            push!(out, Float64(v))
+        end
+        return out
+    end
+    throw(CliError(
+        "config/invalid",
+        "identification.uhlig.scale must be a string or positive numeric vector " *
+        "(got $raw)",
+    ))
+end
+
+function _validate_uhlig_scale(scale, n::Int, leaf::String)
+    if scale isa AbstractVector && length(scale) != n
+        throw(CliError(
+            "config/invalid",
+            "$leaf: identification.uhlig.scale vector has length $(length(scale)), " *
+            "expected $n (number of variables)",
+        ))
+    end
+    return scale
+end
+
 """
     get_uhlig_params(config) → Dict
 
@@ -394,13 +447,19 @@ Extract Uhlig SVAR identification tuning parameters from a config dict.
 function get_uhlig_params(config::Dict)
     id_cfg = get(config, "identification", Dict())
     uhlig = get(id_cfg, "uhlig", Dict())
-    Dict{String,Any}(
-        "n_starts"        => get(uhlig, "n_starts", 50),
-        "n_refine"        => get(uhlig, "n_refine", 10),
+    uhlig isa AbstractDict || throw(CliError(
+        "config/invalid",
+        "[identification.uhlig] must be a table (got $uhlig)",
+    ))
+    scale = haskey(uhlig, "scale") ? _parse_uhlig_scale(uhlig["scale"]) : :diff
+    return Dict{String,Any}(
+        "n_starts" => get(uhlig, "n_starts", 50),
+        "n_refine" => get(uhlig, "n_refine", 10),
         "max_iter_coarse" => get(uhlig, "max_iter_coarse", 500),
-        "max_iter_fine"   => get(uhlig, "max_iter_fine", 2000),
-        "tol_coarse"      => get(uhlig, "tol_coarse", 1e-4),
-        "tol_fine"        => get(uhlig, "tol_fine", 1e-8),
+        "max_iter_fine" => get(uhlig, "max_iter_fine", 2000),
+        "tol_coarse" => get(uhlig, "tol_coarse", 1e-4),
+        "tol_fine" => get(uhlig, "tol_fine", 1e-8),
+        "scale" => scale,
     )
 end
 

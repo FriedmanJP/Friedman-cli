@@ -123,9 +123,9 @@ Nowcast news decomposition (Banbura & Modugno 2014)
 | `--data-old` | — | `String` | `""` | — | Path to old vintage CSV |
 | `--monthly-vars` | — | `Int64` | `0` | — | Number of monthly variables |
 | `--quarterly-vars` | — | `Int64` | `0` | — | Number of quarterly variables |
-| `--method` | — | `String` | `dfm` | `dfm` | News engine (BVAR news is not available) |
-| `--factors` | `-r` | `Int64` | `2` | — | Number of factors |
-| `--lags` | `-p` | `Int64` | `1` | — | Factor VAR lags |
+| `--method` | — | `String` | `dfm` | `dfm`, `bvar` | dfm\|bvar |
+| `--factors` | `-r` | `Int64` | `2` | — | Number of factors (DFM only; ignored by bvar) |
+| `--lags` | `-p` | `Int64` | `1` | — | VAR lags: DFM factor dynamics or BVAR order |
 | `--target-period` | — | `Int64` | `0` | — | Target period (0=last) |
 | `--target-var` | — | `Int64` | `0` | — | Target variable index (0=last) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |

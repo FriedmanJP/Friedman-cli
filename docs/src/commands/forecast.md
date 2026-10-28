@@ -270,7 +270,7 @@ Combines two or more forecasts into one series. `equal` averages; `bates-granger
 
 ## Beyond this page
 
-`forecast` also serves `univariate arfima`, `univariate sarima`, `univariate midas`, `regime ms`, `regime ms-ar`, `factor sdfm`, and `multivariate favar` — the same tidy forecast table, except that `arfima` uses the single-series `horizon | forecast | lower | upper` form, `midas` adds a standard error with a summary table, and the `ms` leaves add a predicted-regime-probabilities table. Per-leaf options live in the [generated forecast reference](generated/forecast.md). FAVAR and structural-DFM forecasting are additionally covered from the model side in the [favar & sdfm guide](favar.md); DSGE forecasting runs through simulation in the [dsge guide](dsge.md#dsge-simulate).
+`forecast` also serves `univariate arfima`, `univariate sarima`, `univariate midas`, `regime ms`, `regime ms-ar`, `factor sdfm`, and `multivariate favar` — the same tidy forecast table (`horizon | variable | value | lower | upper`, with `midas` adding `se` alongside a summary table and the `ms` leaves adding a predicted-regime-probabilities table). Per-leaf options live in the [generated forecast reference](generated/forecast.md). FAVAR and structural-DFM forecasting are additionally covered from the model side in the [favar & sdfm guide](favar.md); DSGE forecasting runs through simulation in the [dsge guide](dsge.md#dsge-simulate).
 
 ---
 

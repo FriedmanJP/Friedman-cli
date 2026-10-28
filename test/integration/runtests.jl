@@ -373,6 +373,65 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         if tbl !== nothing
             @test table_cols(tbl) == ["horizon", "y1", "y2", "y3"]
         end
+
+        # Uhlig penalty scale (#235 / MEMs#870): diff, residual, vector, and bad scale
+        uhlig_diff = tempname() * ".toml"
+        write(uhlig_diff, """
+        [[identification.sign_restrictions]]
+        var = 1
+        shock = 1
+        sign = "positive"
+        horizon = 0
+        [[identification.sign_restrictions]]
+        var = 2
+        shock = 1
+        sign = "negative"
+        horizon = 0
+        [identification.uhlig]
+        n_starts = 10
+        n_refine = 2
+        scale = "diff"
+        """)
+        uhlig_res = tempname() * ".toml"
+        write(
+            uhlig_res,
+            replace(read(uhlig_diff, String), "scale = \"diff\"" => "scale = \"residual\""),
+        )
+        uhlig_vec = tempname() * ".toml"
+        write(
+            uhlig_vec,
+            replace(
+                read(uhlig_diff, String),
+                "scale = \"diff\"" => "scale = [1.0, 2.0, 3.0]",
+            ),
+        )
+        uhlig_bad = tempname() * ".toml"
+        write(
+            uhlig_bad,
+            replace(read(uhlig_diff, String), "scale = \"diff\"" => "scale = [1.0, 2.0]"),
+        )
+
+        rd = run_json([
+            "irf", "var", csv2, "--lags", "2", "--horizons", "6",
+            "--shock", "1", "--ci", "none", "--id", "uhlig", "--config", uhlig_diff,
+        ])
+        assert_envelope_ok(rd; label="irf var uhlig scale=diff")
+        rr = run_json([
+            "irf", "var", csv2, "--lags", "2", "--horizons", "6",
+            "--shock", "1", "--ci", "none", "--id", "uhlig", "--config", uhlig_res,
+        ])
+        assert_envelope_ok(rr; label="irf var uhlig scale=residual")
+        rv = run_json([
+            "irf", "var", csv2, "--lags", "2", "--horizons", "6",
+            "--shock", "1", "--ci", "none", "--id", "uhlig", "--config", uhlig_vec,
+        ])
+        assert_envelope_ok(rv; label="irf var uhlig scale=vector")
+        @test run_json([
+            "irf", "var", csv2, "--lags", "2", "--horizons", "6",
+            "--shock", "1", "--ci", "none", "--id", "uhlig", "--config", uhlig_bad,
+        ]).code == 4
+        rm(uhlig_diff; force=true); rm(uhlig_res; force=true)
+        rm(uhlig_vec; force=true); rm(uhlig_bad; force=true)
         # robust-bayes on the BVAR posterior (Giacomini-Kitagawa bands).
         # NOTE: on bvar leaves --config is the *prior* file, so it must carry
         # both [prior] and [identification].
@@ -3145,15 +3204,26 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             assert_envelope_ok(r; label="forecast univariate midas")
             t = first_table(r.doc)[2]
             @test t !== nothing && length(table_rows(t)) == 1      # ONE direct h-step point
-            @test Set(["horizon", "forecast", "lower", "upper", "se"]) ⊆ Set(String.(table_cols(t)))
+            # #236 (MEMs#867): routes via long_table(::MidasForecast)
+            @test table_cols(t) == ["horizon", "variable", "value", "se", "lower", "upper"]
             row = first(table_rows(t))
-            f  = Float64(collect(row)[col_index(t, "forecast")])
+            @test Int(collect(row)[col_index(t, "horizon")]) == 1
+            f = Float64(collect(row)[col_index(t, "value")])
             lo = Float64(collect(row)[col_index(t, "lower")])
             hi = Float64(collect(row)[col_index(t, "upper")])
             @test isfinite(f) && lo <= f <= hi
             # the DGP's conditional mean given the last K obs
             expected = 1.0 + 2.0 * (sum(xhf[end - K + 1:end]) / K)
             @test abs(f - expected) < 1.0
+
+            # Direct horizon h=3 is honored by long_table(::MidasForecast)
+            rh3 = run_json([
+                "forecast", "univariate", "midas", lf,
+                "--hf-data", hf, "--m", "3", "--k", "6", "--horizon", "3",
+            ])
+            assert_envelope_ok(rh3; label="forecast univariate midas h=3")
+            th3 = first_table(rh3.doc)[2]
+            @test Int(collect(first(table_rows(th3)))[col_index(th3, "horizon")]) == 3
 
             # there is deliberately NO --horizons: the horizon is fixed at estimation
             @test run_json(["forecast", "univariate", "midas", lf, "--hf-data", hf, "--m", "3",
@@ -7724,6 +7794,24 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             r = run_json(["nowcast", "news", "--data-new", multi, "--data-old", old_path,
                           "--factors", "1", "--lags", "1"])
             assert_envelope_ok(r; label="nowcast news")
+
+            # #234 (MEMs#868): BVAR news decomposition via nowcast_news(::NowcastBVAR)
+            rb = run_json([
+                "nowcast", "news", "--data-new", multi, "--data-old", old_path,
+                "--monthly-vars", "2", "--quarterly-vars", "1",
+                "--method", "bvar", "--lags", "1",
+            ])
+            assert_envelope_ok(rb; label="nowcast news bvar")
+            tb = named_table(rb.doc, :nowcast_news_decomposition)
+            @test tb !== nothing && length(table_rows(tb)) == 1
+            for rw in table_rows(tb)
+                @test isfinite(Float64(collect(rw)[2]))
+            end
+            # bridge remains unsupported for news decomposition
+            @test run_json([
+                "nowcast", "news", "--data-new", multi, "--data-old", old_path,
+                "--method", "bridge",
+            ]).code == 2
 
             # A row-count mismatch is the user's input, not an internal bug
             short_path = tempname() * ".csv"

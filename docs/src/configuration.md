@@ -214,6 +214,7 @@ max_iter_coarse = 1000  # coarse optimization iterations (default: 500)
 max_iter_fine = 5000    # fine optimization iterations (default: 2000)
 tol_coarse = 1e-5       # coarse tolerance (default: 1e-4)
 tol_fine = 1e-10        # fine tolerance (default: 1e-8)
+scale = "diff"          # penalty normalization: diff|first_difference|residual|sigma|none|unit or [s1, ..., sn] (default: "diff")
 ```
 
 ---

@@ -6900,14 +6900,8 @@ function _forecast_midas(; data::String="", result=nothing, column::Int=1, hf_da
     catch e
         throw(_midas_error(e, "MIDAS forecast"))
     end
-    output_result(DataFrame(
-            horizon = [mdl.h],
-            forecast = round.(Float64.(collect(fc.forecast)); digits=6),
-            lower = round.(Float64.(collect(fc.ci_lower)); digits=6),
-            upper = round.(Float64.(collect(fc.ci_upper)); digits=6),
-            se = round.(Float64.(collect(fc.se)); digits=6));
-        format=Symbol(format), output=output,
-        title="MIDAS Direct Forecast ($ynm)", key="midas_forecast")
+    _emit_result(fc; title="MIDAS Direct Forecast ($ynm)", key="midas_forecast",
+                 format=Symbol(format), output=output)
     output_kv(Pair{String,Any}[
         "horizon (h)" => mdl.h,
         "K (HF lags)" => mdl.K,

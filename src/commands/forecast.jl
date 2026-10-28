@@ -78,8 +78,18 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:midas_forecast, description="Direct h-step forecast of the low-frequency target: horizon | forecast | lower | upper | se"),
-                    TableSpec(name=:midas_forecast_summary, description="Horizon, HF lags K, HF-per-LF ratio m, AR lags, weight family and interval level")],
+            tables=[
+                TableSpec(
+                    name=:midas_forecast,
+                    description="Direct h-step forecast of the low-frequency target: " *
+                        "horizon | variable | value | se | lower | upper",
+                ),
+                TableSpec(
+                    name=:midas_forecast_summary,
+                    description="Horizon, HF lags K, HF-per-LF ratio m, AR lags, " *
+                        "weight family and interval level",
+                ),
+            ],
             category="forecast",
             handler=wrap_legacy(_forecast_midas),
         ),

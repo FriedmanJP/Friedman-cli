@@ -247,11 +247,12 @@ function _hd_var(; data::String="", result=nothing, model=nothing, lags=nothing,
     if id == "uhlig"
         cfg, restrictions = _load_svar_restrictions(config, n, "Uhlig")
         uhlig_params = get_uhlig_params(cfg)
+        scale = _validate_uhlig_scale(uhlig_params["scale"], n, "hd var")
         uhlig_result = identify_uhlig(model, restrictions, size(Y, 1) - p;
             n_starts=uhlig_params["n_starts"], n_refine=uhlig_params["n_refine"],
             max_iter_coarse=uhlig_params["max_iter_coarse"], max_iter_fine=uhlig_params["max_iter_fine"],
             tol_coarse=uhlig_params["tol_coarse"], tol_fine=uhlig_params["tol_fine"],
-            _fwd_seed()...)
+            scale=scale, _fwd_seed()...)
         # Use Cholesky HD as base, labelled with Uhlig id
         hd_result = historical_decomposition(model, size(Y, 1) - p; method=:cholesky)
         _status_report(() -> report(hd_result))

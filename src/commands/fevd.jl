@@ -268,11 +268,12 @@ function _fevd_var(; data::String="", result=nothing, model=nothing, lags=nothin
     if id == "uhlig"
         cfg, restrictions = _load_svar_restrictions(config, n, "Uhlig")
         uhlig_params = get_uhlig_params(cfg)
+        scale = _validate_uhlig_scale(uhlig_params["scale"], n, "fevd var")
         uhlig_result = identify_uhlig(model, restrictions, horizons;
             n_starts=uhlig_params["n_starts"], n_refine=uhlig_params["n_refine"],
             max_iter_coarse=uhlig_params["max_iter_coarse"], max_iter_fine=uhlig_params["max_iter_fine"],
             tol_coarse=uhlig_params["tol_coarse"], tol_fine=uhlig_params["tol_fine"],
-            _fwd_seed()...)
+            scale=scale, _fwd_seed()...)
         irf_vals = uhlig_result.irf  # H x n x n
         n_h = size(irf_vals, 1)
         # Compute FEVD proportions from structural IRFs

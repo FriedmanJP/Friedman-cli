@@ -4,6 +4,41 @@ All notable changes to Friedman-cli are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to
 Semantic Versioning. Releases before v0.6.0 are recorded in the git tag history.
 
+## [1.0.3] — 2026-10-28 — MEMs 1.0.2, BVAR news decomposition, Uhlig penalty scale & MIDAS tidy forecast (#238)
+
+MacroEconometricModels pin **1.0.1 → 1.0.2** (`#233`–`#238`), BVAR nowcast news
+decomposition (`#234`), Uhlig penalty normalization scale (`#235`), and MIDAS direct
+forecast routing through `long_table(::MidasForecast)` (`#236`), plus installer JLL
+runtime artifact materialization (`#232`). 477 leaves / 21 top-level unchanged.
+
+### MacroEconometricModels 1.0.2 (#233–#237)
+
+- **MEMs `=1.0.2` pin (#233):** `Project.toml` and `test/integration/Project.toml`
+  moved to `=1.0.2` (`git-tree-sha1 = 214514e81665986f7dfef45fe65ab2b0c5dbbf49`,
+  `MEMs#852`–`#870`). Includes sysimage-safe `load_example` (`MEMs#869`, resolving
+  bundled dataset paths via `pkgdir(@__MODULE__)` at runtime) and single-row column
+  headers / no-crop display on `report()` tables (`MEMs#852`).
+- **`nowcast news --method bvar` (#234):** `nowcast news` now accepts `--method bvar`
+  alongside `dfm`, estimating `nowcast_bvar(Y_old, nM, nQ; lags=lags)` and computing
+  the state-space Kalman-smoother Banbura–Modugno news decomposition via upstream
+  `nowcast_news(::NowcastBVAR)` (`MEMs#868`).
+- **`[identification.uhlig] scale` option (#235):** `get_uhlig_params` parses and
+  validates `scale` (`"diff"` | `"first_difference"` | `"residual"` | `"sigma"` |
+  `"none"` | `"unit"` or a length-$n$ positive finite numeric vector; default `:diff`
+  matching Uhlig 2005 p. 10, `MEMs#870`), forwarding `scale=` to `identify_uhlig` in
+  `irf var`, `fevd var`, and `hd var` with `--id uhlig`.
+- **`forecast univariate midas` via `long_table(::MidasForecast)` (#236):** `_forecast_midas`
+  now routes `MidasForecast` through `_emit_result` (`MEMs#867`, `TIDY-14`), emitting
+  `midas_forecast` with columns `horizon | variable | value | se | lower | upper` and
+  honoring `f.horizon` for direct $h > 1$ forecasts.
+
+### Fixed (#232)
+
+- **Release installer JLL runtime artifacts (#232):** `install.sh`, `install.ps1`, and
+  the `build_release.jl` wrapper now run `Pkg.instantiate()` against the bundled
+  `Manifest.toml` so `XML2_jll` / `Gumroad` / `FFTW_jll` binary artifacts are present in
+  `~/.julia/artifacts` before invoking the precompiled sysimage.
+
 ## [1.0.2] — 2026-10-16 — MEMs 1.0.1, tidy-surface migration, help audit & runtime fixes (#226)
 
 MacroEconometricModels pin **1.0.0 → 1.0.1** (`#221`–`#226`), tidy-surface routing

@@ -1288,11 +1288,25 @@ end
 
 function identify_uhlig(model::VARModel, restrictions::SVARRestrictions, horizon::Int;
                         n_starts=50, n_refine=10, max_iter_coarse=500, max_iter_fine=2000,
-                        tol_coarse=1e-4, tol_fine=1e-8, seed=nothing)
+                        tol_coarse=1e-4, tol_fine=1e-8, penalty_weight=100,
+                        scale=:diff, seed=nothing)
     n = size(model.Y, 2)
+    if scale isa AbstractVector
+        length(scale) == n || throw(ArgumentError(
+            "custom Uhlig scale vector has length $(length(scale)), expected $n",
+        ))
+        all(x -> isfinite(x) && x > 0, scale) || throw(ArgumentError(
+            "custom Uhlig scale vector must be positive and finite",
+        ))
+    elseif !(scale in (:diff, :first_difference, :residual, :sigma, :none, :unit))
+        throw(ArgumentError(
+            "unknown Uhlig scale :$scale; use :diff, :residual, :none, or a " *
+            "length-$n vector",
+        ))
+    end
     Q = Matrix{Float64}(I(n))
     irf_vals = ones(horizon + 1, n, n) * 0.1
-    UhligSVARResult(Q, irf_vals, 1e-6, fill(1e-7, n), restrictions, true)
+    return UhligSVARResult(Q, irf_vals, 1e-6, fill(1e-7, n), restrictions, true)
 end
 function identify_narrative(model::VARModel, restrictions::SVARRestrictions, horizon::Int;
                             kwargs...)
@@ -12082,8 +12096,20 @@ function forecast(m::MidasModel, X_new::AbstractVector; y_lags=nothing, level::R
     end
     point = xn[1]                      # ← first element = most recent, by contract
     se = 0.25
-    MidasForecast{Float64}([point], [point - 1.96se], [point + 1.96se], [se],
-                           m.h, Float64(level))
+    return MidasForecast{Float64}(
+        [point], [point - 1.96se], [point + 1.96se], [se], m.h, Float64(level),
+    )
+end
+
+function long_table(f::MidasForecast)
+    K = length(f.forecast)
+    horizon = [f.horizon + k - 1 for k in 1:K]
+    variable = fill("y", K)
+    value = Float64[f.forecast[k] for k in 1:K]
+    se = Float64[f.se[k] for k in 1:K]
+    lower = Float64[f.ci_lower[k] for k in 1:K]
+    upper = Float64[f.ci_upper[k] for k in 1:K]
+    return DataFrame(; horizon, variable, value, se, lower, upper)
 end
 
 export MidasForecast

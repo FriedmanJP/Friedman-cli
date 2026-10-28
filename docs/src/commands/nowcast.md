@@ -61,7 +61,7 @@ The two vintages must have the same shape. A newer vintage fills in missing cell
 
 ## nowcast forecast
 
-Multi-step forecast from a fitted nowcasting model. `--method` selects `dfm` or `bvar`; `--factors` applies to DFM only and `--lags` to DFM and BVAR. `--horizons` sets the forecast horizon (it has no short flag: `-h` is help on every leaf). `bridge` is a declared `--method` choice but has no upstream `forecast` method (MEMs 1.0.0 defines `forecast` only for DFM/BVAR models), so `--method=bridge` fails here — bridge nowcasts via `nowcast bridge`.
+Multi-step forecast from a fitted nowcasting model. `--method` selects `dfm`, `bvar`, or `bridge`; `--factors` applies to DFM only and `--lags` to DFM and BVAR. `--horizons` sets the forecast horizon (it has no short flag: `-h` is help on every leaf). Bridge equations forecast by carrying the last smoothed indicators and quarterly nowcast forward across horizons (`forecast(::NowcastBridge, h)`).
 
 <!-- capture -->
 ```bash

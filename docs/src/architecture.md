@@ -114,7 +114,7 @@ PrettyTables, `:csv` → CSV.write, `:json` → the versioned envelope).
 (`src/commands/shared.jl`), which dispatches on explicit type unions mirroring upstream
 1:1 (never trait probes — the mock must mirror real exactly):
 
-1. `long_table(result)` — MEMs' tidy renderer for array-valued results (IRF, FEVD, forecasts): one row per `(horizon, variable[, shock])` cell. Used by `irf` var/vecm/bvar/lp/tvpvar/favar/sdfm (cholesky-family paths; Arias/Uhlig/sign-identified-set paths are hand-built, see 3), `fevd` var/vecm/favar/sdfm (cholesky-family paths; bvar/lp/pvar are hand-built, see 3), and `forecast` var/vecm/lp/arima/sarima/arfima/static/bvar/dynamic/gdfm/favar/sdfm/setar/star/ms-ar/ms/scenario (scenario appends the `unconditional` baseline via the helper's `extra_cols`; `forecast midas` and the volatility forecasts are hand-built, see 3).
+1. `long_table(result)` — MEMs' tidy renderer for array-valued results (IRF, FEVD, forecasts): one row per `(horizon, variable[, shock])` cell. Used by `irf` var/vecm/bvar/lp/tvpvar/favar/sdfm (cholesky-family paths; Arias/Uhlig/sign-identified-set paths are hand-built, see 3), `fevd` var/vecm/favar/sdfm (cholesky-family paths; bvar/lp/pvar are hand-built, see 3), and `forecast` var/vecm/lp/arima/sarima/arfima/midas/static/bvar/dynamic/gdfm/favar/sdfm/setar/star/ms-ar/ms/scenario (scenario appends the `unconditional` baseline via the helper's `extra_cols`; the volatility forecasts are hand-built, see 3).
 2. **`DataFrame(model)`** — MEMs' tidy renderer for coefficient-bearing models: one row per
    term, columns `term|estimate|std_error|stat|p_value|ci_lower|ci_upper` (plus an
    `equation`/`alternative`/`block` prefix for VAR/multinomial/ordered models, and an

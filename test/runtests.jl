@@ -3690,6 +3690,35 @@ using TOML
         uhlig_partial = get_uhlig_params(cfg_partial)
         @test uhlig_partial["n_starts"] == 200
         @test uhlig_partial["n_refine"] == 10  # default
+        @test uhlig_partial["scale"] == :diff
+
+        # scale option (#235 / MEMs#870): string symbols & positive numeric vector
+        for s in ("diff", "first_difference", "residual", "sigma", "none", "unit")
+            u = get_uhlig_params(
+                Dict("identification" => Dict("uhlig" => Dict("scale" => s))),
+            )
+            @test u["scale"] == Symbol(s)
+        end
+        u_vec = get_uhlig_params(
+            Dict("identification" => Dict("uhlig" => Dict("scale" => [1.0, 2, 0.5]))),
+        )
+        @test u_vec["scale"] == [1.0, 2.0, 0.5]
+
+        # invalid scale values throw CliError("config/invalid", ...)
+        bad_scales = (
+            "unknown", "", [], [1.0, 0.0], [1.0, -2.0], [1.0, Inf], [true, false], 42,
+        )
+        for bad in bad_scales
+            err = try
+                get_uhlig_params(
+                    Dict("identification" => Dict("uhlig" => Dict("scale" => bad))),
+                )
+                nothing
+            catch e
+                e
+            end
+            @test err isa CliError && err.code == "config/invalid"
+        end
     end
 
     @testset "get_lewis_tvv_params" begin
