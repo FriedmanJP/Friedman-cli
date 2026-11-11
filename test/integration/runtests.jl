@@ -10161,6 +10161,151 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         end
     end
 
+    @testset "v1.0.4 W1: serialized data & saved-model pipeline (#240, #246)" begin
+        mktempdir() do dir
+            # 1. Plain .jls & plain .jld2 user tabular archives → estimate multivariate var & data summary
+            df_raw = DataFrame(y1=randn(MersenneTwister(240), 80),
+                               y2=randn(MersenneTwister(241), 80),
+                               y3=randn(MersenneTwister(242), 80))
+            jls_data = joinpath(dir, "plain_df.jls")
+            Friedman.Serialization.serialize(jls_data, df_raw)
+            jld2_data = joinpath(dir, "plain_df.jld2")
+            Friedman.JLD2.jldsave(jld2_data; data=df_raw)
+
+            r_jls = run_json(["estimate", "multivariate", "var", jls_data, "--lags", "1"])
+            assert_envelope_ok(r_jls; label="estimate var on plain .jls DataFrame")
+            r_jld2 = run_json(["data", "describe", jld2_data])
+            assert_envelope_ok(r_jld2; label="data describe on plain .jld2 DataFrame")
+
+            # 2. data simulate var --save-data → estimate svar --save-model → irf/fevd/hd var
+            sim_data = joinpath(dir, "sim_var.jld2")
+            r_sim = run_json(["data", "simulate", "var", "--periods", "80",
+                              "--seed", "11", "--save-data", sim_data])
+            assert_envelope_ok(r_sim; label="data simulate var --save-data")
+            @test isfile(sim_data)
+
+            var_stem = joinpath(dir, "var_fit")
+            r_var = run_json(["estimate", "multivariate", "var", sim_data, "--lags", "1",
+                              "--save-model", var_stem])
+            assert_envelope_ok(r_var; label="estimate var from simulated .jld2")
+            @test isfile(var_stem * ".jld2")
+
+            svar_stem = joinpath(dir, "svar_fit")
+            r_svar = run_json(["estimate", "multivariate", "svar", sim_data, "--lags", "1",
+                               "--save-model", svar_stem])
+            assert_envelope_ok(r_svar; label="estimate svar --save-model")
+            @test isfile(svar_stem * ".jld2")
+
+            assert_envelope_ok(run_json(["irf", "var", svar_stem, "--horizons", "6"]);
+                               label="irf var positional SVARModel")
+            assert_envelope_ok(run_json(["fevd", "var", svar_stem, "--horizons", "6"]);
+                               label="fevd var positional SVARModel")
+            assert_envelope_ok(run_json(["hd", "var", "--model", svar_stem]);
+                               label="hd var --model SVARModel")
+
+            # 3. Post-estimation test on saved VARModel handle
+            assert_envelope_ok(run_json(["test", "multivariate", "granger", var_stem,
+                                         "--cause", "1", "--effect", "2"]);
+                               label="test multivariate granger on saved VARModel")
+
+            # 4. DSGE solve --save-model → dsge irf, dsge moments, data simulate dsge, policy sufficiency
+            dsge_jl = joinpath(dir, "ar_dsge.jl")
+            write(dsge_jl, """
+            @dsge begin
+                parameters: rho = 0.85, sigma = 0.02
+                endogenous: Y, C
+                exogenous: e
+                linear: true
+
+                Y[t] = rho * Y[t-1] + sigma * e[t]
+                C[t] = 0.7 * Y[t]
+            end
+            """)
+            sol_stem = joinpath(dir, "dsge_sol")
+            assert_envelope_ok(run_json(["dsge", "solve", dsge_jl, "--save-model", sol_stem]);
+                               label="dsge solve --save-model")
+            @test isfile(sol_stem * ".jld2")
+
+            assert_envelope_ok(run_json(["dsge", "irf", sol_stem, "--horizon", "8"]);
+                               label="dsge irf on saved DSGESolution")
+            assert_envelope_ok(run_json(["dsge", "moments", sol_stem, "--lags", "2"]);
+                               label="dsge moments on saved DSGESolution")
+            assert_envelope_ok(run_json(["data", "simulate", "dsge", sol_stem,
+                                         "--periods", "12", "--burn", "4", "--seed", "7"]);
+                               label="data simulate dsge on saved DSGESolution")
+
+            fs_stem = joinpath(dir, "pol_fs")
+            assert_envelope_ok(run_json(["policy", "sufficiency", "dsge", sol_stem,
+                                         "--observables", "Y", "--horizon", "6",
+                                         "--save-result", fs_stem]);
+                               label="policy sufficiency dsge on saved DSGESolution")
+            @test isfile(fs_stem * ".jld2")
+            assert_envelope_ok(run_json(["policy", "sufficiency", "dsge", "--result", fs_stem]);
+                               label="policy sufficiency dsge --result")
+
+            # 5. #246: OccBin dsge solve --constraint --save-model → dsge irf
+            ob_stem = joinpath(dir, "ob_sol")
+            assert_envelope_ok(run_json(["dsge", "solve", dsge_jl,
+                                         "--constraint", "Y[t] >= -0.05",
+                                         "--save-model", ob_stem]);
+                               label="dsge solve OccBin --save-model (#246)")
+            @test isfile(ob_stem * ".jld2")
+            assert_envelope_ok(run_json(["dsge", "irf", ob_stem, "--horizon", "8",
+                                         "--shock-size", "-3.0"]);
+                               label="dsge irf on saved OccBinSolution (#246)")
+
+            # 6. #246: dsge bayes estimate --save-model → dsge bayes irf
+            obs_csv = joinpath(dir, "dsge_obs.csv")
+            write(obs_csv, "Y\n" * join(0.02 .* randn(MersenneTwister(246), 40), "\n") * "\n")
+            bayes_stem = joinpath(dir, "bayes_post")
+            assert_envelope_ok(run_json(["dsge", "bayes", "estimate", dsge_jl,
+                                         "--data", obs_csv,
+                                         "--params", "rho,sigma",
+                                         "--observables", "Y",
+                                         "--prior", "rho ~ beta(4, 2)",
+                                         "--prior", "sigma ~ inv_gamma(2, 0.02)",
+                                         "--sampler", "smc", "--n-smc", "20", "--n-particles", "20",
+                                         "--save-model", bayes_stem]);
+                               label="dsge bayes estimate --save-model (#246)")
+            @test isfile(bayes_stem * ".jld2")
+            assert_envelope_ok(run_json(["dsge", "bayes", "irf", bayes_stem, "--horizon", "6"]);
+                               label="dsge bayes irf on saved BayesianDSGE (#246)")
+
+            # 7. hadsge solve huggett --save-model → hadsge irf <handle> & builtin string passthrough
+            ha_stem = joinpath(dir, "huggett_sol")
+            assert_envelope_ok(run_json(["hadsge", "solve", "huggett",
+                                         "--method", "reiter", "--n-reduced", "6",
+                                         "--save-model", ha_stem]);
+                               label="hadsge solve huggett --save-model")
+            @test isfile(ha_stem * ".jld2")
+            assert_envelope_ok(run_json(["hadsge", "irf", ha_stem, "--horizon", "5"]);
+                               label="hadsge irf on saved HADSGESolution")
+            assert_envelope_ok(run_json(["hadsge", "irf", "huggett",
+                                         "--method", "reiter", "--horizon", "5", "--n-reduced", "6"]);
+                               label="hadsge irf builtin huggett passthrough")
+
+            # 8. policy counterfactual var --model + --save-result → --result
+            cf_stem = joinpath(dir, "pol_cf")
+            assert_envelope_ok(run_json(["policy", "counterfactual", "var", "--model", var_stem,
+                                         "--horizon", "6", "--shocks", "3", "--nonpolicy-shock", "1",
+                                         "--outcomes", "infl=1,ygap=2", "--instruments", "rate=3",
+                                         "--rule", "taylor", "--save-result", cf_stem]);
+                               label="policy counterfactual var --model --save-result")
+            @test isfile(cf_stem * ".jld2")
+            assert_envelope_ok(run_json(["policy", "counterfactual", "var", "--result", cf_stem]);
+                               label="policy counterfactual var --result")
+
+            # 9. REPL session injection disambiguates domain --model vs handle --model
+            sess = Friedman.Session()
+            sess.data_path = "session.csv"
+            app = Friedman.build_app()
+            @test Friedman.inject_session_data(sess, ["test", "unit-root", "adf", "--model", "trend"], app) ==
+                  ["test", "unit-root", "adf", "session.csv", "--model", "trend"]
+            @test Friedman.inject_session_data(sess, ["irf", "var", "--model", var_stem], app) ==
+                  ["irf", "var", "--model", var_stem]
+        end
+    end
+
 end
 
 # Real entry-point coverage (C036) — also on core/CI path

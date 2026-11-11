@@ -59,7 +59,8 @@ _opt_save_data() = OptionSpec(name="save-data", type=String, default="",
 function _sim_spec(leaf::String, summary::String, handler::Function;
                    args::Vector{ArgSpec}=ArgSpec[],
                    options::Vector{OptionSpec}=OptionSpec[],
-                   flags::Vector{FlagSpec}=FlagSpec[])
+                   flags::Vector{FlagSpec}=FlagSpec[],
+                   model_types::Vector{Symbol}=Symbol[])
     return CommandSpec(
         path=["data", "simulate", leaf],
         summary=summary,
@@ -68,6 +69,7 @@ function _sim_spec(leaf::String, summary::String, handler::Function;
         flags=flags,
         tables=_SIM_TABLES,
         category="data",
+        model_types=model_types,
         handler=wrap_legacy(handler),
     )
 end
@@ -221,7 +223,8 @@ function data_simulate_specs()::Vector{CommandSpec}
         _sim_spec("dsge", "Representative-agent DSGE path from solve + simulate",
                   _data_simulate_dsge;
                   args=[ArgSpec(name="model", type=String, required=true,
-                                description=".jl or .toml DSGE spec")],
+                                description=".jl/.toml DSGE spec or saved solution handle")],
+                  model_types=[:DSGESolution, :PerturbationSolution, :ProjectionSolution],
                   options=[
                       OptionSpec(name="method", type=String, default="gensys",
                                  description="gensys|klein|blanchard-kahn|perturbation|projection|pfi|vfi",
@@ -234,7 +237,8 @@ function data_simulate_specs()::Vector{CommandSpec}
         _sim_spec("ha", "Heterogeneous-agent aggregate path from solve + simulate",
                   _data_simulate_ha;
                   args=[ArgSpec(name="model", type=String, required=true,
-                                description="HA builtin (huggett, krusell-smith, …) or .jl ModelSpec")],
+                                description="HA builtin, .jl ModelSpec, or saved HADSGESolution handle")],
+                  model_types=[:HADSGESolution],
                   options=[
                       OptionSpec(name="method", type=String, default="reiter",
                                  description="ssj|reiter|krusell-smith (krusell-smith: no aggregate path; use ssj/reiter)",
@@ -813,21 +817,30 @@ end
 
 # ── DSGE family (no dgp_*; solve then simulate) ─────────────
 
-function _data_simulate_dsge(; model::String, method::String="gensys", order::Int=1,
+function _data_simulate_dsge(; model="", method::String="gensys", order::Int=1,
                              meas_sd::String="", periods::Int=80, burn::Int=20,
                              seed::Int=0, save_data::String="", format::String="table", output::String="")
-    isempty(strip(model)) && throw(CliError("usage/missing-arg",
-        "a .jl or .toml DSGE spec is required"))
-    _one_of("method", method, _RA_METHOD_CHOICES)
-    order in 1:3 || throw(CliError("usage/invalid",
-        "--order must be 1, 2, or 3 (got $order)"))
-    method != "perturbation" && order != 1 && throw(CliError("usage/invalid",
-        "--order applies only to --method perturbation (got --method $method, --order $order)"))
-    periods, burn = _sim_len(periods, burn)
-    eff, rng = _sim_rng(seed)
-    spec = _load_dsge_model(model)
-    sol = _solve_dsge(spec; method=method, order=order)
-    spec_out = hasproperty(sol, :spec) ? sol.spec : spec
+    if model isa AbstractString
+        isempty(strip(model)) && throw(CliError("usage/missing-arg",
+            "a .jl or .toml DSGE spec is required"))
+        _one_of("method", method, _RA_METHOD_CHOICES)
+        order in 1:3 || throw(CliError("usage/invalid",
+            "--order must be 1, 2, or 3 (got $order)"))
+        method != "perturbation" && order != 1 && throw(CliError("usage/invalid",
+            "--order applies only to --method perturbation (got --method $method, --order $order)"))
+        periods, burn = _sim_len(periods, burn)
+        eff, rng = _sim_rng(seed)
+        spec = _load_dsge_model(String(model))
+        sol = _solve_dsge(spec; method=method, order=order)
+        spec_out = hasproperty(sol, :spec) ? sol.spec : spec
+    else
+        periods, burn = _sim_len(periods, burn)
+        eff, rng = _sim_rng(seed)
+        sol = model
+        spec_out = sol.spec
+        method = string(sol.method)
+        order = sol isa MacroEconometricModels.PerturbationSolution ? sol.order : 1
+    end
     raw = try
         MacroEconometricModels.simulate(sol, periods + burn; rng=rng)
     catch e
@@ -900,24 +913,32 @@ function _parse_meas_sd(s::String, n::Int)
     return vals
 end
 
-function _data_simulate_ha(; model::String, method::String="reiter", n_reduced::Int=10,
+function _data_simulate_ha(; model="", method::String="reiter", n_reduced::Int=10,
                            distribution::String="young", hh_solver::String="egm",
                            periods::Int=20, seed::Int=0, save_data::String="",
                            format::String="table", output::String="")
-    isempty(strip(model)) && throw(CliError("usage/missing-arg",
-        "an HA builtin or .jl ModelSpec is required"))
-    meth = _parse_ha_method(method)
-    meth === :krusell_smith && throw(CliError("usage/invalid",
-        "data simulate ha has no aggregate path for krusell-smith";
-        hint="use --method ssj or reiter"))
-    _sim_ge("n-reduced", n_reduced, 1)
-    _sim_ge("periods", periods, 1)
-    hh = _parse_hh_solver(hh_solver)
-    eff, rng = _sim_rng(seed)
-    spec = _load_ha_model(model; distribution=distribution)
-    sol = _solve_ha(spec; method=meth, n_reduced=n_reduced, hh_solver=hh)
-    sol isa MacroEconometricModels.HADSGESolution || throw(CliError("model/unsupported",
-        "method=$meth did not produce a linearized HADSGESolution ($(typeof(sol)))"))
+    if model isa AbstractString
+        isempty(strip(model)) && throw(CliError("usage/missing-arg",
+            "an HA builtin or .jl ModelSpec is required"))
+        meth = _parse_ha_method(method)
+        meth === :krusell_smith && throw(CliError("usage/invalid",
+            "data simulate ha has no aggregate path for krusell-smith";
+            hint="use --method ssj or reiter"))
+        _sim_ge("n-reduced", n_reduced, 1)
+        _sim_ge("periods", periods, 1)
+        hh = _parse_hh_solver(hh_solver)
+        eff, rng = _sim_rng(seed)
+        spec = _load_ha_model(String(model); distribution=distribution)
+        sol = _solve_ha(spec; method=meth, n_reduced=n_reduced, hh_solver=hh)
+        sol isa MacroEconometricModels.HADSGESolution || throw(CliError("model/unsupported",
+            "method=$meth did not produce a linearized HADSGESolution ($(typeof(sol)))"))
+    else
+        _sim_ge("periods", periods, 1)
+        eff, rng = _sim_rng(seed)
+        sol = model
+        spec = sol.spec
+        method = string(sol.method)
+    end
     path = try
         MacroEconometricModels.simulate(sol, periods; rng=rng)
     catch e

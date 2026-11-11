@@ -208,45 +208,61 @@ end
 
 """Build `(ce, ir_or_bir)` for one source route. The IRF object is returned too
 because `policy counterfactual` extracts the baseline from the SAME estimate."""
-function _policy_menu(route::String; data::String, lags, horizon::Int, draws::Int,
+function _policy_menu(route::String; data::String="", model=nothing, lags, horizon::Int, draws::Int,
                       replications::Int, n_draws::Int, config::String,
                       shocks, outcomes, instruments, normalize::Symbol)
     if route == "var"
-        model, Y, varnames, p = _load_and_estimate_var(data, lags)
+        m = model === nothing ? first(_load_and_estimate_var(data, lags)) : model
         kw = Dict{Symbol,Any}()
         if replications > 0
             kw[:ci_type] = :bootstrap
             kw[:reps] = replications
         end
-        ir = irf(model, horizon; kw...)
+        ir = irf(m, horizon; kw...)
         ce = policy_causal_effects(ir, shocks, outcomes, instruments;
                                    H=horizon, normalize=normalize)
-        return ce, ir, model
+        return ce, ir, m
     elseif route == "bvar"
-        post, Y, varnames, p, n = _load_and_estimate_bvar(data, lags === nothing ? 4 : lags,
-                                                          config, draws, "direct")
+        post = model === nothing ? first(_load_and_estimate_bvar(data, lags === nothing ? 4 : lags,
+                                                                 config, draws, "direct")) : model
         bir = irf(post, horizon)
         ce = policy_causal_effects(bir, shocks, outcomes, instruments;
                                    H=horizon, normalize=normalize)
         return ce, bir, post
     elseif route == "lp"
-        slp, Y, varnames = _load_and_structural_lp(data, horizon,
-            lags === nothing ? 4 : lags, nothing, "cholesky", "newey_west", config;
-            ci_type=:none, reps=200, conf_level=0.95)
-        # LP draws are an INDEPENDENT-NORMAL N(value, se) approximation — fine
-        # for pointwise bands, not a joint posterior (documented + settings row).
-        ce = policy_causal_effects(slp, shocks, outcomes, instruments;
-                                   H=horizon, n_draws=n_draws, _fwd_seed()...)
         normalize === :none || throw(CliError("usage/invalid",
             "policy: --normalize applies to the var|bvar|sign routes; the lp route keeps the estimator's scale"))
-        return ce, slp.irf, slp
+        if model === nothing
+            slp, Y, varnames = _load_and_structural_lp(data, horizon,
+                lags === nothing ? 4 : lags, nothing, "cholesky", "newey_west", config;
+                ci_type=:none, reps=200, conf_level=0.95)
+            # LP draws are an INDEPENDENT-NORMAL N(value, se) approximation — fine
+            # for pointwise bands, not a joint posterior (documented + settings row).
+            ce = policy_causal_effects(slp, shocks, outcomes, instruments;
+                                       H=horizon, n_draws=n_draws, _fwd_seed()...)
+            return ce, slp.irf, slp
+        elseif model isa MacroEconometricModels.StructuralLP
+            ce = policy_causal_effects(model, shocks, outcomes, instruments;
+                                       H=horizon, n_draws=n_draws, _fwd_seed()...)
+            return ce, model.irf, model
+        elseif model isa Union{MacroEconometricModels.LPModel, MacroEconometricModels.LPIVModel}
+            ce = policy_causal_effects(model, outcomes, instruments;
+                                       H=horizon, n_draws=n_draws, _fwd_seed()...)
+            return ce, nothing, model
+        else
+            throw(CliError("data/wrong-kind", "unsupported LP model handle $(typeof(model))"))
+        end
     elseif route == "sign"
-        model, Y, varnames, p = _load_and_estimate_var(data, lags)
-        check_func, _ = _build_check_func(config)
-        check_func === nothing && throw(CliError("usage/missing",
-            "policy effects sign requires --config with [identification] sign restrictions"))
-        set = identify_sign(model, horizon, check_func; max_draws=replications > 0 ? replications : 1000,
-                            store_all=true, _fwd_seed()...)
+        set = if model isa MacroEconometricModels.SignIdentifiedSet
+            model
+        else
+            m = model === nothing ? first(_load_and_estimate_var(data, lags)) : model
+            check_func, _ = _build_check_func(config)
+            check_func === nothing && throw(CliError("usage/missing",
+                "policy effects sign requires --config with [identification] sign restrictions"))
+            identify_sign(m, horizon, check_func; max_draws=replications > 0 ? replications : 1000,
+                          store_all=true, _fwd_seed()...)
+        end
         ce = policy_causal_effects(set, shocks, outcomes, instruments;
                                    H=horizon, normalize=normalize)
         return ce, set, set
@@ -292,11 +308,22 @@ end
 
 # ── policy effects handlers ─────────────────────────────────
 
-function _policy_effects(route::String; data::String, lags=nothing, horizon::Int=20,
+function _policy_effects(route::String; data::String="", model=nothing, result=nothing,
+                         lags=nothing, horizon::Int=20,
                          draws::Int=2000, replications::Int=0, n_draws::Int=500,
                          config::String="", shocks::String="", outcomes::String="",
                          instruments::String="", normalize::String="none",
                          output::String="", format::String="table")
+    normalize in ("none", "instrument-impact") || throw(CliError("usage/invalid-option",
+        "invalid --normalize '$normalize'; must be none or instrument-impact"))
+    norm_sym = normalize == "none" ? :none : :instrument_impact
+    if result !== nothing
+        output_result(_policy_effects_table(result); format=Symbol(format), output=output,
+                      title="Policy Causal Effects Menu")
+        output_kv(_policy_effects_summary(result, norm_sym); format=format,
+                  title="Policy Causal Effects Summary")
+        return result
+    end
     horizon >= 1 || throw(CliError("usage/invalid",
         "policy: --horizon must be ≥ 1 (got $horizon)"))
     replications >= 0 || throw(CliError("usage/invalid",
@@ -305,10 +332,8 @@ function _policy_effects(route::String; data::String, lags=nothing, horizon::Int
         "policy: --n-draws must be ≥ 1 (got $n_draws)"))
     draws >= 1 || throw(CliError("usage/invalid",
         "policy: --draws must be ≥ 1 (got $draws)"))
-    normalize in ("none", "instrument-impact") || throw(CliError("usage/invalid-option",
-        "invalid --normalize '$normalize'; must be none or instrument-impact"))
-    norm_sym = normalize == "none" ? :none : :instrument_impact
-    shock_list = _parse_cf_shocks(shocks)
+    is_single_lp = model isa Union{MacroEconometricModels.LPModel, MacroEconometricModels.LPIVModel}
+    shock_list = (is_single_lp && isempty(strip(shocks))) ? Union{Int,String}[] : _parse_cf_shocks(shocks)
     out_pairs = _parse_cf_pairs(outcomes, "--outcomes")
     ins_pairs = _parse_cf_pairs(instruments, "--instruments"; required=false)
     norm_sym === :instrument_impact && isempty(ins_pairs) && throw(CliError("usage/invalid",
@@ -318,7 +343,7 @@ function _policy_effects(route::String; data::String, lags=nothing, horizon::Int
     _status()
 
     ce, _, _ = try
-        _policy_menu(route; data=data, lags=lags, horizon=horizon, draws=draws,
+        _policy_menu(route; data=data, model=model, lags=lags, horizon=horizon, draws=draws,
                      replications=replications, n_draws=n_draws, config=config,
                      shocks=shock_list, outcomes=out_pairs, instruments=ins_pairs,
                      normalize=norm_sym)
@@ -336,7 +361,8 @@ end
 
 # ── policy counterfactual handlers ──────────────────────────
 
-function _policy_counterfactual(route::String; data::String, lags=nothing,
+function _policy_counterfactual(route::String; data::String="", model=nothing, result=nothing,
+                                lags=nothing,
                                 horizon::Int=20, draws::Int=2000, replications::Int=0,
                                 n_draws::Int=500, config::String="",
                                 shocks::String="", nonpolicy_shock::String="",
@@ -348,6 +374,11 @@ function _policy_counterfactual(route::String; data::String, lags=nothing,
                                 spanned_tol::Float64=0.05, negate::Bool=false,
                                 output::String="", format::String="table",
                                 plot::Bool=false, plot_save::String="")
+    if result !== nothing
+        _maybe_plot(result; plot=plot, plot_save=plot_save)
+        _render_policy_counterfactual(result; format=format, output=output)
+        return result
+    end
     horizon >= 1 || throw(CliError("usage/invalid",
         "policy: --horizon must be ≥ 1 (got $horizon)"))
     replications >= 0 || throw(CliError("usage/invalid",
@@ -386,7 +417,7 @@ function _policy_counterfactual(route::String; data::String, lags=nothing,
     _status()
 
     result = try
-        ce, ir, _ = _policy_menu(route; data=data, lags=lags, horizon=horizon, draws=draws,
+        ce, ir, _ = _policy_menu(route; data=data, model=model, lags=lags, horizon=horizon, draws=draws,
                               replications=replications, n_draws=n_draws, config=config,
                               shocks=shock_list, outcomes=out_pairs, instruments=ins_pairs,
                               normalize=norm_sym)
@@ -411,7 +442,8 @@ end
 
 # ── policy optimal handler (W5/#127) ────────────────────────
 
-function _policy_optimal(route::String; data::String, lags=nothing,
+function _policy_optimal(route::String; data::String="", model=nothing, result=nothing,
+                         lags=nothing,
                          horizon::Int=20, draws::Int=2000, replications::Int=0,
                          n_draws::Int=500, config::String="",
                          shocks::String="", nonpolicy_shock::String="",
@@ -421,6 +453,11 @@ function _policy_optimal(route::String; data::String, lags=nothing,
                          quantiles::String="0.16,0.5,0.84", negate::Bool=false,
                          output::String="", format::String="table",
                          plot::Bool=false, plot_save::String="")
+    if result !== nothing
+        _maybe_plot(result; plot=plot, plot_save=plot_save)
+        _render_policy_counterfactual(result; format=format, output=output)
+        return result
+    end
     horizon >= 1 || throw(CliError("usage/invalid",
         "policy: --horizon must be ≥ 1 (got $horizon)"))
     replications >= 0 || throw(CliError("usage/invalid",
@@ -453,7 +490,7 @@ function _policy_optimal(route::String; data::String, lags=nothing,
     _status()
 
     result = try
-        ce, ir, _ = _policy_menu(route; data=data, lags=lags, horizon=horizon, draws=draws,
+        ce, ir, _ = _policy_menu(route; data=data, model=model, lags=lags, horizon=horizon, draws=draws,
                               replications=replications, n_draws=n_draws, config=config,
                               shocks=shock_list, outcomes=out_pairs, instruments=ins_pairs,
                               normalize=norm_sym)
@@ -492,7 +529,8 @@ function _parse_cf_frequencies(spec::String)
     return (lo, hi)
 end
 
-function _policy_moments(route::String; data::String, lags=nothing,
+function _policy_moments(route::String; data::String="", model=nothing, result=nothing,
+                         lags=nothing,
                          horizon::Int=20, draws::Int=2000, replications::Int=0,
                          config::String="", shocks::String="",
                          outcomes::String="", instruments::String="",
@@ -504,6 +542,13 @@ function _policy_moments(route::String; data::String, lags=nothing,
                          output::String="", format::String="table",
                          plot::Bool=false, plot_save::String="",
                          plot_view::String="sd")
+    plot_view in ("sd", "corr") || throw(CliError("usage/invalid-option",
+        "invalid --plot-view '$plot_view'; must be sd or corr"))
+    if result !== nothing
+        _maybe_plot(result; plot=plot, plot_save=plot_save, view=Symbol(plot_view))
+        _render_policy_moments(result; format=format, output=output, draw_source=draw_source)
+        return result
+    end
     horizon >= 1 || throw(CliError("usage/invalid",
         "policy: --horizon must be ≥ 1 (got $horizon)"))
     replications >= 0 || throw(CliError("usage/invalid",
@@ -516,8 +561,6 @@ function _policy_moments(route::String; data::String, lags=nothing,
         "invalid --draw-source '$draw_source'; must be ce, wold or both"))
     normalize in ("none", "instrument-impact") || throw(CliError("usage/invalid-option",
         "invalid --normalize '$normalize'; must be none or instrument-impact"))
-    plot_view in ("sd", "corr") || throw(CliError("usage/invalid-option",
-        "invalid --plot-view '$plot_view'; must be sd or corr"))
     norm_sym = normalize == "none" ? :none : :instrument_impact
     qs = _parse_cf_quantiles(quantiles)
     freq = _parse_cf_frequencies(frequencies)
@@ -544,21 +587,24 @@ function _policy_moments(route::String; data::String, lags=nothing,
 
     mom = try
         if route == "var"
-            model, Y, varnames, p = _load_and_estimate_var(data, lags)
+            m = model === nothing ? first(_load_and_estimate_var(data, lags)) : model
             kw = Dict{Symbol,Any}()
             if replications > 0
                 kw[:ci_type] = :bootstrap
                 kw[:reps] = replications
             end
-            ir = irf(model, horizon; kw...)
+            ir = irf(m, horizon; kw...)
             ce = policy_causal_effects(ir, shock_list, out_pairs, ins_pairs;
                                        H=horizon, normalize=norm_sym)
             # orthogonalize carries NO identification content here — moments are
             # rotation-invariant (CMW App. A.2); cholesky is just a factorization.
-            wold = wold_representation(model; H=horizon)
+            base_var = m isa MacroEconometricModels.SVARModel ? m.model : m
+            base_var === nothing && throw(CliError("data/wrong-kind",
+                "SVARModel handle has no underlying reduced-form VARModel for Wold representation"))
+            wold = wold_representation(base_var; H=horizon)
         else
-            post, Y, varnames, p, n = _load_and_estimate_bvar(data,
-                lags === nothing ? 4 : lags, config, draws, "direct")
+            post = model === nothing ? first(_load_and_estimate_bvar(data,
+                lags === nothing ? 4 : lags, config, draws, "direct")) : model
             bir = irf(post, horizon)
             ce = policy_causal_effects(bir, shock_list, out_pairs, ins_pairs;
                                        H=horizon, normalize=norm_sym)
@@ -753,7 +799,8 @@ function _parse_cf_instrument_path(spec::String, H::Int, ins_syms::Vector{Symbol
     return [ins_syms[1] => vals]
 end
 
-function _policy_opp(route::String; data::String, lags=nothing, horizon::Int=20,
+function _policy_opp(route::String; data::String="", model=nothing, result=nothing,
+                     lags=nothing, horizon::Int=20,
                      draws::Int=2000, replications::Int=0, n_draws::Int=500,
                      config::String="", shocks::String="", outcomes::String="",
                      instruments::String="", normalize::String="none",
@@ -766,6 +813,13 @@ function _policy_opp(route::String; data::String, lags=nothing, horizon::Int=20,
                      levels::String="0.6,0.75,0.9", matched_draws::Bool=false,
                      output::String="", format::String="table",
                      plot::Bool=false, plot_save::String="", plot_view::String="delta")
+    plot_view in ("delta", "paths") || throw(CliError("usage/invalid-option",
+        "invalid --plot-view '$plot_view'; must be delta or paths"))
+    if result !== nothing
+        _maybe_plot(result; plot=plot, plot_save=plot_save, view=Symbol(plot_view))
+        _render_opp(result, nothing; format=format, output=output, constrained=false)
+        return result
+    end
     horizon >= 1 || throw(CliError("usage/invalid",
         "policy: --horizon must be ≥ 1 (got $horizon)"))
     replications >= 0 || throw(CliError("usage/invalid",
@@ -780,8 +834,6 @@ function _policy_opp(route::String; data::String, lags=nothing, horizon::Int=20,
         "policy opp: --min-sd must be ≥ 0 (got $min_sd)"))
     method in ("auto", "slsqp", "projection") || throw(CliError("usage/invalid-option",
         "invalid --method '$method'; must be auto, slsqp or projection (constrained OPP only)"))
-    plot_view in ("delta", "paths") || throw(CliError("usage/invalid-option",
-        "invalid --plot-view '$plot_view'; must be delta or paths"))
     normalize in ("none", "instrument-impact") || throw(CliError("usage/invalid-option",
         "invalid --normalize '$normalize'; must be none or instrument-impact"))
     norm_sym = normalize == "none" ? :none : :instrument_impact
@@ -807,7 +859,7 @@ function _policy_opp(route::String; data::String, lags=nothing, horizon::Int=20,
     _status()
 
     result_nt = try
-        ce, ir, est = _policy_menu(route; data=data, lags=lags, horizon=horizon, draws=draws,
+        ce, ir, est = _policy_menu(route; data=data, model=model, lags=lags, horizon=horizon, draws=draws,
                               replications=replications, n_draws=n_draws, config=config,
                               shocks=shock_list, outcomes=out_pairs, instruments=ins_pairs,
                               normalize=norm_sym)
@@ -848,7 +900,10 @@ function _policy_opp(route::String; data::String, lags=nothing, horizon::Int=20,
             fc = forecast(est, horizon; store_draws=true)
             policy_forecast(fc, out_pairs; targets=tpairs, H=horizon, origin=origin)
         else
-            fc = forecast(est, horizon)
+            base_var = est isa MacroEconometricModels.SVARModel ? est.model : est
+            base_var === nothing && throw(CliError("data/wrong-kind",
+                "SVARModel handle has no underlying reduced-form VARModel for baseline forecast"))
+            fc = forecast(base_var, horizon)
             policy_forecast(fc, out_pairs; targets=tpairs, H=horizon, origin=origin)
         end
 
@@ -965,7 +1020,8 @@ end
 
 # ── policy opp-sequence (W6/#128) ───────────────────────────
 
-function _policy_opp_sequence(route::String; data::String, lags=nothing,
+function _policy_opp_sequence(route::String; data::String="", model=nothing, result=nothing,
+                              lags=nothing,
                               horizon::Int=20, draws::Int=2000, replications::Int=0,
                               n_draws::Int=500, config::String="", shocks::String="",
                               outcomes::String="", instruments::String="",
@@ -976,6 +1032,13 @@ function _policy_opp_sequence(route::String; data::String, lags=nothing,
                               output::String="", format::String="table",
                               plot::Bool=false, plot_save::String="",
                               plot_view::String="fan")
+    plot_view in ("fan", "decomposition") || throw(CliError("usage/invalid-option",
+        "invalid --plot-view '$plot_view'; must be fan or decomposition"))
+    if result !== nothing
+        _maybe_plot(result; plot=plot, plot_save=plot_save, view=Symbol(plot_view))
+        _render_opp_sequence(result; format=format, output=output)
+        return result
+    end
     horizon >= 1 || throw(CliError("usage/invalid",
         "policy: --horizon must be ≥ 1 (got $horizon)"))
     n_sim >= 0 || throw(CliError("usage/invalid",
@@ -986,8 +1049,6 @@ function _policy_opp_sequence(route::String; data::String, lags=nothing,
         "policy: --n-draws must be ≥ 1 (got $n_draws)"))
     replications >= 0 || throw(CliError("usage/invalid",
         "policy: --replications must be ≥ 0 (got $replications)"))
-    plot_view in ("fan", "decomposition") || throw(CliError("usage/invalid-option",
-        "invalid --plot-view '$plot_view'; must be fan or decomposition"))
     normalize in ("none", "instrument-impact") || throw(CliError("usage/invalid-option",
         "invalid --normalize '$normalize'; must be none or instrument-impact"))
     norm_sym = normalize == "none" ? :none : :instrument_impact
@@ -1025,7 +1086,7 @@ function _policy_opp_sequence(route::String; data::String, lags=nothing,
     _status()
 
     seq = try
-        ce, _, _ = _policy_menu(route; data=data, lags=lags, horizon=horizon,
+        ce, _, _ = _policy_menu(route; data=data, model=model, lags=lags, horizon=horizon,
                                 draws=draws, replications=replications,
                                 n_draws=n_draws, config=config, shocks=shock_list,
                                 outcomes=out_pairs, instruments=ins_pairs,
@@ -1128,13 +1189,20 @@ function _apply_behavioral(ce, m::Float64, theta::Float64)
     return behavioral(ce; m=mm, theta=tt), true
 end
 
-function _policy_news(route::String; model::String, policy_shock::String="",
+function _policy_news(route::String; model="", result=nothing, policy_shock::String="",
                       outcomes::String="", instruments::String="",
                       horizon::Int=100, solver::String="gensys", chunk::Int=0,
                       t_horizon::Int=300, rule_closure::String="administered",
                       dx::Float64=1e-4, behavioral_m::Float64=NaN,
                       behavioral_theta::Float64=NaN,
                       output::String="", format::String="table")
+    if result !== nothing
+        output_result(_policy_effects_table(result); format=Symbol(format), output=output,
+                      title="Policy Causal Effects Menu")
+        output_kv(_policy_effects_summary(result, :none); format=format,
+                  title="Policy Causal Effects Summary")
+        return result
+    end
     horizon >= 1 || throw(CliError("usage/invalid",
         "policy: --horizon must be ≥ 1 (got $horizon)"))
     chunk >= 0 || throw(CliError("usage/invalid",
@@ -1148,7 +1216,7 @@ function _policy_news(route::String; model::String, policy_shock::String="",
                 "policy news dsge: --policy-shock is required (the exogenous the news menu perturbs)"))
             out_pairs = _parse_cf_sym_pairs(outcomes, "--outcomes")
             ins_pairs = _parse_cf_sym_pairs(instruments, "--instruments"; required=false)
-            spec = _load_dsge_model(model)
+            spec = model isa AbstractString ? _load_dsge_model(String(model)) : model.spec
             _status("DSGE news menu: shock=$policy_shock, H=$horizon (one QZ of dimension n+H−1)")
             _status()
             # The menu build EVALUATES the runtime-loaded spec's residual fns →
@@ -1169,10 +1237,16 @@ function _policy_news(route::String; model::String, policy_shock::String="",
             out_pairs = _parse_cf_sym_pairs(outcomes, "--outcomes")
             ins_pairs = isempty(strip(instruments)) ? [:rate => :r] :
                         _parse_cf_sym_pairs(instruments, "--instruments")
-            spec = _load_ha_model(model)
-            _status("HA news menu: H=$horizon, T_horizon=$t_horizon, closure=$rule_closure")
-            _status()
-            ss = compute_steady_state(spec)
+            spec, ss = if model isa AbstractString
+                sp_ha = _load_ha_model(String(model))
+                _status("HA news menu: H=$horizon, T_horizon=$t_horizon, closure=$rule_closure")
+                _status()
+                sp_ha, compute_steady_state(sp_ha)
+            else
+                _status("HA news menu: H=$horizon, T_horizon=$t_horizon, closure=$rule_closure")
+                _status()
+                model.spec, model.steady_state
+            end
             # Verified on the tag: the CF HA path never invokes the aggregate
             # spec's residual closures — no invokelatest (the W13 lesson cuts
             # both ways; do not pattern-match the RA fix).
@@ -1198,7 +1272,7 @@ function _policy_news(route::String; model::String, policy_shock::String="",
     return ce
 end
 
-function _policy_jacobian(; model::String, input::String="r", jac_output::String="",
+function _policy_jacobian(; model="", input::String="r", jac_output::String="",
                           t_horizon::Int=300, dx::Float64=1e-4,
                           output::String="", format::String="table")
     input in ("r", "w") || throw(CliError("usage/invalid-option",
@@ -1210,8 +1284,12 @@ function _policy_jacobian(; model::String, input::String="r", jac_output::String
     isempty(strip(jac_output)) && throw(CliError("usage/missing",
         "policy jacobian: --jac-output is required (the household aggregate to differentiate, e.g. C or A)"))
     J = try
-        spec = _load_ha_model(model)
-        ss = compute_steady_state(spec)
+        spec, ss = if model isa AbstractString
+            sp_ha = _load_ha_model(String(model))
+            sp_ha, compute_steady_state(sp_ha)
+        else
+            model.spec, model.steady_state
+        end
         _status("Sequence-space jacobian: d$(jac_output)/d$(input), T=$t_horizon")
         _status()
         sequence_jacobian(spec, ss, Symbol(input), Symbol(jac_output);
@@ -1233,7 +1311,32 @@ function _policy_jacobian(; model::String, input::String="r", jac_output::String
                   key="sequence_space_jacobian")
 end
 
-function _policy_history(route::String; data::String, lags=nothing, horizon::Int=20,
+function _render_policy_history(hist, n_used::Int, n_failed::Int;
+                                format::String="table", output::String="")
+    nd_, nv_ = size(hist.realized)
+    dv = String[]; vv = String[]; rv = Float64[]; cv = Float64[]; rr = Float64[]
+    for d in 1:nd_, v in 1:nv_
+        push!(dv, hist.dates[d]); push!(vv, String(hist.varnames[v]))
+        push!(rv, round(Float64(hist.realized[d, v]); digits=6))
+        push!(cv, round(Float64(hist.cf[d, v]); digits=6))
+        push!(rr, round(Float64(hist.rel_residual[d]); digits=6))
+    end
+    output_result(DataFrame(date=dv, variable=vv, realized=rv,
+                            counterfactual=cv, rel_residual=rr);
+                  format=Symbol(format), output=output,
+                  title="Counterfactual History")
+    output_kv(Pair{String,Any}[
+        "policy" => hist.policy_name,
+        "H" => hist.H,
+        "n_dates" => length(hist.dates),
+        "n_draws_used" => n_used,
+        "n_draws_failed" => n_failed,
+        "note" => "built from forecast revisions, never identified shocks (raw forecasts double-count); rests on forecast sufficiency — see policy sufficiency",
+    ]; format=format, title="History Summary")
+end
+
+function _policy_history(route::String; data::String="", model=nothing, result=nothing,
+                         lags=nothing, horizon::Int=20,
                          draws::Int=2000, replications::Int=0, n_draws::Int=500,
                          config::String="", shocks::String="", outcomes::String="",
                          instruments::String="", normalize::String="none",
@@ -1243,6 +1346,12 @@ function _policy_history(route::String; data::String, lags=nothing, horizon::Int
                          quantiles::String="0.16,0.5,0.84",
                          output::String="", format::String="table",
                          plot::Bool=false, plot_save::String="")
+    if result !== nothing
+        _maybe_plot(result; plot=plot, plot_save=plot_save)
+        _render_policy_history(result, result.n_draws_used, result.n_draws_failed;
+                               format=format, output=output)
+        return result
+    end
     horizon >= 1 || throw(CliError("usage/invalid",
         "policy: --horizon must be ≥ 1 (got $horizon)"))
     use_draws in ("auto", "on", "off") || throw(CliError("usage/invalid-option",
@@ -1280,12 +1389,21 @@ function _policy_history(route::String; data::String, lags=nothing, horizon::Int
     _status()
 
     hist, n_used, n_failed = try
-        ce, _, est = _policy_menu(route; data=data, lags=lags, horizon=horizon,
+        ce, _, est = _policy_menu(route; data=data, model=model, lags=lags, horizon=horizon,
                                   draws=draws, replications=replications,
                                   n_draws=n_draws, config=config, shocks=shock_list,
                                   outcomes=out_pairs, instruments=ins_pairs,
                                   normalize=norm_sym)
-        Y, varnames = load_multivariate_data(data)
+        hist_model = est isa MacroEconometricModels.SVARModel ? est.model : est
+        hist_model === nothing && throw(CliError("data/wrong-kind",
+            "SVARModel handle has no underlying reduced-form VARModel for counterfactual history"))
+        Y = if !isempty(data)
+            first(load_multivariate_data(data))
+        elseif hist_model isa MacroEconometricModels.BVARPosterior
+            hist_model.data
+        else
+            hist_model.Y
+        end
         # Point panels always come from a draws=:off pass. MEMs 1.0.0's draws
         # branch re-runs its `_run` closure once per draw, and those panel
         # assignments write through to the enclosing scope (closures capture by
@@ -1297,7 +1415,7 @@ function _policy_history(route::String; data::String, lags=nothing, horizon::Int
         # carries n_draws_used/failed as the propagation honesty signal).
         # Re-check on a MEMs bump: if upstream localizes `_run`'s panels the
         # double pass stays correct, just redundant.
-        hp = counterfactual_history(est, Y, lo:hi, ce, policy;
+        hp = counterfactual_history(hist_model, Y, lo:hi, ce, policy;
                                     outcomes=out_pairs, instruments=ins_pairs,
                                     H=horizon, draws=:off,
                                     quantiles=Tuple(qs))
@@ -1307,7 +1425,7 @@ function _policy_history(route::String; data::String, lags=nothing, horizon::Int
         else
             # :on with a draws-free container still throws upstream
             # (ArgumentError → data/invalid), as before.
-            hd = counterfactual_history(est, Y, lo:hi, ce, policy;
+            hd = counterfactual_history(hist_model, Y, lo:hi, ce, policy;
                                         outcomes=out_pairs, instruments=ins_pairs,
                                         H=horizon, draws=draw_sym,
                                         quantiles=Tuple(qs))
@@ -1319,30 +1437,31 @@ function _policy_history(route::String; data::String, lags=nothing, horizon::Int
     end
 
     _maybe_plot(hist; plot=plot, plot_save=plot_save)
-    nd_, nv_ = size(hist.realized)
-    dv = String[]; vv = String[]; rv = Float64[]; cv = Float64[]; rr = Float64[]
-    for d in 1:nd_, v in 1:nv_
-        push!(dv, hist.dates[d]); push!(vv, String(hist.varnames[v]))
-        push!(rv, round(Float64(hist.realized[d, v]); digits=6))
-        push!(cv, round(Float64(hist.cf[d, v]); digits=6))
-        push!(rr, round(Float64(hist.rel_residual[d]); digits=6))
-    end
-    output_result(DataFrame(date=dv, variable=vv, realized=rv,
-                            counterfactual=cv, rel_residual=rr);
-                  format=Symbol(format), output=output,
-                  title="Counterfactual History")
-    output_kv(Pair{String,Any}[
-        "policy" => hist.policy_name,
-        "H" => hist.H,
-        "n_dates" => length(hist.dates),
-        "n_draws_used" => n_used,
-        "n_draws_failed" => n_failed,
-        "note" => "built from forecast revisions, never identified shocks (raw forecasts double-count); rests on forecast sufficiency — see policy sufficiency",
-    ]; format=format, title="History Summary")
+    _render_policy_history(hist, n_used, n_failed; format=format, output=output)
     return hist
 end
 
-function _policy_spanning(; data::String, model::String, lags=nothing,
+function _render_policy_spanning(sp; format::String="table", output::String="")
+    gv = String[]; gh = Int[]; ge = Float64[]; gf = Float64[]
+    for (i, sym) in enumerate(sp.outcomes), h in 1:length(sp.x_cf_emp[i])
+        push!(gv, String(sym)); push!(gh, h)
+        push!(ge, round(Float64(sp.x_cf_emp[i][h]); digits=6))
+        push!(gf, round(Float64(sp.x_cf_full[i][h]); digits=6))
+    end
+    output_result(DataFrame(variable=gv, horizon=gh, cf_thin=ge, cf_full=gf);
+                  format=Symbol(format), output=output,
+                  title="Spanning: thin vs full counterfactual paths")
+    output_kv(Pair{String,Any}[
+        # The verdict is a convenience; the raw numbers are the result.
+        "spanned" => sp.spanned,
+        "gap_rel (max)" => round(maximum(Float64.(sp.gap_rel)); digits=6),
+        "loading_inside" => round(Float64(sp.loading_inside); digits=6),
+        "rel_residual_emp" => round(Float64(sp.rel_residual_emp); digits=6),
+        "interpretation" => "does the model choice matter for THIS counterfactual? spanned=true → the thin empirical menu already carries it",
+    ]; format=format, title="Spanning Verdict")
+end
+
+function _policy_spanning(; data::String="", model="", result=nothing, lags=nothing,
                           horizon::Int=20, replications::Int=0,
                           shocks::String="", nonpolicy_shock::String="",
                           outcomes::String="", instruments::String="",
@@ -1352,6 +1471,11 @@ function _policy_spanning(; data::String, model::String, lags=nothing,
                           n_sim::Int=200, quantiles::String="0.16,0.5,0.84",
                           output::String="", format::String="table",
                           plot::Bool=false, plot_save::String="")
+    if result !== nothing
+        _maybe_plot(result; plot=plot, plot_save=plot_save)
+        _render_policy_spanning(result; format=format, output=output)
+        return result
+    end
     horizon >= 1 || throw(CliError("usage/invalid",
         "policy: --horizon must be ≥ 1 (got $horizon)"))
     tol > 0 || throw(CliError("usage/invalid",
@@ -1391,7 +1515,7 @@ function _policy_spanning(; data::String, model::String, lags=nothing,
                                      outcomes=out_pairs, instruments=ins_pairs,
                                      normalize=:none)
         base = baseline_path(ir, np_shock, out_pairs, ins_pairs; H=horizon)
-        spec = _load_dsge_model(model)
+        spec = model isa AbstractString ? _load_dsge_model(String(model)) : model.spec
         ce_full = _dsge_call(policy_news_matrix, spec, Symbol(policy_shock),
                              mo_pairs, mi_pairs; H=horizon,
                              solver=Symbol(replace(solver, '-' => '_')))
@@ -1404,49 +1528,11 @@ function _policy_spanning(; data::String, model::String, lags=nothing,
     end
 
     _maybe_plot(sp; plot=plot, plot_save=plot_save)
-    gv = String[]; gh = Int[]; ge = Float64[]; gf = Float64[]
-    gg = Float64[]; gr = Float64[]
-    H = length(sp.gap) ÷ max(length(sp.outcomes), 1)
-    idx = 0
-    for (i, sym) in enumerate(sp.outcomes), h in 1:length(sp.x_cf_emp[i])
-        idx += 1
-        push!(gv, String(sym)); push!(gh, h)
-        push!(ge, round(Float64(sp.x_cf_emp[i][h]); digits=6))
-        push!(gf, round(Float64(sp.x_cf_full[i][h]); digits=6))
-    end
-    output_result(DataFrame(variable=gv, horizon=gh, cf_thin=ge, cf_full=gf);
-                  format=Symbol(format), output=output,
-                  title="Spanning: thin vs full counterfactual paths")
-    output_kv(Pair{String,Any}[
-        # The verdict is a convenience; the raw numbers are the result.
-        "spanned" => sp.spanned,
-        "gap_rel (max)" => round(maximum(Float64.(sp.gap_rel)); digits=6),
-        "loading_inside" => round(Float64(sp.loading_inside); digits=6),
-        "rel_residual_emp" => round(Float64(sp.rel_residual_emp); digits=6),
-        "interpretation" => "does the model choice matter for THIS counterfactual? spanned=true → the thin empirical menu already carries it",
-    ]; format=format, title="Spanning Verdict")
+    _render_policy_spanning(sp; format=format, output=output)
     return sp
 end
 
-function _policy_sufficiency(; model::String, observables::String="",
-                             horizon::Int=40, method::String="gensys",
-                             output::String="", format::String="table",
-                             plot::Bool=false, plot_save::String="")
-    horizon >= 1 || throw(CliError("usage/invalid",
-        "policy: --horizon must be ≥ 1 (got $horizon)"))
-    isempty(strip(observables)) && throw(CliError("usage/missing",
-        "policy sufficiency: --observables is required (comma-separated model variables the econometrician sees)"))
-    obs = Symbol[Symbol(strip(t)) for t in split(observables, ",") if !isempty(strip(t))]
-    fs = try
-        spec = _load_dsge_model(model)
-        sol = _solve_dsge(spec; method=method)
-        # Pure population laboratory — consumes NO data.
-        forecast_sufficiency(sol, obs; H=horizon)
-    catch e
-        e isa CliError && rethrow()
-        throw(_domain_or_data_error(e, "forecast sufficiency"))
-    end
-    _maybe_plot(fs; plot=plot, plot_save=plot_save)
+function _render_policy_sufficiency(fs; format::String="table", output::String="")
     fv = String[]; fh = Int[]; fr = Float64[]
     for (j, s) in enumerate(fs.observables), h in 1:fs.H
         push!(fv, String(s)); push!(fh, h)
@@ -1461,6 +1547,37 @@ function _policy_sufficiency(; model::String, observables::String="",
         "H" => fs.H,
         "note" => "fev_ratio ≥ 1 = Wold-info FEV over full-info FEV; invertibility is SUFFICIENT for forecast sufficiency, not necessary",
     ]; format=format, title="Sufficiency Summary")
+end
+
+function _policy_sufficiency(; model="", result=nothing, observables::String="",
+                             horizon::Int=40, method::String="gensys",
+                             output::String="", format::String="table",
+                             plot::Bool=false, plot_save::String="")
+    if result !== nothing
+        _maybe_plot(result; plot=plot, plot_save=plot_save)
+        _render_policy_sufficiency(result; format=format, output=output)
+        return result
+    end
+    horizon >= 1 || throw(CliError("usage/invalid",
+        "policy: --horizon must be ≥ 1 (got $horizon)"))
+    isempty(strip(observables)) && throw(CliError("usage/missing",
+        "policy sufficiency: --observables is required (comma-separated model variables the econometrician sees)"))
+    obs = Symbol[Symbol(strip(t)) for t in split(observables, ",") if !isempty(strip(t))]
+    fs = try
+        sol = if model isa AbstractString
+            spec = _load_dsge_model(String(model))
+            _solve_dsge(spec; method=method)
+        else
+            model
+        end
+        # Pure population laboratory — consumes NO data.
+        forecast_sufficiency(sol, obs; H=horizon)
+    catch e
+        e isa CliError && rethrow()
+        throw(_domain_or_data_error(e, "forecast sufficiency"))
+    end
+    _maybe_plot(fs; plot=plot, plot_save=plot_save)
+    _render_policy_sufficiency(fs; format=format, output=output)
     return fs
 end
 
@@ -1930,6 +2047,38 @@ function register_policy_commands!()
         category="policy",
         handler=wrap_legacy((; kw...) -> _policy_sufficiency(; kw...)),
     ))
+    _POLICY_SLOTS = Dict{Vector{String},Tuple{Vector{Symbol},Vector{Symbol}}}(
+        ["policy", "effects", "var"]         => ([:VARModel, :SVARModel], [:PolicyCausalEffects]),
+        ["policy", "effects", "bvar"]        => ([:BVARPosterior], [:PolicyCausalEffects]),
+        ["policy", "effects", "lp"]          => ([:StructuralLP, :LPModel, :LPIVModel], [:PolicyCausalEffects]),
+        ["policy", "effects", "sign"]        => ([:VARModel, :SignIdentifiedSet], [:PolicyCausalEffects]),
+        ["policy", "counterfactual", "var"]  => ([:VARModel, :SVARModel], [:PolicyCounterfactual]),
+        ["policy", "counterfactual", "bvar"] => ([:BVARPosterior], [:PolicyCounterfactual]),
+        ["policy", "counterfactual", "lp"]   => ([:StructuralLP], [:PolicyCounterfactual]),
+        ["policy", "optimal", "var"]         => ([:VARModel, :SVARModel], [:PolicyCounterfactual]),
+        ["policy", "optimal", "bvar"]        => ([:BVARPosterior], [:PolicyCounterfactual]),
+        ["policy", "optimal", "lp"]          => ([:StructuralLP], [:PolicyCounterfactual]),
+        ["policy", "moments", "var"]         => ([:VARModel, :SVARModel], [:CounterfactualMoments]),
+        ["policy", "moments", "bvar"]        => ([:BVARPosterior], [:CounterfactualMoments]),
+        ["policy", "opp", "var"]             => ([:VARModel, :SVARModel], [:OPPResult]),
+        ["policy", "opp", "bvar"]            => ([:BVARPosterior], [:OPPResult]),
+        ["policy", "opp-sequence", "var"]    => ([:VARModel, :SVARModel], [:OPPSequence]),
+        ["policy", "opp-sequence", "bvar"]   => ([:BVARPosterior], [:OPPSequence]),
+        ["policy", "news", "dsge"]           => ([:DSGESolution, :PerturbationSolution], [:PolicyCausalEffects]),
+        ["policy", "news", "ha"]             => ([:HADSGESolution], [:PolicyCausalEffects]),
+        ["policy", "jacobian", "ha"]         => ([:HADSGESolution], Symbol[]),
+        ["policy", "history", "var"]         => ([:VARModel, :SVARModel], [:CounterfactualHistory]),
+        ["policy", "history", "bvar"]        => ([:BVARPosterior], [:CounterfactualHistory]),
+        ["policy", "spanning", "var"]        => ([:DSGESolution, :PerturbationSolution], [:SpanningDiagnostic]),
+        ["policy", "sufficiency", "dsge"]    => ([:DSGESolution, :PerturbationSolution], [:ForecastSufficiency]),
+    )
+    specs = _tag_slot_types(specs, _POLICY_SLOTS)
+    specs = map(specs) do s
+        s2 = _has_data_slot(s) ? _copy_spec(s; data_kinds=[:timeseries, :csv]) : s
+        (!isempty(s2.model_types) && !any(a -> a.name == "model", s2.args)) ?
+            with_model_option([s2])[1] : s2
+    end
+    specs = with_result_handles(specs)
     specs = with_default_csv_kinds(specs)
     specs = register!(specs)
     return build_node("policy", specs;

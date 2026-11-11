@@ -1637,3 +1637,312 @@ end
         @test occursin("durbin_watson_test", out_dw)
     end
 end
+
+@testset "dsge, hadsge, and policy saved model & result handles" begin
+    mktempdir() do dir
+        rbc_toml = joinpath(dir, "rbc.toml")
+        write(rbc_toml, """
+        [model]
+        parameters = { rho = 0.9 }
+        endogenous = ["Y", "C", "K"]
+        exogenous = ["e"]
+        [[model.equations]]
+        expr = "Y[t] = C[t] + K[t]"
+        [[model.equations]]
+        expr = "C[t] = rho * Y[t]"
+        [[model.equations]]
+        expr = "K[t] = e[t]"
+        """)
+        obs_csv = joinpath(dir, "obs1.csv")
+        CSV.write(obs_csv, DataFrame(Y=randn(40)))
+        obs3_csv = joinpath(dir, "obs3.csv")
+        CSV.write(obs3_csv, DataFrame(infl=randn(60), ygap=randn(60), rate=randn(60)))
+
+        # 1. RA DSGE saved solutions + OccBin (#246) + frequentist estimate (#246) + data simulate dsge
+        rbc_sol = joinpath(dir, "rbc_sol")
+        _capture() do
+            _dispatch_via_app(["dsge", "solve", rbc_toml, "--save-model", rbc_sol, "--format", "json"])
+        end
+        @test isfile(rbc_sol * ".jld2")
+
+        out_dirf = _capture() do
+            _dispatch_via_app(["dsge", "irf", rbc_sol, "--horizon", "6", "--format", "json"])
+        end
+        @test occursin("dsge_irf", out_dirf)
+
+        out_dfevd = _capture() do
+            _dispatch_via_app(["dsge", "fevd", rbc_sol, "--horizon", "6", "--format", "json"])
+        end
+        @test occursin("dsge_fevd", out_dfevd)
+
+        out_dsim = _capture() do
+            _dispatch_via_app(["dsge", "simulate", rbc_sol, "--periods", "12", "--burn", "4", "--format", "json"])
+        end
+        @test occursin("dsge_simulation", out_dsim)
+
+        out_dhd = _capture() do
+            _dispatch_via_app(["dsge", "hd", rbc_sol, "--data", obs_csv, "--observables", "Y", "--format", "json"])
+        end
+        @test occursin("dsge_historical_decomposition", out_dhd)
+
+        out_datasim_dsge = _capture() do
+            _dispatch_via_app(["data", "simulate", "dsge", rbc_sol, "--periods", "12", "--burn", "4", "--format", "json"])
+        end
+        @test occursin("simulated_data", out_datasim_dsge)
+
+        pert_sol = joinpath(dir, "pert_sol")
+        _capture() do
+            _dispatch_via_app(["dsge", "solve", rbc_toml, "--method", "perturbation", "--order", "2",
+                               "--save-model", pert_sol, "--format", "json"])
+        end
+        @test isfile(pert_sol * ".jld2")
+        out_dmom = _capture() do
+            _dispatch_via_app(["dsge", "moments", pert_sol, "--lags", "1", "--format", "json"])
+        end
+        @test occursin("dsge_theoretical_moments", out_dmom)
+
+        ob_sol = joinpath(dir, "ob_sol")
+        _capture() do
+            _dispatch_via_app(["dsge", "solve", rbc_toml, "--constraint", "Y[t] >= -0.5",
+                               "--periods", "10", "--save-model", ob_sol, "--format", "json"])
+        end
+        @test isfile(ob_sol * ".jld2")
+        out_ob_irf = _capture() do
+            _dispatch_via_app(["dsge", "irf", ob_sol, "--horizon", "6", "--format", "json"])
+        end
+        @test occursin("occbin_irf", out_ob_irf)
+
+        dsge_est = joinpath(dir, "dsge_est")
+        _capture() do
+            _dispatch_via_app(["dsge", "estimate", rbc_toml, "--data", obs3_csv, "--params", "rho",
+                               "--save-model", dsge_est, "--format", "json"])
+        end
+        @test isfile(dsge_est * ".jld2")
+
+        # 2. Bayesian DSGE saved posterior (#246 + #240)
+        bdsge_stem = joinpath(dir, "bdsge")
+        _capture() do
+            _dispatch_via_app(["dsge", "bayes", "estimate", rbc_toml, "--data", obs_csv,
+                               "--params", "rho", "--prior", "rho ~ beta(2, 2)",
+                               "--n-smc", "10", "--n-particles", "20", "--n-draws", "10",
+                               "--save-model", bdsge_stem, "--format", "json"])
+        end
+        @test isfile(bdsge_stem * ".jld2")
+
+        out_birf = _capture() do
+            _dispatch_via_app(["dsge", "bayes", "irf", bdsge_stem, "--horizon", "5", "--n-draws", "5", "--format", "json"])
+        end
+        @test occursin("bayesian_dsge_irf", out_birf)
+
+        out_bfevd = _capture() do
+            _dispatch_via_app(["dsge", "bayes", "fevd", bdsge_stem, "--horizon", "5", "--n-draws", "5", "--format", "json"])
+        end
+        @test occursin("bayesian_dsge_fevd", out_bfevd)
+
+        out_bsim = _capture() do
+            _dispatch_via_app(["dsge", "bayes", "simulate", bdsge_stem, "--periods", "8", "--n-draws", "5", "--format", "json"])
+        end
+        @test occursin("bayesian_dsge_simulation", out_bsim)
+
+        out_bsum = _capture() do
+            _dispatch_via_app(["dsge", "bayes", "summary", bdsge_stem, "--format", "json"])
+        end
+        @test occursin("bayesian_dsge_posterior_summary", out_bsum)
+
+        out_bdiag = _capture() do
+            _dispatch_via_app(["dsge", "bayes", "mcmc-diag", bdsge_stem, "--format", "json"])
+        end
+        @test occursin("mcmc_convergence_diagnostics", out_bdiag)
+
+        out_bhd = _capture() do
+            _dispatch_via_app(["dsge", "bayes", "hd", bdsge_stem, "--data", obs_csv, "--observables", "Y",
+                               "--n-hd-draws", "5", "--format", "json"])
+        end
+        @test occursin("bayesian_dsge_historical_decomposition", out_bhd)
+
+        # 3. HA-DSGE saved solutions + builtin name passthrough (Review Focus #1)
+        hasol_stem = joinpath(dir, "hasol")
+        _capture() do
+            _dispatch_via_app(["hadsge", "solve", "huggett", "--method", "reiter",
+                               "--save-model", hasol_stem, "--format", "json"])
+        end
+        @test isfile(hasol_stem * ".jld2")
+
+        out_hairf = _capture() do
+            _dispatch_via_app(["hadsge", "irf", hasol_stem, "--horizon", "6", "--format", "json"])
+        end
+        @test occursin("ha_dsge_irf", out_hairf)
+
+        out_hafevd = _capture() do
+            _dispatch_via_app(["hadsge", "fevd", hasol_stem, "--horizon", "6", "--format", "json"])
+        end
+        @test occursin("ha_dsge_fevd", out_hafevd)
+
+        out_hasim = _capture() do
+            _dispatch_via_app(["hadsge", "simulate", hasol_stem, "--periods", "10", "--format", "json"])
+        end
+        @test occursin("ha_dsge_simulation", out_hasim)
+
+        out_hadirf = _capture() do
+            _dispatch_via_app(["hadsge", "distribution-irf", hasol_stem, "--horizon", "6", "--format", "json"])
+        end
+        @test occursin("ha_distribution_irf", out_hadirf)
+
+        out_haiirf = _capture() do
+            _dispatch_via_app(["hadsge", "inequality-irf", hasol_stem, "--horizon", "6", "--format", "json"])
+        end
+        @test occursin("ha_inequality_irf", out_haiirf)
+
+        out_hapan = _capture() do
+            _dispatch_via_app(["hadsge", "simulate-panel", hasol_stem, "--n-agents", "20", "--periods", "8", "--format", "json"])
+        end
+        @test occursin("ha_panel_simulation_summary", out_hapan)
+
+        out_datasim_ha = _capture() do
+            _dispatch_via_app(["data", "simulate", "ha", hasol_stem, "--periods", "8", "--format", "json"])
+        end
+        @test occursin("simulated_data", out_datasim_ha)
+
+        # Review Focus #1: builtin name "huggett" with no file on disk passes through as String
+        out_hairf_builtin = _capture() do
+            _dispatch_via_app(["hadsge", "irf", "huggett", "--horizon", "6", "--format", "json"])
+        end
+        @test occursin("ha_dsge_irf", out_hairf_builtin)
+
+        kssol_stem = joinpath(dir, "kssol")
+        _capture() do
+            _dispatch_via_app(["hadsge", "solve", "krusell-smith", "--method", "krusell-smith",
+                               "--save-model", kssol_stem, "--format", "json"])
+        end
+        @test isfile(kssol_stem * ".jld2")
+        out_haacc = _capture() do
+            _dispatch_via_app(["hadsge", "accuracy", kssol_stem, "--t-sim", "120", "--t-burn", "20", "--format", "json"])
+        end
+        @test occursin("den_haan_accuracy", out_haacc)
+
+        # 4. Policy saved model & --save-result / --result handles
+        var_stem = joinpath(dir, "pol_var")
+        save_model_dispatch(var_stem * ".jld2",
+            estimate_var(randn(60, 3), 2; varnames=["infl", "ygap", "rate"]))
+        svar_stem = joinpath(dir, "pol_svar")
+        _capture() do
+            _dispatch_via_app(["estimate", "multivariate", "svar", obs3_csv, "--lags", "2",
+                               "--save-model", svar_stem, "--format", "json"])
+        end
+
+        eff_stem = joinpath(dir, "pol_eff")
+        out_peff = _capture() do
+            _dispatch_via_app(["policy", "effects", "var", var_stem * ".jld2",
+                               "--horizon", "6", "--shocks", "3",
+                               "--outcomes", "infl=1,ygap=2", "--instruments", "rate=3",
+                               "--save-result", eff_stem, "--format", "json"])
+        end
+        @test occursin("policy_causal_effects_menu", out_peff)
+        @test isfile(eff_stem * ".jld2")
+
+        out_peff_rerender = _capture() do
+            _dispatch_via_app(["policy", "effects", "var", "--result", eff_stem, "--format", "json"])
+        end
+        @test occursin("policy_causal_effects_menu", out_peff_rerender)
+
+        out_peff_svar = _capture() do
+            _dispatch_via_app(["policy", "effects", "var", svar_stem,
+                               "--horizon", "6", "--shocks", "3",
+                               "--outcomes", "infl=1,ygap=2", "--instruments", "rate=3", "--format", "json"])
+        end
+        @test occursin("policy_causal_effects_menu", out_peff_svar)
+
+        cf_stem = joinpath(dir, "pol_cf")
+        out_pcf = _capture() do
+            _dispatch_via_app(["policy", "counterfactual", "var", "--model", var_stem,
+                               "--horizon", "6", "--shocks", "3", "--nonpolicy-shock", "1",
+                               "--outcomes", "infl=1,ygap=2", "--instruments", "rate=3",
+                               "--rule", "taylor", "--save-result", cf_stem, "--format", "json"])
+        end
+        @test occursin("policy_counterfactual_paths", out_pcf)
+        @test isfile(cf_stem * ".jld2")
+
+        out_pcf_rerender = _capture() do
+            _dispatch_via_app(["policy", "counterfactual", "var", "--result", cf_stem, "--format", "json"])
+        end
+        @test occursin("policy_counterfactual_paths", out_pcf_rerender)
+
+        hist_stem = joinpath(dir, "pol_hist")
+        out_phist = _capture() do
+            _dispatch_via_app(["policy", "history", "var", var_stem,
+                               "--horizon", "8", "--shocks", "3",
+                               "--outcomes", "infl=1,ygap=2", "--instruments", "rate=3",
+                               "--rule", "taylor", "--t-range", "5:8",
+                               "--save-result", hist_stem, "--format", "json"])
+        end
+        @test occursin("counterfactual_history", out_phist)
+        @test isfile(hist_stem * ".jld2")
+
+        out_phist_rerender = _capture() do
+            _dispatch_via_app(["policy", "history", "var", "--result", hist_stem, "--format", "json"])
+        end
+        @test occursin("counterfactual_history", out_phist_rerender)
+
+        news_stem = joinpath(dir, "pol_news")
+        out_pnews = _capture() do
+            _dispatch_via_app(["policy", "news", "dsge", rbc_sol,
+                               "--policy-shock", "e", "--outcomes", "y=Y", "--instruments", "k=K",
+                               "--horizon", "6", "--save-result", news_stem, "--format", "json"])
+        end
+        @test occursin("policy_causal_effects_menu", out_pnews)
+        @test isfile(news_stem * ".jld2")
+
+        out_pnews_rerender = _capture() do
+            _dispatch_via_app(["policy", "news", "dsge", "--result", news_stem, "--format", "json"])
+        end
+        @test occursin("policy_causal_effects_menu", out_pnews_rerender)
+
+        fs_stem = joinpath(dir, "pol_fs")
+        out_pfs = _capture() do
+            _dispatch_via_app(["policy", "sufficiency", "dsge", rbc_sol,
+                               "--observables", "Y", "--horizon", "6",
+                               "--save-result", fs_stem, "--format", "json"])
+        end
+        @test occursin("forecast_sufficiency_fev_ratios", out_pfs)
+        @test isfile(fs_stem * ".jld2")
+
+        out_pfs_rerender = _capture() do
+            _dispatch_via_app(["policy", "sufficiency", "dsge", "--result", fs_stem, "--format", "json"])
+        end
+        @test occursin("forecast_sufficiency_fev_ratios", out_pfs_rerender)
+
+        # dsge moments on saved DSGESolution + policy effects lp on saved LPModel + policy spanning dual-positional
+        out_dmom = _capture() do
+            _dispatch_via_app(["dsge", "moments", rbc_sol, "--lags", "2", "--format", "json"])
+        end
+        @test occursin("dsge_theoretical_moments", out_dmom)
+
+        lp_stem = joinpath(dir, "pol_lp")
+        _capture() do
+            _dispatch_via_app(["estimate", "multivariate", "lp", obs3_csv, "--horizons", "6",
+                               "--shock", "3", "--save-model", lp_stem, "--format", "json"])
+        end
+        out_plp = _capture() do
+            _dispatch_via_app(["policy", "effects", "lp", lp_stem,
+                               "--horizon", "6", "--outcomes", "infl=1,ygap=2",
+                               "--instruments", "rate=3", "--format", "json"])
+        end
+        @test occursin("policy_causal_effects_menu", out_plp)
+
+        sp_stem = joinpath(dir, "pol_span")
+        out_pspan = _capture() do
+            _dispatch_via_app(["policy", "spanning", "var", obs3_csv, rbc_sol,
+                               "--horizon", "6", "--shocks", "3", "--nonpolicy-shock", "1",
+                               "--outcomes", "infl=1", "--instruments", "rate=3",
+                               "--model-outcomes", "infl=Y", "--model-instruments", "rate=K",
+                               "--policy-shock", "e", "--rule", "rate-peg",
+                               "--save-result", sp_stem, "--format", "json"])
+        end
+        @test occursin("spanning_verdict", out_pspan)
+        @test isfile(sp_stem * ".jld2")
+        out_pspan_rerender = _capture() do
+            _dispatch_via_app(["policy", "spanning", "var", "--result", sp_stem, "--format", "json"])
+        end
+        @test occursin("spanning_verdict", out_pspan_rerender)
+    end
+end

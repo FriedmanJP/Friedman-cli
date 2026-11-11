@@ -114,13 +114,15 @@ function wrap_legacy(handler::Function)
         end
 
         # Stem-resolve + type-check the data slot (or auto-route a model handle to kwargs[:model]).
+        has_pos_model = any(a -> a.name == "model", ctx.spec.args)
+        can_autoroute_model = !isempty(ctx.spec.model_types) && !has_pos_model
         if haskey(kwargs, :data) && kwargs[:data] isa AbstractString && !isempty(kwargs[:data])
             raw_data = String(kwargs[:data])
             resolved = try
                 resolve_stem(raw_data; slot=:data)
             catch e
                 if e isa CliError && e.code == "data/file-not-found" &&
-                   !isempty(ctx.spec.model_types) && !_slot_set(get(kwargs, :model, ""))
+                   can_autoroute_model && !_slot_set(get(kwargs, :model, ""))
                     resolve_stem(raw_data; slot=:result)
                 else
                     rethrow()
@@ -128,13 +130,13 @@ function wrap_legacy(handler::Function)
             end
             kwargs[:data] = resolved
             kinds = ctx.spec.data_kinds
-            if (!isempty(kinds) || !isempty(ctx.spec.model_types)) && _is_handle_path(resolved)
+            if (!isempty(kinds) || can_autoroute_model) && _is_handle_path(resolved)
                 # Confine filesystem handles on the resolved path; skip :example and model://.
                 if !startswith(resolved, ":") && !startswith(resolved, "model://")
                     _validate_input_path(resolved)
                 end
                 obj = load_model_dispatch(resolved)
-                if !isempty(ctx.spec.model_types) && nameof(typeof(obj)) in ctx.spec.model_types
+                if can_autoroute_model && nameof(typeof(obj)) in ctx.spec.model_types
                     if _slot_set(get(kwargs, :model, ""))
                         throw(CliError("usage/invalid",
                             "positional <data> resolved to a $(nameof(typeof(obj))) model handle while --model was also given";
@@ -146,7 +148,7 @@ function wrap_legacy(handler::Function)
                     k = _data_kind_of(obj)
                     accepted = (k in kinds) || (k === :tabular && :csv in kinds)
                     if !accepted
-                        acc_desc = isempty(ctx.spec.model_types) ? join(kinds, ", ") :
+                        acc_desc = !can_autoroute_model ? join(kinds, ", ") :
                             "$(join(kinds, ", ")) (or model handles: $(join(ctx.spec.model_types, ", ")))"
                         throw(CliError("data/wrong-kind",
                             "$resolved is a $k handle ($(nameof(typeof(obj)))); this command accepts $acc_desc";
@@ -176,7 +178,7 @@ function wrap_legacy(handler::Function)
                     resolved = resolve_stem(String(rp); slot=:result)
                     kwargs[:result] = _load_typed_handle(resolved, ctx.spec.result_types,
                         "data/wrong-result"; slot="result")
-                    get!(kwargs, :data, "")
+                    _has_data_slot(ctx.spec) && get!(kwargs, :data, "")
                     any(a -> a.name == "model", ctx.spec.args) && get!(kwargs, :model, "")
                 end
             end

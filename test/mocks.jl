@@ -8778,6 +8778,22 @@ function policy_causal_effects(slp::StructuralLP{T}, shocks::AbstractVector,
                     shocks, outcomes, instruments; H=H, normalize=normalize, source=:lp)
 end
 
+function policy_causal_effects(m::Union{LPModel{T}, LPIVModel{T}},
+                               outcomes::AbstractVector{<:Pair},
+                               instruments::AbstractVector{<:Pair}=Pair{Symbol,Int}[];
+                               H::Int=m.horizon + 1, normalize::Symbol=:none,
+                               n_draws::Int=500, rng=nothing, seed=nothing) where T
+    n_draws >= 1 || throw(ArgumentError("n_draws: expected n_draws >= 1, got $n_draws"))
+    lpr = m isa LPModel ? lp_irf(m) : lp_iv_irf(m)
+    Hh, nv = size(lpr.values)
+    values = reshape(lpr.values, Hh, nv, 1)
+    draws4 = reshape(values, 1, Hh, nv, 1) .+ T(0.02) .* randn(T, n_draws, Hh, nv, 1)
+    vars = m isa LPIVModel ? m.varnames[m.response_vars] : ["y$i" for i in 1:nv]
+    sname = m isa LPIVModel ? m.varnames[m.shock_var] : "y$(m.shock_var)"
+    _pce_build_mock(values, draws4, vars, [sname], [1], outcomes, instruments;
+                    H=H, normalize=normalize, source=:lp)
+end
+
 function _bp_build_mock(values::Array{T,3}, draws4, variables, shocknames,
                         nonpolicy_shock, outcomes, instruments;
                         H::Int, negate::Bool) where T
@@ -12853,6 +12869,26 @@ so a divergence here would hide a mislabelled-moment bug in production.
 `:gmm`        → means, then upper-triangle PRODUCT moments (Var + E·E), then diagonal
                 autocov + E² per lag.
 """
+function analytical_moments(sol::DSGESolution{T}; lags::Int=1,
+                            observable_indices=nothing) where {T}
+    lags >= 0 || throw(ArgumentError("lags must be non-negative; got $lags"))
+    k = size(sol.G1, 1)
+    obs = observable_indices === nothing ? collect(1:k) : collect(Int, observable_indices)
+    n_obs = length(obs)
+    Var = zeros(T, n_obs, n_obs)
+    for i in 1:n_obs, j in 1:n_obs
+        Var[i, j] = i == j ? T(1.0 + 0.1 * i) : T(0.2 / (1 + abs(i - j)))
+    end
+    out = T[]
+    for i in 1:n_obs, j in i:n_obs
+        push!(out, Var[i, j])
+    end
+    for lag in 1:lags, i in 1:n_obs
+        push!(out, T(0.7^lag) * Var[i, i])
+    end
+    return out
+end
+
 function analytical_moments(sol::PerturbationSolution{T}; lags::Int=1,
                             format::Symbol=:covariance) where {T}
     format in (:covariance, :gmm) ||
