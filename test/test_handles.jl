@@ -1413,3 +1413,98 @@ end
         @test length(cols_ev[1]) == 10
     end
 end
+
+@testset "positional model auto-routing, coexistence, and <model> passthrough" begin
+    mktempdir() do dir
+        # 1. Positional <data> auto-routes saved model (.jld2, stem, .jls) to kwargs[:model]
+        m = estimate_var(randn(40, 2), 2; varnames=["y1", "y2"])
+        save_model_dispatch(joinpath(dir, "vmod.jld2"), m)
+        save_model_dispatch(joinpath(dir, "vmod_jls.jls"), m)
+
+        out_jld = _capture() do
+            _dispatch_via_app(["irf", "var", joinpath(dir, "vmod.jld2"), "--horizons", "4", "--format", "json"])
+        end
+        @test occursin("irf", out_jld)
+
+        out_stem = _capture() do
+            _dispatch_via_app(["irf", "var", joinpath(dir, "vmod"), "--horizons", "4", "--format", "json"])
+        end
+        @test occursin("irf", out_stem)
+
+        out_jls = _capture() do
+            _dispatch_via_app(["irf", "var", joinpath(dir, "vmod_jls.jls"), "--horizons", "4", "--format", "json"])
+        end
+        @test occursin("irf", out_jls)
+
+        # 2. Conflict: model handle in <data> AND --model throws usage/invalid
+        err_conf = try
+            _capture() do
+                _dispatch_via_app(["irf", "var", joinpath(dir, "vmod.jld2"), "--model", joinpath(dir, "vmod.jld2")])
+            end
+            nothing
+        catch e; e; end
+        @test err_conf isa CliError
+        @test err_conf.code == "usage/invalid"
+
+        # 3. Review Focus #2 (coexistence): data handle in <data> + model handle in --model
+        ts_new = TimeSeriesData(randn(20, 2); varnames=["y1", "y2"])
+        save_model_dispatch(joinpath(dir, "new_ts.jld2"), ts_new)
+        out_pred = _capture() do
+            _dispatch_via_app(["predict", "multivariate", "var", joinpath(dir, "new_ts.jld2"),
+                               "--model", joinpath(dir, "vmod.jld2"), "--format", "json"])
+        end
+        @test occursin("fitted", out_pred) || occursin("y1", out_pred)
+
+        # 4. Tabular .jls accepted on :csv leaves via wrap_legacy, rejected on non-:csv leaves (data export)
+        tab_jls = joinpath(dir, "tab.jls")
+        open(io -> Serialization.serialize(io, DataFrame(y1=randn(30), y2=randn(30))), tab_jls, "w")
+        out_est_jls = _capture() do
+            _dispatch_via_app(["estimate", "multivariate", "var", tab_jls, "--lags", "1", "--format", "json"])
+        end
+        @test occursin("y1", out_est_jls)
+
+        err_exp = try
+            _dispatch_via_app(["data", "export", tab_jls, "-o", joinpath(dir, "out.csv")])
+            nothing
+        catch e; e; end
+        @test err_exp isa CliError
+        @test err_exp.code == "data/wrong-kind"
+
+        # 5. Review Focus #1: positional <model> passthrough ("huggett" / "rbc.toml" vs on-disk handle) + bind_args --result
+        seen_model = Ref{Any}(nothing)
+        seen_result = Ref{Any}(nothing)
+        pos_spec = CommandSpec(
+            path=["hadsge", "irf"],
+            summary="test positional model",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing)],
+            options=[RESULT_OPTION, OptionSpec(name="format", default="table"), OptionSpec(name="output", default="")],
+            model_types=[:VARModel],
+            result_types=[:ImpulseResponse],
+            handler=wrap_legacy((; model="", result=nothing, format="table", output="") -> begin
+                seen_model[] = model
+                seen_result[] = result
+                nothing
+            end),
+        )
+        pos_leaf = to_leaf(pos_spec)
+        # Extensionless builtin token passes through as String when no huggett.{jld2,jls,fmod} exists
+        pos_leaf.handler(; model="huggett", format="json", output="")
+        @test seen_model[] === "huggett"
+
+        # On-disk stem loads typed model handle
+        pos_leaf.handler(; model=joinpath(dir, "vmod"), format="json", output="")
+        @test seen_model[] isa VARModel
+
+        # bind_args allows omitting required <model> when --result is supplied
+        parsed_res = tokenize(["--result", joinpath(dir, "irf_r.jld2")])
+        bound_res = bind_args(parsed_res, pos_leaf)
+        @test bound_res.model == ""
+
+        # schema x-handle on positional ArgSpec(name="model") when model_types nonempty
+        register!([pos_spec])
+        sch_pos = _input_schema(pos_leaf, ["hadsge", "irf"])
+        @test haskey(sch_pos["properties"]["model"], "x-handle")
+        @test sch_pos["properties"]["model"]["x-handle"]["role"] == "model"
+        @test "VARModel" in sch_pos["properties"]["model"]["x-handle"]["types"]
+    end
+end

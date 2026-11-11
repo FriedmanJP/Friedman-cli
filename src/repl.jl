@@ -136,6 +136,20 @@ function inject_session_data(s::Session, args::Vector{String}, app::Entry)
         return args  # already has a positional
     end
 
+    spec = @isdefined(_spec_for_path) ? _spec_for_path(args[1:depth]) : nothing
+    model_is_handle = spec === nothing || !isempty(spec.model_types)
+    result_is_handle = spec === nothing || !isempty(spec.result_types)
+    for i in positionals_start:length(args)
+        tok = args[i]
+        tok == "--" && break
+        if model_is_handle && (tok == "--model" || startswith(tok, "--model="))
+            return args
+        end
+        if result_is_handle && (tok == "--result" || startswith(tok, "--result="))
+            return args
+        end
+    end
+
     new_args = copy(args)
     insert!(new_args, positionals_start, s.data_path)
     return new_args

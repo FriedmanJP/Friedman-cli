@@ -336,6 +336,14 @@ end
         args4 = ["dsge", "bayes", "estimate", "--draws", "1000"]
         result4 = Friedman.inject_session_data(s3, args4, app)
         @test result4 == ["dsge", "bayes", "estimate", "/tmp/test.csv", "--draws", "1000"]
+
+        # Do not inject session data when --model or --result supplies a handle
+        args_mod = ["irf", "var", "--model", "v.jld2"]
+        @test Friedman.inject_session_data(s, args_mod, app) == args_mod
+        args_mod_eq = ["irf", "var", "--model=v.jld2"]
+        @test Friedman.inject_session_data(s, args_mod_eq, app) == args_mod_eq
+        args_res = ["irf", "var", "--result", "r.jld2"]
+        @test Friedman.inject_session_data(s, args_res, app) == args_res
     end
 
     @testset "detect_model_type" begin

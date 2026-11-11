@@ -218,7 +218,7 @@ function bind_args(parsed::ParsedArgs, cmd::LeafCommand)
         if idx <= length(parsed.positional)
             pos_values[Symbol(arg.name)] = convert_value(arg.type, parsed.positional[idx], arg.name)
         elseif arg.required
-            if (model_set || result_set) && arg.name == "data"
+            if (model_set && arg.name == "data") || (result_set && arg.name in ("data", "model"))
                 pos_values[Symbol(arg.name)] = something(arg.default, "")
             else
                 throw(ParseError("missing required argument: <$(arg.name)>"))

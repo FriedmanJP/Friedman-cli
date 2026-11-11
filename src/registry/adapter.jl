@@ -113,22 +113,45 @@ function wrap_legacy(handler::Function)
             end
         end
 
-        # Stem-resolve + type-check the data slot. data= stays a String.
+        # Stem-resolve + type-check the data slot (or auto-route a model handle to kwargs[:model]).
         if haskey(kwargs, :data) && kwargs[:data] isa AbstractString && !isempty(kwargs[:data])
-            resolved = resolve_stem(String(kwargs[:data]); slot=:data)
+            raw_data = String(kwargs[:data])
+            resolved = try
+                resolve_stem(raw_data; slot=:data)
+            catch e
+                if e isa CliError && e.code == "data/file-not-found" &&
+                   !isempty(ctx.spec.model_types) && !_slot_set(get(kwargs, :model, ""))
+                    resolve_stem(raw_data; slot=:result)
+                else
+                    rethrow()
+                end
+            end
             kwargs[:data] = resolved
             kinds = ctx.spec.data_kinds
-            if !isempty(kinds) && _is_handle_path(resolved)
+            if (!isempty(kinds) || !isempty(ctx.spec.model_types)) && _is_handle_path(resolved)
                 # Confine filesystem handles on the resolved path; skip :example and model://.
                 if !startswith(resolved, ":") && !startswith(resolved, "model://")
                     _validate_input_path(resolved)
                 end
                 obj = load_model_dispatch(resolved)
-                k = _data_kind_of(obj)
-                if k ∉ kinds
-                    throw(CliError("data/wrong-kind",
-                        "$resolved is a $k handle ($(nameof(typeof(obj)))); this command accepts $(join(kinds, ", "))";
-                        hint="data import --kind timeseries, or pick a leaf that accepts $k"))
+                if !isempty(ctx.spec.model_types) && nameof(typeof(obj)) in ctx.spec.model_types
+                    if _slot_set(get(kwargs, :model, ""))
+                        throw(CliError("usage/invalid",
+                            "positional <data> resolved to a $(nameof(typeof(obj))) model handle while --model was also given";
+                            hint="pass a data path in <data> with --model, or pass only the model handle"))
+                    end
+                    kwargs[:model] = obj
+                    kwargs[:data] = ""
+                elseif !isempty(kinds)
+                    k = _data_kind_of(obj)
+                    accepted = (k in kinds) || (k === :tabular && :csv in kinds)
+                    if !accepted
+                        acc_desc = isempty(ctx.spec.model_types) ? join(kinds, ", ") :
+                            "$(join(kinds, ", ")) (or model handles: $(join(ctx.spec.model_types, ", ")))"
+                        throw(CliError("data/wrong-kind",
+                            "$resolved is a $k handle ($(nameof(typeof(obj)))); this command accepts $acc_desc";
+                            hint="data import --kind timeseries, or pick a leaf that accepts $k"))
+                    end
                 end
             elseif !isempty(kinds) && !_is_handle_path(resolved) && !startswith(resolved, ":")
                 :csv ∉ kinds && throw(CliError("data/wrong-kind",
@@ -154,41 +177,50 @@ function wrap_legacy(handler::Function)
                     kwargs[:result] = _load_typed_handle(resolved, ctx.spec.result_types,
                         "data/wrong-result"; slot="result")
                     get!(kwargs, :data, "")
+                    any(a -> a.name == "model", ctx.spec.args) && get!(kwargs, :model, "")
                 end
             end
         end
 
-        # --model PATH → loaded object; empty → drop so handler default applies.
-        # `.jld2` (native, C052) and `.fmod` (interim, C029) paths are model
-        # handles; `model://` (W7/#142) is the in-memory serve-session handle.
-        # Builtin names and .jl/.toml model files (e.g. `dsge ha huggett`,
-        # `dsge solve rbc.toml`) must pass through as strings (C040).
-        # When model_types is nonempty, stem-resolve (no CSV fallback) first so
-        # `--model var` finds var.jld2; then type-check the loaded object.
+        # --model / positional <model> → loaded object; empty → drop (unless positional <model>)
+        # so handler default applies. `.jld2`, `.jls`, `.fmod`, and `model://` paths are
+        # handles; builtin names and .jl/.toml model files (e.g. `hadsge irf huggett`,
+        # `dsge solve rbc.toml`) pass through as strings when positional <model> is used.
         if haskey(kwargs, :model)
             mp = kwargs[:model]
+            has_pos_model = any(a -> a.name == "model", ctx.spec.args)
             if mp isa AbstractString
                 if isempty(mp)
-                    delete!(kwargs, :model)
-                else
-                    mp = String(mp)
-                    if !isempty(ctx.spec.model_types)
-                        mp = resolve_stem(mp; slot=:result)
-                        kwargs[:model] = mp
+                    has_pos_model || delete!(kwargs, :model)
+                elseif has_pos_model
+                    mp_str = String(mp)
+                    exp_mp = _expanduser(mp_str)
+                    is_handle_tok = _is_handle_path(mp_str) ||
+                        (!startswith(mp_str, ":") &&
+                         !occursin(r"\.[A-Za-z0-9]+$", basename(exp_mp)) &&
+                         any(ext -> isfile(exp_mp * ext), (".jld2", ".jls", ".fmod")))
+                    if !isempty(ctx.spec.model_types) && is_handle_tok
+                        resolved_mp = resolve_stem(mp_str; slot=:result)
+                        kwargs[:model] = _load_typed_handle(resolved_mp, ctx.spec.model_types,
+                            "model/wrong-kind"; slot="model")
                     end
-                    if endswith(lowercase(mp), ".fmod") ||
-                       endswith(lowercase(mp), ".jld2") ||
-                       startswith(mp, "model://")
-                        if !isempty(ctx.spec.model_types)
-                            kwargs[:model] = _load_typed_handle(mp, ctx.spec.model_types,
-                                "model/wrong-kind"; slot="model")
-                        else
-                            kwargs[:model] = load_model_dispatch(mp)
+                else
+                    mp_str = String(mp)
+                    if !isempty(ctx.spec.model_types)
+                        resolved_mp = resolve_stem(mp_str; slot=:result)
+                        kwargs[:model] = _load_typed_handle(resolved_mp, ctx.spec.model_types,
+                            "model/wrong-kind"; slot="model")
+                        get!(kwargs, :data, "")
+                    elseif _is_handle_path(mp_str)
+                        if !startswith(mp_str, ":") && !startswith(mp_str, "model://")
+                            _validate_input_path(mp_str)
                         end
-                        # allow missing data positional when handle supplies the model
+                        kwargs[:model] = load_model_dispatch(mp_str)
                         get!(kwargs, :data, "")
                     end
                 end
+            else
+                get!(kwargs, :data, "")
             end
         end
 
