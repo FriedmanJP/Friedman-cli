@@ -163,10 +163,10 @@ function hd_specs()::Vector{CommandSpec}
 end
 
 const _HD_SLOT_TYPES = Dict{Vector{String},Tuple{Vector{Symbol},Vector{Symbol}}}(
-    ["hd", "var"]   => ([:VARModel], [:HistoricalDecomposition]),
+    ["hd", "var"]   => ([:VARModel, :SVARModel], [:HistoricalDecomposition]),
     ["hd", "bvar"]  => ([:BVARPosterior], [:BayesianHistoricalDecomposition]),
     ["hd", "lp"]    => ([:StructuralLP], [:HistoricalDecomposition]),
-    ["hd", "vecm"]  => ([:VECMModel], [:HistoricalDecomposition]),
+    ["hd", "vecm"]  => ([:VECMModel, :SVECResult], [:HistoricalDecomposition]),
     ["hd", "favar"] => ([:FAVARModel], [:HistoricalDecomposition]),
     ["hd", "sdfm"]  => ([:StructuralDFM], [:HistoricalDecomposition]),
 )
@@ -196,6 +196,25 @@ function _hd_var(; data::String="", result=nothing, model=nothing, lags=nothing,
                           key_prefix="historical_decomposition")
         _maybe_plot(loaded; plot=plot, plot_save=plot_save)
         return loaded
+    end
+    if model isa SVARModel
+        id in ("cholesky", "svar") || throw(CliError("usage/invalid",
+            "hd var: SVARModel is already structurally identified; omit --id (got --id $id)"))
+        varnames = model.varnames
+        hd_result = try
+            historical_decomposition(model)
+        catch e
+            throw(_domain_or_data_error(e, "SVAR historical decomposition"))
+        end
+        _status_report(() -> report(hd_result))
+        _maybe_plot(hd_result; plot=plot, plot_save=plot_save)
+        verify_decomposition(hd_result)
+        _output_hd_tables((vi, si) -> contribution(hd_result, vi, si), varnames, hd_result.T_eff;
+                          id="svar", title_prefix="Historical Decomposition",
+                          format=format, output=output,
+                          actual=hd_result.actual, initial=hd_result.initial_conditions,
+                          key_prefix="historical_decomposition")
+        return (; model, result=hd_result)
     end
     if isnothing(model)
         model, Y, varnames, p = _load_and_estimate_var(data, lags)
@@ -435,6 +454,25 @@ function _hd_vecm(; data::String="", result=nothing, lags::Int=2, rank::String="
                           key_prefix="vecm_historical_decomposition")
         _maybe_plot(loaded; plot=plot, plot_save=plot_save)
         return loaded
+    end
+    if model isa SVECResult
+        id in ("cholesky", "svec") || throw(CliError("usage/invalid",
+            "hd vecm: SVECResult is already structurally identified; omit --id (got --id $id)"))
+        varnames = model.vecm.varnames
+        hd_result = try
+            historical_decomposition(model)
+        catch e
+            throw(_domain_or_data_error(e, "SVEC historical decomposition"))
+        end
+        _status_report(() -> report(hd_result))
+        _maybe_plot(hd_result; plot=plot, plot_save=plot_save)
+        verify_decomposition(hd_result)
+        _output_hd_tables((vi, si) -> contribution(hd_result, vi, si), varnames, hd_result.T_eff;
+                          id="svec", title_prefix="VECM Historical Decomposition",
+                          format=format, output=output,
+                          actual=hd_result.actual, initial=hd_result.initial_conditions,
+                          key_prefix="vecm_historical_decomposition")
+        return (; model, result=hd_result)
     end
     if isnothing(model)
         vecm, Y, varnames, p = _load_and_estimate_vecm(data, lags, rank, deterministic, "johansen", 0.05)

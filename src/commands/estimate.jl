@@ -4960,14 +4960,14 @@ end
 regressions, each a NamedTuple of (alpha, se, t_stat, p_value). A significantly positive α
 means the Poisson equidispersion assumption fails and `estimate nbreg` is preferred.
 """
-function _test_dispersion(; data::String="", dep::String="", offset::String="",
+function _test_dispersion(; data::String="", model=nothing, dep::String="", offset::String="",
                            exposure::String="", cov_type::String="robust",
                            clusters::String="", maxiter::Int=100, tol::Float64=1e-10,
                            alpha::Float64=0.05, output::String="", format::String="table")
     _count_guards(maxiter, tol, 0.95, "test dispersion")
     (0 < alpha < 1) || throw(CliError("usage/invalid",
         "test dispersion: --alpha must satisfy 0 < alpha < 1 (got $alpha)"))
-    m, _ = _fit_poisson(data, dep, offset, exposure, cov_type, clusters, maxiter, tol)
+    m = isnothing(model) ? first(_fit_poisson(data, dep, offset, exposure, cov_type, clusters, maxiter, tol)) : model
     dt = try
         dispersion_test(m)
     catch e

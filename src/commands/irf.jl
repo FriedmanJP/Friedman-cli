@@ -248,12 +248,12 @@ function irf_specs()::Vector{CommandSpec}
 end
 
 const _IRF_SLOT_TYPES = Dict{Vector{String},Tuple{Vector{Symbol},Vector{Symbol}}}(
-    ["irf", "var"]    => ([:VARModel],
+    ["irf", "var"]    => ([:VARModel, :SVARModel],
                           [:ImpulseResponse, :AriasSVARResult, :UhligSVARResult, :SignIdentifiedSet]),
     ["irf", "bvar"]   => ([:BVARPosterior], [:BayesianImpulseResponse, :RobustBayesResult]),
     ["irf", "tvpvar"] => ([:TVPVARPosterior], [:BayesianImpulseResponse]),
     ["irf", "lp"]     => ([:StructuralLP], [:ImpulseResponse]),
-    ["irf", "vecm"]   => ([:VECMModel], [:ImpulseResponse]),
+    ["irf", "vecm"]   => ([:VECMModel, :SVECResult], [:ImpulseResponse]),
     ["irf", "pvar"]   => ([:PVARModel], Symbol[]),
     ["irf", "favar"]  => ([:FAVARModel], [:ImpulseResponse]),
     ["irf", "sdfm"]   => ([:StructuralDFM], [:ImpulseResponse]),
@@ -285,6 +285,44 @@ function _irf_var(; data::String="", result=nothing, model=nothing, lags=nothing
                             id, horizons, horizons_default=20)
     loaded === nothing || return _rerender_irf_result(loaded; format, output,
         title="Impulse Responses", key="irf", plot, plot_save, shock)
+    if model isa SVARModel
+        id in ("cholesky", "svar") || throw(CliError("usage/invalid",
+            "irf var: SVARModel is already structurally identified; omit --id (got --id $id)"))
+        identified_set && throw(CliError("usage/invalid",
+            "irf var: --identified-set does not apply to SVARModel"))
+        summary == "none" || throw(CliError("usage/invalid",
+            "irf var: --summary does not apply to SVARModel"))
+        boot = lowercase(strip(bootstrap))
+        boot in ("iid", "wild", "block") || throw(CliError("usage/invalid-option",
+            "invalid --bootstrap '$bootstrap'; must be iid, wild or block"))
+        wdist = lowercase(strip(wild_dist))
+        wdist in ("rademacher", "mammen") || throw(CliError("usage/invalid-option",
+            "invalid --wild-dist '$wild_dist'; must be rademacher or mammen"))
+        block_length >= 0 || throw(CliError("usage/invalid", "--block-length must be ≥ 0 (got $block_length)"))
+        bias_reps >= 0 || throw(CliError("usage/invalid", "--bias-reps must be ≥ 0 (got $bias_reps)"))
+        svar_kw = Dict{Symbol,Any}(:ci_type => Symbol(ci), :reps => replications)
+        if ci == "bootstrap"
+            svar_kw[:bootstrap] = Symbol(boot)
+            svar_kw[:block_length] = block_length
+            svar_kw[:wild_dist] = Symbol(wdist)
+            svar_kw[:bias_correct] = bias_correct
+            svar_kw[:bias_reps] = bias_reps
+        end
+        stationary_only && (svar_kw[:stationary_only] = true)
+        isnothing(_SEED[]) || (svar_kw[:seed] = _SEED[])
+        irf_result = try
+            irf(model, horizons; svar_kw...)
+        catch e
+            throw(_domain_or_data_error(e, "SVAR IRF"))
+        end
+        cumulative && (irf_result = cumulative_irf(irf_result))
+        _maybe_plot(irf_result; plot=plot, plot_save=plot_save)
+        _status_report(() -> report(irf_result))
+        shock_name = irf_result.shocks[shock]
+        _emit_result(irf_result; title="IRF to $shock_name shock (svar identification)", key="irf",
+                     format=Symbol(format), output=output, shocks=shock_name)
+        return (; model, result=irf_result)
+    end
     if isnothing(model)
         model, Y, varnames, p = _load_and_estimate_var(data, lags)
     else
@@ -697,6 +735,23 @@ function _irf_vecm(; data::String="", result=nothing, lags::Int=2, rank::String=
                             id, horizons, horizons_default=20)
     loaded === nothing || return _rerender_irf_result(loaded; format, output,
         title="Impulse Responses", key="vecm_irf", plot, plot_save, shock)
+    if model isa SVECResult
+        id in ("cholesky", "svec") || throw(CliError("usage/invalid",
+            "irf vecm: SVECResult is already structurally identified; omit --id (got --id $id)"))
+        ci == "none" || throw(CliError("usage/invalid",
+            "irf vecm: SVECResult supports only --ci none (got --ci $ci)"))
+        irf_result = try
+            irf(model, horizons; ci_type=:none)
+        catch e
+            throw(_domain_or_data_error(e, "SVEC IRF"))
+        end
+        _maybe_plot(irf_result; plot=plot, plot_save=plot_save)
+        _status_report(() -> report(irf_result))
+        shock_name = irf_result.shocks[shock]
+        _emit_result(irf_result; title="VECM IRF to $shock_name shock (svec identification)",
+                     key="vecm_irf", format=Symbol(format), output=output, shocks=shock_name)
+        return (; model, result=irf_result)
+    end
     if isnothing(model)
         vecm, Y, varnames, p = _load_and_estimate_vecm(data, lags, rank, deterministic, "johansen", 0.05)
         var_model = to_var(vecm)

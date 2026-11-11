@@ -1508,3 +1508,132 @@ end
         @test "VARModel" in sch_pos["properties"]["model"]["x-handle"]["types"]
     end
 end
+
+@testset "SVAR/SVEC and post-estimation test model handles" begin
+    mktempdir() do dir
+        ts_csv = joinpath(dir, "macro.csv")
+        CSV.write(ts_csv, DataFrame(y1=cumsum(randn(60)), y2=cumsum(randn(60))))
+
+        # 1. estimate multivariate svar --save-model -> irf/fevd/hd var (positional & --model)
+        svar_stem = joinpath(dir, "svar_m")
+        _capture() do
+            _dispatch_via_app(["estimate", "multivariate", "svar", ts_csv, "--lags", "2",
+                               "--save-model", svar_stem, "--format", "json"])
+        end
+        @test isfile(svar_stem * ".jld2")
+
+        out_svar_irf = _capture() do
+            _dispatch_via_app(["irf", "var", svar_stem, "--horizons", "4", "--ci", "none", "--format", "json"])
+        end
+        @test occursin("irf", out_svar_irf)
+
+        out_svar_fevd = _capture() do
+            _dispatch_via_app(["fevd", "var", svar_stem, "--horizons", "4", "--format", "json"])
+        end
+        @test occursin("fevd", out_svar_fevd)
+
+        out_svar_hd = _capture() do
+            _dispatch_via_app(["hd", "var", "--model", svar_stem, "--format", "json"])
+        end
+        @test occursin("historical_decomposition", out_svar_hd)
+
+        # 2. estimate multivariate svec --save-model -> irf/fevd/hd vecm
+        svec_stem = joinpath(dir, "svec_m")
+        _capture() do
+            _dispatch_via_app(["estimate", "multivariate", "svec", ts_csv, "--lags", "2", "--rank", "1",
+                               "--save-model", svec_stem, "--format", "json"])
+        end
+        @test isfile(svec_stem * ".jld2")
+
+        out_svec_irf = _capture() do
+            _dispatch_via_app(["irf", "vecm", svec_stem, "--horizons", "4", "--ci", "none", "--format", "json"])
+        end
+        @test occursin("vecm_irf", out_svec_irf)
+
+        out_svec_fevd = _capture() do
+            _dispatch_via_app(["fevd", "vecm", svec_stem, "--horizons", "4", "--format", "json"])
+        end
+        @test occursin("vecm_fevd", out_svec_fevd)
+
+        out_svec_hd = _capture() do
+            _dispatch_via_app(["hd", "vecm", svec_stem, "--format", "json"])
+        end
+        @test occursin("vecm_historical_decomposition", out_svec_hd)
+
+        # 3. Post-estimation test leaves accept saved models (positional and --model)
+        var_stem = joinpath(dir, "var_m")
+        save_model_dispatch(var_stem * ".jld2", estimate_var(randn(50, 2), 2; varnames=["y1", "y2"]))
+
+        out_gr_pos = _capture() do
+            _dispatch_via_app(["test", "multivariate", "granger", var_stem * ".jld2", "--format", "json"])
+        end
+        @test occursin("granger_causality", out_gr_pos)
+
+        out_gr_opt = _capture() do
+            _dispatch_via_app(["test", "multivariate", "granger", "--model", var_stem, "--format", "json"])
+        end
+        @test occursin("granger_causality", out_gr_opt)
+
+        # Legacy domain --model var with CSV still works
+        out_gr_dom = _capture() do
+            _dispatch_via_app(["test", "multivariate", "granger", ts_csv, "--model", "var", "--format", "json"])
+        end
+        @test occursin("granger_causality", out_gr_dom)
+
+        # VECM weak-exog with saved VECMModel
+        vecm_stem = joinpath(dir, "vecm_m")
+        save_model_dispatch(vecm_stem * ".jld2", estimate_vecm(randn(50, 2), 2; rank=1, varnames=["y1", "y2"]))
+        out_vex = _capture() do
+            _dispatch_via_app(["test", "vecm", "weak-exog", vecm_stem, "--vars", "1", "--format", "json"])
+        end
+        @test occursin("vecm_weak_exogeneity", out_vex)
+
+        # PVAR hansen-j and mmsc with saved PVARModel
+        pan_df = DataFrame(id=repeat(1:6, inner=10), t=repeat(1:10, outer=6), y1=randn(60), y2=randn(60))
+        pd = xtset(pan_df, :id, :t)
+        pvar_stem = joinpath(dir, "pvar_m")
+        save_model_dispatch(pvar_stem * ".jld2", estimate_pvar(pd, 1))
+        out_hj = _capture() do
+            _dispatch_via_app(["test", "pvar", "hansen-j", pvar_stem, "--format", "json"])
+        end
+        @test occursin("hansen_j_test", out_hj)
+        out_mmsc = _capture() do
+            _dispatch_via_app(["test", "pvar", "mmsc", "--model", pvar_stem, "--format", "json"])
+        end
+        @test occursin("mmsc_results", out_mmsc)
+
+        # Dispersion with saved PoissonModel
+        cnt_csv = joinpath(dir, "cnt.csv")
+        CSV.write(cnt_csv, DataFrame(y=rand(0:5, 50), x1=randn(50), x2=randn(50)))
+        pois_stem = joinpath(dir, "pois_m")
+        _capture() do
+            _dispatch_via_app(["estimate", "choice", "poisson", cnt_csv, "--dep", "y",
+                               "--save-model", pois_stem, "--format", "json"])
+        end
+        out_disp = _capture() do
+            _dispatch_via_app(["test", "dispersion", pois_stem, "--format", "json"])
+        end
+        @test occursin("overdispersion_test", out_disp)
+
+        # VIF with saved RegModel
+        reg_stem = joinpath(dir, "reg_m")
+        _capture() do
+            _dispatch_via_app(["estimate", "regression", "reg", cnt_csv, "--dep", "y",
+                               "--save-model", reg_stem, "--format", "json"])
+        end
+        out_vif = _capture() do
+            _dispatch_via_app(["test", "vif", "--model", reg_stem, "--format", "json"])
+        end
+        @test occursin("variance_inflation_factors", out_vif)
+
+        # Serial correlation diagnostics (ljung-box, durbin-watson, box-pierce, arch-lm, bartlett-wn) on saved model
+        out_lb = _capture() do
+            _dispatch_via_app(["test", "serial", "ljung-box", var_stem, "--column", "1", "--format", "json"])
+        end
+        @test occursin("ljung_box_squared_test", out_lb)
+        out_dw = _capture() do
+            _dispatch_via_app(["test", "serial", "durbin-watson", "--model", reg_stem, "--format", "json"])
+        end
+        @test occursin("durbin_watson_test", out_dw)
+    end
+end

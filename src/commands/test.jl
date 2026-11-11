@@ -1225,7 +1225,7 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels)"),
                 OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...) (vecm only; ignored with --model var)"),
                 OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend (vecm only; ignored with --model var)"),
-                OptionSpec(name="model", type=String, default="vecm", description="var|vecm (model type for Granger test)", choices=["var","vecm"]),
+                OptionSpec(name="model", type=String, default="", description="var|vecm or path/stem to saved VARModel/VECMModel (default: vecm)", handle=true),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
@@ -1833,6 +1833,44 @@ const _TEST_RESULT_TYPES = Dict{String,Vector{Symbol}}(
     "hausman-iia" => [:PanelTestResult],
 )
 
+const _SERIAL_RESIDUAL_MODELS = [
+    :RegModel, :VARModel, :VECMModel,
+    :ARModel, :MAModel, :ARMAModel, :ARIMAModel, :SARIMAModel,
+    :ARCHModel, :GARCHModel, :EGARCHModel, :GJRGARCHModel,
+]
+
+const _TEST_MODEL_TYPES = Dict{String,Vector{Symbol}}(
+    "granger"       => [:VARModel, :VECMModel],
+    "beta"          => [:VECMModel],
+    "alpha"         => [:VECMModel],
+    "known-beta"    => [:VECMModel],
+    "joint"         => [:VECMModel],
+    "weak-exog"     => [:VECMModel],
+    "hansen-j"      => [:PVARModel],
+    "mmsc"          => [:PVARModel],
+    "dispersion"    => [:PoissonModel],
+    "vif"           => [:RegModel],
+    "durbin-watson" => _SERIAL_RESIDUAL_MODELS,
+    "ljung-box"     => _SERIAL_RESIDUAL_MODELS,
+    "box-pierce"    => _SERIAL_RESIDUAL_MODELS,
+    "arch-lm"       => _SERIAL_RESIDUAL_MODELS,
+    "bartlett-wn"   => _SERIAL_RESIDUAL_MODELS,
+)
+
+function _extract_residual_series(data::String, column::Int, model)
+    isnothing(model) && return load_univariate_series(data, column)
+    r = residuals(model)
+    if r isa AbstractMatrix
+        n = size(r, 2)
+        (1 <= column <= n) || throw(CliError("data/column-range",
+            "column $column out of range 1:$n for $(nameof(typeof(model))) residuals"))
+        vname = hasproperty(model, :varnames) && length(model.varnames) >= column ?
+            "$(model.varnames[column]) (residuals)" : "col_$column (residuals)"
+        return Vector{Float64}(r[:, column]), vname
+    end
+    return Vector{Float64}(r), "$(nameof(typeof(model))) residuals"
+end
+
 function register_test_commands!()
     specs = CommandSpec[]
     for s in test_specs()
@@ -1846,7 +1884,12 @@ function register_test_commands!()
             [:timeseries, :csv]
         end
         rt = get(_TEST_RESULT_TYPES, s.path[end], Symbol[])
-        push!(specs, _copy_spec(s; data_kinds=kinds, result_types=rt))
+        mt = get(_TEST_MODEL_TYPES, s.path[end], Symbol[])
+        s2 = _copy_spec(s; data_kinds=kinds, result_types=rt, model_types=mt)
+        if !isempty(mt) && !any(o -> o.name == "model", s2.options)
+            s2 = with_model_option([s2])[1]
+        end
+        push!(specs, s2)
     end
     specs = with_result_handles(with_config_ergonomics(specs))
     specs = with_default_csv_kinds(specs)
@@ -2344,9 +2387,9 @@ end
 
 # ── ARCH-LM Test ─────────────────────────────────────────
 
-function _test_arch_lm(; data::String, column::Int=1, lags::Int=4,
+function _test_arch_lm(; data::String="", model=nothing, column::Int=1, lags::Int=4,
                          format::String="table", output::String="")
-    y, vname = load_univariate_series(data, column)
+    y, vname = _extract_residual_series(data, column, model)
 
     _status("ARCH-LM Test: variable=$vname, observations=$(length(y)), lags=$lags")
     _status()
@@ -2370,9 +2413,9 @@ end
 
 # ── Ljung-Box Squared Test ───────────────────────────────
 
-function _test_ljung_box(; data::String, column::Int=1, lags::Int=10,
+function _test_ljung_box(; data::String="", model=nothing, column::Int=1, lags::Int=10,
                            format::String="table", output::String="")
-    y, vname = load_univariate_series(data, column)
+    y, vname = _extract_residual_series(data, column, model)
 
     _status("Ljung-Box Squared Residuals Test: variable=$vname, observations=$(length(y)), lags=$lags")
     _status()
@@ -2827,15 +2870,20 @@ end
 
 """Fit the VECM every restriction leaf needs; map fit failures to typed errors and
 require a cointegrating rank ≥ 1 (all restriction tests demand r ≥ 1 upstream)."""
-function _vecm_for_restriction(data, lags, rank, deterministic, method, significance)
-    vecm, _, varnames, _ = try
-        _load_and_estimate_vecm(data, lags, rank, deterministic, method, significance)
-    catch e
-        e isa CliError && rethrow()
-        (e isa ArgumentError || e isa DomainError) && throw(CliError("data/invalid",
-            "VECM estimation: $(sprint(showerror, e))"; hint="check --lags/--rank/--deterministic"))
-        e isa DimensionMismatch && throw(CliError("data/shape", "VECM estimation: $(sprint(showerror, e))"))
-        throw(CliError("model/error", "VECM estimation failed: $(sprint(showerror, e))"))
+function _vecm_for_restriction(data, lags, rank, deterministic, method, significance; model=nothing)
+    if !isnothing(model)
+        vecm = model
+        varnames = vecm.varnames
+    else
+        vecm, _, varnames, _ = try
+            _load_and_estimate_vecm(data, lags, rank, deterministic, method, significance)
+        catch e
+            e isa CliError && rethrow()
+            (e isa ArgumentError || e isa DomainError) && throw(CliError("data/invalid",
+                "VECM estimation: $(sprint(showerror, e))"; hint="check --lags/--rank/--deterministic"))
+            e isa DimensionMismatch && throw(CliError("data/shape", "VECM estimation: $(sprint(showerror, e))"))
+            throw(CliError("model/error", "VECM estimation failed: $(sprint(showerror, e))"))
+        end
     end
     vecm.rank >= 1 || throw(CliError("data/no-cointegration",
         "restriction tests need cointegrating rank ≥ 1 (fitted rank = $(vecm.rank)); set --rank ≥ 1 or check the series"))
@@ -2873,14 +2921,14 @@ function _vecm_restriction_output(res, label, vname; key, format, output)
         "Cannot reject H0 at 5% -- the restriction is consistent with the data")
 end
 
-function _test_vecm_beta(; data::String, config::String="", lags::Int=2, rank::String="auto",
+function _test_vecm_beta(; data::String="", model=nothing, config::String="", lags::Int=2, rank::String="auto",
         deterministic::String="constant", method::String="johansen", significance::Float64=0.05,
         format::String="table", output::String="")
     isempty(config) && throw(CliError("usage/missing-config",
         "test vecm beta requires --config <toml> with [vecm_restriction] H = [[...],...]"))
     cfg = load_config(config)
     H = get_vecm_restriction(cfg, "H")
-    vecm, varnames = _vecm_for_restriction(data, lags, rank, deterministic, method, significance)
+    vecm, varnames = _vecm_for_restriction(data, lags, rank, deterministic, method, significance; model=model)
     _status("VECM β-restriction test: series=$(length(varnames)), rank=$(vecm.rank)"); _status()
     res = try
         test_beta_restriction(vecm, H)
@@ -2892,14 +2940,14 @@ function _test_vecm_beta(; data::String, config::String="", lags::Int=2, rank::S
     return res
 end
 
-function _test_vecm_alpha(; data::String, config::String="", lags::Int=2, rank::String="auto",
+function _test_vecm_alpha(; data::String="", model=nothing, config::String="", lags::Int=2, rank::String="auto",
         deterministic::String="constant", method::String="johansen", significance::Float64=0.05,
         format::String="table", output::String="")
     isempty(config) && throw(CliError("usage/missing-config",
         "test vecm alpha requires --config <toml> with [vecm_restriction] A = [[...],...]"))
     cfg = load_config(config)
     A = get_vecm_restriction(cfg, "A")
-    vecm, varnames = _vecm_for_restriction(data, lags, rank, deterministic, method, significance)
+    vecm, varnames = _vecm_for_restriction(data, lags, rank, deterministic, method, significance; model=model)
     _status("VECM α-restriction test: series=$(length(varnames)), rank=$(vecm.rank)"); _status()
     res = try
         test_alpha_restriction(vecm, A)
@@ -2911,14 +2959,14 @@ function _test_vecm_alpha(; data::String, config::String="", lags::Int=2, rank::
     return res
 end
 
-function _test_vecm_known_beta(; data::String, config::String="", lags::Int=2, rank::String="auto",
+function _test_vecm_known_beta(; data::String="", model=nothing, config::String="", lags::Int=2, rank::String="auto",
         deterministic::String="constant", method::String="johansen", significance::Float64=0.05,
         format::String="table", output::String="")
     isempty(config) && throw(CliError("usage/missing-config",
         "test vecm known-beta requires --config <toml> with [vecm_restriction] b = [[...],...]"))
     cfg = load_config(config)
     b = get_vecm_restriction(cfg, "b")
-    vecm, varnames = _vecm_for_restriction(data, lags, rank, deterministic, method, significance)
+    vecm, varnames = _vecm_for_restriction(data, lags, rank, deterministic, method, significance; model=model)
     _status("VECM known-β test: series=$(length(varnames)), rank=$(vecm.rank)"); _status()
     res = try
         test_known_beta(vecm, b)
@@ -2930,7 +2978,7 @@ function _test_vecm_known_beta(; data::String, config::String="", lags::Int=2, r
     return res
 end
 
-function _test_vecm_joint(; data::String, config::String="", lags::Int=2, rank::String="auto",
+function _test_vecm_joint(; data::String="", model=nothing, config::String="", lags::Int=2, rank::String="auto",
         deterministic::String="constant", method::String="johansen", significance::Float64=0.05,
         format::String="table", output::String="")
     isempty(config) && throw(CliError("usage/missing-config",
@@ -2938,7 +2986,7 @@ function _test_vecm_joint(; data::String, config::String="", lags::Int=2, rank::
     cfg = load_config(config)
     H = get_vecm_restriction(cfg, "H")
     A = get_vecm_restriction(cfg, "A")
-    vecm, varnames = _vecm_for_restriction(data, lags, rank, deterministic, method, significance)
+    vecm, varnames = _vecm_for_restriction(data, lags, rank, deterministic, method, significance; model=model)
     _status("VECM joint β&α restriction test: series=$(length(varnames)), rank=$(vecm.rank)"); _status()
     res = try
         test_joint_restriction(vecm, H, A)
@@ -2950,13 +2998,13 @@ function _test_vecm_joint(; data::String, config::String="", lags::Int=2, rank::
     return res
 end
 
-function _test_vecm_weak_exog(; data::String, vars::String="", lags::Int=2, rank::String="auto",
+function _test_vecm_weak_exog(; data::String="", model=nothing, vars::String="", lags::Int=2, rank::String="auto",
         deterministic::String="constant", method::String="johansen", significance::Float64=0.05,
         format::String="table", output::String="")
     isempty(strip(vars)) && throw(CliError("usage/invalid",
         "test vecm weak-exog requires --vars (e.g. --vars 1,2 or --vars gdp,rate)"))
     # Fit first: need varnames for name resolution + n for the range check.
-    vecm, varnames = _vecm_for_restriction(data, lags, rank, deterministic, method, significance)
+    vecm, varnames = _vecm_for_restriction(data, lags, rank, deterministic, method, significance; model=model)
     n = length(varnames)
     idxs = Int[]
     for tok in split(vars, ",")
@@ -4393,23 +4441,37 @@ end
 
 # ── VECM Granger Causality Test ────────────────────────
 
-function _test_granger(; data::String, cause::Int=1, effect::Int=2,
+function _test_granger(; data::String="", cause::Int=1, effect::Int=2,
                          lags::Int=2, rank::String="auto",
                          deterministic::String="constant",
-                         model::String="vecm", all::Bool=false,
+                         model="vecm", all::Bool=false,
                          format::String="table", output::String="")
-    validate_method(model, ["var", "vecm"], "Granger causality model")
+    if model isa VARModel
+        return _test_granger_var(data, cause, effect, lags, all, format, output; var_model=model)
+    elseif model isa VECMModel
+        return _test_granger_vecm(data, cause, effect, lags, rank, deterministic, format, output; vecm_model=model)
+    end
+    m_str = isempty(String(model)) ? "vecm" : String(model)
+    validate_method(m_str, ["var", "vecm"], "Granger causality model")
+    isempty(data) && throw(CliError("usage/missing", "missing required argument: <data>"))
 
-    if model == "var"
+    if m_str == "var"
         _test_granger_var(data, cause, effect, lags, all, format, output)
     else
         _test_granger_vecm(data, cause, effect, lags, rank, deterministic, format, output)
     end
 end
 
-function _test_granger_vecm(data, cause, effect, lags, rank, deterministic, format, output)
-    vecm, Y, varnames, p = _load_and_estimate_vecm(data, lags, rank, deterministic, "johansen", 0.05)
-    n = size(Y, 2)
+function _test_granger_vecm(data, cause, effect, lags, rank, deterministic, format, output; vecm_model=nothing)
+    if isnothing(vecm_model)
+        vecm, Y, varnames, p = _load_and_estimate_vecm(data, lags, rank, deterministic, "johansen", 0.05)
+        n = size(Y, 2)
+    else
+        vecm = vecm_model
+        varnames = vecm.varnames
+        p = vecm.p
+        n = length(varnames)
+    end
     r = cointegrating_rank(vecm)
 
     cause_name = _var_name(varnames, cause)
@@ -4438,9 +4500,16 @@ function _test_granger_vecm(data, cause, effect, lags, rank, deterministic, form
     return result
 end
 
-function _test_granger_var(data, cause, effect, lags, test_all, format, output)
-    model, Y, varnames, p = _load_and_estimate_var(data, lags)
-    n = size(Y, 2)
+function _test_granger_var(data, cause, effect, lags, test_all, format, output; var_model=nothing)
+    if isnothing(var_model)
+        model, Y, varnames, p = _load_and_estimate_var(data, lags)
+        n = size(Y, 2)
+    else
+        model = var_model
+        varnames = model.varnames
+        p = model.p
+        n = length(varnames)
+    end
 
     if test_all
         _status("VAR Granger Causality Test (all pairwise): VAR($p), $n variables")
@@ -4499,9 +4568,13 @@ end
 
 # ── Panel VAR Tests ────────────────────────────────────────
 
-function _test_pvar_hansen_j(; data::String, id_col::String="", time_col::String="",
+function _test_pvar_hansen_j(; data::String="", model=nothing, id_col::String="", time_col::String="",
                                lags::Int=1, format::String="table", output::String="")
-    model, panel, varnames = _load_and_estimate_pvar(data, id_col, time_col, lags)
+    if isnothing(model)
+        model, panel, varnames = _load_and_estimate_pvar(data, id_col, time_col, lags)
+    else
+        lags = model.p
+    end
 
     _status("Hansen J Overidentification Test: Panel VAR($lags)")
     _status()
@@ -4523,9 +4596,20 @@ function _test_pvar_hansen_j(; data::String, id_col::String="", time_col::String
     return result
 end
 
-function _test_pvar_mmsc(; data::String, id_col::String="", time_col::String="",
+function _test_pvar_mmsc(; data::String="", model=nothing, id_col::String="", time_col::String="",
                            max_lags::Int=4, criterion::String="bic",
                            format::String="table", output::String="")
+    if !isnothing(model)
+        c = pvar_mmsc(model)
+        res_df = DataFrame(
+            lags=[model.p],
+            BIC=[round(Float64(c.mbic); digits=4)],
+            AIC=[round(Float64(c.maic); digits=4)],
+            HQIC=[round(Float64(c.mqic); digits=4)],
+        )
+        output_result(res_df; format=Symbol(format), output=output, title="MMSC Results")
+        return c
+    end
     panel = load_panel_data(data, id_col, time_col)
 
     _status("MMSC Model Selection: max lags=$max_lags, criterion=$criterion")
@@ -5120,15 +5204,19 @@ end
 
 # ── VIF (Variance Inflation Factor) ─────────────────
 
-function _test_vif(; data::String, dep::String="",
+function _test_vif(; data::String="", model=nothing, dep::String="",
                     cov_type::String="hc1",
                     format::String="table", output::String="")
-    y, X, xcols = _load_reg_data(data, dep)
-
-    _status("Variance Inflation Factors: $(length(xcols)) regressors, cov_type=$cov_type")
-    _status()
-
-    model = estimate_reg(y, X; cov_type=Symbol(cov_type), varnames=xcols)
+    if isnothing(model)
+        y, X, xcols = _load_reg_data(data, dep)
+        _status("Variance Inflation Factors: $(length(xcols)) regressors, cov_type=$cov_type")
+        _status()
+        model = estimate_reg(y, X; cov_type=Symbol(cov_type), varnames=xcols)
+    else
+        xcols = model.varnames
+        _status("Variance Inflation Factors: $(length(xcols)) regressors (loaded RegModel)")
+        _status()
+    end
     vif_vals = vif(model)
 
     vif_df = DataFrame(
@@ -5323,9 +5411,9 @@ function _test_fisher(; data::String, column::Int=1,
     return result
 end
 
-function _test_bartlett_wn(; data::String, column::Int=1,
+function _test_bartlett_wn(; data::String="", model=nothing, column::Int=1,
                             format::String="table", output::String="")
-    y, vname = load_univariate_series(data, column)
+    y, vname = _extract_residual_series(data, column, model)
 
     _status("Bartlett White Noise Test: variable=$vname")
     _status()
@@ -5346,9 +5434,9 @@ function _test_bartlett_wn(; data::String, column::Int=1,
     return result
 end
 
-function _test_box_pierce(; data::String, column::Int=1, lags::Int=20,
+function _test_box_pierce(; data::String="", model=nothing, column::Int=1, lags::Int=20,
                            format::String="table", output::String="")
-    y, vname = load_univariate_series(data, column)
+    y, vname = _extract_residual_series(data, column, model)
 
     _status("Box-Pierce Test: variable=$vname, lags=$lags")
     _status()
@@ -5370,9 +5458,9 @@ function _test_box_pierce(; data::String, column::Int=1, lags::Int=20,
     return result
 end
 
-function _test_durbin_watson(; data::String, column::Int=1,
+function _test_durbin_watson(; data::String="", model=nothing, column::Int=1,
                               format::String="table", output::String="")
-    y, vname = load_univariate_series(data, column)
+    y, vname = _extract_residual_series(data, column, model)
 
     _status("Durbin-Watson Test: variable=$vname")
     _status()

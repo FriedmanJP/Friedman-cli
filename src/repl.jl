@@ -143,7 +143,10 @@ function inject_session_data(s::Session, args::Vector{String}, app::Entry)
         tok = args[i]
         tok == "--" && break
         if model_is_handle && (tok == "--model" || startswith(tok, "--model="))
-            return args
+            mval = tok == "--model" ? (i < length(args) ? args[i + 1] : "") : tok[9:end]
+            if !(mval in ("var", "vecm") && !any(ext -> isfile(_expanduser(mval) * ext), (".jld2", ".jls", ".fmod")))
+                return args
+            end
         end
         if result_is_handle && (tok == "--result" || startswith(tok, "--result="))
             return args

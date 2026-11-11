@@ -181,10 +181,10 @@ function fevd_specs()::Vector{CommandSpec}
 end
 
 const _FEVD_SLOT_TYPES = Dict{Vector{String},Tuple{Vector{Symbol},Vector{Symbol}}}(
-    ["fevd", "var"]   => ([:VARModel], [:FEVD, :AriasSVARResult, :UhligSVARResult]),
+    ["fevd", "var"]   => ([:VARModel, :SVARModel], [:FEVD, :AriasSVARResult, :UhligSVARResult]),
     ["fevd", "bvar"]  => ([:BVARPosterior], [:BayesianFEVD]),
     ["fevd", "lp"]    => ([:StructuralLP], [:LPFEVD]),
-    ["fevd", "vecm"]  => ([:VECMModel], [:FEVD]),
+    ["fevd", "vecm"]  => ([:VECMModel, :SVECResult], [:FEVD]),
     ["fevd", "pvar"]  => ([:PVARModel], Symbol[]),
     ["fevd", "favar"] => ([:FAVARModel], [:FEVD]),
     ["fevd", "sdfm"]  => ([:StructuralDFM], [:FEVD]),
@@ -212,6 +212,22 @@ function _fevd_var(; data::String="", result=nothing, model=nothing, lags=nothin
                             id, horizons, horizons_default=20)
     loaded === nothing || return _rerender_fevd_result(loaded; format, output,
         title="Forecast Error Variance Decomposition", key="fevd", plot, plot_save)
+    if model isa SVARModel
+        id in ("cholesky", "svar") || throw(CliError("usage/invalid",
+            "fevd var: SVARModel is already structurally identified; omit --id (got --id $id)"))
+        generalized && throw(CliError("usage/invalid",
+            "fevd var: --generalized does not apply to SVARModel"))
+        fevd_result = try
+            fevd(model, horizons)
+        catch e
+            throw(_domain_or_data_error(e, "SVAR FEVD"))
+        end
+        _status_report(() -> report(fevd_result))
+        _maybe_plot(fevd_result; plot=plot, plot_save=plot_save)
+        _emit_result(fevd_result; title="FEVD (svar identification)", key="fevd",
+                     format=Symbol(format), output=output)
+        return (; model, result=fevd_result)
+    end
     if isnothing(model)
         model, Y, varnames, p = _load_and_estimate_var(data, lags)
     else
@@ -434,6 +450,20 @@ function _fevd_vecm(; data::String="", result=nothing, lags::Int=2, rank::String
                             id, horizons, horizons_default=20)
     loaded === nothing || return _rerender_fevd_result(loaded; format, output,
         title="Forecast Error Variance Decomposition", key="vecm_fevd", plot, plot_save)
+    if model isa SVECResult
+        id in ("cholesky", "svec") || throw(CliError("usage/invalid",
+            "fevd vecm: SVECResult is already structurally identified; omit --id (got --id $id)"))
+        fevd_result = try
+            fevd(model, horizons)
+        catch e
+            throw(_domain_or_data_error(e, "SVEC FEVD"))
+        end
+        _status_report(() -> report(fevd_result))
+        _maybe_plot(fevd_result; plot=plot, plot_save=plot_save)
+        _emit_result(fevd_result; title="VECM FEVD (svec identification)", key="vecm_fevd",
+                     format=Symbol(format), output=output)
+        return (; model, result=fevd_result)
+    end
     if isnothing(model)
         vecm, Y, varnames, p = _load_and_estimate_vecm(data, lags, rank, deterministic, "johansen", 0.05)
         var_model = to_var(vecm)

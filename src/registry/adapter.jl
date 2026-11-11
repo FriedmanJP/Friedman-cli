@@ -206,7 +206,11 @@ function wrap_legacy(handler::Function)
                     end
                 else
                     mp_str = String(mp)
-                    if !isempty(ctx.spec.model_types)
+                    exp_mp = _expanduser(mp_str)
+                    is_domain_choice = mp_str in ("var", "vecm") &&
+                        _slot_set(get(kwargs, :data, "")) &&
+                        !any(ext -> isfile(exp_mp * ext), (".jld2", ".jls", ".fmod"))
+                    if !isempty(ctx.spec.model_types) && !is_domain_choice
                         resolved_mp = resolve_stem(mp_str; slot=:result)
                         kwargs[:model] = _load_typed_handle(resolved_mp, ctx.spec.model_types,
                             "model/wrong-kind"; slot="model")
