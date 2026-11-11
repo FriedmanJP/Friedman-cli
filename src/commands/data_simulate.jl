@@ -53,6 +53,8 @@ _opt_periods(default::Int) = OptionSpec(name="periods", type=Int, default=defaul
     description="Sample length after burn-in")
 _opt_burn(default::Int) = OptionSpec(name="burn", type=Int, default=default,
     description="Burn-in draws dropped from the sample")
+_opt_save_data() = OptionSpec(name="save-data", type=String, default="",
+    description="Save simulated dataset as a handle (.jld2 native container or .jls)")
 
 function _sim_spec(leaf::String, summary::String, handler::Function;
                    args::Vector{ArgSpec}=ArgSpec[],
@@ -62,7 +64,7 @@ function _sim_spec(leaf::String, summary::String, handler::Function;
         path=["data", "simulate", leaf],
         summary=summary,
         args=args,
-        options=vcat(options, OUTPUT_OPTIONS),
+        options=vcat(options, [_opt_save_data()], OUTPUT_OPTIONS),
         flags=flags,
         tables=_SIM_TABLES,
         category="data",
@@ -434,7 +436,23 @@ function _settings(model::String, seed::Int; extra...)
     return rows
 end
 
-function _finish_sim(sample::DataFrame, truth, settings; format::String, output::String)
+function _sim_container(sample::DataFrame, model_name::String)
+    pnames = propertynames(sample)
+    if :id in pnames && :time in pnames
+        return xtset(sample, :id, :time)
+    elseif :obs in pnames || model_name in ("cross-section", "gmm")
+        vn = [n for n in variable_names(sample) if n != "obs"]
+        return CrossSectionData(Matrix{Float64}(sample[!, vn]); varnames=vn)
+    else
+        vn = [n for n in variable_names(sample) if n != "time"]
+        return TimeSeriesData(Matrix{Float64}(sample[!, vn]); varnames=vn,
+                              tcode=fill(1, length(vn)),
+                              time_index=collect(1:nrow(sample)))
+    end
+end
+
+function _finish_sim(sample::DataFrame, truth, settings;
+                     format::String, output::String, save_data::String="")
     isempty(truth) && throw(CliError("internal/error", "population truth is empty"))
     isempty(sample) && throw(CliError("internal/error", "simulated sample is empty"))
     output_result(sample; format=Symbol(format), output=output,
@@ -445,13 +463,20 @@ function _finish_sim(sample::DataFrame, truth, settings; format::String, output:
     output_kv(settings; format=format,
               output=_per_var_output_path(output, "settings"),
               title="Simulation Settings", key="simulation_settings")
+    if !isempty(save_data)
+        mname = isempty(settings) ? "" : String(last(first(settings)))
+        container = _sim_container(sample, mname)
+        sp = resolve_save_path(save_data)
+        save_model_dispatch(sp, container)
+        return container
+    end
     return nothing
 end
 
 # ── Time-series DGPs ─────────────────────────────────────────
 
 function _data_simulate_var(; periods::Int=200, burn::Int=50, seed::Int=0,
-                            format::String="table", output::String="")
+                            save_data::String="", format::String="table", output::String="")
     periods, burn = _sim_len(periods, burn)
     eff, rng = _sim_rng(seed)
     nt = _dgp(MacroEconometricModels.dgp_var, rng; T=periods, burn=burn)
@@ -462,12 +487,12 @@ function _data_simulate_var(; periods::Int=200, burn::Int=50, seed::Int=0,
     _truth_push!(rows, "c", nt.c)
     sample = _indexed_sample(nt.Y; names=_ynames(size(nt.Y, 2)))
     _finish_sim(sample, rows, _settings("var", eff; periods, burn);
-                format, output)
+                format, output, save_data)
 end
 
 function _data_simulate_svar(; dist::String="t", nu::Float64=5.0,
                              periods::Int=200, burn::Int=50, seed::Int=0,
-                             format::String="table", output::String="")
+                             save_data::String="", format::String="table", output::String="")
     _one_of("dist", dist, _SVAR_DISTS)
     dist == "t" && _sim_pos("nu-2", nu - 2)
     periods, burn = _sim_len(periods, burn)
@@ -480,11 +505,11 @@ function _data_simulate_svar(; dist::String="t", nu::Float64=5.0,
     _truth_push!(rows, "Sigma", nt.Sigma)
     dist == "t" && _truth_push!(rows, "nu", nu)
     sample = _indexed_sample(nt.Y; names=_ynames(size(nt.Y, 2)))
-    _finish_sim(sample, rows, _settings("svar", eff; dist, periods, burn); format, output)
+    _finish_sim(sample, rows, _settings("svar", eff; dist, periods, burn); format, output, save_data)
 end
 
 function _data_simulate_hetvar(; kind::String="markov", periods::Int=200, burn::Int=50,
-                               seed::Int=0, format::String="table", output::String="")
+                               seed::Int=0, save_data::String="", format::String="table", output::String="")
     _one_of("kind", kind, _HET_KINDS)
     periods, burn = _sim_len(periods, burn)
     eff, rng = _sim_rng(seed)
@@ -498,13 +523,13 @@ function _data_simulate_hetvar(; kind::String="markov", periods::Int=200, burn::
     kind == "markov" && _truth_push!(rows, "P", P)
     sample = _indexed_sample(nt.Y; names=_ynames(size(nt.Y, 2)))
     _finish_sim(sample, rows, _settings("heteroskedastic-var", eff; kind, periods, burn);
-                format, output)
+                format, output, save_data)
 end
 
 function _data_simulate_arima(; phi::String="0.5", theta::String="", diff::Int=0,
                               sigma::Float64=1.0, drift::Float64=0.0,
                               periods::Int=200, burn::Int=50, seed::Int=0,
-                              format::String="table", output::String="")
+                              save_data::String="", format::String="table", output::String="")
     ph = _parse_floats(phi, "phi")
     th = _parse_floats(theta, "theta")
     _sim_ge("diff", diff, 0)
@@ -520,11 +545,11 @@ function _data_simulate_arima(; phi::String="0.5", theta::String="", diff::Int=0
     _truth_push!(rows, "sigma", nt.sigma)
     _truth_push!(rows, "c", nt.c)
     _finish_sim(_series_sample(nt.y), rows,
-                _settings("arima", eff; periods, burn); format, output)
+                _settings("arima", eff; periods, burn); format, output, save_data)
 end
 
 function _data_simulate_garch(; kind::String="garch", periods::Int=300, burn::Int=50,
-                              seed::Int=0, format::String="table", output::String="")
+                              seed::Int=0, save_data::String="", format::String="table", output::String="")
     _one_of("kind", kind, _GARCH_KINDS)
     periods, burn = _sim_len(periods, burn)
     eff, rng = _sim_rng(seed)
@@ -544,12 +569,12 @@ function _data_simulate_garch(; kind::String="garch", periods::Int=300, burn::In
     kind == "aparch" && _truth_push!(rows, "delta", delta)
     _truth_push!(rows, "h", nt.h)
     _finish_sim(_series_sample(nt.y), rows,
-                _settings("garch", eff; kind, periods, burn); format, output)
+                _settings("garch", eff; kind, periods, burn); format, output, save_data)
 end
 
 function _data_simulate_sv(; mu::Float64=-0.5, phi::Float64=0.95, sigma_eta::Float64=0.2,
                            periods::Int=200, burn::Int=50, seed::Int=0,
-                           format::String="table", output::String="")
+                           save_data::String="", format::String="table", output::String="")
     _sim_open_unit("phi", phi)
     _sim_pos("sigma-eta", sigma_eta)
     periods, burn = _sim_len(periods, burn)
@@ -562,11 +587,11 @@ function _data_simulate_sv(; mu::Float64=-0.5, phi::Float64=0.95, sigma_eta::Flo
     _truth_push!(rows, "sigma_eta", sigma_eta)
     _truth_push!(rows, "h", nt.h)
     _finish_sim(_series_sample(nt.y), rows,
-                _settings("sv", eff; periods, burn); format, output)
+                _settings("sv", eff; periods, burn); format, output, save_data)
 end
 
 function _data_simulate_vecm(; periods::Int=200, burn::Int=50, seed::Int=0,
-                             format::String="table", output::String="")
+                             save_data::String="", format::String="table", output::String="")
     periods, burn = _sim_len(periods, burn)
     eff, rng = _sim_rng(seed)
     nt = _dgp(MacroEconometricModels.dgp_vecm, rng; T=periods, burn=burn)
@@ -577,12 +602,12 @@ function _data_simulate_vecm(; periods::Int=200, burn::Int=50, seed::Int=0,
     _truth_push!(rows, "mu", nt.mu)
     _truth_push!(rows, "Sigma", nt.Sigma)
     sample = _indexed_sample(nt.Y; names=_ynames(size(nt.Y, 2)))
-    _finish_sim(sample, rows, _settings("vecm", eff; periods, burn); format, output)
+    _finish_sim(sample, rows, _settings("vecm", eff; periods, burn); format, output, save_data)
 end
 
 function _data_simulate_cointreg(; endog_rho::Float64=0.7, sigma_u::Float64=1.0,
                                  spurious::Bool=false, periods::Int=200, seed::Int=0,
-                                 format::String="table", output::String="")
+                                 save_data::String="", format::String="table", output::String="")
     _sim_open_unit("endog-rho", endog_rho)
     _sim_pos("sigma-u", sigma_u)
     _sim_ge("periods", periods, 1)
@@ -596,12 +621,12 @@ function _data_simulate_cointreg(; endog_rho::Float64=0.7, sigma_u::Float64=1.0,
     _truth_push!(rows, "spurious", spurious ? 1.0 : 0.0)
     names = vcat(["y"], ["x$i" for i in 1:size(nt.X, 2)])
     sample = _indexed_sample(hcat(nt.y, nt.X); names=names)
-    _finish_sim(sample, rows, _settings("cointreg", eff; periods, spurious); format, output)
+    _finish_sim(sample, rows, _settings("cointreg", eff; periods, spurious); format, output, save_data)
 end
 
 function _data_simulate_ardl(; phi::Float64=0.6, beta0::Float64=0.8, beta1::Float64=0.4,
                              periods::Int=200, burn::Int=50, seed::Int=0,
-                             format::String="table", output::String="")
+                             save_data::String="", format::String="table", output::String="")
     _sim_open_unit("phi", phi)
     periods, burn = _sim_len(periods, burn)
     eff, rng = _sim_rng(seed)
@@ -612,11 +637,11 @@ function _data_simulate_ardl(; phi::Float64=0.6, beta0::Float64=0.8, beta1::Floa
     _truth_push!(rows, "beta", nt.beta)
     _truth_push!(rows, "theta", nt.theta)
     sample = _indexed_sample(hcat(nt.y, nt.x); names=["y", "x"])
-    _finish_sim(sample, rows, _settings("ardl", eff; periods, burn); format, output)
+    _finish_sim(sample, rows, _settings("ardl", eff; periods, burn); format, output, save_data)
 end
 
 function _data_simulate_factors(; series::Int=12, periods::Int=80, burn::Int=20,
-                                seed::Int=0, format::String="table", output::String="")
+                                seed::Int=0, save_data::String="", format::String="table", output::String="")
     _sim_ge("series", series, 1)
     periods, burn = _sim_len(periods, burn)
     eff, rng = _sim_rng(seed)
@@ -631,11 +656,11 @@ function _data_simulate_factors(; series::Int=12, periods::Int=80, burn::Int=20,
     _truth_push!(rows, "idio_var", nt.idio_var)
     sample = _indexed_sample(nt.X; names=["x$i" for i in 1:size(nt.X, 2)])
     _finish_sim(sample, rows, _settings("factors", eff; series, periods, burn);
-                format, output)
+                format, output, save_data)
 end
 
 function _data_simulate_lpiv(; pi1::Float64=1.5, theta::Float64=1.0, periods::Int=200,
-                             seed::Int=0, format::String="table", output::String="")
+                             seed::Int=0, save_data::String="", format::String="table", output::String="")
     _sim_ge("periods", periods, 2)
     eff, rng = _sim_rng(seed)
     nt = _dgp(MacroEconometricModels.dgp_lp_iv, rng; T=periods, pi1=pi1, theta=theta)
@@ -645,13 +670,13 @@ function _data_simulate_lpiv(; pi1::Float64=1.5, theta::Float64=1.0, periods::In
     Z = nt.Z isa AbstractVector ? reshape(collect(Float64, nt.Z), :, 1) : Matrix{Float64}(nt.Z)
     names = vcat(["s", "y", "x2"], ["z$i" for i in 1:size(Z, 2)])
     sample = _indexed_sample(hcat(nt.Y, Z); names=names)
-    _finish_sim(sample, rows, _settings("lp-iv", eff; periods); format, output)
+    _finish_sim(sample, rows, _settings("lp-iv", eff; periods); format, output, save_data)
 end
 
 # ── Panels, micro, regime ────────────────────────────────────
 
 function _data_simulate_panel(; kind::String="linear", n::Int=30, periods::Int=12,
-                              seed::Int=0, format::String="table", output::String="")
+                              seed::Int=0, save_data::String="", format::String="table", output::String="")
     _one_of("kind", kind, _PANEL_KINDS)
     _sim_ge("n", n, 1)
     _sim_ge("periods", periods, 1)
@@ -665,11 +690,11 @@ function _data_simulate_panel(; kind::String="linear", n::Int=30, periods::Int=1
     _truth_push!(rows, "mundlak", nt.mundlak)
     _truth_push!(rows, "rho_ar", nt.rho_ar)
     _truth_push!(rows, "dynamic_rho", nt.dynamic_rho)
-    _finish_sim(nt.df, rows, _settings("panel", eff; kind, n, periods); format, output)
+    _finish_sim(nt.df, rows, _settings("panel", eff; kind, n, periods); format, output, save_data)
 end
 
 function _data_simulate_pvar(; n::Int=15, periods::Int=20, seed::Int=0,
-                             format::String="table", output::String="")
+                             save_data::String="", format::String="table", output::String="")
     _sim_ge("n", n, 1)
     _sim_ge("periods", periods, 1)
     eff, rng = _sim_rng(seed)
@@ -679,11 +704,11 @@ function _data_simulate_pvar(; n::Int=15, periods::Int=20, seed::Int=0,
     _truth_push!(rows, "Sigma", nt.Sigma)
     _truth_push!(rows, "mu", nt.mu)
     sample = _indexed_sample(nt.Y; names=_ynames(size(nt.Y, 2)), id=nt.id, time=nt.time)
-    _finish_sim(sample, rows, _settings("pvar", eff; n, periods); format, output)
+    _finish_sim(sample, rows, _settings("pvar", eff; n, periods); format, output, save_data)
 end
 
 function _data_simulate_did(; n::Int=80, periods::Int=20, seed::Int=0,
-                            format::String="table", output::String="")
+                            save_data::String="", format::String="table", output::String="")
     _sim_ge("n", n, 1)
     _sim_ge("periods", periods, 1)
     eff, rng = _sim_rng(seed)
@@ -694,11 +719,11 @@ function _data_simulate_did(; n::Int=80, periods::Int=20, seed::Int=0,
     _truth_push!(rows, "overall_att", nt.overall_att)
     _truth_push_dict!(rows, "att_e:", nt.att_by_event_time)
     _truth_push_dict!(rows, "att_c:", nt.att_by_cohort)
-    _finish_sim(nt.df, rows, _settings("did", eff; n, periods); format, output)
+    _finish_sim(nt.df, rows, _settings("did", eff; n, periods); format, output, save_data)
 end
 
 function _data_simulate_gmm(; kind::String="iv", n::Int=200, pi1::Float64=1.0,
-                            seed::Int=0, format::String="table", output::String="")
+                            seed::Int=0, save_data::String="", format::String="table", output::String="")
     _one_of("kind", kind, _GMM_KINDS)
     _sim_ge("n", n, 2)
     eff, rng = _sim_rng(seed)
@@ -718,11 +743,11 @@ function _data_simulate_gmm(; kind::String="iv", n::Int=200, pi1::Float64=1.0,
             push!(cols, "z$j" => Z[:, j])
         end
     end
-    _finish_sim(_obs_frame(cols), rows, _settings("gmm", eff; kind, n); format, output)
+    _finish_sim(_obs_frame(cols), rows, _settings("gmm", eff; kind, n); format, output, save_data)
 end
 
 function _data_simulate_regime(; kind::String="ms", periods::Int=200, burn::Int=40,
-                               seed::Int=0, format::String="table", output::String="")
+                               seed::Int=0, save_data::String="", format::String="table", output::String="")
     _one_of("kind", kind, _REGIME_KINDS)
     periods, burn = _sim_len(periods, burn)
     eff, rng = _sim_rng(seed)
@@ -740,7 +765,7 @@ function _data_simulate_regime(; kind::String="ms", periods::Int=200, burn::Int=
         kind != "setar" && _truth_push!(rows, "gamma", nt.gamma)
     end
     _finish_sim(_series_sample(nt.y), rows,
-                _settings("regime", eff; kind, periods, burn); format, output)
+                _settings("regime", eff; kind, periods, burn); format, output, save_data)
 end
 
 function _obs_frame(cols)
@@ -755,7 +780,7 @@ function _obs_frame(cols)
 end
 
 function _data_simulate_xsec(; kind::String="ols", n::Int=200, seed::Int=0,
-                             format::String="table", output::String="")
+                             save_data::String="", format::String="table", output::String="")
     _one_of("kind", kind, _XSEC_KINDS)
     _sim_ge("n", n, 2)
     eff, rng = _sim_rng(seed)
@@ -783,14 +808,14 @@ function _data_simulate_xsec(; kind::String="ols", n::Int=200, seed::Int=0,
     haskey(nt, :r) && push!(cols, "r" => _obs_col(nt.r))
     haskey(nt, :selected) && push!(cols, "selected" => _obs_col(nt.selected))
     _finish_sim(_obs_frame(cols), rows, _settings("cross-section", eff; kind, n);
-                format, output)
+                format, output, save_data)
 end
 
 # ── DSGE family (no dgp_*; solve then simulate) ─────────────
 
 function _data_simulate_dsge(; model::String, method::String="gensys", order::Int=1,
                              meas_sd::String="", periods::Int=80, burn::Int=20,
-                             seed::Int=0, format::String="table", output::String="")
+                             seed::Int=0, save_data::String="", format::String="table", output::String="")
     isempty(strip(model)) && throw(CliError("usage/missing-arg",
         "a .jl or .toml DSGE spec is required"))
     _one_of("method", method, _RA_METHOD_CHOICES)
@@ -837,7 +862,7 @@ function _data_simulate_dsge(; model::String, method::String="gensys", order::In
     end
     sample = _indexed_sample(Y; names=names)
     _finish_sim(sample, rows, _settings("dsge", eff; method, order, periods, burn);
-                format, output)
+                format, output, save_data)
 end
 
 function _dsge_sim_names(spec, ncols::Int)
@@ -877,7 +902,7 @@ end
 
 function _data_simulate_ha(; model::String, method::String="reiter", n_reduced::Int=10,
                            distribution::String="young", hh_solver::String="egm",
-                           periods::Int=20, seed::Int=0,
+                           periods::Int=20, seed::Int=0, save_data::String="",
                            format::String="table", output::String="")
     isempty(strip(model)) && throw(CliError("usage/missing-arg",
         "an HA builtin or .jl ModelSpec is required"))
@@ -921,13 +946,13 @@ function _data_simulate_ha(; model::String, method::String="reiter", n_reduced::
     sample = _indexed_sample(path; names=names)
     _status("HA path is in aggregate deviations; steady-state levels are in population_truth")
     _finish_sim(sample, rows, _settings("ha", eff; method, periods, distribution);
-                format, output)
+                format, output, save_data)
 end
 
 function _data_simulate_olg(; alpha::Float64=0.36, beta::Float64=0.96, delta::Float64=0.08,
                             gamma::Float64=0.98, z::Float64=1.0, debt::Float64=0.0,
                             k0::Float64=0.0, periods::Int=40, seed::Int=0,
-                            format::String="table", output::String="")
+                            save_data::String="", format::String="table", output::String="")
     (0 < alpha < 1) || throw(CliError("usage/invalid",
         "--alpha must lie in (0, 1) (got $alpha)"))
     (0 < beta < 1) || throw(CliError("usage/invalid",
@@ -980,14 +1005,14 @@ function _data_simulate_olg(; alpha::Float64=0.36, beta::Float64=0.96, delta::Fl
     _truth_push!(rows, "stable_eig", sol.stable_eig)
     _truth_push!(rows, "determinate", sol.determinate ? 1.0 : 0.0)
     _finish_sim(sample, rows, _settings("olg", eff; periods, deterministic=true);
-                format, output)
+                format, output, save_data)
 end
 
 function _data_simulate_ct(; alpha::Float64=0.36, rho::Float64=0.05, sigma::Float64=2.0,
                            delta::Float64=0.05, z::Float64=1.0, shock_size::Float64=0.95,
                            grid_size::Int=40, a_max::Float64=30.0, max_iter::Int=80,
                            tol::Float64=1e-5, dt::Float64=0.25, periods::Int=12,
-                           seed::Int=0, format::String="table", output::String="")
+                           seed::Int=0, save_data::String="", format::String="table", output::String="")
     _sim_pos("alpha", alpha)
     _sim_pos("rho", rho)
     _sim_pos("sigma", sigma)
@@ -1040,5 +1065,5 @@ function _data_simulate_ct(; alpha::Float64=0.36, rho::Float64=0.05, sigma::Floa
     _truth_push!(rows, "ss_converged", ss.converged ? 1.0 : 0.0)
     _truth_push!(rows, "transition_converged", tr.converged ? 1.0 : 0.0)
     _finish_sim(sample, rows, _settings("ct", eff; periods, grid_size, deterministic=true);
-                format, output)
+                format, output, save_data)
 end

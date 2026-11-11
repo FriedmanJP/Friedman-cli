@@ -317,8 +317,8 @@ function _nowcast_news(; data_new::String="", data_old::String="",
     isempty(data_old) && throw(CliError("usage/missing", "--data-old is required";
         hint="path to the older data vintage"))
 
-    Y_new, varnames_new = load_multivariate_data(data_new; allow_nan=true)
-    Y_old, _ = load_multivariate_data(data_old; allow_nan=true)
+    Y_new, varnames_new = load_multivariate_data(resolve_stem(data_new; slot=:data); allow_nan=true)
+    Y_old, _ = load_multivariate_data(resolve_stem(data_old; slot=:data); allow_nan=true)
     nM, nQ = _validate_nowcast_vars(Y_new, monthly_vars, quarterly_vars)
     T_new, N = size(Y_new)
     T_old = size(Y_old, 1)

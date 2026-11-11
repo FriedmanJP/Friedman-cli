@@ -1295,3 +1295,121 @@ end
         @test err_empty.code == "data/empty"
     end
 end
+
+@testset "pipeline serialized writers and secondary data flags" begin
+    import JLD2
+    mktempdir() do dir
+        # 1. data simulate --save-data (.jld2 stem & .jls)
+        dnode = register_data_commands!()
+        sim_node = dnode.subcmds["simulate"]
+        @test any(o -> o.name == "save-data", sim_node.subcmds["var"].options)
+        sim_var_stem = joinpath(dir, "sim_var")
+        _capture() do
+            sim_node.subcmds["var"].handler(; periods=40, burn=10, seed=7,
+                                            save_data=sim_var_stem, format="json", output="")
+        end
+        @test isfile(sim_var_stem * ".jld2")
+        ts_sim = load_model_dispatch(sim_var_stem * ".jld2")
+        @test ts_sim isa TimeSeriesData
+        @test size(to_matrix(ts_sim), 1) == 40
+        @test !("time" in varnames(ts_sim))
+
+        sim_pan_stem = joinpath(dir, "sim_pan")
+        _capture() do
+            sim_node.subcmds["panel"].handler(; n=6, periods=8, seed=7,
+                                              save_data=sim_pan_stem, format="json", output="")
+        end
+        @test isfile(sim_pan_stem * ".jld2")
+        pan_sim = load_model_dispatch(sim_pan_stem * ".jld2")
+        @test pan_sim isa PanelData
+
+        sim_xs_jls = joinpath(dir, "sim_xs.jls")
+        _capture() do
+            sim_node.subcmds["cross-section"].handler(; n=30, seed=7,
+                                                      save_data=sim_xs_jls, format="json", output="")
+        end
+        @test isfile(sim_xs_jls)
+        @test load_model_dispatch(sim_xs_jls) isa CrossSectionData
+
+        # 2. data load -o .jld2 / .jls
+        sl_jld = joinpath(dir, "sl.jld2")
+        _data_load(; name=":stackloss", output=sl_jld)
+        @test load_model_dispatch(sl_jld) isa CrossSectionData
+
+        dk_jld = joinpath(dir, "dk.jld2")
+        _data_load(; name=":denmark", vars="LRM,LRY", output=dk_jld)
+        dk_obj = load_model_dispatch(dk_jld)
+        @test dk_obj isa TimeSeriesData
+        @test varnames(dk_obj) == ["LRM", "LRY"]
+
+        gr_jls = joinpath(dir, "gr.jls")
+        _data_load(; name=":grunfeld", output=gr_jls)
+        @test load_model_dispatch(gr_jls) isa PanelData
+
+        # 3. data fix <csv> -o .jls allowed, while -o .jld2 still guarded
+        csv = joinpath(dir, "raw.csv")
+        CSV.write(csv, DataFrame(y1=[1.0, 2.0, 3.0, 4.0], y2=[2.0, 3.0, 4.0, 5.0]))
+        fixed_jls = joinpath(dir, "fixed.jls")
+        _data_fix(; data=csv, output=fixed_jls)
+        @test isfile(fixed_jls)
+
+        err_jld_guard = try
+            _data_fix(; data=csv, output=joinpath(dir, "nope.jld2"))
+            nothing
+        catch e; e; end
+        @test err_jld_guard isa CliError
+        @test err_jld_guard.code == "usage/invalid"
+
+        # 4. data import promotes .jls and plain .jld2 tabular data, rejects existing typed containers
+        imp_stem = joinpath(dir, "imported")
+        _capture() do
+            _data_import(; data=fixed_jls, kind="timeseries", output=imp_stem, format="json")
+        end
+        @test isfile(imp_stem * ".jld2")
+        @test load_model_dispatch(imp_stem * ".jld2") isa TimeSeriesData
+
+        plain_jld = joinpath(dir, "plain_tab.jld2")
+        JLD2.jldsave(plain_jld; data=DataFrame(y1=[1.0, 2.0, 3.0], y2=[4.0, 5.0, 6.0]))
+        imp_plain = joinpath(dir, "imported_plain")
+        _capture() do
+            _data_import(; data=plain_jld, kind="timeseries", output=imp_plain, format="json")
+        end
+        @test load_model_dispatch(imp_plain * ".jld2") isa TimeSeriesData
+
+        err_imp_typed = try
+            _data_import(; data=imp_stem * ".jld2", kind="timeseries", output=joinpath(dir, "dup"))
+            nothing
+        catch e; e; end
+        @test err_imp_typed isa CliError
+        @test err_imp_typed.code == "usage/invalid"
+
+        # 5. Secondary data flags: _load_midas_data (hf_data), _nowcast_news (data_old), _fceval_load (data + .jls result)
+        lf_jls = joinpath(dir, "lf.jls")
+        hf_jld = joinpath(dir, "hf.jld2")
+        open(io -> Serialization.serialize(io, DataFrame(gdp=collect(1.0:10.0))), lf_jls, "w")
+        save_model_dispatch(hf_jld, TimeSeriesData(reshape(collect(1.0:30.0), :, 1); varnames=["ind"]))
+        y_lf, x_hf, ynm, xnm = _load_midas_data(joinpath(dir, "lf"), 1, joinpath(dir, "hf"), 1; m=3)
+        @test length(y_lf) == 10
+        @test length(x_hf) == 30
+        @test ynm == "gdp"
+        @test xnm == "ind"
+
+        old_mat = randn(24, 3)
+        new_mat = copy(old_mat)
+        old_mat[end, end] = NaN
+        save_model_dispatch(joinpath(dir, "v_old.jld2"), TimeSeriesData(old_mat; varnames=["m1", "m2", "q1"]))
+        open(io -> Serialization.serialize(io, DataFrame(new_mat, ["m1", "m2", "q1"])), joinpath(dir, "v_new.jls"), "w")
+        nc_out = _capture() do
+            _nowcast_news(; data_new=joinpath(dir, "v_new"), data_old=joinpath(dir, "v_old"),
+                          monthly_vars=2, quarterly_vars=1, method="dfm", factors=1, lags=1, format="json")
+        end
+        @test occursin("news_impact", nc_out)
+
+        fc_res_jls = joinpath(dir, "fc1.jls")
+        save_model_dispatch(fc_res_jls, (forecast=collect(1.0:10.0) .+ 0.1,))
+        y_ev, nms_ev, cols_ev = _fceval_load(joinpath(dir, "lf"), "gdp", ""; leaf="metrics", result=joinpath(dir, "fc1"))
+        @test length(y_ev) == 10
+        @test nms_ev == ["fc1"]
+        @test length(cols_ev[1]) == 10
+    end
+end

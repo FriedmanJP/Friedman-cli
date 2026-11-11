@@ -121,8 +121,8 @@ larger than the available aligned HF history surfaces via the estimator's own
 typed error, mapped by `_midas_error`.
 """
 function _load_midas_data(data::String, column::Int, hf_data::String, hf_column::Int; m::Int)
-    y_lf, ynm = load_univariate_series(data, column)
-    x_hf, xnm = load_univariate_series(hf_data, hf_column)
+    y_lf, ynm = load_univariate_series(resolve_stem(data; slot=:data), column)
+    x_hf, xnm = load_univariate_series(resolve_stem(hf_data; slot=:data), hf_column)
     nlf = length(y_lf); nhf = length(x_hf)
     nhf >= m * nlf || throw(CliError("data/shape",
         "high-frequency series '$xnm' has only $nhf observation(s) but the low-frequency target '$ynm' has $nlf and --m=$m needs at least m×LF = $(m * nlf) high-frequency observations (≥ $m aligned per low-frequency period)";

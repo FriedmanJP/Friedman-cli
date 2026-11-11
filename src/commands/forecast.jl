@@ -1381,7 +1381,7 @@ end
 
 function _fceval_result_name(stem::String)::String
     b = basename(stem)
-    for suf in (".jld2", ".fmod")
+    for suf in (".jld2", ".jls", ".fmod")
         endswith(lowercase(b), suf) && return b[1:end-length(suf)]
     end
     return b
@@ -1409,7 +1409,7 @@ function _fceval_load(data::String, actual::String, forecasts::String; leaf::Str
             "forecast evaluate $leaf requires <data> (realized values) even with --result";
             hint="pass a CSV or data handle plus --actual <column>"))
     end
-    df = load_data(data)
+    df = load_data(resolve_stem(data; slot=:data))
     numcols = variable_names(df)
     actual in numcols || throw(CliError("data/bad-column",
         "actual column '$actual' not found in numeric columns: $(join(numcols, ", "))"))

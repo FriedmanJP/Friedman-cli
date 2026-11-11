@@ -75,7 +75,9 @@ function _default_edit_output(input::String, suffix::String)
     end
     dir = startswith(resolved, ":") ? "" : dirname(resolved)
     base = (isempty(dir) || dir == ".") ? (stem * suffix) : joinpath(dir, stem * suffix)
-    if _is_handle_path(resolved)
+    if endswith(lowercase(resolved), ".jls")
+        return base * ".jls"
+    elseif _is_handle_path(resolved)
         return resolve_save_path(base)
     else
         return base * ".csv"
