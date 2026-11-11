@@ -773,3 +773,133 @@ end
         @test isempty(s.results)
     end
 end
+
+import REPL
+
+mutable struct _ReplFakeTerminal <: REPL.Terminals.UnixTerminal
+    in_stream::IO
+    out_stream::IO
+    err_stream::IO
+    hascolor::Bool
+    raw::Bool
+    _ReplFakeTerminal(stdin::IO, stdout::IO, stderr::IO, hascolor::Bool=false) =
+        new(stdin, stdout, stderr, hascolor, false)
+end
+REPL.Terminals.hascolor(t::_ReplFakeTerminal) = t.hascolor
+REPL.Terminals.raw!(t::_ReplFakeTerminal, raw::Bool) = (t.raw = raw)
+REPL.Terminals.size(t::_ReplFakeTerminal) = (24, 80)
+
+@testset "LineEdit arrow-key history, editing, completion & persistence (#241, #247)" begin
+    @testset "_resolve_histfile env & defaults" begin
+        withenv("FRIEDMAN_HISTFILE" => nothing) do
+            @test Friedman._resolve_histfile() == joinpath(Friedman._expanduser("~"), ".friedman_history")
+        end
+        withenv("FRIEDMAN_HISTFILE" => "~/custom_friedman_hist") do
+            @test Friedman._resolve_histfile() == joinpath(Friedman._expanduser("~"), "custom_friedman_hist")
+        end
+        for disabled in ("", "none", "NONE", "off")
+            withenv("FRIEDMAN_HISTFILE" => disabled) do
+                @test Friedman._resolve_histfile() == ""
+            end
+        end
+    end
+
+    @testset "FriedmanCompletionProvider Julia 1.13 complete_line & inline hints (#247)" begin
+        app = Friedman.build_app()
+        idx = Friedman._reset_completion_index!(app)
+        Friedman._init_completion_provider()
+        prov = Friedman.FriedmanCompletionProvider(app, idx)
+
+        panel = REPL.LineEdit.Prompt("friedman> "; complete=prov)
+        term = _ReplFakeTerminal(IOBuffer(""), IOBuffer(), IOBuffer())
+        pstate = REPL.LineEdit.init_state(term, panel)
+
+        # Partial command at end of buffer: both Tab (hint=false) and inline ghost hint (hint=true)
+        write(pstate.input_buffer, "est")
+        comps_tab, reg_tab, ok_tab = REPL.LineEdit.complete_line_named(prov, pstate, Main; hint=false)
+        @test ok_tab
+        @test [c.completion for c in comps_tab] == ["estimate"]
+        @test reg_tab == (0 => 3)
+        @test String(copy(pstate.input_buffer.data[1:position(pstate.input_buffer)])) == "est"
+
+        comps_hint, reg_hint, ok_hint = REPL.LineEdit.complete_line_named(prov, pstate, Main; hint=true)
+        @test ok_hint
+        @test [c.completion for c in comps_hint] == ["estimate"]
+        @test reg_hint == (0 => 3)
+
+        # Mid-line cursor: buffer has "est --lags 4" with cursor right after "est" (pos 3)
+        truncate(pstate.input_buffer, 0)
+        write(pstate.input_buffer, "est --lags 4")
+        seek(pstate.input_buffer, 3)
+        comps_mid, reg_mid, ok_mid = REPL.LineEdit.complete_line_named(prov, pstate, Main; hint=false)
+        @test ok_mid
+        @test [c.completion for c in comps_mid] == ["estimate"]
+        @test reg_mid == (0 => 3)
+    end
+
+    @testset "Up/Down arrow recall, Left/Right editing, Tab completion & cross-session history (#241)" begin
+        mktempdir() do dir
+            hist_path = joinpath(dir, ".friedman_history")
+            app = Friedman.build_app()
+            idx = Friedman._reset_completion_index!(app)
+            Friedman._init_completion_provider()
+
+            # Session 1:
+            # 1) "data use :fred_md\r" -> loads :fred_md
+            # 2) "estimate multivariate bvar\r" -> caches :bvar
+            # 3) Up twice ("\e[A\e[A") -> "data use :fred_md", Down once ("\e[B") -> "estimate multivariate bvar"
+            #    Left 4 ("\e[D"^4) puts cursor before 'b', Right 1 ("\e[C") puts cursor after 'b',
+            #    Backspace ("\x7f") deletes 'b' -> "estimate multivariate var", Enter ("\r") -> caches :var!
+            # 4) "irf \t\r" -> Tab completes sole child "var", Enter dispatches "irf var" using cached :var model!
+            # 5) Ctrl-D ("\x04") -> clean EOF exit (so last persisted history entry is "irf var")
+            s1 = Friedman.Session()
+            keys1 = string(
+                "data use :fred_md\r",
+                "estimate multivariate bvar\r",
+                "\e[A\e[A\e[B",
+                "\e[D\e[D\e[D\e[D\e[C\x7f\r",
+                "irf \t\r",
+                "\x04",
+            )
+            out1 = IOBuffer()
+            err1 = IOBuffer()
+            term1 = _ReplFakeTerminal(IOBuffer(keys1), out1, err1)
+            Friedman._last_injected_model = nothing
+            Base.invokelatest(Friedman._run_lineedit_repl, app, s1, idx; term=term1, histfile=hist_path)
+
+            @test s1.data_path == ":fred_md"
+            @test s1.results[:bvar] == "mock_bvar_model"
+            @test s1.results[:var] == "mock_var_model"
+            @test Friedman._last_injected_model == "mock_var_model"
+            @test isfile(hist_path)
+            hist_disk = read(hist_path, String)
+            @test occursin("# mode: friedman", hist_disk)
+            @test occursin("\tdata use :fred_md", hist_disk)
+            @test occursin("\testimate multivariate var", hist_disk)
+
+            # Session 2 (fresh Session, same histfile):
+            # - Prefix-filtered Up arrow: type "data " + "\e[A\r" -> recalls "data use :fred_md" from disk!
+            # - Plain Up arrow from Session 1's history: "\e[A\e[A\r" -> recalls "estimate multivariate var"
+            # - "exit\r" -> terminates cleanly
+            s2 = Friedman.Session()
+            keys2 = string(
+                "data \e[A\r",
+                "\e[A\e[A\e[A\r",
+                "exit\r",
+            )
+            out2 = IOBuffer()
+            err2 = IOBuffer()
+            term2 = _ReplFakeTerminal(IOBuffer(keys2), out2, err2)
+            Base.invokelatest(Friedman._run_lineedit_repl, app, s2, idx; term=term2, histfile=hist_path)
+
+            @test s2.data_path == ":fred_md"
+            @test haskey(s2.results, :var)
+
+            # Unwritable histfile (directory path) degrades gracefully to in-memory history without crashing
+            s3 = Friedman.Session()
+            term3 = _ReplFakeTerminal(IOBuffer("data use :pwt\r\e[A\r\x04"), IOBuffer(), IOBuffer())
+            Base.invokelatest(Friedman._run_lineedit_repl, app, s3, idx; term=term3, histfile=dir)
+            @test s3.data_path == ":pwt"
+        end
+    end
+end

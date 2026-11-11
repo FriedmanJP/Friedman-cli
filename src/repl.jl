@@ -293,6 +293,23 @@ function _exec_repl_line!(
 end
 
 """
+    _resolve_histfile() → String
+
+Resolve the persistent REPL history file path. Defaults to `~/.friedman_history`;
+override via `FRIEDMAN_HISTFILE`. Setting `FRIEDMAN_HISTFILE` to `""`, `"none"`,
+`"off"`, `"false"`, or `"0"` disables disk persistence for the session.
+"""
+function _resolve_histfile()::String
+    raw = get(ENV, "FRIEDMAN_HISTFILE", nothing)
+    if raw === nothing
+        return joinpath(_expanduser("~"), ".friedman_history")
+    end
+    s = strip(raw)
+    (isempty(s) || lowercase(s) in ("none", "off", "false", "0")) && return ""
+    return _expanduser(String(s))
+end
+
+"""
     start_repl()
 
 Launch the interactive REPL with a `friedman>` prompt.
@@ -319,11 +336,14 @@ function start_repl()
 
     if lineedit_ready && stdin isa Base.TTY && stdout isa Base.TTY &&
        stderr isa Base.TTY && lowercase(get(ENV, "TERM", "")) != "dumb"
-        try
-            Base.invokelatest(_run_lineedit_repl, app, s, idx)
-            return nothing
+        term = try
+            Base.invokelatest(_make_tty_terminal)
         catch
-            # Fall back to readline loop if terminal initialization fails
+            nothing
+        end
+        if term !== nothing
+            Base.invokelatest(_run_lineedit_repl, app, s, idx; term=term)
+            return nothing
         end
     end
     _repl_readline_loop(app, s)
@@ -502,7 +522,7 @@ const _REPL_PKG_ID = Base.PkgId(
 
 function _init_completion_provider()
     isdefined(@__MODULE__, :FriedmanCompletionProvider) && return nothing
-    REPLmod = Base.require(_REPL_PKG_ID)
+    REPLmod = isdefined(@__MODULE__, :REPL) ? getfield(@__MODULE__, :REPL) : Base.require(_REPL_PKG_ID)
     LineEditmod = getfield(REPLmod, :LineEdit)
     Terminalsmod = getfield(REPLmod, :Terminals)
     CompletionProvider = getfield(LineEditmod, :CompletionProvider)
@@ -517,52 +537,85 @@ function _init_completion_provider()
             index::CompletionIndex
         end
 
-        function $LineEditmod.complete_line(c::FriedmanCompletionProvider, state)
-            partial = String($LineEditmod.buffer(state))
+        function $LineEditmod.complete_line(c::FriedmanCompletionProvider, state; hint::Bool=false)
+            buf = $LineEditmod.buffer(state)
+            pos = position(buf)
+            partial = pos > 0 ? String(buf.data[1:pos]) : ""
             completions = complete_command(c.app, partial; index=c.index)
             has_trailing_space = !isempty(partial) && isspace(last(partial))
             tokens = _split_repl_line(partial)
             last_token = (isempty(tokens) || has_trailing_space) ? "" : tokens[end]
             return completions, last_token, !isempty(completions)
         end
+        $LineEditmod.complete_line(c::FriedmanCompletionProvider, state, ::Module; hint::Bool=false) =
+            $LineEditmod.complete_line(c, state; hint=hint)
 
-        function _run_lineedit_repl(app::Entry, s::Session, idx::CompletionIndex)
-            term = _Terminals.TTYTerminal(get(ENV, "TERM", "xterm"), stdin, stdout, stderr)
+        _make_tty_terminal() = _Terminals.TTYTerminal(get(ENV, "TERM", "xterm"), stdin, stdout, stderr)
+
+        function _run_lineedit_repl(
+            app::Entry,
+            s::Session,
+            idx::CompletionIndex;
+            term=nothing,
+            histfile::Union{Nothing,String}=nothing,
+        )
+            term_obj = term === nothing ? _make_tty_terminal() : term
+            out_io = hasproperty(term_obj, :out_stream) ? term_obj.out_stream : stdout
+            err_io = hasproperty(term_obj, :err_stream) ? term_obj.err_stream : stderr
+            has_color = _Terminals.hascolor(term_obj)
+
             panel = _LineEdit.Prompt(
                 "friedman> ";
-                prompt_prefix="\e[1m\e[34m",
-                prompt_suffix="\e[0m",
+                prompt_prefix=has_color ? "\e[1m\e[34m" : "",
+                prompt_suffix=has_color ? "\e[0m" : "",
                 complete=FriedmanCompletionProvider(app, idx),
                 on_enter=Returns(true),
             )
-            hp = _REPL.REPLHistoryProvider(Dict{Symbol,Any}(:friedman => panel))
+
+            hp = _REPL.REPLHistoryProvider(Dict{Symbol,_LineEdit.Prompt}(:friedman => panel))
+            hpath = histfile === nothing ? _resolve_histfile() : histfile
+            if !isempty(hpath)
+                try
+                    mkpath(dirname(abspath(hpath)))
+                    hp.history = _REPL.History.HistoryFile(hpath)
+                    _REPL.history_do_initialize(hp)
+                catch
+                    hp.history = _REPL.History.HistoryFile()
+                end
+            end
             _REPL.history_reset_state(hp)
             panel.hist = hp
+
             panel.on_done = (mi, buf, ok) -> begin
                 if !ok
                     _LineEdit.transition(mi, :abort)
-                    println(stdout, "Goodbye!")
+                    println(out_io, "Goodbye!")
                     return nothing
                 end
                 line = String(take!(buf))
-                if !isempty(strip(line))
-                    _REPL.add_history(hp, line)
-                end
                 _LineEdit.reset_state(mi)
-                if !_exec_repl_line!(s, app, line; output=stdout, err=stderr)
+                try; _Terminals.raw!(term_obj, false); catch; end
+                if !_exec_repl_line!(s, app, line; output=out_io, err=err_io)
                     _LineEdit.transition(mi, :abort)
                 end
                 return nothing
             end
-            main_keymap = _LineEdit.setup_keymap([
-                panel.keymap_dict,
+
+            prefix_prompt, prefix_keymap = _LineEdit.setup_prefix_keymap(hp, panel)
+            main_keymap = _LineEdit.keymap(Dict{Any,Any}[
+                prefix_keymap,
                 _LineEdit.history_keymap,
                 _LineEdit.default_keymap,
                 _LineEdit.escape_defaults,
             ])
             panel.keymap_dict = main_keymap
-            modal = _LineEdit.ModalInterface([panel])
-            _LineEdit.run_interface(term, modal)
+            modal = _LineEdit.ModalInterface(_LineEdit.TextInterface[panel, prefix_prompt])
+            try
+                _LineEdit.run_interface(term_obj, modal)
+            finally
+                try; _Terminals.raw!(term_obj, false); catch; end
+                try; close(hp.history); catch; end
+            end
             return nothing
         end
     end
