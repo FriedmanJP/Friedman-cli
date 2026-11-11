@@ -1,7 +1,35 @@
 # Model handles (.fmod) — interim Serialization format (P2-7 / C029)
 # Replaced by MEMs save_model/load_model (#347) in C052 — keep the boundary local.
 
+import JLD2
+
 const FMOD_MAGIC = "FRIEDMAN_FMOD_v1"
+const _HDF5_MAGIC = UInt8[0x89, 0x48, 0x44, 0x46, 0x0d, 0x0a, 0x1a, 0x0a]
+const _JLD2_MAGIC = Vector{UInt8}(codeunits("HDF5-based Julia Data Format"))
+
+function _is_hdf5_file(path::String)::Bool
+    isfile(path) || return false
+    return try
+        open(path, "r") do io
+            hdr = read(io, 32)
+            (length(hdr) >= 8 && @view(hdr[1:8]) == _HDF5_MAGIC) ||
+                (length(hdr) >= length(_JLD2_MAGIC) && @view(hdr[1:length(_JLD2_MAGIC)]) == _JLD2_MAGIC)
+        end
+    catch
+        false
+    end
+end
+
+function _is_mems_jld2_dict(d::AbstractDict)::Bool
+    (haskey(d, "__format__") || haskey(d, "__type__") ||
+     haskey(d, "format_version") || haskey(d, "package_version")) && return true
+    if haskey(d, "container") && d["container"] isa AbstractDict
+        c = d["container"]
+        return haskey(c, "format_version") || haskey(c, "type") ||
+               haskey(c, "package_version") || haskey(c, "bundle")
+    end
+    return false
+end
 
 """Header stored ahead of the serialized model payload."""
 struct ModelHandleHeader
@@ -272,17 +300,24 @@ function save_model_dispatch(path::String, model)
             "native .jld2 save does not support $(typeof(model))",
             # 350 supported types is far too many to list in an error; the actionable
             # half of the old hint was always "use .fmod".
-            hint="re-run with a .fmod path — this type is outside the 350-type " *
-                 "native registry, so it uses the interim handle format instead",
+            hint="re-run with a .fmod or .jls path — this type is outside the 350-type " *
+                 "native registry, so it uses Julia Serialization instead",
         ))
         _validate_output_path(path)
         MacroEconometricModels.save_model(model, path)
         _status("Model saved to $path (native jld2, $(nameof(typeof(model))))")
         return path
+    elseif endswith(lc, ".jls")
+        _validate_output_path(path)
+        open(path, "w") do io
+            serialize(io, model)
+        end
+        _status("Serialized to $path ($(nameof(typeof(model))))")
+        return path
     else
         # `.fmod` or any other suffix → interim format. This keeps save/load
-        # SYMMETRIC: load_model_dispatch routes only `.jld2` to the native loader,
-        # so a non-`.jld2` path must be written in the interim format to reload.
+        # SYMMETRIC: load_model_dispatch routes only `.jld2`/`.jls` specially,
+        # so any other non-`.jld2` path is written in the interim format to reload.
         # Use a `.jld2` suffix to opt into the native, portable, versioned format.
         return save_model_handle(path, model)
     end
@@ -292,8 +327,10 @@ end
     load_model_dispatch(path) → model
 
 Hybrid load (C052). `.jld2` → native MEMs `load_model` (a bad/incompatible file
-raises `SerializationError` → exit 3 via `_domain_error_class`). Any other handle
-suffix → the interim `.fmod` loader (version mismatch → env/model-version, exit 6).
+raises `SerializationError` → exit 3 via `_domain_error_class`), falling back to
+plain JLD2 user archives (`"data"` key or single-entry archive) when no MEMs
+container header is present. `.jls` → standard Julia `Serialization.deserialize`.
+Any other handle suffix → the interim `.fmod` loader (version mismatch → env/model-version, exit 6).
 """
 function load_model_dispatch(path::String)
     if startswith(path, "model://")
@@ -305,10 +342,42 @@ function load_model_dispatch(path::String)
     end
     isfile(path) || throw(CliError("data/file-not-found", "model file not found: $path",
                                    hint="check --model path"))
-    if endswith(lowercase(path), ".jld2")
+    lc = lowercase(path)
+    if endswith(lc, ".jls")
+        payload = try
+            open(deserialize, path)
+        catch e
+            throw(CliError("data/serialization", "failed to read serialized .jls file: $path",
+                           hint=sprint(showerror, e)))
+        end
+        if payload isa Tuple && length(payload) == 2 && payload[1] isa ModelHandleHeader
+            return payload[2]
+        end
+        return payload
+    elseif endswith(lc, ".jld2")
         try
             return MacroEconometricModels.load_model(path)
         catch e
+            if _is_hdf5_file(path)
+                d = try
+                    JLD2.load(path)
+                catch err_jld
+                    _has_supertype_named(typeof(e), :MacroModelError) && rethrow(e)
+                    throw(CliError("data/serialization", "failed to read JLD2 file: $path",
+                                   hint=sprint(showerror, err_jld)))
+                end
+                if _is_mems_jld2_dict(d)
+                    _has_supertype_named(typeof(e), :MacroModelError) && rethrow(e)
+                    throw(CliError("data/serialization", "failed to read native model file: $path",
+                                   hint=sprint(showerror, e)))
+                end
+                haskey(d, "data") && return d["data"]
+                length(d) == 1 && return only(values(d))
+                ks = join(sort!(String[string(k) for k in keys(d)]), ", ")
+                throw(CliError("data/serialization",
+                    "ambiguous JLD2 archive '$path' (keys: $ks)";
+                    hint="save tabular data under key \"data\" or as a single-entry archive"))
+            end
             # A MacroModelError (e.g. SerializationError: version/type mismatch) is
             # already typed — let _domain_error_class map it (→ data/serialization,
             # exit 3). Anything else (EOFError on non-JLD2 / garbage / a `.fmod`

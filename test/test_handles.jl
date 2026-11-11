@@ -1192,3 +1192,106 @@ end
         @test err.code == "data/wrong-kind"
     end
 end
+
+@testset "serialized .jls and plain .jld2 tabular handles" begin
+    import JLD2
+    mktempdir() do dir
+        # 1. _is_handle_path & resolve_stem (.jld2 -> .jls -> .csv / .fmod)
+        @test _is_handle_path("foo.jls")
+        @test _is_handle_path("FOO.JLS")
+        jls_df = joinpath(dir, "d.jls")
+        open(io -> Serialization.serialize(io, DataFrame(y1=[1.0, 2.0, 3.0], y2=[4.0, 5.0, 6.0])), jls_df, "w")
+        @test resolve_stem(joinpath(dir, "d"); slot=:data) == jls_df
+        @test resolve_stem(joinpath(dir, "d"); slot=:result) == jls_df
+
+        fmod_only = joinpath(dir, "legacy.fmod")
+        save_model_handle(fmod_only, estimate_var(randn(20, 2), 1; varnames=["a", "b"]))
+        @test resolve_stem(joinpath(dir, "legacy"); slot=:result) == fmod_only
+
+        # 2. save_model_dispatch / load_model_dispatch round-trip on .jls
+        m_jls = joinpath(dir, "var_m.jls")
+        m_orig = estimate_var(randn(24, 2), 1; varnames=["a", "b"])
+        save_model_dispatch(m_jls, m_orig)
+        m_back = load_model_dispatch(m_jls)
+        @test typeof(m_back) == typeof(m_orig)
+
+        # 3. Tabular .jls payloads: DataFrame, Matrix, Vector, NamedTuple
+        df_loaded = load_data(jls_df)
+        @test names(df_loaded) == ["y1", "y2"]
+        @test nrow(df_loaded) == 3
+        Y_df, vn_df = load_multivariate_data(joinpath(dir, "d"))
+        @test size(Y_df) == (3, 2)
+        @test vn_df == ["y1", "y2"]
+
+        jls_mat = joinpath(dir, "mat.jls")
+        open(io -> Serialization.serialize(io, [1.0 2.0; 3.0 4.0; 5.0 6.0]), jls_mat, "w")
+        Y_mat, vn_mat = load_multivariate_data(jls_mat)
+        @test size(Y_mat) == (3, 2)
+        @test vn_mat == ["x1", "x2"]
+
+        jls_vec = joinpath(dir, "vec.jls")
+        open(io -> Serialization.serialize(io, [10.0, 20.0, 30.0]), jls_vec, "w")
+        y_vec, nm_vec = load_univariate_series(jls_vec, 1)
+        @test y_vec == [10.0, 20.0, 30.0]
+        @test nm_vec == "y"
+
+        jls_nt = joinpath(dir, "nt.jls")
+        open(io -> Serialization.serialize(io, (a=[1.0, 2.0], b=[3.0, 4.0])), jls_nt, "w")
+        df_nt = resolve_data(jls_nt)
+        @test df_nt isa DataFrame
+        @test names(df_nt) == ["a", "b"]
+
+        # 4. Plain .jld2 user archives ("data" key and single-key archive)
+        raw_jld = joinpath(dir, "raw.jld2")
+        JLD2.jldsave(raw_jld; data=DataFrame(y1=[1.0, 2.0], y2=[3.0, 4.0]), meta="extra")
+        df_raw = load_data(raw_jld)
+        @test names(df_raw) == ["y1", "y2"]
+        Y_raw, vn_raw = load_multivariate_data(joinpath(dir, "raw"))
+        @test size(Y_raw) == (2, 2)
+        @test vn_raw == ["y1", "y2"]
+
+        single_jld = joinpath(dir, "single.jld2")
+        JLD2.jldsave(single_jld; df=DataFrame(y=[5.0, 6.0]))
+        df_single = resolve_data(single_jld)
+        @test df_single isa DataFrame
+        @test names(df_single) == ["y"]
+
+        # 5. Review Focus #3: missing values in serialized DataFrame -> data/missing-values
+        miss_jld = joinpath(dir, "miss.jld2")
+        JLD2.jldsave(miss_jld; data=DataFrame(y=[1.0, missing, 3.0], x=[2.0, 4.0, 6.0]))
+        err_miss = try
+            load_multivariate_data(miss_jld)
+            nothing
+        catch e; e; end
+        @test err_miss isa CliError
+        @test err_miss.code == "data/missing-values"
+
+        # 6. Review Focus #4: corrupt .jls, ambiguous multi-key .jld2, empty DataFrame
+        bad_jls = joinpath(dir, "bad.jls")
+        write(bad_jls, UInt8[0x37, 0x4a, 0x4c])  # truncated Serialization stream
+        err_bad_jls = try
+            load_model_dispatch(bad_jls)
+            nothing
+        catch e; e; end
+        @test err_bad_jls isa CliError
+        @test err_bad_jls.code == "data/serialization"
+
+        amb_jld = joinpath(dir, "amb.jld2")
+        JLD2.jldsave(amb_jld; a=[1.0, 2.0], b=[3.0, 4.0])
+        err_amb = try
+            load_model_dispatch(amb_jld)
+            nothing
+        catch e; e; end
+        @test err_amb isa CliError
+        @test err_amb.code == "data/serialization"
+
+        empty_jls = joinpath(dir, "empty.jls")
+        open(io -> Serialization.serialize(io, DataFrame()), empty_jls, "w")
+        err_empty = try
+            load_data(empty_jls)
+            nothing
+        catch e; e; end
+        @test err_empty isa CliError
+        @test err_empty.code == "data/empty"
+    end
+end

@@ -14,13 +14,19 @@ function resolve_stem(path::String; slot::Symbol=:data)::String
     end
     jld = path * ".jld2"
     isfile(jld) && return jld
+    jls = path * ".jls"
+    isfile(jls) && return jls
     if slot === :data
         csv = path * ".csv"
         isfile(csv) && return csv
+    else
+        fmod = path * ".fmod"
+        isfile(fmod) && return fmod
     end
     isfile(path) && return path
-    hint = slot === :data ? "tried $(basename(path)).jld2 and $(basename(path)).csv" :
-                            "tried $(basename(path)).jld2"
+    bn = basename(path)
+    hint = slot === :data ? "tried $(bn).jld2, $(bn).jls, and $(bn).csv" :
+                            "tried $(bn).jld2, $(bn).jls, and $(bn).fmod"
     throw(CliError("data/file-not-found", "file not found: $path"; hint=hint))
 end
 
@@ -30,13 +36,22 @@ function _data_kind_of(obj)::Symbol
     n === :PanelData && return :panel
     n === :CrossSectionData && return :cross_section
     n === :IOData && return :io
+    obj isa DataFrame && return :tabular
+    obj isa AbstractMatrix{<:Union{Real,Missing}} && return :tabular
+    obj isa AbstractVector{<:Union{Real,Missing}} && return :tabular
+    if obj isa NamedTuple && !isempty(keys(obj)) &&
+       !(haskey(obj, :model) && haskey(obj, :result)) &&
+       all(v -> v isa AbstractVector, values(obj)) &&
+       allequal(length, values(obj))
+        return :tabular
+    end
     return :unknown
 end
 
 function _is_handle_path(path::String)::Bool
     startswith(path, "model://") && return true
     lc = lowercase(path)
-    return endswith(lc, ".jld2") || endswith(lc, ".fmod")
+    return endswith(lc, ".jld2") || endswith(lc, ".jls") || endswith(lc, ".fmod")
 end
 
 function resolve_data(path::String)
@@ -44,7 +59,11 @@ function resolve_data(path::String)
     if startswith(resolved, ":") || !_is_handle_path(resolved)
         return load_data(resolved)
     end
-    return load_model_dispatch(resolved)
+    obj = load_model_dispatch(resolved)
+    if _data_kind_of(obj) === :tabular
+        return _coerce_tabular_dataframe(obj, resolved)
+    end
+    return obj
 end
 
 function _default_edit_output(input::String, suffix::String)

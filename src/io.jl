@@ -350,6 +350,32 @@ resolve at call time. `model://` skips `FRIEDMAN_DATA_ROOT` confinement (same as
 wrap_legacy). Only `:timeseries` / `:panel` / `:cross_section` convert to a
 DataFrame; `:io` and other payloads are `data/wrong-kind`.
 """
+function _coerce_tabular_dataframe(obj, path::String)::DataFrame
+    k = _data_kind_of(obj)
+    if k in (:timeseries, :panel, :cross_section)
+        df = DataFrame(to_matrix(obj), varnames(obj); makeunique=true)
+        k === :panel && insertcols!(df, 1, :group => obj.group_id, :time => obj.time_id; makeunique=true)
+        nrow(df) == 0 && throw(CliError("data/empty", "empty dataset: $path"))
+        return df
+    elseif k === :tabular
+        df = if obj isa DataFrame
+            copy(obj)
+        elseif obj isa AbstractMatrix
+            DataFrame(obj, ["x$j" for j in 1:size(obj, 2)]; makeunique=true)
+        elseif obj isa AbstractVector
+            DataFrame(:y => obj)
+        elseif obj isa NamedTuple
+            DataFrame(obj)
+        else
+            throw(CliError("data/wrong-kind", "$path is not a data container (got $(typeof(obj)))"))
+        end
+        (nrow(df) == 0 || ncol(df) == 0) && throw(CliError("data/empty", "empty dataset: $path"))
+        return df
+    end
+    throw(CliError("data/wrong-kind",
+        "$path is not a data container (got $(typeof(obj)))"))
+end
+
 function load_data(path::String)
     if startswith(path, ":")
         return dataset_to_dataframe(load_example(parse_dataset_name(path)))
@@ -361,14 +387,9 @@ function load_data(path::String)
         _validate_input_path(path)
     end
     lc = lowercase(path)
-    if endswith(lc, ".jld2") || endswith(lc, ".fmod") || startswith(path, "model://")
+    if endswith(lc, ".jld2") || endswith(lc, ".jls") || endswith(lc, ".fmod") || startswith(path, "model://")
         obj = load_model_dispatch(path)
-        k = _data_kind_of(obj)
-        k in (:timeseries, :panel, :cross_section) || throw(CliError("data/wrong-kind",
-            "$path is not a data container (got $(typeof(obj)))"))
-        df = DataFrame(to_matrix(obj), varnames(obj); makeunique=true)
-        k === :panel && insertcols!(df, 1, :group => obj.group_id, :time => obj.time_id; makeunique=true)
-        return df
+        return _coerce_tabular_dataframe(obj, path)
     end
     isfile(path) || throw(CliError("data/file-not-found", "file not found: $path"; hint="check the path"))
     df = CSV.read(path, DataFrame)
