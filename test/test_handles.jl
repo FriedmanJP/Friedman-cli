@@ -1946,3 +1946,37 @@ end
         @test occursin("spanning_verdict", out_pspan_rerender)
     end
 end
+
+@testset "test granger <data> --model var not hijacked by cwd var.jld2" begin
+    mktempdir() do dir
+        cd(dir) do
+            # Save a 2-variable VARModel (varnames ["a", "b"]) to ./var.jld2 in CWD
+            save_model_dispatch("var.jld2", estimate_var(randn(40, 2), 1; varnames=["a", "b"]))
+            # Create a 4-variable dataset d4.csv (columns y1..y4)
+            d4_csv = _make_csv(dir; T=50, n=4, colnames=["y1", "y2", "y3", "y4"])
+            out_explicit_data = _capture() do
+                _dispatch_via_app(["test", "multivariate", "granger", d4_csv,
+                                   "--model", "var", "--all", "--format", "json"])
+            end
+            @test occursin("\"y3\"", out_explicit_data)
+            @test !occursin("\"a\"", out_explicit_data)
+
+            # Without <data>, `--model var` still loads ./var.jld2 (varnames ["a", "b"])
+            out_handle = _capture() do
+                _dispatch_via_app(["test", "multivariate", "granger",
+                                   "--model", "var", "--all", "--format", "json"])
+            end
+            @test occursin("\"a\"", out_handle)
+            @test !occursin("\"y3\"", out_handle)
+
+            # On other leaves (e.g. forecast multivariate var <oos> --model var --lags 3),
+            # stem `var` still loads ./var.jld2 (VAR(1)) rather than estimating VAR(3) on oos2.csv
+            oos_csv = joinpath(dir, "oos2.csv")
+            CSV.write(oos_csv, DataFrame(a=randn(20), b=randn(20)))
+            out_fc = _capture() do
+                _dispatch_via_app(["forecast", "multivariate", "var", oos_csv, "--model", "var", "--lags", "3", "--horizons", "2", "--format", "json"])
+            end
+            @test occursin("VAR(1)", out_fc)
+        end
+    end
+end

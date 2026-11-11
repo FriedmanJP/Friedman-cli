@@ -154,11 +154,20 @@ module Friedman
             "bayes" => bayes_node, "solve" => dsge_solve
         ), "DSGE commands")
 
+        granger_leaf = LeafCommand("granger", noop, Argument[], Option[], Flag[], "Granger test")
+        test_mvar = NodeCommand("multivariate", Dict{String,Union{NodeCommand,LeafCommand}}(
+            "granger" => granger_leaf
+        ), "Multivariate tests")
+        test_node = NodeCommand("test", Dict{String,Union{NodeCommand,LeafCommand}}(
+            "multivariate" => test_mvar
+        ), "Tests")
+
         root = NodeCommand("friedman", Dict{String,Union{NodeCommand,LeafCommand}}(
             "estimate" => estimate_node,
             "irf" => irf_node,
             "data" => data_node,
             "dsge" => dsge_node,
+            "test" => test_node,
         ), "Main")
 
         Entry("friedman", root, v"0.4.1")
@@ -344,6 +353,19 @@ end
         @test Friedman.inject_session_data(s, args_mod_eq, app) == args_mod_eq
         args_res = ["irf", "var", "--result", "r.jld2"]
         @test Friedman.inject_session_data(s, args_res, app) == args_res
+
+        # Even if ./var.jld2 exists in CWD, `test multivariate granger --model var` injects session data,
+        # whereas `irf var --model var` treats `var` as a model handle stem and does NOT inject session data.
+        mktempdir() do dir
+            cd(dir) do
+                write("var.jld2", "stub")
+                args_gr = ["test", "multivariate", "granger", "--model", "var"]
+                @test Friedman.inject_session_data(s, args_gr, app) ==
+                    ["test", "multivariate", "granger", s.data_path, "--model", "var"]
+                args_irf_stem = ["irf", "var", "--model", "var"]
+                @test Friedman.inject_session_data(s, args_irf_stem, app) == args_irf_stem
+            end
+        end
     end
 
     @testset "detect_model_type" begin
