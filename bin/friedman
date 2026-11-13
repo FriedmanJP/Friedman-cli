@@ -5,23 +5,30 @@
 # Usage: julia --project=/path/to/Friedman-cli bin/friedman [command] [args...]
 #    or: ./bin/friedman [command] [args...]  (if Julia is in PATH)
 
-# Activate project
-using Pkg
 script_dir = @__DIR__
 project_dir = dirname(script_dir)
-Pkg.activate(project_dir; io=devnull)
+project_toml = normpath(abspath(joinpath(project_dir, "Project.toml")))
+manifest_toml = joinpath(project_dir, "Manifest.toml")
+active_proj = Base.active_project()
 
-if !isfile(joinpath(project_dir, "Manifest.toml"))
-    @info "No Manifest.toml found — instantiating project environment (one-time)…"
-    Pkg.instantiate()
+# Fast path: skip loading Pkg + Pkg.activate when --project already points here and Manifest exists
+if !isfile(manifest_toml) || active_proj === nothing || normpath(abspath(active_proj)) != project_toml
+    using Pkg
+    Pkg.activate(project_dir; io=devnull)
+    if !isfile(manifest_toml)
+        @info "No Manifest.toml found — instantiating project environment (one-time)…"
+        Pkg.instantiate()
+    end
 end
 
 try
     @eval using Friedman
 catch
+    @eval using Pkg
     @warn "Loading Friedman failed — re-instantiating the environment and retrying…"
-    Pkg.instantiate()
-    Pkg.precompile()
+    Base.invokelatest(Pkg.activate, project_dir; io=devnull)
+    Base.invokelatest(Pkg.instantiate)
+    Base.invokelatest(Pkg.precompile)
     @eval using Friedman
 end
 

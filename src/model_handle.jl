@@ -40,6 +40,7 @@ struct ModelHandleHeader
 end
 
 function _mems_version_string()::String
+    isdefined(@__MODULE__, :_cached_mems_version) && return _cached_mems_version()
     try
         return string(pkgversion(MacroEconometricModels))
     catch

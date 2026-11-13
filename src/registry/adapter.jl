@@ -276,6 +276,8 @@ function wrap_legacy(handler::Function)
     end
 end
 
+const _DEFAULT_STATUS_FN = (parts...) -> _status(parts...)
+
 """
     to_leaf(spec::CommandSpec) → LeafCommand
 
@@ -287,36 +289,34 @@ function to_leaf(spec::CommandSpec)
     options = [_to_option(o) for o in spec.options]
     flags = [_to_flag(f) for f in spec.flags]
 
-    function wrapper(; kwargs...)
-        # Partition bound kwargs into args / opts / flags
-        arg_names = Set(Symbol(a.name) for a in spec.args)
-        # option names use underscore form from bind_args
-        opt_map = Dict{Symbol,String}()  # bound_key => option name
-        for o in spec.options
-            opt_map[Symbol(replace(o.name, "-" => "_"))] = o.name
-        end
-        flag_keys = Set(Symbol(replace(f.name, "-" => "_")) for f in spec.flags)
+    # Hoist partitioning tables and command string once at tree construction time
+    arg_names = Set{Symbol}(Symbol(a.name) for a in spec.args)
+    opt_keys = Set{Symbol}(Symbol(replace(o.name, "-" => "_")) for o in spec.options)
+    flag_keys = Set{Symbol}(Symbol(replace(f.name, "-" => "_")) for f in spec.flags)
+    cmd_str = join(spec.path, " ")
+    handler = spec.handler
 
+    function wrapper(; kwargs...)
         a = Dict{Symbol,Any}()
+        sizehint!(a, length(arg_names))
         o = Dict{Symbol,Any}()
+        sizehint!(o, length(opt_keys) + 2)
         fl = Dict{Symbol,Bool}()
+        sizehint!(fl, length(flag_keys))
         for (k, v) in pairs(kwargs)
             if k in arg_names
                 a[k] = v
             elseif k in flag_keys
                 fl[k] = v === true
-            elseif haskey(opt_map, k)
-                o[k] = v
             else
-                o[k] = v  # extras (e.g. format from globals)
+                o[k] = v
             end
         end
         fmt = Symbol(get(o, :format, get(kwargs, :format, "table")))
         output = string(get(o, :output, get(kwargs, :output, "")))
-        env = envelope_active() ? _ENVELOPE[] : Envelope(command=join(spec.path, " "))
-        status_fn = (parts...) -> _status(parts...)
-        ctx = CmdContext(a, o, fl, fmt, output, env, status_fn, spec)
-        return spec.handler(ctx)
+        env = envelope_active() ? _ENVELOPE[] : Envelope(command=cmd_str)
+        ctx = CmdContext(a, o, fl, fmt, output, env, _DEFAULT_STATUS_FN, spec)
+        return handler(ctx)
     end
 
     return LeafCommand(leaf_name, wrapper;

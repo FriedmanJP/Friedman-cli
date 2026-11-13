@@ -139,8 +139,10 @@ try {
         & julia +1.13 --version *> $null
         if ($LASTEXITCODE -eq 0) {
             & julia +1.13 --project="$InstallDir" --startup-file=no -e "using Pkg; Pkg.instantiate()"
+            Set-Content -Path (Join-Path $InstallDir ".julia_cmd") -Value "juliaup:+1.13" -Encoding ASCII
         } else {
             & julia --project="$InstallDir" --startup-file=no -e "using Pkg; Pkg.instantiate()"
+            Set-Content -Path (Join-Path $InstallDir ".julia_cmd") -Value "julia" -Encoding ASCII
         }
         if ($LASTEXITCODE -ne 0) {
             throw "Failed to instantiate runtime artifacts."

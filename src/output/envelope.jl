@@ -77,6 +77,8 @@ const _ENVELOPE_EMITTED = Ref{Bool}(false)
 # JSON-safe value mapping (F20): non-finite floats → strings, never silent null
 _json_safe(x) = x
 _json_safe(x::AbstractFloat) = isfinite(x) ? x : string(x)   # "NaN"/"Inf"/"-Inf"
+_json_safe(v::Union{Vector{Int},Vector{Int64},Vector{Bool},Vector{String}}) = v
+_json_safe(v::Vector{Float64}) = all(isfinite, v) ? v : Any[_json_safe(x) for x in v]
 _json_safe(x::AbstractVector) = map(_json_safe, x)
 _json_safe(x::AbstractDict) = Dict(string(k) => _json_safe(v) for (k, v) in x)
 _json_safe(x::Symbol) = string(x)

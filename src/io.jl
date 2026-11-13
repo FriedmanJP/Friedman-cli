@@ -410,10 +410,22 @@ _numeric_column_names(df::DataFrame) =
 
 Convert a DataFrame to a numeric matrix, selecting only numeric columns.
 """
+function _fill_matrix_col!(mat::AbstractMatrix{Float64}, j::Int, col::AbstractVector)
+    @inbounds for i in eachindex(col)
+        mat[i, j] = Float64(col[i])
+    end
+    return nothing
+end
+
 function df_to_matrix(df::DataFrame)
     numeric_cols = _numeric_column_names(df)
     isempty(numeric_cols) && throw(CliError("data/no-numeric-columns", "no numeric columns found in data"))
-    mat = Matrix{Float64}(df[!, numeric_cols])
+    nr = nrow(df)
+    nc = length(numeric_cols)
+    mat = Matrix{Float64}(undef, nr, nc)
+    for (j, colname) in enumerate(numeric_cols)
+        _fill_matrix_col!(mat, j, df[!, colname])
+    end
     return mat
 end
 
@@ -455,12 +467,24 @@ function output_result(result::AbstractMatrix, varnames::Vector{String};
 end
 
 """Slug a table title for envelope keys: lowercase, non-alnum → `_`."""
-function _slug(title::String)
-    s = lowercase(title)
-    s = replace(s, r"[^a-z0-9]+" => "_")
-    s = replace(s, r"^_+|_+$" => "")
-    s = replace(s, r"_+" => "_")
-    return isempty(s) ? "table" : s
+function _slug(title::AbstractString)
+    io = IOBuffer(; sizehint=ncodeunits(title))
+    need_sep = false
+    wrote = false
+    for c in title
+        lc = lowercase(c)
+        if ('a' <= lc <= 'z') || ('0' <= lc <= '9')
+            if need_sep && wrote
+                write(io, '_')
+            end
+            write(io, lc)
+            wrote = true
+            need_sep = false
+        else
+            need_sep = true
+        end
+    end
+    return wrote ? String(take!(io)) : "table"
 end
 
 """

@@ -184,8 +184,10 @@ mv "$EXTRACTED" "$INSTALL_DIR"
 echo "Ensuring runtime artifacts..."
 if julia +1.13 --version >/dev/null 2>&1; then
     JULIA_PKG_PRECOMPILE_AUTO=0 julia +1.13 --project="$INSTALL_DIR" --startup-file=no -e 'using Pkg; Pkg.instantiate()'
+    printf '%s\n' 'juliaup:+1.13' > "$INSTALL_DIR/.julia_cmd"
 else
     JULIA_PKG_PRECOMPILE_AUTO=0 julia --project="$INSTALL_DIR" --startup-file=no -e 'using Pkg; Pkg.instantiate()'
+    command -v julia > "$INSTALL_DIR/.julia_cmd" || true
 fi
 touch "$INSTALL_DIR/.artifacts_ready"
 

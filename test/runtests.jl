@@ -4782,4 +4782,64 @@ end
     @test leaf_count[] >= 478
 end
 
+@testset "Wave 4 hot paths & LeafCommand constructors (#243)" begin
+    handler = (; x="ok", verbose=false, count=1, kwargs...) -> nothing
+    args = [Argument("path"; description="Input path")]
+    opts = [Option("count"; type=Int, default=1, description="Count")]
+    flags = [Flag("verbose"; description="Verbose")]
+
+    l6 = LeafCommand("leaf6", handler, args, opts, flags, "desc6")
+    l7 = LeafCommand("leaf7", handler, args, opts, flags, "desc7", "familyA")
+    lkw = LeafCommand("leafkw", handler; args=args, options=opts, flags=flags, description="desckw", family="familyB")
+
+    for l in (l6, l7, lkw)
+        @test "count" in l.known_opts
+        @test "verbose" in l.known_opts
+        @test "help" in l.known_opts
+        @test l.arg_syms == [:path]
+        @test l.opt_syms == [:count]
+        @test l.flag_syms == [:verbose]
+    end
+    @test l6.family == ""
+    @test l7.family == "familyA"
+    @test lkw.family == "familyB"
+
+    @test _looks_like_value("-1")
+    @test _looks_like_value("-0.5")
+    @test _looks_like_value("-.25")
+    @test _looks_like_value("-1e-3")
+    @test !_looks_like_value("-")
+    @test !_looks_like_value("--lags")
+    @test !_looks_like_value("-f")
+    @test !_looks_like_value("-abc")
+    @test _looks_like_value("")
+
+    @test _levenshtein("", "") == 0
+    @test _levenshtein("var", "var") == 0
+    @test _levenshtein("var", "") == 3
+    @test _levenshtein("", "var") == 3
+    @test _levenshtein("multivariate", "mutlivariate") == 2
+
+    @test _slug(" Impulse-Response (h=1..12) % ") == "impulse_response_h_1_12"
+    @test _slug("---") == "table"
+    @test _slug(SubString("VAR(1) Fit", 1, 6)) == "var_1"
+
+    df_mix = DataFrame(a=[1, 2], b=[1.5, NaN], c=["x", "y"], d=[true, missing])
+    tp = _table_payload(df_mix)
+    @test tp["columns"] == ["a", "b", "c", "d"]
+    @test tp["rows"][1] == Any[1, 1.5, "x", true]
+    @test tp["rows"][2] == Any[2, "NaN", "y", nothing]
+
+    @test _json_safe([1, 2, 3]) == [1, 2, 3]
+    @test _json_safe([true, false]) == [true, false]
+    @test _json_safe(["a", "b"]) == ["a", "b"]
+    @test _json_safe([1.0, 2.5]) == [1.0, 2.5]
+    js_nan = _json_safe([1.0, NaN, Inf])
+    @test js_nan[1] == 1.0 && js_nan[2] == "NaN" && js_nan[3] == "Inf"
+
+    mv1 = _cached_mems_version()
+    mv2 = _cached_mems_version()
+    @test !isempty(mv1) && mv1 == mv2
+end
+
 include(joinpath(@__DIR__, "test_e2e.jl"))
