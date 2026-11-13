@@ -1645,7 +1645,7 @@ function register_policy_commands!()
             path=["policy", "effects", route],
             summary="McKay-Wolf causal-effects menu (Theta_x/Theta_z) from an estimated IRF",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing,
-                          description="Path to CSV data file")],
+                          description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[_POLICY_COMMON...; _policy_route_options(route)...;
                      # instrument-impact renormalizes per draw; near-zero-impact
                      # draws are dropped (count surfaced in the summary table)
@@ -1666,7 +1666,7 @@ function register_policy_commands!()
             path=["policy", "counterfactual", route],
             summary="Rule counterfactual: enforce a PolicyRule on the menu with exact/ls projection",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing,
-                          description="Path to CSV data file")],
+                          description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[_POLICY_COMMON...; _policy_route_options(route)...;
                      _POLICY_CF_OPTIONS...;
                      OptionSpec(name="normalize", type=String, default="none",
@@ -1694,7 +1694,7 @@ function register_policy_commands!()
             path=["policy", "optimal", route],
             summary="Optimal policy: minimize a quadratic PolicyLoss over the menu (spanned_tol fixed 0.05)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing,
-                          description="Path to CSV data file")],
+                          description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[_POLICY_COMMON...; _policy_route_options(route)...;
                      OptionSpec(name="nonpolicy-shock", type=String, default="",
                                 description="The ONE non-policy shock the optimal policy responds to (REQUIRED)");
@@ -1733,7 +1733,7 @@ function register_policy_commands!()
             path=["policy", "moments", route],
             summary="Counterfactual second moments (sd/corr), rule XOR loss",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing,
-                          description="Path to CSV data file")],
+                          description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[_POLICY_COMMON...; _policy_route_options(route)...;
                      OptionSpec(name="rule", type=String, default="",
                                 description="Builtin counterfactual rule (see policy counterfactual)");
@@ -1783,7 +1783,7 @@ function register_policy_commands!()
             path=["policy", "opp", route],
             summary="Barnichon-Mesters optimal policy perturbation (unconstrained or constrained)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing,
-                          description="Path to CSV data file")],
+                          description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[_POLICY_COMMON...; _policy_route_options(route)...;
                      _OPP_SHARED...;
                      OptionSpec(name="targets", type=String, default="",
@@ -1831,7 +1831,7 @@ function register_policy_commands!()
             path=["policy", "opp-sequence", route],
             summary="OPP rerun over a sequence of dated gap forecasts with news/preference/aging split",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing,
-                          description="Path to CSV data file")],
+                          description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[_POLICY_COMMON...; _policy_route_options(route)...;
                      OptionSpec(name="loss-config", type=String, default="",
                                 description="TOML [loss] section (REQUIRED)");
@@ -1957,7 +1957,7 @@ function register_policy_commands!()
             path=["policy", "history", route],
             summary="Counterfactual history: re-run an observation window under the policy",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing,
-                          description="Path to CSV data file")],
+                          description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[_POLICY_COMMON...; _policy_route_options(route)...;
                      OptionSpec(name="t-range", type=String, default="",
                                 description="Observation window lo:hi to re-run under the rule or optimal policy (REQUIRED; length ≤ H−1)");
@@ -1989,7 +1989,7 @@ function register_policy_commands!()
         path=["policy", "spanning", "var"],
         summary="Spanning diagnostic: thin empirical menu vs full DSGE news menu",
         args=[ArgSpec(name="data", type=String, required=true, default=nothing,
-                      description="Path to CSV data file"),
+                      description="Path to data file or handle stem (.csv, .jld2, .jls)"),
               ArgSpec(name="model", type=String, required=true, default=nothing,
                       description="DSGE model file for the FULL news menu")],
         options=[_POLICY_COMMON...;

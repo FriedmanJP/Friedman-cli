@@ -21,7 +21,7 @@ function irf_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["irf", "var"],
             summary="Compute frequentist impulse response functions",
-            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            args=[ArgSpec(name="data", description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto)"),
                 OptionSpec(name="shock", type=Int, default=1, description="Shock variable index (1-based)"),
@@ -65,7 +65,7 @@ function irf_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["irf", "bvar"],
             summary="Compute Bayesian impulse response functions with credible intervals",
-            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            args=[ArgSpec(name="data", description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="Lag order"),
                 OptionSpec(name="shock", type=Int, default=1, description="Shock variable index (1-based)"),
@@ -91,7 +91,7 @@ function irf_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["irf", "tvpvar"],
             summary="Date-specific IRF from a TVP-VAR-SV",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="date", type=Int, default=0, description="Date index in 1:T_eff to evaluate the IRF at (REQUIRED)"),
                 OptionSpec(name="horizons", type=Int, default=20, description="IRF horizon"),
@@ -118,7 +118,7 @@ function irf_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["irf", "lp"],
             summary="Compute structural LP impulse response functions",
-            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            args=[ArgSpec(name="data", description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="shock", type=Int, default=1, description="Single shock index (1-based; overridden by --shocks when both are given)"),
                 OptionSpec(name="shocks", type=String, default="", description="Comma-separated shock indices, e.g. 1,2,3 (overrides --shock when both are given)"),
@@ -146,7 +146,7 @@ function irf_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["irf", "vecm"],
             summary="Compute impulse response functions via VECM → VAR representation (direct VECM under --id svec)",
-            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            args=[ArgSpec(name="data", description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels)"),
                 OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
@@ -171,7 +171,7 @@ function irf_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["irf", "pvar"],
             summary="Compute Panel VAR impulse response functions (OIRF/GIRF)",
-            args=[ArgSpec(name="data", description="Path to CSV panel data file")],
+            args=[ArgSpec(name="data", description="Path to panel data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="id-col", type=String, default="", description="Panel group identifier column"),
                 OptionSpec(name="time-col", type=String, default="", description="Time period column"),
@@ -197,7 +197,7 @@ function irf_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["irf", "favar"],
             summary="FAVAR impulse response functions",
-            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            args=[ArgSpec(name="data", description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="factors", short="r", type=Int, default=nothing, description="Number of factors (default: auto)"),
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="VAR lag order"),
@@ -220,7 +220,7 @@ function irf_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["irf", "sdfm"],
             summary="Structural DFM impulse response functions (panel-wide)",
-            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            args=[ArgSpec(name="data", description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="factors", short="q", type=Int, default=nothing, description="Number of dynamic factors (default: auto via --q-method)"),
                 OptionSpec(name="id", type=String, default="cholesky", description=_SDFM_ID_DESC),

@@ -60,7 +60,7 @@ function _model_reproduce(; path::String="", data::String="",
     # would arrive as a loaded object and break the String binding).
     p = !isempty(path) ? path : data
     isempty(p) && throw(CliError("usage/missing-arg",
-        "model reproduce requires a handle path (.jld2, .fmod, or model://)"))
+        "model reproduce requires a handle path (.jld2, .jls, .fmod, or model://)"))
     obj = load_model_dispatch(p)
     rep = try
         MacroEconometricModels.reproduce(obj)
@@ -126,7 +126,7 @@ function model_specs()::Vector{CommandSpec}
             path=["model", "reproduce"],
             summary="Verify a saved handle by re-running its estimator from the recorded seed (reports unverifiable when no seed is recorded)",
             args=[ArgSpec(name="path", type=String, required=true, default=nothing,
-                          description="Handle path (.jld2, .fmod, or model:// session handle)")],
+                          description="Handle path (.jld2, .jls, .fmod, or model:// session handle)")],
             options=[
                 OptionSpec(name="output", short="o", type=String, default="",
                            description="Export results to file"),

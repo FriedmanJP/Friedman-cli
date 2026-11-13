@@ -98,7 +98,7 @@ function dsge_specs()::Vector{CommandSpec}
                 RA_SOLVER_KNOB_OPTIONS...,
                 OptionSpec(name="horizon", type=Int, default=40, description="IRF horizon"),
                 OptionSpec(name="shock-size", type=Float64, default=1.0, description="Shock size (std devs; perturbation/projection only; ignored for linear solutions)"),
-                OptionSpec(name="n-sim", type=Int, default=0, description="Simulated-path replications for projection solutions (default 0 = analytical; ignored for linear/perturbation solutions)"),
+                OptionSpec(name="n-sim", type=Int, default=0, description="Simulated-path replications for projection solutions (0 = analytical; ignored for linear/perturbation solutions)"),
                 OptionSpec(name="constraints", type=String, default="", description="Path to OccBin constraints TOML (applied to shock 1 only)"),
                 CONSTRAINT_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -205,7 +205,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="method", type=String, default="perturbation",
                            description="Solution method: perturbation (the only supported value; moments need a PerturbationSolution)"),
                 OptionSpec(name="order", type=Int, default=2,
-                           description="Perturbation order: 1, 2 or 3 (default 2; for linear models order 2 equals order 1 exactly)"),
+                           description="Perturbation order: 1, 2 or 3 (for linear models order 2 equals order 1 exactly)"),
                 OptionSpec(name="lags", type=Int, default=1, description="Autocovariance lags to report (>= 1)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
@@ -224,12 +224,12 @@ function dsge_specs()::Vector{CommandSpec}
             summary="Estimate DSGE parameters by moment matching",
             args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="TOML (synthesized @dsge block) or .jl evaluating to a ModelSpec")],
             options=[
-                OptionSpec(name="data", short="d", type=String, default="", description="Path to CSV data file"),
+                OptionSpec(name="data", short="d", type=String, default="", description="Path to data file or handle stem (.csv, .jld2, .jls)"),
                 OptionSpec(name="method", type=String, default="irf_matching", description="Estimation method: irf_matching|euler_gmm|smm|analytical_gmm", choices=["irf_matching", "euler_gmm", "smm", "analytical_gmm"]),
                 OptionSpec(name="params", type=String, default="", description="Comma-separated parameter names to estimate"),
                 OptionSpec(name="solve-method", type=String, default="gensys", description="DSGE solution method (analytical_gmm only)"),
                 OptionSpec(name="solve-order", type=Int, default=1, description="Perturbation order for solution (analytical_gmm only)"),
-                OptionSpec(name="weighting", type=String, default="optimal", description="Weighting matrix: identity|optimal|diagonal|two_step|efficient|cee (default two_step)"),
+                OptionSpec(name="weighting", type=String, default="optimal", description="Weighting matrix: identity|optimal|diagonal|two_step|efficient|cee"),
                 OptionSpec(name="irf-horizon", type=Int, default=20, description="IRF horizon for matching (irf_matching only)"),
                 OptionSpec(name="var-lags", type=Int, default=4, description="VAR lags for empirical IRF (irf_matching only)"),
                 OptionSpec(name="sim-ratio", type=Int, default=5, description="Simulation-to-data ratio (smm only)"),
@@ -293,7 +293,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="order", type=Int, default=1, description="Perturbation order (1, 2, or 3)"),
                 OptionSpec(name="grid", type=String, default="auto", description="Grid type: auto|chebyshev|smolyak (vfi: auto|tensor|smolyak; auto routes nx≥4 to Smolyak)"),
                 RA_SOLVER_KNOB_OPTIONS...,
-                OptionSpec(name="data", short="d", type=String, default="", description="Path to CSV data file"),
+                OptionSpec(name="data", short="d", type=String, default="", description="Path to data file or handle stem (.csv, .jld2, .jls)"),
                 OptionSpec(name="observables", type=String, default="", description="Observable variable names (comma-separated)"),
                 OptionSpec(name="states", type=String, default="observables", description="observables|all"),
                 OptionSpec(name="measurement-error", type=String, default="", description="Measurement error std devs (comma-separated) or auto"),
@@ -826,11 +826,11 @@ function dsge_specs()::Vector{CommandSpec}
                            choices=["mh", "smc"]),
                 OptionSpec(name="n-draws", type=Int, default=2000, description="Total RWMH draws (including burn-in)"),
                 OptionSpec(name="burnin", type=Int, default=500, description="Burn-in draws to discard"),
-                OptionSpec(name="n-smc", type=Int, default=500, description="SMC particles (HA default 500)"),
+                OptionSpec(name="n-smc", type=Int, default=500, description="SMC particles (HA sampler)"),
                 OptionSpec(name="n-mh-steps", type=Int, default=1, description="MH mutation steps per SMC stage"),
                 OptionSpec(name="ess-target", type=Float64, default=0.5, description="ESS target for SMC resampling"),
                 OptionSpec(name="t-horizon", type=Int, default=300,
-                           description="Sequence-space truncation length (SSJ/Reiter); default 300 (ABRS 2021)"),
+                           description="Sequence-space truncation length (SSJ/Reiter; ABRS 2021)"),
                 OptionSpec(name="n-reduced", type=Int, default=15, description="Reduced distribution states"),
                 OptionSpec(name="proposal-scale", type=Float64, default=0.01, description="Initial RWMH proposal scale"),
                 OptionSpec(name="adapt-interval", type=Int, default=100, description="Adapt proposal covariance every N draws"),
@@ -860,7 +860,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="method", type=String, default="ssj",
                            description="HA solution method: ssj|reiter",
                            choices=["ssj", "reiter"]),
-                OptionSpec(name="data", short="d", type=String, default="", description="Path to CSV data file (levels)"),
+                OptionSpec(name="data", short="d", type=String, default="", description="Path to data file or handle stem (.csv, .jld2, .jls; levels)"),
                 OptionSpec(name="observables", type=String, default="", description="Observable aggregates (comma-separated; keys of ss.aggregates/ss.prices)"),
                 OptionSpec(name="measurement-error", type=String, default="", description="Measurement error std devs (comma-separated) or auto"),
                 OptionSpec(name="n-reduced", type=Int, default=30, description="Reduced states"),
@@ -1008,7 +1008,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="beta", type=Float64, default=0.96, description="Discount factor"),
                 OptionSpec(name="delta", type=Float64, default=0.08, description="Depreciation"),
                 OptionSpec(name="gamma", type=Float64, default=0.98, description="Survival probability"),
-                OptionSpec(name="z", type=Float64, default=1.0, description="TFP"),
+                OptionSpec(name="z", type=Float64, default=1.0, description="Total factor productivity (TFP) level"),
                 OptionSpec(name="debt", type=Float64, default=0.0, description="Government debt b (see MEMs#237 if b≠0)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table",
@@ -1031,7 +1031,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="beta", type=Float64, default=0.96, description="Discount factor"),
                 OptionSpec(name="delta", type=Float64, default=0.08, description="Depreciation"),
                 OptionSpec(name="gamma", type=Float64, default=0.98, description="Survival probability"),
-                OptionSpec(name="z", type=Float64, default=1.0, description="TFP"),
+                OptionSpec(name="z", type=Float64, default=1.0, description="Total factor productivity (TFP) level"),
                 OptionSpec(name="debt", type=Float64, default=0.0, description="Government debt b"),
                 OptionSpec(name="k0", type=Float64, default=0.0,
                            description="Initial capital (0 = 80% of steady-state k)"),
@@ -1055,7 +1055,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="beta", type=Float64, default=0.96, description="Discount factor"),
                 OptionSpec(name="delta", type=Float64, default=0.08, description="Depreciation"),
                 OptionSpec(name="gamma", type=Float64, default=0.98, description="Survival probability"),
-                OptionSpec(name="z", type=Float64, default=1.0, description="TFP"),
+                OptionSpec(name="z", type=Float64, default=1.0, description="Total factor productivity (TFP) level"),
                 OptionSpec(name="debt", type=Float64, default=0.0, description="Government debt b"),
                 OptionSpec(name="rho-z", type=Float64, default=0.0, description="TFP persistence"),
                 OptionSpec(name="sigma-z", type=Float64, default=0.0, description="TFP shock scale"),
@@ -1089,7 +1089,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="beta", type=Float64, default=0.96, description="Discount factor"),
                 OptionSpec(name="delta", type=Float64, default=0.08, description="Depreciation"),
                 OptionSpec(name="gamma", type=Float64, default=0.98, description="Survival probability"),
-                OptionSpec(name="z", type=Float64, default=1.0, description="TFP"),
+                OptionSpec(name="z", type=Float64, default=1.0, description="Total factor productivity (TFP) level"),
                 OptionSpec(name="debt", type=Float64, default=0.0, description="Government debt b"),
                 OptionSpec(name="rho-z", type=Float64, default=0.0, description="TFP persistence"),
                 OptionSpec(name="sigma-z", type=Float64, default=0.0, description="TFP shock scale"),
@@ -1314,7 +1314,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="sigma", type=Float64, default=2.0, description="CRRA risk aversion (> 0)"),
                 OptionSpec(name="alpha", type=Float64, default=0.36, description="Capital share in (0,1)"),
                 OptionSpec(name="delta", type=Float64, default=0.06, description="Depreciation in [0,1]"),
-                OptionSpec(name="z", type=Float64, default=1.0, description="TFP"),
+                OptionSpec(name="z", type=Float64, default=1.0, description="Total factor productivity (TFP) level"),
                 OptionSpec(name="n-pop", type=Float64, default=0.0, description="Population growth (> −1)"),
                 OptionSpec(name="replacement", type=Float64, default=0.4, description="Pension replacement (≥ 0)"),
                 OptionSpec(name="credit-limit", type=Float64, default=0.0, description="Borrowing limit"),
@@ -1357,7 +1357,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="sigma", type=Float64, default=2.0, description="CRRA risk aversion"),
                 OptionSpec(name="alpha", type=Float64, default=0.36, description="Capital share"),
                 OptionSpec(name="delta", type=Float64, default=0.06, description="Depreciation"),
-                OptionSpec(name="z", type=Float64, default=1.0, description="TFP"),
+                OptionSpec(name="z", type=Float64, default=1.0, description="Total factor productivity (TFP) level"),
                 OptionSpec(name="income-rho", type=Float64, default=0.95, description="Idiosyncratic income persistence"),
                 OptionSpec(name="income-sigma", type=Float64, default=0.2, description="Idiosyncratic income s.d."),
                 OptionSpec(name="income-states", type=Int, default=3, description="Income states"),
@@ -1543,7 +1543,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="zeta2", type=Float64, default=2.0, description="Operating-cost curvature (> 1)"),
                 OptionSpec(name="r", type=Float64, default=1.01, description="Gross deposit rate R (> 0)"),
                 OptionSpec(name="rk", type=Float64, default=0.05, description="Net claim return rᵏ"),
-                OptionSpec(name="z", type=Float64, default=0.25, description="TFP"),
+                OptionSpec(name="z", type=Float64, default=0.25, description="Total factor productivity (TFP) level"),
                 OptionSpec(name="alpha", type=Float64, default=0.33, description="Capital share in (0,1)"),
                 OptionSpec(name="max-iter", type=Int, default=250, description="PE VFI iterations"),
                 OptionSpec(name="tol", type=Float64, default=1e-6, description="PE VFI tolerance"),
@@ -1572,7 +1572,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="sigma", type=Float64, default=0.95, description="Survival probability"),
                 OptionSpec(name="lambda", type=Float64, default=0.20, description="Diversion parameter"),
                 OptionSpec(name="r", type=Float64, default=1.01, description="Gross deposit rate R (held fixed)"),
-                OptionSpec(name="z", type=Float64, default=0.25, description="TFP"),
+                OptionSpec(name="z", type=Float64, default=0.25, description="Total factor productivity (TFP) level"),
                 OptionSpec(name="alpha", type=Float64, default=0.33, description="Capital share"),
                 OptionSpec(name="r-lo", type=Float64, default=NaN, description="rᵏ bracket lower end (NaN = default)"),
                 OptionSpec(name="r-hi", type=Float64, default=NaN, description="rᵏ bracket upper end (NaN = default)"),
@@ -1618,7 +1618,7 @@ function dsge_specs()::Vector{CommandSpec}
             options=[
                 OptionSpec(name="horizon", type=Int, default=20, description="IRF horizon (≥ 2)"),
                 OptionSpec(name="shock-size", type=Float64, default=0.01, description="TFP impulse size"),
-                OptionSpec(name="persist", type=Float64, default=0.5, description="AR(1) decay (default 0.5)"),
+                OptionSpec(name="persist", type=Float64, default=0.5, description="AR(1) persistence decay"),
                 OptionSpec(name="n-n", type=Int, default=25, description="Net-worth grid points (≥ 3)"),
                 OptionSpec(name="n-xi", type=Int, default=3, description="Idiosyncratic ξ states"),
                 OptionSpec(name="z", type=Float64, default=0.25, description="Steady-state TFP"),
@@ -3624,21 +3624,21 @@ function _dsge_ha_accuracy(; model="", method::String="krusell-smith",
                             plot::Bool=false, plot_save::String="",
                             output::String="", format::String="table")
     t_sim > t_burn + 10 || throw(CliError("usage/invalid",
-        "dsge ha accuracy: --t-sim must exceed --t-burn by at least 10 " *
+        "hadsge accuracy: --t-sim must exceed --t-burn by at least 10 " *
         "(got t_sim=$t_sim, t_burn=$t_burn)"))
     t_burn >= 0 || throw(CliError("usage/invalid",
-        "dsge ha accuracy: --t-burn must be ≥ 0 (got $t_burn)"))
+        "hadsge accuracy: --t-burn must be ≥ 0 (got $t_burn)"))
     sigma_z > 0 || throw(CliError("usage/invalid",
-        "dsge ha accuracy: --sigma-z must be > 0 (got $sigma_z)"))
+        "hadsge accuracy: --sigma-z must be > 0 (got $sigma_z)"))
     abs(rho_z) < 1 || throw(CliError("usage/invalid",
-        "dsge ha accuracy: --rho-z must satisfy |rho| < 1 (got $rho_z)"))
+        "hadsge accuracy: --rho-z must satisfy |rho| < 1 (got $rho_z)"))
 
     if model isa AbstractString
         meth = _parse_ha_method(method)
         hh = _parse_hh_solver(hh_solver)
         if meth !== :krusell_smith
             t_fit > 100 || throw(CliError("usage/invalid",
-                "dsge ha accuracy: --t-fit must be > 100 to fit the implied law of motion " *
+                "hadsge accuracy: --t-fit must be > 100 to fit the implied law of motion " *
                 "(got $t_fit)"))
         end
         spec = _load_ha_model(String(model); distribution=distribution)
@@ -3656,7 +3656,7 @@ function _dsge_ha_accuracy(; model="", method::String="krusell-smith",
         meth = sol isa MacroEconometricModels.KrusellSmithSolution ? :krusell_smith : sol.method
         if meth !== :krusell_smith
             t_fit > 100 || throw(CliError("usage/invalid",
-                "dsge ha accuracy: --t-fit must be > 100 to fit the implied law of motion " *
+                "hadsge accuracy: --t-fit must be > 100 to fit the implied law of motion " *
                 "(got $t_fit)"))
         end
         _ha_model_symbol(spec) === :huggett && throw(CliError(

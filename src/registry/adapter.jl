@@ -362,8 +362,10 @@ function build_node(name::String, specs::Vector{CommandSpec}; description::Strin
             leaf = to_leaf(spec)
             _register_leaf!(child_cmds, spec.path[3], leaf)
         end
-        # description from first child category or mid name
-        subcmds[mid] = NodeCommand(mid, child_cmds, mid)
+        subcmds[mid] = NodeCommand(
+            mid, child_cmds,
+            isdefined(@__MODULE__, :_node_description) ? _node_description(name, mid) : mid,
+        )
     end
     return NodeCommand(name, subcmds, description)
 end

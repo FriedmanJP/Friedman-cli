@@ -29,7 +29,7 @@ function hd_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["hd", "var"],
             summary="Compute historical decomposition of shocks",
-            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            args=[ArgSpec(name="data", description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto)"),
                 OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|proxy|max-share|gmm-moments|lewis-tvv|sv-em|fastica|jade|sobi|dcov|hsic|student_t|mixture_normal|pml|skew_normal|markov_switching|garch_id"),
@@ -50,7 +50,7 @@ function hd_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["hd", "bvar"],
             summary="Compute Bayesian historical decomposition",
-            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            args=[ArgSpec(name="data", description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="Lag order"),
                 OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|fastica|jade|sobi|dcov|hsic|student_t|mixture_normal|pml|skew_normal|markov_switching|garch_id|uhlig|lewis-tvv|sv-em"),
@@ -71,7 +71,7 @@ function hd_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["hd", "lp"],
             summary="Compute historical decomposition via structural LP",
-            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            args=[ArgSpec(name="data", description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="LP control lags"),
                 OptionSpec(name="var-lags", type=Int, default=nothing, description="VAR lag order for identification (default: same as --lags)"),
@@ -92,7 +92,7 @@ function hd_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["hd", "vecm"],
             summary="Compute historical decomposition via VECM → VAR representation (direct VECM under --id svec)",
-            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            args=[ArgSpec(name="data", description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels)"),
                 OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
@@ -113,7 +113,7 @@ function hd_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["hd", "favar"],
             summary="FAVAR historical decomposition",
-            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            args=[ArgSpec(name="data", description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="factors", short="r", type=Int, default=nothing, description="Number of factors (default: auto)"),
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="VAR lag order"),
@@ -135,7 +135,7 @@ function hd_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["hd", "sdfm"],
             summary="Structural DFM historical decomposition",
-            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            args=[ArgSpec(name="data", description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="factors", short="q", type=Int, default=nothing, description="Number of dynamic factors (default: auto via --q-method)"),
                 OptionSpec(name="id", type=String, default="cholesky", description=_SDFM_ID_DESC),

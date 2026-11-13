@@ -19,6 +19,12 @@
 const INDENT = "  "
 const COL_WIDTH = 24
 
+_has_printable_default(d) = d !== nothing &&
+    !(d isa AbstractString && isempty(d)) &&
+    !(d isa AbstractVector && isempty(d))
+
+_desc_mentions_default(desc::AbstractString) = occursin(r"\(default[:\s]"i, desc)
+
 """
     print_help(io, entry)
 
@@ -26,6 +32,19 @@ Print top-level help for the CLI entry point.
 """
 function print_help(io::IO, entry::Entry)
     print_help(io, entry.root; prog=entry.name, version=entry.version)
+    println(io)
+    printstyled(io, "Interactive:\n"; bold=true, color=:yellow)
+    print_entry_line(io, "$(entry.name) repl",
+        "Start an interactive session with persistent history and tab completion")
+    println(io)
+    printstyled(io, "Global Flags:\n"; bold=true, color=:yellow)
+    print_entry_line(io, "--seed=<int>", "Set deterministic RNG seed for estimation/simulation")
+    print_entry_line(io, "-q, --quiet", "Suppress status prose on stderr")
+    print_entry_line(io, "--json", "Print compact JSON output")
+    print_entry_line(io, "--no-color", "Disable ANSI color formatting")
+    print_entry_line(io, "-V, --version", "Print version and exit")
+    print_entry_line(io, "-h, --help", "Show this help message and exit")
+    print_entry_line(io, "--warranty, --conditions", "Show GNU GPL v3 warranty and license conditions")
 end
 
 """
@@ -135,7 +154,7 @@ function print_help(io::IO, leaf::LeafCommand; prog::String=leaf.name)
         for arg in leaf.args
             label = arg.required ? "<$(arg.name)>" : "[$(arg.name)]"
             desc = arg.description
-            if !arg.required && !isnothing(arg.default)
+            if !arg.required && _has_printable_default(arg.default) && !_desc_mentions_default(desc)
                 desc *= " (default: $(arg.default))"
             end
             print_entry_line(io, label, desc)
@@ -150,7 +169,13 @@ function print_help(io::IO, leaf::LeafCommand; prog::String=leaf.name)
             label = isempty(opt.short) ? "--$(opt.name)" : "-$(opt.short), --$(opt.name)"
             label *= "=<$(lowercase(string(opt.type)))>"
             desc = opt.description
-            if !isnothing(opt.default)
+            if opt.choices !== nothing && !isempty(opt.choices) && !all(c -> occursin(c, desc), opt.choices)
+                desc *= " [choices: $(join(opt.choices, "|"))]"
+            end
+            if opt.repeatable && !occursin("repeatable", lowercase(desc))
+                desc *= " (repeatable)"
+            end
+            if _has_printable_default(opt.default) && !_desc_mentions_default(desc)
                 desc *= " (default: $(opt.default))"
             end
             print_entry_line(io, label, desc)

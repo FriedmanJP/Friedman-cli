@@ -17,7 +17,7 @@
 # Nowcast commands: dfm, bvar, bridge, news, forecast
 
 function nowcast_specs()::Vector{CommandSpec}
-    data_arg = [ArgSpec(name="data", description="Path to CSV data file")]
+    data_arg = [ArgSpec(name="data", description="Path to data file or handle stem (.csv, .jld2, .jls)")]
     out_fmt = [
         OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
         OptionSpec(name="format", short="f", type=String, default="table",

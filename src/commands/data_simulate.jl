@@ -258,7 +258,7 @@ function data_simulate_specs()::Vector{CommandSpec}
                       OptionSpec(name="beta", type=Float64, default=0.96, description="Discount factor"),
                       OptionSpec(name="delta", type=Float64, default=0.08, description="Depreciation"),
                       OptionSpec(name="gamma", type=Float64, default=0.98, description="Survival probability"),
-                      OptionSpec(name="z", type=Float64, default=1.0, description="TFP"),
+                      OptionSpec(name="z", type=Float64, default=1.0, description="Total factor productivity (TFP) level"),
                       OptionSpec(name="debt", type=Float64, default=0.0, description="Government debt b"),
                       OptionSpec(name="k0", type=Float64, default=0.0,
                                  description="Initial capital (0 = 0.8 × steady state)"),

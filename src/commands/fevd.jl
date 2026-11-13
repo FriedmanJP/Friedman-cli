@@ -21,7 +21,7 @@ function fevd_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["fevd", "var"],
             summary="Compute forecast error variance decomposition",
-            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            args=[ArgSpec(name="data", description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto)"),
                 OptionSpec(name="horizons", type=Int, default=20, description="Forecast horizon"),
@@ -47,7 +47,7 @@ function fevd_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["fevd", "bvar"],
             summary="Compute Bayesian forecast error variance decomposition",
-            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            args=[ArgSpec(name="data", description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="Lag order"),
                 OptionSpec(name="horizons", type=Int, default=20, description="Forecast horizon"),
@@ -69,7 +69,7 @@ function fevd_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["fevd", "lp"],
             summary="Compute forecast error variance decomposition via structural LP",
-            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            args=[ArgSpec(name="data", description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="horizons", type=Int, default=20, description="Forecast horizon"),
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="LP control lags"),
@@ -91,7 +91,7 @@ function fevd_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["fevd", "vecm"],
             summary="Compute FEVD via VECM → VAR representation (direct VECM under --id svec)",
-            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            args=[ArgSpec(name="data", description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels)"),
                 OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
@@ -113,7 +113,7 @@ function fevd_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["fevd", "pvar"],
             summary="Compute Panel VAR forecast error variance decomposition",
-            args=[ArgSpec(name="data", description="Path to CSV panel data file")],
+            args=[ArgSpec(name="data", description="Path to panel data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="id-col", type=String, default="", description="Panel group identifier column"),
                 OptionSpec(name="time-col", type=String, default="", description="Time period column"),
@@ -133,7 +133,7 @@ function fevd_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["fevd", "favar"],
             summary="FAVAR forecast error variance decomposition",
-            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            args=[ArgSpec(name="data", description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="factors", short="r", type=Int, default=nothing, description="Number of factors"),
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="VAR lag order"),
@@ -155,7 +155,7 @@ function fevd_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["fevd", "sdfm"],
             summary="Structural DFM forecast error variance decomposition",
-            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            args=[ArgSpec(name="data", description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="factors", short="q", type=Int, default=nothing, description="Number of dynamic factors (default: auto via --q-method)"),
                 OptionSpec(name="id", type=String, default="cholesky", description=_SDFM_ID_DESC),

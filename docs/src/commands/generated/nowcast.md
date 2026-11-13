@@ -11,7 +11,7 @@ Nowcast via bridge equations
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -34,7 +34,7 @@ Nowcast via Bayesian VAR
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -61,7 +61,7 @@ Nowcast via Dynamic Factor Model (EM algorithm)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -90,7 +90,7 @@ Forecast from a nowcasting model
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|

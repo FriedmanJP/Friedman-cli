@@ -42,7 +42,7 @@ function data_specs()::Vector{CommandSpec}
                 OptionSpec(name="vars", type=String, default="", description="Comma-separated variable subset (bundled datasets only; ignored with --path)"),
                 OptionSpec(name="country", type=String, default="", description="Country label in status line only (no filtering) (bundled datasets only; ignored with --path)"),
                 OptionSpec(name="dates", type=String, default="", description="CSV/--path and timeseries date-label column (ignored for panels)"),
-                OptionSpec(name="path", type=String, default="", description="Path to CSV file (alternative to named dataset)")
+                OptionSpec(name="path", type=String, default="", description="Path to data file (.csv, .jld2, .jls; alternative to named dataset)")
             ],
             flags=[FlagSpec(name="transform", short="t", description="Apply stored FRED tcodes (timeseries only) (bundled datasets only; ignored with --path)")],
             # Emits no envelope table — writes CSV directly; gate-exempt, see check_table_keys.jl
@@ -148,7 +148,7 @@ function data_specs()::Vector{CommandSpec}
             summary="Balance an unbalanced panel via the DFM method",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Handle stem or CSV path")],
             options=[
-                OptionSpec(name="method", type=String, default="dfm", description="dfm", choices=["dfm"]),
+                OptionSpec(name="method", type=String, default="dfm", description="Missing-value balancing method (dfm = dynamic factor EM)", choices=["dfm"]),
                 OptionSpec(name="factors", short="r", type=Int, default=3, description="Number of factors"),
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="Factor VAR lags"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export file"),

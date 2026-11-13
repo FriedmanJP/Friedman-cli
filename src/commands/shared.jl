@@ -483,7 +483,7 @@ function _make_estimate_vol(vol)
     return function (; data::String, column::Int=1, p::Int=1, q::Int=1, draws::Int=5000,
                       dist::String="normal", output::String="", format::String="table",
                       plot::Bool=false, plot_save::String="")
-        dsym = _vol_dist_symbol(vol, dist, "estimate $(vol.name)")
+        dsym = _vol_dist_symbol(vol, dist, "estimate volatility $(replace(vol.name, '_' => '-'))")
         y, vname = load_univariate_series(data, column)
         label = vol.label(p, q)
         if vol.order === :sv
@@ -524,7 +524,7 @@ function _make_forecast_vol(vol)
                       dist::String="normal", horizons::Int=12,
                       output::String="", format::String="table",
                       plot::Bool=false, plot_save::String="", model=nothing)
-        loaded = _loaded_result(result; data, model, leaf="forecast $(replace(vol.name, '_' => '-'))")
+        loaded = _loaded_result(result; data, model, leaf="forecast volatility $(replace(vol.name, '_' => '-'))")
         if loaded !== nothing
             h = hasproperty(loaded, :horizon) ? Int(loaded.horizon) : horizons
             _vol_forecast_output(loaded, "result", vol.label(p, q), h; format=format, output=output,
@@ -532,7 +532,7 @@ function _make_forecast_vol(vol)
             _maybe_plot(loaded; plot=plot, plot_save=plot_save)
             return loaded
         end
-        dsym = _vol_dist_symbol(vol, dist, "forecast $(vol.name)")
+        dsym = _vol_dist_symbol(vol, dist, "forecast volatility $(replace(vol.name, '_' => '-'))")
         m, vname = _vol_resolve_model(vol, data, column; p=p, q=q, draws=draws,
                                       dist=dsym, model=model)
         label = vol.label(p, q)
@@ -1698,23 +1698,23 @@ function _load_and_estimate_sdfm(data::String, factors, id::String, var_lags::In
                                  q_method::String; bandwidth::Int=0,
                                  kernel::String="bartlett")
     haskey(_SDFM_METHODS, method) || throw(CliError("usage/invalid",
-        "estimate sdfm: --method must be fglr|gdfm-var (got '$method')"))
+        "estimate factor sdfm: --method must be fglr|gdfm-var (got '$method')"))
     haskey(_GDFM_SPECTRAL, spectral) || throw(CliError("usage/invalid",
-        "estimate sdfm: --spectral must be lag-window|smoothed-periodogram (got '$spectral')"))
+        "estimate factor sdfm: --spectral must be lag-window|smoothed-periodogram (got '$spectral')"))
     haskey(_SDFM_Q_METHODS, q_method) || throw(CliError("usage/invalid",
-        "estimate sdfm: --q-method must be hallin-liska|bai-ng|amengual-watson (got '$q_method')"))
+        "estimate factor sdfm: --q-method must be hallin-liska|bai-ng|amengual-watson (got '$q_method')"))
     if factors !== nothing && q_method != "hallin-liska"
         throw(CliError("usage/invalid",
-            "estimate sdfm: --q-method '$q_method' applies only to automatic factor " *
+            "estimate factor sdfm: --q-method '$q_method' applies only to automatic factor " *
             "selection (omit --factors to use it)"))
     end
     if !isempty(instrument_col) && id != "proxy"
         throw(CliError("usage/invalid",
-            "estimate sdfm: --instrument applies only to --id proxy (got --id $id)"))
+            "estimate factor sdfm: --instrument applies only to --id proxy (got --id $id)"))
     end
     if id == "proxy" && isempty(instrument_col)
         throw(CliError("usage/missing",
-            "estimate sdfm: --id proxy requires --instrument <column>";
+            "estimate factor sdfm: --id proxy requires --instrument <column>";
             hint="name a numeric, missing-free proxy column, e.g. --instrument mp_shock"))
     end
 
@@ -1731,7 +1731,7 @@ function _load_and_estimate_sdfm(data::String, factors, id::String, var_lags::In
     # Unknown tokens still go to the estimator wrap → data/invalid (exit 3).
     id_sym = get(_SDFM_ID_CLI, id, Symbol(id))
     q_for_id = factors isa Integer ? Int(factors) : nothing
-    id_kw = _sdfm_id_kwargs(id, config, q_for_id, "estimate sdfm")
+    id_kw = _sdfm_id_kwargs(id, config, q_for_id, "estimate factor sdfm")
 
     est_kw = (identification=id_sym, p=var_lags, H=horizon,
               method=_SDFM_METHODS[method], spectral=_GDFM_SPECTRAL[spectral],

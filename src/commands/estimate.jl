@@ -110,7 +110,7 @@ function _vol_specs(verb::Symbol)::Vector{CommandSpec}
         push!(specs, CommandSpec(
             path=[string(verb), cli_name],
             summary=summary,
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=opts,
             flags=flags,
             tables=tables,
@@ -126,7 +126,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "var"],
             summary="Frequentist VAR(p) by OLS with AIC lag auto-selection",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
                 OptionSpec(name="trend", type=String, default="constant", description="Deterministic terms (accepted but has no effect: the VAR always includes an intercept)"),
@@ -144,7 +144,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "bvar"],
             summary="Bayesian VAR with Minnesota prior (GLP/grid hyperopt)",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="Lag order"),
                 OptionSpec(name="prior", type=String, default="minnesota", description="Prior: minnesota|normal", choices=["minnesota", "normal"]),
@@ -171,7 +171,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "qreg"],
             summary="Quantile regression (Koenker-Bassett)",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable (default: first numeric column)"),
                 OptionSpec(name="tau", type=String, default="0.5", description="Quantile(s) in (0,1); one value or a comma-list"),
@@ -192,7 +192,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "rdd"],
             summary="Regression discontinuity (Calonico-Cattaneo-Titiunik)",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="outcome", type=String, default="", description="Outcome variable (default: first numeric column)"),
                 OptionSpec(name="running", type=String, default="", description="Running/forcing variable (default: next numeric column)"),
@@ -217,7 +217,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "tvpvar"],
             summary="TVP-VAR with stochastic volatility (Primiceri 2005)",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order"),
                 OptionSpec(name="draws", short="n", type=Int, default=2000, description="Retained Gibbs draws"),
@@ -265,7 +265,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "lp"],
             summary="Jorda local projections: standard|iv|smooth|state|propensity|robust",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="method", type=String, default="standard", description="standard|iv|smooth|state|propensity|robust", choices=["standard", "iv", "smooth", "state", "propensity", "robust"]),
                 OptionSpec(name="shock", type=Int, default=1, description="Shock variable index (1-based)"),
@@ -319,7 +319,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "arima"],
             summary="Fit ARIMA(p,d,q) or auto-select by IC",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
                 OptionSpec(name="p", type=Int, default=nothing, description="AR order (default: auto selection)"),
@@ -344,7 +344,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "arfima"],
             summary="Fit ARFIMA(p,d,q) with fractional integration",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
                 OptionSpec(name="p", type=Int, default=0, description="AR order"),
@@ -366,7 +366,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "gmm"],
             summary="Estimate GMM from TOML moment conditions (identity/optimal/two-step/iterated)",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="config", type=String, default="", description="Config file for moment conditions and instruments; TOML or a model card"),
                 OptionSpec(name="weighting", short="w", type=String, default="twostep", description="identity|optimal|twostep|iterated", choices=["identity", "optimal", "twostep", "iterated"]),
@@ -384,7 +384,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "static"],
             summary="Static PCA factor model with Bai-Ng count selection",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="nfactors", short="r", type=Int, default=nothing, description="Number of factors (default: auto via IC)"),
                 OptionSpec(name="criterion", type=String, default="ic1", description="ic1|ic2|ic3 for auto selection", choices=["ic1", "ic2", "ic3"]),
@@ -405,7 +405,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "dynamic"],
             summary="Dynamic factor model (two-step/EM) with IC count selection",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="nfactors", short="r", type=Int, default=nothing, description="Number of factors (default: auto via IC1)"),
                 OptionSpec(name="factor-lags", short="p", type=Int, default=1, description="Factor VAR lag order"),
@@ -425,7 +425,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "gdfm"],
             summary="Generalized dynamic factor model (FHLR) with static/dynamic rank selection",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="nfactors", short="r", type=Int, default=nothing, description="Number of static factors (default: auto)"),
                 OptionSpec(name="dynamic-rank", short="q", type=Int, default=nothing, description="Dynamic rank (default: auto)"),
@@ -450,7 +450,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "igarch"],
             summary="Estimate an IGARCH(p,q) model (unit-persistence GARCH)",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
                 OptionSpec(name="p", type=Int, default=1, description="GARCH order p"),
@@ -469,7 +469,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "cgarch"],
             summary="Estimate a Component-GARCH(1,1) model (permanent/transitory decomposition)",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -486,7 +486,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "aparch"],
             summary="Estimate an APARCH(p,q) model with power delta and leverage gamma",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
                 OptionSpec(name="p", type=Int, default=1, description="GARCH order p"),
@@ -507,7 +507,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "figarch"],
             summary="Estimate a FIGARCH(p,d,q) model (fractionally integrated GARCH, Gaussian QMLE)",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
                 OptionSpec(name="p", type=Int, default=1, description="GARCH β(L) order p"),
@@ -529,7 +529,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "fiegarch"],
             summary="Estimate a FIEGARCH(p,d,q) model (fractionally integrated EGARCH, Gaussian QMLE)",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
                 OptionSpec(name="p", type=Int, default=1, description="GARCH β(L) order p"),
@@ -551,7 +551,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "garch-midas"],
             summary="Estimate a GARCH-MIDAS model (short-run GARCH plus MIDAS long-run component)",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="High-frequency return series column (1-based)"),
                 OptionSpec(name="m-freq", type=Int, default=0, description="High-frequency observations per low-frequency block (required)"),
@@ -575,7 +575,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "ccc"],
             summary="Estimate a CCC-GARCH model with constant conditional correlations",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="p", type=Int, default=1, description="GARCH order p for the univariate margins"),
                 OptionSpec(name="q", type=Int, default=1, description="ARCH order q for the univariate margins"),
@@ -593,7 +593,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "dcc"],
             summary="Estimate a DCC/cDCC-GARCH model with dynamic conditional correlations",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="p", type=Int, default=1, description="GARCH order p for the univariate margins"),
                 OptionSpec(name="q", type=Int, default=1, description="ARCH order q for the univariate margins"),
@@ -614,7 +614,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "bekk"],
             summary="Estimate a scalar/diagonal BEKK(1,1) multivariate GARCH model",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="kind", type=String, default="scalar", description="BEKK(1,1) parameterization: scalar | diagonal", choices=["scalar","diagonal"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -636,7 +636,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "lasso"],
             summary="Fit L1-penalized (lasso) regression with CV/IC lambda selection",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (default: first numeric column)"),
                 OptionSpec(name="lambda", type=String, default="auto", description="L1 penalty: auto (CV path) or a non-negative number"),
@@ -655,7 +655,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "ridge"],
             summary="Fit L2-penalized (ridge) regression with CV/IC lambda selection",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (default: first numeric column)"),
                 OptionSpec(name="lambda", type=String, default="auto", description="L2 penalty: auto (CV path) or a non-negative number"),
@@ -674,7 +674,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "elastic-net"],
             summary="Fit elastic-net regression with L1/L2 mixing and CV/IC lambda selection",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (default: first numeric column)"),
                 OptionSpec(name="alpha", type=Float64, default=0.5, description="L1/L2 mixing in [0,1] (1=lasso, 0=ridge)"),
@@ -694,7 +694,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "robust"],
             summary="Fit robust M/MM regression resistant to outliers",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (default: first numeric column)"),
                 OptionSpec(name="psi", type=String, default="huber", description="ψ (weight) function: huber|bisquare", choices=["huber","bisquare"]),
@@ -713,11 +713,11 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "tobit"],
             summary="Fit censored (tobit) regression with censoring bounds",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (default: first numeric column)"),
                 OptionSpec(name="lower", type=Float64, default=0.0, description="Lower censoring bound"),
-                OptionSpec(name="upper", type=Float64, default=Inf, description="Upper censoring bound (default: none)"),
+                OptionSpec(name="upper", type=Float64, default=Inf, description="Upper censoring bound (Inf = uncensored above)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -735,11 +735,11 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "truncreg"],
             summary="Fit truncated-normal regression over a strictly interior sample",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (default: first numeric column)"),
                 OptionSpec(name="lower", type=Float64, default=0.0, description="Lower truncation bound"),
-                OptionSpec(name="upper", type=Float64, default=Inf, description="Upper truncation bound (default: none)"),
+                OptionSpec(name="upper", type=Float64, default=Inf, description="Upper truncation bound (Inf = untruncated above)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -760,7 +760,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "heckman"],
             summary="Fit a Heckman sample-selection model (two-step Heckit or FIML)",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Outcome variable column name (default: first numeric column)"),
                 OptionSpec(name="select", type=String, default="", description="Binary selection-indicator column (0/1), required"),
@@ -786,7 +786,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "statespace"],
             summary="Fit a local-level/local-linear-trend (or general --config) state-space model",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="1-based numeric column to model"),
                 OptionSpec(name="model", type=String, default="local-level", description="local-level | local-linear-trend (ignored with --config)", choices=["local-level","local-linear-trend"]),
@@ -811,7 +811,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "tvp"],
             summary="Fit time-varying-parameter regression with random-walk coefficients",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (default: first numeric column)"),
                 OptionSpec(name="init-mode", type=String, default="kappa", description="Kalman initialization: kappa | diffuse", choices=["kappa","diffuse"]),
@@ -832,7 +832,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "kde"],
             summary="Estimate a univariate kernel density on an evaluation grid",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="1-based numeric column"),
                 OptionSpec(name="kernel", type=String, default="gaussian", description="gaussian | epanechnikov | triangular | uniform", choices=["gaussian","epanechnikov","triangular","uniform"]),
@@ -853,7 +853,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "kernel-reg"],
             summary="Fit Nadaraya-Watson/local-linear/local-polynomial kernel regression",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Response variable column name (default: first numeric column)"),
                 OptionSpec(name="indep", type=String, default="", description="Single predictor column name (required)"),
@@ -875,7 +875,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "lowess"],
             summary="Fit LOWESS locally-weighted smoothing with robustifying passes",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Response variable column name (default: first numeric column)"),
                 OptionSpec(name="indep", type=String, default="", description="Single predictor column name (required)"),
@@ -900,7 +900,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "cointreg"],
             summary="Estimate a cointegrating regression by FMOLS/CCR/DOLS",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent (levels) column name (default: first numeric column)"),
                 OptionSpec(name="method", type=String, default="fmols", description="fmols|ccr|dols", choices=["fmols","ccr","dols"]),
@@ -925,7 +925,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "xtcointreg"],
             summary="Estimate a panel cointegrating regression by FMOLS/DOLS (group-mean or pooled)",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="id-col", type=String, default="", description="Panel group id column (default: first column)"),
                 OptionSpec(name="time-col", type=String, default="", description="Panel time column (default: second column)"),
@@ -962,7 +962,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "ardl"],
             summary="Fit linear ARDL with long-run multipliers and ECM speed",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent column name (default: first numeric column)"),
                 OptionSpec(name="p", type=String, default="auto", description="AR order: auto or an integer ≥ 1"),
@@ -988,7 +988,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "nardl"],
             summary="Fit asymmetric NARDL with theta+/theta- and dynamic multipliers",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent column name (default: first numeric column)"),
                 OptionSpec(name="asymmetric", type=String, default="all", description="'all' or comma-separated 1-based regressor indices to split into +/- partial sums"),
@@ -1029,7 +1029,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "pmg"],
             summary="Fit a dynamic heterogeneous-panel ARDL (PMG/MG/DFE)",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="id-col", type=String, default="", description="Panel group id column (default: first column)"),
                 OptionSpec(name="time-col", type=String, default="", description="Panel time column (default: second column)"),
@@ -1100,7 +1100,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "threshold"],
             summary="Fit threshold regression splitting the sample at gamma",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
                 OptionSpec(name="threshold-col", type=String, default="", description="Required: the variable that splits the sample (excluded from the regressors)"),
@@ -1126,7 +1126,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "setar"],
             summary="Fit two-regime self-exciting SETAR with Hansen CI",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
                 OptionSpec(name="p", type=Int, default=1, description="AR order (≥ 1)"),
@@ -1158,7 +1158,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "star"],
             summary="Fit smooth-transition STAR with lstr1|lstr2|estr transition",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
                 OptionSpec(name="p", type=Int, default=1, description="AR order (≥ 1)"),
@@ -1191,7 +1191,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "ms-ar"],
             summary="Fit Hamilton mean-switching MS-AR with common AR block",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
                 OptionSpec(name="p", type=Int, default=1, description="AR order (≥ 1)"),
@@ -1226,7 +1226,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "ms"],
             summary="Fit K-state Markov-switching regression, all coefficients switch",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
                 OptionSpec(name="k-regimes", type=Int, default=2, description="Number of regimes (≥ 2)"),
@@ -1253,7 +1253,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "fastica"],
             summary="Non-Gaussian SVAR identification (fastica|jade|sobi|dcov|hsic) on a VAR",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
                 OptionSpec(name="method", type=String, default="fastica", description="fastica|jade|sobi|dcov|hsic", choices=["fastica", "jade", "sobi", "dcov", "hsic"]),
@@ -1272,7 +1272,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "ml"],
             summary="Non-Gaussian SVAR identification by ML over Student-t/mixture/PML/skew-normal shocks",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
                 OptionSpec(name="distribution", short="d", type=String, default="student_t", description="student_t|mixture_normal|pml|skew_normal", choices=["student_t", "mixture_normal", "pml", "skew_normal"]),
@@ -1292,7 +1292,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "pvar"],
             summary="Fit a panel VAR by GMM (difference/system) or FEOLS",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to panel data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="id-col", type=String, default="", description="Panel group identifier column (required)"),
                 OptionSpec(name="time-col", type=String, default="", description="Time period column (required)"),
@@ -1322,7 +1322,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "vecm"],
             summary="Johansen/Engle-Granger VECM with automatic rank selection",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels, VECM uses p-1)"),
                 OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|0|1|2|…)"),
@@ -1345,7 +1345,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "svar"],
             summary="AB-model SVAR by ML over a recursive/BQ/restriction pattern",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
                 OptionSpec(name="pattern", type=String, default="recursive", description="AB-model pattern: recursive|blanchard-quah|a-model|b-model|ab-model", choices=["recursive", "blanchard-quah", "a-model", "b-model", "ab-model"]),
@@ -1371,7 +1371,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "svec"],
             summary="Structural VECM (KPSW default or custom long/short-run zeros)",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels, VECM uses p-1)"),
                 OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|0|1|2|…)"),
@@ -1400,7 +1400,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "smm"],
             summary="Estimate SMM by simulating moments from a TOML specification",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="config", type=String, default="", description="Config file for the SMM specification; TOML or a model card"),
                 OptionSpec(name="weighting", type=String, default="two_step", description="identity|two_step (optimal|iterated|twostep accepted as aliases of two_step)"),
@@ -1418,7 +1418,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "favar"],
             summary="Factor-augmented VAR (two-step or Bayesian)",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="factors", short="r", type=Int, default=nothing, description="Number of factors (default: auto via IC)"),
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="VAR lag order"),
@@ -1442,7 +1442,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "sdfm"],
             summary="Structural DFM (FGLR or legacy GDFM-VAR) with q auto-selection",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="factors", short="q", type=Int, default=nothing, description="Number of dynamic factors (default: auto via --q-method)"),
                 OptionSpec(name="id", type=String, default="cholesky", description=_SDFM_ID_DESC),
@@ -1473,7 +1473,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "reg"],
             summary="Fit OLS (or WLS with --weights) linear regression",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 # W10/#112: cov-type is WIDENED with `conley` for THIS leaf only. REG_OPTIONS
                 # is shared with logit/probit/ologit/oprobit/mlogit and the predict/residuals
@@ -1516,7 +1516,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "select"],
             summary="Select regressors by forward/backward/bidirectional/best-subset/GETS search and refit",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
                 OptionSpec(name="method", type=String, default="bidirectional", description="Search strategy", choices=["forward","backward","bidirectional","best-subset","gets"]),
@@ -1540,7 +1540,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "iv"],
             summary="Fit 2SLS/LIML/Fuller/k-class IV regression with first-stage diagnostics",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (default: first numeric column)"),
                 OptionSpec(name="endogenous", type=String, default="", description="Endogenous regressor column names, comma-separated (required)"),
@@ -1563,7 +1563,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "sur"],
             summary="Fit seemingly-unrelated regressions (SUR) by FGLS over an equation system",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="config", type=String, default="", description="Config file listing the equations as dep = indep, ...; required; TOML or a model card"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -1583,7 +1583,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "3sls"],
             summary="Fit three-stage least squares (3SLS) over an instrumented equation system",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="config", type=String, default="", description="Config file listing the equations as dep = indep, ... plus instruments; required; TOML or a model card"),
                 OptionSpec(name="instruments", type=String, default="common", choices=["common","perequation"], description="common|perequation instrument sets"),
@@ -1606,7 +1606,7 @@ function estimate_specs()::Vector{CommandSpec}
             # plot_result(::SARIMAModel) finds nothing and would have wrongly ruled plots out).
             path=["estimate", "sarima"],
             summary="Fit seasonal SARIMA(p,d,q)(P,D,Q)[s] with auto-selection",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[SARIMA_OPTIONS...,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -1622,7 +1622,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "poisson"],
             summary="Fit Poisson count regression by pseudo-ML (QMLE sandwich by default)",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[COUNT_COMMON_OPTIONS...,
                 # Upstream's own choice set and default: estimate_poisson defaults to the
                 # Gourieroux-Monfort-Trognon pseudo-ML sandwich, which stays consistent under
@@ -1650,7 +1650,7 @@ function estimate_specs()::Vector{CommandSpec}
             # joint (beta, log alpha) information matrix).
             path=["estimate", "nbreg"],
             summary="Fit negative-binomial (NB2) count regression with an overdispersion parameter",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[COUNT_COMMON_OPTIONS...,
                 OptionSpec(name="maxiter", type=Int, default=1000, description="Maximum iterations (≥ 1)"),
                 OptionSpec(name="tol", type=Float64, default=1e-10, description="Convergence tolerance (> 0)"),
@@ -1670,7 +1670,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "logit"],
             summary="Fit binary logit regression by IRLS",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 REG_OPTIONS...,
                 OptionSpec(name="maxiter", type=Int, default=100, description="Maximum IRLS iterations"),
@@ -1687,7 +1687,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "probit"],
             summary="Fit binary probit regression by IRLS",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 REG_OPTIONS...,
                 OptionSpec(name="maxiter", type=Int, default=100, description="Maximum IRLS iterations"),
@@ -1704,7 +1704,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "preg"],
             summary="Fit panel regression (within/between/RE/FD/CRE/GMM) with cluster-robust SEs",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to panel data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 # cov-type is WIDENED to include pcse for THIS leaf only, and the two new
                 # options are appended HERE rather than to PREG_OPTIONS: that const is
@@ -1758,7 +1758,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "piv"],
             summary="Fit panel IV regression (FE-IV, EC2SLS, FD-IV or Hausman-Taylor)",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to panel data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (required)"),
                 OptionSpec(name="exog", type=String, default="", description="Exogenous variables (comma-separated)"),
@@ -1782,7 +1782,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "plogit"],
             summary="Fit panel logit regression (pooled|fe|re|cre)",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to panel data file or handle stem (.csv, .jld2, .jls)")],
             options=map(o -> o.name == "cov-type" ?
                     OptionSpec(name="cov-type", type=String, default="cluster",
                                choices=["ols", "cluster"],
@@ -1802,7 +1802,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "pprobit"],
             summary="Fit panel probit regression (pooled|re|cre; no within estimator)",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV panel data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to panel data file or handle stem (.csv, .jld2, .jls)")],
             options=map(o -> o.name == "cov-type" ?
                     OptionSpec(name="cov-type", type=String, default="cluster",
                                choices=["ols", "cluster"],
@@ -1826,7 +1826,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "ologit"],
             summary="Fit ordered logit regression with estimated cutpoints",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 map(o -> o.name == "cov-type" ?
                         OptionSpec(name="cov-type", type=String, default="hc1",
@@ -1846,7 +1846,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "oprobit"],
             summary="Fit ordered probit regression with estimated cutpoints",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 map(o -> o.name == "cov-type" ?
                         OptionSpec(name="cov-type", type=String, default="hc1",
@@ -1866,7 +1866,7 @@ function estimate_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["estimate", "mlogit"],
             summary="Fit multinomial logit regression over unordered categories",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column name"),
                 OptionSpec(name="cov-type", type=String, default="ols", description="ols|hc0|hc1|cluster"),
@@ -2065,7 +2065,7 @@ function _estimate_lp(; data::String, method::String="standard", shock::Int=1,
         ar_grid == 401 || push!(set, "--ar-grid")
         ar_span == 20.0 || push!(set, "--ar-span")
         isempty(set) || throw(CliError("usage/invalid",
-            "estimate lp: $(join(set, ", ")) applies only to --method iv (got --method $method)"))
+            "estimate multivariate lp: $(join(set, ", ")) applies only to --method iv (got --method $method)"))
     end
     if method == "standard"
         return _estimate_lp_standard(data, shock, horizons, control_lags, vcov, output, format)
@@ -2150,23 +2150,23 @@ function _estimate_lp_iv(data, shock, horizons, control_lags, vcov, instruments,
                          ar_span::Float64=20.0)
     # was a bare error() → untyped exit 1 for an ordinary missing-option mistake
     isempty(instruments) && throw(CliError("usage/missing",
-        "estimate lp --method iv requires --instruments <file.csv>";
+        "estimate multivariate lp --method iv requires --instruments <file.csv>";
         hint="the instruments live in their own CSV, one column per excluded instrument"))
     # MOP publishes only the four tabulated simplified critical values; anything else is an
     # untyped ArgumentError from inside the estimator.
     if mop_f
         mop_tau in (0.05, 0.10, 0.20, 0.30) || throw(CliError("usage/invalid",
-            "estimate lp: --mop-tau must be one of 0.05, 0.10, 0.20, 0.30 (got $mop_tau)"))
+            "estimate multivariate lp: --mop-tau must be one of 0.05, 0.10, 0.20, 0.30 (got $mop_tau)"))
         mop_bandwidth >= 0 || throw(CliError("usage/invalid",
-            "estimate lp: --mop-bandwidth must be ≥ 0 (got $mop_bandwidth)"))
+            "estimate multivariate lp: --mop-bandwidth must be ≥ 0 (got $mop_bandwidth)"))
     end
     if ar_bands
         (0.0 < ar_level < 1.0) || throw(CliError("usage/invalid",
-            "estimate lp: --ar-level must be in (0, 1) (got $ar_level)"))
+            "estimate multivariate lp: --ar-level must be in (0, 1) (got $ar_level)"))
         ar_grid >= 5 || throw(CliError("usage/invalid",
-            "estimate lp: --ar-grid must be ≥ 5 (got $ar_grid)"))
+            "estimate multivariate lp: --ar-grid must be ≥ 5 (got $ar_grid)"))
         ar_span > 0.0 || throw(CliError("usage/invalid",
-            "estimate lp: --ar-span must be > 0 (got $ar_span)"))
+            "estimate multivariate lp: --ar-span must be > 0 (got $ar_span)"))
     end
 
     Y, varnames = load_multivariate_data(data)
@@ -2542,7 +2542,7 @@ function _estimate_sarima(; data::String, column::Int=1, p=nothing, d::Int=0, q:
                            output::String="", format::String="table")
     model, vname, used_auto = _sarima_fit(data, column, p, d, q, P, D, Q, s, auto,
                                           max_p, max_q, max_P, max_Q, criterion, method,
-                                          max_iter, no_intercept, "estimate sarima")
+                                          max_iter, no_intercept, "estimate univariate sarima")
     lbl = _sarima_label(model)
     _status(used_auto ? "Auto SARIMA (s=$s): variable=$vname → $lbl" :
                         "Estimating $lbl: variable=$vname")
@@ -2569,16 +2569,16 @@ function _forecast_sarima(; data::String="", result=nothing, column::Int=1, p=no
                            horizons::Int=12, ci_level::Float64=0.95,
                            plot::Bool=false, plot_save::String="",
                            output::String="", format::String="table", model=nothing)
-    loaded = _loaded_result(result; data, model, leaf="forecast sarima")
+    loaded = _loaded_result(result; data, model, leaf="forecast univariate sarima")
     loaded === nothing || return _rerender_long_table(loaded; format, output,
         title="SARIMA Forecast", key="sarima_forecast", plot, plot_save)
     horizons >= 1 || throw(CliError("usage/invalid",
-        "forecast sarima: --horizons must be ≥ 1 (got $horizons)"))
+        "forecast univariate sarima: --horizons must be ≥ 1 (got $horizons)"))
     (0 < ci_level < 1) || throw(CliError("usage/invalid",
-        "forecast sarima: --ci-level must satisfy 0 < level < 1 (got $ci_level)"))
+        "forecast univariate sarima: --ci-level must satisfy 0 < level < 1 (got $ci_level)"))
     model, vname, _ = _sarima_fit(data, column, p, d, q, P, D, Q, s, auto,
                                   max_p, max_q, max_P, max_Q, criterion, method,
-                                  max_iter, no_intercept, "forecast sarima")
+                                  max_iter, no_intercept, "forecast univariate sarima")
     lbl = _sarima_label(model)
     _status("$lbl forecast (h=$horizons): variable=$vname, ci=$ci_level"); _status()
     fc = try
@@ -2602,7 +2602,7 @@ function _predict_sarima(; data::String="", column::Int=1, p=nothing, d::Int=0, 
     m, vname = if model === nothing
         mm, vn, _ = _sarima_fit(data, column, p, d, q, P, D, Q, s, auto, max_p, max_q,
                                 max_P, max_Q, criterion, method, max_iter, no_intercept,
-                                "predict sarima")
+                                "predict univariate sarima")
         (mm, vn)
     else
         (model, "model")
@@ -2624,7 +2624,7 @@ function _residuals_sarima(; data::String="", column::Int=1, p=nothing, d::Int=0
     m, vname = if model === nothing
         mm, vn, _ = _sarima_fit(data, column, p, d, q, P, D, Q, s, auto, max_p, max_q,
                                 max_P, max_Q, criterion, method, max_iter, no_intercept,
-                                "residuals sarima")
+                                "residuals univariate sarima")
         (mm, vn)
     else
         (model, "model")
@@ -2724,14 +2724,14 @@ function _forecast_arfima(; data::String="", result=nothing, column::Int=1, p::I
         horizons::Int=12, confidence::Float64=0.95, trunc_lag::Int=200,
         output::String="", format::String="table",
         plot::Bool=false, plot_save::String="", model=nothing)
-    loaded = _loaded_result(result; data, model, leaf="forecast arfima")
+    loaded = _loaded_result(result; data, model, leaf="forecast univariate arfima")
     loaded === nothing || return _rerender_long_table(loaded; format, output,
         title="ARFIMA Forecast", key="arfima_forecast", plot, plot_save)
-    horizons >= 1 || throw(CliError("usage/invalid", "forecast arfima: --horizons must be ≥ 1 (got $horizons)"))
+    horizons >= 1 || throw(CliError("usage/invalid", "forecast univariate arfima: --horizons must be ≥ 1 (got $horizons)"))
     (0.0 < confidence < 1.0) || throw(CliError("usage/invalid",
-        "forecast arfima: --confidence must be in (0, 1) (got $confidence)"))
+        "forecast univariate arfima: --confidence must be in (0, 1) (got $confidence)"))
     trunc_lag >= 1 || throw(CliError("usage/invalid",
-        "forecast arfima: --trunc-lag must be ≥ 1 (got $trunc_lag)"))
+        "forecast univariate arfima: --trunc-lag must be ≥ 1 (got $trunc_lag)"))
     m, vname = _arfima_refit(data, column, p, q, method, d0, max_iter, model)
     _status("ARFIMA($p,d,$q) Forecast: variable=$vname, horizons=$horizons"); _status()
     fc = try
@@ -2859,7 +2859,7 @@ function _estimate_gmm(; data::String, config::String="",
     has_theta0 = !isempty(gmm_cfg["theta0"])
     if has_dep ⊻ has_theta0
         throw(CliError("config/invalid",
-            "estimate gmm: IV-GMM requires both [gmm].dep and [gmm].theta0 (got dep=$(isempty(gmm_cfg["dep"]) ? "missing" : "set"), theta0=$(has_theta0 ? "set" : "missing"))";
+            "estimate regression gmm: IV-GMM requires both [gmm].dep and [gmm].theta0 (got dep=$(isempty(gmm_cfg["dep"]) ? "missing" : "set"), theta0=$(has_theta0 ? "set" : "missing"))";
             hint="omit both to keep the LP-GMM default, or set both for IV-GMM"))
     end
     has_dep && return _estimate_gmm_iv(data, gmm_cfg, w, weighting, output, format)
@@ -2931,7 +2931,7 @@ function _estimate_gmm_iv(data::String, gmm_cfg::Dict, w::Symbol, weighting::Str
     inst = gmm_cfg["instruments"]
     theta0 = gmm_cfg["theta0"]
     isempty(endog) && throw(CliError("config/invalid",
-        "estimate gmm: IV-GMM requires [gmm].endogenous (comma-free TOML array of column names)"))
+        "estimate regression gmm: IV-GMM requires [gmm].endogenous (comma-free TOML array of column names)"))
     length(inst) >= length(endog) || throw(CliError("data/invalid",
         "under-identified: need at least as many excluded instruments ($(length(inst))) as endogenous regressors ($(length(endog)))"))
 
@@ -2968,7 +2968,7 @@ function _estimate_gmm_iv(data::String, gmm_cfg::Dict, w::Symbol, weighting::Str
     Z = hcat(zparts...)
     k = size(X, 2)
     length(theta0) == k || throw(CliError("config/shape",
-        "estimate gmm: theta0 has length $(length(theta0)) but X has $k columns (intercept + endogenous + exogenous)";
+        "estimate regression gmm: theta0 has length $(length(theta0)) but X has $k columns (intercept + endogenous + exogenous)";
         hint="theta0[1] is the intercept"))
     size(Z, 2) < n || throw(CliError("data/invalid",
         "too many instruments: Z has $(size(Z, 2)) columns but only $n observations"))
@@ -3133,7 +3133,7 @@ function _estimate_gdfm(; data::String, nfactors=nothing, dynamic_rank=nothing,
     end
 
     haskey(_GDFM_SPECTRAL, spectral) || throw(CliError("usage/invalid",
-        "estimate gdfm: --spectral must be lag-window|smoothed-periodogram (got '$spectral')"))
+        "estimate factor gdfm: --spectral must be lag-window|smoothed-periodogram (got '$spectral')"))
     _status("Estimating GDFM: static rank=$r, dynamic rank=$q, spectral=$spectral")
     _status()
 
@@ -3302,12 +3302,12 @@ function _estimate_svar(; data::String, lags=nothing, pattern::String="recursive
                         output::String="", format::String="table",
                         plot::Bool=false, plot_save::String="")
     n_starts >= 1 || throw(CliError("usage/invalid",
-        "estimate svar: --n-starts must be ≥ 1 (got $n_starts)"))
+        "estimate multivariate svar: --n-starts must be ≥ 1 (got $n_starts)"))
     max_iter >= 1 || throw(CliError("usage/invalid",
-        "estimate svar: --max-iter must be ≥ 1 (got $max_iter)"))
+        "estimate multivariate svar: --max-iter must be ≥ 1 (got $max_iter)"))
     model, Y, varnames, p = _load_and_estimate_var(data, lags)
     n = size(Y, 2)
-    pat = _load_svar_pattern(config, n, pattern, "estimate svar")
+    pat = _load_svar_pattern(config, n, pattern, "estimate multivariate svar")
 
     _status("Estimating SVAR($p) with $n variables: $(join(varnames, ", "))")
     _status("Pattern: $pattern, Starts: $n_starts, Max iterations: $max_iter")
@@ -3356,12 +3356,12 @@ function _estimate_svec(; data::String, lags::Int=2, rank::String="auto",
                         output::String="", format::String="table",
                         plot::Bool=false, plot_save::String="")
     n_starts >= 1 || throw(CliError("usage/invalid",
-        "estimate svec: --n-starts must be ≥ 1 (got $n_starts)"))
+        "estimate multivariate svec: --n-starts must be ≥ 1 (got $n_starts)"))
     max_iter >= 1 || throw(CliError("usage/invalid",
-        "estimate svec: --max-iter must be ≥ 1 (got $max_iter)"))
+        "estimate multivariate svec: --max-iter must be ≥ 1 (got $max_iter)"))
     vecm, Y, varnames, p = _load_and_estimate_vecm(data, lags, rank, deterministic, method, significance)
     n = size(Y, 2)
-    lr_zeros, sr_zeros = _load_svec_zeros(config, n, "estimate svec")
+    lr_zeros, sr_zeros = _load_svec_zeros(config, n, "estimate multivariate svec")
 
     _status("Estimating SVEC($(p-1)) with $n variables: $(join(varnames, ", "))")
     _status("Cointegration rank: $(cointegrating_rank(vecm)), Restrictions: " *
@@ -3562,7 +3562,7 @@ function _estimate_smm(; data::String, config::String="",
     # SMM needs a data-generating model to simulate from — that lives in the [smm] config,
     # so --config is required (unlike the other estimate leaves).
     isempty(config) && throw(CliError("config/missing",
-        "estimate smm requires --config <toml> with an [smm] section specifying a " *
+        "estimate regression smm requires --config <toml> with an [smm] section specifying a " *
         "data-generating `model` (ar1|arp|var1|iid_normal) and `theta0`. SMM matches " *
         "simulated moments to sample moments, so it needs a model to simulate."))
 
@@ -3735,22 +3735,22 @@ function _estimate_reg(; data::String, dep::String="", cov_type::String="hc1",
                    ("--time-col", !isempty(time_col)), ("--time-cutoff", time_cutoff != 0)]
     if is_conley
         (!isempty(lat) && !isempty(lon)) || throw(CliError("usage/missing",
-            "estimate reg --cov-type conley requires both --lat and --lon coordinate columns";
+            "estimate regression reg --cov-type conley requires both --lat and --lon coordinate columns";
             hint="e.g. --cov-type conley --lat latitude --lon longitude --dist-cutoff 100"))
         dist_cutoff > 0.0 || throw(CliError("usage/invalid",
-            "estimate reg: --dist-cutoff must be > 0 for --cov-type conley (got $dist_cutoff)";
+            "estimate regression reg: --dist-cutoff must be > 0 for --cov-type conley (got $dist_cutoff)";
             hint="km for --conley-metric haversine, coordinate units for euclidean"))
         time_cutoff >= 0 || throw(CliError("usage/invalid",
-            "estimate reg: --time-cutoff must be ≥ 0 (got $time_cutoff)"))
+            "estimate regression reg: --time-cutoff must be ≥ 0 (got $time_cutoff)"))
         # A time cutoff without a time column silently degrades to spatial-only, and a time
         # column with cutoff 0 does nothing — both mean the user did not get what they asked.
         (isempty(time_col) == (time_cutoff == 0)) || throw(CliError("usage/invalid",
-            "estimate reg: --time-col and --time-cutoff must be given together for " *
+            "estimate regression reg: --time-col and --time-cutoff must be given together for " *
             "spatial+serial Conley (got --time-col '$time_col', --time-cutoff $time_cutoff)"))
     else
         set = [n for (n, given) in conley_opts if given]
         isempty(set) || throw(CliError("usage/invalid",
-            "estimate reg: $(join(set, ", ")) applies only to --cov-type conley (got --cov-type $cov_type)"))
+            "estimate regression reg: $(join(set, ", ")) applies only to --cov-type conley (got --cov-type $cov_type)"))
     end
 
     coords = is_conley ? _load_coords(data, lat, lon, conley_metric) : nothing
@@ -3789,7 +3789,7 @@ function _estimate_reg(; data::String, dep::String="", cov_type::String="hc1",
     cl = _load_clusters(data, clusters)
     if cov_type == "cluster" && cl === nothing
         throw(CliError("usage/missing",
-            "estimate reg --cov-type cluster requires --clusters <column>"))
+            "estimate regression reg --cov-type cluster requires --clusters <column>"))
     end
 
     dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
@@ -3871,24 +3871,24 @@ function _estimate_select(; data::String, dep::String="", method::String="bidire
                            p_remove::Float64=0.10, keep::String="",
                            output::String="", format::String="table")
     (0.0 < p_enter < 1.0) || throw(CliError("usage/invalid",
-        "estimate select: --p-enter must be in (0, 1) (got $p_enter)"))
+        "estimate regression select: --p-enter must be in (0, 1) (got $p_enter)"))
     (0.0 < p_remove < 1.0) || throw(CliError("usage/invalid",
-        "estimate select: --p-remove must be in (0, 1) (got $p_remove)"))
+        "estimate regression select: --p-remove must be in (0, 1) (got $p_remove)"))
     # Upstream requires p_remove >= p_enter for the bidirectional p-value search; guard
     # it here so the common mistake is a usage error, not a bare ArgumentError.
     (method != "bidirectional" || criterion != "pvalue" || p_remove >= p_enter) ||
         throw(CliError("usage/invalid",
-            "estimate select: bidirectional pvalue search needs --p-remove ≥ --p-enter (got $p_remove < $p_enter)"))
+            "estimate regression select: bidirectional pvalue search needs --p-remove ≥ --p-enter (got $p_remove < $p_enter)"))
     y, X, xcols = _load_reg_data(data, dep)
     keep_idx = nothing
     if !isempty(keep)
         names = [strip(t) for t in split(keep, ",") if !isempty(strip(t))]
-        isempty(names) && throw(CliError("usage/invalid", "estimate select: --keep is empty"))
+        isempty(names) && throw(CliError("usage/invalid", "estimate regression select: --keep is empty"))
         keep_idx = Int[]
         for nm in names
             i = findfirst(==(String(nm)), xcols)
             i === nothing && throw(CliError("data/column-range",
-                "estimate select: --keep column '$nm' is not a regressor";
+                "estimate regression select: --keep column '$nm' is not a regressor";
                 hint="available: $(join(xcols, ", "))"))
             push!(keep_idx, i)
         end
@@ -3947,20 +3947,20 @@ function _estimate_iv(; data::String, dep::String="", endogenous::String="",
     kval = nothing
     if method == "kclass"
         isempty(k) && throw(CliError("usage/missing",
-            "estimate iv: --method kclass requires --k";
+            "estimate regression iv: --method kclass requires --k";
             hint="give the k-class scalar, e.g. --k 1 (k=0 is OLS, k=1 is 2SLS)"))
         kv = tryparse(Float64, k)
         (kv === nothing || !isfinite(kv)) && throw(CliError("usage/invalid",
-            "estimate iv: --k must be a finite number, got '$k'"))
+            "estimate regression iv: --k must be a finite number, got '$k'"))
         kval = kv
     elseif !isempty(k)
         throw(CliError("usage/invalid",
-            "estimate iv: --k applies only to --method kclass (got --method $method)"))
+            "estimate regression iv: --k applies only to --method kclass (got --method $method)"))
     end
     method == "fuller" || fuller_a == 1.0 || throw(CliError("usage/invalid",
-        "estimate iv: --fuller-a applies only to --method fuller (got --method $method)"))
+        "estimate regression iv: --fuller-a applies only to --method fuller (got --method $method)"))
     method != "fuller" || fuller_a > 0 || throw(CliError("usage/invalid",
-        "estimate iv: --fuller-a must be > 0 (got $fuller_a)"))
+        "estimate regression iv: --fuller-a must be > 0 (got $fuller_a)"))
 
     d = _load_iv_data(data, dep, endogenous, instruments)
     y, X, Z, xcols, endog_idx = d.y, d.X, d.Z, d.xcols, d.endog_idx
@@ -4175,7 +4175,7 @@ end
 function _estimate_sur(; data::String, config::String="", iterate::Bool=false,
                         no_intercept::Bool=false, output::String="", format::String="table")
     isempty(config) && throw(CliError("config/missing",
-        "estimate sur requires --config <toml> with [[equations]] blocks (each `dep` + `indep`)"))
+        "estimate regression sur requires --config <toml> with [[equations]] blocks (each `dep` + `indep`)"))
     df = load_data(data)
     numcols = variable_names(df)
     spec = get_system(_load_config_or_card(config, :system))
@@ -4209,7 +4209,7 @@ end
 function _estimate_3sls(; data::String, config::String="", instruments::String="common",
                          no_intercept::Bool=false, output::String="", format::String="table")
     isempty(config) && throw(CliError("config/missing",
-        "estimate 3sls requires --config <toml> with [[equations]] and instruments"))
+        "estimate regression 3sls requires --config <toml> with [[equations]] and instruments"))
     df = load_data(data)
     numcols = variable_names(df)
     spec = get_system(_load_config_or_card(config, :system))
@@ -4338,29 +4338,29 @@ function _estimate_preg(; data::String, dep::String="", indep::String="",
     # #75: Beck-Katz PCSE + Prais-Winsten AR(1). --pcse-unbalanced only affects the PCSE
     # covariance, so a mismatch is a usage error rather than a silent no-op.
     (cov_type == "pcse" || pcse_unbalanced == "casewise") || throw(CliError("usage/invalid",
-        "estimate preg: --pcse-unbalanced applies only to --cov-type pcse (got --cov-type $cov_type)"))
+        "estimate panel preg: --pcse-unbalanced applies only to --cov-type pcse (got --cov-type $cov_type)"))
 
     # ── W10/#112: high-dimensional fixed-effect absorption ──────────────────
     absorb_dims = String[strip(s) for s in split(absorb, ",") if !isempty(strip(s))]
     if !isempty(absorb_dims)
         method == "fe" || throw(CliError("usage/invalid",
-            "estimate preg: --absorb is supported only for --method fe (the within estimator), got --method $method"))
+            "estimate panel preg: --absorb is supported only for --method fe (the within estimator), got --method $method"))
         # NOT merely "mutually exclusive with --twoway": upstream computes `twoway=true` by
         # the SAME alternating projections, so pointing the user at `--absorb entity,time`
         # is the correct route on balanced AND unbalanced panels. The additive identity
         # y - ȳᵢ - ȳₜ + ȳ that a naive two-way demeaning uses is only valid when balanced.
         twoway && throw(CliError("usage/invalid",
-            "estimate preg: --absorb and --twoway are mutually exclusive";
+            "estimate panel preg: --absorb and --twoway are mutually exclusive";
             hint="pass --absorb entity,time to absorb entity and time fixed effects"))
         length(unique(absorb_dims)) == length(absorb_dims) || throw(CliError("usage/invalid",
-            "estimate preg: --absorb contains duplicate dimensions ($(join(absorb_dims, ", ")))"))
+            "estimate panel preg: --absorb contains duplicate dimensions ($(join(absorb_dims, ", ")))"))
         hdfe_tol > 0 || throw(CliError("usage/invalid",
-            "estimate preg: --hdfe-tol must be > 0 (got $hdfe_tol)"))
+            "estimate panel preg: --hdfe-tol must be > 0 (got $hdfe_tol)"))
         hdfe_maxiter >= 1 || throw(CliError("usage/invalid",
-            "estimate preg: --hdfe-maxiter must be ≥ 1 (got $hdfe_maxiter)"))
+            "estimate panel preg: --hdfe-maxiter must be ≥ 1 (got $hdfe_maxiter)"))
     else
         (hdfe_tol == 1e-8 && hdfe_maxiter == 1000) || throw(CliError("usage/invalid",
-            "estimate preg: --hdfe-tol/--hdfe-maxiter apply only with --absorb"))
+            "estimate panel preg: --hdfe-tol/--hdfe-maxiter apply only with --absorb"))
     end
 
     # ── W10/#131: instrument-proliferation controls (MEMs#549) ──────────────
@@ -4369,12 +4369,12 @@ function _estimate_preg(; data::String, dep::String="", indep::String="",
     is_gmm = method in ("ab", "bb")
     if is_gmm
         min_lag_endo >= 1 || throw(CliError("usage/invalid",
-            "estimate preg: --min-lag-endo must be ≥ 1 (got $min_lag_endo)"))
+            "estimate panel preg: --min-lag-endo must be ≥ 1 (got $min_lag_endo)"))
         max_lag_endo >= min_lag_endo || throw(CliError("usage/invalid",
-            "estimate preg: --max-lag-endo must be ≥ --min-lag-endo (got $max_lag_endo < $min_lag_endo)"))
+            "estimate panel preg: --max-lag-endo must be ≥ --min-lag-endo (got $max_lag_endo < $min_lag_endo)"))
     elseif collapse || min_lag_endo != 2 || max_lag_endo != 99
         throw(CliError("usage/invalid",
-            "estimate preg: --collapse/--min-lag-endo/--max-lag-endo apply only to --method ab|bb (got --method $method)";
+            "estimate panel preg: --collapse/--min-lag-endo/--max-lag-endo apply only to --method ab|bb (got --method $method)";
             hint="these shape the dynamic-panel GMM instrument matrix; use --method ab or bb"))
     end
 
@@ -4846,7 +4846,7 @@ function _estimate_poisson(; data::String, dep::String="", offset::String="",
                             clusters::String="", maxiter::Int=100, tol::Float64=1e-10,
                             conf_level::Float64=0.95, irr::Bool=false,
                             output::String="", format::String="table")
-    _count_guards(maxiter, tol, conf_level, "estimate poisson")
+    _count_guards(maxiter, tol, conf_level, "estimate choice poisson")
     model, xcols = _fit_poisson(data, dep, offset, exposure, cov_type, clusters, maxiter, tol)
     dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
     _status("Poisson Regression: $dep_name ~ $(join(xcols, " + "))")
@@ -4869,7 +4869,7 @@ function _estimate_nbreg(; data::String, dep::String="", offset::String="",
                           exposure::String="", maxiter::Int=1000, tol::Float64=1e-10,
                           conf_level::Float64=0.95, irr::Bool=false,
                           output::String="", format::String="table")
-    _count_guards(maxiter, tol, conf_level, "estimate nbreg")
+    _count_guards(maxiter, tol, conf_level, "estimate choice nbreg")
     model, xcols = _fit_nbreg(data, dep, offset, exposure, maxiter, tol)
     dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
     _status("Negative Binomial (NB2) Regression: $dep_name ~ $(join(xcols, " + "))")
@@ -4902,7 +4902,7 @@ function _predict_poisson(; data::String="", dep::String="", offset::String="",
                            exposure::String="", cov_type::String="robust",
                            clusters::String="", maxiter::Int=100, tol::Float64=1e-10,
                            output::String="", format::String="table", model=nothing)
-    _count_guards(maxiter, tol, 0.95, "predict poisson")
+    _count_guards(maxiter, tol, 0.95, "predict choice poisson")
     m = model === nothing ?
         first(_fit_poisson(data, dep, offset, exposure, cov_type, clusters, maxiter, tol)) : model
     _status("Poisson conditional means: n=$(length(predict(m)))"); _status()
@@ -4916,7 +4916,7 @@ end
 function _predict_nbreg(; data::String="", dep::String="", offset::String="",
                          exposure::String="", maxiter::Int=1000, tol::Float64=1e-10,
                          output::String="", format::String="table", model=nothing)
-    _count_guards(maxiter, tol, 0.95, "predict nbreg")
+    _count_guards(maxiter, tol, 0.95, "predict choice nbreg")
     m = model === nothing ? first(_fit_nbreg(data, dep, offset, exposure, maxiter, tol)) : model
     mu = predict(m)
     _status("Negative binomial conditional means: n=$(length(mu))"); _status()
@@ -4930,7 +4930,7 @@ function _residuals_poisson(; data::String="", dep::String="", offset::String=""
                              exposure::String="", cov_type::String="robust",
                              clusters::String="", maxiter::Int=100, tol::Float64=1e-10,
                              output::String="", format::String="table", model=nothing)
-    _count_guards(maxiter, tol, 0.95, "residuals poisson")
+    _count_guards(maxiter, tol, 0.95, "residuals choice poisson")
     m = model === nothing ?
         first(_fit_poisson(data, dep, offset, exposure, cov_type, clusters, maxiter, tol)) : model
     r = residuals(m)
@@ -4944,7 +4944,7 @@ end
 function _residuals_nbreg(; data::String="", dep::String="", offset::String="",
                            exposure::String="", maxiter::Int=1000, tol::Float64=1e-10,
                            output::String="", format::String="table", model=nothing)
-    _count_guards(maxiter, tol, 0.95, "residuals nbreg")
+    _count_guards(maxiter, tol, 0.95, "residuals choice nbreg")
     m = model === nothing ? first(_fit_nbreg(data, dep, offset, exposure, maxiter, tol)) : model
     r = residuals(m)
     _status("Negative binomial residuals: n=$(length(r))"); _status()
@@ -5171,7 +5171,7 @@ _vol_variant_cond_var(m) = hasmethod(predict, Tuple{typeof(m)}) ? predict(m) :
 function _forecast_igarch(; data::String="", result=nothing, column::Int=1, p::Int=1, q::Int=1, horizons::Int=10,
         conf_level::Float64=0.95, model=nothing, output::String="", format::String="table",
         plot::Bool=false, plot_save::String="")
-    loaded = _loaded_result(result; data, model, leaf="forecast igarch")
+    loaded = _loaded_result(result; data, model, leaf="forecast volatility igarch")
     if loaded !== nothing
         h = hasproperty(loaded, :horizon) ? Int(loaded.horizon) : horizons
         _vol_forecast_output(loaded, "result", "IGARCH($p,$q)", h; format=format, output=output,
@@ -5179,9 +5179,9 @@ function _forecast_igarch(; data::String="", result=nothing, column::Int=1, p::I
         _maybe_plot(loaded; plot=plot, plot_save=plot_save)
         return loaded
     end
-    horizons >= 1 || throw(CliError("usage/invalid", "forecast igarch: --horizons must be ≥ 1 (got $horizons)"))
+    horizons >= 1 || throw(CliError("usage/invalid", "forecast volatility igarch: --horizons must be ≥ 1 (got $horizons)"))
     (0.0 < conf_level < 1.0) || throw(CliError("usage/invalid",
-        "forecast igarch: --conf-level must be in (0, 1) (got $conf_level)"))
+        "forecast volatility igarch: --conf-level must be in (0, 1) (got $conf_level)"))
     y, vname = load_univariate_series(data, column)
     m = model === nothing ?
         (try; estimate_igarch(y, p, q); catch e; throw(_garch_variant_error(e, "IGARCH")); end) : model
@@ -5220,7 +5220,7 @@ end
 function _forecast_cgarch(; data::String="", result=nothing, column::Int=1, horizons::Int=10,
         conf_level::Float64=0.95, model=nothing, output::String="", format::String="table",
         plot::Bool=false, plot_save::String="")
-    loaded = _loaded_result(result; data, model, leaf="forecast cgarch")
+    loaded = _loaded_result(result; data, model, leaf="forecast volatility cgarch")
     if loaded !== nothing
         h = hasproperty(loaded, :horizon) ? Int(loaded.horizon) : horizons
         _vol_forecast_output(loaded, "result", "Component-GARCH(1,1)", h; format=format, output=output,
@@ -5228,9 +5228,9 @@ function _forecast_cgarch(; data::String="", result=nothing, column::Int=1, hori
         _maybe_plot(loaded; plot=plot, plot_save=plot_save)
         return loaded
     end
-    horizons >= 1 || throw(CliError("usage/invalid", "forecast cgarch: --horizons must be ≥ 1 (got $horizons)"))
+    horizons >= 1 || throw(CliError("usage/invalid", "forecast volatility cgarch: --horizons must be ≥ 1 (got $horizons)"))
     (0.0 < conf_level < 1.0) || throw(CliError("usage/invalid",
-        "forecast cgarch: --conf-level must be in (0, 1) (got $conf_level)"))
+        "forecast volatility cgarch: --conf-level must be in (0, 1) (got $conf_level)"))
     y, vname = load_univariate_series(data, column)
     m = model === nothing ?
         (try; estimate_cgarch(y); catch e; throw(_garch_variant_error(e, "Component-GARCH")); end) : model
@@ -5269,7 +5269,7 @@ end
 function _forecast_aparch(; data::String="", result=nothing, column::Int=1, p::Int=1, q::Int=1, fix_delta=nothing, fix_gamma=nothing, horizons::Int=10,
         conf_level::Float64=0.95, model=nothing, output::String="", format::String="table",
         plot::Bool=false, plot_save::String="")
-    loaded = _loaded_result(result; data, model, leaf="forecast aparch")
+    loaded = _loaded_result(result; data, model, leaf="forecast volatility aparch")
     if loaded !== nothing
         h = hasproperty(loaded, :horizon) ? Int(loaded.horizon) : horizons
         _vol_forecast_output(loaded, "result", "APARCH($p,$q)", h; format=format, output=output,
@@ -5277,9 +5277,9 @@ function _forecast_aparch(; data::String="", result=nothing, column::Int=1, p::I
         _maybe_plot(loaded; plot=plot, plot_save=plot_save)
         return loaded
     end
-    horizons >= 1 || throw(CliError("usage/invalid", "forecast aparch: --horizons must be ≥ 1 (got $horizons)"))
+    horizons >= 1 || throw(CliError("usage/invalid", "forecast volatility aparch: --horizons must be ≥ 1 (got $horizons)"))
     (0.0 < conf_level < 1.0) || throw(CliError("usage/invalid",
-        "forecast aparch: --conf-level must be in (0, 1) (got $conf_level)"))
+        "forecast volatility aparch: --conf-level must be in (0, 1) (got $conf_level)"))
     y, vname = load_univariate_series(data, column)
     m = model === nothing ?
         (try; estimate_aparch(y, p, q; fix_delta=(fix_delta === nothing ? nothing : Float64(fix_delta)), fix_gamma=(fix_gamma === nothing ? nothing : Float64(fix_gamma))); catch e; throw(_garch_variant_error(e, "APARCH")); end) : model
@@ -5318,7 +5318,7 @@ end
 function _forecast_figarch(; data::String="", result=nothing, column::Int=1, p::Int=1, q::Int=1, d0::Float64=0.4, truncation::Int=1000, dist::String="normal", horizons::Int=10,
         conf_level::Float64=0.95, model=nothing, output::String="", format::String="table",
         plot::Bool=false, plot_save::String="")
-    loaded = _loaded_result(result; data, model, leaf="forecast figarch")
+    loaded = _loaded_result(result; data, model, leaf="forecast volatility figarch")
     if loaded !== nothing
         h = hasproperty(loaded, :horizon) ? Int(loaded.horizon) : horizons
         _vol_forecast_output(loaded, "result", "FIGARCH($p,d,$q)", h; format=format, output=output,
@@ -5326,9 +5326,9 @@ function _forecast_figarch(; data::String="", result=nothing, column::Int=1, p::
         _maybe_plot(loaded; plot=plot, plot_save=plot_save)
         return loaded
     end
-    horizons >= 1 || throw(CliError("usage/invalid", "forecast figarch: --horizons must be ≥ 1 (got $horizons)"))
+    horizons >= 1 || throw(CliError("usage/invalid", "forecast volatility figarch: --horizons must be ≥ 1 (got $horizons)"))
     (0.0 < conf_level < 1.0) || throw(CliError("usage/invalid",
-        "forecast figarch: --conf-level must be in (0, 1) (got $conf_level)"))
+        "forecast volatility figarch: --conf-level must be in (0, 1) (got $conf_level)"))
     y, vname = load_univariate_series(data, column)
     m = model === nothing ?
         (try; estimate_figarch(y; p=p, q=q, d0=d0, truncation=truncation, dist=Symbol(dist)); catch e; throw(_garch_variant_error(e, "FIGARCH")); end) : model
@@ -5367,7 +5367,7 @@ end
 function _forecast_fiegarch(; data::String="", result=nothing, column::Int=1, p::Int=1, q::Int=1, d0::Float64=0.4, truncation::Int=1000, dist::String="normal", horizons::Int=10,
         conf_level::Float64=0.95, model=nothing, output::String="", format::String="table",
         plot::Bool=false, plot_save::String="")
-    loaded = _loaded_result(result; data, model, leaf="forecast fiegarch")
+    loaded = _loaded_result(result; data, model, leaf="forecast volatility fiegarch")
     if loaded !== nothing
         h = hasproperty(loaded, :horizon) ? Int(loaded.horizon) : horizons
         _vol_forecast_output(loaded, "result", "FIEGARCH($p,d,$q)", h; format=format, output=output,
@@ -5375,9 +5375,9 @@ function _forecast_fiegarch(; data::String="", result=nothing, column::Int=1, p:
         _maybe_plot(loaded; plot=plot, plot_save=plot_save)
         return loaded
     end
-    horizons >= 1 || throw(CliError("usage/invalid", "forecast fiegarch: --horizons must be ≥ 1 (got $horizons)"))
+    horizons >= 1 || throw(CliError("usage/invalid", "forecast volatility fiegarch: --horizons must be ≥ 1 (got $horizons)"))
     (0.0 < conf_level < 1.0) || throw(CliError("usage/invalid",
-        "forecast fiegarch: --conf-level must be in (0, 1) (got $conf_level)"))
+        "forecast volatility fiegarch: --conf-level must be in (0, 1) (got $conf_level)"))
     y, vname = load_univariate_series(data, column)
     m = model === nothing ?
         (try; estimate_fiegarch(y; p=p, q=q, d0=d0, truncation=truncation, dist=Symbol(dist)); catch e; throw(_garch_variant_error(e, "FIEGARCH")); end) : model
@@ -5442,10 +5442,10 @@ end
 function _forecast_garch_midas(; data::String="", result=nothing, column::Int=1, m_freq::Int=0, k::Int=12,
         rv::String="realized", span::String="fixed", config::String="", horizons::Int=10,
         model=nothing, output::String="", format::String="table")
-    loaded = _loaded_result(result; data, model, leaf="forecast garch-midas")
+    loaded = _loaded_result(result; data, model, leaf="forecast volatility garch-midas")
     loaded === nothing || return loaded
     horizons >= 1 || throw(CliError("usage/invalid",
-        "forecast garch-midas: --horizons must be ≥ 1 (got $horizons)"))
+        "forecast volatility garch-midas: --horizons must be ≥ 1 (got $horizons)"))
     m, vname = _garch_midas_refit(data, column, m_freq, k, rv, span, config, model)
     _status("GARCH-MIDAS Volatility Forecast: variable=$vname, horizons=$horizons"); _status()
     fc = try
@@ -5603,7 +5603,7 @@ function _estimate_garch_midas(; data::String, column::Int=1, m_freq::Int=0, k::
                                 rv::String="realized", span::String="fixed", config::String="",
                                 output::String="", format::String="table")
     m_freq >= 1 || throw(CliError("usage/missing-option",
-        "estimate garch-midas requires --m-freq ≥ 1 (high-frequency observations per low-frequency block)"))
+        "estimate volatility garch-midas requires --m-freq ≥ 1 (high-frequency observations per low-frequency block)"))
     rv_sym = Symbol(rv); span_sym = Symbol(span)
     rv_sym in (:realized, :macro) || throw(CliError("usage/bad-value", "--rv must be realized|macro, got $rv"))
     span_sym in (:fixed, :rolling) || throw(CliError("usage/bad-value", "--span must be fixed|rolling, got $span"))
@@ -5704,7 +5704,7 @@ end
 function _estimate_dcc(; data::String, p::Int=1, q::Int=1, correction::String="none",
                         output::String="", format::String="table")
     correction in ("none", "aielli") || throw(CliError("usage/invalid",
-        "estimate dcc: --correction must be none|aielli, got $correction"))
+        "estimate volatility dcc: --correction must be none|aielli, got $correction"))
     Y, varnames = load_multivariate_data(data)
     _status("Estimating DCC-GARCH: series=$(size(Y,2)), observations=$(size(Y,1)), margins=GARCH($p,$q), correction=$correction")
     _status()
@@ -5722,7 +5722,7 @@ end
 function _estimate_bekk(; data::String, kind::String="scalar",
                          output::String="", format::String="table")
     kind in ("scalar", "diagonal") || throw(CliError("usage/invalid",
-        "estimate bekk: --kind must be scalar|diagonal, got $kind"))
+        "estimate volatility bekk: --kind must be scalar|diagonal, got $kind"))
     Y, varnames = load_multivariate_data(data)
     _status("Estimating BEKK-$kind GARCH: series=$(size(Y,2)), observations=$(size(Y,1))")
     _status()
@@ -5822,7 +5822,7 @@ function _estimate_elastic_net(; data::String, dep::String="", alpha::Float64=0.
                                 lambda::String="auto", select::String="cv",
                                 output::String="", format::String="table")
     (0.0 <= alpha <= 1.0) || throw(CliError("usage/invalid",
-        "estimate elastic-net: --alpha must be in [0,1], got $alpha"))
+        "estimate regression elastic-net: --alpha must be in [0,1], got $alpha"))
     y, X, xcols = _load_reg_data(data, dep)
     lam = _parse_penalty_lambda(lambda)
     dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
@@ -5867,7 +5867,7 @@ end
 function _estimate_tobit(; data::String, dep::String="", lower::Float64=0.0,
                           upper::Float64=Inf, output::String="", format::String="table")
     lower < upper || throw(CliError("usage/invalid",
-        "estimate tobit: --lower ($lower) must be < --upper ($upper)"))
+        "estimate regression tobit: --lower ($lower) must be < --upper ($upper)"))
     y, X, xcols = _load_reg_data(data, dep)
     dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
     _status("Tobit regression (lower=$lower, upper=$upper): $dep_name ~ $(join(xcols, " + ")), n=$(length(y))")
@@ -5904,7 +5904,7 @@ end
 function _estimate_truncreg(; data::String, dep::String="", lower::Float64=0.0,
                              upper::Float64=Inf, output::String="", format::String="table")
     lower < upper || throw(CliError("usage/invalid",
-        "estimate truncreg: --lower ($lower) must be < --upper ($upper)"))
+        "estimate regression truncreg: --lower ($lower) must be < --upper ($upper)"))
     y, X, xcols = _load_reg_data(data, dep)
     dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
     _status("Truncated regression (lower=$lower, upper=$upper): $dep_name ~ $(join(xcols, " + ")), n=$(length(y))")
@@ -5958,7 +5958,7 @@ function _estimate_heckman(; data::String, dep::String="", select::String="",
                             outcome_vars::String="", select_vars::String="",
                             method::String="twostep", output::String="", format::String="table")
     method in ("twostep", "mle") || throw(CliError("usage/invalid",
-        "estimate heckman: --method must be twostep or mle, got '$method'"))
+        "estimate regression heckman: --method must be twostep or mle, got '$method'"))
     isempty(select) && throw(CliError("usage/missing",
         "--select is required (the binary 0/1 selection-indicator column)"))
     isempty(outcome_vars) && throw(CliError("usage/missing",
@@ -6111,7 +6111,7 @@ function _predict_statespace(; data::String="", column::Int=1, kind::String="loc
         init_mode::String="kappa", kappa::Float64=1e6, state::String="both",
         output::String="", format::String="table", model=nothing)
     state in ("filtered", "smoothed", "both") || throw(CliError("usage/invalid",
-        "predict statespace: --state must be filtered|smoothed|both, got '$state'"))
+        "predict regression statespace: --state must be filtered|smoothed|both, got '$state'"))
     ssm, vname = model === nothing ?
         _statespace_refit(data, column, kind, init_mode, kappa) : (model, "model")
     fs = Float64.(ssm.filtered_state); sm = Float64.(ssm.smoothed_state)
@@ -6180,7 +6180,7 @@ function _estimate_statespace(; data::String, column::Int=1, model::String="loca
         cfg = get_statespace(load_config(config))
         Y, vnames = load_multivariate_data(data)
         size(Y, 2) == cfg.n_obs || throw(CliError("data/shape",
-            "estimate statespace: [statespace] Z implies n_obs=$(cfg.n_obs) observed series, " *
+            "estimate regression statespace: [statespace] Z implies n_obs=$(cfg.n_obs) observed series, " *
             "but $data has $(size(Y, 2)) numeric columns";
             hint="Z is n_obs×n_state — one ROW per observed series"))
         _status("State-space (general system from $config): series=$(join(vnames, ", ")), " *
@@ -6194,7 +6194,7 @@ function _estimate_statespace(; data::String, column::Int=1, model::String="loca
                             a1=cfg.a1, P1=cfg.P1, init_mode=cfg.init_mode, kappa=kappa)
         catch e
             e isa ArgumentError && throw(CliError("config/shape",
-                "estimate statespace: inconsistent [statespace] system — $(e.msg)"))
+                "estimate regression statespace: inconsistent [statespace] system — $(e.msg)"))
             throw(_garch_variant_error(e, "State-space system"))
         end
         fitted_ss = try
@@ -6221,9 +6221,9 @@ function _estimate_statespace(; data::String, column::Int=1, model::String="loca
 
     # ── Canned univariate systems ───────────────────────────────────────────────────────
     model in ("local-level", "local-linear-trend") || throw(CliError("usage/invalid",
-        "estimate statespace: --model must be local-level or local-linear-trend, got '$model'"))
+        "estimate regression statespace: --model must be local-level or local-linear-trend, got '$model'"))
     init_mode in ("kappa", "diffuse") || throw(CliError("usage/invalid",
-        "estimate statespace: --init-mode must be kappa or diffuse, got '$init_mode'"))
+        "estimate regression statespace: --init-mode must be kappa or diffuse, got '$init_mode'"))
     y, vname = load_univariate_series(data, column)
     _status("State-space $model: variable=$vname, observations=$(length(y)), init_mode=$init_mode")
     _status()
@@ -6255,7 +6255,7 @@ function _estimate_tvp(; data::String, dep::String="", init_mode::String="kappa"
                         kappa::Float64=1e6, no_intercept::Bool=false,
                         output::String="", format::String="table")
     init_mode in ("kappa", "diffuse") || throw(CliError("usage/invalid",
-        "estimate tvp: --init-mode must be kappa or diffuse, got '$init_mode'"))
+        "estimate regime tvp: --init-mode must be kappa or diffuse, got '$init_mode'"))
     y, X, xcols = _load_reg_data(data, dep)   # X = numeric cols except --dep; estimate_tvp_reg adds its own intercept
     intercept = !no_intercept
     coefnames = intercept ? vcat(["intercept"], xcols) : xcols
@@ -6290,9 +6290,9 @@ function _estimate_kde(; data::String, column::Int=1, kernel::String="gaussian",
                         bw::String="silverman", npoints::Int=512, cut::Float64=3.0,
                         output::String="", format::String="table")
     kernel in ("gaussian", "epanechnikov", "triangular", "uniform") || throw(CliError("usage/invalid",
-        "estimate kde: --kernel must be gaussian|epanechnikov|triangular|uniform, got '$kernel'"))
+        "estimate regression kde: --kernel must be gaussian|epanechnikov|triangular|uniform, got '$kernel'"))
     npoints >= 2 || throw(CliError("usage/invalid",
-        "estimate kde: --npoints must be ≥ 2, got $npoints"))
+        "estimate regression kde: --npoints must be ≥ 2, got $npoints"))
     y, vname = load_univariate_series(data, column)
     bwv = _parse_bandwidth(bw, (:silverman, :sj))
     _status("Kernel density: variable=$vname, observations=$(length(y)), kernel=$kernel, bw=$bw")
@@ -6322,11 +6322,11 @@ function _estimate_kernel_reg(; data::String, dep::String="", indep::String="",
                                method::String="ll", degree::Int=1, bw::String="cv",
                                kernel::String="gaussian", output::String="", format::String="table")
     method in ("nw", "ll", "lp") || throw(CliError("usage/invalid",
-        "estimate kernel-reg: --method must be nw|ll|lp, got '$method'"))
+        "estimate regression kernel-reg: --method must be nw|ll|lp, got '$method'"))
     kernel in ("gaussian", "epanechnikov", "triangular", "uniform") || throw(CliError("usage/invalid",
-        "estimate kernel-reg: --kernel must be gaussian|epanechnikov|triangular|uniform, got '$kernel'"))
+        "estimate regression kernel-reg: --kernel must be gaussian|epanechnikov|triangular|uniform, got '$kernel'"))
     degree >= 0 || throw(CliError("usage/invalid",
-        "estimate kernel-reg: --degree must be ≥ 0, got $degree"))
+        "estimate regression kernel-reg: --degree must be ≥ 0, got $degree"))
     y, x, ynm, xnm = _load_xy_data(data, dep, indep)
     bwv = _parse_bandwidth(bw, (:cv, :rot))
     _status("Kernel regression ($method): $ynm ~ $xnm, n=$(length(y)), bw=$bw, kernel=$kernel")
@@ -6357,9 +6357,9 @@ function _estimate_lowess(; data::String, dep::String="", indep::String="",
                            frac::Float64=0.6667, iter::Int=3,
                            output::String="", format::String="table")
     (0.0 < frac <= 1.0) || throw(CliError("usage/invalid",
-        "estimate lowess: --frac must be in (0,1], got $frac"))
+        "estimate regression lowess: --frac must be in (0,1], got $frac"))
     iter >= 0 || throw(CliError("usage/invalid",
-        "estimate lowess: --iter must be ≥ 0, got $iter"))
+        "estimate regression lowess: --iter must be ≥ 0, got $iter"))
     y, x, ynm, xnm = _load_xy_data(data, dep, indep)
     _status("LOWESS: $ynm ~ $xnm, n=$(length(y)), f=$frac, iter=$iter")
     _status()
@@ -6870,15 +6870,15 @@ function _forecast_midas(; data::String="", result=nothing, column::Int=1, hf_da
         m::Int=0, k::Int=0, weights::String="expalmon", p_ar::Int=0,
         poly_degree::Int=2, horizon::Int=1, max_iter::Int=500, level::Float64=0.95,
         output::String="", format::String="table", model=nothing)
-    loaded = _loaded_result(result; data, model, leaf="forecast midas")
+    loaded = _loaded_result(result; data, model, leaf="forecast univariate midas")
     loaded === nothing || return _rerender_long_table(loaded; format, output,
         title="MIDAS Forecast", key="midas_forecast")
     (0.0 < level < 1.0) || throw(CliError("usage/invalid",
-        "forecast midas: --level must be in (0, 1) (got $level)"))
+        "forecast univariate midas: --level must be in (0, 1) (got $level)"))
     poly_degree >= 0 || throw(CliError("usage/invalid",
-        "forecast midas: --poly-degree must be ≥ 0 (got $poly_degree)"))
+        "forecast univariate midas: --poly-degree must be ≥ 0 (got $poly_degree)"))
     horizon >= 1 || throw(CliError("usage/invalid",
-        "forecast midas: --horizon must be ≥ 1 (got $horizon)"))
+        "forecast univariate midas: --horizon must be ≥ 1 (got $horizon)"))
     (weights in ("beta2", "beta3") && k < 2) && throw(CliError("data/invalid",
         "--weights $weights requires --k ≥ 2 (the Beta weight grid needs ≥ 2 lags), got k=$k"))
     y_lf, x_hf, ynm, xnm = _load_midas_data(data, column, hf_data, hf_column; m=m)
@@ -6891,7 +6891,7 @@ function _forecast_midas(; data::String="", result=nothing, column::Int=1, hf_da
         end) : model
     # The most recent K high-frequency observations, MOST-RECENT-FIRST.
     length(x_hf) >= mdl.K || throw(CliError("data/shape",
-        "forecast midas: need at least K=$(mdl.K) high-frequency observations to condition on (got $(length(x_hf)))"))
+        "forecast univariate midas: need at least K=$(mdl.K) high-frequency observations to condition on (got $(length(x_hf)))"))
     x_new = reverse(Float64.(x_hf[end - mdl.K + 1:end]))
     _status("MIDAS Forecast: target=$ynm, indicator=$xnm, h=$(mdl.h) (fixed at estimation), K=$(mdl.K)")
     _status()
@@ -6919,7 +6919,7 @@ function _estimate_midas(; data::String, column::Int=1, hf_data::String="", hf_c
                           output::String="", format::String="table")
     # Up-front guards → usage/invalid (before any load or estimator call).
     isempty(hf_data) && throw(CliError("usage/missing-option",
-        "estimate midas requires --hf-data <csv> (the high-frequency indicator series)"))
+        "estimate univariate midas requires --hf-data <csv> (the high-frequency indicator series)"))
     m >= 1 || throw(CliError("usage/invalid", "--m (HF/LF frequency ratio) must be ≥ 1, got $m"))
     k >= 1 || throw(CliError("usage/invalid", "--k (number of high-frequency lags) must be ≥ 1, got $k"))
     p_ar >= 0 || throw(CliError("usage/invalid", "--p-ar must be ≥ 0, got $p_ar"))
@@ -6991,7 +6991,7 @@ EXCLUDED from the regressor matrix; every other numeric column becomes a regress
 intercept is prepended (include a `const` column), matching `estimate reg`."""
 function _load_threshold_data(data::String, dep::String, threshold_col::String)
     isempty(threshold_col) && throw(CliError("usage/missing",
-        "estimate threshold: --threshold-col is required";
+        "estimate regime threshold: --threshold-col is required";
         hint="name the variable that splits the sample, e.g. --threshold-col z"))
     df = load_data(data)
     numcols = _numeric_column_names(df)
@@ -6999,16 +6999,16 @@ function _load_threshold_data(data::String, dep::String, threshold_col::String)
         "no numeric columns found in $data"))
     depc = isempty(dep) ? numcols[1] : dep
     depc in numcols || throw(CliError("data/column-range",
-        "estimate threshold: --dep '$depc' is not a numeric column";
+        "estimate regime threshold: --dep '$depc' is not a numeric column";
         hint="available: $(join(numcols, ", "))"))
     threshold_col in numcols || throw(CliError("data/column-range",
-        "estimate threshold: --threshold-col '$threshold_col' is not a numeric column";
+        "estimate regime threshold: --threshold-col '$threshold_col' is not a numeric column";
         hint="available: $(join(numcols, ", "))"))
     threshold_col == depc && throw(CliError("usage/invalid",
-        "estimate threshold: --threshold-col must differ from --dep (both '$depc')"))
+        "estimate regime threshold: --threshold-col must differ from --dep (both '$depc')"))
     xcols = [c for c in numcols if c != depc && c != threshold_col]
     isempty(xcols) && throw(CliError("data/invalid",
-        "estimate threshold: no regressor columns left after removing --dep and --threshold-col";
+        "estimate regime threshold: no regressor columns left after removing --dep and --threshold-col";
         hint="the CSV needs at least one column besides those two"))
     for c in vcat(depc, threshold_col, xcols)
         any(_is_gap, df[!, c]) && throw(CliError("data/missing-values",
@@ -7026,12 +7026,12 @@ function _estimate_threshold(; data::String, dep::String="", threshold_col::Stri
         output::String="", format::String="table",
         plot::Bool=false, plot_save::String="")
     (0.0 < trim < 0.5) || throw(CliError("usage/invalid",
-        "estimate threshold: --trim must be in (0, 0.5) (got $trim)"))
-    reps >= 1 || throw(CliError("usage/invalid", "estimate threshold: --reps must be ≥ 1 (got $reps)"))
+        "estimate regime threshold: --trim must be in (0, 0.5) (got $trim)"))
+    reps >= 1 || throw(CliError("usage/invalid", "estimate regime threshold: --reps must be ≥ 1 (got $reps)"))
     # Hansen (2000) critical values are tabulated ONLY for these three levels — anything
     # else makes `_hansen2000_crit` throw an uncaught ArgumentError (same as setar).
     (ci_level == 0.90 || ci_level == 0.95 || ci_level == 0.99) || throw(CliError("usage/invalid",
-        "estimate threshold: --ci-level must be exactly 0.90, 0.95, or 0.99 (got $ci_level)"))
+        "estimate regime threshold: --ci-level must be exactly 0.90, 0.95, or 0.99 (got $ci_level)"))
     y, X, q, depc, xcols = _load_threshold_data(data, dep, threshold_col)
     _status("Estimating threshold regression: $depc ~ $(join(xcols, " + ")), split by $threshold_col, n=$(length(y)), ci=$ci_level" *
             (het ? ", het bootstrap" : "") * (no_linearity ? ", linearity test skipped" : ""))
@@ -7085,14 +7085,14 @@ function _estimate_setar(; data::String, column::Int=1, p::Int=1, d::String="1",
                           het::Bool=false, no_linearity::Bool=false,
                           plot::Bool=false, plot_save::String="",
                           output::String="", format::String="table")
-    p >= 1 || throw(CliError("usage/invalid", "estimate setar: --p must be ≥ 1 (got $p)"))
+    p >= 1 || throw(CliError("usage/invalid", "estimate regime setar: --p must be ≥ 1 (got $p)"))
     (0.0 < trim < 0.5) || throw(CliError("usage/invalid",
-        "estimate setar: --trim must be in (0, 0.5) (got $trim)"))
-    reps >= 1 || throw(CliError("usage/invalid", "estimate setar: --reps must be ≥ 1 (got $reps)"))
+        "estimate regime setar: --trim must be in (0, 0.5) (got $trim)"))
+    reps >= 1 || throw(CliError("usage/invalid", "estimate regime setar: --reps must be ≥ 1 (got $reps)"))
     # Hansen (2000) critical values are tabulated ONLY for these three levels — anything
     # else makes `_hansen2000_crit` throw an uncaught ArgumentError, so guard exactly.
     (ci_level == 0.90 || ci_level == 0.95 || ci_level == 0.99) || throw(CliError("usage/invalid",
-        "estimate setar: --ci-level must be exactly 0.90, 0.95, or 0.99 (got $ci_level)"))
+        "estimate regime setar: --ci-level must be exactly 0.90, 0.95, or 0.99 (got $ci_level)"))
     d_arg = _parse_setar_delay(d)
     y, vname = load_univariate_series(data, column)
     _status("Estimating SETAR(2;$p,$p): variable=$vname, obs=$(length(y)), d=$d, ci=$ci_level" *
@@ -7167,22 +7167,22 @@ function _estimate_star(; data::String, column::Int=1, p::Int=1, d::Int=1,
                          type::String="auto", n_gamma::Int=15, n_c::Int=15,
                          transition_col::Int=0, plot::Bool=false, plot_save::String="",
                          output::String="", format::String="table")
-    p >= 1 || throw(CliError("usage/invalid", "estimate star: --p must be ≥ 1 (got $p)"))
-    d >= 1 || throw(CliError("usage/invalid", "estimate star: --d must be ≥ 1 (got $d)"))
-    n_gamma >= 2 || throw(CliError("usage/invalid", "estimate star: --n-gamma must be ≥ 2 (got $n_gamma)"))
-    n_c >= 2 || throw(CliError("usage/invalid", "estimate star: --n-c must be ≥ 2 (got $n_c)"))
+    p >= 1 || throw(CliError("usage/invalid", "estimate regime star: --p must be ≥ 1 (got $p)"))
+    d >= 1 || throw(CliError("usage/invalid", "estimate regime star: --d must be ≥ 1 (got $d)"))
+    n_gamma >= 2 || throw(CliError("usage/invalid", "estimate regime star: --n-gamma must be ≥ 2 (got $n_gamma)"))
+    n_c >= 2 || throw(CliError("usage/invalid", "estimate regime star: --n-c must be ≥ 2 (got $n_c)"))
     ttype = Symbol(type)
     ttype in (:lstr1, :lstr2, :estr, :auto) || throw(CliError("usage/invalid",
-        "estimate star: --type must be one of lstr1|lstr2|estr|auto (got '$type')"))
+        "estimate regime star: --type must be one of lstr1|lstr2|estr|auto (got '$type')"))
     y, vname = load_univariate_series(data, column)
     s = nothing
     if transition_col > 0
         s, _ = load_univariate_series(data, transition_col)
         length(s) == length(y) || throw(CliError("data/shape",
-            "estimate star: transition variable (column $transition_col) has length $(length(s)), " *
+            "estimate regime star: transition variable (column $transition_col) has length $(length(s)), " *
             "but the series has length $(length(y))"))
         std(s) > 0 || throw(CliError("data/invalid",
-            "estimate star: transition variable (column $transition_col) is constant; cannot scale γ"))
+            "estimate regime star: transition variable (column $transition_col) is constant; cannot scale γ"))
     end
     _status("Estimating STAR($p) [$type]: variable=$vname, obs=$(length(y)), d=$d" *
             (transition_col > 0 ? ", external transition col=$transition_col" : ", self-exciting")); _status()
@@ -7367,11 +7367,11 @@ function _estimate_ms_ar(; data::String, column::Int=1, p::Int=1, k_regimes::Int
                           switching_variance::Bool=false, max_iter::Int=1000,
                           plot::Bool=false, plot_save::String="",
                           output::String="", format::String="table")
-    p >= 1 || throw(CliError("usage/invalid", "estimate ms-ar: --p must be ≥ 1 (got $p)"))
+    p >= 1 || throw(CliError("usage/invalid", "estimate regime ms-ar: --p must be ≥ 1 (got $p)"))
     k_regimes >= 2 || throw(CliError("usage/invalid",
-        "estimate ms-ar: --k-regimes must be ≥ 2 (got $k_regimes)"))
+        "estimate regime ms-ar: --k-regimes must be ≥ 2 (got $k_regimes)"))
     max_iter >= 1 || throw(CliError("usage/invalid",
-        "estimate ms-ar: --max-iter must be ≥ 1 (got $max_iter)"))
+        "estimate regime ms-ar: --max-iter must be ≥ 1 (got $max_iter)"))
     y, vname = load_univariate_series(data, column)
     _status("Estimating MS-AR($p) [$k_regimes regimes]: variable=$vname, obs=$(length(y))" *
             (switching_variance ? ", switching variance" : ", common variance")); _status()
@@ -7422,10 +7422,10 @@ function _estimate_ms(; data::String, dep::String="", k_regimes::Int=2,
                        tol::Float64=1e-8, plot::Bool=false, plot_save::String="",
                        output::String="", format::String="table")
     k_regimes >= 2 || throw(CliError("usage/invalid",
-        "estimate ms: --k-regimes must be ≥ 2 (got $k_regimes)"))
+        "estimate regime ms: --k-regimes must be ≥ 2 (got $k_regimes)"))
     max_iter >= 1 || throw(CliError("usage/invalid",
-        "estimate ms: --max-iter must be ≥ 1 (got $max_iter)"))
-    tol > 0 || throw(CliError("usage/invalid", "estimate ms: --tol must be > 0 (got $tol)"))
+        "estimate regime ms: --max-iter must be ≥ 1 (got $max_iter)"))
+    tol > 0 || throw(CliError("usage/invalid", "estimate regime ms: --tol must be > 0 (got $tol)"))
     sv = !no_switching_variance
     y, X, xcols, intercept_only = _ms_load_data(data, dep)
     _status("Estimating MS regression [$k_regimes regimes]: obs=$(length(y)), " *
@@ -7477,9 +7477,9 @@ end
 `linearity=false`: the Hansen (1996) bootstrap does not affect the residuals and is the
 single most expensive part of the fit."""
 function _setar_refit(data::String, column::Int, p::Int, d::String, trim::Float64)
-    p >= 1 || throw(CliError("usage/invalid", "residuals setar: --p must be ≥ 1 (got $p)"))
+    p >= 1 || throw(CliError("usage/invalid", "residuals regime setar: --p must be ≥ 1 (got $p)"))
     (0.0 < trim < 0.5) || throw(CliError("usage/invalid",
-        "residuals setar: --trim must be in (0, 0.5) (got $trim)"))
+        "residuals regime setar: --trim must be in (0, 0.5) (got $trim)"))
     d_arg = _parse_setar_delay(d)
     y, vname = load_univariate_series(data, column)
     model = try
@@ -7502,22 +7502,22 @@ end
 external-transition-variable path and its length/constant guards)."""
 function _star_refit(data::String, column::Int, p::Int, d::Int, type::String,
                      n_gamma::Int, n_c::Int, transition_col::Int)
-    p >= 1 || throw(CliError("usage/invalid", "residuals star: --p must be ≥ 1 (got $p)"))
-    d >= 1 || throw(CliError("usage/invalid", "residuals star: --d must be ≥ 1 (got $d)"))
-    n_gamma >= 2 || throw(CliError("usage/invalid", "residuals star: --n-gamma must be ≥ 2 (got $n_gamma)"))
-    n_c >= 2 || throw(CliError("usage/invalid", "residuals star: --n-c must be ≥ 2 (got $n_c)"))
+    p >= 1 || throw(CliError("usage/invalid", "residuals regime star: --p must be ≥ 1 (got $p)"))
+    d >= 1 || throw(CliError("usage/invalid", "residuals regime star: --d must be ≥ 1 (got $d)"))
+    n_gamma >= 2 || throw(CliError("usage/invalid", "residuals regime star: --n-gamma must be ≥ 2 (got $n_gamma)"))
+    n_c >= 2 || throw(CliError("usage/invalid", "residuals regime star: --n-c must be ≥ 2 (got $n_c)"))
     ttype = Symbol(type)
     ttype in (:lstr1, :lstr2, :estr, :auto) || throw(CliError("usage/invalid",
-        "residuals star: --type must be one of lstr1|lstr2|estr|auto (got '$type')"))
+        "residuals regime star: --type must be one of lstr1|lstr2|estr|auto (got '$type')"))
     y, vname = load_univariate_series(data, column)
     s = nothing
     if transition_col > 0
         s, _ = load_univariate_series(data, transition_col)
         length(s) == length(y) || throw(CliError("data/shape",
-            "residuals star: transition variable (column $transition_col) has length $(length(s)), " *
+            "residuals regime star: transition variable (column $transition_col) has length $(length(s)), " *
             "but the series has length $(length(y))"))
         std(s) > 0 || throw(CliError("data/invalid",
-            "residuals star: transition variable (column $transition_col) is constant; cannot scale γ"))
+            "residuals regime star: transition variable (column $transition_col) is constant; cannot scale γ"))
     end
     model = try
         estimate_star(y, p; s=s, d=d, type=ttype, n_gamma=n_gamma, n_c=n_c)
@@ -7540,11 +7540,11 @@ end
 """Refit an MS-AR for `residuals ms-ar`, mirroring `_estimate_ms_ar`."""
 function _ms_ar_refit(data::String, column::Int, p::Int, k_regimes::Int,
                       switching_variance::Bool, max_iter::Int)
-    p >= 1 || throw(CliError("usage/invalid", "residuals ms-ar: --p must be ≥ 1 (got $p)"))
+    p >= 1 || throw(CliError("usage/invalid", "residuals regime ms-ar: --p must be ≥ 1 (got $p)"))
     k_regimes >= 2 || throw(CliError("usage/invalid",
-        "residuals ms-ar: --k-regimes must be ≥ 2 (got $k_regimes)"))
+        "residuals regime ms-ar: --k-regimes must be ≥ 2 (got $k_regimes)"))
     max_iter >= 1 || throw(CliError("usage/invalid",
-        "residuals ms-ar: --max-iter must be ≥ 1 (got $max_iter)"))
+        "residuals regime ms-ar: --max-iter must be ≥ 1 (got $max_iter)"))
     y, vname = load_univariate_series(data, column)
     model = try
         estimate_ms_ar(y, p; k_regimes=k_regimes, switching_variance=switching_variance,
@@ -7570,10 +7570,10 @@ dispatch matches `estimate ms` exactly."""
 function _ms_refit(data::String, dep::String, k_regimes::Int, sv::Bool,
                    max_iter::Int, tol::Float64)
     k_regimes >= 2 || throw(CliError("usage/invalid",
-        "residuals ms: --k-regimes must be ≥ 2 (got $k_regimes)"))
+        "residuals regime ms: --k-regimes must be ≥ 2 (got $k_regimes)"))
     max_iter >= 1 || throw(CliError("usage/invalid",
-        "residuals ms: --max-iter must be ≥ 1 (got $max_iter)"))
-    tol > 0 || throw(CliError("usage/invalid", "residuals ms: --tol must be > 0 (got $tol)"))
+        "residuals regime ms: --max-iter must be ≥ 1 (got $max_iter)"))
+    tol > 0 || throw(CliError("usage/invalid", "residuals regime ms: --tol must be > 0 (got $tol)"))
     y, X, xcols, intercept_only = _ms_load_data(data, dep)
     model = try
         X === nothing ?
@@ -7673,14 +7673,14 @@ function _forecast_ms_ar(; data::String="", result=nothing, column::Int=1, p::In
         switching_variance::Bool=false, max_iter::Int=1000, horizons::Int=12,
         reps::Int=1000, ci_level::Float64=0.90,
         output::String="", format::String="table", model=nothing)
-    loaded = _loaded_result(result; data, model, leaf="forecast ms-ar")
+    loaded = _loaded_result(result; data, model, leaf="forecast regime ms-ar")
     loaded === nothing || return _rerender_long_table(loaded; format, output,
         title="MS-AR Forecast", key="ms_ar_forecast")
     horizons >= 1 || throw(CliError("usage/invalid",
-        "forecast ms-ar: --horizons must be ≥ 1 (got $horizons)"))
-    reps >= 1 || throw(CliError("usage/invalid", "forecast ms-ar: --reps must be ≥ 1 (got $reps)"))
+        "forecast regime ms-ar: --horizons must be ≥ 1 (got $horizons)"))
+    reps >= 1 || throw(CliError("usage/invalid", "forecast regime ms-ar: --reps must be ≥ 1 (got $reps)"))
     (0 < ci_level < 1) || throw(CliError("usage/invalid",
-        "forecast ms-ar: --ci-level must satisfy 0 < level < 1 (got $ci_level)"))
+        "forecast regime ms-ar: --ci-level must satisfy 0 < level < 1 (got $ci_level)"))
     m, vname = model === nothing ?
         _ms_ar_refit(data, column, p, k_regimes, switching_variance, max_iter) : (model, "model")
     _status("MS-AR($p) forecast (h=$horizons): variable=$vname, ci=$ci_level"); _status()
@@ -7698,14 +7698,14 @@ function _forecast_ms(; data::String="", result=nothing, dep::String="", k_regim
         no_switching_variance::Bool=false, max_iter::Int=500, tol::Float64=1e-8,
         horizons::Int=12, x_future::String="", reps::Int=1000, ci_level::Float64=0.90,
         output::String="", format::String="table", model=nothing)
-    loaded = _loaded_result(result; data, model, leaf="forecast ms")
+    loaded = _loaded_result(result; data, model, leaf="forecast regime ms")
     loaded === nothing || return _rerender_long_table(loaded; format, output,
         title="MS Forecast", key="ms_forecast")
     horizons >= 1 || throw(CliError("usage/invalid",
-        "forecast ms: --horizons must be ≥ 1 (got $horizons)"))
-    reps >= 1 || throw(CliError("usage/invalid", "forecast ms: --reps must be ≥ 1 (got $reps)"))
+        "forecast regime ms: --horizons must be ≥ 1 (got $horizons)"))
+    reps >= 1 || throw(CliError("usage/invalid", "forecast regime ms: --reps must be ≥ 1 (got $reps)"))
     (0 < ci_level < 1) || throw(CliError("usage/invalid",
-        "forecast ms: --ci-level must satisfy 0 < level < 1 (got $ci_level)"))
+        "forecast regime ms: --ci-level must satisfy 0 < level < 1 (got $ci_level)"))
     m, intercept_only = if model === nothing
         _ms_refit(data, dep, k_regimes, !no_switching_variance, max_iter, tol)
     else
@@ -7730,7 +7730,7 @@ function _forecast_ms(; data::String="", result=nothing, dep::String="", k_regim
         ones(Float64, horizons, 1)
     else
         throw(CliError("usage/missing",
-            "forecast ms: this model has $k regressor$(k == 1 ? "" : "s"), so future values are required";
+            "forecast regime ms: this model has $k regressor$(k == 1 ? "" : "s"), so future values are required";
             hint="pass --x-future <csv> with $horizons row$(horizons == 1 ? "" : "s") and " *
                  "$k column$(k == 1 ? "" : "s") " *
                  "(only an intercept-only model can be projected from --horizons alone)"))
@@ -7754,20 +7754,20 @@ missing cell straight to the converter is the recurring untyped-exit-1 site in t
 """
 function _load_ms_future_x(path::String, k::Int)
     df = load_data(path)
-    ncol(df) == 0 && throw(CliError("data/empty", "forecast ms: --x-future has no columns: $path"))
-    nrow(df) == 0 && throw(CliError("data/empty", "forecast ms: --x-future has no rows: $path"))
+    ncol(df) == 0 && throw(CliError("data/empty", "forecast regime ms: --x-future has no columns: $path"))
+    nrow(df) == 0 && throw(CliError("data/empty", "forecast regime ms: --x-future has no rows: $path"))
     for c in names(df), v in df[!, c]
         (v === missing || (v isa Real && !isfinite(v))) && throw(CliError("data/missing-value",
-            "forecast ms: --x-future contains a missing or non-finite value in column '$c'"))
+            "forecast regime ms: --x-future contains a missing or non-finite value in column '$c'"))
     end
     X = try
         Matrix{Float64}(df)
     catch e
         throw(CliError("data/invalid",
-            "forecast ms: --x-future must be all-numeric"; hint=sprint(showerror, e)))
+            "forecast regime ms: --x-future must be all-numeric"; hint=sprint(showerror, e)))
     end
     size(X, 2) == k || throw(CliError("data/shape",
-        "forecast ms: --x-future must have $k column$(k == 1 ? "" : "s") to match the fitted model, got $(size(X,2))";
+        "forecast regime ms: --x-future must have $k column$(k == 1 ? "" : "s") to match the fitted model, got $(size(X,2))";
         hint=k == 1 ? "an intercept-only model expects a single column of ones" : ""))
     return X, names(df)
 end
@@ -7829,7 +7829,7 @@ function _load_and_estimate_tvpvar(data::String, lags::Int, draws::Int, burnin::
                         varnames=varnames, _fwd_seed()...)
     catch e
         e isa CliError && rethrow()
-        throw(_domain_or_data_error(e, "estimate tvpvar"))
+        throw(_domain_or_data_error(e, "estimate multivariate tvpvar"))
     end
     return post, varnames
 end
@@ -8016,7 +8016,7 @@ function _estimate_mfvar(; data::String, lags::Int=2, low_freq::String="",
                        _fwd_seed()...)
     catch e
         e isa CliError && rethrow()
-        throw(_domain_or_data_error(e, "estimate mfvar"))
+        throw(_domain_or_data_error(e, "estimate multivariate mfvar"))
     end
     _status_report(() -> report(post))
 
@@ -8091,7 +8091,7 @@ function _estimate_qreg(; data::String, dep::String="", tau::String="0.5",
                       _fwd_seed()...)
     catch e
         e isa CliError && rethrow()
-        throw(_domain_or_data_error(e, "estimate qreg"))
+        throw(_domain_or_data_error(e, "estimate regression qreg"))
     end
 
     # beta/stderr are k × n_tau, so the tidy table carries a `tau` column and one row per
@@ -8202,7 +8202,7 @@ function _estimate_rdd(; data::String, outcome::String="", running::String="",
                      level=level)
     catch e
         e isa CliError && rethrow()
-        throw(_domain_or_data_error(e, "estimate rdd"))
+        throw(_domain_or_data_error(e, "estimate regression rdd"))
     end
 
     # The CCT triple. All three share ONE point estimate per row-pair by construction:
