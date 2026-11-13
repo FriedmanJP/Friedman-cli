@@ -368,7 +368,7 @@ short_run_zeros = [[nan, 0.0], [nan, nan]]
 
 ## Non-Gaussian SVAR
 
-Used by `test serial heteroskedasticity` with `--method=smooth_transition` or `--method=external`. (`estimate fastica` / `estimate ml` take `--method`/`--contrast`/`--distribution` as flags instead — see the generated reference.)
+Used by `test serial heteroskedasticity` with `--method=smooth_transition` or `--method=external`. (`estimate multivariate fastica` / `estimate multivariate ml` take `--method`/`--contrast`/`--distribution` as flags instead — see the generated reference.)
 
 ```toml
 [nongaussian]
