@@ -98,7 +98,7 @@ function dsge_specs()::Vector{CommandSpec}
                 RA_SOLVER_KNOB_OPTIONS...,
                 OptionSpec(name="horizon", type=Int, default=40, description="IRF horizon"),
                 OptionSpec(name="shock-size", type=Float64, default=1.0, description="Shock size (std devs; perturbation/projection only; ignored for linear solutions)"),
-                OptionSpec(name="n-sim", type=Int, default=0, description="Simulated-path replications for projection solutions (default 0 = analytical; ignored for linear/perturbation solutions)"),
+                OptionSpec(name="n-sim", type=Int, default=0, description="Simulated-path replications for projection solutions (0 = analytical; ignored for linear/perturbation solutions)"),
                 OptionSpec(name="constraints", type=String, default="", description="Path to OccBin constraints TOML (applied to shock 1 only)"),
                 CONSTRAINT_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -205,7 +205,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="method", type=String, default="perturbation",
                            description="Solution method: perturbation (the only supported value; moments need a PerturbationSolution)"),
                 OptionSpec(name="order", type=Int, default=2,
-                           description="Perturbation order: 1, 2 or 3 (default 2; for linear models order 2 equals order 1 exactly)"),
+                           description="Perturbation order: 1, 2 or 3 (for linear models order 2 equals order 1 exactly)"),
                 OptionSpec(name="lags", type=Int, default=1, description="Autocovariance lags to report (>= 1)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
@@ -224,12 +224,12 @@ function dsge_specs()::Vector{CommandSpec}
             summary="Estimate DSGE parameters by moment matching",
             args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="TOML (synthesized @dsge block) or .jl evaluating to a ModelSpec")],
             options=[
-                OptionSpec(name="data", short="d", type=String, default="", description="Path to CSV data file"),
+                OptionSpec(name="data", short="d", type=String, default="", description="Path to data file or handle stem (.csv, .jld2, .jls)"),
                 OptionSpec(name="method", type=String, default="irf_matching", description="Estimation method: irf_matching|euler_gmm|smm|analytical_gmm", choices=["irf_matching", "euler_gmm", "smm", "analytical_gmm"]),
                 OptionSpec(name="params", type=String, default="", description="Comma-separated parameter names to estimate"),
                 OptionSpec(name="solve-method", type=String, default="gensys", description="DSGE solution method (analytical_gmm only)"),
                 OptionSpec(name="solve-order", type=Int, default=1, description="Perturbation order for solution (analytical_gmm only)"),
-                OptionSpec(name="weighting", type=String, default="optimal", description="Weighting matrix: identity|optimal|diagonal|two_step|efficient|cee (default two_step)"),
+                OptionSpec(name="weighting", type=String, default="optimal", description="Weighting matrix: identity|optimal|diagonal|two_step|efficient|cee"),
                 OptionSpec(name="irf-horizon", type=Int, default=20, description="IRF horizon for matching (irf_matching only)"),
                 OptionSpec(name="var-lags", type=Int, default=4, description="VAR lags for empirical IRF (irf_matching only)"),
                 OptionSpec(name="sim-ratio", type=Int, default=5, description="Simulation-to-data ratio (smm only)"),
@@ -293,7 +293,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="order", type=Int, default=1, description="Perturbation order (1, 2, or 3)"),
                 OptionSpec(name="grid", type=String, default="auto", description="Grid type: auto|chebyshev|smolyak (vfi: auto|tensor|smolyak; auto routes nx≥4 to Smolyak)"),
                 RA_SOLVER_KNOB_OPTIONS...,
-                OptionSpec(name="data", short="d", type=String, default="", description="Path to CSV data file"),
+                OptionSpec(name="data", short="d", type=String, default="", description="Path to data file or handle stem (.csv, .jld2, .jls)"),
                 OptionSpec(name="observables", type=String, default="", description="Observable variable names (comma-separated)"),
                 OptionSpec(name="states", type=String, default="observables", description="observables|all"),
                 OptionSpec(name="measurement-error", type=String, default="", description="Measurement error std devs (comma-separated) or auto"),
@@ -826,11 +826,11 @@ function dsge_specs()::Vector{CommandSpec}
                            choices=["mh", "smc"]),
                 OptionSpec(name="n-draws", type=Int, default=2000, description="Total RWMH draws (including burn-in)"),
                 OptionSpec(name="burnin", type=Int, default=500, description="Burn-in draws to discard"),
-                OptionSpec(name="n-smc", type=Int, default=500, description="SMC particles (HA default 500)"),
+                OptionSpec(name="n-smc", type=Int, default=500, description="SMC particles (HA sampler)"),
                 OptionSpec(name="n-mh-steps", type=Int, default=1, description="MH mutation steps per SMC stage"),
                 OptionSpec(name="ess-target", type=Float64, default=0.5, description="ESS target for SMC resampling"),
                 OptionSpec(name="t-horizon", type=Int, default=300,
-                           description="Sequence-space truncation length (SSJ/Reiter); default 300 (ABRS 2021)"),
+                           description="Sequence-space truncation length (SSJ/Reiter; ABRS 2021)"),
                 OptionSpec(name="n-reduced", type=Int, default=15, description="Reduced distribution states"),
                 OptionSpec(name="proposal-scale", type=Float64, default=0.01, description="Initial RWMH proposal scale"),
                 OptionSpec(name="adapt-interval", type=Int, default=100, description="Adapt proposal covariance every N draws"),
@@ -860,7 +860,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="method", type=String, default="ssj",
                            description="HA solution method: ssj|reiter",
                            choices=["ssj", "reiter"]),
-                OptionSpec(name="data", short="d", type=String, default="", description="Path to CSV data file (levels)"),
+                OptionSpec(name="data", short="d", type=String, default="", description="Path to data file or handle stem (.csv, .jld2, .jls; levels)"),
                 OptionSpec(name="observables", type=String, default="", description="Observable aggregates (comma-separated; keys of ss.aggregates/ss.prices)"),
                 OptionSpec(name="measurement-error", type=String, default="", description="Measurement error std devs (comma-separated) or auto"),
                 OptionSpec(name="n-reduced", type=Int, default=30, description="Reduced states"),
@@ -1008,7 +1008,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="beta", type=Float64, default=0.96, description="Discount factor"),
                 OptionSpec(name="delta", type=Float64, default=0.08, description="Depreciation"),
                 OptionSpec(name="gamma", type=Float64, default=0.98, description="Survival probability"),
-                OptionSpec(name="z", type=Float64, default=1.0, description="TFP"),
+                OptionSpec(name="z", type=Float64, default=1.0, description="Total factor productivity (TFP) level"),
                 OptionSpec(name="debt", type=Float64, default=0.0, description="Government debt b (see MEMs#237 if b≠0)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table",
@@ -1031,7 +1031,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="beta", type=Float64, default=0.96, description="Discount factor"),
                 OptionSpec(name="delta", type=Float64, default=0.08, description="Depreciation"),
                 OptionSpec(name="gamma", type=Float64, default=0.98, description="Survival probability"),
-                OptionSpec(name="z", type=Float64, default=1.0, description="TFP"),
+                OptionSpec(name="z", type=Float64, default=1.0, description="Total factor productivity (TFP) level"),
                 OptionSpec(name="debt", type=Float64, default=0.0, description="Government debt b"),
                 OptionSpec(name="k0", type=Float64, default=0.0,
                            description="Initial capital (0 = 80% of steady-state k)"),
@@ -1055,7 +1055,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="beta", type=Float64, default=0.96, description="Discount factor"),
                 OptionSpec(name="delta", type=Float64, default=0.08, description="Depreciation"),
                 OptionSpec(name="gamma", type=Float64, default=0.98, description="Survival probability"),
-                OptionSpec(name="z", type=Float64, default=1.0, description="TFP"),
+                OptionSpec(name="z", type=Float64, default=1.0, description="Total factor productivity (TFP) level"),
                 OptionSpec(name="debt", type=Float64, default=0.0, description="Government debt b"),
                 OptionSpec(name="rho-z", type=Float64, default=0.0, description="TFP persistence"),
                 OptionSpec(name="sigma-z", type=Float64, default=0.0, description="TFP shock scale"),
@@ -1089,7 +1089,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="beta", type=Float64, default=0.96, description="Discount factor"),
                 OptionSpec(name="delta", type=Float64, default=0.08, description="Depreciation"),
                 OptionSpec(name="gamma", type=Float64, default=0.98, description="Survival probability"),
-                OptionSpec(name="z", type=Float64, default=1.0, description="TFP"),
+                OptionSpec(name="z", type=Float64, default=1.0, description="Total factor productivity (TFP) level"),
                 OptionSpec(name="debt", type=Float64, default=0.0, description="Government debt b"),
                 OptionSpec(name="rho-z", type=Float64, default=0.0, description="TFP persistence"),
                 OptionSpec(name="sigma-z", type=Float64, default=0.0, description="TFP shock scale"),
@@ -1314,7 +1314,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="sigma", type=Float64, default=2.0, description="CRRA risk aversion (> 0)"),
                 OptionSpec(name="alpha", type=Float64, default=0.36, description="Capital share in (0,1)"),
                 OptionSpec(name="delta", type=Float64, default=0.06, description="Depreciation in [0,1]"),
-                OptionSpec(name="z", type=Float64, default=1.0, description="TFP"),
+                OptionSpec(name="z", type=Float64, default=1.0, description="Total factor productivity (TFP) level"),
                 OptionSpec(name="n-pop", type=Float64, default=0.0, description="Population growth (> −1)"),
                 OptionSpec(name="replacement", type=Float64, default=0.4, description="Pension replacement (≥ 0)"),
                 OptionSpec(name="credit-limit", type=Float64, default=0.0, description="Borrowing limit"),
@@ -1357,7 +1357,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="sigma", type=Float64, default=2.0, description="CRRA risk aversion"),
                 OptionSpec(name="alpha", type=Float64, default=0.36, description="Capital share"),
                 OptionSpec(name="delta", type=Float64, default=0.06, description="Depreciation"),
-                OptionSpec(name="z", type=Float64, default=1.0, description="TFP"),
+                OptionSpec(name="z", type=Float64, default=1.0, description="Total factor productivity (TFP) level"),
                 OptionSpec(name="income-rho", type=Float64, default=0.95, description="Idiosyncratic income persistence"),
                 OptionSpec(name="income-sigma", type=Float64, default=0.2, description="Idiosyncratic income s.d."),
                 OptionSpec(name="income-states", type=Int, default=3, description="Income states"),
@@ -1543,7 +1543,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="zeta2", type=Float64, default=2.0, description="Operating-cost curvature (> 1)"),
                 OptionSpec(name="r", type=Float64, default=1.01, description="Gross deposit rate R (> 0)"),
                 OptionSpec(name="rk", type=Float64, default=0.05, description="Net claim return rᵏ"),
-                OptionSpec(name="z", type=Float64, default=0.25, description="TFP"),
+                OptionSpec(name="z", type=Float64, default=0.25, description="Total factor productivity (TFP) level"),
                 OptionSpec(name="alpha", type=Float64, default=0.33, description="Capital share in (0,1)"),
                 OptionSpec(name="max-iter", type=Int, default=250, description="PE VFI iterations"),
                 OptionSpec(name="tol", type=Float64, default=1e-6, description="PE VFI tolerance"),
@@ -1572,7 +1572,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="sigma", type=Float64, default=0.95, description="Survival probability"),
                 OptionSpec(name="lambda", type=Float64, default=0.20, description="Diversion parameter"),
                 OptionSpec(name="r", type=Float64, default=1.01, description="Gross deposit rate R (held fixed)"),
-                OptionSpec(name="z", type=Float64, default=0.25, description="TFP"),
+                OptionSpec(name="z", type=Float64, default=0.25, description="Total factor productivity (TFP) level"),
                 OptionSpec(name="alpha", type=Float64, default=0.33, description="Capital share"),
                 OptionSpec(name="r-lo", type=Float64, default=NaN, description="rᵏ bracket lower end (NaN = default)"),
                 OptionSpec(name="r-hi", type=Float64, default=NaN, description="rᵏ bracket upper end (NaN = default)"),
@@ -1618,7 +1618,7 @@ function dsge_specs()::Vector{CommandSpec}
             options=[
                 OptionSpec(name="horizon", type=Int, default=20, description="IRF horizon (≥ 2)"),
                 OptionSpec(name="shock-size", type=Float64, default=0.01, description="TFP impulse size"),
-                OptionSpec(name="persist", type=Float64, default=0.5, description="AR(1) decay (default 0.5)"),
+                OptionSpec(name="persist", type=Float64, default=0.5, description="AR(1) persistence decay"),
                 OptionSpec(name="n-n", type=Int, default=25, description="Net-worth grid points (≥ 3)"),
                 OptionSpec(name="n-xi", type=Int, default=3, description="Idiosyncratic ξ states"),
                 OptionSpec(name="z", type=Float64, default=0.25, description="Steady-state TFP"),
@@ -1635,15 +1635,42 @@ function dsge_specs()::Vector{CommandSpec}
     ]
 end
 
+const _DSGE_MODEL_TYPES = Dict{Vector{String},Vector{Symbol}}(
+    ["dsge", "irf"]                   => [:DSGESolution, :PerturbationSolution, :ProjectionSolution, :OccBinSolution],
+    ["dsge", "simulate"]              => [:DSGESolution, :PerturbationSolution, :ProjectionSolution],
+    ["dsge", "fevd"]                  => [:DSGESolution, :PerturbationSolution],
+    ["dsge", "moments"]               => [:DSGESolution, :PerturbationSolution],
+    ["dsge", "hd"]                    => [:DSGESolution, :PerturbationSolution],
+    ["dsge", "bayes", "irf"]          => [:BayesianDSGE],
+    ["dsge", "bayes", "fevd"]         => [:BayesianDSGE],
+    ["dsge", "bayes", "simulate"]     => [:BayesianDSGE],
+    ["dsge", "bayes", "summary"]      => [:BayesianDSGE],
+    ["dsge", "bayes", "compare"]      => [:BayesianDSGE],
+    ["dsge", "bayes", "predictive"]   => [:BayesianDSGE],
+    ["dsge", "bayes", "hd"]           => [:BayesianDSGE],
+    ["dsge", "bayes", "mcmc-diag"]    => [:BayesianDSGE],
+    ["dsge", "bayes", "learning-rate"]=> [:BayesianDSGE],
+    ["dsge", "bayes", "overlap"]      => [:BayesianDSGE],
+    ["dsge", "bayes", "marginal-lik"] => [:BayesianDSGE],
+    ["dsge", "ha", "accuracy"]        => [:HADSGESolution, :KrusellSmithSolution],
+    ["dsge", "ha", "irf"]             => [:HADSGESolution],
+    ["dsge", "ha", "fevd"]            => [:HADSGESolution],
+    ["dsge", "ha", "simulate"]        => [:HADSGESolution],
+    ["dsge", "ha", "distribution-irf"]=> [:HADSGESolution],
+    ["dsge", "ha", "inequality-irf"]  => [:HADSGESolution],
+    ["dsge", "ha", "simulate-panel"]  => [:HASteadyState, :HADSGESolution],
+    ["dsge", "ha", "hd"]              => [:HADSGESolution],
+)
+
 function _prepared_dsge_specs()
-    # --save-model on the solution-returning leaves (W3/#167 adds the HA pair +
-    # bayes estimate: HASteadyState / HADSGESolution / KrusellSmithSolution /
-    # BayesianDSGE are all natively registered at MEMs 0.9.3, so they persist
-    # via .jld2 — the retired .fmod carve-out). Matched on the pre-promotion path.
+    # --save-model on solution/posterior-returning leaves (matched on pre-promotion path).
     specs = map(dsge_specs()) do s
-        s.path in (["dsge", "solve"], ["dsge", "ha", "solve"],
-                   ["dsge", "ha", "steady-state"],
-                   ["dsge", "bayes", "estimate"]) ? with_save_model([s])[1] : s
+        s2 = s.path in (["dsge", "solve"], ["dsge", "estimate"],
+                        ["dsge", "ha", "solve"], ["dsge", "ha", "steady-state"],
+                        ["dsge", "ha", "estimate"],
+                        ["dsge", "bayes", "estimate"]) ? with_save_model([s])[1] : s
+        mt = get(_DSGE_MODEL_TYPES, s2.path, nothing)
+        mt === nothing ? s2 : _copy_spec(s2; model_types=mt)
     end
     out = CommandSpec[]
     for s in specs
@@ -1713,7 +1740,7 @@ function _dsge_solve(; model::String, method::String="gensys", order::Int=1,
             output_result(path_df; format=Symbol(format), output=output,
                           title="DSGE OccBin Solution ($(length(cons)) constraint(s), T=$periods)",
                           key="dsge_occbin_solution")
-            return
+            return ob_sol
         else
             # New solver hierarchy path
             _status("\nSolving with constraint-solver=$constraint_solver...")
@@ -1982,7 +2009,7 @@ end
 # variances/covariances and autocovariances rather than two calls with different layouts.
 # The mean matters at order ≥ 2: the risk-adjusted mean differs from the steady state, and
 # that difference is the point of solving at higher order.
-function _dsge_moments(; model::String, method::String="perturbation", order::Int=2,
+function _dsge_moments(; model="", method::String="perturbation", order::Int=2,
                         lags::Int=1, output::String="", format::String="table")
     (1 <= order <= 3) || throw(CliError("usage/invalid",
         "dsge moments: --order must be 1, 2 or 3 (got $order)"))
@@ -1996,12 +2023,18 @@ function _dsge_moments(; model::String, method::String="perturbation", order::In
     lags >= 1 || throw(CliError("usage/invalid",
         "dsge moments: --lags must be ≥ 1 (got $lags)"))
 
-    spec = _load_dsge_model(model)
-    sol = _solve_dsge(spec; method=method, order=order)
-    sol isa MacroEconometricModels.PerturbationSolution || throw(CliError("usage/invalid",
-        "dsge moments needs a perturbation solution; --method $method produced a " *
-        "$(nameof(typeof(sol)))";
-        hint="use --method perturbation (the default), optionally with --order 2 or 3"))
+    if model isa AbstractString
+        spec = _load_dsge_model(String(model))
+        sol = _solve_dsge(spec; method=method, order=order)
+        sol isa MacroEconometricModels.PerturbationSolution || throw(CliError("usage/invalid",
+            "dsge moments needs a perturbation solution; --method $method produced a " *
+            "$(nameof(typeof(sol)))";
+            hint="use --method perturbation (the default), optionally with --order 2 or 3"))
+    else
+        sol = model
+        spec = sol.spec
+        order = sol isa MacroEconometricModels.PerturbationSolution ? sol.order : 1
+    end
 
     # Augmented specs report moments over the ORIGINAL variables only, so the labels must be
     # filtered the same way upstream filters the matrices — otherwise every moment is
@@ -2018,27 +2051,50 @@ function _dsge_moments(; model::String, method::String="perturbation", order::In
     order == 1 || _status("  Closed-form pruned-state-space moments (simulation-free)")
     _status()
 
-    mv = try
-        analytical_moments(sol; lags=lags, format=:gmm)
-    catch e
-        throw(_domain_or_data_error(e, "theoretical moments"))
-    end
-    expected = k + div(k * (k + 1), 2) + k * lags
-    length(mv) == expected || throw(CliError("model/error",
-        "moment vector has $(length(mv)) entries but the $k-variable × $lags-lag layout " *
-        "implies $expected — the upstream packing changed"))
+    if sol isa MacroEconometricModels.DSGESolution
+        ss = Float64.(spec.steady_state)[idx]
+        E = copy(ss)
+        mv = try
+            analytical_moments(sol; lags=lags, observable_indices=idx)
+        catch e
+            throw(_domain_or_data_error(e, "theoretical moments"))
+        end
+        expected = div(k * (k + 1), 2) + k * lags
+        length(mv) == expected || throw(CliError("model/error",
+            "moment vector has $(length(mv)) entries but the $k-variable × $lags-lag layout " *
+            "implies $expected — the upstream packing changed"))
+        pos = 0
+        Var = zeros(Float64, k, k)
+        for i in 1:k, j in i:k
+            pos += 1
+            Var[i, j] = mv[pos]
+            Var[j, i] = mv[pos]
+        end
+        ac_from_product = false
+    else
+        mv = try
+            analytical_moments(sol; lags=lags, format=:gmm)
+        catch e
+            throw(_domain_or_data_error(e, "theoretical moments"))
+        end
+        expected = k + div(k * (k + 1), 2) + k * lags
+        length(mv) == expected || throw(CliError("model/error",
+            "moment vector has $(length(mv)) entries but the $k-variable × $lags-lag layout " *
+            "implies $expected — the upstream packing changed"))
 
-    E = Float64[mv[i] for i in 1:k]
-    pos = k
-    Var = zeros(Float64, k, k)
-    for i in 1:k, j in i:k
-        pos += 1
-        # :gmm packs the PRODUCT moment E[yᵢyⱼ]; the central second moment is that minus E·E.
-        v = mv[pos] - E[i] * E[j]
-        Var[i, j] = v
-        Var[j, i] = v
+        E = Float64[mv[i] for i in 1:k]
+        pos = k
+        Var = zeros(Float64, k, k)
+        for i in 1:k, j in i:k
+            pos += 1
+            # :gmm packs the PRODUCT moment E[yᵢyⱼ]; the central second moment is that minus E·E.
+            v = mv[pos] - E[i] * E[j]
+            Var[i, j] = v
+            Var[j, i] = v
+        end
+        ss = Float64.(sol.steady_state)[idx]
+        ac_from_product = true
     end
-    ss = Float64.(sol.steady_state)[idx]
 
     mean_df = DataFrame(
         variable = names,
@@ -2066,8 +2122,8 @@ function _dsge_moments(; model::String, method::String="perturbation", order::In
     ac_rows = NamedTuple[]
     for lag in 1:lags, i in 1:k
         pos += 1
-        # Diagonal autocovariance, again de-centred out of the :gmm product moment.
-        ac = mv[pos] - E[i]^2
+        # Diagonal autocovariance, de-centred when unpacked from :gmm product moments.
+        ac = ac_from_product ? (mv[pos] - E[i]^2) : Float64(mv[pos])
         push!(ac_rows, (variable = names[i], lag = lag,
                         autocovariance = round(ac; digits=8),
                         autocorrelation = Var[i, i] > 0 ? round(ac / Var[i, i]; digits=8) : NaN))
@@ -2108,7 +2164,7 @@ function _dsge_steady_state(; model::String, constraints::String="",
                   title="DSGE Steady State")
 end
 
-function _dsge_simulate(; model::String, method::String="gensys", order::Int=1,
+function _dsge_simulate(; model="", method::String="gensys", order::Int=1,
                          degree::Int=5, grid::String="auto",
                          next_state::String="", howard_steps::Int=-1,
                          n_grid::Int=0, n_choice::Int=0, n_quad::Int=0,
@@ -2119,13 +2175,19 @@ function _dsge_simulate(; model::String, method::String="gensys", order::Int=1,
                          antithetic::Bool=false, seed::Int=0,
                          output::String="", format::String="table",
                          plot::Bool=false, plot_save::String="")
-    spec = _load_dsge_model(model)
-    sol = _solve_dsge(spec; method=method, order=order, degree=degree, grid=grid,
-                      next_state=next_state, howard_steps=howard_steps,
-                      n_grid=n_grid, n_choice=n_choice, n_quad=n_quad,
-                      scale=scale, tol=tol, max_iter=max_iter,
-                      damping=damping, anderson_m=anderson_m,
-                      optimizer=optimizer, smolyak_mu=smolyak_mu)
+    if model isa AbstractString
+        spec = _load_dsge_model(String(model))
+        sol = _solve_dsge(spec; method=method, order=order, degree=degree, grid=grid,
+                          next_state=next_state, howard_steps=howard_steps,
+                          n_grid=n_grid, n_choice=n_choice, n_quad=n_quad,
+                          scale=scale, tol=tol, max_iter=max_iter,
+                          damping=damping, anderson_m=anderson_m,
+                          optimizer=optimizer, smolyak_mu=smolyak_mu)
+    else
+        sol = model
+        spec = sol.spec
+        method = string(sol.method)
+    end
 
     _status("Simulating $(periods + burn) periods (burn-in=$burn)...")
 
@@ -2158,7 +2220,7 @@ end
 
 # ── IRF / FEVD / Estimate / Perfect Foresight ──────────────────
 
-function _dsge_irf(; model::String, method::String="gensys", order::Int=1,
+function _dsge_irf(; model="", method::String="gensys", order::Int=1,
                     degree::Int=5, grid::String="auto",
                     next_state::String="", howard_steps::Int=-1,
                     n_grid::Int=0, n_choice::Int=0, n_quad::Int=0,
@@ -2169,23 +2231,41 @@ function _dsge_irf(; model::String, method::String="gensys", order::Int=1,
                     constraints::String="", constraint::Vector{String}=String[],
                     output::String="", format::String="table",
                     plot::Bool=false, plot_save::String="")
-    # CARD-W2 (#210): this leaf CONSUMES a `constraints:` stanza, so it is the only
-    # kind the loader lets through; a `priors:` stanza is refused by the same
-    # symmetric policy.
-    spec = _load_dsge_model(model; allow_constraints=true)
-    stanzas = _model_card_stanzas_for(model)
+    if model isa AbstractString
+        # CARD-W2 (#210): this leaf CONSUMES a `constraints:` stanza, so it is the only
+        # kind the loader lets through; a `priors:` stanza is refused by the same
+        # symmetric policy.
+        spec = _load_dsge_model(String(model); allow_constraints=true)
+        stanzas = _model_card_stanzas_for(String(model))
 
-    sol = _solve_dsge(spec; method=method, order=order, degree=degree, grid=grid,
-                      next_state=next_state, howard_steps=howard_steps,
-                      n_grid=n_grid, n_choice=n_choice, n_quad=n_quad,
-                      scale=scale, tol=tol, max_iter=max_iter,
-                      damping=damping, anderson_m=anderson_m,
-                      optimizer=optimizer, smolyak_mu=smolyak_mu)
+        sol = _solve_dsge(spec; method=method, order=order, degree=degree, grid=grid,
+                          next_state=next_state, howard_steps=howard_steps,
+                          n_grid=n_grid, n_choice=n_choice, n_quad=n_quad,
+                          scale=scale, tol=tol, max_iter=max_iter,
+                          damping=damping, anderson_m=anderson_m,
+                          optimizer=optimizer, smolyak_mu=smolyak_mu)
+        use_occbin = !isempty(constraints) || !isempty(constraint) || haskey(stanzas, :constraints)
+        occ_cons = use_occbin ? _resolve_dsge_constraints(constraints, constraint; stanzas=stanzas, spec=spec) : nothing
+    elseif model isa MacroEconometricModels.OccBinSolution
+        spec = model.spec
+        sol = nothing
+        use_occbin = true
+        occ_cons = (!isempty(constraints) || !isempty(constraint)) ?
+            _resolve_dsge_constraints(constraints, constraint; stanzas=Dict{Symbol,Any}(), spec=spec) :
+            model.constraints
+    else
+        sol = model
+        spec = sol.spec
+        method = string(sol.method)
+        use_occbin = !isempty(constraints) || !isempty(constraint)
+        occ_cons = use_occbin ?
+            _resolve_dsge_constraints(constraints, constraint; stanzas=Dict{Symbol,Any}(), spec=spec) :
+            nothing
+    end
 
-    if !isempty(constraints) || !isempty(constraint) || haskey(stanzas, :constraints)
+    if use_occbin
         _status("\nComputing OccBin IRF...")
-        cons = _resolve_dsge_constraints(constraints, constraint; stanzas=stanzas, spec=spec)
-        ob_irf = _occbin_irf_call(spec, cons; shock_idx=1, horizon=horizon, magnitude=shock_size)
+        ob_irf = _occbin_irf_call(spec, occ_cons; shock_idx=1, horizon=horizon, magnitude=shock_size)
 
         _maybe_plot(ob_irf; plot=plot, plot_save=plot_save)
 
@@ -2229,7 +2309,7 @@ function _dsge_irf(; model::String, method::String="gensys", order::Int=1,
     end
 end
 
-function _dsge_fevd(; model::String, method::String="gensys", order::Int=1,
+function _dsge_fevd(; model="", method::String="gensys", order::Int=1,
                      degree::Int=5, grid::String="auto",
                      next_state::String="", howard_steps::Int=-1,
                      n_grid::Int=0, n_choice::Int=0, n_quad::Int=0,
@@ -2239,16 +2319,22 @@ function _dsge_fevd(; model::String, method::String="gensys", order::Int=1,
                      horizon::Int=40, unconditional::Bool=false,
                      output::String="", format::String="table",
                      plot::Bool=false, plot_save::String="")
-    meth = _parse_ra_method(method)
-    meth in (:projection, :pfi, :vfi) && throw(CliError("usage/invalid",
-        "dsge fevd has no ProjectionSolution method; use gensys|klein|blanchard-kahn|perturbation"))
-    spec = _load_dsge_model(model)
-    sol = _solve_dsge(spec; method=method, order=order, degree=degree, grid=grid,
-                      next_state=next_state, howard_steps=howard_steps,
-                      n_grid=n_grid, n_choice=n_choice, n_quad=n_quad,
-                      scale=scale, tol=tol, max_iter=max_iter,
-                      damping=damping, anderson_m=anderson_m,
-                      optimizer=optimizer, smolyak_mu=smolyak_mu)
+    if model isa AbstractString
+        meth = _parse_ra_method(method)
+        meth in (:projection, :pfi, :vfi) && throw(CliError("usage/invalid",
+            "dsge fevd has no ProjectionSolution method; use gensys|klein|blanchard-kahn|perturbation"))
+        spec = _load_dsge_model(String(model))
+        sol = _solve_dsge(spec; method=method, order=order, degree=degree, grid=grid,
+                          next_state=next_state, howard_steps=howard_steps,
+                          n_grid=n_grid, n_choice=n_choice, n_quad=n_quad,
+                          scale=scale, tol=tol, max_iter=max_iter,
+                          damping=damping, anderson_m=anderson_m,
+                          optimizer=optimizer, smolyak_mu=smolyak_mu)
+    else
+        sol = model
+        spec = sol.spec
+        method = string(sol.method)
+    end
 
     if unconditional
         # MEMs: unconditional FEVD is only defined for PerturbationSolution with order ≥ 2
@@ -2338,6 +2424,7 @@ function _dsge_estimate(; model::String, data::String="", method::String="irf_ma
     _status_styled("  J p-value:   $(round(est.J_pvalue; digits=4))\n"; color=:cyan)
     _status_styled("  Converged:   $(est.converged)\n";
                 color = est.converged ? :green : :red)
+    return est
 end
 
 function _dsge_perfect_foresight(; model::String, shocks::String="",
@@ -2634,9 +2721,10 @@ function _dsge_bayes_estimate(; model::String, data::String="", params::String="
     _status_styled("  Log marginal likelihood: $(round(result.log_marginal_likelihood; digits=4))\n"; color=:cyan)
     _status_styled("  Acceptance rate: $(round(result.acceptance_rate; digits=4))\n"; color=:cyan)
     _status_styled("  Method: $(result.method)\n"; color=:cyan)
+    return result
 end
 
-function _dsge_bayes_irf(; model::String, data::String="", params::String="",
+function _dsge_bayes_irf(; model="", data::String="", params::String="",
                           priors::String="", sampler::String="smc",
                           prior::Vector{String}=String[],
                           n_smc::Int=5000, n_particles::Int=500,
@@ -2650,9 +2738,12 @@ function _dsge_bayes_irf(; model::String, data::String="", params::String="",
                           horizon::Int=40,
                           output::String="", format::String="table",
                           plot::Bool=false, plot_save::String="")
-    result = _dsge_bayes_run_estimation(; model, data, params, priors, prior, sampler,
-        n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
+    result = model isa AbstractString ?
+        _dsge_bayes_run_estimation(; model=String(model), data, params, priors, prior, sampler,
+            n_smc, n_particles, n_draws, burnin, ess_target, observables,
+            solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error) :
+        model
+    sampler = model isa AbstractString ? sampler : string(result.method)
 
     solver_kwargs = order > 1 ? (order=order,) : NamedTuple()
 
@@ -2681,7 +2772,7 @@ function _dsge_bayes_irf(; model::String, data::String="", params::String="",
     end
 end
 
-function _dsge_bayes_fevd(; model::String, data::String="", params::String="",
+function _dsge_bayes_fevd(; model="", data::String="", params::String="",
                            priors::String="", sampler::String="smc",
                            prior::Vector{String}=String[],
                            n_smc::Int=5000, n_particles::Int=500,
@@ -2695,9 +2786,12 @@ function _dsge_bayes_fevd(; model::String, data::String="", params::String="",
                                measurement_error::String="none",
                            output::String="", format::String="table",
                            plot::Bool=false, plot_save::String="")
-    result = _dsge_bayes_run_estimation(; model, data, params, priors, prior, sampler,
-        n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
+    result = model isa AbstractString ?
+        _dsge_bayes_run_estimation(; model=String(model), data, params, priors, prior, sampler,
+            n_smc, n_particles, n_draws, burnin, ess_target, observables,
+            solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error) :
+        model
+    sampler = model isa AbstractString ? sampler : string(result.method)
 
     solver_kwargs = order > 1 ? (order=order,) : NamedTuple()
 
@@ -2727,7 +2821,7 @@ function _dsge_bayes_fevd(; model::String, data::String="", params::String="",
     end
 end
 
-function _dsge_bayes_simulate(; model::String, data::String="", params::String="",
+function _dsge_bayes_simulate(; model="", data::String="", params::String="",
                                priors::String="", sampler::String="smc",
                                prior::Vector{String}=String[],
                                n_smc::Int=5000, n_particles::Int=500,
@@ -2741,9 +2835,12 @@ function _dsge_bayes_simulate(; model::String, data::String="", params::String="
                                periods::Int=200,
                                output::String="", format::String="table",
                                plot::Bool=false, plot_save::String="")
-    result = _dsge_bayes_run_estimation(; model, data, params, priors, prior, sampler,
-        n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
+    result = model isa AbstractString ?
+        _dsge_bayes_run_estimation(; model=String(model), data, params, priors, prior, sampler,
+            n_smc, n_particles, n_draws, burnin, ess_target, observables,
+            solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error) :
+        model
+    sampler = model isa AbstractString ? sampler : string(result.method)
 
     solver_kwargs = order > 1 ? (order=order,) : NamedTuple()
 
@@ -2766,7 +2863,7 @@ function _dsge_bayes_simulate(; model::String, data::String="", params::String="
                   key="bayesian_dsge_simulation")
 end
 
-function _dsge_bayes_summary(; model::String, data::String="", params::String="",
+function _dsge_bayes_summary(; model="", data::String="", params::String="",
                               priors::String="", sampler::String="smc",
                               prior::Vector{String}=String[],
                               n_smc::Int=5000, n_particles::Int=500,
@@ -2778,9 +2875,12 @@ function _dsge_bayes_summary(; model::String, data::String="", params::String=""
                               prefilter::String="none", hp_lambda::Float64=1600.0,
                                measurement_error::String="none",
                               output::String="", format::String="table")
-    result = _dsge_bayes_run_estimation(; model, data, params, priors, prior, sampler,
-        n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
+    result = model isa AbstractString ?
+        _dsge_bayes_run_estimation(; model=String(model), data, params, priors, prior, sampler,
+            n_smc, n_particles, n_draws, burnin, ess_target, observables,
+            solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error) :
+        model
+    sampler = model isa AbstractString ? sampler : string(result.method)
 
     summary = posterior_summary(result)
     pp_table = prior_posterior_table(result)
@@ -2818,7 +2918,7 @@ function _dsge_bayes_summary(; model::String, data::String="", params::String=""
     _status_styled("  Acceptance rate: $(round(result.acceptance_rate; digits=4))\n"; color=:cyan)
 end
 
-function _dsge_bayes_compare(; model::String, data::String="", params::String="",
+function _dsge_bayes_compare(; model="", data::String="", params::String="",
                               priors::String="", sampler::String="smc",
                               prior::Vector{String}=String[],
                               n_smc::Int=5000, n_particles::Int=500,
@@ -2833,30 +2933,39 @@ function _dsge_bayes_compare(; model::String, data::String="", params::String=""
                               output::String="", format::String="table")
     isempty(model2) && throw(CliError("usage/missing-option",
         "--model2 is required for model comparison"))
-    isempty(params2) && throw(CliError("usage/missing-option",
-        "--params2 is required for model comparison"))
-    # CARD-W2 (#210): Model 2 gets the same THIRD source as Model 1 — a `priors:`
-    # stanza in model2's own `.jl` file. Requiring --priors2 on top of it made the
-    # new source unreachable for Model 2, and any parameter the two shared became a
-    # hard three-source collision: the capability the wave adds, inverted. The
-    # message is the shared const (one copy, as everywhere else); the hint is what
-    # names this invocation's Model-2 flag.
-    isempty(priors2) && !haskey(_model_card_stanza_policy(_model_card_stanzas_for(model2);
-                                                        allow_priors=true), :priors) &&
-        throw(CliError("usage/missing-option", _PRIORS_REQUIRED_MESSAGE;
-                       hint="this is the second model: pass --priors2 <file.toml>, or " *
-                            "give model2 its own 'priors:' stanza"))
+    exp_m2 = expanduser(model2)
+    m2_is_handle = _is_handle_path(model2) || any(ext -> isfile(exp_m2 * ext), (".jld2", ".jls", ".fmod"))
+    if !m2_is_handle
+        isempty(params2) && throw(CliError("usage/missing-option",
+            "--params2 is required for model comparison"))
+        # CARD-W2 (#210): Model 2 gets the same THIRD source as Model 1 — a `priors:`
+        # stanza in model2's own `.jl` file.
+        isempty(priors2) && !haskey(_model_card_stanza_policy(_model_card_stanzas_for(model2);
+                                                            allow_priors=true), :priors) &&
+            throw(CliError("usage/missing-option", _PRIORS_REQUIRED_MESSAGE;
+                           hint="this is the second model: pass --priors2 <file.toml>, or " *
+                                "give model2 its own 'priors:' stanza"))
+    end
 
-    _status("Estimating Model 1...")
-    r1 = _dsge_bayes_run_estimation(; model, data, params, priors, prior, sampler,
-        n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
+    if model isa AbstractString
+        _status("Estimating Model 1...")
+        r1 = _dsge_bayes_run_estimation(; model=String(model), data, params, priors, prior, sampler,
+            n_smc, n_particles, n_draws, burnin, ess_target, observables,
+            solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
+    else
+        r1 = model
+    end
 
-    _status("Estimating Model 2...")
-    r2 = _dsge_bayes_run_estimation(; model=model2, data, params=params2,
-        priors=priors2, sampler, n_smc, n_particles, n_draws, burnin,
-        ess_target, observables, solver, order, delayed_acceptance, constraint_solver,
-        prefilter, hp_lambda, measurement_error)
+    if m2_is_handle
+        resolved_m2 = resolve_stem(model2; slot=:result)
+        r2 = _load_typed_handle(resolved_m2, [:BayesianDSGE], "model/wrong-kind"; slot="model2")
+    else
+        _status("Estimating Model 2...")
+        r2 = _dsge_bayes_run_estimation(; model=model2, data, params=params2,
+            priors=priors2, sampler, n_smc, n_particles, n_draws, burnin,
+            ess_target, observables, solver, order, delayed_acceptance, constraint_solver,
+            prefilter, hp_lambda, measurement_error)
+    end
 
     # MEMs `bayes_factor` returns the LOG Bayes factor: log BF₁₂ = logML₁ − logML₂
     # (positive favors Model 1). Do NOT take log() of it again. `bf = exp(log_bf)` may
@@ -2885,7 +2994,7 @@ function _dsge_bayes_compare(; model::String, data::String="", params::String=""
     end
 end
 
-function _dsge_bayes_predictive(; model::String, data::String="", params::String="",
+function _dsge_bayes_predictive(; model="", data::String="", params::String="",
                                  priors::String="", sampler::String="smc",
                                  prior::Vector{String}=String[],
                                  n_smc::Int=5000, n_particles::Int=500,
@@ -2899,9 +3008,12 @@ function _dsge_bayes_predictive(; model::String, data::String="", params::String
                                measurement_error::String="none",
                                  output::String="", format::String="table",
                                  plot::Bool=false, plot_save::String="")
-    result = _dsge_bayes_run_estimation(; model, data, params, priors, prior, sampler,
-        n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
+    result = model isa AbstractString ?
+        _dsge_bayes_run_estimation(; model=String(model), data, params, priors, prior, sampler,
+            n_smc, n_particles, n_draws, burnin, ess_target, observables,
+            solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error) :
+        model
+    sampler = model isa AbstractString ? sampler : string(result.method)
 
     _status("Generating posterior predictive simulations: n=$n_sim, T=$periods")
     # re-solves per draw → world-age barrier (see _dsge_call)
@@ -2924,7 +3036,7 @@ function _dsge_bayes_predictive(; model::String, data::String="", params::String
                   key="posterior_predictive_summary")
 end
 
-function _dsge_hd(; model::String, method::String="gensys", order::Int=1,
+function _dsge_hd(; model="", method::String="gensys", order::Int=1,
                    degree::Int=5, grid::String="auto",
                    next_state::String="", howard_steps::Int=-1,
                    n_grid::Int=0, n_choice::Int=0, n_quad::Int=0,
@@ -2938,24 +3050,30 @@ function _dsge_hd(; model::String, method::String="gensys", order::Int=1,
                    plot::Bool=false, plot_save::String="")
     isempty(data) && error("--data is required for DSGE historical decomposition")
     isempty(observables) && error("--observables is required (comma-separated variable names)")
-    meth = _parse_ra_method(method)
-    meth in (:projection, :pfi, :vfi) && throw(CliError("usage/invalid",
-        "dsge hd has no ProjectionSolution method; use gensys|klein|blanchard-kahn|perturbation"))
+    if model isa AbstractString
+        meth = _parse_ra_method(method)
+        meth in (:projection, :pfi, :vfi) && throw(CliError("usage/invalid",
+            "dsge hd has no ProjectionSolution method; use gensys|klein|blanchard-kahn|perturbation"))
 
-    spec = _load_dsge_model(model)
-    sol = _solve_dsge(spec; method=method, order=order, degree=degree, grid=grid,
-                      next_state=next_state, howard_steps=howard_steps,
-                      n_grid=n_grid, n_choice=n_choice, n_quad=n_quad,
-                      scale=scale, tol=tol, max_iter=max_iter,
-                      damping=damping, anderson_m=anderson_m,
-                      optimizer=optimizer, smolyak_mu=smolyak_mu)
+        spec = _load_dsge_model(String(model))
+        sol = _solve_dsge(spec; method=method, order=order, degree=degree, grid=grid,
+                          next_state=next_state, howard_steps=howard_steps,
+                          n_grid=n_grid, n_choice=n_choice, n_quad=n_quad,
+                          scale=scale, tol=tol, max_iter=max_iter,
+                          damping=damping, anderson_m=anderson_m,
+                          optimizer=optimizer, smolyak_mu=smolyak_mu)
+        model_label = String(model)
+    else
+        sol = model
+        model_label = string(nameof(typeof(sol)))
+    end
 
     df = load_data(data)
     Y = df_to_matrix(df)
     obs_syms = Symbol[Symbol(strip(s)) for s in split(observables, ",")]
 
     _status("DSGE Historical Decomposition")
-    _status("  Model: $model")
+    _status("  Model: $model_label")
     _status("  Observations: $(size(Y, 1)), Observable variables: $(length(obs_syms))")
     _status("  States: $states")
     _status()
@@ -2988,7 +3106,7 @@ function _dsge_hd(; model::String, method::String="gensys", order::Int=1,
     return hd
 end
 
-function _dsge_bayes_hd(; model::String, data::String="", params::String="",
+function _dsge_bayes_hd(; model="", data::String="", params::String="",
                          priors::String="", observables::String="",
                          prior::Vector{String}=String[],
                          sampler::String="smc", n_smc::Int=5000,
@@ -3007,10 +3125,14 @@ function _dsge_bayes_hd(; model::String, data::String="", params::String="",
                          plot::Bool=false, plot_save::String="")
     isempty(observables) && error("--observables is required (comma-separated variable names)")
 
-    bd = _dsge_bayes_run_estimation(; model, data, params, priors, prior, sampler,
-        n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
+    bd = model isa AbstractString ?
+        _dsge_bayes_run_estimation(; model=String(model), data, params, priors, prior, sampler,
+            n_smc, n_particles, n_draws, burnin, ess_target, observables,
+            solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error) :
+        model
 
+    isempty(data) && throw(CliError("usage/missing-option",
+        "--data is required for Bayesian DSGE historical decomposition"))
     df = load_data(data)
     Y = df_to_matrix(df)
     obs_syms = Symbol[Symbol(strip(s)) for s in split(observables, ",")]
@@ -3042,7 +3164,7 @@ end
 # All share _dsge_bayes_run_estimation to fit, then route the (world-age-sensitive)
 # MEMs diagnostic through _dsge_call. Hand-built tables — none are Tables.jl types.
 
-function _dsge_bayes_mcmc_diag(; model::String, data::String="", params::String="",
+function _dsge_bayes_mcmc_diag(; model="", data::String="", params::String="",
                                 priors::String="", sampler::String="smc",
                                 prior::Vector{String}=String[],
                                 n_smc::Int=5000, n_particles::Int=500,
@@ -3054,9 +3176,11 @@ function _dsge_bayes_mcmc_diag(; model::String, data::String="", params::String=
                                 prefilter::String="none", hp_lambda::Float64=1600.0,
                                measurement_error::String="none",
                                 output::String="", format::String="table")
-    result = _dsge_bayes_run_estimation(; model, data, params, priors, prior, sampler,
-        n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
+    result = model isa AbstractString ?
+        _dsge_bayes_run_estimation(; model=String(model), data, params, priors, prior, sampler,
+            n_smc, n_particles, n_draws, burnin, ess_target, observables,
+            solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error) :
+        model
 
     _status("Computing MCMC convergence diagnostics (R-hat / ESS / Geweke)")
     # Pure post-processing of theta_draws, but wrapped for world-age consistency.
@@ -3153,7 +3277,7 @@ function _dsge_bayes_identification(; model::String, params::String="",
     return nothing
 end
 
-function _dsge_bayes_learning_rate(; model::String, data::String="", params::String="",
+function _dsge_bayes_learning_rate(; model="", data::String="", params::String="",
                                     priors::String="", sampler::String="smc",
                                     prior::Vector{String}=String[],
                                     n_smc::Int=5000, n_particles::Int=500,
@@ -3176,9 +3300,11 @@ function _dsge_bayes_learning_rate(; model::String, data::String="", params::Str
     (length(frac_vec) >= 2 && all(f -> 0 < f <= 1, frac_vec)) || throw(CliError("usage/invalid",
         "--fractions must be at least two values in (0,1], got '$fractions'"))
 
-    result = _dsge_bayes_run_estimation(; model, data, params, priors, prior, sampler,
-        n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
+    result = model isa AbstractString ?
+        _dsge_bayes_run_estimation(; model=String(model), data, params, priors, prior, sampler,
+            n_smc, n_particles, n_draws, burnin, ess_target, observables,
+            solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error) :
+        model
 
     _status("Koop-Pesaran-Smith learning-rate check (refit n_smc=$refit_n_smc)")
     # Re-runs SMC on nested subsamples (evaluates the spec) → world-age barrier.
@@ -3201,7 +3327,7 @@ function _dsge_bayes_learning_rate(; model::String, data::String="", params::Str
     return nothing
 end
 
-function _dsge_bayes_overlap(; model::String, data::String="", params::String="",
+function _dsge_bayes_overlap(; model="", data::String="", params::String="",
                               priors::String="", sampler::String="smc",
                               prior::Vector{String}=String[],
                               n_smc::Int=5000, n_particles::Int=500,
@@ -3214,9 +3340,11 @@ function _dsge_bayes_overlap(; model::String, data::String="", params::String=""
                               prefilter::String="none", hp_lambda::Float64=1600.0,
                                measurement_error::String="none",
                               output::String="", format::String="table")
-    result = _dsge_bayes_run_estimation(; model, data, params, priors, prior, sampler,
-        n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
+    result = model isa AbstractString ?
+        _dsge_bayes_run_estimation(; model=String(model), data, params, priors, prior, sampler,
+            n_smc, n_particles, n_draws, burnin, ess_target, observables,
+            solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error) :
+        model
 
     _status("Prior/posterior overlap (weak-identification signal)")
     ov = _dsge_call(prior_posterior_overlap, result; n_grid=n_grid, threshold=threshold)
@@ -3336,7 +3464,7 @@ function _dsge_bayes_prior_predictive(; model::String, params::String="",
     return res
 end
 
-function _dsge_bayes_marginal_lik(; model::String, data::String="", params::String="",
+function _dsge_bayes_marginal_lik(; model="", data::String="", params::String="",
                                    priors::String="", sampler::String="smc",
                                    prior::Vector{String}=String[],
                                    n_smc::Int=5000, n_particles::Int=500,
@@ -3351,9 +3479,11 @@ function _dsge_bayes_marginal_lik(; model::String, data::String="", params::Stri
                                    output::String="", format::String="table")
     proposal in ("normal", "t") || throw(CliError("usage/invalid",
         "--proposal must be normal|t, got '$proposal'"))
-    result = _dsge_bayes_run_estimation(; model, data, params, priors, prior, sampler,
-        n_smc, n_particles, n_draws, burnin, ess_target, observables,
-        solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
+    result = model isa AbstractString ?
+        _dsge_bayes_run_estimation(; model=String(model), data, params, priors, prior, sampler,
+            n_smc, n_particles, n_draws, burnin, ess_target, observables,
+            solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error) :
+        model
 
     _status("Bridge-sampling marginal likelihood (proposal=$proposal)")
     # Re-evaluates the likelihood over the spec → world-age barrier. Returns a scalar
@@ -3485,7 +3615,7 @@ end
 # `error()`s (:huggett, wrong method) — all UNTYPED, i.e. exit 1 — so each is either
 # pre-guarded here or mapped. `DenHaanAccuracy` has a real plot recipe
 # (plotting/ha_dynamics.jl), so the plot flags are genuinely backed.
-function _dsge_ha_accuracy(; model::String, method::String="krusell-smith",
+function _dsge_ha_accuracy(; model="", method::String="krusell-smith",
                             n_reduced::Int=30,
                             t_sim::Int=10000, t_burn::Int=1000, t_fit::Int=4000,
                             rho_z::Float64=0.95, sigma_z::Float64=0.007,
@@ -3493,34 +3623,49 @@ function _dsge_ha_accuracy(; model::String, method::String="krusell-smith",
                             hh_solver::String="egm", distribution::String="young",
                             plot::Bool=false, plot_save::String="",
                             output::String="", format::String="table")
-    meth = _parse_ha_method(method)
-    hh = _parse_hh_solver(hh_solver)
     t_sim > t_burn + 10 || throw(CliError("usage/invalid",
-        "dsge ha accuracy: --t-sim must exceed --t-burn by at least 10 " *
+        "hadsge accuracy: --t-sim must exceed --t-burn by at least 10 " *
         "(got t_sim=$t_sim, t_burn=$t_burn)"))
     t_burn >= 0 || throw(CliError("usage/invalid",
-        "dsge ha accuracy: --t-burn must be ≥ 0 (got $t_burn)"))
+        "hadsge accuracy: --t-burn must be ≥ 0 (got $t_burn)"))
     sigma_z > 0 || throw(CliError("usage/invalid",
-        "dsge ha accuracy: --sigma-z must be > 0 (got $sigma_z)"))
+        "hadsge accuracy: --sigma-z must be > 0 (got $sigma_z)"))
     abs(rho_z) < 1 || throw(CliError("usage/invalid",
-        "dsge ha accuracy: --rho-z must satisfy |rho| < 1 (got $rho_z)"))
-    if meth !== :krusell_smith
-        t_fit > 100 || throw(CliError("usage/invalid",
-            "dsge ha accuracy: --t-fit must be > 100 to fit the implied law of motion " *
-            "(got $t_fit)"))
-    end
+        "hadsge accuracy: --rho-z must satisfy |rho| < 1 (got $rho_z)"))
 
-    spec = _load_ha_model(model; distribution=distribution)
-    # Refuse BEFORE the (expensive) solve. Upstream only errors once den_haan_test is
-    # reached, so without this a user asking for an undefined combination waits through a
-    # full solve just to be told no.
-    _ha_model_symbol(spec) === :huggett && throw(CliError(
-        "model/unsupported",
-        "Den Haan accuracy is undefined for :huggett — it scores the aggregate CAPITAL " *
-        "law of motion, and the Huggett clearing rate is driven by the wealth distribution " *
-        "rather than the aggregate shock alone";
-        hint="use krusell-smith or one-asset-hank (or an :aiyagari-family .jl spec)"))
-    sol = _solve_ha(spec; method=meth, n_reduced=n_reduced, hh_solver=hh)
+    if model isa AbstractString
+        meth = _parse_ha_method(method)
+        hh = _parse_hh_solver(hh_solver)
+        if meth !== :krusell_smith
+            t_fit > 100 || throw(CliError("usage/invalid",
+                "hadsge accuracy: --t-fit must be > 100 to fit the implied law of motion " *
+                "(got $t_fit)"))
+        end
+        spec = _load_ha_model(String(model); distribution=distribution)
+        # Refuse BEFORE the (expensive) solve.
+        _ha_model_symbol(spec) === :huggett && throw(CliError(
+            "model/unsupported",
+            "Den Haan accuracy is undefined for :huggett — it scores the aggregate CAPITAL " *
+            "law of motion, and the Huggett clearing rate is driven by the wealth distribution " *
+            "rather than the aggregate shock alone";
+            hint="use krusell-smith or one-asset-hank (or an :aiyagari-family .jl spec)"))
+        sol = _solve_ha(spec; method=meth, n_reduced=n_reduced, hh_solver=hh)
+    else
+        sol = model
+        spec = sol.spec
+        meth = sol isa MacroEconometricModels.KrusellSmithSolution ? :krusell_smith : sol.method
+        if meth !== :krusell_smith
+            t_fit > 100 || throw(CliError("usage/invalid",
+                "hadsge accuracy: --t-fit must be > 100 to fit the implied law of motion " *
+                "(got $t_fit)"))
+        end
+        _ha_model_symbol(spec) === :huggett && throw(CliError(
+            "model/unsupported",
+            "Den Haan accuracy is undefined for :huggett — it scores the aggregate CAPITAL " *
+            "law of motion, and the Huggett clearing rate is driven by the wealth distribution " *
+            "rather than the aggregate shock alone";
+            hint="use krusell-smith or one-asset-hank (or an :aiyagari-family .jl spec)"))
+    end
 
     dh_kwargs = meth === :krusell_smith ?
         (; T_sim=t_sim, T_burn=t_burn, rho_z=rho_z, sigma_z=sigma_z, seed=seed) :
@@ -3641,18 +3786,23 @@ function _dsge_ha_require_linear(sol, meth::Symbol)
     return sol
 end
 
-function _dsge_ha_irf(; model::String, method::String="reiter",
+function _dsge_ha_irf(; model="", method::String="reiter",
                        horizon::Int=40, n_reduced::Int=30,
                        hh_solver::String="egm", distribution::String="young",
                        output::String="", format::String="table",
                        plot::Bool=false, plot_save::String="")
-    meth = _parse_ha_method(method)
-    meth === :krusell_smith && throw(CliError("usage/invalid-option",
-        "HA IRF requires ssj or reiter (krusell-smith returns a PLM, not linear IRFs)"))
-    spec = _load_ha_model(model; distribution=distribution)
-    hh = _parse_hh_solver(hh_solver)
-    sol = _dsge_ha_require_linear(
-        _solve_ha(spec; method=meth, n_reduced=n_reduced, hh_solver=hh), meth)
+    if model isa AbstractString
+        meth = _parse_ha_method(method)
+        meth === :krusell_smith && throw(CliError("usage/invalid-option",
+            "HA IRF requires ssj or reiter (krusell-smith returns a PLM, not linear IRFs)"))
+        spec = _load_ha_model(String(model); distribution=distribution)
+        hh = _parse_hh_solver(hh_solver)
+        sol = _dsge_ha_require_linear(
+            _solve_ha(spec; method=meth, n_reduced=n_reduced, hh_solver=hh), meth)
+    else
+        sol = model
+        meth = sol.method
+    end
 
     _status("Computing HA IRF: horizon=$horizon, method=$meth")
     ir = MacroEconometricModels.irf(sol, horizon)
@@ -3675,18 +3825,23 @@ function _dsge_ha_irf(; model::String, method::String="reiter",
     return ir
 end
 
-function _dsge_ha_fevd(; model::String, method::String="reiter",
+function _dsge_ha_fevd(; model="", method::String="reiter",
                         horizon::Int=40, n_reduced::Int=30,
                         hh_solver::String="egm", distribution::String="young",
                         output::String="", format::String="table",
                         plot::Bool=false, plot_save::String="")
-    meth = _parse_ha_method(method)
-    meth === :krusell_smith && throw(CliError("usage/invalid-option",
-        "HA FEVD requires ssj or reiter"))
-    spec = _load_ha_model(model; distribution=distribution)
-    hh = _parse_hh_solver(hh_solver)
-    sol = _dsge_ha_require_linear(
-        _solve_ha(spec; method=meth, n_reduced=n_reduced, hh_solver=hh), meth)
+    if model isa AbstractString
+        meth = _parse_ha_method(method)
+        meth === :krusell_smith && throw(CliError("usage/invalid-option",
+            "HA FEVD requires ssj or reiter"))
+        spec = _load_ha_model(String(model); distribution=distribution)
+        hh = _parse_hh_solver(hh_solver)
+        sol = _dsge_ha_require_linear(
+            _solve_ha(spec; method=meth, n_reduced=n_reduced, hh_solver=hh), meth)
+    else
+        sol = model
+        meth = sol.method
+    end
 
     _status("Computing HA FEVD: horizon=$horizon, method=$meth")
     fv = MacroEconometricModels.fevd(sol, horizon)
@@ -3711,18 +3866,23 @@ function _dsge_ha_fevd(; model::String, method::String="reiter",
     return fv
 end
 
-function _dsge_ha_simulate(; model::String, method::String="reiter",
+function _dsge_ha_simulate(; model="", method::String="reiter",
                             periods::Int=200, seed::Int=0, n_reduced::Int=30,
                             hh_solver::String="egm", distribution::String="young",
                             output::String="", format::String="table",
                             plot::Bool=false, plot_save::String="")
-    meth = _parse_ha_method(method)
-    meth === :krusell_smith && throw(CliError("usage/invalid-option",
-        "HA simulate requires ssj or reiter"))
-    spec = _load_ha_model(model; distribution=distribution)
-    hh = _parse_hh_solver(hh_solver)
-    sol = _dsge_ha_require_linear(
-        _solve_ha(spec; method=meth, n_reduced=n_reduced, hh_solver=hh), meth)
+    if model isa AbstractString
+        meth = _parse_ha_method(method)
+        meth === :krusell_smith && throw(CliError("usage/invalid-option",
+            "HA simulate requires ssj or reiter"))
+        spec = _load_ha_model(String(model); distribution=distribution)
+        hh = _parse_hh_solver(hh_solver)
+        sol = _dsge_ha_require_linear(
+            _solve_ha(spec; method=meth, n_reduced=n_reduced, hh_solver=hh), meth)
+    else
+        sol = model
+        meth = sol.method
+    end
 
     _status("Simulating HA aggregates: T=$periods, method=$meth")
     if seed > 0
@@ -3749,18 +3909,24 @@ function _dsge_ha_simulate(; model::String, method::String="reiter",
     return path
 end
 
-function _dsge_ha_distribution_irf(; model::String, method::String="reiter",
+function _dsge_ha_distribution_irf(; model="", method::String="reiter",
                                     horizon::Int=40, shock_index::Int=1,
                                     shock_size::Float64=1.0, n_reduced::Int=30,
                                     hh_solver::String="egm", distribution::String="young",
                                     output::String="", format::String="table")
-    meth = _parse_ha_method(method)
-    meth === :reiter || throw(CliError("usage/invalid-option",
-        "distribution-irf requires --method=reiter (SSJ has no distribution basis)"))
-    spec = _load_ha_model(model; distribution=distribution)
-    hh = _parse_hh_solver(hh_solver)
-    sol = _dsge_ha_require_linear(
-        _solve_ha(spec; method=meth, n_reduced=n_reduced, hh_solver=hh), meth)
+    if model isa AbstractString
+        meth = _parse_ha_method(method)
+        meth === :reiter || throw(CliError("usage/invalid-option",
+            "distribution-irf requires --method=reiter (SSJ has no distribution basis)"))
+        spec = _load_ha_model(String(model); distribution=distribution)
+        hh = _parse_hh_solver(hh_solver)
+        sol = _dsge_ha_require_linear(
+            _solve_ha(spec; method=meth, n_reduced=n_reduced, hh_solver=hh), meth)
+    else
+        sol = model
+        sol.method === :reiter || throw(CliError("usage/invalid-option",
+            "distribution-irf requires a reiter HADSGESolution (got method=$(sol.method); SSJ has no distribution basis)"))
+    end
 
     _status("Computing distribution IRF: h=$horizon, shock=$shock_index, size=$shock_size")
     d = MacroEconometricModels.distribution_irf(sol, horizon;
@@ -3782,19 +3948,25 @@ function _dsge_ha_distribution_irf(; model::String, method::String="reiter",
     return d
 end
 
-function _dsge_ha_inequality_irf(; model::String, method::String="reiter",
+function _dsge_ha_inequality_irf(; model="", method::String="reiter",
                                   horizon::Int=40, shock_index::Int=1,
                                   shock_size::Float64=1.0, n_reduced::Int=30,
                                   hh_solver::String="egm", distribution::String="young",
                                   output::String="", format::String="table",
                                   plot::Bool=false, plot_save::String="")
-    meth = _parse_ha_method(method)
-    meth === :reiter || throw(CliError("usage/invalid-option",
-        "inequality-irf requires --method=reiter"))
-    spec = _load_ha_model(model; distribution=distribution)
-    hh = _parse_hh_solver(hh_solver)
-    sol = _dsge_ha_require_linear(
-        _solve_ha(spec; method=meth, n_reduced=n_reduced, hh_solver=hh), meth)
+    if model isa AbstractString
+        meth = _parse_ha_method(method)
+        meth === :reiter || throw(CliError("usage/invalid-option",
+            "inequality-irf requires --method=reiter"))
+        spec = _load_ha_model(String(model); distribution=distribution)
+        hh = _parse_hh_solver(hh_solver)
+        sol = _dsge_ha_require_linear(
+            _solve_ha(spec; method=meth, n_reduced=n_reduced, hh_solver=hh), meth)
+    else
+        sol = model
+        sol.method === :reiter || throw(CliError("usage/invalid-option",
+            "inequality-irf requires a reiter HADSGESolution (got method=$(sol.method))"))
+    end
 
     _status("Computing inequality IRF: h=$horizon, shock=$shock_index")
     d = MacroEconometricModels.inequality_irf(sol, horizon;
@@ -3815,14 +3987,20 @@ function _dsge_ha_inequality_irf(; model::String, method::String="reiter",
     return d
 end
 
-function _dsge_ha_simulate_panel(; model::String,
+function _dsge_ha_simulate_panel(; model="",
                                   n_agents::Int=1000, periods::Int=100, seed::Int=0,
                                   hh_solver::String="egm", distribution::String="young",
                                   output::String="", format::String="table")
-    spec = _load_ha_model(model; distribution=distribution)
-    hh = _parse_hh_solver(hh_solver)
-    _status("Computing HA steady state for panel simulation...")
-    ss = _dsge_call(compute_steady_state, spec; hh_solver=hh)
+    if model isa AbstractString
+        spec = _load_ha_model(String(model); distribution=distribution)
+        hh = _parse_hh_solver(hh_solver)
+        _status("Computing HA steady state for panel simulation...")
+        ss = _dsge_call(compute_steady_state, spec; hh_solver=hh)
+    elseif model isa MacroEconometricModels.HADSGESolution
+        ss = model.steady_state
+    else
+        ss = model
+    end
     _status("Simulating panel: N=$n_agents, T=$periods")
     if seed > 0
         panel = MacroEconometricModels.simulate_panel(ss;
@@ -3962,7 +4140,7 @@ function _dsge_ha_estimate(; model::String, data::String="", priors::String="",
     return result
 end
 
-function _dsge_ha_hd(; model::String, method::String="ssj",
+function _dsge_ha_hd(; model="", method::String="ssj",
                       data::String="", observables::String="",
                       measurement_error::String="",
                       n_reduced::Int=30, t_horizon::Int=300,
@@ -3973,13 +4151,17 @@ function _dsge_ha_hd(; model::String, method::String="ssj",
         "--data is required for HA historical decomposition"))
     isempty(observables) && throw(CliError("usage/missing-option",
         "--observables is required (comma-separated aggregate names)"))
-    meth = _parse_ha_method(method)
-    meth === :krusell_smith && throw(CliError("usage/invalid-option",
-        "HA HD requires ssj or reiter (no states=; the RA `dsge hd` flag is not copied)"))
-    spec = _load_ha_model(model; distribution=distribution)
-    hh = _parse_hh_solver(hh_solver)
-    sol = _dsge_ha_require_linear(
-        _solve_ha(spec; method=meth, n_reduced=n_reduced, T_horizon=t_horizon, hh_solver=hh), meth)
+    if model isa AbstractString
+        meth = _parse_ha_method(method)
+        meth === :krusell_smith && throw(CliError("usage/invalid-option",
+            "HA HD requires ssj or reiter (no states=; the RA `dsge hd` flag is not copied)"))
+        spec = _load_ha_model(String(model); distribution=distribution)
+        hh = _parse_hh_solver(hh_solver)
+        sol = _dsge_ha_require_linear(
+            _solve_ha(spec; method=meth, n_reduced=n_reduced, T_horizon=t_horizon, hh_solver=hh), meth)
+    else
+        sol = model
+    end
 
     df = load_data(data)
     Y = df_to_matrix(df)

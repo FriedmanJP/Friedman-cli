@@ -4690,4 +4690,156 @@ end
     end
 end
 
+@testset "CLI help hygiene (#242)" begin
+    root_cmds = Dict{String,Union{NodeCommand,LeafCommand}}(
+        "estimate"    => register_estimate_commands!(),
+        "test"        => register_test_commands!(),
+        "irf"         => register_irf_commands!(),
+        "fevd"        => register_fevd_commands!(),
+        "hd"          => register_hd_commands!(),
+        "forecast"    => register_forecast_commands!(),
+        "predict"     => register_predict_commands!(),
+        "residuals"   => register_residuals_commands!(),
+        "filter"      => register_filter_commands!(),
+        "data"        => register_data_commands!(),
+        "io"          => register_io_commands!(),
+        "nowcast"     => register_nowcast_commands!(),
+        "dsge"        => register_dsge_commands!(),
+        "hadsge"      => register_hadsge_commands!(),
+        "did"         => register_did_commands!(),
+        "policy"      => register_policy_commands!(),
+        "spectral"    => register_spectral_commands!(),
+        "schema"      => register_schema_command!(),
+        "model"       => register_model_commands!(),
+        "completions" => register_completions_commands!(),
+        "serve"       => register_serve_commands!(),
+        "show"        => register_show_commands!(),
+    )
+    app = Entry("friedman",
+        NodeCommand("friedman", root_cmds,
+            "A macroeconometric analysis toolkit powered by MacroEconometricModels.jl");
+        version=PROJECT_VERSION)
+
+    buf_root = IOBuffer()
+    print_help(buf_root, app)
+    root_help = String(take!(buf_root))
+    @test contains(root_help, "repl")
+    @test contains(root_help, "--seed")
+    @test contains(root_help, "--quiet")
+    @test contains(root_help, "--json")
+    @test contains(root_help, "--no-color")
+
+    # Walk every NodeCommand and LeafCommand in APP
+    bad_nodes = String[]
+    bad_leaves = String[]
+    missing_choices = String[]
+    missing_repeatables = String[]
+    leaf_count = Ref(0)
+
+    function _walk_help(n::NodeCommand, prefix::String="")
+        p = isempty(prefix) ? n.name : "$prefix $(n.name)"
+        if isempty(n.description) || n.description == n.name
+            push!(bad_nodes, "$p => $(repr(n.description))")
+        end
+        nbuf = IOBuffer()
+        print_help(nbuf, n; prog=p)
+        @test !isempty(String(take!(nbuf)))
+        for (k, v) in n.subcmds
+            if v isa NodeCommand
+                _walk_help(v, p)
+            else
+                leaf_count[] += 1
+                lbuf = IOBuffer()
+                print_help(lbuf, v; prog="$p $k")
+                ht = String(take!(lbuf))
+                if occursin("(default: )", ht) ||
+                   occursin("(default: String[])", ht) ||
+                   occursin("(default: Any[])", ht)
+                    push!(bad_leaves, "$p $k")
+                end
+                for line in split(ht, '\n')
+                    occursin(r"\(default:[^)]+\).*\(default:"i, line) && push!(bad_leaves, "dup:$p $k:$line")
+                end
+                for o in v.options
+                    if o.choices !== nothing && !isempty(o.choices)
+                        for c in o.choices
+                            occursin(c, ht) || push!(missing_choices, "$p $k --$(o.name) missing '$c'")
+                        end
+                    end
+                    if o.repeatable && !occursin("repeatable", lowercase(ht))
+                        push!(missing_repeatables, "$p $k --$(o.name)")
+                    end
+                end
+            end
+        end
+    end
+    _walk_help(app.root)
+
+    @test isempty(bad_nodes)
+    @test isempty(bad_leaves)
+    @test isempty(missing_choices)
+    @test isempty(missing_repeatables)
+    @test leaf_count[] >= 478
+end
+
+@testset "Wave 4 hot paths & LeafCommand constructors (#243)" begin
+    handler = (; x="ok", verbose=false, count=1, kwargs...) -> nothing
+    args = [Argument("path"; description="Input path")]
+    opts = [Option("count"; type=Int, default=1, description="Count")]
+    flags = [Flag("verbose"; description="Verbose")]
+
+    l6 = LeafCommand("leaf6", handler, args, opts, flags, "desc6")
+    l7 = LeafCommand("leaf7", handler, args, opts, flags, "desc7", "familyA")
+    lkw = LeafCommand("leafkw", handler; args=args, options=opts, flags=flags, description="desckw", family="familyB")
+
+    for l in (l6, l7, lkw)
+        @test "count" in l.known_opts
+        @test "verbose" in l.known_opts
+        @test "help" in l.known_opts
+        @test l.arg_syms == [:path]
+        @test l.opt_syms == [:count]
+        @test l.flag_syms == [:verbose]
+    end
+    @test l6.family == ""
+    @test l7.family == "familyA"
+    @test lkw.family == "familyB"
+
+    @test _looks_like_value("-1")
+    @test _looks_like_value("-0.5")
+    @test _looks_like_value("-.25")
+    @test _looks_like_value("-1e-3")
+    @test !_looks_like_value("-")
+    @test !_looks_like_value("--lags")
+    @test !_looks_like_value("-f")
+    @test !_looks_like_value("-abc")
+    @test _looks_like_value("")
+
+    @test _levenshtein("", "") == 0
+    @test _levenshtein("var", "var") == 0
+    @test _levenshtein("var", "") == 3
+    @test _levenshtein("", "var") == 3
+    @test _levenshtein("multivariate", "mutlivariate") == 2
+
+    @test _slug(" Impulse-Response (h=1..12) % ") == "impulse_response_h_1_12"
+    @test _slug("---") == "table"
+    @test _slug(SubString("VAR(1) Fit", 1, 6)) == "var_1"
+
+    df_mix = DataFrame(a=[1, 2], b=[1.5, NaN], c=["x", "y"], d=[true, missing])
+    tp = _table_payload(df_mix)
+    @test tp["columns"] == ["a", "b", "c", "d"]
+    @test tp["rows"][1] == Any[1, 1.5, "x", true]
+    @test tp["rows"][2] == Any[2, "NaN", "y", nothing]
+
+    @test _json_safe([1, 2, 3]) == [1, 2, 3]
+    @test _json_safe([true, false]) == [true, false]
+    @test _json_safe(["a", "b"]) == ["a", "b"]
+    @test _json_safe([1.0, 2.5]) == [1.0, 2.5]
+    js_nan = _json_safe([1.0, NaN, Inf])
+    @test js_nan[1] == 1.0 && js_nan[2] == "NaN" && js_nan[3] == "Inf"
+
+    mv1 = _cached_mems_version()
+    mv2 = _cached_mems_version()
+    @test !isempty(mv1) && mv1 == mv2
+end
+
 include(joinpath(@__DIR__, "test_e2e.jl"))

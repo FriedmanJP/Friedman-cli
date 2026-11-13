@@ -81,6 +81,74 @@ const _TEST_FAMILY = Dict{String,String}(
 # Old argv path → v1.0.0 path. Filled by `_finalize_spec` plus the multipliers fold.
 const _PATH_REPLACEMENTS = Dict{Vector{String},Vector{String}}()
 
+# Human-readable summaries for all depth-2 NodeCommands created in `build_node`.
+const _NODE_DESCRIPTIONS = Dict{Tuple{String,String},String}(
+    ("data", "simulate") => "Simulate synthetic datasets from econometric, panel, cross-section, and DSGE/OLG models",
+    ("dsge", "bank") => "Intermediary banking DSGE models: steady state, partial equilibrium, transition, and IRFs",
+    ("dsge", "bayes") => "Bayesian DSGE estimation, posterior IRFs/FEVD/HD, marginal likelihood, and simulation",
+    ("dsge", "ct") => "Continuous-time heterogeneous-agent models (Aiyagari, Poisson income, two-asset HANK)",
+    ("dsge", "dcegm") => "Discrete-continuous endogenous grid method (DC-EGM) household and equilibrium models",
+    ("dsge", "firm") => "Heterogeneous-firm dynamics (Khan-Thomas) steady state and transition paths",
+    ("dsge", "lifecycle") => "Overlapping-generations life-cycle household steady state and transition dynamics",
+    ("dsge", "olg") => "Blanchard perpetual-youth OLG solve, steady state, IRFs, and simulation",
+    ("estimate", "choice") => "Discrete and limited dependent variable estimators (logit, probit, multinomial, ordered)",
+    ("estimate", "factor") => "Static, dynamic, generalized dynamic, and Factor-Augmented VAR (FAVAR) factor models",
+    ("estimate", "multivariate") => "Multivariate time-series estimators (VAR, BVAR, VECM, LP, FAVAR, MF-VAR, GVAR, SMM, GMM)",
+    ("estimate", "panel") => "Panel data estimators (FE/RE/FD, IV, logit/probit, Tobit, dynamic, PVAR, interactive FE, SUR/3SLS)",
+    ("estimate", "regime") => "Regime-switching and nonlinear time-series estimators (Markov-switching, STAR, TAR)",
+    ("estimate", "regression") => "Cross-section and time-series regressions (OLS, IV, quantile, Tobit, Heckman, count, nonparametric, survival)",
+    ("estimate", "univariate") => "Univariate time-series estimators (ARIMA, ARFIMA, ARDL, NARDL, MIDAS, GP)",
+    ("estimate", "volatility") => "Conditional volatility estimators (ARCH, GARCH, EGARCH, GJR, APARCH, FIGARCH, MGARCH, SV)",
+    ("forecast", "evaluate") => "Forecast accuracy, encompassing, calibration, and combination diagnostics",
+    ("forecast", "factor") => "Factor and FAVAR multi-step forecasts",
+    ("forecast", "multivariate") => "Multivariate point and density forecasts (VAR, BVAR, VECM, LP)",
+    ("forecast", "regime") => "Regime-weighted multi-step forecasts for Markov-switching, STAR, and TAR models",
+    ("forecast", "univariate") => "Univariate multi-step forecasts (ARIMA, ARFIMA, ARDL, NARDL, MIDAS, GP)",
+    ("forecast", "volatility") => "Conditional variance and volatility forecasts across GARCH and SV families",
+    ("io", "bf") => "Baqaee-Farhi nonlinear production-network equilibrium, elasticities, wedges, and misallocation",
+    ("policy", "counterfactual") => "Counterfactual rule swaps on historical paths, theoretical moments, and shock propagation",
+    ("policy", "effects") => "Causal policy effects and optimal policy counterfactuals from empirical propagation matrices",
+    ("policy", "history") => "Historical shock decomposition and shock-removal counterfactual paths",
+    ("policy", "jacobian") => "Sequence-space policy Jacobians and dynamic causal propagation matrices",
+    ("policy", "moments") => "Unconditional variance, shock-share, and welfare moment decompositions under policy rules",
+    ("policy", "news") => "Anticipated policy news IRFs, variance shares, and expectations revisions",
+    ("policy", "opp") => "Linear-quadratic optimal policy projections (OPP) in sequence space",
+    ("policy", "opp-sequence") => "Constrained multi-instrument sequence-space optimal policy paths and loss frontiers",
+    ("policy", "optimal") => "Ramsey, timeless-perspective, and simple-rule optimal monetary/fiscal policy solvers",
+    ("policy", "spanning") => "Instrument spanning diagnostics across target impulse paths",
+    ("policy", "sufficiency") => "Sufficient-statistic checks for empirical vs structural policy counterfactuals",
+    ("predict", "choice") => "In-sample fitted probabilities and linear predictors for discrete-choice models",
+    ("predict", "factor") => "Common-component in-sample fitted values for factor models",
+    ("predict", "multivariate") => "In-sample fitted values for multivariate VAR and VECM systems",
+    ("predict", "panel") => "In-sample fitted values for linear, nonlinear, and system panel estimators",
+    ("predict", "regime") => "Regime-weighted in-sample fitted values for nonlinear regime models",
+    ("predict", "regression") => "In-sample fitted values and conditional expectations for regression models",
+    ("predict", "univariate") => "In-sample one-step fitted values for univariate time-series models",
+    ("predict", "volatility") => "In-sample conditional variance series from estimated volatility models",
+    ("residuals", "choice") => "Deviance, Pearson, and response residuals for discrete-choice models",
+    ("residuals", "factor") => "Idiosyncratic residual components from estimated factor models",
+    ("residuals", "multivariate") => "Reduced-form and structural innovations for multivariate models",
+    ("residuals", "panel") => "Idiosyncratic and equation residuals for panel and system models",
+    ("residuals", "regime") => "Regime-weighted residuals for Markov-switching, STAR, and TAR models",
+    ("residuals", "regression") => "Regression, deviance, and martingale residuals for cross-section and count models",
+    ("residuals", "univariate") => "Innovation residuals from univariate time-series models",
+    ("residuals", "volatility") => "Standardized innovations from estimated conditional volatility models",
+    ("test", "coint") => "Cointegration and long-run equilibrium tests (Johansen, Engle-Granger, Gregory-Hansen, Phillips-Ouliaris)",
+    ("test", "did") => "Difference-in-differences pre-trend, Bacon decomposition, HonestDiD, and diagnostics",
+    ("test", "iv") => "Instrumental-variables weak-ID, overidentification, endogeneity, and Anderson-Rubin tests",
+    ("test", "multivariate") => "VAR/VECM lag selection, Granger causality, residual diagnostics, and SVAR identification tests",
+    ("test", "panel") => "Panel specification, Hausman, cross-sectional dependence, serial correlation, and unit-root tests",
+    ("test", "pvar") => "Panel VAR lag selection, Granger causality, stability, and Hansen J tests",
+    ("test", "serial") => "Autocorrelation, white-noise, ARCH-LM, independence, and long-memory tests",
+    ("test", "stability") => "Structural break, parameter constancy, linearity, and functional-form tests",
+    ("test", "unit-root") => "Unit-root and stationarity tests (ADF, KPSS, PP, ZA, Ng-Perron, DF-GLS, ERS, structural breaks)",
+    ("test", "vecm") => "VECM Granger causality and cointegrating-rank specification tests",
+)
+
+function _node_description(top::String, mid::String)::String
+    return get(_NODE_DESCRIPTIONS, (top, mid), mid)
+end
+
 """Family label for a pre-promotion path. Empty for the four exempt tops."""
 function _family_for(path::Vector{String})
     isempty(path) && return ""

@@ -248,7 +248,7 @@ an MCP **tool** — one process, no per-call spawn:
   stores the fitted model **in memory** and `--model model://name` reuses it —
   estimate once, then run irf/fevd/forecast against the handle with no
   re-estimation and no files. Handles live exactly as long as the session;
-  file handles (`.jld2`/`.fmod`) also work as usual. Outside a serve session a
+  file handles (`.jld2`/`.jls`/`.fmod`) also work as usual. Outside a serve session a
   `model://` handle is a typed `usage/invalid` error.
 - Requests are handled **serially** (handlers are not thread-audited); stdout
   carries only the JSON-RPC stream — status and library logs stay on stderr.
@@ -279,27 +279,36 @@ recorded estimator and reports a match verdict plus per-field diffs
 
 Three object kinds, each with its own slot. `--result` / `--save-result` skip
 compute and re-render a saved result; `friedman show STEM` renders any loadable
-handle (data, model, result, or a keys-only bundle listing).
+handle (data, model, result, or a keys-only bundle listing). Tabular data and
+saved models also accept Julia `Serialization` handles (`.jls`) and plain
+`.jld2` tabular payloads (`DataFrame`, `NamedTuple`, `Dict`, `Matrix`) alongside
+native MEMs `.jld2` handles.
 
 | Kind | Argv slot | Native persist |
 |------|-----------|----------------|
-| data | positional `<data>` / `--data` | `data import -o STEM` → `STEM.jld2` |
-| model | `--model` / `--save-model` | `--save-model STEM` → `STEM.jld2` |
-| result | `--result` / `--save-result` | `--save-result STEM` → `STEM.jld2` |
+| data | positional `<data>` / `--data` | `data import -o STEM` / `data simulate --save-data STEM` → `STEM.jld2` (or `.jls`) |
+| model | `--model` / `--save-model` (or positional model shorthand) | `--save-model STEM` → `STEM.jld2` (or `.jls`) |
+| result | `--result` / `--save-result` | `--save-result STEM` → `STEM.jld2` (or `.jls`) |
 
-**Stems vs suffixes.** Data positionals, `--save-model`, `--save-result`,
-`--model` (when the leaf declares `model_types`), `--result`, and
-`friedman show` accept suffix-less stems (`macro`, `--save-model var` →
-`var.jld2`, `--model var` loads `var.jld2`). Data load prefers `path.jld2`
-over `path.csv` when both exist; `--model` / `--result` / `show` have no CSV
-fallback. An explicit suffix skips the search. `model://name` is the
-in-session URI (serve) and is not stem-expanded. `:fred_md` example names are
-unchanged.
+**Stems vs suffixes & positional model routing.** Data positionals,
+`--save-model`, `--save-result`, `--model` (when the leaf declares
+`model_types`), `--result`, and `friedman show` accept suffix-less stems
+(`macro`, `--save-model var` → `var.jld2`, `--model var` loads `var.jld2`).
+Data load prefers `path.jld2` over `path.csv` and `path.jls` when multiple exist;
+`--model` / `--result` / `show` have no CSV fallback. Downstream leaves that
+declare `model_types` (`irf`, `fevd`, `hd`, `forecast`, `predict`, `residuals`,
+`policy`, `dsge`, `hadsge`, and post-estimation `test` leaves) also accept a
+saved model/solution handle positionally (`friedman irf var var.jld2`),
+auto-routing it into `--model`. Secondary handle flags (`--shock-var`,
+`--factors`, `--instruments`) accept `.jld2`/`.jls` handles as well as CSV. An
+explicit suffix skips stem search. `model://name` is the in-session URI (serve)
+and is not stem-expanded. `:fred_md` example names are unchanged.
 
 ```bash
 friedman data import macro.csv --kind timeseries -o macro
 friedman estimate multivariate var macro --lags 2 --save-model var   # stem → var.jld2
 friedman irf var --model var --horizons 12 --save-result irf
+friedman irf var var.jld2 --horizons 12                  # positional model shorthand
 friedman irf var --result irf                            # re-render; no data
 friedman show macro          # TimeSeriesData descriptive stats
 friedman show var            # fitted model table
@@ -329,16 +338,19 @@ is a comma-separated string (`handle=false`, no `x-handle`).
 
 ### Model handles
 
-`--save-model PATH` persists a fitted model (suffix-less stem → `.jld2`);
-`--model STEM` (or `.jld2` / `.fmod` / `model://`) reloads it (skipping
-re-estimation) on leaves that declare `model_types`. `.jld2` is the native,
-versioned format covering the full upstream serialization registry — every
-model `estimate` can fit, including DSGE/HA solutions (`dsge solve`,
-`hadsge solve`, `hadsge steady-state`, `dsge bayes estimate` all take
-`--save-model`). `.fmod` remains as the interim handle for unregistered
-payloads. `friedman model info PATH` reads the container header (writing
-versions, note, bundle layout) without re-running estimation — header-only, it
-never executes stored code.
+`--save-model PATH` persists a fitted model or solved DSGE/HA object (suffix-less
+stem → `.jld2`); `--model STEM` (or positional handle / `.jld2` / `.jls` /
+`.fmod` / `model://`) reloads it (skipping re-estimation) across `estimate`,
+`irf` (incl. `SVARModel`/`SVECModel`), `fevd`, `hd`, `forecast`, `predict`,
+`residuals`, `policy`, `dsge`, `hadsge`, and post-estimation `test` leaves that
+declare `model_types`. `.jld2` is the native, versioned format covering the full
+upstream serialization registry — every model `estimate` can fit, including
+DSGE/HA solutions (`dsge solve`, `hadsge solve`, `hadsge steady-state`,
+`dsge bayes estimate` all take `--save-model`). `.jls` supports Julia
+`Serialization` handles and `.fmod` remains as the interim handle for
+unregistered payloads. `friedman model info PATH` reads the container header
+(writing versions, note, bundle layout) without re-running estimation — header-only,
+it never executes stored code.
 Trust caveat (mirrors upstream): a `--model` handle carrying DSGE/HA equations recompiles
 them at load through an AST allowlist (`Core.eval`), the same risk class as
 `Serialization.deserialize` — only load files you trust. Programmatic payloads with

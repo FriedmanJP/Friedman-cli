@@ -11,7 +11,7 @@ Staggered-adoption DiD estimation (twfe|cs|sa|bjs|dcdh) with event-time and over
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to panel CSV data file |
+| `data` | `String` | yes | — | Path to panel data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -46,7 +46,7 @@ Local-projection event-study DiD with pre-trend leads and post-treatment horizon
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to panel CSV data file |
+| `data` | `String` | yes | — | Path to panel data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -78,7 +78,7 @@ LP-DiD estimation (Dube et al. 2023) with pre/post windows and clean-control opt
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to panel CSV data file |
+| `data` | `String` | yes | — | Path to panel data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|

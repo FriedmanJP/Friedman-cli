@@ -211,4 +211,63 @@ end
             rm(fix; force=true)
         end
     end
+
+    if Sys.isunix() && Sys.which("python3") !== nothing
+        @testset "interactive PTY repl arrow-key history (#241)" begin
+            mktempdir() do dir
+                hist = joinpath(dir, "hist")
+                py_exe = Sys.which("python3")
+                julia_exe = first(_JULIA.exec)
+                script = """
+import os, pty, select, subprocess, sys, time
+master, slave = pty.openpty()
+env = os.environ.copy()
+env["FRIEDMAN_HISTFILE"] = sys.argv[3]
+env["TERM"] = "xterm-256color"
+p = subprocess.Popen(
+    [sys.argv[1], f"--project={sys.argv[2]}", os.path.join(sys.argv[2], "bin", "friedman"), "repl"],
+    stdin=slave, stdout=slave, stderr=slave, env=env, close_fds=True
+)
+os.close(slave)
+buf = b""
+def wait_for(tok, timeout=90.0):
+    global buf
+    deadline = time.time() + timeout
+    while tok not in buf and time.time() < deadline:
+        r, _, _ = select.select([master], [], [], 0.1)
+        if r:
+            try:
+                c = os.read(master, 4096)
+                if not c: break
+                buf += c
+            except OSError:
+                break
+    assert tok in buf, f"missing {tok!r} in {buf.decode(errors='replace')}"
+    buf = buf[buf.index(tok) + len(tok):]
+
+wait_for(b"friedman>")
+os.write(master, b"data use :fred_qd\\r")
+wait_for(b"Loaded :fred_qd")
+wait_for(b"friedman>")
+os.write(master, b"data clear\\r")
+wait_for(b"Data and results cleared")
+wait_for(b"friedman>")
+os.write(master, b"\\x1b[A\\x1b[A\\r")
+wait_for(b"Loaded :fred_qd")
+wait_for(b"friedman>")
+os.write(master, b"exit\\r")
+wait_for(b"Goodbye!")
+p.wait(timeout=15)
+os.close(master)
+sys.exit(p.returncode)
+"""
+                proc = run(`$py_exe -c $script $julia_exe $_ROOT $hist`; wait=true)
+                @test proc.exitcode == 0
+                @test isfile(hist)
+                hcontent = read(hist, String)
+                @test occursin("data use :fred_qd", hcontent)
+                @test occursin("# mode: friedman", hcontent)
+            end
+        end
+    end
 end

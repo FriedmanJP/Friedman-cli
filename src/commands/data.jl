@@ -42,7 +42,7 @@ function data_specs()::Vector{CommandSpec}
                 OptionSpec(name="vars", type=String, default="", description="Comma-separated variable subset (bundled datasets only; ignored with --path)"),
                 OptionSpec(name="country", type=String, default="", description="Country label in status line only (no filtering) (bundled datasets only; ignored with --path)"),
                 OptionSpec(name="dates", type=String, default="", description="CSV/--path and timeseries date-label column (ignored for panels)"),
-                OptionSpec(name="path", type=String, default="", description="Path to CSV file (alternative to named dataset)")
+                OptionSpec(name="path", type=String, default="", description="Path to data file (.csv, .jld2, .jls; alternative to named dataset)")
             ],
             flags=[FlagSpec(name="transform", short="t", description="Apply stored FRED tcodes (timeseries only) (bundled datasets only; ignored with --path)")],
             # Emits no envelope table — writes CSV directly; gate-exempt, see check_table_keys.jl
@@ -148,7 +148,7 @@ function data_specs()::Vector{CommandSpec}
             summary="Balance an unbalanced panel via the DFM method",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Handle stem or CSV path")],
             options=[
-                OptionSpec(name="method", type=String, default="dfm", description="dfm", choices=["dfm"]),
+                OptionSpec(name="method", type=String, default="dfm", description="Missing-value balancing method (dfm = dynamic factor EM)", choices=["dfm"]),
                 OptionSpec(name="factors", short="r", type=Int, default=3, description="Number of factors"),
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="Factor VAR lags"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export file"),
@@ -339,8 +339,12 @@ function _data_load(; name::String="", output::String="", format::String="table"
 
         out_path = isempty(output) ? "$(dataset_stem(path))_loaded.csv" : output
         _validate_output_path(out_path)
-        out_df = DataFrame(Y, vn)
-        CSV.write(out_path, out_df)
+        if endswith(lowercase(out_path), ".jld2") || endswith(lowercase(out_path), ".jls")
+            save_model_dispatch(out_path, ts)
+        else
+            out_df = DataFrame(Y, vn)
+            CSV.write(out_path, out_df)
+        end
         _status("Loaded $(basename(path)): $n_obs × $n_vars")
         _status("Written to $out_path")
         return
@@ -377,7 +381,18 @@ function _data_load(; name::String="", output::String="", format::String="table"
             df = df[!, keep_cols]
         end
 
-        CSV.write(out_path, df)
+        if endswith(lowercase(out_path), ".jld2") || endswith(lowercase(out_path), ".jls")
+            out_pd = if isempty(vars)
+                dataset
+            elseif hasproperty(dataset, :frequency)
+                xtset(df, :group, :time; frequency=dataset.frequency)
+            else
+                xtset(df, :group, :time)
+            end
+            save_model_dispatch(out_path, out_pd)
+        else
+            CSV.write(out_path, df)
+        end
         _status("Loaded $name: $n_obs observations × $n_vars variables (Panel, $(dataset.n_groups) groups)")
         _status("Written to $out_path")
     else
@@ -394,9 +409,9 @@ function _data_load(; name::String="", output::String="", format::String="table"
             _status("Applied FRED transformation codes")
         end
 
+        col_idx = Int[]
         if !isempty(vars)
             var_list = [strip(s) for s in split(vars, ",") if !isempty(strip(s))]
-            col_idx = Int[]
             for v in var_list
                 idx = findfirst(==(v), vn)
                 isnothing(idx) && throw(CliError("data/column-range",
@@ -422,8 +437,30 @@ function _data_load(; name::String="", output::String="", format::String="table"
         out_path = isempty(output) ? "$name.csv" : output
         _validate_output_path(out_path)
         n_obs, n_vars = size(data_mat)
-        df = DataFrame(data_mat, vn)
-        CSV.write(out_path, df)
+        if endswith(lowercase(out_path), ".jld2") || endswith(lowercase(out_path), ".jls")
+            out_obj = if isempty(vars)
+                dataset
+            elseif is_ts
+                tc = (hasproperty(dataset, :tcode) && length(dataset.tcode) >= maximum(col_idx)) ?
+                     dataset.tcode[col_idx] : fill(1, length(vn))
+                freq_kw = hasproperty(dataset, :frequency) ? (; frequency=dataset.frequency) : NamedTuple()
+                ti_kw = hasproperty(dataset, :time_index) ? (; time_index=dataset.time_index) :
+                        (; time_index=collect(1:n_obs))
+                sub_ts = TimeSeriesData(Matrix{Float64}(data_mat);
+                                        varnames=String[String(v) for v in vn],
+                                        tcode=tc, freq_kw..., ti_kw...)
+                if !isempty(dates) && dates in vn
+                    set_dates!(sub_ts, string.(data_mat[:, findfirst(==(dates), vn)]))
+                end
+                sub_ts
+            else
+                CrossSectionData(Matrix{Float64}(data_mat); varnames=String[String(v) for v in vn])
+            end
+            save_model_dispatch(out_path, out_obj)
+        else
+            df = DataFrame(data_mat, vn)
+            CSV.write(out_path, df)
+        end
         # `frequency` is only defined for time-series/panel sets, not cross sections.
         kind = is_ts ? string(frequency(dataset)) : "Cross Section"
         _status("Loaded $name: $n_obs × $n_vars ($kind)")
@@ -818,12 +855,23 @@ function _data_import(; data::String, kind::String="", frequency::String="other"
                        vars::String="", tcodes::String="", note::String="",
                        output::String="", format::String="table")
     src = data
+    loaded_raw = nothing
     if !startswith(src, ":")
         src = resolve_stem(src; slot=:data)
-        # Import is CSV|:example → handle, not handle → handle.
-        _is_handle_path(src) && throw(CliError("usage/invalid",
-            "data import reads CSV or :example, not an existing handle";
-            hint="use `data export` or pass a CSV path"))
+        if _is_handle_path(src)
+            if !startswith(src, "model://")
+                _validate_input_path(src)
+            end
+            loaded_raw = load_model_dispatch(src)
+            k_in = _data_kind_of(loaded_raw)
+            # Import promotes CSV | :example | .jls | plain .jld2 tabular → native .jld2 handle;
+            # an existing native .jld2/.fmod/model:// typed MEMs container is still rejected.
+            if !endswith(lowercase(src), ".jls") && k_in in (:timeseries, :panel, :cross_section, :io)
+                throw(CliError("usage/invalid",
+                    "data import reads CSV, :example, .jls, or raw tabular .jld2, not an existing $k_in handle";
+                    hint="use `data export` or pass a CSV/.jls/tabular path"))
+            end
+        end
     end
     out_stem = isempty(output) ? joinpath(dirname(src), dataset_stem(src)) : output
     out_path = resolve_save_path(out_stem)
@@ -840,7 +888,7 @@ function _data_import(; data::String, kind::String="", frequency::String="other"
         ds
     else
         isempty(kind) && throw(CliError("usage/invalid",
-            "--kind is required when importing a CSV";
+            "--kind is required when importing a CSV or raw tabular archive";
             hint="--kind timeseries|panel|cross-section"))
         want = _parse_kind(kind)
         # Panel identifiers are required even when --vars would otherwise subset
@@ -852,7 +900,7 @@ function _data_import(; data::String, kind::String="", frequency::String="other"
             frequency == "other" || throw(CliError("usage/invalid",
                 "--frequency does not apply to --kind cross-section"))
         end
-        df = load_data(src)
+        df = loaded_raw !== nothing ? _coerce_tabular_dataframe(loaded_raw, src) : load_data(src)
         if want === :panel
             _require_columns(df, String[id_col]; label="id column")
             _require_columns(df, String[time_col]; label="time column")

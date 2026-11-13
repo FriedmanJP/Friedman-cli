@@ -26,6 +26,7 @@ using LinearAlgebra: eigvals, diag, I, svd
 using Statistics: mean, median, var, quantile, std
 using Random
 using Serialization
+import REPL
 using Logging: ConsoleLogger, with_logger, Info, Warn
 
 # CLI engine

@@ -110,6 +110,12 @@ for spec in REGISTRY
     if any(o -> o.handle && o.name == "model", spec.options) && isempty(spec.model_types)
         push!(violations, "$path: handle --model but empty model_types")
     end
+    if any(o -> !o.handle && o.name == "model", spec.options) && !isempty(spec.model_types)
+        push!(violations, "$path: non-handle --model option collides with nonempty model_types")
+    end
+    if any(a -> a.name == "model", spec.args) && any(o -> o.name == "model", spec.options)
+        push!(violations, "$path: declares both positional <model> and --model option (bind_args collision)")
+    end
     if any(o -> o.handle && o.name == "result", spec.options) && isempty(spec.result_types)
         push!(violations, "$path: handle --result but empty result_types")
     end

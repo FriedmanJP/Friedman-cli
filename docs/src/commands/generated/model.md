@@ -28,7 +28,7 @@ Verify a saved handle by re-running its estimator from the recorded seed (report
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `path` | `String` | yes | — | Handle path (.jld2, .fmod, or model:// session handle) |
+| `path` | `String` | yes | — | Handle path (.jld2, .jls, .fmod, or model:// session handle) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|

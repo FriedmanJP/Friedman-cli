@@ -84,22 +84,22 @@ const PLOT_OPTIONS = [
 # Model handles (P2-7 / C029) — compose onto estimate vs downstream specs
 const SAVE_MODEL_OPTION = OptionSpec(
     name="save-model", type=String, default="",
-    description="Save estimated model to a handle file (.jld2 native, .fmod interim)",
+    description="Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim)",
 )
 const MODEL_OPTION = OptionSpec(
     name="model", type=String, default="",
-    description="Load model from a handle file (.jld2 native, .fmod interim; skip re-estimation)",
+    description="Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation)",
     handle=true,
 )
 
 const RESULT_OPTION = OptionSpec(
     name="result", type=String, default="",
-    description="Load a result handle (skip computation)",
+    description="Load a result handle (.jld2, .jls, .fmod, or result://; skip computation)",
     handle=true,
 )
 const SAVE_RESULT_OPTION = OptionSpec(
     name="save-result", type=String, default="",
-    description="Save the result object to a handle (.jld2 native)",
+    description="Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim)",
 )
 function with_result_handles(specs::Vector{CommandSpec})
     out = CommandSpec[]

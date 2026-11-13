@@ -1192,3 +1192,791 @@ end
         @test err.code == "data/wrong-kind"
     end
 end
+
+@testset "serialized .jls and plain .jld2 tabular handles" begin
+    import JLD2
+    mktempdir() do dir
+        # 1. _is_handle_path & resolve_stem (.jld2 -> .jls -> .csv / .fmod)
+        @test _is_handle_path("foo.jls")
+        @test _is_handle_path("FOO.JLS")
+        jls_df = joinpath(dir, "d.jls")
+        open(io -> Serialization.serialize(io, DataFrame(y1=[1.0, 2.0, 3.0], y2=[4.0, 5.0, 6.0])), jls_df, "w")
+        @test resolve_stem(joinpath(dir, "d"); slot=:data) == jls_df
+        @test resolve_stem(joinpath(dir, "d"); slot=:result) == jls_df
+
+        fmod_only = joinpath(dir, "legacy.fmod")
+        save_model_handle(fmod_only, estimate_var(randn(20, 2), 1; varnames=["a", "b"]))
+        @test resolve_stem(joinpath(dir, "legacy"); slot=:result) == fmod_only
+
+        # 2. save_model_dispatch / load_model_dispatch round-trip on .jls
+        m_jls = joinpath(dir, "var_m.jls")
+        m_orig = estimate_var(randn(24, 2), 1; varnames=["a", "b"])
+        save_model_dispatch(m_jls, m_orig)
+        m_back = load_model_dispatch(m_jls)
+        @test typeof(m_back) == typeof(m_orig)
+
+        # 3. Tabular .jls payloads: DataFrame, Matrix, Vector, NamedTuple
+        df_loaded = load_data(jls_df)
+        @test names(df_loaded) == ["y1", "y2"]
+        @test nrow(df_loaded) == 3
+        Y_df, vn_df = load_multivariate_data(joinpath(dir, "d"))
+        @test size(Y_df) == (3, 2)
+        @test vn_df == ["y1", "y2"]
+
+        jls_mat = joinpath(dir, "mat.jls")
+        open(io -> Serialization.serialize(io, [1.0 2.0; 3.0 4.0; 5.0 6.0]), jls_mat, "w")
+        Y_mat, vn_mat = load_multivariate_data(jls_mat)
+        @test size(Y_mat) == (3, 2)
+        @test vn_mat == ["x1", "x2"]
+
+        jls_vec = joinpath(dir, "vec.jls")
+        open(io -> Serialization.serialize(io, [10.0, 20.0, 30.0]), jls_vec, "w")
+        y_vec, nm_vec = load_univariate_series(jls_vec, 1)
+        @test y_vec == [10.0, 20.0, 30.0]
+        @test nm_vec == "y"
+
+        jls_nt = joinpath(dir, "nt.jls")
+        open(io -> Serialization.serialize(io, (a=[1.0, 2.0], b=[3.0, 4.0])), jls_nt, "w")
+        df_nt = resolve_data(jls_nt)
+        @test df_nt isa DataFrame
+        @test names(df_nt) == ["a", "b"]
+
+        # 4. Plain .jld2 user archives ("data" key and single-key archive)
+        raw_jld = joinpath(dir, "raw.jld2")
+        JLD2.jldsave(raw_jld; data=DataFrame(y1=[1.0, 2.0], y2=[3.0, 4.0]), meta="extra")
+        df_raw = load_data(raw_jld)
+        @test names(df_raw) == ["y1", "y2"]
+        Y_raw, vn_raw = load_multivariate_data(joinpath(dir, "raw"))
+        @test size(Y_raw) == (2, 2)
+        @test vn_raw == ["y1", "y2"]
+
+        single_jld = joinpath(dir, "single.jld2")
+        JLD2.jldsave(single_jld; df=DataFrame(y=[5.0, 6.0]))
+        df_single = resolve_data(single_jld)
+        @test df_single isa DataFrame
+        @test names(df_single) == ["y"]
+
+        # 5. Review Focus #3: missing values in serialized DataFrame -> data/missing-values
+        miss_jld = joinpath(dir, "miss.jld2")
+        JLD2.jldsave(miss_jld; data=DataFrame(y=[1.0, missing, 3.0], x=[2.0, 4.0, 6.0]))
+        err_miss = try
+            load_multivariate_data(miss_jld)
+            nothing
+        catch e; e; end
+        @test err_miss isa CliError
+        @test err_miss.code == "data/missing-values"
+
+        # 6. Review Focus #4: corrupt .jls, ambiguous multi-key .jld2, empty DataFrame
+        bad_jls = joinpath(dir, "bad.jls")
+        write(bad_jls, UInt8[0x37, 0x4a, 0x4c])  # truncated Serialization stream
+        err_bad_jls = try
+            load_model_dispatch(bad_jls)
+            nothing
+        catch e; e; end
+        @test err_bad_jls isa CliError
+        @test err_bad_jls.code == "data/serialization"
+
+        amb_jld = joinpath(dir, "amb.jld2")
+        JLD2.jldsave(amb_jld; a=[1.0, 2.0], b=[3.0, 4.0])
+        err_amb = try
+            load_model_dispatch(amb_jld)
+            nothing
+        catch e; e; end
+        @test err_amb isa CliError
+        @test err_amb.code == "data/serialization"
+
+        empty_jls = joinpath(dir, "empty.jls")
+        open(io -> Serialization.serialize(io, DataFrame()), empty_jls, "w")
+        err_empty = try
+            load_data(empty_jls)
+            nothing
+        catch e; e; end
+        @test err_empty isa CliError
+        @test err_empty.code == "data/empty"
+    end
+end
+
+@testset "pipeline serialized writers and secondary data flags" begin
+    import JLD2
+    mktempdir() do dir
+        # 1. data simulate --save-data (.jld2 stem & .jls)
+        dnode = register_data_commands!()
+        sim_node = dnode.subcmds["simulate"]
+        @test any(o -> o.name == "save-data", sim_node.subcmds["var"].options)
+        sim_var_stem = joinpath(dir, "sim_var")
+        _capture() do
+            sim_node.subcmds["var"].handler(; periods=40, burn=10, seed=7,
+                                            save_data=sim_var_stem, format="json", output="")
+        end
+        @test isfile(sim_var_stem * ".jld2")
+        ts_sim = load_model_dispatch(sim_var_stem * ".jld2")
+        @test ts_sim isa TimeSeriesData
+        @test size(to_matrix(ts_sim), 1) == 40
+        @test !("time" in varnames(ts_sim))
+
+        sim_pan_stem = joinpath(dir, "sim_pan")
+        _capture() do
+            sim_node.subcmds["panel"].handler(; n=6, periods=8, seed=7,
+                                              save_data=sim_pan_stem, format="json", output="")
+        end
+        @test isfile(sim_pan_stem * ".jld2")
+        pan_sim = load_model_dispatch(sim_pan_stem * ".jld2")
+        @test pan_sim isa PanelData
+
+        sim_xs_jls = joinpath(dir, "sim_xs.jls")
+        _capture() do
+            sim_node.subcmds["cross-section"].handler(; n=30, seed=7,
+                                                      save_data=sim_xs_jls, format="json", output="")
+        end
+        @test isfile(sim_xs_jls)
+        @test load_model_dispatch(sim_xs_jls) isa CrossSectionData
+
+        # 2. data load -o .jld2 / .jls
+        sl_jld = joinpath(dir, "sl.jld2")
+        _data_load(; name=":stackloss", output=sl_jld)
+        @test load_model_dispatch(sl_jld) isa CrossSectionData
+
+        dk_jld = joinpath(dir, "dk.jld2")
+        _data_load(; name=":denmark", vars="LRM,LRY", output=dk_jld)
+        dk_obj = load_model_dispatch(dk_jld)
+        @test dk_obj isa TimeSeriesData
+        @test varnames(dk_obj) == ["LRM", "LRY"]
+
+        gr_jls = joinpath(dir, "gr.jls")
+        _data_load(; name=":grunfeld", output=gr_jls)
+        @test load_model_dispatch(gr_jls) isa PanelData
+
+        # 3. data fix <csv> -o .jls allowed, while -o .jld2 still guarded
+        csv = joinpath(dir, "raw.csv")
+        CSV.write(csv, DataFrame(y1=[1.0, 2.0, 3.0, 4.0], y2=[2.0, 3.0, 4.0, 5.0]))
+        fixed_jls = joinpath(dir, "fixed.jls")
+        _data_fix(; data=csv, output=fixed_jls)
+        @test isfile(fixed_jls)
+
+        err_jld_guard = try
+            _data_fix(; data=csv, output=joinpath(dir, "nope.jld2"))
+            nothing
+        catch e; e; end
+        @test err_jld_guard isa CliError
+        @test err_jld_guard.code == "usage/invalid"
+
+        # 4. data import promotes .jls and plain .jld2 tabular data, rejects existing typed containers
+        imp_stem = joinpath(dir, "imported")
+        _capture() do
+            _data_import(; data=fixed_jls, kind="timeseries", output=imp_stem, format="json")
+        end
+        @test isfile(imp_stem * ".jld2")
+        @test load_model_dispatch(imp_stem * ".jld2") isa TimeSeriesData
+
+        plain_jld = joinpath(dir, "plain_tab.jld2")
+        JLD2.jldsave(plain_jld; data=DataFrame(y1=[1.0, 2.0, 3.0], y2=[4.0, 5.0, 6.0]))
+        imp_plain = joinpath(dir, "imported_plain")
+        _capture() do
+            _data_import(; data=plain_jld, kind="timeseries", output=imp_plain, format="json")
+        end
+        @test load_model_dispatch(imp_plain * ".jld2") isa TimeSeriesData
+
+        err_imp_typed = try
+            _data_import(; data=imp_stem * ".jld2", kind="timeseries", output=joinpath(dir, "dup"))
+            nothing
+        catch e; e; end
+        @test err_imp_typed isa CliError
+        @test err_imp_typed.code == "usage/invalid"
+
+        # 5. Secondary data flags: _load_midas_data (hf_data), _nowcast_news (data_old), _fceval_load (data + .jls result)
+        lf_jls = joinpath(dir, "lf.jls")
+        hf_jld = joinpath(dir, "hf.jld2")
+        open(io -> Serialization.serialize(io, DataFrame(gdp=collect(1.0:10.0))), lf_jls, "w")
+        save_model_dispatch(hf_jld, TimeSeriesData(reshape(collect(1.0:30.0), :, 1); varnames=["ind"]))
+        y_lf, x_hf, ynm, xnm = _load_midas_data(joinpath(dir, "lf"), 1, joinpath(dir, "hf"), 1; m=3)
+        @test length(y_lf) == 10
+        @test length(x_hf) == 30
+        @test ynm == "gdp"
+        @test xnm == "ind"
+
+        old_mat = randn(24, 3)
+        new_mat = copy(old_mat)
+        old_mat[end, end] = NaN
+        save_model_dispatch(joinpath(dir, "v_old.jld2"), TimeSeriesData(old_mat; varnames=["m1", "m2", "q1"]))
+        open(io -> Serialization.serialize(io, DataFrame(new_mat, ["m1", "m2", "q1"])), joinpath(dir, "v_new.jls"), "w")
+        nc_out = _capture() do
+            _nowcast_news(; data_new=joinpath(dir, "v_new"), data_old=joinpath(dir, "v_old"),
+                          monthly_vars=2, quarterly_vars=1, method="dfm", factors=1, lags=1, format="json")
+        end
+        @test occursin("news_impact", nc_out)
+
+        fc_res_jls = joinpath(dir, "fc1.jls")
+        save_model_dispatch(fc_res_jls, (forecast=collect(1.0:10.0) .+ 0.1,))
+        y_ev, nms_ev, cols_ev = _fceval_load(joinpath(dir, "lf"), "gdp", ""; leaf="metrics", result=joinpath(dir, "fc1"))
+        @test length(y_ev) == 10
+        @test nms_ev == ["fc1"]
+        @test length(cols_ev[1]) == 10
+    end
+end
+
+@testset "positional model auto-routing, coexistence, and <model> passthrough" begin
+    mktempdir() do dir
+        # 1. Positional <data> auto-routes saved model (.jld2, stem, .jls) to kwargs[:model]
+        m = estimate_var(randn(40, 2), 2; varnames=["y1", "y2"])
+        save_model_dispatch(joinpath(dir, "vmod.jld2"), m)
+        save_model_dispatch(joinpath(dir, "vmod_jls.jls"), m)
+
+        out_jld = _capture() do
+            _dispatch_via_app(["irf", "var", joinpath(dir, "vmod.jld2"), "--horizons", "4", "--format", "json"])
+        end
+        @test occursin("irf", out_jld)
+
+        out_stem = _capture() do
+            _dispatch_via_app(["irf", "var", joinpath(dir, "vmod"), "--horizons", "4", "--format", "json"])
+        end
+        @test occursin("irf", out_stem)
+
+        out_jls = _capture() do
+            _dispatch_via_app(["irf", "var", joinpath(dir, "vmod_jls.jls"), "--horizons", "4", "--format", "json"])
+        end
+        @test occursin("irf", out_jls)
+
+        # 2. Conflict: model handle in <data> AND --model throws usage/invalid
+        err_conf = try
+            _capture() do
+                _dispatch_via_app(["irf", "var", joinpath(dir, "vmod.jld2"), "--model", joinpath(dir, "vmod.jld2")])
+            end
+            nothing
+        catch e; e; end
+        @test err_conf isa CliError
+        @test err_conf.code == "usage/invalid"
+
+        # 3. Review Focus #2 (coexistence): data handle in <data> + model handle in --model
+        ts_new = TimeSeriesData(randn(20, 2); varnames=["y1", "y2"])
+        save_model_dispatch(joinpath(dir, "new_ts.jld2"), ts_new)
+        out_pred = _capture() do
+            _dispatch_via_app(["predict", "multivariate", "var", joinpath(dir, "new_ts.jld2"),
+                               "--model", joinpath(dir, "vmod.jld2"), "--format", "json"])
+        end
+        @test occursin("fitted", out_pred) || occursin("y1", out_pred)
+
+        # 4. Tabular .jls accepted on :csv leaves via wrap_legacy, rejected on non-:csv leaves (data export)
+        tab_jls = joinpath(dir, "tab.jls")
+        open(io -> Serialization.serialize(io, DataFrame(y1=randn(30), y2=randn(30))), tab_jls, "w")
+        out_est_jls = _capture() do
+            _dispatch_via_app(["estimate", "multivariate", "var", tab_jls, "--lags", "1", "--format", "json"])
+        end
+        @test occursin("y1", out_est_jls)
+
+        err_exp = try
+            _dispatch_via_app(["data", "export", tab_jls, "-o", joinpath(dir, "out.csv")])
+            nothing
+        catch e; e; end
+        @test err_exp isa CliError
+        @test err_exp.code == "data/wrong-kind"
+
+        # 5. Review Focus #1: positional <model> passthrough ("huggett" / "rbc.toml" vs on-disk handle) + bind_args --result
+        seen_model = Ref{Any}(nothing)
+        seen_result = Ref{Any}(nothing)
+        pos_spec = CommandSpec(
+            path=["hadsge", "irf"],
+            summary="test positional model",
+            args=[ArgSpec(name="model", type=String, required=true, default=nothing)],
+            options=[RESULT_OPTION, OptionSpec(name="format", default="table"), OptionSpec(name="output", default="")],
+            model_types=[:VARModel],
+            result_types=[:ImpulseResponse],
+            handler=wrap_legacy((; model="", result=nothing, format="table", output="") -> begin
+                seen_model[] = model
+                seen_result[] = result
+                nothing
+            end),
+        )
+        pos_leaf = to_leaf(pos_spec)
+        # Extensionless builtin token passes through as String when no huggett.{jld2,jls,fmod} exists
+        pos_leaf.handler(; model="huggett", format="json", output="")
+        @test seen_model[] === "huggett"
+
+        # On-disk stem loads typed model handle
+        pos_leaf.handler(; model=joinpath(dir, "vmod"), format="json", output="")
+        @test seen_model[] isa VARModel
+
+        # bind_args allows omitting required <model> when --result is supplied
+        parsed_res = tokenize(["--result", joinpath(dir, "irf_r.jld2")])
+        bound_res = bind_args(parsed_res, pos_leaf)
+        @test bound_res.model == ""
+
+        # schema x-handle on positional ArgSpec(name="model") when model_types nonempty
+        register!([pos_spec])
+        sch_pos = _input_schema(pos_leaf, ["hadsge", "irf"])
+        @test haskey(sch_pos["properties"]["model"], "x-handle")
+        @test sch_pos["properties"]["model"]["x-handle"]["role"] == "model"
+        @test "VARModel" in sch_pos["properties"]["model"]["x-handle"]["types"]
+    end
+end
+
+@testset "SVAR/SVEC and post-estimation test model handles" begin
+    mktempdir() do dir
+        ts_csv = joinpath(dir, "macro.csv")
+        CSV.write(ts_csv, DataFrame(y1=cumsum(randn(60)), y2=cumsum(randn(60))))
+
+        # 1. estimate multivariate svar --save-model -> irf/fevd/hd var (positional & --model)
+        svar_stem = joinpath(dir, "svar_m")
+        _capture() do
+            _dispatch_via_app(["estimate", "multivariate", "svar", ts_csv, "--lags", "2",
+                               "--save-model", svar_stem, "--format", "json"])
+        end
+        @test isfile(svar_stem * ".jld2")
+
+        out_svar_irf = _capture() do
+            _dispatch_via_app(["irf", "var", svar_stem, "--horizons", "4", "--ci", "none", "--format", "json"])
+        end
+        @test occursin("irf", out_svar_irf)
+
+        out_svar_fevd = _capture() do
+            _dispatch_via_app(["fevd", "var", svar_stem, "--horizons", "4", "--format", "json"])
+        end
+        @test occursin("fevd", out_svar_fevd)
+
+        out_svar_hd = _capture() do
+            _dispatch_via_app(["hd", "var", "--model", svar_stem, "--format", "json"])
+        end
+        @test occursin("historical_decomposition", out_svar_hd)
+
+        # 2. estimate multivariate svec --save-model -> irf/fevd/hd vecm
+        svec_stem = joinpath(dir, "svec_m")
+        _capture() do
+            _dispatch_via_app(["estimate", "multivariate", "svec", ts_csv, "--lags", "2", "--rank", "1",
+                               "--save-model", svec_stem, "--format", "json"])
+        end
+        @test isfile(svec_stem * ".jld2")
+
+        out_svec_irf = _capture() do
+            _dispatch_via_app(["irf", "vecm", svec_stem, "--horizons", "4", "--ci", "none", "--format", "json"])
+        end
+        @test occursin("vecm_irf", out_svec_irf)
+
+        out_svec_fevd = _capture() do
+            _dispatch_via_app(["fevd", "vecm", svec_stem, "--horizons", "4", "--format", "json"])
+        end
+        @test occursin("vecm_fevd", out_svec_fevd)
+
+        out_svec_hd = _capture() do
+            _dispatch_via_app(["hd", "vecm", svec_stem, "--format", "json"])
+        end
+        @test occursin("vecm_historical_decomposition", out_svec_hd)
+
+        # 3. Post-estimation test leaves accept saved models (positional and --model)
+        var_stem = joinpath(dir, "var_m")
+        save_model_dispatch(var_stem * ".jld2", estimate_var(randn(50, 2), 2; varnames=["y1", "y2"]))
+
+        out_gr_pos = _capture() do
+            _dispatch_via_app(["test", "multivariate", "granger", var_stem * ".jld2", "--format", "json"])
+        end
+        @test occursin("granger_causality", out_gr_pos)
+
+        out_gr_opt = _capture() do
+            _dispatch_via_app(["test", "multivariate", "granger", "--model", var_stem, "--format", "json"])
+        end
+        @test occursin("granger_causality", out_gr_opt)
+
+        # Legacy domain --model var with CSV still works
+        out_gr_dom = _capture() do
+            _dispatch_via_app(["test", "multivariate", "granger", ts_csv, "--model", "var", "--format", "json"])
+        end
+        @test occursin("granger_causality", out_gr_dom)
+
+        # VECM weak-exog with saved VECMModel
+        vecm_stem = joinpath(dir, "vecm_m")
+        save_model_dispatch(vecm_stem * ".jld2", estimate_vecm(randn(50, 2), 2; rank=1, varnames=["y1", "y2"]))
+        out_vex = _capture() do
+            _dispatch_via_app(["test", "vecm", "weak-exog", vecm_stem, "--vars", "1", "--format", "json"])
+        end
+        @test occursin("vecm_weak_exogeneity", out_vex)
+
+        # PVAR hansen-j and mmsc with saved PVARModel
+        pan_df = DataFrame(id=repeat(1:6, inner=10), t=repeat(1:10, outer=6), y1=randn(60), y2=randn(60))
+        pd = xtset(pan_df, :id, :t)
+        pvar_stem = joinpath(dir, "pvar_m")
+        save_model_dispatch(pvar_stem * ".jld2", estimate_pvar(pd, 1))
+        out_hj = _capture() do
+            _dispatch_via_app(["test", "pvar", "hansen-j", pvar_stem, "--format", "json"])
+        end
+        @test occursin("hansen_j_test", out_hj)
+        out_mmsc = _capture() do
+            _dispatch_via_app(["test", "pvar", "mmsc", "--model", pvar_stem, "--format", "json"])
+        end
+        @test occursin("mmsc_results", out_mmsc)
+
+        # Dispersion with saved PoissonModel
+        cnt_csv = joinpath(dir, "cnt.csv")
+        CSV.write(cnt_csv, DataFrame(y=rand(0:5, 50), x1=randn(50), x2=randn(50)))
+        pois_stem = joinpath(dir, "pois_m")
+        _capture() do
+            _dispatch_via_app(["estimate", "choice", "poisson", cnt_csv, "--dep", "y",
+                               "--save-model", pois_stem, "--format", "json"])
+        end
+        out_disp = _capture() do
+            _dispatch_via_app(["test", "dispersion", pois_stem, "--format", "json"])
+        end
+        @test occursin("overdispersion_test", out_disp)
+
+        # VIF with saved RegModel
+        reg_stem = joinpath(dir, "reg_m")
+        _capture() do
+            _dispatch_via_app(["estimate", "regression", "reg", cnt_csv, "--dep", "y",
+                               "--save-model", reg_stem, "--format", "json"])
+        end
+        out_vif = _capture() do
+            _dispatch_via_app(["test", "vif", "--model", reg_stem, "--format", "json"])
+        end
+        @test occursin("variance_inflation_factors", out_vif)
+
+        # Serial correlation diagnostics (ljung-box, durbin-watson, box-pierce, arch-lm, bartlett-wn) on saved model
+        out_lb = _capture() do
+            _dispatch_via_app(["test", "serial", "ljung-box", var_stem, "--column", "1", "--format", "json"])
+        end
+        @test occursin("ljung_box_squared_test", out_lb)
+        out_dw = _capture() do
+            _dispatch_via_app(["test", "serial", "durbin-watson", "--model", reg_stem, "--format", "json"])
+        end
+        @test occursin("durbin_watson_test", out_dw)
+    end
+end
+
+@testset "dsge, hadsge, and policy saved model & result handles" begin
+    mktempdir() do dir
+        rbc_toml = joinpath(dir, "rbc.toml")
+        write(rbc_toml, """
+        [model]
+        parameters = { rho = 0.9 }
+        endogenous = ["Y", "C", "K"]
+        exogenous = ["e"]
+        [[model.equations]]
+        expr = "Y[t] = C[t] + K[t]"
+        [[model.equations]]
+        expr = "C[t] = rho * Y[t]"
+        [[model.equations]]
+        expr = "K[t] = e[t]"
+        """)
+        obs_csv = joinpath(dir, "obs1.csv")
+        CSV.write(obs_csv, DataFrame(Y=randn(40)))
+        obs3_csv = joinpath(dir, "obs3.csv")
+        CSV.write(obs3_csv, DataFrame(infl=randn(60), ygap=randn(60), rate=randn(60)))
+
+        # 1. RA DSGE saved solutions + OccBin (#246) + frequentist estimate (#246) + data simulate dsge
+        rbc_sol = joinpath(dir, "rbc_sol")
+        _capture() do
+            _dispatch_via_app(["dsge", "solve", rbc_toml, "--save-model", rbc_sol, "--format", "json"])
+        end
+        @test isfile(rbc_sol * ".jld2")
+
+        out_dirf = _capture() do
+            _dispatch_via_app(["dsge", "irf", rbc_sol, "--horizon", "6", "--format", "json"])
+        end
+        @test occursin("dsge_irf", out_dirf)
+
+        out_dfevd = _capture() do
+            _dispatch_via_app(["dsge", "fevd", rbc_sol, "--horizon", "6", "--format", "json"])
+        end
+        @test occursin("dsge_fevd", out_dfevd)
+
+        out_dsim = _capture() do
+            _dispatch_via_app(["dsge", "simulate", rbc_sol, "--periods", "12", "--burn", "4", "--format", "json"])
+        end
+        @test occursin("dsge_simulation", out_dsim)
+
+        out_dhd = _capture() do
+            _dispatch_via_app(["dsge", "hd", rbc_sol, "--data", obs_csv, "--observables", "Y", "--format", "json"])
+        end
+        @test occursin("dsge_historical_decomposition", out_dhd)
+
+        out_datasim_dsge = _capture() do
+            _dispatch_via_app(["data", "simulate", "dsge", rbc_sol, "--periods", "12", "--burn", "4", "--format", "json"])
+        end
+        @test occursin("simulated_data", out_datasim_dsge)
+
+        pert_sol = joinpath(dir, "pert_sol")
+        _capture() do
+            _dispatch_via_app(["dsge", "solve", rbc_toml, "--method", "perturbation", "--order", "2",
+                               "--save-model", pert_sol, "--format", "json"])
+        end
+        @test isfile(pert_sol * ".jld2")
+        out_dmom = _capture() do
+            _dispatch_via_app(["dsge", "moments", pert_sol, "--lags", "1", "--format", "json"])
+        end
+        @test occursin("dsge_theoretical_moments", out_dmom)
+
+        ob_sol = joinpath(dir, "ob_sol")
+        _capture() do
+            _dispatch_via_app(["dsge", "solve", rbc_toml, "--constraint", "Y[t] >= -0.5",
+                               "--periods", "10", "--save-model", ob_sol, "--format", "json"])
+        end
+        @test isfile(ob_sol * ".jld2")
+        out_ob_irf = _capture() do
+            _dispatch_via_app(["dsge", "irf", ob_sol, "--horizon", "6", "--format", "json"])
+        end
+        @test occursin("occbin_irf", out_ob_irf)
+
+        dsge_est = joinpath(dir, "dsge_est")
+        _capture() do
+            _dispatch_via_app(["dsge", "estimate", rbc_toml, "--data", obs3_csv, "--params", "rho",
+                               "--save-model", dsge_est, "--format", "json"])
+        end
+        @test isfile(dsge_est * ".jld2")
+
+        # 2. Bayesian DSGE saved posterior (#246 + #240)
+        bdsge_stem = joinpath(dir, "bdsge")
+        _capture() do
+            _dispatch_via_app(["dsge", "bayes", "estimate", rbc_toml, "--data", obs_csv,
+                               "--params", "rho", "--prior", "rho ~ beta(2, 2)",
+                               "--n-smc", "10", "--n-particles", "20", "--n-draws", "10",
+                               "--save-model", bdsge_stem, "--format", "json"])
+        end
+        @test isfile(bdsge_stem * ".jld2")
+
+        out_birf = _capture() do
+            _dispatch_via_app(["dsge", "bayes", "irf", bdsge_stem, "--horizon", "5", "--n-draws", "5", "--format", "json"])
+        end
+        @test occursin("bayesian_dsge_irf", out_birf)
+
+        out_bfevd = _capture() do
+            _dispatch_via_app(["dsge", "bayes", "fevd", bdsge_stem, "--horizon", "5", "--n-draws", "5", "--format", "json"])
+        end
+        @test occursin("bayesian_dsge_fevd", out_bfevd)
+
+        out_bsim = _capture() do
+            _dispatch_via_app(["dsge", "bayes", "simulate", bdsge_stem, "--periods", "8", "--n-draws", "5", "--format", "json"])
+        end
+        @test occursin("bayesian_dsge_simulation", out_bsim)
+
+        out_bsum = _capture() do
+            _dispatch_via_app(["dsge", "bayes", "summary", bdsge_stem, "--format", "json"])
+        end
+        @test occursin("bayesian_dsge_posterior_summary", out_bsum)
+
+        out_bdiag = _capture() do
+            _dispatch_via_app(["dsge", "bayes", "mcmc-diag", bdsge_stem, "--format", "json"])
+        end
+        @test occursin("mcmc_convergence_diagnostics", out_bdiag)
+
+        out_bhd = _capture() do
+            _dispatch_via_app(["dsge", "bayes", "hd", bdsge_stem, "--data", obs_csv, "--observables", "Y",
+                               "--n-hd-draws", "5", "--format", "json"])
+        end
+        @test occursin("bayesian_dsge_historical_decomposition", out_bhd)
+
+        # 3. HA-DSGE saved solutions + builtin name passthrough (Review Focus #1)
+        hasol_stem = joinpath(dir, "hasol")
+        _capture() do
+            _dispatch_via_app(["hadsge", "solve", "huggett", "--method", "reiter",
+                               "--save-model", hasol_stem, "--format", "json"])
+        end
+        @test isfile(hasol_stem * ".jld2")
+
+        out_hairf = _capture() do
+            _dispatch_via_app(["hadsge", "irf", hasol_stem, "--horizon", "6", "--format", "json"])
+        end
+        @test occursin("ha_dsge_irf", out_hairf)
+
+        out_hafevd = _capture() do
+            _dispatch_via_app(["hadsge", "fevd", hasol_stem, "--horizon", "6", "--format", "json"])
+        end
+        @test occursin("ha_dsge_fevd", out_hafevd)
+
+        out_hasim = _capture() do
+            _dispatch_via_app(["hadsge", "simulate", hasol_stem, "--periods", "10", "--format", "json"])
+        end
+        @test occursin("ha_dsge_simulation", out_hasim)
+
+        out_hadirf = _capture() do
+            _dispatch_via_app(["hadsge", "distribution-irf", hasol_stem, "--horizon", "6", "--format", "json"])
+        end
+        @test occursin("ha_distribution_irf", out_hadirf)
+
+        out_haiirf = _capture() do
+            _dispatch_via_app(["hadsge", "inequality-irf", hasol_stem, "--horizon", "6", "--format", "json"])
+        end
+        @test occursin("ha_inequality_irf", out_haiirf)
+
+        out_hapan = _capture() do
+            _dispatch_via_app(["hadsge", "simulate-panel", hasol_stem, "--n-agents", "20", "--periods", "8", "--format", "json"])
+        end
+        @test occursin("ha_panel_simulation_summary", out_hapan)
+
+        out_datasim_ha = _capture() do
+            _dispatch_via_app(["data", "simulate", "ha", hasol_stem, "--periods", "8", "--format", "json"])
+        end
+        @test occursin("simulated_data", out_datasim_ha)
+
+        # Review Focus #1: builtin name "huggett" with no file on disk passes through as String
+        out_hairf_builtin = _capture() do
+            _dispatch_via_app(["hadsge", "irf", "huggett", "--horizon", "6", "--format", "json"])
+        end
+        @test occursin("ha_dsge_irf", out_hairf_builtin)
+
+        kssol_stem = joinpath(dir, "kssol")
+        _capture() do
+            _dispatch_via_app(["hadsge", "solve", "krusell-smith", "--method", "krusell-smith",
+                               "--save-model", kssol_stem, "--format", "json"])
+        end
+        @test isfile(kssol_stem * ".jld2")
+        out_haacc = _capture() do
+            _dispatch_via_app(["hadsge", "accuracy", kssol_stem, "--t-sim", "120", "--t-burn", "20", "--format", "json"])
+        end
+        @test occursin("den_haan_accuracy", out_haacc)
+
+        # 4. Policy saved model & --save-result / --result handles
+        var_stem = joinpath(dir, "pol_var")
+        save_model_dispatch(var_stem * ".jld2",
+            estimate_var(randn(60, 3), 2; varnames=["infl", "ygap", "rate"]))
+        svar_stem = joinpath(dir, "pol_svar")
+        _capture() do
+            _dispatch_via_app(["estimate", "multivariate", "svar", obs3_csv, "--lags", "2",
+                               "--save-model", svar_stem, "--format", "json"])
+        end
+
+        eff_stem = joinpath(dir, "pol_eff")
+        out_peff = _capture() do
+            _dispatch_via_app(["policy", "effects", "var", var_stem * ".jld2",
+                               "--horizon", "6", "--shocks", "3",
+                               "--outcomes", "infl=1,ygap=2", "--instruments", "rate=3",
+                               "--save-result", eff_stem, "--format", "json"])
+        end
+        @test occursin("policy_causal_effects_menu", out_peff)
+        @test isfile(eff_stem * ".jld2")
+
+        out_peff_rerender = _capture() do
+            _dispatch_via_app(["policy", "effects", "var", "--result", eff_stem, "--format", "json"])
+        end
+        @test occursin("policy_causal_effects_menu", out_peff_rerender)
+
+        out_peff_svar = _capture() do
+            _dispatch_via_app(["policy", "effects", "var", svar_stem,
+                               "--horizon", "6", "--shocks", "3",
+                               "--outcomes", "infl=1,ygap=2", "--instruments", "rate=3", "--format", "json"])
+        end
+        @test occursin("policy_causal_effects_menu", out_peff_svar)
+
+        cf_stem = joinpath(dir, "pol_cf")
+        out_pcf = _capture() do
+            _dispatch_via_app(["policy", "counterfactual", "var", "--model", var_stem,
+                               "--horizon", "6", "--shocks", "3", "--nonpolicy-shock", "1",
+                               "--outcomes", "infl=1,ygap=2", "--instruments", "rate=3",
+                               "--rule", "taylor", "--save-result", cf_stem, "--format", "json"])
+        end
+        @test occursin("policy_counterfactual_paths", out_pcf)
+        @test isfile(cf_stem * ".jld2")
+
+        out_pcf_rerender = _capture() do
+            _dispatch_via_app(["policy", "counterfactual", "var", "--result", cf_stem, "--format", "json"])
+        end
+        @test occursin("policy_counterfactual_paths", out_pcf_rerender)
+
+        hist_stem = joinpath(dir, "pol_hist")
+        out_phist = _capture() do
+            _dispatch_via_app(["policy", "history", "var", var_stem,
+                               "--horizon", "8", "--shocks", "3",
+                               "--outcomes", "infl=1,ygap=2", "--instruments", "rate=3",
+                               "--rule", "taylor", "--t-range", "5:8",
+                               "--save-result", hist_stem, "--format", "json"])
+        end
+        @test occursin("counterfactual_history", out_phist)
+        @test isfile(hist_stem * ".jld2")
+
+        out_phist_rerender = _capture() do
+            _dispatch_via_app(["policy", "history", "var", "--result", hist_stem, "--format", "json"])
+        end
+        @test occursin("counterfactual_history", out_phist_rerender)
+
+        news_stem = joinpath(dir, "pol_news")
+        out_pnews = _capture() do
+            _dispatch_via_app(["policy", "news", "dsge", rbc_sol,
+                               "--policy-shock", "e", "--outcomes", "y=Y", "--instruments", "k=K",
+                               "--horizon", "6", "--save-result", news_stem, "--format", "json"])
+        end
+        @test occursin("policy_causal_effects_menu", out_pnews)
+        @test isfile(news_stem * ".jld2")
+
+        out_pnews_rerender = _capture() do
+            _dispatch_via_app(["policy", "news", "dsge", "--result", news_stem, "--format", "json"])
+        end
+        @test occursin("policy_causal_effects_menu", out_pnews_rerender)
+
+        fs_stem = joinpath(dir, "pol_fs")
+        out_pfs = _capture() do
+            _dispatch_via_app(["policy", "sufficiency", "dsge", rbc_sol,
+                               "--observables", "Y", "--horizon", "6",
+                               "--save-result", fs_stem, "--format", "json"])
+        end
+        @test occursin("forecast_sufficiency_fev_ratios", out_pfs)
+        @test isfile(fs_stem * ".jld2")
+
+        out_pfs_rerender = _capture() do
+            _dispatch_via_app(["policy", "sufficiency", "dsge", "--result", fs_stem, "--format", "json"])
+        end
+        @test occursin("forecast_sufficiency_fev_ratios", out_pfs_rerender)
+
+        # dsge moments on saved DSGESolution + policy effects lp on saved LPModel + policy spanning dual-positional
+        out_dmom = _capture() do
+            _dispatch_via_app(["dsge", "moments", rbc_sol, "--lags", "2", "--format", "json"])
+        end
+        @test occursin("dsge_theoretical_moments", out_dmom)
+
+        lp_stem = joinpath(dir, "pol_lp")
+        _capture() do
+            _dispatch_via_app(["estimate", "multivariate", "lp", obs3_csv, "--horizons", "6",
+                               "--shock", "3", "--save-model", lp_stem, "--format", "json"])
+        end
+        out_plp = _capture() do
+            _dispatch_via_app(["policy", "effects", "lp", lp_stem,
+                               "--horizon", "6", "--outcomes", "infl=1,ygap=2",
+                               "--instruments", "rate=3", "--format", "json"])
+        end
+        @test occursin("policy_causal_effects_menu", out_plp)
+
+        sp_stem = joinpath(dir, "pol_span")
+        out_pspan = _capture() do
+            _dispatch_via_app(["policy", "spanning", "var", obs3_csv, rbc_sol,
+                               "--horizon", "6", "--shocks", "3", "--nonpolicy-shock", "1",
+                               "--outcomes", "infl=1", "--instruments", "rate=3",
+                               "--model-outcomes", "infl=Y", "--model-instruments", "rate=K",
+                               "--policy-shock", "e", "--rule", "rate-peg",
+                               "--save-result", sp_stem, "--format", "json"])
+        end
+        @test occursin("spanning_verdict", out_pspan)
+        @test isfile(sp_stem * ".jld2")
+        out_pspan_rerender = _capture() do
+            _dispatch_via_app(["policy", "spanning", "var", "--result", sp_stem, "--format", "json"])
+        end
+        @test occursin("spanning_verdict", out_pspan_rerender)
+    end
+end
+
+@testset "test granger <data> --model var not hijacked by cwd var.jld2" begin
+    mktempdir() do dir
+        cd(dir) do
+            # Save a 2-variable VARModel (varnames ["a", "b"]) to ./var.jld2 in CWD
+            save_model_dispatch("var.jld2", estimate_var(randn(40, 2), 1; varnames=["a", "b"]))
+            # Create a 4-variable dataset d4.csv (columns y1..y4)
+            d4_csv = _make_csv(dir; T=50, n=4, colnames=["y1", "y2", "y3", "y4"])
+            out_explicit_data = _capture() do
+                _dispatch_via_app(["test", "multivariate", "granger", d4_csv,
+                                   "--model", "var", "--all", "--format", "json"])
+            end
+            @test occursin("\"y3\"", out_explicit_data)
+            @test !occursin("\"a\"", out_explicit_data)
+
+            # Without <data>, `--model var` still loads ./var.jld2 (varnames ["a", "b"])
+            out_handle = _capture() do
+                _dispatch_via_app(["test", "multivariate", "granger",
+                                   "--model", "var", "--all", "--format", "json"])
+            end
+            @test occursin("\"a\"", out_handle)
+            @test !occursin("\"y3\"", out_handle)
+
+            # On other leaves (e.g. forecast multivariate var <oos> --model var --lags 3),
+            # stem `var` still loads ./var.jld2 (VAR(1)) rather than estimating VAR(3) on oos2.csv
+            oos_csv = joinpath(dir, "oos2.csv")
+            CSV.write(oos_csv, DataFrame(a=randn(20), b=randn(20)))
+            out_fc = _capture() do
+                _dispatch_via_app(["forecast", "multivariate", "var", oos_csv, "--model", "var", "--lags", "3", "--horizons", "2", "--format", "json"])
+            end
+            @test occursin("VAR(1)", out_fc)
+        end
+    end
+end

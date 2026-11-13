@@ -16,6 +16,24 @@
 
 # Subcommand dispatch engine
 
+const _MEMS_VERSION_CACHE = Ref{String}("")
+
+function _cached_mems_version()::String
+    v = _MEMS_VERSION_CACHE[]
+    !isempty(v) && return v
+    v = if isdefined(@__MODULE__, :MacroEconometricModels)
+        try
+            string(pkgversion(MacroEconometricModels))
+        catch
+            "unknown"
+        end
+    else
+        "unknown"
+    end
+    _MEMS_VERSION_CACHE[] = v
+    return v
+end
+
 """
     _wants_help(args) → Bool
 
@@ -135,10 +153,9 @@ function dispatch_leaf(leaf::LeafCommand, args::Vector{String}; prog::String=lea
     try
         parsed = tokenize(args)
         bound = bind_args(parsed, leaf)
-        merged = merge(Dict{Symbol,Any}(pairs(bound)), Dict{Symbol,Any}(extra_kwargs))
         # Single-envelope JSON accumulation (P1-1 / F17; C055: the
         # FRIEDMAN_LEGACY_OUTPUT escape hatch was removed at v1.0.0)
-        fmt = get(Dict(pairs(bound)), :format, nothing)
+        fmt = get(bound, :format, nothing)
         use_env = fmt == "json"
         t0 = time_ns()
         if use_env
@@ -148,12 +165,8 @@ function dispatch_leaf(leaf::LeafCommand, args::Vector{String}; prog::String=lea
                 "julia"        => string(VERSION),
                 "seed"         => _SEED[],
                 "argv"         => copy(_LAST_ARGV[]),
+                "mems_version" => _cached_mems_version(),
             )
-            try
-                env.meta["mems_version"] = string(pkgversion(MacroEconometricModels))
-            catch
-                env.meta["mems_version"] = "unknown"
-            end
             try
                 env.meta["manifest"] = _envelope_manifest()
             catch
@@ -162,7 +175,8 @@ function dispatch_leaf(leaf::LeafCommand, args::Vector{String}; prog::String=lea
             _ENVELOPE[] = env
         end
         try
-            result = leaf.handler(; merged...)
+            result = isempty(extra_kwargs) ? leaf.handler(; bound...) :
+                leaf.handler(; merge(Dict{Symbol,Any}(pairs(bound)), Dict{Symbol,Any}(extra_kwargs))...)
             if use_env && _ENVELOPE[] !== nothing
                 _ENVELOPE[].meta["elapsed_ms"] = (time_ns() - t0) / 1e6
                 render(_ENVELOPE[], :json, stdout)

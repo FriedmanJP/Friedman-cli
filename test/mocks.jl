@@ -707,7 +707,17 @@ struct SVARModel{T}
     loglik::T; lr_stat::T; lr_df::Int; lr_pvalue::T
     pattern::SVARPattern{T}; identification::IdentificationStatus
     varnames::Vector{String}
+    shock_names::Vector{String}
+    model::Union{Nothing,VARModel{T}}
 end
+SVARModel(A::Matrix{T}, B::Matrix{T}, Q::Matrix{T},
+          vcov::Union{Nothing,Matrix{T}}, se::Union{Nothing,Matrix{T}},
+          loglik::T, lr_stat::T, lr_df::Int, lr_pvalue::T,
+          pattern::SVARPattern{T}, identification::IdentificationStatus,
+          varnames::Vector{String}) where {T} =
+    SVARModel{T}(A, B, Q, vcov, se, loglik, lr_stat, lr_df, lr_pvalue,
+                 pattern, identification, varnames,
+                 ["shock$i" for i in 1:length(varnames)], nothing)
 struct RobustBayesResult{T}
     lower::Array{T,3}; upper::Array{T,3}
     robust_lower::Array{T,3}; robust_upper::Array{T,3}
@@ -885,7 +895,12 @@ VECMModel(Y::Matrix{T}, p::Int, rank::Int, alpha::Matrix{T}, beta::Matrix{T},
 struct SVECResult{T}
     B0::Matrix{T}; Q::Matrix{T}; Xi::Matrix{T}; n_permanent::Int
     vecm::VECMModel{T}; identification::IdentificationStatus
+    shock_names::Vector{String}
 end
+SVECResult(B0::Matrix{T}, Q::Matrix{T}, Xi::Matrix{T}, n_permanent::Int,
+           vecm::VECMModel{T}, identification::IdentificationStatus) where {T} =
+    SVECResult{T}(B0, Q, Xi, n_permanent, vecm, identification,
+                  ["shock$i" for i in 1:size(B0, 2)])
 
 VECMModel(Y::Matrix{T}, p::Int, rank::Int, alpha::Matrix{T}, beta::Matrix{T},
           Pi::Matrix{T}, Gamma::Vector{Matrix{T}}, mu::Vector{T}, U::Matrix{T},
@@ -1035,6 +1050,7 @@ predict(m::Union{ARModel,MAModel,ARMAModel,ARIMAModel}) = zeros(Float64, 50)
 
 # residuals: return residuals
 residuals(m::VARModel) = m.U
+residuals(m::VECMModel) = m.U
 residuals(m::Union{ARModel,MAModel,ARMAModel,ARIMAModel}) = fill(0.01, 50)
 
 # Factor model predict/residuals
@@ -1408,7 +1424,8 @@ function identify_svec(vecm::VECMModel; long_run_zeros=nothing, short_run_zeros=
                        pattern=nothing, n_starts=5, max_iter=400, kwargs...)
     n = size(vecm.Y, 2)
     SVECResult(Matrix{Float64}(I(n)), Matrix{Float64}(I(n)), zeros(n, n), vecm.rank,
-               vecm, IdentificationStatus(:exact, fill(n, 1), fill(n, 1), 0))
+               vecm, IdentificationStatus(:exact, fill(n, 1), fill(n, 1), 0),
+               ["shock$i" for i in 1:n])
 end
 function estimate_svar(model::VARModel, pattern::SVARPattern; n_starts=5, max_iter=400,
                        long_run_matrix=nothing, rng=nothing, kwargs...)
@@ -1418,7 +1435,51 @@ function estimate_svar(model::VARModel, pattern::SVARPattern; n_starts=5, max_it
         throw(ArgumentError("Pattern dimension ($(size(pattern.A, 1))) must match model ($n)"))
     SVARModel(Matrix{Float64}(I(n)), Matrix{Float64}(I(n)), Matrix{Float64}(I(n)),
               nothing, nothing, -100.0, 0.0, 0, 1.0, pattern,
-              IdentificationStatus(:exact, fill(n, 1), fill(n, 1), 0), model.varnames)
+              IdentificationStatus(:exact, fill(n, 1), fill(n, 1), 0), model.varnames,
+              ["shock$i" for i in 1:n], model)
+end
+function irf(svar::SVARModel{T}, horizon::Int; shock_names=nothing, ci_type=:none,
+             reps=200, conf_level=0.95, stationary_only=false, seed=nothing,
+             bootstrap::Symbol=:iid, block_length::Int=0, wild_dist::Symbol=:rademacher,
+             bias_correct::Bool=false, bias_reps::Int=0) where {T}
+    svar.model === nothing && throw(ArgumentError("irf(svar): SVARModel has no underlying VARModel"))
+    snames = something(shock_names, svar.shock_names)
+    r = irf(svar.model, horizon; method=:cholesky, ci_type=ci_type, reps=reps,
+            conf_level=conf_level, stationary_only=stationary_only, seed=seed,
+            bootstrap=bootstrap, block_length=block_length, wild_dist=wild_dist,
+            bias_correct=bias_correct, bias_reps=bias_reps)
+    return ImpulseResponse{Float64}(r.values, r.ci_lower, r.ci_upper, r.horizon,
+                                    r.variables, copy(snames), r.ci_type, r._draws)
+end
+function fevd(svar::SVARModel{T}, horizon::Int; shock_names=nothing) where {T}
+    svar.model === nothing && throw(ArgumentError("fevd(svar): SVARModel has no underlying VARModel"))
+    snames = something(shock_names, svar.shock_names)
+    r = fevd(svar.model, horizon; method=:cholesky)
+    return FEVD(r.decomposition, r.proportions, r.variables, copy(snames))
+end
+function historical_decomposition(svar::SVARModel{T},
+                                  horizon::Int=size(svar.model.Y, 1) - svar.model.p;
+                                  shock_names=nothing) where {T}
+    svar.model === nothing && throw(ArgumentError("historical_decomposition(svar): SVARModel has no underlying VARModel"))
+    return historical_decomposition(svar.model, horizon; method=:cholesky)
+end
+function irf(svec::SVECResult, horizon::Int; shock_names=nothing, ci_type=:none,
+             reps=200, conf_level=0.95, seed=nothing)
+    snames = something(shock_names, svec.shock_names)
+    r = irf(to_var(svec.vecm), horizon; method=:cholesky, ci_type=ci_type,
+            reps=reps, conf_level=conf_level, seed=seed)
+    return ImpulseResponse{Float64}(r.values, r.ci_lower, r.ci_upper, r.horizon,
+                                    r.variables, copy(snames), r.ci_type, r._draws)
+end
+function fevd(svec::SVECResult, horizon::Int; shock_names=nothing)
+    snames = something(shock_names, svec.shock_names)
+    r = fevd(to_var(svec.vecm), horizon; method=:cholesky)
+    return FEVD(r.decomposition, r.proportions, r.variables, copy(snames))
+end
+function historical_decomposition(svec::SVECResult,
+                                  horizon::Int=size(svec.vecm.Y, 1) - svec.vecm.p;
+                                  shock_names=nothing)
+    return historical_decomposition(to_var(svec.vecm), horizon; method=:cholesky)
 end
 function recursive_pattern(n::Integer)
     n >= 1 || throw(ArgumentError("n must be positive"))
@@ -8717,6 +8778,22 @@ function policy_causal_effects(slp::StructuralLP{T}, shocks::AbstractVector,
                     shocks, outcomes, instruments; H=H, normalize=normalize, source=:lp)
 end
 
+function policy_causal_effects(m::Union{LPModel{T}, LPIVModel{T}},
+                               outcomes::AbstractVector{<:Pair},
+                               instruments::AbstractVector{<:Pair}=Pair{Symbol,Int}[];
+                               H::Int=m.horizon + 1, normalize::Symbol=:none,
+                               n_draws::Int=500, rng=nothing, seed=nothing) where T
+    n_draws >= 1 || throw(ArgumentError("n_draws: expected n_draws >= 1, got $n_draws"))
+    lpr = m isa LPModel ? lp_irf(m) : lp_iv_irf(m)
+    Hh, nv = size(lpr.values)
+    values = reshape(lpr.values, Hh, nv, 1)
+    draws4 = reshape(values, 1, Hh, nv, 1) .+ T(0.02) .* randn(T, n_draws, Hh, nv, 1)
+    vars = m isa LPIVModel ? m.varnames[m.response_vars] : ["y$i" for i in 1:nv]
+    sname = m isa LPIVModel ? m.varnames[m.shock_var] : "y$(m.shock_var)"
+    _pce_build_mock(values, draws4, vars, [sname], [1], outcomes, instruments;
+                    H=H, normalize=normalize, source=:lp)
+end
+
 function _bp_build_mock(values::Array{T,3}, draws4, variables, shocknames,
                         nonpolicy_shock, outcomes, instruments;
                         H::Int, negate::Bool) where T
@@ -12792,6 +12869,26 @@ so a divergence here would hide a mislabelled-moment bug in production.
 `:gmm`        → means, then upper-triangle PRODUCT moments (Var + E·E), then diagonal
                 autocov + E² per lag.
 """
+function analytical_moments(sol::DSGESolution{T}; lags::Int=1,
+                            observable_indices=nothing) where {T}
+    lags >= 0 || throw(ArgumentError("lags must be non-negative; got $lags"))
+    k = size(sol.G1, 1)
+    obs = observable_indices === nothing ? collect(1:k) : collect(Int, observable_indices)
+    n_obs = length(obs)
+    Var = zeros(T, n_obs, n_obs)
+    for i in 1:n_obs, j in 1:n_obs
+        Var[i, j] = i == j ? T(1.0 + 0.1 * i) : T(0.2 / (1 + abs(i - j)))
+    end
+    out = T[]
+    for i in 1:n_obs, j in i:n_obs
+        push!(out, Var[i, j])
+    end
+    for lag in 1:lags, i in 1:n_obs
+        push!(out, T(0.7^lag) * Var[i, i])
+    end
+    return out
+end
+
 function analytical_moments(sol::PerturbationSolution{T}; lags::Int=1,
                             format::Symbol=:covariance) where {T}
     format in (:covariance, :gmm) ||

@@ -11,7 +11,7 @@ Fit binary logit regression by IRLS
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -22,7 +22,7 @@ Fit binary logit regression by IRLS
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--maxiter` | — | `Int64` | `100` | — | Maximum IRLS iterations |
 | `--tol` | — | `Float64` | `1.0e-8` | — | Convergence tolerance |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `logit_regression_coefficients` (Logit coefficients with standard errors, z-statistics, p-values and CIs); `fit_statistics` (Pseudo R-squared, log-likelihood (fitted and null), AIC/BIC and convergence)
 
@@ -34,7 +34,7 @@ Fit multinomial logit regression over unordered categories
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -43,7 +43,7 @@ Fit multinomial logit regression over unordered categories
 | `--clusters` | — | `String` | `""` | — | Cluster variable column name |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `multinomial_logit_coefficients` (Coefficients for every alternative in one tidy table, with standard errors and CIs); `fit_statistics` (Pseudo R-squared, log-likelihood, AIC/BIC and the category count)
 
@@ -55,7 +55,7 @@ Fit negative-binomial (NB2) count regression with an overdispersion parameter
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -67,7 +67,7 @@ Fit negative-binomial (NB2) count regression with an overdispersion parameter
 | `--conf-level` | — | `Float64` | `0.95` | — | Confidence level for the incidence-rate-ratio CI (0 < level < 1) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table, csv or json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -83,7 +83,7 @@ Fit ordered logit regression with estimated cutpoints
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -92,7 +92,7 @@ Fit ordered logit regression with estimated cutpoints
 | `--clusters` | — | `String` | `""` | — | Cluster variable column name |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `ordered_logit_coefficients` (Ordered-logit slope coefficients with standard errors, p-values and CIs); `cutpoints` (Estimated category cutpoints of the latent index); `fit_statistics` (Pseudo R-squared, log-likelihood, AIC/BIC and the category count)
 
@@ -104,7 +104,7 @@ Fit ordered probit regression with estimated cutpoints
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -113,7 +113,7 @@ Fit ordered probit regression with estimated cutpoints
 | `--clusters` | — | `String` | `""` | — | Cluster variable column name |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `ordered_probit_coefficients` (Ordered-probit slope coefficients with standard errors, p-values and CIs); `cutpoints` (Estimated category cutpoints of the latent index); `fit_statistics` (Pseudo R-squared, log-likelihood, AIC/BIC and the category count)
 
@@ -125,7 +125,7 @@ Fit Poisson count regression by pseudo-ML (QMLE sandwich by default)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -139,7 +139,7 @@ Fit Poisson count regression by pseudo-ML (QMLE sandwich by default)
 | `--conf-level` | — | `Float64` | `0.95` | — | Confidence level for the incidence-rate-ratio CI (0 < level < 1) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table, csv or json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -155,7 +155,7 @@ Fit binary probit regression by IRLS
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -166,7 +166,7 @@ Fit binary probit regression by IRLS
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--maxiter` | — | `Int64` | `100` | — | Maximum IRLS iterations |
 | `--tol` | — | `Float64` | `1.0e-8` | — | Convergence tolerance |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `probit_regression_coefficients` (Probit coefficients with standard errors, z-statistics, p-values and CIs); `fit_statistics` (Pseudo R-squared, log-likelihood (fitted and null), AIC/BIC and convergence)
 
@@ -178,7 +178,7 @@ Dynamic factor model (two-step/EM) with IC count selection
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -188,7 +188,7 @@ Dynamic factor model (two-step/EM) with IC count selection
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -204,7 +204,7 @@ Non-Gaussian SVAR identification (fastica|jade|sobi|dcov|hsic) on a VAR
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -213,7 +213,7 @@ Non-Gaussian SVAR identification (fastica|jade|sobi|dcov|hsic) on a VAR
 | `--contrast` | — | `String` | `logcosh` | — | logcosh\|exp\|kurtosis (for FastICA) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `structural_impact_matrix_b0` (Identified structural impact matrix B0, one row per equation); `structural_shocks` (First observations of the recovered structural shocks)
 
@@ -225,7 +225,7 @@ Generalized dynamic factor model (FHLR) with static/dynamic rank selection
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -235,7 +235,7 @@ Generalized dynamic factor model (FHLR) with static/dynamic rank selection
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -251,7 +251,7 @@ Structural DFM (FGLR or legacy GDFM-VAR) with q auto-selection
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -269,7 +269,7 @@ Structural DFM (FGLR or legacy GDFM-VAR) with q auto-selection
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
@@ -288,7 +288,7 @@ Static PCA factor model with Bai-Ng count selection
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -297,7 +297,7 @@ Static PCA factor model with Bai-Ng count selection
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -313,7 +313,7 @@ Bayesian VAR with Minnesota prior (GLP/grid hyperopt)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -326,7 +326,7 @@ Bayesian VAR with Minnesota prior (GLP/grid hyperopt)
 | `--config` | — | `String` | `""` | — | TOML config for prior hyperparameters |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
@@ -344,7 +344,7 @@ Factor-augmented VAR (two-step or Bayesian)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -356,7 +356,7 @@ Factor-augmented VAR (two-step or Bayesian)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -372,7 +372,7 @@ Jorda local projections: standard|iv|smooth|state|propensity|robust
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -396,7 +396,7 @@ Jorda local projections: standard|iv|smooth|state|propensity|robust
 | `--ar-span` | — | `Float64` | `20.0` | — | AR search half-width in 2SLS standard errors (iv, with --ar-bands) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -426,7 +426,7 @@ Mixed-frequency VAR (Schorfheide-Song 2015)
 | `--prior` | — | `String` | `minnesota` | `minnesota`, `diffuse` | minnesota\|diffuse |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `mf_var_latent_high_frequency_path_68_credible_band` (Posterior mean and 16/50/84 quantiles of the latent high-frequency path); `mf_var_specification` (Lags, variable count, high-frequency length, low-frequency columns, ratio and aggregation)
 
@@ -438,7 +438,7 @@ AB-model SVAR by ML over a recursive/BQ/restriction pattern
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -450,7 +450,7 @@ AB-model SVAR by ML over a recursive/BQ/restriction pattern
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
@@ -469,7 +469,7 @@ Structural VECM (KPSW default or custom long/short-run zeros)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -484,7 +484,7 @@ Structural VECM (KPSW default or custom long/short-run zeros)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
@@ -503,7 +503,7 @@ TVP-VAR with stochastic volatility (Primiceri 2005)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -517,7 +517,7 @@ TVP-VAR with stochastic volatility (Primiceri 2005)
 | `--k-w` | — | `Float64` | `0.01` | — | Log-volatility random-walk prior scale (> 0) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -534,7 +534,7 @@ Frequentist VAR(p) by OLS with AIC lag auto-selection
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -542,7 +542,7 @@ Frequentist VAR(p) by OLS with AIC lag auto-selection
 | `--trend` | — | `String` | `constant` | — | Deterministic terms (accepted but has no effect: the VAR always includes an intercept) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `var_coefficients` (Tidy VAR coefficient table: one row per equation x term with SEs, t-stats, p-values and CIs); `information_criteria` (AIC / BIC / HQC and the log-likelihood of the fitted VAR)
 
@@ -554,7 +554,7 @@ Johansen/Engle-Granger VECM with automatic rank selection
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -565,7 +565,7 @@ Johansen/Engle-Granger VECM with automatic rank selection
 | `--significance` | — | `Float64` | `0.05` | — | Significance level for rank selection |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `cointegrating_vectors_beta` (Cointegrating vectors beta, one row per variable and one column per relation); `adjustment_coefficients_alpha` (Adjustment coefficients alpha, one row per equation); `information_criteria` (AIC / BIC / HQC and the log-likelihood of the fitted VECM)
 
@@ -577,7 +577,7 @@ Fit panel IV regression (FE-IV, EC2SLS, FD-IV or Hausman-Taylor)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV panel data file |
+| `data` | `String` | yes | — | Path to panel data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -591,7 +591,7 @@ Fit panel IV regression (FE-IV, EC2SLS, FD-IV or Hausman-Taylor)
 | `--time-col` | — | `String` | `""` | — | Panel time column |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `panel_iv_coefficients` (Panel IV coefficients with standard errors, t-statistics and p-values); `weak_instrument_diagnostics` (First-stage F, Cragg-Donald and Kleibergen-Paap F, Stock-Yogo bound and Sargan test)
 
@@ -603,7 +603,7 @@ Fit panel logit regression (pooled|fe|re|cre)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV panel data file |
+| `data` | `String` | yes | — | Path to panel data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -615,7 +615,7 @@ Fit panel logit regression (pooled|fe|re|cre)
 | `--method` | `-m` | `String` | `pooled` | — | Estimation method |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `panel_logit_coefficients` (Panel logit coefficients with standard errors, z-statistics and p-values); `model_statistics` (Pseudo R-squared, log-likelihood, AIC/BIC, convergence and observation/group counts)
 
@@ -627,7 +627,7 @@ Fit a dynamic heterogeneous-panel ARDL (PMG/MG/DFE)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -643,7 +643,7 @@ Fit a dynamic heterogeneous-panel ARDL (PMG/MG/DFE)
 | `--tol` | — | `Float64` | `1.0e-8` | — | PMG outer-loop convergence tolerance |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `panel_ardl_long_run_coefficients` (Pooled or averaged long-run coefficients theta with standard errors); `panel_ardl_short_run_ec_coefficients` (Error-correction speed phi and the short-run coefficient block); `panel_ardl_diagnostics` (Estimator, unit count, orders, phi with its SE, log-likelihood and convergence)
 
@@ -655,7 +655,7 @@ Fit panel probit regression (pooled|re|cre; no within estimator)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV panel data file |
+| `data` | `String` | yes | — | Path to panel data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -667,7 +667,7 @@ Fit panel probit regression (pooled|re|cre; no within estimator)
 | `--method` | `-m` | `String` | `pooled` | `pooled`, `re`, `cre` | pooled\|re\|cre (no within estimator: incidental-parameters problem) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `panel_probit_coefficients` (Panel probit coefficients with standard errors, z-statistics and p-values); `model_statistics` (Pseudo R-squared, log-likelihood, AIC/BIC, convergence and observation/group counts)
 
@@ -679,7 +679,7 @@ Fit panel regression (within/between/RE/FD/CRE/GMM) with cluster-robust SEs
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV panel data file |
+| `data` | `String` | yes | — | Path to panel data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -698,7 +698,7 @@ Fit panel regression (within/between/RE/FD/CRE/GMM) with cluster-robust SEs
 | `--hdfe-maxiter` | — | `Int64` | `1000` | — | Maximum alternating-projection iterations |
 | `--min-lag-endo` | — | `Int64` | `2` | — | First instrument lag for endogenous regressors (--method ab\|bb) |
 | `--max-lag-endo` | — | `Int64` | `99` | — | Last instrument lag for endogenous regressors (--method ab\|bb) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -715,7 +715,7 @@ Fit a panel VAR by GMM (difference/system) or FEOLS
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV panel data file |
+| `data` | `String` | yes | — | Path to panel data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -732,7 +732,7 @@ Fit a panel VAR by GMM (difference/system) or FEOLS
 | `--max-lag-endo` | — | `Int64` | `99` | — | Maximum lag for endogenous instruments (GMM only; ignored with --method feols) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -749,7 +749,7 @@ Estimate a panel cointegrating regression by FMOLS/DOLS (group-mean or pooled)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -768,7 +768,7 @@ Estimate a panel cointegrating regression by FMOLS/DOLS (group-mean or pooled)
 | `--dols-se` | — | `String` | `lrv` | `lrv`, `robust` | DOLS standard errors: lrv\|robust |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `panel_cointegrating_regression_coefficients` (Panel FMOLS/DOLS long-run coefficients (group-mean or pooled per --pooling)); `panel_cointegrating_regression_diagnostics` (Method, pooling, trend, kernel, unit count and per-unit sample lengths)
 
@@ -780,7 +780,7 @@ Fit K-state Markov-switching regression, all coefficients switch
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -791,7 +791,7 @@ Fit K-state Markov-switching regression, all coefficients switch
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -808,7 +808,7 @@ Fit Hamilton mean-switching MS-AR with common AR block
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -819,7 +819,7 @@ Fit Hamilton mean-switching MS-AR with common AR block
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -836,7 +836,7 @@ Fit two-regime self-exciting SETAR with Hansen CI
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -849,7 +849,7 @@ Fit two-regime self-exciting SETAR with Hansen CI
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -867,7 +867,7 @@ Fit smooth-transition STAR with lstr1|lstr2|estr transition
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -881,7 +881,7 @@ Fit smooth-transition STAR with lstr1|lstr2|estr transition
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -897,7 +897,7 @@ Fit threshold regression splitting the sample at gamma
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -909,7 +909,7 @@ Fit threshold regression splitting the sample at gamma
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -927,7 +927,7 @@ Fit time-varying-parameter regression with random-walk coefficients
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -936,7 +936,7 @@ Fit time-varying-parameter regression with random-walk coefficients
 | `--kappa` | — | `Float64` | `1.0e6` | — | Large-variance diffuse-init constant (init-mode=kappa) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -952,7 +952,7 @@ Fit three-stage least squares (3SLS) over an instrumented equation system
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -960,7 +960,7 @@ Fit three-stage least squares (3SLS) over an instrumented equation system
 | `--instruments` | — | `String` | `common` | `common`, `perequation` | common\|perequation instrument sets |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
@@ -979,7 +979,7 @@ Estimate a cointegrating regression by FMOLS/CCR/DOLS
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -994,7 +994,7 @@ Estimate a cointegrating regression by FMOLS/CCR/DOLS
 | `--dols-se` | — | `String` | `lrv` | `lrv`, `robust` | DOLS standard errors: lrv\|robust |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `cointegrating_regression_coefficients` (FMOLS / CCR / DOLS long-run coefficients with long-run-variance standard errors); `cointegrating_regression_diagnostics` (Method, trend, kernel, bandwidth, omega_uv and sample dimensions)
 
@@ -1006,7 +1006,7 @@ Fit elastic-net regression with L1/L2 mixing and CV/IC lambda selection
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -1016,7 +1016,7 @@ Fit elastic-net regression with L1/L2 mixing and CV/IC lambda selection
 | `--select` | — | `String` | `cv` | `cv`, `aic`, `bic`, `ebic` | Lambda selection rule: cv\|aic\|bic\|ebic |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `elastic_net_coefficients` (Intercept and slope estimates with an active-set (non-zero) indicator); `elastic_net_diagnostics` (Mixing alpha, selected lambda, active-set size, R-squared and information criteria)
 
@@ -1028,7 +1028,7 @@ Estimate GMM from TOML moment conditions (identity/optimal/two-step/iterated)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -1036,7 +1036,7 @@ Estimate GMM from TOML moment conditions (identity/optimal/two-step/iterated)
 | `--weighting` | `-w` | `String` | `twostep` | `identity`, `optimal`, `twostep`, `iterated` | identity\|optimal\|twostep\|iterated |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
@@ -1054,7 +1054,7 @@ Fit a Heckman sample-selection model (two-step Heckit or FIML)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -1065,7 +1065,7 @@ Fit a Heckman sample-selection model (two-step Heckit or FIML)
 | `--method` | — | `String` | `twostep` | `twostep`, `mle` | twostep (Heckit) \| mle (FIML) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `heckman_coefficients_outcome_selection` (Outcome- and selection-equation coefficients in one tidy table); `heckman_diagnostics` (rho, sigma and lambda with SEs, log-likelihood, AIC/BIC and selected/total counts)
 
@@ -1077,7 +1077,7 @@ Fit 2SLS/LIML/Fuller/k-class IV regression with first-stage diagnostics
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -1090,7 +1090,7 @@ Fit 2SLS/LIML/Fuller/k-class IV regression with first-stage diagnostics
 | `--fuller-a` | — | `Float64` | `1.0` | — | Fuller adjustment a > 0 (--method fuller only; a=1 is approximately unbiased) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `iv_coefficients` (Instrumental-variables coefficients with standard errors, t-statistics and p-values); `iv_diagnostics` (R-squared, the k-class constant, first-stage F and the Sargan overidentification test)
 
@@ -1102,7 +1102,7 @@ Estimate a univariate kernel density on an evaluation grid
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -1113,7 +1113,7 @@ Estimate a univariate kernel density on an evaluation grid
 | `--cut` | — | `Float64` | `3.0` | — | Grid extends cut·h beyond the data range each side |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `kernel_density_estimate` (Evaluation grid and the estimated density at each grid point); `kernel_density_diagnostics` (Kernel, bandwidth rule, selected bandwidth and the observation count)
 
@@ -1125,7 +1125,7 @@ Fit Nadaraya-Watson/local-linear/local-polynomial kernel regression
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -1137,7 +1137,7 @@ Fit Nadaraya-Watson/local-linear/local-polynomial kernel regression
 | `--kernel` | — | `String` | `gaussian` | `gaussian`, `epanechnikov`, `triangular`, `uniform` | gaussian \| epanechnikov \| triangular \| uniform |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `kernel_regression_fit` (Evaluation grid with the fitted conditional mean and its standard error); `kernel_regression_diagnostics` (Method, polynomial degree, kernel, bandwidth rule and selected bandwidth)
 
@@ -1149,7 +1149,7 @@ Fit L1-penalized (lasso) regression with CV/IC lambda selection
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -1158,7 +1158,7 @@ Fit L1-penalized (lasso) regression with CV/IC lambda selection
 | `--select` | — | `String` | `cv` | `cv`, `aic`, `bic`, `ebic` | Lambda selection rule: cv\|aic\|bic\|ebic |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `lasso_coefficients` (Intercept and slope estimates with an active-set (non-zero) indicator); `lasso_diagnostics` (Selected lambda, active-set size, R-squared, AIC/BIC/EBIC and the selection rule)
 
@@ -1170,7 +1170,7 @@ Fit LOWESS locally-weighted smoothing with robustifying passes
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -1180,7 +1180,7 @@ Fit LOWESS locally-weighted smoothing with robustifying passes
 | `--iter` | — | `Int64` | `3` | — | Number of bisquare robustifying passes |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `lowess_fit` (Sorted x with the locally-weighted smoothed fit); `lowess_diagnostics` (Smoothing span, robustness iterations and the observation count)
 
@@ -1192,7 +1192,7 @@ Non-Gaussian SVAR identification by ML over Student-t/mixture/PML/skew-normal sh
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -1200,7 +1200,7 @@ Non-Gaussian SVAR identification by ML over Student-t/mixture/PML/skew-normal sh
 | `--distribution` | `-d` | `String` | `student_t` | `student_t`, `mixture_normal`, `pml`, `skew_normal` | student_t\|mixture_normal\|pml\|skew_normal |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `structural_impact_matrix_b0` (Identified structural impact matrix B0, one row per equation); `model_fit` (Non-Gaussian and Gaussian log-likelihoods, AIC/BIC and the assumed distribution); `parameter_estimates_with_standard_errors` (B0 elements with standard errors, when the estimator returns them (shown only when standard errors are available))
 
@@ -1212,7 +1212,7 @@ Quantile regression (Koenker-Bassett)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -1223,7 +1223,7 @@ Quantile regression (Koenker-Bassett)
 | `--alpha` | — | `Float64` | `0.05` | — | Significance level for the CI, in (0,1) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `quantile_regression_coefficients` (One row per quantile x term with standard errors, p-values and confidence bounds); `quantile_fit_diagnostics` (Per-quantile objective value, pseudo R-squared and convergence flag)
 
@@ -1235,7 +1235,7 @@ Regression discontinuity (Calonico-Cattaneo-Titiunik)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -1250,7 +1250,7 @@ Regression discontinuity (Calonico-Cattaneo-Titiunik)
 | `--level` | — | `Float64` | `0.95` | — | Confidence level in (0,1) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `rdd_treatment_effect` (Conventional, bias-corrected and robust treatment effects with standard errors and CIs); `rdd_settings_diagnostics` (Design, cutoff, kernel, bandwidths, effective counts and the robust z and p-value)
 
@@ -1262,7 +1262,7 @@ Fit OLS (or WLS with --weights) linear regression
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -1279,7 +1279,7 @@ Fit OLS (or WLS with --weights) linear regression
 | `--conley-metric` | — | `String` | `euclidean` | `euclidean`, `haversine` | Distance metric: euclidean (projected coords) or haversine (degrees → km) |
 | `--time-col` | — | `String` | `""` | — | Time column for Conley spatial+serial correlation (needs --time-cutoff) |
 | `--time-cutoff` | — | `Int64` | `0` | — | Conley serial-correlation lag cutoff (0 = spatial only) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `reg_coefficients` (OLS/WLS coefficients with standard errors, t-statistics, p-values and CIs); `fit_statistics` (R-squared, adjusted R-squared, F-statistic with p-value, log-likelihood and AIC/BIC); `conley_spatial_hac_settings` (Coordinate columns, metric, kernel and cutoffs behind a --cov-type conley fit)
 
@@ -1291,7 +1291,7 @@ Fit L2-penalized (ridge) regression with CV/IC lambda selection
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -1300,7 +1300,7 @@ Fit L2-penalized (ridge) regression with CV/IC lambda selection
 | `--select` | — | `String` | `cv` | `cv`, `aic`, `bic`, `ebic` | Lambda selection rule: cv\|aic\|bic\|ebic |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `ridge_coefficients` (Intercept and slope estimates with an active-set (non-zero) indicator); `ridge_diagnostics` (Selected lambda, active-set size, R-squared, AIC/BIC/EBIC and the selection rule)
 
@@ -1312,7 +1312,7 @@ Fit robust M/MM regression resistant to outliers
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -1321,7 +1321,7 @@ Fit robust M/MM regression resistant to outliers
 | `--method` | — | `String` | `m` | `m`, `mm` | Estimator: m\|mm (MM = high-breakdown) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `robust_regression_coefficients` (M-estimator coefficients with standard errors, z-statistics and p-values); `robust_regression_diagnostics` (psi function, estimator, robust scale, robust R-squared, tuning and convergence)
 
@@ -1333,7 +1333,7 @@ Select regressors by forward/backward/bidirectional/best-subset/GETS search and 
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -1345,7 +1345,7 @@ Select regressors by forward/backward/bidirectional/best-subset/GETS search and 
 | `--keep` | — | `String` | `""` | — | Comma-separated regressor names always retained |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `selected_model_coefficients` (Coefficients of the refitted model on the selected regressors); `selection_path` (The search trail: step, add/drop action, variable and the deciding statistic); `selection_summary` (Method, criterion, selected and forced variables, and any encompassing test)
 
@@ -1357,7 +1357,7 @@ Estimate SMM by simulating moments from a TOML specification
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -1367,7 +1367,7 @@ Estimate SMM by simulating moments from a TOML specification
 | `--burn` | — | `Int64` | `100` | — | Burn-in periods |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
@@ -1385,7 +1385,7 @@ Fit a local-level/local-linear-trend (or general --config) state-space model
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -1396,7 +1396,7 @@ Fit a local-level/local-linear-trend (or general --config) state-space model
 | `--config` | — | `String` | `""` | — | TOML with [statespace] Z/H/T/Q (+ d, c, R, a1, P1, init_mode) for a general system |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
@@ -1414,14 +1414,14 @@ Fit seemingly-unrelated regressions (SUR) by FGLS over an equation system
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--config` | — | `String` | `""` | — | Config file listing the equations as dep = indep, ...; required; TOML or a model card |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
@@ -1441,16 +1441,16 @@ Fit censored (tobit) regression with censoring bounds
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
 | `--lower` | — | `Float64` | `0.0` | — | Lower censoring bound |
-| `--upper` | — | `Float64` | `Inf` | — | Upper censoring bound (default: none) |
+| `--upper` | — | `Float64` | `Inf` | — | Upper censoring bound (Inf = uncensored above) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `tobit_coefficients` (Censored-regression coefficients with standard errors, z-statistics and p-values); `tobit_diagnostics` (sigma, log-likelihood, AIC/BIC, censoring bounds and left/right censored counts)
 
@@ -1462,16 +1462,16 @@ Fit truncated-normal regression over a strictly interior sample
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
 | `--lower` | — | `Float64` | `0.0` | — | Lower truncation bound |
-| `--upper` | — | `Float64` | `Inf` | — | Upper truncation bound (default: none) |
+| `--upper` | — | `Float64` | `Inf` | — | Upper truncation bound (Inf = untruncated above) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `truncated_regression_coefficients` (Truncated-normal coefficients with standard errors, z-statistics and p-values); `truncated_regression_diagnostics` (sigma and its SE, log-likelihood, AIC/BIC, bounds and the truncated count)
 
@@ -1483,7 +1483,7 @@ Fit linear ARDL with long-run multipliers and ECM speed
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -1497,7 +1497,7 @@ Fit linear ARDL with long-run multipliers and ECM speed
 | `--trend` | — | `String` | `none` | `none`, `const`, `trend` | Informational trend label: none\|const\|trend |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `ardl_coefficients` (Levels-form ARDL coefficients with standard errors, z-statistics and p-values); `ardl_long_run_coefficients` (Long-run level multipliers with delta-method standard errors); `ardl_diagnostics` (Selected p/q, case, trend, information criterion, fit statistics and the ECM speed alpha)
 
@@ -1509,7 +1509,7 @@ Fit ARFIMA(p,d,q) with fractional integration
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -1521,7 +1521,7 @@ Fit ARFIMA(p,d,q) with fractional integration
 | `--max-iter` | — | `Int64` | `500` | — | Maximum optimizer iterations |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `arfima_coefficients` (Constant, fractional-integration d, AR and MA estimates with standard errors); `arfima_diagnostics` (Estimated d with its standard error, log-likelihood, AIC/BIC and convergence)
 
@@ -1533,7 +1533,7 @@ Fit ARIMA(p,d,q) or auto-select by IC
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -1548,7 +1548,7 @@ Fit ARIMA(p,d,q) or auto-select by IC
 | `--method` | `-m` | `String` | `css_mle` | — | ols\|css\|mle\|css_mle (pure AR fits use MLE) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `arima_coefficients` (AR / MA / constant estimates with standard errors, z-statistics and p-values); `information_criteria` (AIC, BIC and the log-likelihood of the fitted ARIMA)
 
@@ -1576,7 +1576,7 @@ Fit MIDAS mixed-frequency regression of LF target on HF lags
 | `--max-iter` | — | `Int64` | `500` | — | Optimizer iteration cap (forwarded as max_iter) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `midas_weight_curve` (Estimated MIDAS lag weights, most recent lag first); `midas_coefficients` (MIDAS regression coefficients with standard errors); `midas_diagnostics` (Weight scheme, m/K/p_ar, horizon, fit statistics and convergence)
 
@@ -1588,7 +1588,7 @@ Fit asymmetric NARDL with theta+/theta- and dynamic multipliers
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -1606,7 +1606,7 @@ Fit asymmetric NARDL with theta+/theta- and dynamic multipliers
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -1623,7 +1623,7 @@ Fit seasonal SARIMA(p,d,q)(P,D,Q)[s] with auto-selection
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -1645,7 +1645,7 @@ Fit seasonal SARIMA(p,d,q)(P,D,Q)[s] with auto-selection
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -1663,7 +1663,7 @@ Estimate an APARCH(p,q) model with power delta and leverage gamma
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -1674,7 +1674,7 @@ Estimate an APARCH(p,q) model with power delta and leverage gamma
 | `--fix-gamma` | — | `Float64` | — | — | Pin leverage γ ∈ (-1,1); default estimates it |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `aparch_coefficients` (APARCH parameter estimates including the power delta and asymmetry gamma); `aparch_diagnostics` (Log-likelihood, AIC/BIC, persistence, delta (estimated or fixed) and parameter count)
 
@@ -1686,7 +1686,7 @@ Estimate an ARCH(q) model by Gaussian QMLE
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -1695,7 +1695,7 @@ Estimate an ARCH(q) model by Gaussian QMLE
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -1711,14 +1711,14 @@ Estimate a scalar/diagonal BEKK(1,1) multivariate GARCH model
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--kind` | — | `String` | `scalar` | `scalar`, `diagonal` | BEKK(1,1) parameterization: scalar \| diagonal |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `bekk_conditional_correlation` (Conditional-correlation matrix at the last observation, series x series); `bekk_dynamics_parameters` (BEKK dynamics parameters with standard errors); `bekk_diagnostics` (Log-likelihood, AIC/BIC, series and observation counts, and the BEKK parameterisation)
 
@@ -1730,7 +1730,7 @@ Estimate a CCC-GARCH model with constant conditional correlations
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -1738,7 +1738,7 @@ Estimate a CCC-GARCH model with constant conditional correlations
 | `--q` | — | `Int64` | `1` | — | ARCH order q for the univariate margins |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `ccc_garch_conditional_correlation` (Constant conditional-correlation matrix, series x series); `ccc_garch_diagnostics` (Log-likelihood, AIC/BIC, series and observation counts, convergence and kind)
 
@@ -1750,14 +1750,14 @@ Estimate a Component-GARCH(1,1) model (permanent/transitory decomposition)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `cgarch_coefficients` (Component-GARCH permanent/transitory parameter estimates with standard errors); `cgarch_diagnostics` (Log-likelihood, AIC/BIC, transitory persistence and unconditional variance)
 
@@ -1769,7 +1769,7 @@ Estimate a DCC/cDCC-GARCH model with dynamic conditional correlations
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -1778,7 +1778,7 @@ Estimate a DCC/cDCC-GARCH model with dynamic conditional correlations
 | `--correction` | — | `String` | `none` | `none`, `aielli` | DCC targeting correction: none \| aielli (cDCC) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `dcc_garch_conditional_correlation` (Conditional-correlation matrix at the last observation, series x series); `dcc_garch_dynamics_parameters` (Second-stage DCC dynamics parameters with standard errors); `dcc_garch_diagnostics` (Log-likelihood, AIC/BIC, correction scheme and correlation persistence)
 
@@ -1790,7 +1790,7 @@ Estimate an EGARCH(p,q) model with normal, Student-t or GED innovations
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -1801,7 +1801,7 @@ Estimate an EGARCH(p,q) model with normal, Student-t or GED innovations
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -1817,7 +1817,7 @@ Estimate a FIEGARCH(p,d,q) model (fractionally integrated EGARCH, Gaussian QMLE)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -1829,7 +1829,7 @@ Estimate a FIEGARCH(p,d,q) model (fractionally integrated EGARCH, Gaussian QMLE)
 | `--dist` | — | `String` | `normal` | `normal` | Innovation distribution (only normal is accepted) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `fiegarch_coefficients` (FIEGARCH parameter estimates including the fractional-integration d); `fiegarch_diagnostics` (Log-likelihood, AIC/BIC, persistence, d and the truncation lag)
 
@@ -1841,7 +1841,7 @@ Estimate a FIGARCH(p,d,q) model (fractionally integrated GARCH, Gaussian QMLE)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -1853,7 +1853,7 @@ Estimate a FIGARCH(p,d,q) model (fractionally integrated GARCH, Gaussian QMLE)
 | `--dist` | — | `String` | `normal` | `normal` | Innovation distribution (only normal is accepted) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `figarch_coefficients` (FIGARCH parameter estimates including the fractional-integration d); `figarch_diagnostics` (Log-likelihood, AIC/BIC, persistence, d, truncation lag and negative-lambda count)
 
@@ -1865,7 +1865,7 @@ Estimate a GARCH(p,q) model with normal, Student-t or GED innovations
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -1876,7 +1876,7 @@ Estimate a GARCH(p,q) model with normal, Student-t or GED innovations
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -1892,7 +1892,7 @@ Estimate a GARCH-MIDAS model (short-run GARCH plus MIDAS long-run component)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -1904,7 +1904,7 @@ Estimate a GARCH-MIDAS model (short-run GARCH plus MIDAS long-run component)
 | `--config` | — | `String` | `""` | — | TOML with [garch_midas] x_lf = [...] (required for --rv macro) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
@@ -1922,7 +1922,7 @@ Estimate a GJR-GARCH(p,q) model with normal, Student-t or GED innovations
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -1933,7 +1933,7 @@ Estimate a GJR-GARCH(p,q) model with normal, Student-t or GED innovations
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -1949,7 +1949,7 @@ Estimate an IGARCH(p,q) model (unit-persistence GARCH)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -1958,7 +1958,7 @@ Estimate an IGARCH(p,q) model (unit-persistence GARCH)
 | `--q` | — | `Int64` | `1` | — | ARCH order q |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `igarch_coefficients` (IGARCH parameter estimates with standard errors, z-statistics and p-values); `igarch_diagnostics` (Log-likelihood, AIC/BIC, persistence, convergence and iteration count)
 
@@ -1970,7 +1970,7 @@ Estimate a stochastic-volatility model by MCMC (draws via --draws)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `data` | `String` | yes | — | Path to CSV data file |
+| `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -1979,7 +1979,7 @@ Estimate a stochastic-volatility model by MCMC (draws via --draws)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 | Flag | Short | Description |
 |------|-------|-------------|

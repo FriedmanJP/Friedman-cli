@@ -17,7 +17,7 @@
 # Filter commands: hp, hamilton, bn, bk, bhp — registry migrated (C023-1)
 
 function filter_specs()::Vector{CommandSpec}
-    data_arg = [ArgSpec(name="data", description="Path to CSV data file")]
+    data_arg = [ArgSpec(name="data", description="Path to data file or handle stem (.csv, .jld2, .jls)")]
     plot_opts = [OUTPUT_OPTIONS; PLOT_OPTIONS]
     plot_flags = copy(PLOT_FLAGS)
     col = OptionSpec(name="columns", short="c", type=String, default="",
@@ -123,7 +123,7 @@ function filter_specs()::Vector{CommandSpec}
                            description="Outlier critical value (0 = automatic)"),
                 OptionSpec(name="outliers", type=String, default="true",
                            choices=["true", "false"],
-                           description="Detect AO/LS/TC outliers (default true)"),
+                           description="Detect AO/LS/TC outliers"),
                 col, plot_opts...,
             ],
             flags=[
