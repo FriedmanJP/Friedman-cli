@@ -4,13 +4,14 @@ All notable changes to Friedman-cli are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to
 Semantic Versioning. Releases before v0.6.0 are recorded in the git tag history.
 
-## [1.0.4] — 2026-11-13 — MEMs 1.0.3, serialized data/model pipeline, REPL history, CLI help audit & runtime/build speedups (#245)
+## [1.0.4] — 2026-11-16 — MEMs 1.0.3, serialized data/model pipeline, REPL history, CLI help audit, runtime/build speedups & domain docs overhaul (#245)
 
 MacroEconometricModels pin **1.0.2 → 1.0.3** (`#239`–`#247`), end-to-end serialized
 `.jld2`/`.jls` data & model pipeline with positional model auto-routing (`#240`, `#246`),
 Julia 1.13 persistent REPL command history (`#241`, `#247`), 478-leaf CLI `--help` &
-error-prefix audit (`#242`), and runtime hot-path & zero-probe launcher optimizations
-(`#243`). 477 registry leaves + top-level `schema` / `repl` unchanged.
+error-prefix audit (`#242`), runtime hot-path & zero-probe launcher optimizations
+(`#243`), and a ground-up documentation rebuild around 15 econometric domain chapters.
+477 registry leaves + top-level `schema` / `repl` unchanged.
 
 ### MacroEconometricModels 1.0.3 (#239)
 
@@ -69,6 +70,20 @@ error-prefix audit (`#242`), and runtime hot-path & zero-probe launcher optimiza
   `bin/friedman` when `--project` already matches the repo `Manifest.toml`, and expanded the
   v1.0.4 sysimage precompile workload across core families, formats, handles, `schema`, and
   completions.
+
+### Documentation Architecture & Bug Fixes
+
+- **Econometric domain documentation architecture (`docs/`, `README.md`, `src/commands/agent_guide.md`):**
+  Rebuilt the documentation site around 15 econometric domain chapters
+  (`docs/src/chapters/`), 4 Getting Started guides (`docs/src/getting-started/`),
+  single-sourced Agent Guide, 4 Configuration guides (`docs/src/config/`), upgraded
+  generated CLI Reference (`docs/src/commands/` with `@id`/`@ref` anchors), and
+  3 Internals pages (`docs/src/internals/`), gated by `docs/docrule.md`,
+  `docs/lint_docs.jl`, live `docs/capture_examples.jl --check`, and strict
+  `Documenter.jl` checks (`checkdocs = :exports`, zero `warnonly`).
+- **Panel VAR `--dependent` variable-list parser (`src/commands/shared.jl`):**
+  Fixed `_parse_varlist` to return `Vector{String}` rather than
+  `Vector{SubString{String}}`, resolving `TypeError` on `estimate panel pvar --dependent`.
 
 ## [1.0.3] — 2026-10-28 — MEMs 1.0.2, BVAR news decomposition, Uhlig penalty scale & MIDAS tidy forecast (#238)
 
