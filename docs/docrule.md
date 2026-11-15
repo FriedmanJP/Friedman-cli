@@ -1,73 +1,94 @@
 # Documentation Rules — Friedman-cli
 
-Adapted from the agent-first overhaul Appendix D. These rules keep docs from drifting relative to the declarative command registry.
+Authoritative documentation constitution for `Friedman-cli`. Every page under `docs/src/` is classified into one of six page types and verified by `docs/generate_cli_reference.jl --check`, `docs/lint_docs.jl`, `docs/capture_examples.jl --check`, and a strict `Documenter.jl` build (`checkdocs = :exports`, zero `warnonly`).
 
-## 1. Page types & skeletons
+---
 
-### 1.1 Generated Reference
+## 1. Page Types & Required Skeletons
 
-Never hand-edit generated pages. Edits go to registry `CommandSpec` descriptions / option text, then regenerate:
+| Type | Directory / Path | Purpose | Mandatory Elements |
+|---|---|---|---|
+| **Landing** | `docs/src/index.md` | Site home page & entry navigation | `@id home`, Feature / chapter routing table, compact Quick Start, `@contents` |
+| **Getting Started** | `docs/src/getting-started/*.md`, `src/commands/agent_guide.md` | Installation, `.jld2`/`.jls` pipelines, method selection, REPL, agent contract | `@id gs-*` (not on `agent_guide.md`), runnable `<!-- capture -->` examples on `pipelines.md`, cross-links |
+| **Domain Chapter** | `docs/src/chapters/*.md` | End-to-end econometric workflow covering estimation, testing, post-estimation, and rendering | `@id chap-*`, `## Quick Start`, `---` between H2s, concise framing equations, live `--format table` `<!-- capture -->` blocks + numeric interpretation, `## Common Pitfalls`, `## References` |
+| **Configuration** | `docs/src/config/*.md` | Normative Model Card stanzas & TOML key schemas | `@id cfg-*`, complete key/type/default/constraints tables, owning `@ref chap-*` & `@ref ref-*` links |
+| **Generated Reference** | `docs/src/commands/overview.md`, `docs/src/commands/generated/*.md` | Machine-derived per-verb & per-family flag/arg/option/handle/table tables | `@id ref-*` anchors, H2 family grouping, repeatable & handle metadata, bidirectional chapter `@ref` links |
+| **Internals** | `docs/src/internals/*.md` | CLI architecture, Julia embedding API, unwrapped upstream surface | `@id int-*`, up-to-date architectural invariants, `@docs` for exported symbols |
 
+### Domain Chapter Skeleton
+
+Every file under `docs/src/chapters/` must follow this skeleton:
+
+```markdown
+# [Chapter Title](@id chap-slug)
+
+[2–4 sentence overview of what workflows this chapter covers and which top-level CLI verbs/families implement them, linking to generated reference anchors and upstream MacroEconometricModels.jl docs.]
+
+## Quick Start
+
+[2–4 progressive CLI workflows spanning data/handle loading → estimation/solving → post-estimation/diagnostics. Include at least one `<!-- capture -->` block.]
+
+---
+
+## Domain Section Title
+
+[Concise 2–3 sentence econometric framing + 1–2 governing display equations (`math` fence) + identifying assumptions.]
+
+<!-- capture -->
 ```bash
-julia --project docs/generate_cli_reference.jl
+friedman ...
+```
+```text
+<captured --format table output>
 ```
 
-Generated artifacts:
+[Concrete numeric interpretation quoting values printed directly above, plus the stable JSON `data` table key(s) returned under `--format json`. Cross-link to the full option table: [`friedman ...`](@ref ref-...)]
 
-| Artifact | Path |
-|----------|------|
-| Overview tree + counts | `docs/src/commands/overview.md` (generated body between markers) |
-| Per-top-level command tables | `docs/src/commands/generated/*.md` |
-| Shell completions | `completions/{friedman.bash,friedman.zsh,_friedman.fish}` |
-| CLAUDE inventory (local) | `CLAUDE.md` between `<!-- BEGIN GENERATED -->` markers |
+---
 
-### 1.2 Workflow Guide
+## Common Pitfalls
 
-Hand-written narrative pages:
+1. [Numbered CLI, handle, identification, or econometric pitfalls and typed error/exit codes.]
 
-- Goal → dataset → 3–6 progressive invocations with captured output → interpretation → pitfalls → links
-- Defaults/choices never in prose — point at generated tables
-- Examples must run against shipped fixtures (`<!-- capture -->` blocks)
+---
 
-### 1.3 Contract
+## References
 
-Envelope, exit codes, deprecation. Schema-review required for contract changes.
+- Academic citations.
+- Upstream method manual: [MacroEconometricModels.jl](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/...)
+- CLI options & tables: [Generated Reference](@ref ref-...)
+```
 
-### 1.4 Landing
+---
 
-Short; no hard-coded leaf counts (use generated overview).
+## 2. Integrity Rules (Zero Drift)
 
-## 2. Integrity rules
+1. **Zero hand-copied option tables:** Narrative pages (`index.md`, `getting-started/`, `chapters/`, `agent_guide.md`) must never hand-maintain `| Option |`, `| Flag |`, or `| Argument |` markdown tables. Always link to `@ref ref-<leaf-slug>` in `docs/src/commands/generated/`. Config schema key tables live exclusively in `docs/src/config/*.md`.
+2. **Never hand-type command outputs:** Every shown command output must come from a `<!-- capture -->` fence verified by `docs/capture_examples.jl --check`. Quote only numbers visible in the captured block immediately above.
+3. **Human-first tables in domain chapters; JSON in pipelines & agent guide:** Domain chapters default to `--format table` (`text` fence) and state the stable JSON `data` keys in prose. Full `--format json` envelopes belong in `getting-started/pipelines.md` and `src/commands/agent_guide.md`.
+4. **H1–H3 hierarchy only:** One `#` H1 per page (at line 1 of hand-written files), H2 (`##`) separated by `---` horizontal rules, and H3 (`###`) for subsections. Never skip directly from `#` to `###`, and never use `####` or deeper.
+5. **Dual-role `agent_guide.md` constraint:** `src/commands/agent_guide.md` is embedded at precompile time for `friedman schema --docs` and copied to `docs/src/agent-guide.md` by `docs/make.jl`. Keep it raw Markdown (no Documenter `@id` or `@ref` directives) and preserve the `# Agent Guide` heading.
+6. **No hardcoded counts or stale version literals:** Never hardcode total leaf/command counts outside generated overview blocks or hardcode pinned MEMs versions in prose (point to `Project.toml`).
+7. **Bidirectional links:** Every domain chapter links to its generated `@ref ref-*` pages and upstream `MacroEconometricModels.jl` manual page; every generated verb/family section links back to its owning domain chapter `@ref chap-*`.
+8. **No shipped placeholders:** No `TODO`, `FIXME`, or "not yet implemented" notes outside code fences.
 
-1. Examples run against shipped datasets — copy-paste must work.
-2. Shown output is captured by `docs/capture_examples.jl`, never hand-typed.
-3. Defaults/choices never in prose — transclude generated tables.
-4. No hard-coded counts; no version literals (use Project.toml / generator).
-5. Interpretation quotes only numbers visible in the captured block above.
+---
 
-## 3. Voice
+## 3. Writing Voice & Style
 
-Present, active, no hedging; econometrics-textbook register; terms **bold** on first use.
+- Present tense, active voice, direct econometrics textbook register ("OLS estimates...", "The solver linearizes..."). Define domain terms in **bold** on first use.
+- Keep chapters crisp (~250–900 lines). Scale equation detail strictly to what the user needs to choose options and interpret output.
+- Explain configuration files cleanly with concise inline TOML/model-card examples when needed and link to `docs/src/config/*.md` for full key definitions.
 
-## 4. Structure mechanics
+---
 
-H1–H3 only; `---` between H2 sections; References last; guide ↔ reference cross-links both ways.
+## 4. Verification Protocol
 
-## 5. Verification protocol
-
-Any PR touching `src/commands/` or `src/registry/` must pass:
+Every documentation or command-surface change must pass:
 
 ```bash
 julia --project docs/generate_cli_reference.jl --check
-julia --project docs/capture_examples.jl --check   # when capture blocks exist
+julia --project docs/lint_docs.jl
+julia --project docs/capture_examples.jl --check
+julia --project=docs docs/make.jl   # strict build, zero warnonly
 ```
-
-Both are CI gates (see `.github/workflows/CI.yml`).
-
-## 6. Anti-patterns
-
-- Hand-copied flag tables
-- Typed output blocks
-- Counts in prose (`~204 subcommands`)
-- Narrating datasets the example doesn't load
-- `TODO` / “not yet implemented” in shipped docs

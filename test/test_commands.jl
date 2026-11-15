@@ -7899,6 +7899,7 @@ end  # Filter handlers
     @testset "_parse_varlist" begin
         @test _parse_varlist("") == String[]
         @test _parse_varlist("var1,var2,var3") == ["var1", "var2", "var3"]
+        @test _parse_varlist("var1,var2,var3") isa Vector{String}
         @test _parse_varlist("x, y, z") == ["x", "y", "z"]
         @test _parse_varlist("single") == ["single"]
     end

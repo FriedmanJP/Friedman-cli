@@ -1332,7 +1332,7 @@ Parse a comma-separated variable list string. Returns empty vector for empty inp
 """
 function _parse_varlist(str::String)
     isempty(str) && return String[]
-    return [strip(s) for s in split(str, ",") if !isempty(strip(s))]
+    return String[String(strip(s)) for s in split(str, ",") if !isempty(strip(s))]
 end
 
 """

@@ -41,6 +41,7 @@ jobs:
         run: |
           julia --project -e 'using Pkg; Pkg.instantiate()'
           julia --project docs/generate_cli_reference.jl --check
+          julia --project docs/lint_docs.jl
           julia --project docs/capture_examples.jl --check
       - name: Build docs
         run: julia --project=docs docs/make.jl

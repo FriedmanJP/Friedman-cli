@@ -2315,8 +2315,8 @@ ngroups(pd::PanelData) = pd.n_groups
 # to stay within the check_mock_surface absorber budget.
 function estimate_pvar(panel::PanelData, p::Int;
                        transformation=:fd, steps=:twostep, system_instruments=false,
-                       collapse=false, dependent_vars=nothing,
-                       predet_vars=String[], exog_vars=String[],
+                       collapse=false, dependent_vars::Union{Nothing,Vector{String}}=nothing,
+                       predet_vars::Vector{String}=String[], exog_vars::Vector{String}=String[],
                        min_lag_endo=2, max_lag_endo=99)
     n = panel.n_vars
     k = n * p + 1
@@ -2330,7 +2330,8 @@ function estimate_pvar(panel::PanelData, p::Int;
 end
 
 function estimate_pvar_feols(panel::PanelData, p::Int;
-                              dependent_vars=nothing, exog_vars=String[])
+                              dependent_vars::Union{Nothing,Vector{String}}=nothing,
+                              exog_vars::Vector{String}=String[])
     n = panel.n_vars
     k = n * p + 1
     Phi = ones(k, n) * 0.25

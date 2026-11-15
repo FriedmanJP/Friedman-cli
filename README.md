@@ -115,7 +115,7 @@ friedman dsge solve rbc.toml
 ```
 
 From here: `dsge irf`, `dsge estimate`, full Bayesian workflow
-(`dsge bayes estimate`), heterogeneous-agent models (`hadsge solve huggett`),
+(`dsge bayes estimate`), heterogeneous-agent models (`hadsge solve ha_huggett.jl`),
 OccBin constraints for the ZLB — same verbs, same tables.
 
 ## What you can do
@@ -125,24 +125,24 @@ apply it everywhere. (Full tree: [CLI reference overview](https://friedmanjp.git
 
 - **Time series** — VAR/BVAR, VECM, local projections (incl. IV/smooth/state-dependent),
   FAVAR, structural DFM, ARIMA/ARDL/MIDAS, regime switching (SETAR/STAR/MS):
-  `estimate multivariate var`, `irf lp`, `forecast`, [guide](https://friedmanjp.github.io/Friedman-cli/dev/commands/estimate/)
+  `estimate multivariate var`, `irf lp`, `forecast`, [guide](https://friedmanjp.github.io/Friedman-cli/dev/chapters/multivariate/)
 - **Volatility** — ARCH/GARCH/EGARCH/GJR, stochastic volatility, CCC/DCC/BEKK:
-  `estimate volatility garch`, `forecast volatility garch`
+  `estimate volatility garch`, `forecast volatility garch`, [guide](https://friedmanjp.github.io/Friedman-cli/dev/chapters/volatility/)
 - **Micro & panels** — OLS/IV/choice models, panel regression, DiD suite
   (TWFE, Callaway-Sant'Anna, event studies, HonestDiD):
-  `estimate choice logit`, `did estimate`, [guide](https://friedmanjp.github.io/Friedman-cli/dev/commands/did/)
+  `estimate choice logit`, `did estimate`, [guide](https://friedmanjp.github.io/Friedman-cli/dev/chapters/panel/)
 - **Equilibrium** — RA/HA/OLG models, perturbation/projection/VFI, Bayesian estimation:
-  `dsge solve`, `hadsge solve huggett`, [guide](https://friedmanjp.github.io/Friedman-cli/dev/commands/dsge/)
+  `dsge solve`, `hadsge solve ha_huggett.jl`, [guide](https://friedmanjp.github.io/Friedman-cli/dev/chapters/dsge/)
 - **Identification & diagnostics** — Cholesky/sign/narrative/long-run/Arias/Uhlig,
   unit-root and cointegration batteries, breaks, Granger, weak instruments:
-  `irf var --id sign --config sign.toml`, `test unit-root adf`, [guide](https://friedmanjp.github.io/Friedman-cli/dev/commands/test/)
+  `irf var --id sign --config sign.toml`, `test unit-root adf`, [guide](https://friedmanjp.github.io/Friedman-cli/dev/chapters/tests/)
 - **Policy & IO** — causal-effect menus, optimal policy, counterfactuals,
   Leontief/Ghosh multipliers, SDA, Baqaee-Farhi:
-  `policy effects var`, `io multipliers`, [guide](https://friedmanjp.github.io/Friedman-cli/dev/commands/policy/)
+  `policy effects var`, `io multipliers`, [guide](https://friedmanjp.github.io/Friedman-cli/dev/chapters/policy/)
 
 Data handling (`data describe/diagnose/transform/validate`), filters
 (`filter hp/hamilton/bk`), spectral analysis, nowcasting, and an interactive
-REPL (`friedman repl`, [guide](https://friedmanjp.github.io/Friedman-cli/dev/repl/))
+REPL (`friedman repl`, [guide](https://friedmanjp.github.io/Friedman-cli/dev/getting-started/repl/))
 round it out.
 
 ## Reproducibility
@@ -188,7 +188,7 @@ Installs to `~/.friedman-cli/` on macOS ARM64, Linux x86_64, and Windows x86_64
 (Julia managed via [juliaup](https://github.com/JuliaLang/juliaup);
 solvers JuMP+Ipopt ship bundled). From source:
 `git clone … && julia --project -e 'using Pkg; Pkg.instantiate()'`.
-Details: [Installation docs](https://friedmanjp.github.io/Friedman-cli/dev/installation/).
+Details: [Installation docs](https://friedmanjp.github.io/Friedman-cli/dev/getting-started/installation/).
 
 ## License
 

@@ -1,12 +1,12 @@
-# CLI Reference Overview
+# [CLI Reference Overview](@id cli-overview)
 
-Friedman-cli uses an **action-first** command hierarchy: commands are organized by action (`estimate`, `irf`, `forecast`, ...) rather than by model type.
+Friedman-cli uses an **action-first** command hierarchy (`verb [family] model`). For pipeline-oriented walkthroughs organized by econometric domain, start from the domain chapters in the sidebar or [Choosing a Method](@ref gs-method-guide).
 
-<!-- BEGIN GENERATED: do not hand-edit; run julia docs/generate_cli_reference.jl -->
+<!-- BEGIN GENERATED: do not hand-edit; run julia --project docs/generate_cli_reference.jl -->
 
 ## Command Tree
 
-```
+```text
 friedman
 ├── completions     bash | fish | zsh
 ├── data     balance | describe | diagnose | dropna | export | filter | fix | import | keeprows | list | load | simulate ardl | simulate arima | simulate cointreg | simulate cross-section | simulate ct | simulate did | simulate dsge | simulate factors | simulate garch | simulate gmm | simulate ha | simulate heteroskedastic-var | simulate lp-iv | simulate olg | simulate panel | simulate pvar | simulate regime | simulate sv | simulate svar | simulate var | simulate vecm | transform | validate
@@ -33,54 +33,49 @@ friedman
 Total: 21 top-level commands, 477 leaves (from registry).
 ```
 
-Additionally, `friedman repl` launches an interactive REPL session with persistent data loading, result caching, and tab completion.
+Additionally, `friedman repl` launches an interactive REPL session ([Interactive REPL](@ref gs-repl)).
 
 ---
 
-## Generated reference pages
+## Generated Reference Pages
 
-- [`completions`](generated/completions.md) — 3 leaves
-- [`data`](generated/data.md) — 34 leaves
-- [`did`](generated/did.md) — 3 leaves
-- [`dsge`](generated/dsge.md) — 51 leaves
-- [`estimate`](generated/estimate.md) — 76 leaves
-- [`fevd`](generated/fevd.md) — 7 leaves
-- [`filter`](generated/filter.md) — 6 leaves
-- [`forecast`](generated/forecast.md) — 35 leaves
-- [`hadsge`](generated/hadsge.md) — 11 leaves
-- [`hd`](generated/hd.md) — 6 leaves
-- [`io`](generated/io.md) — 27 leaves
-- [`irf`](generated/irf.md) — 8 leaves
-- [`model`](generated/model.md) — 2 leaves
-- [`nowcast`](generated/nowcast.md) — 5 leaves
-- [`policy`](generated/policy.md) — 23 leaves
-- [`predict`](generated/predict.md) — 38 leaves
-- [`residuals`](generated/residuals.md) — 40 leaves
-- [`serve`](generated/serve.md) — 1 leaves
-- [`show`](generated/show.md) — 1 leaves
-- [`spectral`](generated/spectral.md) — 5 leaves
-- [`test`](generated/test.md) — 95 leaves
+- [`completions`](@ref ref-completions) — 3 leaves
+- [`data`](@ref ref-data) — 34 leaves
+- [`did`](@ref ref-did) — 3 leaves
+- [`dsge`](@ref ref-dsge) — 51 leaves
+- [`estimate`](@ref ref-estimate) — 76 leaves
+- [`fevd`](@ref ref-fevd) — 7 leaves
+- [`filter`](@ref ref-filter) — 6 leaves
+- [`forecast`](@ref ref-forecast) — 35 leaves
+- [`hadsge`](@ref ref-hadsge) — 11 leaves
+- [`hd`](@ref ref-hd) — 6 leaves
+- [`io`](@ref ref-io) — 27 leaves
+- [`irf`](@ref ref-irf) — 8 leaves
+- [`model`](@ref ref-model) — 2 leaves
+- [`nowcast`](@ref ref-nowcast) — 5 leaves
+- [`policy`](@ref ref-policy) — 23 leaves
+- [`predict`](@ref ref-predict) — 38 leaves
+- [`residuals`](@ref ref-residuals) — 40 leaves
+- [`serve`](@ref ref-serve) — 1 leaves
+- [`show`](@ref ref-show) — 1 leaves
+- [`spectral`](@ref ref-spectral) — 5 leaves
+- [`test`](@ref ref-test) — 95 leaves
 
 <!-- END GENERATED -->
 
-## Common Options
+---
 
-Every leaf that produces output supports `--format`/`-f` (`table`|`csv`|`json`) and `--output`/`-o` (write to a file instead of stdout):
+## Common Options & Globals
 
-| Option | Short | Type | Default | Description |
-|--------|-------|------|---------|-------------|
-| `--format` | `-f` | String | `table` | Output format: `table`, `csv`, or `json` |
-| `--output` | `-o` | String | (stdout) | Export results to a file path |
+Every leaf that produces tabular output supports `--format`/`-f` (`table`|`csv`|`json`) and `--output`/`-o` (`<path>` to write to a file instead of stdout). Leaves accepting structured specifications add `--config <path>` (see [Model Cards & Config Grammar](@ref cfg-overview)); plot-capable leaves add `--plot` and `--plot-save <path>`.
 
-Leaves that accept a TOML spec (priors, restrictions, DSGE models, GMM/SMM configs, equation systems) add `--config <path>`. Plot-capable leaves add the `--plot` flag (open interactive plot in browser) and `--plot-save <path>` (save plot to HTML file) — only where a real `plot_result` recipe exists for the result type.
-
-Agent-wide globals come **before** the command (leading only): `--seed N` (deterministic runs, echoed in envelope `meta`), `--quiet`/`-q` (warnings and above on stderr), `--json` (force JSON envelope), `--no-color`. Mid-argv they are ordinary tokens, never swallowed out of a command line.
+Leading agent globals go **before** the command: `--seed N`, `--quiet`/`-q`, `--json`, and `--no-color`. See [Pipelines, Handles & Reproducibility](@ref gs-pipelines) and the [Agent Guide](../agent-guide.md) for the complete JSON envelope and typed handle contract.
 
 ---
 
-## Help
+## Help & Machine Schema
 
-Every command and subcommand supports `--help` (`-h` is reserved for help on every leaf). Machine-readable schema:
+Every node and leaf accepts `--help` (`-h`). Machine-readable draft-07 input schemas and declared table keys come from `friedman schema`:
 
 ```bash
 friedman schema estimate multivariate var

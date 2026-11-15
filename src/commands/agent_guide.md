@@ -2,9 +2,9 @@
 
 Contract for agents driving Friedman-cli. This document is the single source: it
 ships inside the binary and is served verbatim by `friedman schema --docs`, and
-the documentation site renders the same file. The per-leaf command reference
-lives under `commands/` on the site; this guide covers the output contract
-shared by every leaf.
+the documentation site renders the same file. The per-leaf CLI reference
+lives under `commands/generated/` (indexed at `commands/overview.md`); this
+guide covers the output contract shared by every leaf.
 
 ## One envelope on stdout
 
@@ -448,14 +448,15 @@ friedman dsge bayes posterior-mode model.jl --data data.csv --params rho,sigma \
   --prior 'rho ~ beta(2, 2)' --prior 'sigma ~ inv_gamma(2, 0.5)'
 ```
 
-Full per-family card reference: the `Model cards and TOML files` section of
-the configuration page on the docs site.
+Full per-family card reference: the Configuration section (`config/overview.md`,
+`config/identification.md`, `config/dsge.md`, and `config/models-policy.md`) on
+the docs site.
 
 ---
 
 ## Leading globals
 
-| Flag | Effect |
+| Global | Effect |
 |------|--------|
 | `--seed <int>` / `--seed=<int>` | seed the process RNG; forwarded as the estimator's own `seed=` where supported; echoed in `meta.seed` |
 | `--quiet` / `-q` | suppress CLI status on stderr |
@@ -486,8 +487,7 @@ Leading globals only (before the first subcommand token). A mid-argv `--quiet`,
 
 ## References
 
-- Per-leaf reference: the generated command pages under `commands/` on the docs
-  site (same registry this guide describes; `friedman schema` exposes it
-  machine-readably).
+- Per-leaf reference: the generated command pages under `commands/generated/`
+  (indexed at `commands/overview.md`, matching `friedman schema`).
 - Normative envelope schema: `schema/envelope-v1.json`.
 - Exit-code taxonomy: `friedman schema | jq '.contract.exit_codes'`.

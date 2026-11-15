@@ -1,0 +1,122 @@
+# [Input-Output & Production Networks](@id chap-io)
+
+Classical linear input–output accounting, MRIO database ingestion (`oecd`, `wiod`, `exiobase3`, `eora26`, `gloria`), Leontief/Ghosh multipliers, hypothetical extraction, structural decomposition analysis, and Baqaee–Farhi (2019, 2020) nonlinear general-equilibrium production network analysis live under [`friedman io`](@ref ref-io) across the linear `io` and nonlinear `io bf` families. See [MacroEconometricModels.jl — Input-Output & Networks](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/io/) for mathematical derivations.
+
+## Quick Start
+
+Omit `--data` on any `io` or `io bf` command to run directly on the built-in Miller–Blair 2-sector benchmark (`Agriculture`, `Manufacturing`), inspect the Leontief inverse $L = (I - A)^{-1}$, and solve a Baqaee–Farhi productivity shock:
+
+<!-- capture -->
+```bash
+friedman io leontief --matrix L
+```
+```text
+             Leontief Inverse (L)
+┌───────────────┬─────────────┬───────────────┐
+│    sector     │ Agriculture │ Manufacturing │
+│    String     │   Float64   │    Float64    │
+├───────────────┼─────────────┼───────────────┤
+│  Agriculture  │   1.25412   │   0.330033    │
+│ Manufacturing │  0.264026   │    1.12211    │
+└───────────────┴─────────────┴───────────────┘
+```
+
+The command returns `leontief_inverse_l` (an extra dollar of agricultural demand induces `1.25412` of total agricultural output and `0.264026` of manufacturing output, or both `technical_coefficients_a` and `leontief_inverse_l` under `--matrix both`; pass `--data <path>` alongside `--n-sectors` and `--n-fd` for custom CSV/ICIO tables).
+
+---
+
+## Classical Leontief, Ghosh, Extraction & MRIO Accounting (`io`)
+
+In a $S$-sector open input–output table with intermediate technical matrix $A_{ij} = Z_{ij} / x_j$ and output-allocation matrix $B_{ij} = Z_{ij} / x_i$, gross output $x$ responds to final demand $y$ via the Leontief inverse $L$, while supply-side value-added $v'$ pushes gross output via the Ghosh inverse $G$:
+
+```math
+L = (I - A)^{-1}, \quad \Delta x = L \, \Delta y; \qquad G = (I - B)^{-1}, \quad \Delta x' = \Delta v' \, G.
+```
+
+| Analytical Group | Subcommands under `friedman io` | Purpose & Key Output Tables (`--format json`) |
+|---|---|---|
+| Ingestion & Balancing | `sources`, `download`, `load`, `balance` (`ras`\|`gras`), `aggregate` | Catalog & fetch external MRIO datasets (`oecd`, `wiod`, `exiobase3`, `eora26`, `gloria`); balance/aggregate tables (`io_table_summary`, `sectors`) |
+| Multipliers & Linkages | `leontief`, `ghosh`, `multipliers` (`output`\|`income`\|`employment`, Type `I`\|`II`), `linkages`, `key-sectors`, `network-stats` | Backward/forward Rasmussen dispersion indices, Domar weights, network centrality (`io_multipliers`, `linkages`, `key_sectors`, `network_stats_summary`) |
+| Shocks, Extraction & SDA | `impact`, `price`, `extract` (`complete`\|`backward`\|`forward`\|`partial`), `sda` (`additive`\|`multiplicative`) | Demand/value-added shocks, Leontief/Ghosh price pass-through, sectoral extraction loss, and two-period decomposition (`hypothetical_extraction_loss`, `structural_decomposition`) |
+| MRIO Trade & Footprints | `footprint`, `bilateral-trade`, `export-decomposition` (KWW), `vertical-specialization`, `baqaee-farhi` | Embodied emissions/factor footprints (`--account`), Koopman–Wang–Wei export value-added, Hummels vertical specialization, and legacy Hulten 2nd-order decomposition |
+
+<!-- capture -->
+```bash
+friedman io linkages --forward ghosh
+```
+```text
+                      Linkages (forward=ghosh)
+┌───────────────┬──────────┬─────────┬──────────┬──────────┬────────┐
+│    sector     │ backward │ forward │    Ui    │    Uj    │ class  │
+│    String     │ Float64  │ Float64 │ Float64  │ Float64  │ String │
+├───────────────┼──────────┼─────────┼──────────┼──────────┼────────┤
+│  Agriculture  │ 1.51815  │ 1.91419 │ 1.02222  │ 1.20833  │  key   │
+│ Manufacturing │ 1.45215  │ 1.25412 │ 0.977778 │ 0.791667 │  weak  │
+└───────────────┴──────────┴─────────┴──────────┴──────────┴────────┘
+```
+
+Under [`io linkages`](@ref ref-io-linkages), each sector is classified (`class`) using normalized backward dispersion $U_j$ and forward dispersion $U_i$ relative to `1.0` (`Agriculture` has $U_i = 1.02222$, $U_j = 1.20833$ -> `key`, while `Manufacturing` has $0.977778$, $0.791667$ -> `weak`; [`io key-sectors`](@ref ref-io-key-sectors) extracts `key` vs `weak` rankings cleanly).
+
+---
+
+## Baqaee–Farhi Nonlinear Production Networks (`io bf`)
+
+When elasticities of substitution across intermediates ($\theta$), final demand ($\sigma$), nests ($\epsilon$), or primary factors ($\eta$) deviate from Cobb–Douglas (`1.0`), Hulten's linear approximation $\Delta \ln Y \approx \lambda' \Delta \ln A$ breaks down for large shocks or distorted wedges ($\mu_i \neq 1$). [`io bf`](@ref ref-fam-io-bf) builds a calibrated nonlinear CES/nested network (`network`), saves it via `--save-model <path.fmod>`, and solves exact nonlinear counterfactual equilibria:
+
+```math
+\frac{d \ln Y}{d \ln A_i} = \lambda_i^{\text{cost}}, \qquad \Delta \ln Y \approx \lambda' \Delta \ln A + \frac{1}{2} \Delta \ln A' \, \Xi \, \Delta \ln A.
+```
+
+- [`io bf network`](@ref ref-io-bf-network): Builds network Domar shares (`lambda`, `lambda_rev`, wedges `mu`; supports `--nests single|two`, `--factors single|va-cats`, vector overrides `--theta`, `--mu`).
+- [`io bf equilibrium`](@ref ref-io-bf-equilibrium): Solves exact nonlinear counterfactual output `dlogY`, sector quantities `dlog_x`, and prices `dlog_p` for TFP (`--dlog-a`), labor (`--dlog-l`), or markup (`--dlog-mu`) shocks via Newton or fixed-point iteration.
+- [`io bf elasticities`](@ref ref-io-bf-elasticities), [`local`](@ref ref-io-bf-local), [`wedges`](@ref ref-io-bf-wedges), [`misallocation`](@ref ref-io-bf-misallocation), [`shock-curve`](@ref ref-io-bf-shock-curve): Computes full general-equilibrium price incidence matrices, second-order Hulten Hessians $\Xi$, distortion-wedge decompositions ($\lambda^{\text{cost}}$ vs. $\lambda^{\text{rev}}$), efficiency misallocation gaps (`--point efficient|observed`), and multi-point shock curves comparing exact nonlinear vs. Hulten linear vs. second-order approximations.
+
+<!-- capture -->
+```bash
+friedman --quiet io bf network --theta 0.5,1.2 --save-model bf_net.fmod
+friedman io bf equilibrium --model bf_net.fmod --dlog-a 0.05,0.0 --method newton
+```
+```text
+  BF Equilibrium Summary
+┌──────────────┬──────────┐
+│    metric    │  value   │
+│    String    │   Any    │
+├──────────────┼──────────┤
+│    dlogY     │ 0.024402 │
+│    hulten    │ 0.02439  │
+│  technology  │ 0.02439  │
+│  allocative  │   0.0    │
+│ profit_share │   0.0    │
+│  converged   │   true   │
+│  iterations  │    1     │
+│   residual   │   0.0    │
+└──────────────┴──────────┘
+         BF Equilibrium Sectors
+┌───────────────┬──────────┬───────────┐
+│    sector     │  dlog_x  │  dlog_p   │
+│    String     │ Float64  │  Float64  │
+├───────────────┼──────────┼───────────┤
+│  Agriculture  │ 0.063594 │ -0.062575 │
+│ Manufacturing │ 0.016442 │ -0.016543 │
+└───────────────┴──────────┴───────────┘
+```
+
+The exact nonlinear CES general-equilibrium response outputs scalar aggregate `dlogY = 0.024402` (vs Hulten first-order `0.02439`) and convergence metadata (`bf_equilibrium_summary`) alongside per-sector log changes (`Agriculture` `+0.063594` quantity, `-0.062575` price in `bf_equilibrium_sectors`) using the persisted `.fmod` network handle (`--model bf_net.fmod`).
+
+---
+
+## Common Pitfalls
+
+1. **Forgetting `--n-sectors` when loading custom CSV IO tables:** The built-in 2-sector example runs with zero flags, but custom CSV files passed via `--data` must declare `--n-sectors` (and `--n-fd`, defaulting to `1`).
+2. **Expecting Type II (`--type II`) multipliers or `--kind employment` without household/employment rows:** When a CSV matrix omits compensation or employment accounts, employment/Type-II requests fail validation cleanly (`data/*` error).
+3. **Treating `maxiter`-truncated `io bf equilibrium` as a CLI error:** Non-convergence inside `io bf equilibrium` reports `converged = false` in `bf_equilibrium_summary` (`exit 0`, result payload) rather than aborting with exit `5`; always check the `converged` row or reduce `--damping`.
+
+---
+
+## References
+
+- Miller, R. E., & Blair, P. D. (2009). *Input-Output Analysis: Foundations and Extensions* (2nd ed.). Cambridge University Press.
+- Baqaee, D. R., & Farhi, E. (2019). The macroeconomic impact of microeconomic shocks: Beyond Hulten's theorem. *Econometrica*, 87(4), 1155–1203.
+- Baqaee, D. R., & Farhi, E. (2020). Productivity and misallocation in general equilibrium. *Quarterly Journal of Economics*, 135(1), 105–163.
+- Upstream manual: [MacroEconometricModels.jl — Input-Output & Networks](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/io/)
+- CLI reference: [`friedman io`](@ref ref-io), [`friedman io bf network`](@ref ref-io-bf-network), [`friedman io bf equilibrium`](@ref ref-io-bf-equilibrium), [`friedman io bf shock-curve`](@ref ref-io-bf-shock-curve)

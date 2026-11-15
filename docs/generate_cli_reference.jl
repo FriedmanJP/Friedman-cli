@@ -2,8 +2,8 @@
 # Generate CLI reference docs, completions, and inventory from the registry.
 #
 # Usage:
-#   julia --project docs/generate_cli_reference.jl           # write artifacts
-#   julia --project docs/generate_cli_reference.jl --check   # fail if stale
+#   julia --project docs/generate_cli_reference.jl              # write artifacts
+#   julia --project docs/generate_cli_reference.jl --check      # fail if stale
 #   julia --project docs/generate_cli_reference.jl --claude-md  # also patch CLAUDE.md if present
 
 using Friedman
@@ -16,12 +16,10 @@ const DO_CLAUDE = "--claude-md" in ARGS || !CHECK
 # ── Collect specs ──────────────────────────────────────────────
 
 function _all_specs()::Vector{Friedman.CommandSpec}
-    # Prefer REGISTRY (populated by register_* during build_app); fall back to walking APP
     specs = copy(Friedman.REGISTRY)
     if isempty(specs)
         error("REGISTRY is empty — was build_app() run?")
     end
-    # Dedup by path (in case build_app called more than once in a session)
     seen = Set{Vector{String}}()
     out = Friedman.CommandSpec[]
     for s in specs
@@ -42,38 +40,167 @@ function _group_by_top(specs::Vector{Friedman.CommandSpec})
     return groups
 end
 
-function _fmt_default(d)
-    isnothing(d) && return "—"
-    d isa String && isempty(d) && return "`\"\"`"
-    return "`$(d)`"
-end
-
-function _fmt_choices(c)
-    isnothing(c) && return "—"
-    return join("`" .* c .* "`", ", ")
-end
-
-function _type_name(t::Type)
-    t === Nothing && return "Any"
-    return string(t)
-end
-
-# ── Markdown emitters ─────────────────────────────────────────
+_fmt_default(d) = isnothing(d) ? "—" : (d isa String && isempty(d) ? "`\"\"`" : "`$(d)`")
+_fmt_choices(c) = isnothing(c) ? "—" : join("`" .* c .* "`", ", ")
+_type_name(t::Type) = t === Nothing ? "Any" : string(t)
 
 """
     _md_cell(s) -> String
 
-Escape a value destined for a markdown TABLE CELL. An unescaped `|` ends the cell, so any
-description carrying one silently splits into extra columns and the row renders corrupt.
-Command descriptions are full of them — `table|csv|json`, `cholesky|sign|narrative|…` —
-so every generated page had broken `--format` and `--id` rows before this was escaped.
+Escape a value destined for a markdown table cell so literal `|` tokens
+(e.g. `table|csv|json`) do not split columns.
 """
 _md_cell(s) = replace(string(s), "|" => "\\|")
+
+# ── Bidirectional workflow guide mapping ──────────────────────
+
+const _CHAPTER_REF_LABELS = Dict{String,String}(
+    "gs-installation" => "[Installation & Quickstart](@ref gs-installation)",
+    "gs-pipelines"    => "[Pipelines, Handles & Reproducibility](@ref gs-pipelines)",
+    "agent-guide"     => "[Agent Guide](../../agent-guide.md)",
+    "chap-data"       => "[Data Management & Simulation](@ref chap-data)",
+    "chap-univariate" => "[Univariate, Filters & Spectral](@ref chap-univariate)",
+    "chap-volatility" => "[Volatility & Multivariate GARCH](@ref chap-volatility)",
+    "chap-nonlinear"  => "[Regime-Switching & Nonlinear TS](@ref chap-nonlinear)",
+    "chap-multivariate" => "[VAR, BVAR, VECM & Factor Models](@ref chap-multivariate)",
+    "chap-structural" => "[Structural ID, LP & Innovation Accounting](@ref chap-structural)",
+    "chap-nowcast"    => "[Nowcasting & Forecast Evaluation](@ref chap-nowcast)",
+    "chap-regression" => "[Regression, Systems & GMM/SMM](@ref chap-regression)",
+    "chap-choice"     => "[Discrete Choice, Count & Selection](@ref chap-choice)",
+    "chap-panel"      => "[Panel Data, Panel VAR & Causal DiD](@ref chap-panel)",
+    "chap-dsge"       => "[Representative-Agent & Bayesian DSGE](@ref chap-dsge)",
+    "chap-hadsge"     => "[Heterogeneous-Agent, CT & OLG Models](@ref chap-hadsge)",
+    "chap-policy"     => "[Policy Counterfactuals & Optimal Policy](@ref chap-policy)",
+    "chap-io"         => "[Input-Output & Production Networks](@ref chap-io)",
+    "chap-tests"      => "[Hypothesis Testing & Diagnostics](@ref chap-tests)",
+)
+
+const _TOP_GUIDES = Dict{String,Vector{String}}(
+    "completions" => ["gs-installation"],
+    "data"        => ["chap-data"],
+    "did"         => ["chap-panel"],
+    "dsge"        => ["chap-dsge", "chap-hadsge"],
+    "estimate"    => ["chap-univariate", "chap-volatility", "chap-nonlinear", "chap-multivariate",
+                      "chap-structural", "chap-regression", "chap-choice", "chap-panel"],
+    "fevd"        => ["chap-structural", "chap-dsge", "chap-panel"],
+    "filter"      => ["chap-univariate"],
+    "forecast"    => ["chap-univariate", "chap-volatility", "chap-nonlinear", "chap-multivariate", "chap-nowcast"],
+    "hadsge"      => ["chap-hadsge"],
+    "hd"          => ["chap-structural", "chap-dsge"],
+    "io"          => ["chap-io"],
+    "irf"         => ["chap-structural", "chap-panel"],
+    "model"       => ["gs-pipelines"],
+    "nowcast"     => ["chap-nowcast"],
+    "policy"      => ["chap-policy"],
+    "predict"     => ["chap-univariate", "chap-volatility", "chap-nonlinear", "chap-multivariate",
+                      "chap-regression", "chap-choice", "chap-panel"],
+    "residuals"   => ["chap-univariate", "chap-volatility", "chap-nonlinear", "chap-multivariate",
+                      "chap-regression", "chap-choice", "chap-panel"],
+    "serve"       => ["agent-guide"],
+    "show"        => ["gs-pipelines"],
+    "spectral"    => ["chap-univariate"],
+    "test"        => ["chap-tests", "chap-regression", "chap-panel", "chap-univariate"],
+)
+
+const _FAMILY_GUIDES = Dict{Tuple{String,String},Vector{String}}(
+    ("dsge", "ra")            => ["chap-dsge"],
+    ("dsge", "ct")            => ["chap-hadsge"],
+    ("dsge", "olg")           => ["chap-hadsge"],
+    ("dsge", "dcegm")         => ["chap-hadsge"],
+    ("dsge", "lifecycle")     => ["chap-hadsge"],
+    ("dsge", "firm")          => ["chap-hadsge"],
+    ("dsge", "bank")          => ["chap-hadsge"],
+    ("estimate", "choice")       => ["chap-choice"],
+    ("estimate", "factor")       => ["chap-multivariate", "chap-structural"],
+    ("estimate", "multivariate") => ["chap-multivariate", "chap-structural"],
+    ("estimate", "panel")        => ["chap-panel"],
+    ("estimate", "regime")       => ["chap-nonlinear", "chap-univariate"],
+    ("estimate", "regression")   => ["chap-regression", "chap-choice", "chap-univariate", "chap-structural"],
+    ("estimate", "univariate")   => ["chap-univariate"],
+    ("estimate", "volatility")   => ["chap-volatility"],
+    ("forecast", "evaluate")     => ["chap-nowcast"],
+    ("forecast", "factor")       => ["chap-multivariate"],
+    ("forecast", "multivariate") => ["chap-multivariate"],
+    ("forecast", "regime")       => ["chap-nonlinear"],
+    ("forecast", "univariate")   => ["chap-univariate"],
+    ("forecast", "volatility")   => ["chap-volatility"],
+    ("predict", "choice")        => ["chap-choice"],
+    ("predict", "factor")        => ["chap-multivariate"],
+    ("predict", "multivariate")  => ["chap-multivariate"],
+    ("predict", "panel")         => ["chap-panel"],
+    ("predict", "regime")        => ["chap-nonlinear"],
+    ("predict", "regression")    => ["chap-regression", "chap-univariate"],
+    ("predict", "univariate")    => ["chap-univariate"],
+    ("predict", "volatility")    => ["chap-volatility"],
+    ("residuals", "choice")      => ["chap-choice"],
+    ("residuals", "factor")      => ["chap-multivariate"],
+    ("residuals", "multivariate") => ["chap-multivariate"],
+    ("residuals", "panel")       => ["chap-panel"],
+    ("residuals", "regime")      => ["chap-nonlinear"],
+    ("residuals", "regression")  => ["chap-regression", "chap-univariate"],
+    ("residuals", "univariate")  => ["chap-univariate"],
+    ("residuals", "volatility")  => ["chap-volatility"],
+    ("test", "coint")         => ["chap-tests", "chap-multivariate", "chap-panel", "chap-univariate"],
+    ("test", "did")           => ["chap-tests", "chap-panel"],
+    ("test", "iv")            => ["chap-tests", "chap-regression"],
+    ("test", "multivariate")  => ["chap-tests", "chap-multivariate"],
+    ("test", "panel")         => ["chap-tests", "chap-panel"],
+    ("test", "pvar")          => ["chap-tests", "chap-panel"],
+    ("test", "serial")        => ["chap-tests", "chap-volatility"],
+    ("test", "stability")     => ["chap-tests"],
+    ("test", "unit-root")     => ["chap-tests"],
+    ("test", "vecm")          => ["chap-tests", "chap-multivariate"],
+    ("test", "other")         => ["chap-tests", "chap-choice", "chap-univariate", "chap-nonlinear"],
+)
+
+const _FAMILY_TITLES = Dict{String,String}(
+    "commands"     => "Commands",
+    "ra"           => "Representative-Agent & Bayesian DSGE",
+    "ct"           => "Continuous-Time HA-DSGE (`dsge ct`)",
+    "olg"          => "Blanchard Perpetual-Youth OLG (`dsge olg`)",
+    "dcegm"        => "Discrete-Continuous EGM (`dsge dcegm`)",
+    "lifecycle"    => "Overlapping-Generations Life-Cycle (`dsge lifecycle`)",
+    "firm"         => "Heterogeneous-Firm Dynamics (`dsge firm`)",
+    "bank"         => "Intermediary Banking (`dsge bank`)",
+    "bf"           => "Baqaee–Farhi Production Networks (`io bf`)",
+    "iv"           => "Instrumental-Variable Diagnostics",
+    "did"          => "Difference-in-Differences Diagnostics",
+    "pvar"         => "Panel VAR Diagnostics",
+    "coint"        => "Cointegration Tests",
+    "unit-root"    => "Unit Root Tests",
+    "opp-sequence" => "Optimal Policy Perturbation Sequences (`opp-sequence`)",
+    "other"        => "Other Diagnostics",
+)
+
+function _family_title(fam::String)::String
+    haskey(_FAMILY_TITLES, fam) && return _FAMILY_TITLES[fam]
+    words = split(replace(fam, "-" => " "))
+    return join(uppercasefirst.(words), " ")
+end
+
+function _leaf_family(spec::Friedman.CommandSpec)::String
+    !isempty(spec.family) && return spec.family
+    length(spec.path) >= 3 && return spec.path[2]
+    return "commands"
+end
+
+function _anchor_slug(s::AbstractString)::String
+    return String(strip(replace(lowercase(replace(String(s), r"[^A-Za-z0-9-]+" => "-")), r"--+" => "-"), '-'))
+end
+
+function _fmt_guide_links(keys::Vector{String})::String
+    isempty(keys) && return ""
+    return join([_CHAPTER_REF_LABELS[k] for k in keys if haskey(_CHAPTER_REF_LABELS, k)], " · ")
+end
+
+# ── Markdown emitters ─────────────────────────────────────────
 
 function _leaf_md(spec::Friedman.CommandSpec)::String
     io = IOBuffer()
     path = join(spec.path, " ")
-    println(io, "### `friedman $path`")
+    slug = _anchor_slug(join(spec.path, "-"))
+    leaf_id = length(spec.path) == 1 ? "ref-leaf-$slug" : "ref-$slug"
+    println(io, "### [`friedman $path`](@id $leaf_id)")
     println(io)
     println(io, spec.summary)
     println(io)
@@ -91,7 +218,9 @@ function _leaf_md(spec::Friedman.CommandSpec)::String
         println(io, "|--------|-------|------|---------|---------|-------------|")
         for o in spec.options
             short = isempty(o.short) ? "—" : "`-$(o.short)`"
-            println(io, "| `--$(o.name)` | $short | `$(_type_name(o.type))` | $(_fmt_default(o.default)) | $(_fmt_choices(o.choices)) | $(_md_cell(o.description)) |")
+            typ = "`$(_type_name(o.type))`" * (o.repeatable ? " *(repeatable)*" : "")
+            choices = _md_cell(_fmt_choices(o.choices))
+            println(io, "| `--$(o.name)` | $short | $typ | $(_fmt_default(o.default)) | $choices | $(_md_cell(o.description)) |")
         end
         println(io)
     end
@@ -104,9 +233,15 @@ function _leaf_md(spec::Friedman.CommandSpec)::String
         end
         println(io)
     end
+    handle_parts = String[]
+    isempty(spec.data_kinds)   || push!(handle_parts, "data kinds: " * join(["`:$(k)`" for k in spec.data_kinds], ", "))
+    isempty(spec.model_types)  || push!(handle_parts, "model types: " * join(["`$(m)`" for m in spec.model_types], ", "))
+    isempty(spec.result_types) || push!(handle_parts, "result types: " * join(["`$(r)`" for r in spec.result_types], ", "))
+    if !isempty(handle_parts)
+        println(io, "**Handles:** ", join(handle_parts, "; "))
+        println(io)
+    end
     if !isempty(spec.tables)
-        # W3/#138: family tables render as `name_*` — one invocation emits
-        # multiple sibling tables keyed `<name>_<variable-slug>`
         println(io, "**Output tables:** ",
                 join(["`$(t.name)$(t.family ? "_*" : "")` ($(t.description))" for t in spec.tables], "; "))
         println(io)
@@ -116,17 +251,42 @@ end
 
 function _top_page(top::String, leaves::Vector{Friedman.CommandSpec})::String
     io = IOBuffer()
+    top_slug = _anchor_slug(top)
     println(io, "<!-- GENERATED by docs/generate_cli_reference.jl — do not hand-edit -->")
-    println(io, "# `$top`")
+    println(io, "# [`$top`](@id ref-$top_slug)")
     println(io)
-    println(io, "Generated reference for `friedman $top` and its subcommands.")
+    println(io, "Generated command reference for `friedman $top` (`$(length(leaves))` $(length(leaves) == 1 ? "leaf" : "leaves")). Back to [CLI Reference Overview](@ref cli-overview).")
+    top_guides = _fmt_guide_links(get(_TOP_GUIDES, top, String[]))
+    if !isempty(top_guides)
+        println(io)
+        println(io, "**Workflow guides:** ", top_guides)
+    end
     println(io)
-    println(io, "**Leaves:** $(length(leaves))")
-    println(io)
-    for spec in sort(leaves; by=s -> join(s.path, " "))
-        print(io, _leaf_md(spec))
+
+    by_fam = Dict{String,Vector{Friedman.CommandSpec}}()
+    for s in leaves
+        push!(get!(by_fam, _leaf_family(s), Friedman.CommandSpec[]), s)
+    end
+    fams = sort(collect(keys(by_fam)); by=f -> begin
+        f == "commands" && return (0, f)
+        f == top        && return (1, f)
+        f == "other"    && return (3, f)
+        return (2, f)
+    end)
+
+    for fam in fams
+        fam_slug = _anchor_slug("$(top)-$(fam)")
         println(io, "---")
         println(io)
+        println(io, "## [$(_family_title(fam))](@id ref-fam-$fam_slug)")
+        println(io)
+        desc = get(Friedman._NODE_DESCRIPTIONS, (top, fam), "")
+        isempty(desc) || (println(io, desc); println(io))
+        fam_guides = _fmt_guide_links(get(_FAMILY_GUIDES, (top, fam), get(_TOP_GUIDES, top, String[])))
+        isempty(fam_guides) || (println(io, "**See guide:** ", fam_guides); println(io))
+        for spec in sort(by_fam[fam]; by=s -> join(s.path, " "))
+            print(io, _leaf_md(spec))
+        end
     end
     return String(take!(io))
 end
@@ -149,7 +309,6 @@ function _tree_text(specs::Vector{Friedman.CommandSpec})::String
         unique!(names)
         sort!(names)
         branch = i == length(tops) ? "└──" : "├──"
-        # wrap names
         line = "$branch $top"
         if !isempty(names)
             line *= "     " * join(names, " | ")
@@ -165,49 +324,45 @@ end
 
 function _overview_md(specs::Vector{Friedman.CommandSpec})::String
     io = IOBuffer()
-    println(io, "# CLI Reference Overview")
+    println(io, "# [CLI Reference Overview](@id cli-overview)")
     println(io)
-    println(io, "Friedman-cli uses an **action-first** command hierarchy: commands are organized by action (`estimate`, `irf`, `forecast`, ...) rather than by model type.")
+    println(io, "Friedman-cli uses an **action-first** command hierarchy (`verb [family] model`). For pipeline-oriented walkthroughs organized by econometric domain, start from the domain chapters in the sidebar or [Choosing a Method](@ref gs-method-guide).")
     println(io)
-    println(io, "<!-- BEGIN GENERATED: do not hand-edit; run julia docs/generate_cli_reference.jl -->")
+    println(io, "<!-- BEGIN GENERATED: do not hand-edit; run julia --project docs/generate_cli_reference.jl -->")
     println(io)
     println(io, "## Command Tree")
     println(io)
-    println(io, "```")
+    println(io, "```text")
     print(io, _tree_text(specs))
     println(io, "```")
     println(io)
-    println(io, "Additionally, `friedman repl` launches an interactive REPL session with persistent data loading, result caching, and tab completion.")
+    println(io, "Additionally, `friedman repl` launches an interactive REPL session ([Interactive REPL](@ref gs-repl)).")
     println(io)
     println(io, "---")
     println(io)
-    println(io, "## Generated reference pages")
+    println(io, "## Generated Reference Pages")
     println(io)
     groups = _group_by_top(specs)
     for top in sort(collect(keys(groups)))
-        println(io, "- [`$top`](generated/$top.md) — $(length(groups[top])) leaves")
+        top_slug = _anchor_slug(top)
+        println(io, "- [`$top`](@ref ref-$top_slug) — $(length(groups[top])) leaves")
     end
     println(io)
     println(io, "<!-- END GENERATED -->")
     println(io)
-    println(io, "## Common Options")
+    println(io, "---")
     println(io)
-    println(io, "Every leaf that produces output supports `--format`/`-f` (`table`|`csv`|`json`) and `--output`/`-o` (write to a file instead of stdout):")
+    println(io, "## Common Options & Globals")
     println(io)
-    println(io, "| Option | Short | Type | Default | Description |")
-    println(io, "|--------|-------|------|---------|-------------|")
-    println(io, "| `--format` | `-f` | String | `table` | Output format: `table`, `csv`, or `json` |")
-    println(io, "| `--output` | `-o` | String | (stdout) | Export results to a file path |")
+    println(io, "Every leaf that produces tabular output supports `--format`/`-f` (`table`|`csv`|`json`) and `--output`/`-o` (`<path>` to write to a file instead of stdout). Leaves accepting structured specifications add `--config <path>` (see [Model Cards & Config Grammar](@ref cfg-overview)); plot-capable leaves add `--plot` and `--plot-save <path>`.")
     println(io)
-    println(io, "Leaves that accept a TOML spec (priors, restrictions, DSGE models, GMM/SMM configs, equation systems) add `--config <path>`. Plot-capable leaves add the `--plot` flag (open interactive plot in browser) and `--plot-save <path>` (save plot to HTML file) — only where a real `plot_result` recipe exists for the result type.")
-    println(io)
-    println(io, "Agent-wide globals come **before** the command (leading only): `--seed N` (deterministic runs, echoed in envelope `meta`), `--quiet`/`-q` (warnings and above on stderr), `--json` (force JSON envelope), `--no-color`. Mid-argv they are ordinary tokens, never swallowed out of a command line.")
+    println(io, "Leading agent globals go **before** the command: `--seed N`, `--quiet`/`-q`, `--json`, and `--no-color`. See [Pipelines, Handles & Reproducibility](@ref gs-pipelines) and the [Agent Guide](../agent-guide.md) for the complete JSON envelope and typed handle contract.")
     println(io)
     println(io, "---")
     println(io)
-    println(io, "## Help")
+    println(io, "## Help & Machine Schema")
     println(io)
-    println(io, "Every command and subcommand supports `--help` (`-h` is reserved for help on every leaf). Machine-readable schema:")
+    println(io, "Every node and leaf accepts `--help` (`-h`). Machine-readable draft-07 input schemas and declared table keys come from `friedman schema`:")
     println(io)
     println(io, "```bash")
     println(io, "friedman schema estimate multivariate var")
@@ -217,7 +372,7 @@ end
 
 function _claude_block(specs::Vector{Friedman.CommandSpec})::String
     io = IOBuffer()
-    println(io, "<!-- BEGIN GENERATED: do not hand-edit; run julia docs/generate_cli_reference.jl --claude-md -->")
+    println(io, "<!-- BEGIN GENERATED: do not hand-edit; run julia --project docs/generate_cli_reference.jl --claude-md -->")
     println(io, "Generated: $(Dates.now()) UTC")
     println(io)
     println(io, "### Registry inventory")
@@ -325,10 +480,8 @@ function _patch_claude_md(block::String; check::Bool)
     bi = findfirst(begin_m, text)
     ei = findfirst(end_m, text)
     if isnothing(bi) || isnothing(ei)
-        # append section
         new_text = text * "\n\n## Generated Inventory\n\n" * block * "\n"
     else
-        # replace from BEGIN through END inclusive
         start_i = first(bi)
         end_i = last(ei)
         new_text = text[1:start_i-1] * block * text[end_i+1:end]
@@ -348,11 +501,9 @@ function main()
     @info "registry leaves" count=length(specs)
     ok = true
 
-    # overview
     overview_path = joinpath(ROOT, "docs", "src", "commands", "overview.md")
     ok &= _write_or_check(overview_path, _overview_md(specs); check=CHECK)
 
-    # per-top pages
     gen_dir = joinpath(ROOT, "docs", "src", "commands", "generated")
     groups = _group_by_top(specs)
     for top in sort(collect(keys(groups)))
@@ -360,8 +511,6 @@ function main()
         ok &= _write_or_check(path, _top_page(top, groups[top]); check=CHECK)
     end
 
-    # prune pages for removed top-levels (a regroup orphan must fail --check,
-    # not linger: generated/multipliers.md survived the #198-#204 fold)
     expected = Set("$top.md" for top in keys(groups))
     for fname in sort(readdir(gen_dir))
         endswith(fname, ".md") || continue
@@ -376,7 +525,6 @@ function main()
         end
     end
 
-    # completions
     comp_dir = joinpath(ROOT, "completions")
     ok &= _write_or_check(joinpath(comp_dir, "friedman.bash"), _bash_completion(specs); check=CHECK)
     ok &= _write_or_check(joinpath(comp_dir, "friedman.zsh"), _zsh_completion(specs); check=CHECK)

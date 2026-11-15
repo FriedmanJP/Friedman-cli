@@ -83,6 +83,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest' && matrix.version == '1.13'
         run: |
           julia --project docs/generate_cli_reference.jl --check
+          julia --project docs/lint_docs.jl
           julia --project docs/capture_examples.jl --check
       # W1/#136: a CONFORMANT draft-07 validator, independent of the in-repo
       # subset — metaschema-checks the schema document and validates every
