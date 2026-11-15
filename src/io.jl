@@ -350,6 +350,32 @@ resolve at call time. `model://` skips `FRIEDMAN_DATA_ROOT` confinement (same as
 wrap_legacy). Only `:timeseries` / `:panel` / `:cross_section` convert to a
 DataFrame; `:io` and other payloads are `data/wrong-kind`.
 """
+function _coerce_tabular_dataframe(obj, path::String)::DataFrame
+    k = _data_kind_of(obj)
+    if k in (:timeseries, :panel, :cross_section)
+        df = DataFrame(to_matrix(obj), varnames(obj); makeunique=true)
+        k === :panel && insertcols!(df, 1, :group => obj.group_id, :time => obj.time_id; makeunique=true)
+        nrow(df) == 0 && throw(CliError("data/empty", "empty dataset: $path"))
+        return df
+    elseif k === :tabular
+        df = if obj isa DataFrame
+            copy(obj)
+        elseif obj isa AbstractMatrix
+            DataFrame(obj, ["x$j" for j in 1:size(obj, 2)]; makeunique=true)
+        elseif obj isa AbstractVector
+            DataFrame(:y => obj)
+        elseif obj isa NamedTuple
+            DataFrame(obj)
+        else
+            throw(CliError("data/wrong-kind", "$path is not a data container (got $(typeof(obj)))"))
+        end
+        (nrow(df) == 0 || ncol(df) == 0) && throw(CliError("data/empty", "empty dataset: $path"))
+        return df
+    end
+    throw(CliError("data/wrong-kind",
+        "$path is not a data container (got $(typeof(obj)))"))
+end
+
 function load_data(path::String)
     if startswith(path, ":")
         return dataset_to_dataframe(load_example(parse_dataset_name(path)))
@@ -361,14 +387,9 @@ function load_data(path::String)
         _validate_input_path(path)
     end
     lc = lowercase(path)
-    if endswith(lc, ".jld2") || endswith(lc, ".fmod") || startswith(path, "model://")
+    if endswith(lc, ".jld2") || endswith(lc, ".jls") || endswith(lc, ".fmod") || startswith(path, "model://")
         obj = load_model_dispatch(path)
-        k = _data_kind_of(obj)
-        k in (:timeseries, :panel, :cross_section) || throw(CliError("data/wrong-kind",
-            "$path is not a data container (got $(typeof(obj)))"))
-        df = DataFrame(to_matrix(obj), varnames(obj); makeunique=true)
-        k === :panel && insertcols!(df, 1, :group => obj.group_id, :time => obj.time_id; makeunique=true)
-        return df
+        return _coerce_tabular_dataframe(obj, path)
     end
     isfile(path) || throw(CliError("data/file-not-found", "file not found: $path"; hint="check the path"))
     df = CSV.read(path, DataFrame)
@@ -389,10 +410,22 @@ _numeric_column_names(df::DataFrame) =
 
 Convert a DataFrame to a numeric matrix, selecting only numeric columns.
 """
+function _fill_matrix_col!(mat::AbstractMatrix{Float64}, j::Int, col::AbstractVector)
+    @inbounds for i in eachindex(col)
+        mat[i, j] = Float64(col[i])
+    end
+    return nothing
+end
+
 function df_to_matrix(df::DataFrame)
     numeric_cols = _numeric_column_names(df)
     isempty(numeric_cols) && throw(CliError("data/no-numeric-columns", "no numeric columns found in data"))
-    mat = Matrix{Float64}(df[!, numeric_cols])
+    nr = nrow(df)
+    nc = length(numeric_cols)
+    mat = Matrix{Float64}(undef, nr, nc)
+    for (j, colname) in enumerate(numeric_cols)
+        _fill_matrix_col!(mat, j, df[!, colname])
+    end
     return mat
 end
 
@@ -434,12 +467,24 @@ function output_result(result::AbstractMatrix, varnames::Vector{String};
 end
 
 """Slug a table title for envelope keys: lowercase, non-alnum → `_`."""
-function _slug(title::String)
-    s = lowercase(title)
-    s = replace(s, r"[^a-z0-9]+" => "_")
-    s = replace(s, r"^_+|_+$" => "")
-    s = replace(s, r"_+" => "_")
-    return isempty(s) ? "table" : s
+function _slug(title::AbstractString)
+    io = IOBuffer(; sizehint=ncodeunits(title))
+    need_sep = false
+    wrote = false
+    for c in title
+        lc = lowercase(c)
+        if ('a' <= lc <= 'z') || ('0' <= lc <= '9')
+            if need_sep && wrote
+                write(io, '_')
+            end
+            write(io, lc)
+            wrote = true
+            need_sep = false
+        else
+            need_sep = true
+        end
+    end
+    return wrote ? String(take!(io)) : "table"
 end
 
 """

@@ -336,7 +336,7 @@ friedman hadsge solve huggett --method reiter --n-reduced 8 --format json
                 ],
                 [
                     "obs_rows",
-                    "9"
+                    "1"
                 ],
                 [
                     "obs_cols",

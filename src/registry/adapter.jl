@@ -113,22 +113,47 @@ function wrap_legacy(handler::Function)
             end
         end
 
-        # Stem-resolve + type-check the data slot. data= stays a String.
+        # Stem-resolve + type-check the data slot (or auto-route a model handle to kwargs[:model]).
+        has_pos_model = any(a -> a.name == "model", ctx.spec.args)
+        can_autoroute_model = !isempty(ctx.spec.model_types) && !has_pos_model
         if haskey(kwargs, :data) && kwargs[:data] isa AbstractString && !isempty(kwargs[:data])
-            resolved = resolve_stem(String(kwargs[:data]); slot=:data)
+            raw_data = String(kwargs[:data])
+            resolved = try
+                resolve_stem(raw_data; slot=:data)
+            catch e
+                if e isa CliError && e.code == "data/file-not-found" &&
+                   can_autoroute_model && !_slot_set(get(kwargs, :model, ""))
+                    resolve_stem(raw_data; slot=:result)
+                else
+                    rethrow()
+                end
+            end
             kwargs[:data] = resolved
             kinds = ctx.spec.data_kinds
-            if !isempty(kinds) && _is_handle_path(resolved)
+            if (!isempty(kinds) || can_autoroute_model) && _is_handle_path(resolved)
                 # Confine filesystem handles on the resolved path; skip :example and model://.
                 if !startswith(resolved, ":") && !startswith(resolved, "model://")
                     _validate_input_path(resolved)
                 end
                 obj = load_model_dispatch(resolved)
-                k = _data_kind_of(obj)
-                if k ∉ kinds
-                    throw(CliError("data/wrong-kind",
-                        "$resolved is a $k handle ($(nameof(typeof(obj)))); this command accepts $(join(kinds, ", "))";
-                        hint="data import --kind timeseries, or pick a leaf that accepts $k"))
+                if can_autoroute_model && nameof(typeof(obj)) in ctx.spec.model_types
+                    if _slot_set(get(kwargs, :model, ""))
+                        throw(CliError("usage/invalid",
+                            "positional <data> resolved to a $(nameof(typeof(obj))) model handle while --model was also given";
+                            hint="pass a data path in <data> with --model, or pass only the model handle"))
+                    end
+                    kwargs[:model] = obj
+                    kwargs[:data] = ""
+                elseif !isempty(kinds)
+                    k = _data_kind_of(obj)
+                    accepted = (k in kinds) || (k === :tabular && :csv in kinds)
+                    if !accepted
+                        acc_desc = !can_autoroute_model ? join(kinds, ", ") :
+                            "$(join(kinds, ", ")) (or model handles: $(join(ctx.spec.model_types, ", ")))"
+                        throw(CliError("data/wrong-kind",
+                            "$resolved is a $k handle ($(nameof(typeof(obj)))); this command accepts $acc_desc";
+                            hint="data import --kind timeseries, or pick a leaf that accepts $k"))
+                    end
                 end
             elseif !isempty(kinds) && !_is_handle_path(resolved) && !startswith(resolved, ":")
                 :csv ∉ kinds && throw(CliError("data/wrong-kind",
@@ -153,42 +178,54 @@ function wrap_legacy(handler::Function)
                     resolved = resolve_stem(String(rp); slot=:result)
                     kwargs[:result] = _load_typed_handle(resolved, ctx.spec.result_types,
                         "data/wrong-result"; slot="result")
-                    get!(kwargs, :data, "")
+                    _has_data_slot(ctx.spec) && get!(kwargs, :data, "")
+                    any(a -> a.name == "model", ctx.spec.args) && get!(kwargs, :model, "")
                 end
             end
         end
 
-        # --model PATH → loaded object; empty → drop so handler default applies.
-        # `.jld2` (native, C052) and `.fmod` (interim, C029) paths are model
-        # handles; `model://` (W7/#142) is the in-memory serve-session handle.
-        # Builtin names and .jl/.toml model files (e.g. `dsge ha huggett`,
-        # `dsge solve rbc.toml`) must pass through as strings (C040).
-        # When model_types is nonempty, stem-resolve (no CSV fallback) first so
-        # `--model var` finds var.jld2; then type-check the loaded object.
+        # --model / positional <model> → loaded object; empty → drop (unless positional <model>)
+        # so handler default applies. `.jld2`, `.jls`, `.fmod`, and `model://` paths are
+        # handles; builtin names and .jl/.toml model files (e.g. `hadsge irf huggett`,
+        # `dsge solve rbc.toml`) pass through as strings when positional <model> is used.
         if haskey(kwargs, :model)
             mp = kwargs[:model]
+            has_pos_model = any(a -> a.name == "model", ctx.spec.args)
             if mp isa AbstractString
                 if isempty(mp)
-                    delete!(kwargs, :model)
-                else
-                    mp = String(mp)
-                    if !isempty(ctx.spec.model_types)
-                        mp = resolve_stem(mp; slot=:result)
-                        kwargs[:model] = mp
+                    has_pos_model || delete!(kwargs, :model)
+                elseif has_pos_model
+                    mp_str = String(mp)
+                    exp_mp = _expanduser(mp_str)
+                    is_handle_tok = _is_handle_path(mp_str) ||
+                        (!startswith(mp_str, ":") &&
+                         !occursin(r"\.[A-Za-z0-9]+$", basename(exp_mp)) &&
+                         any(ext -> isfile(exp_mp * ext), (".jld2", ".jls", ".fmod")))
+                    if !isempty(ctx.spec.model_types) && is_handle_tok
+                        resolved_mp = resolve_stem(mp_str; slot=:result)
+                        kwargs[:model] = _load_typed_handle(resolved_mp, ctx.spec.model_types,
+                            "model/wrong-kind"; slot="model")
                     end
-                    if endswith(lowercase(mp), ".fmod") ||
-                       endswith(lowercase(mp), ".jld2") ||
-                       startswith(mp, "model://")
-                        if !isempty(ctx.spec.model_types)
-                            kwargs[:model] = _load_typed_handle(mp, ctx.spec.model_types,
-                                "model/wrong-kind"; slot="model")
-                        else
-                            kwargs[:model] = load_model_dispatch(mp)
+                else
+                    mp_str = String(mp)
+                    is_domain_choice = ctx.spec.path == ["test", "multivariate", "granger"] &&
+                        mp_str in ("var", "vecm") &&
+                        _slot_set(get(kwargs, :data, ""))
+                    if !isempty(ctx.spec.model_types) && !is_domain_choice
+                        resolved_mp = resolve_stem(mp_str; slot=:result)
+                        kwargs[:model] = _load_typed_handle(resolved_mp, ctx.spec.model_types,
+                            "model/wrong-kind"; slot="model")
+                        get!(kwargs, :data, "")
+                    elseif _is_handle_path(mp_str)
+                        if !startswith(mp_str, ":") && !startswith(mp_str, "model://")
+                            _validate_input_path(mp_str)
                         end
-                        # allow missing data positional when handle supplies the model
+                        kwargs[:model] = load_model_dispatch(mp_str)
                         get!(kwargs, :data, "")
                     end
                 end
+            else
+                get!(kwargs, :data, "")
             end
         end
 
@@ -239,6 +276,8 @@ function wrap_legacy(handler::Function)
     end
 end
 
+const _DEFAULT_STATUS_FN = (parts...) -> _status(parts...)
+
 """
     to_leaf(spec::CommandSpec) → LeafCommand
 
@@ -250,36 +289,34 @@ function to_leaf(spec::CommandSpec)
     options = [_to_option(o) for o in spec.options]
     flags = [_to_flag(f) for f in spec.flags]
 
-    function wrapper(; kwargs...)
-        # Partition bound kwargs into args / opts / flags
-        arg_names = Set(Symbol(a.name) for a in spec.args)
-        # option names use underscore form from bind_args
-        opt_map = Dict{Symbol,String}()  # bound_key => option name
-        for o in spec.options
-            opt_map[Symbol(replace(o.name, "-" => "_"))] = o.name
-        end
-        flag_keys = Set(Symbol(replace(f.name, "-" => "_")) for f in spec.flags)
+    # Hoist partitioning tables and command string once at tree construction time
+    arg_names = Set{Symbol}(Symbol(a.name) for a in spec.args)
+    opt_keys = Set{Symbol}(Symbol(replace(o.name, "-" => "_")) for o in spec.options)
+    flag_keys = Set{Symbol}(Symbol(replace(f.name, "-" => "_")) for f in spec.flags)
+    cmd_str = join(spec.path, " ")
+    handler = spec.handler
 
+    function wrapper(; kwargs...)
         a = Dict{Symbol,Any}()
+        sizehint!(a, length(arg_names))
         o = Dict{Symbol,Any}()
+        sizehint!(o, length(opt_keys) + 2)
         fl = Dict{Symbol,Bool}()
+        sizehint!(fl, length(flag_keys))
         for (k, v) in pairs(kwargs)
             if k in arg_names
                 a[k] = v
             elseif k in flag_keys
                 fl[k] = v === true
-            elseif haskey(opt_map, k)
-                o[k] = v
             else
-                o[k] = v  # extras (e.g. format from globals)
+                o[k] = v
             end
         end
         fmt = Symbol(get(o, :format, get(kwargs, :format, "table")))
         output = string(get(o, :output, get(kwargs, :output, "")))
-        env = envelope_active() ? _ENVELOPE[] : Envelope(command=join(spec.path, " "))
-        status_fn = (parts...) -> _status(parts...)
-        ctx = CmdContext(a, o, fl, fmt, output, env, status_fn, spec)
-        return spec.handler(ctx)
+        env = envelope_active() ? _ENVELOPE[] : Envelope(command=cmd_str)
+        ctx = CmdContext(a, o, fl, fmt, output, env, _DEFAULT_STATUS_FN, spec)
+        return handler(ctx)
     end
 
     return LeafCommand(leaf_name, wrapper;
@@ -325,8 +362,10 @@ function build_node(name::String, specs::Vector{CommandSpec}; description::Strin
             leaf = to_leaf(spec)
             _register_leaf!(child_cmds, spec.path[3], leaf)
         end
-        # description from first child category or mid name
-        subcmds[mid] = NodeCommand(mid, child_cmds, mid)
+        subcmds[mid] = NodeCommand(
+            mid, child_cmds,
+            isdefined(@__MODULE__, :_node_description) ? _node_description(name, mid) : mid,
+        )
     end
     return NodeCommand(name, subcmds, description)
 end

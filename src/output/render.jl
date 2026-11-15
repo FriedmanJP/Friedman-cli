@@ -1,10 +1,22 @@
 # Envelope renderers: :json | :table | :csv (P1-1; F17, F20, F66)
 
 function _table_payload(df::DataFrame)
-    cols = string.(names(df))
-    rows = Any[]
-    for r in eachrow(df)
-        push!(rows, Any[_json_safe(r[c]) for c in names(df)])
+    col_syms = names(df)
+    ncols = length(col_syms)
+    nrows = nrow(df)
+    cols = Vector{String}(undef, ncols)
+    col_vecs = Vector{AbstractVector}(undef, ncols)
+    @inbounds for j in 1:ncols
+        cols[j] = string(col_syms[j])
+        col_vecs[j] = df[!, j]
+    end
+    rows = Vector{Vector{Any}}(undef, nrows)
+    @inbounds for i in 1:nrows
+        row = Vector{Any}(undef, ncols)
+        for j in 1:ncols
+            row[j] = _json_safe(col_vecs[j][i])
+        end
+        rows[i] = row
     end
     return Dict{String,Any}("columns" => cols, "rows" => rows)
 end

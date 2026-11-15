@@ -4,6 +4,72 @@ All notable changes to Friedman-cli are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to
 Semantic Versioning. Releases before v0.6.0 are recorded in the git tag history.
 
+## [1.0.4] — 2026-11-13 — MEMs 1.0.3, serialized data/model pipeline, REPL history, CLI help audit & runtime/build speedups (#245)
+
+MacroEconometricModels pin **1.0.2 → 1.0.3** (`#239`–`#247`), end-to-end serialized
+`.jld2`/`.jls` data & model pipeline with positional model auto-routing (`#240`, `#246`),
+Julia 1.13 persistent REPL command history (`#241`, `#247`), 478-leaf CLI `--help` &
+error-prefix audit (`#242`), and runtime hot-path & zero-probe launcher optimizations
+(`#243`). 477 registry leaves + top-level `schema` / `repl` unchanged.
+
+### MacroEconometricModels 1.0.3 (#239)
+
+- **MEMs `=1.0.3` pin (#239):** `Project.toml`, `test/integration/Project.toml`, and
+  `docs/Project.toml` moved to `MacroEconometricModels = "=1.0.3"`
+  (`git-tree-sha1 = e61f9dc6d7c564ff31d0ff014971bf55d90f2a20`). Verified full
+  T3 integration, mock-surface, plot-coverage, handle-kind, and docs-capture gates on
+  real MEMs 1.0.3.
+
+### Serialized Data/Model Pipeline & Auto-Routing (#240, #246)
+
+- **`.jls` & plain `.jld2` dataset loading & writers (`src/io.jl`, `src/model_handle.jl`, `src/handles.jl`):**
+  Tabular datasets saved via Julia `Serialization` (`.jls`) or plain `.jld2`
+  (`DataFrame`, `NamedTuple`, single-dataset `Dict`, or `Matrix`) now load seamlessly
+  across `data` commands and estimation leaves, and `data import`, `export`,
+  `transform`, `fix`, `dropna`, `keeprows`, `balance`, and `data simulate --save-data`
+  support `.jld2`/`.jls` serialization. Secondary handle flags (`--shock-var`,
+  `--factors`, `--instruments`) also resolve `.jld2`/`.jls` handles.
+- **Positional model auto-routing (`src/registry/adapter.jl`):** Passing a saved
+  model/solution handle positionally (`irf var var.jld2`, `fevd var var`, `hd var var`,
+  `forecast multivariate var var`) automatically routes into `--model` when the file is a
+  model/solution handle while keeping explicit `<data>` + `--model var|vecm` domain options
+  (such as `test multivariate granger`) un-hijacked.
+- **Expanded saved-model/solution handle support (`#246`):** Added/verified handle routing
+  and post-estimation reuse across `SVARModel`/`SVECModel`, `dsge` (RA/Bayes/CT/DCEGM/OLG),
+  `hadsge`, `policy`, and post-estimation `test` leaves.
+
+### Interactive REPL History & Completion (#241, #247)
+
+- **Julia 1.13 `LineEdit` history & persistent history file (`src/repl.jl`, `Project.toml`):**
+  Promoted `REPL` to a direct stdlib dependency, wired Julia 1.13 `LineEdit` `history_keymap`
+  merging so Up/Down arrow history navigation, Ctrl-R reverse search, and left/right cursor
+  editing work reliably, persisted command history across sessions in `~/.friedman_history`
+  (`FRIEDMAN_HISTORY_FILE` override), fixed Tab completion prefix replacement, and enabled
+  `.jld2`/`.jls` paths in `data use`.
+
+### CLI Help Hygiene & Error-Prefix Audit (#242)
+
+- **Family node summaries & help renderer (`src/registry/families.jl`, `src/cli/help.jl`):**
+  Added human-readable descriptions for all 60 depth-2 `NodeCommand`s, suppressed empty
+  `""`/`[]` and duplicate `(default: ...)` suffixes, surfaced `[choices: ...]` and
+  `(repeatable)` hints, added `repl` and Global Flags to root `--help`, and updated 242
+  stale pre-v1.0 command prefixes in error hints across command handlers.
+
+### Performance & Build Tooling (#243)
+
+- **Runtime hot-path optimizations:** Precomputed `known_opts`/`arg_syms`/`opt_syms`/`flag_syms`
+  on `LeafCommand`, hoisted adapter spec closures, replaced regex checks in `_looks_like_value`
+  and `_slug` with byte/IOBuffer scans, cached `_cached_mems_version()`, eliminated redundant
+  `Dict` copies in `dispatch_leaf` and `bind_args`, extracted column vectors once in
+  `_table_payload`, added concrete vector fast paths in `_json_safe`, and added a column-wise
+  `_fill_matrix_col!` barrier in `df_to_matrix`.
+- **Zero-probe release launcher & expanded sysimage workload:** Cached `.artifacts_ready`
+  and `.julia_cmd` in `build_release.jl`/`install.sh`/`install.ps1` so warm release
+  invocations skip redundant `julia --version` subprocess probes, skipped `Pkg.activate` in
+  `bin/friedman` when `--project` already matches the repo `Manifest.toml`, and expanded the
+  v1.0.4 sysimage precompile workload across core families, formats, handles, `schema`, and
+  completions.
+
 ## [1.0.3] — 2026-10-28 — MEMs 1.0.2, BVAR news decomposition, Uhlig penalty scale & MIDAS tidy forecast (#238)
 
 MacroEconometricModels pin **1.0.1 → 1.0.2** (`#233`–`#238`), BVAR nowcast news

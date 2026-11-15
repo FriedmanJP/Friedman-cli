@@ -73,6 +73,13 @@ function _x_handle_dict(spec::CommandSpec, name::String; is_arg::Bool=false)
             "types" => String[],
         )
     end
+    if is_arg && name == "model" && !isempty(spec.model_types)
+        return Dict{String,Any}(
+            "role" => "model",
+            "kinds" => String[],
+            "types" => String.(spec.model_types),
+        )
+    end
     is_arg && return nothing
     ospec = _option_spec(spec, name)
     (ospec === nothing || !ospec.handle) && return nothing

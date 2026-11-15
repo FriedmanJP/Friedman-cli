@@ -379,7 +379,7 @@ function did_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["did", "estimate"],
             summary="Staggered-adoption DiD estimation (twfe|cs|sa|bjs|dcdh) with event-time and overall ATT",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to panel CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to panel data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="outcome", type=String, default="", description="Outcome variable column name (required)"),
                 OptionSpec(name="treatment", type=String, default="", description="Treatment indicator column name (required)"),
@@ -412,7 +412,7 @@ function did_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["did", "event-study"],
             summary="Local-projection event-study DiD with pre-trend leads and post-treatment horizon",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to panel CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to panel data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="outcome", type=String, default="", description="Outcome variable column name (required)"),
                 OptionSpec(name="treatment", type=String, default="", description="Treatment indicator column name (required)"),
@@ -438,7 +438,7 @@ function did_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["did", "lp-did"],
             summary="LP-DiD estimation (Dube et al. 2023) with pre/post windows and clean-control options",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to panel CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to panel data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="outcome", type=String, default="", description="Outcome variable column name (required)"),
                 OptionSpec(name="treatment", type=String, default="", description="Treatment indicator column name (required)"),
@@ -476,7 +476,7 @@ function did_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["did", "test", "bacon"],
             summary="Goodman-Bacon (2021) decomposition of TWFE into 2x2 DiD comparisons with weights",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to panel CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to panel data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="outcome", type=String, default="", description="Outcome variable column name (required)"),
                 OptionSpec(name="treatment", type=String, default="", description="Treatment indicator column name (required)"),
@@ -496,7 +496,7 @@ function did_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["did", "test", "pretrend"],
             summary="Joint pre-trend (parallel-trends) test from a DiD or event-study fit",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to panel CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to panel data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="outcome", type=String, default="", description="Outcome variable column name (required)"),
                 OptionSpec(name="treatment", type=String, default="", description="Treatment indicator column name (required)"),
@@ -520,7 +520,7 @@ function did_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["did", "test", "negweight"],
             summary="Negative-weight diagnostic for TWFE (de Chaisemartin-D'Haultfoeuille 2020)",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to panel CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to panel data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="treatment", type=String, default="", description="Treatment indicator column name (required)"),
                 _DID_PANEL_OPTIONS...,
@@ -540,7 +540,7 @@ function did_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["did", "test", "honest"],
             summary="HonestDiD sensitivity analysis (Rambachan-Roth 2023) with violation bound Mbar",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to panel CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to panel data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="outcome", type=String, default="", description="Outcome variable column name (required)"),
                 OptionSpec(name="treatment", type=String, default="", description="Treatment indicator column name (required)"),

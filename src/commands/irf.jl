@@ -21,7 +21,7 @@ function irf_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["irf", "var"],
             summary="Compute frequentist impulse response functions",
-            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            args=[ArgSpec(name="data", description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto)"),
                 OptionSpec(name="shock", type=Int, default=1, description="Shock variable index (1-based)"),
@@ -65,7 +65,7 @@ function irf_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["irf", "bvar"],
             summary="Compute Bayesian impulse response functions with credible intervals",
-            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            args=[ArgSpec(name="data", description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="Lag order"),
                 OptionSpec(name="shock", type=Int, default=1, description="Shock variable index (1-based)"),
@@ -91,7 +91,7 @@ function irf_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["irf", "tvpvar"],
             summary="Date-specific IRF from a TVP-VAR-SV",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="date", type=Int, default=0, description="Date index in 1:T_eff to evaluate the IRF at (REQUIRED)"),
                 OptionSpec(name="horizons", type=Int, default=20, description="IRF horizon"),
@@ -118,7 +118,7 @@ function irf_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["irf", "lp"],
             summary="Compute structural LP impulse response functions",
-            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            args=[ArgSpec(name="data", description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="shock", type=Int, default=1, description="Single shock index (1-based; overridden by --shocks when both are given)"),
                 OptionSpec(name="shocks", type=String, default="", description="Comma-separated shock indices, e.g. 1,2,3 (overrides --shock when both are given)"),
@@ -146,7 +146,7 @@ function irf_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["irf", "vecm"],
             summary="Compute impulse response functions via VECM → VAR representation (direct VECM under --id svec)",
-            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            args=[ArgSpec(name="data", description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels)"),
                 OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
@@ -171,7 +171,7 @@ function irf_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["irf", "pvar"],
             summary="Compute Panel VAR impulse response functions (OIRF/GIRF)",
-            args=[ArgSpec(name="data", description="Path to CSV panel data file")],
+            args=[ArgSpec(name="data", description="Path to panel data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="id-col", type=String, default="", description="Panel group identifier column"),
                 OptionSpec(name="time-col", type=String, default="", description="Time period column"),
@@ -197,7 +197,7 @@ function irf_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["irf", "favar"],
             summary="FAVAR impulse response functions",
-            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            args=[ArgSpec(name="data", description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="factors", short="r", type=Int, default=nothing, description="Number of factors (default: auto)"),
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="VAR lag order"),
@@ -220,7 +220,7 @@ function irf_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["irf", "sdfm"],
             summary="Structural DFM impulse response functions (panel-wide)",
-            args=[ArgSpec(name="data", description="Path to CSV data file")],
+            args=[ArgSpec(name="data", description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="factors", short="q", type=Int, default=nothing, description="Number of dynamic factors (default: auto via --q-method)"),
                 OptionSpec(name="id", type=String, default="cholesky", description=_SDFM_ID_DESC),
@@ -248,12 +248,12 @@ function irf_specs()::Vector{CommandSpec}
 end
 
 const _IRF_SLOT_TYPES = Dict{Vector{String},Tuple{Vector{Symbol},Vector{Symbol}}}(
-    ["irf", "var"]    => ([:VARModel],
+    ["irf", "var"]    => ([:VARModel, :SVARModel],
                           [:ImpulseResponse, :AriasSVARResult, :UhligSVARResult, :SignIdentifiedSet]),
     ["irf", "bvar"]   => ([:BVARPosterior], [:BayesianImpulseResponse, :RobustBayesResult]),
     ["irf", "tvpvar"] => ([:TVPVARPosterior], [:BayesianImpulseResponse]),
     ["irf", "lp"]     => ([:StructuralLP], [:ImpulseResponse]),
-    ["irf", "vecm"]   => ([:VECMModel], [:ImpulseResponse]),
+    ["irf", "vecm"]   => ([:VECMModel, :SVECResult], [:ImpulseResponse]),
     ["irf", "pvar"]   => ([:PVARModel], Symbol[]),
     ["irf", "favar"]  => ([:FAVARModel], [:ImpulseResponse]),
     ["irf", "sdfm"]   => ([:StructuralDFM], [:ImpulseResponse]),
@@ -285,6 +285,44 @@ function _irf_var(; data::String="", result=nothing, model=nothing, lags=nothing
                             id, horizons, horizons_default=20)
     loaded === nothing || return _rerender_irf_result(loaded; format, output,
         title="Impulse Responses", key="irf", plot, plot_save, shock)
+    if model isa SVARModel
+        id in ("cholesky", "svar") || throw(CliError("usage/invalid",
+            "irf var: SVARModel is already structurally identified; omit --id (got --id $id)"))
+        identified_set && throw(CliError("usage/invalid",
+            "irf var: --identified-set does not apply to SVARModel"))
+        summary == "none" || throw(CliError("usage/invalid",
+            "irf var: --summary does not apply to SVARModel"))
+        boot = lowercase(strip(bootstrap))
+        boot in ("iid", "wild", "block") || throw(CliError("usage/invalid-option",
+            "invalid --bootstrap '$bootstrap'; must be iid, wild or block"))
+        wdist = lowercase(strip(wild_dist))
+        wdist in ("rademacher", "mammen") || throw(CliError("usage/invalid-option",
+            "invalid --wild-dist '$wild_dist'; must be rademacher or mammen"))
+        block_length >= 0 || throw(CliError("usage/invalid", "--block-length must be ≥ 0 (got $block_length)"))
+        bias_reps >= 0 || throw(CliError("usage/invalid", "--bias-reps must be ≥ 0 (got $bias_reps)"))
+        svar_kw = Dict{Symbol,Any}(:ci_type => Symbol(ci), :reps => replications)
+        if ci == "bootstrap"
+            svar_kw[:bootstrap] = Symbol(boot)
+            svar_kw[:block_length] = block_length
+            svar_kw[:wild_dist] = Symbol(wdist)
+            svar_kw[:bias_correct] = bias_correct
+            svar_kw[:bias_reps] = bias_reps
+        end
+        stationary_only && (svar_kw[:stationary_only] = true)
+        isnothing(_SEED[]) || (svar_kw[:seed] = _SEED[])
+        irf_result = try
+            irf(model, horizons; svar_kw...)
+        catch e
+            throw(_domain_or_data_error(e, "SVAR IRF"))
+        end
+        cumulative && (irf_result = cumulative_irf(irf_result))
+        _maybe_plot(irf_result; plot=plot, plot_save=plot_save)
+        _status_report(() -> report(irf_result))
+        shock_name = irf_result.shocks[shock]
+        _emit_result(irf_result; title="IRF to $shock_name shock (svar identification)", key="irf",
+                     format=Symbol(format), output=output, shocks=shock_name)
+        return (; model, result=irf_result)
+    end
     if isnothing(model)
         model, Y, varnames, p = _load_and_estimate_var(data, lags)
     else
@@ -697,6 +735,23 @@ function _irf_vecm(; data::String="", result=nothing, lags::Int=2, rank::String=
                             id, horizons, horizons_default=20)
     loaded === nothing || return _rerender_irf_result(loaded; format, output,
         title="Impulse Responses", key="vecm_irf", plot, plot_save, shock)
+    if model isa SVECResult
+        id in ("cholesky", "svec") || throw(CliError("usage/invalid",
+            "irf vecm: SVECResult is already structurally identified; omit --id (got --id $id)"))
+        ci == "none" || throw(CliError("usage/invalid",
+            "irf vecm: SVECResult supports only --ci none (got --ci $ci)"))
+        irf_result = try
+            irf(model, horizons; ci_type=:none)
+        catch e
+            throw(_domain_or_data_error(e, "SVEC IRF"))
+        end
+        _maybe_plot(irf_result; plot=plot, plot_save=plot_save)
+        _status_report(() -> report(irf_result))
+        shock_name = irf_result.shocks[shock]
+        _emit_result(irf_result; title="VECM IRF to $shock_name shock (svec identification)",
+                     key="vecm_irf", format=Symbol(format), output=output, shocks=shock_name)
+        return (; model, result=irf_result)
+    end
     if isnothing(model)
         vecm, Y, varnames, p = _load_and_estimate_vecm(data, lags, rank, deterministic, "johansen", 0.05)
         var_model = to_var(vecm)

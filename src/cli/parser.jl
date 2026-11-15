@@ -37,7 +37,15 @@ end
 ParsedArgs(pos, opts, flags) = ParsedArgs(pos, opts, flags, Dict{String,Vector{String}}())
 
 """True if `t` looks like an option value (not a flag), including negative numbers (F2)."""
-_looks_like_value(t::AbstractString) = !startswith(t, "-") || occursin(r"^-(\.?\d)", t)
+function _looks_like_value(t::AbstractString)
+    n = ncodeunits(t)
+    n == 0 && return true
+    codeunit(t, 1) != UInt8('-') && return true
+    n >= 2 || return false
+    b = codeunit(t, 2)
+    (UInt8('0') <= b <= UInt8('9')) && return true
+    return b == UInt8('.') && n >= 3 && (UInt8('0') <= codeunit(t, 3) <= UInt8('9'))
+end
 
 """
     tokenize(tokens) → ParsedArgs
@@ -174,17 +182,23 @@ end
 
 """Levenshtein distance (F1 suggestions)."""
 function _levenshtein(a::AbstractString, b::AbstractString)
-    m, n = length(a), length(b)
-    d = zeros(Int, m + 1, n + 1)
-    for i in 0:m; d[i+1, 1] = i; end
-    for j in 0:n; d[1, j+1] = j; end
-    for j in 1:n
-        for i in 1:m
-            cost = a[i] == b[j] ? 0 : 1
-            d[i+1, j+1] = min(d[i, j+1] + 1, d[i+1, j] + 1, d[i, j] + cost)
+    ca = collect(a)
+    cb = collect(b)
+    m, n = length(ca), length(cb)
+    m == 0 && return n
+    n == 0 && return m
+    prev = collect(0:n)
+    curr = Vector{Int}(undef, n + 1)
+    for i in 1:m
+        curr[1] = i
+        ai = ca[i]
+        for j in 1:n
+            cost = ai == cb[j] ? 0 : 1
+            curr[j+1] = min(prev[j+1] + 1, curr[j] + 1, prev[j] + cost)
         end
+        prev, curr = curr, prev
     end
-    return d[m+1, n+1]
+    return prev[n+1]
 end
 
 """Nearest known option within distance 2, else `nothing`."""
@@ -208,73 +222,82 @@ Bind parsed tokens to a LeafCommand's declared arguments, options, and flags.
 Unknown options throw ParseError with a did-you-mean hint (F1).
 """
 function bind_args(parsed::ParsedArgs, cmd::LeafCommand)
-    # Bind positional arguments
-    pos_values = Dict{Symbol,Any}()
-    # --model PATH.fmod makes <data> optional (C029): model handle skips re-estimation
-    model_set = haskey(parsed.options, "model") && !isempty(parsed.options["model"])
-    result_set = haskey(parsed.options, "result") && !isempty(parsed.options["result"])
-
-    for (idx, arg) in enumerate(cmd.args)
-        if idx <= length(parsed.positional)
-            pos_values[Symbol(arg.name)] = convert_value(arg.type, parsed.positional[idx], arg.name)
-        elseif arg.required
-            if (model_set || result_set) && arg.name == "data"
-                pos_values[Symbol(arg.name)] = something(arg.default, "")
-            else
-                throw(ParseError("missing required argument: <$(arg.name)>"))
-            end
-        else
-            pos_values[Symbol(arg.name)] = arg.default
-        end
-    end
-
-    # Check for excess positional args
-    if length(parsed.positional) > length(cmd.args)
-        extras = parsed.positional[length(cmd.args)+1:end]
-        throw(ParseError("unexpected arguments: $(join(extras, ", "))"))
-    end
-
     # Unknown option / flag detection (F1)
-    known = Set{String}()
-    for o in cmd.options
-        push!(known, o.name)
-        isempty(o.short) || push!(known, o.short)
-    end
-    for f in cmd.flags
-        push!(known, f.name)
-        isempty(f.short) || push!(known, f.short)
-    end
-    push!(known, "help"); push!(known, "h")
-    for k in union(keys(parsed.options), parsed.flags, keys(parsed.multi))
+    known = cmd.known_opts
+    for k in keys(parsed.options)
         if !(k in known)
             sugg = _nearest(k, known)
             hint = sugg === nothing ? "" : " — did you mean --$sugg?"
             throw(ParseError("unknown option --$k$hint"))
         end
     end
+    for k in parsed.flags
+        if !(k in known)
+            sugg = _nearest(k, known)
+            hint = sugg === nothing ? "" : " — did you mean --$sugg?"
+            throw(ParseError("unknown option --$k$hint"))
+        end
+    end
+    if !isempty(parsed.multi)
+        for k in keys(parsed.multi)
+            if !(k in known)
+                sugg = _nearest(k, known)
+                hint = sugg === nothing ? "" : " — did you mean --$sugg?"
+                throw(ParseError("unknown option --$k$hint"))
+            end
+        end
+    end
+
+    # Single Dict holds positional + option + flag bindings (converted to NamedTuple)
+    bound = Dict{Symbol,Any}()
+    sizehint!(bound, length(cmd.args) + length(cmd.options) + length(cmd.flags))
+
+    # --model PATH.fmod makes <data> optional (C029): model handle skips re-estimation
+    model_val = get(parsed.options, "model", "")
+    result_val = get(parsed.options, "result", "")
+    model_set = !isempty(model_val)
+    result_set = !isempty(result_val)
+
+    n_pos = length(parsed.positional)
+    for (idx, arg) in enumerate(cmd.args)
+        asym = cmd.arg_syms[idx]
+        if idx <= n_pos
+            bound[asym] = convert_value(arg.type, parsed.positional[idx], arg.name)
+        elseif arg.required
+            if (model_set && arg.name == "data") || (result_set && arg.name in ("data", "model"))
+                bound[asym] = something(arg.default, "")
+            else
+                throw(ParseError("missing required argument: <$(arg.name)>"))
+            end
+        else
+            bound[asym] = arg.default
+        end
+    end
+
+    # Check for excess positional args
+    if n_pos > length(cmd.args)
+        extras = parsed.positional[length(cmd.args)+1:end]
+        throw(ParseError("unexpected arguments: $(join(extras, ", "))"))
+    end
 
     # Bind options
-    opt_values = Dict{Symbol,Any}()
-    for opt in cmd.options
-        key = Symbol(replace(opt.name, "-" => "_"))
+    for (idx, opt) in enumerate(cmd.options)
+        key = cmd.opt_syms[idx]
         if opt.repeatable
-            # Repeatable: the handler receives every occurrence, in order,
-            # whether given by long name or short alias.
             vals = get(parsed.multi, opt.name, String[])
             if isempty(vals) && !isempty(opt.short)
                 vals = get(parsed.multi, opt.short, String[])
             end
-            opt_values[key] = vals
+            bound[key] = vals
         else
-            opt_values[key] = resolve_option(parsed, opt)
+            bound[key] = resolve_option(parsed, opt)
         end
     end
 
     # Bind flags
-    flag_values = Dict{Symbol,Any}()
-    for flag in cmd.flags
-        flag_values[Symbol(replace(flag.name, "-" => "_"))] = resolve_flag(parsed, flag)
+    for (idx, flag) in enumerate(cmd.flags)
+        bound[cmd.flag_syms[idx]] = resolve_flag(parsed, flag)
     end
 
-    return (; pos_values..., opt_values..., flag_values...)
+    return (; bound...)
 end

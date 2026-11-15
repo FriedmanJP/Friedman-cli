@@ -22,22 +22,23 @@ bin/friedman ARGS
 ## Data Flow
 
 CSV is the **import** format, not the working format. Commands take a **stem**;
-`.jld2` is native storage (MEMs `save_model` / `load_model`), not part of the
-argv contract. **Result** handles (`--result` / `--save-result`) and
+`.jld2` is native storage (MEMs `save_model` / `load_model`, plus plain `.jld2`
+tabular datasets), and `.jls` supports Julia `Serialization` handles, not part
+of the argv contract. **Result** handles (`--result` / `--save-result`) and
 `friedman show STEM` (render any loadable handle) work the same stem way.
 
 ```
-CSV | :example
+CSV | :example | data simulate --save-data STEM
         │
         ▼
 data import --kind timeseries|panel|cross-section [-o STEM]
         │
         ▼
-STEM.jld2     TimeSeriesData | PanelData | CrossSectionData
+STEM.jld2 | STEM.jls     TimeSeriesData | PanelData | CrossSectionData | DataFrame
         │
         ├─ data describe|diagnose|validate     (read, real type)
         ├─ data fix|transform|dropna|keeprows|balance
-        │       -o STEM'     →  same type, STEM'.jld2
+        │       -o STEM'     →  same type, STEM'.jld2 | STEM'.jls
         │       -o file.csv  →  CSV export; stderr: metadata dropped
         ├─ data export STEM  →  CSV (inverse of import)
         │
@@ -45,7 +46,7 @@ STEM.jld2     TimeSeriesData | PanelData | CrossSectionData
 estimate multivariate var STEM --save-model var         # stem → var.jld2
         │
         ▼
-irf var --model var --save-result irf      # --model stem → var.jld2
+irf var --model var --save-result irf      # or positional: irf var var.jld2
 friedman show irf                          # stem → irf.jld2 (no CSV fallback)
 friedman show var                          # fitted model table / fields
 forecast evaluate metrics STEM --actual gdp --result fcst_var,fcst_bvar
@@ -57,7 +58,7 @@ estimate multivariate var macro.csv --lags 2
 
 ### Stem resolution
 
-**Save** (`data import -o`, data-edit `-o`, and a *present* `--save-model`):
+**Save** (`data import -o`, data-edit `-o`, `data simulate --save-data`, and a *present* `--save-model`):
 
 - **Data-edit `-o` only:** empty / omitted → leaf-specific default stem, then
   the rule below. (`--save-model` omitted means do not save — it is not a
@@ -65,22 +66,27 @@ estimate multivariate var macro.csv --lags 2
 - No suffix → append `.jld2` and use native `save_model`.
 - `.jld2` → native `save_model` (including `data import … -o out.jld2`, the
   intended CSV→typed conversion).
+- `.jls` → Julia `Serialization` handle (data, models, results).
 - `.fmod` → interim Serialization handle (unregistered types).
 - `.csv` on a **data-edit** output → CSV export (frequency/tcode/dates dropped).
 - **Data-edit** of a CSV with `-o out.jld2` → `usage/invalid` (run
   `data import` first). This edit refusal does **not** apply to `data import`
   itself.
 
-**Load** (data positional / `data export`; `--model` / `--result` / `show`):
+**Load** (data positional / `data export` / secondary `--shock-var`/`--factors`/`--instruments`; `--model` / `--result` / `show`):
 
 1. **Data slots:** resolve stem — `path.jld2` if that file exists (preferred),
-   else `path.csv`, else exact `path` (`.fmod`, `.toml` DSGE specs,
+   else `path.csv`, else `path.jls` / exact `path` (`.fmod`, `.toml` DSGE specs,
    extensionless files). Else `data/file-not-found` (exit 3).
-2. **`--model`:** when the leaf's `model_types` is nonempty,
-   `resolve_stem(; slot=:result)` — `STEM.jld2` if that file exists (no CSV
-   fallback), then type-check. Empty `model_types` (DSGE builtins,
-   `data validate --model`) still requires an explicit suffix / URI.
-   `model info` still wants `.jld2` / `.fmod` / `model://`.
+2. **`--model` (and positional model auto-routing):** when the leaf's
+   `model_types` is nonempty, `resolve_stem(; slot=:result)` — `STEM.jld2` if
+   that file exists (no CSV fallback), then type-check. In `wrap_legacy`, passing
+   a saved model/solution handle positionally on leaves declaring `model_types`
+   auto-routes it into `--model` (while explicit `<data>` + domain `--model`
+   values such as `test multivariate granger --model var|vecm` stay untouched).
+   Empty `model_types` (DSGE builtins, `data validate --model`) requires an
+   explicit suffix / URI. `model info` accepts `.jld2` / `.jls` / `.fmod` /
+   `model://`.
 3. **`--result` / `friedman show STEM`:** `resolve_stem(; slot=:result)` —
    `STEM.jld2` if that file exists, else the exact path. No CSV fallback
    (show is for loadable handles, not import). Bundles emit a keys-only
@@ -91,14 +97,14 @@ estimate multivariate var macro.csv --lags 2
    `model/unsupported` (exit 5).
 
 If both `macro.jld2` and `macro.csv` exist, the handle wins on data slots.
-Explicit suffixes skip the search (`macro.csv` is CSV, `var.jld2` is a
+Explicit suffixes skip the search (`macro.csv` is CSV, `var.jld2` or `var.jls` is a
 handle). `model://name` is the serve-session URI and is not stem-expanded.
 `:fred_md` example names are unchanged.
 
 `wrap_legacy` type-checks a loaded data handle against the leaf's
 registry-declared `data_kinds` **before** the handler runs. A mismatch is
 `data/wrong-kind` (exit 3) — e.g. a `PanelData` handle on `estimate multivariate var`. CSV
-remains legal on every leaf that lists `:csv`. On leaves declaring `result_types`, `--result` of a type not in
+and plain `.jld2`/`.jls` tabular datasets remain legal on every leaf that lists `:csv`. On leaves declaring `result_types`, `--result` of a type not in
 `result_types` is `data/wrong-result` (exit 3); `--model` of a type not in
 `model_types` is `model/wrong-kind` (exit 5). `--result` cannot be combined
 with `--model` or a data path (`usage/invalid`) — except `forecast evaluate`'s `--result`, which is a comma-separated string (not a result handle).
@@ -208,12 +214,12 @@ src/
     envelope.jl           # versioned JSON envelope
     render.jl             # table / CSV / JSON renderers
   config.jl               # TOML loaders (priors, identification, GMM/SMM, DSGE, systems)
-  model_handle.jl         # save_model_dispatch / load_model_dispatch (.jld2 | .fmod | model://)
+  model_handle.jl         # save_model_dispatch / load_model_dispatch (.jld2 | .jls | .fmod | model://)
   handles.jl              # stem resolver, data-kind check, typed persist
   registry/
     spec.jl               # CommandSpec (data_kinds / model_types / result_types)
-    adapter.jl            # wrap_legacy: stem-resolve + type-check + save
-    families.jl           # shared family option sets + regroup replacements
+    adapter.jl            # wrap_legacy: stem-resolve + positional model auto-route + type-check + save
+    families.jl           # shared family option sets, node descriptions + regroup replacements
   commands/
     shared.jl             # shared estimation/output helpers
     estimate.jl           # estimate family

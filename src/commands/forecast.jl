@@ -33,7 +33,7 @@ function forecast_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["forecast", "arfima"],
             summary="ARFIMA forecast with fractional-filter truncation and interval bands",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
                 OptionSpec(name="p", type=Int, default=0, description="AR order"),
@@ -98,7 +98,7 @@ function forecast_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["forecast", "igarch"],
             summary="IGARCH volatility forecast with interval level",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
                 OptionSpec(name="p", type=Int, default=1, description="GARCH order p"),
@@ -120,7 +120,7 @@ function forecast_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["forecast", "cgarch"],
             summary="CGARCH volatility forecast with interval level",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
                 OptionSpec(name="horizons", short="H", type=Int, default=10, description="Forecast horizons (≥ 1)"),
@@ -140,7 +140,7 @@ function forecast_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["forecast", "aparch"],
             summary="APARCH volatility forecast with interval level",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
                 OptionSpec(name="p", type=Int, default=1, description="GARCH order p"),
@@ -164,7 +164,7 @@ function forecast_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["forecast", "figarch"],
             summary="FIGARCH volatility forecast with interval level",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
                 OptionSpec(name="p", type=Int, default=1, description="GARCH order p"),
@@ -189,7 +189,7 @@ function forecast_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["forecast", "fiegarch"],
             summary="FIEGARCH volatility forecast with interval level",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
                 OptionSpec(name="p", type=Int, default=1, description="GARCH order p"),
@@ -214,13 +214,13 @@ function forecast_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["forecast", "garch-midas"],
             summary="GARCH-MIDAS variance forecast split into long-run/short-run components (no interval level)",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
                 OptionSpec(name="m-freq", type=Int, default=0, description="High-frequency observations per low-frequency block (required, ≥ 1)"),
                 OptionSpec(name="k", type=Int, default=12, description="Number of MIDAS lags"),
                 OptionSpec(name="rv", type=String, default="realized", description="Long-run driver", choices=["realized","macro"]),
-                OptionSpec(name="span", type=String, default="fixed", description="Span", choices=["fixed","rolling"]),
+                OptionSpec(name="span", type=String, default="fixed", description="Forecast span window scheme", choices=["fixed","rolling"]),
                 OptionSpec(name="config", type=String, default="", description="TOML with [garch_midas] x_lf (required for --rv macro)"),
                 OptionSpec(name="horizons", short="H", type=Int, default=10, description="Forecast horizons (≥ 1)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -237,7 +237,7 @@ function forecast_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["forecast", "var"],
             summary="Unconditional VAR forecast with analytical or bootstrap intervals",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto)"),
                 OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon"),
@@ -257,7 +257,7 @@ function forecast_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["forecast", "scenario"],
             summary="Waggoner-Zha conditional (scenario) forecast",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="conditions-file", type=String, default="", description="REQUIRED long-format CSV: variable,period,value[,sd]"),
                 OptionSpec(name="method", type=String, default="var", description="Model to condition: var|bvar", choices=["var","bvar"]),
@@ -282,7 +282,7 @@ function forecast_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["forecast", "bvar"],
             summary="BVAR posterior-mean forecast with fixed 68% credible bands",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="Lag order"),
                 OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon"),
@@ -301,7 +301,7 @@ function forecast_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["forecast", "lp"],
             summary="Local-projection forecast along a fixed shock path",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="shock", type=Int, default=1, description="Shock variable index (1-based)"),
                 OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon"),
@@ -325,7 +325,7 @@ function forecast_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["forecast", "arima"],
             summary="ARIMA point forecast with interval bands (auto or fixed order)",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
                 OptionSpec(name="p", type=Int, default=nothing, description="AR order (default: auto selection)"),
@@ -362,7 +362,7 @@ function forecast_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["forecast", "setar"],
             summary="Bootstrap-simulation threshold forecast for self-exciting models",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
                 OptionSpec(name="p", type=Int, default=1, description="AR order (≥ 1)"),
@@ -390,7 +390,7 @@ function forecast_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["forecast", "star"],
             summary="Bootstrap-simulation STAR forecast for self-exciting models",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
                 OptionSpec(name="p", type=Int, default=1, description="AR order (≥ 1)"),
@@ -413,7 +413,7 @@ function forecast_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["forecast", "sarima"],
             summary="SARIMA point forecast with interval bands (auto or fixed order)",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[SARIMA_OPTIONS...,
                 OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon (>= 1)"),
                 OptionSpec(name="ci-level", type=Float64, default=0.95, description="Band coverage, 0 < level < 1"),
@@ -435,7 +435,7 @@ function forecast_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["forecast", "ms-ar"],
             summary="Regime-averaged MS-AR forecast over simulated regime paths",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
                 OptionSpec(name="p", type=Int, default=1, description="AR order (≥ 1)"),
@@ -456,7 +456,7 @@ function forecast_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["forecast", "ms"],
             summary="Switching-regression forecast over future regressors (or intercept-only horizons)",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
                 OptionSpec(name="k-regimes", type=Int, default=2, description="Number of regimes (≥ 2)"),
@@ -478,7 +478,7 @@ function forecast_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["forecast", "static"],
             summary="Static-factor observable forecast reconstructed from factors",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="nfactors", short="r", type=Int, default=nothing, description="Number of factors (default: auto via IC)"),
                 OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon"),
@@ -498,7 +498,7 @@ function forecast_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["forecast", "dynamic"],
             summary="Dynamic-factor observable forecast reconstructed from factors",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="nfactors", short="r", type=Int, default=nothing, description="Number of factors (default: auto)"),
                 OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon"),
@@ -518,7 +518,7 @@ function forecast_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["forecast", "gdfm"],
             summary="GDFM observable forecast reconstructed from factors",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="nfactors", short="r", type=Int, default=nothing, description="Number of static factors (default: auto)"),
                 OptionSpec(name="dynamic-rank", short="q", type=Int, default=nothing, description="Dynamic rank (default: auto)"),
@@ -539,7 +539,7 @@ function forecast_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["forecast", "sdfm"],
             summary="SDFM observable forecast reconstructed from factors",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="factors", short="q", type=Int, default=nothing, description="Number of dynamic factors (default: auto via --q-method)"),
                 OptionSpec(name="id", type=String, default="cholesky", description=_SDFM_ID_DESC),
@@ -568,7 +568,7 @@ function forecast_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["forecast", "vecm"],
             summary="Level VECM forecast with optional bootstrap/parametric intervals",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels)"),
                 OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
@@ -591,7 +591,7 @@ function forecast_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["forecast", "favar"],
             summary="FAVAR factor-level (or --panel-forecast panel-wide) forecast",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="factors", short="r", type=Int, default=nothing, description="Number of factors (default: auto)"),
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="VAR lag order"),
@@ -615,7 +615,7 @@ function forecast_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["forecast", "evaluate", "metrics"],
             summary="Point forecast-accuracy metrics (ME/MAE/RMSE/MAPE/sMAPE/MASE/U1/U2) + Theil decomposition",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=vcat([
                 OptionSpec(name="actual", type=String, default="", description="Realized-values column name (required)"),
                 OptionSpec(name="forecasts", type=String, default="", description="Forecast column names, comma-separated (required, >=1)"),
@@ -635,7 +635,7 @@ function forecast_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["forecast", "evaluate", "dm"],
             summary="Diebold-Mariano (1995) equal-predictive-accuracy test (exactly 2 forecasts)",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=vcat([
                 OptionSpec(name="actual", type=String, default="", description="Realized-values column name (required)"),
                 OptionSpec(name="forecasts", type=String, default="", description="Two forecast column names, comma-separated (required)"),
@@ -652,7 +652,7 @@ function forecast_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["forecast", "evaluate", "clark-west"],
             summary="Clark-West (2007) adjusted-MSPE test for nested models (exactly 2 forecasts: small then big)",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=vcat([
                 OptionSpec(name="actual", type=String, default="", description="Realized-values column name (required)"),
                 OptionSpec(name="forecasts", type=String, default="", description="Two forecast columns: small (restricted), big (unrestricted)"),
@@ -668,7 +668,7 @@ function forecast_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["forecast", "evaluate", "mincer-zarnowitz"],
             summary="Mincer-Zarnowitz (1969) forecast-efficiency regression (exactly 1 forecast)",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=vcat([
                 OptionSpec(name="actual", type=String, default="", description="Realized-values column name (required)"),
                 OptionSpec(name="forecasts", type=String, default="", description="One forecast column name (required)"),
@@ -684,7 +684,7 @@ function forecast_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["forecast", "evaluate", "encompassing"],
             summary="Harvey-Leybourne-Newbold (1998) forecast-encompassing test (exactly 2 forecasts)",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=vcat([
                 OptionSpec(name="actual", type=String, default="", description="Realized-values column name (required)"),
                 OptionSpec(name="forecasts", type=String, default="", description="Two forecast column names, comma-separated (required)"),
@@ -700,7 +700,7 @@ function forecast_specs()::Vector{CommandSpec}
         CommandSpec(
             path=["forecast", "evaluate", "combine"],
             summary="Forecast combination (equal / Bates-Granger / Granger-Ramanathan weights; >=2 forecasts)",
-            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file")],
+            args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=vcat([
                 OptionSpec(name="actual", type=String, default="", description="Realized-values column name (required)"),
                 OptionSpec(name="forecasts", type=String, default="", description="Forecast column names, comma-separated (required, >=2)"),
@@ -762,7 +762,7 @@ function _forecast_var(; data::String="", result=nothing, model=nothing, lags=no
                         confidence::Float64=0.95, ci_method::String="analytical",
                         output::String="", format::String="table",
                         plot::Bool=false, plot_save::String="")
-    loaded = _loaded_result(result; data, model, lags, check_lags=true, leaf="forecast var")
+    loaded = _loaded_result(result; data, model, lags, check_lags=true, leaf="forecast multivariate var")
     loaded === nothing || return _rerender_long_table(loaded; format, output,
         title="VAR Forecast", key="var_forecast", plot, plot_save)
     if isnothing(model)
@@ -814,7 +814,7 @@ function _forecast_bvar(; data::String="", result=nothing, lags::Int=4, horizons
                          output::String="", format::String="table",
                          plot::Bool=false, plot_save::String="",
                          model=nothing)
-    loaded = _loaded_result(result; data, model, leaf="forecast bvar")
+    loaded = _loaded_result(result; data, model, leaf="forecast multivariate bvar")
     loaded === nothing || return _rerender_long_table(loaded; format, output,
         title="Bayesian VAR Forecast", key="bvar_forecast", plot, plot_save)
     if isnothing(model)
@@ -854,7 +854,7 @@ function _forecast_lp(; data::String="", result=nothing, shock::Int=1, horizons:
                        output::String="", format::String="table",
                        plot::Bool=false, plot_save::String="",
                        model=nothing)
-    loaded = _loaded_result(result; data, model, leaf="forecast lp")
+    loaded = _loaded_result(result; data, model, leaf="forecast multivariate lp")
     loaded === nothing || return _rerender_long_table(loaded; format, output,
         title="LP Forecast", key="lp_forecast", plot, plot_save)
     if isnothing(model)
@@ -892,7 +892,7 @@ function _forecast_arima(; data::String="", result=nothing, column::Int=1, p=not
                            format::String="table", output::String="",
                            plot::Bool=false, plot_save::String="",
                            model=nothing)
-    loaded = _loaded_result(result; data, model, leaf="forecast arima")
+    loaded = _loaded_result(result; data, model, leaf="forecast univariate arima")
     loaded === nothing || return _rerender_long_table(loaded; format, output,
         title="ARIMA Forecast", key="arima_forecast", plot, plot_save)
     if isnothing(model)
@@ -942,14 +942,14 @@ end
 function _forecast_setar(; data::String="", result=nothing, column::Int=1, p::Int=1, d::String="1",
                           horizons::Int=12, reps::Int=1000, ci_level::Float64=0.95,
                           format::String="table", output::String="", model=nothing)
-    loaded = _loaded_result(result; data, model, leaf="forecast setar")
+    loaded = _loaded_result(result; data, model, leaf="forecast regime setar")
     loaded === nothing || return _rerender_long_table(loaded; format, output,
         title="SETAR Forecast", key="setar_forecast")
-    p >= 1 || throw(CliError("usage/invalid", "forecast setar: --p must be ≥ 1 (got $p)"))
+    p >= 1 || throw(CliError("usage/invalid", "forecast regime setar: --p must be ≥ 1 (got $p)"))
     (ci_level == 0.90 || ci_level == 0.95 || ci_level == 0.99) || throw(CliError("usage/invalid",
-        "forecast setar: --ci-level must be exactly 0.90, 0.95, or 0.99 (got $ci_level)"))
-    horizons >= 1 || throw(CliError("usage/invalid", "forecast setar: --horizons must be ≥ 1 (got $horizons)"))
-    reps >= 1 || throw(CliError("usage/invalid", "forecast setar: --reps must be ≥ 1 (got $reps)"))
+        "forecast regime setar: --ci-level must be exactly 0.90, 0.95, or 0.99 (got $ci_level)"))
+    horizons >= 1 || throw(CliError("usage/invalid", "forecast regime setar: --horizons must be ≥ 1 (got $horizons)"))
+    reps >= 1 || throw(CliError("usage/invalid", "forecast regime setar: --reps must be ≥ 1 (got $reps)"))
     d_arg = _parse_setar_delay(d)
     vname = "y"
     if isnothing(model)
@@ -985,18 +985,18 @@ function _forecast_star(; data::String="", result=nothing, column::Int=1, p::Int
                          type::String="auto", horizons::Int=12, reps::Int=1000,
                          ci_level::Float64=0.95, format::String="table", output::String="",
                          model=nothing)
-    loaded = _loaded_result(result; data, model, leaf="forecast star")
+    loaded = _loaded_result(result; data, model, leaf="forecast regime star")
     loaded === nothing || return _rerender_long_table(loaded; format, output,
         title="STAR Forecast", key="star_forecast")
-    p >= 1 || throw(CliError("usage/invalid", "forecast star: --p must be ≥ 1 (got $p)"))
-    d >= 1 || throw(CliError("usage/invalid", "forecast star: --d must be ≥ 1 (got $d)"))
-    horizons >= 1 || throw(CliError("usage/invalid", "forecast star: --horizons must be ≥ 1 (got $horizons)"))
-    reps >= 1 || throw(CliError("usage/invalid", "forecast star: --reps must be ≥ 1 (got $reps)"))
+    p >= 1 || throw(CliError("usage/invalid", "forecast regime star: --p must be ≥ 1 (got $p)"))
+    d >= 1 || throw(CliError("usage/invalid", "forecast regime star: --d must be ≥ 1 (got $d)"))
+    horizons >= 1 || throw(CliError("usage/invalid", "forecast regime star: --horizons must be ≥ 1 (got $horizons)"))
+    reps >= 1 || throw(CliError("usage/invalid", "forecast regime star: --reps must be ≥ 1 (got $reps)"))
     (ci_level == 0.90 || ci_level == 0.95 || ci_level == 0.99) || throw(CliError("usage/invalid",
-        "forecast star: --ci-level must be exactly 0.90, 0.95, or 0.99 (got $ci_level)"))
+        "forecast regime star: --ci-level must be exactly 0.90, 0.95, or 0.99 (got $ci_level)"))
     ttype = Symbol(type)
     ttype in (:lstr1, :lstr2, :estr, :auto) || throw(CliError("usage/invalid",
-        "forecast star: --type must be one of lstr1|lstr2|estr|auto (got '$type')"))
+        "forecast regime star: --type must be one of lstr1|lstr2|estr|auto (got '$type')"))
     vname = "y"
     if isnothing(model)
         y, vname = load_univariate_series(data, column)
@@ -1029,7 +1029,7 @@ function _forecast_static(; data::String="", result=nothing, nfactors=nothing, h
                             output::String="", format::String="table",
                             plot::Bool=false, plot_save::String="",
                             model=nothing)
-    loaded = _loaded_result(result; data, model, leaf="forecast static")
+    loaded = _loaded_result(result; data, model, leaf="forecast factor static")
     loaded === nothing || return _rerender_long_table(loaded; format, output,
         title="Static Factor Forecast", key="static_factor_forecast", plot, plot_save)
     if isnothing(model)
@@ -1078,7 +1078,7 @@ function _forecast_dynamic(; data::String="", result=nothing, nfactors=nothing, 
                              output::String="", format::String="table",
                              plot::Bool=false, plot_save::String="",
                              model=nothing)
-    loaded = _loaded_result(result; data, model, leaf="forecast dynamic")
+    loaded = _loaded_result(result; data, model, leaf="forecast factor dynamic")
     loaded === nothing || return _rerender_long_table(loaded; format, output,
         title="Dynamic Factor Forecast", key="dynamic_factor_forecast", plot, plot_save)
     if isnothing(model)
@@ -1127,13 +1127,13 @@ function _forecast_gdfm(; data::String="", result=nothing, nfactors=nothing, dyn
                           output::String="", format::String="table",
                           plot::Bool=false, plot_save::String="",
                           model=nothing)
-    loaded = _loaded_result(result; data, model, leaf="forecast gdfm")
+    loaded = _loaded_result(result; data, model, leaf="forecast factor gdfm")
     loaded === nothing || return _rerender_long_table(loaded; format, output,
         title="GDFM Forecast", key="gdfm_forecast", plot, plot_save)
     haskey(_GDFM_FORECAST_METHODS, method) || throw(CliError("usage/invalid",
-        "forecast gdfm: --method must be ar|one-sided|spectral (got '$method')"))
+        "forecast factor gdfm: --method must be ar|one-sided|spectral (got '$method')"))
     haskey(_GDFM_SPECTRAL, spectral) || throw(CliError("usage/invalid",
-        "forecast gdfm: --spectral must be lag-window|smoothed-periodogram (got '$spectral')"))
+        "forecast factor gdfm: --spectral must be lag-window|smoothed-periodogram (got '$spectral')"))
     if isnothing(model)
         X, varnames = load_multivariate_data(data)
 
@@ -1192,13 +1192,13 @@ function _forecast_sdfm(; data::String="", result=nothing, factors=nothing, id::
                          output::String="", format::String="table",
                          plot::Bool=false, plot_save::String="",
                          model=nothing)
-    loaded = _loaded_result(result; data, model, leaf="forecast sdfm")
+    loaded = _loaded_result(result; data, model, leaf="forecast factor sdfm")
     loaded === nothing || return _rerender_long_table(loaded; format, output,
         title="SDFM Forecast", key="sdfm_forecast", plot, plot_save)
     ci in ("none", "bootstrap") || throw(CliError("usage/invalid",
-        "forecast sdfm: --ci must be none|bootstrap (got '$ci')"))
+        "forecast factor sdfm: --ci must be none|bootstrap (got '$ci')"))
     reps >= 1 || throw(CliError("usage/invalid",
-        "forecast sdfm: --reps must be ≥ 1 (got $reps)"))
+        "forecast factor sdfm: --reps must be ≥ 1 (got $reps)"))
     if isnothing(model)
         # W1/#165: same estimation surface as `estimate sdfm` (--method here is
         # the structural estimator, fglr|gdfm-var; the forecast itself takes
@@ -1233,7 +1233,7 @@ function _forecast_vecm(; data::String="", result=nothing, lags::Int=2, rank::St
                           output::String="", format::String="table",
                           plot::Bool=false, plot_save::String="",
                           model=nothing)
-    loaded = _loaded_result(result; data, model, leaf="forecast vecm")
+    loaded = _loaded_result(result; data, model, leaf="forecast multivariate vecm")
     loaded === nothing || return _rerender_long_table(loaded; format, output,
         title="VECM Forecast", key="vecm_forecast", plot, plot_save)
     if isnothing(model)
@@ -1268,7 +1268,7 @@ function _forecast_favar(; data::String="", result=nothing, factors=nothing, lag
                           output::String="", format::String="table",
                           plot::Bool=false, plot_save::String="",
                           model=nothing)
-    loaded = _loaded_result(result; data, model, leaf="forecast favar")
+    loaded = _loaded_result(result; data, model, leaf="forecast multivariate favar")
     loaded === nothing || return _rerender_long_table(loaded; format, output,
         title="FAVAR Forecast", key="favar_forecast", plot, plot_save)
     if isnothing(model)
@@ -1381,7 +1381,7 @@ end
 
 function _fceval_result_name(stem::String)::String
     b = basename(stem)
-    for suf in (".jld2", ".fmod")
+    for suf in (".jld2", ".jls", ".fmod")
         endswith(lowercase(b), suf) && return b[1:end-length(suf)]
     end
     return b
@@ -1409,7 +1409,7 @@ function _fceval_load(data::String, actual::String, forecasts::String; leaf::Str
             "forecast evaluate $leaf requires <data> (realized values) even with --result";
             hint="pass a CSV or data handle plus --actual <column>"))
     end
-    df = load_data(data)
+    df = load_data(resolve_stem(data; slot=:data))
     numcols = variable_names(df)
     actual in numcols || throw(CliError("data/bad-column",
         "actual column '$actual' not found in numeric columns: $(join(numcols, ", "))"))
@@ -1758,7 +1758,7 @@ function _forecast_scenario(; data::String="", result=nothing, conditions_file::
                              output::String="", format::String="table",
                              plot::Bool=false, plot_save::String="",
                              model=nothing)
-    loaded = _loaded_result(result; data, model, lags, check_lags=true, leaf="forecast scenario")
+    loaded = _loaded_result(result; data, model, lags, check_lags=true, leaf="forecast multivariate scenario")
     if loaded !== nothing
         # #220: upstream long_table + the unconditional baseline (was a variable-major
         # hand-build; rows are now horizon-major like every other forecast leaf).
@@ -1777,7 +1777,7 @@ function _forecast_scenario(; data::String="", result=nothing, conditions_file::
     meth in ("var", "bvar") || throw(CliError("usage/invalid-option",
         "invalid --method '$method'; must be var or bvar"))
     isempty(strip(conditions_file)) && throw(CliError("usage/missing",
-        "forecast scenario: --conditions-file <csv> is required";
+        "forecast multivariate scenario: --conditions-file <csv> is required";
         hint="a long-format CSV with columns variable,period,value (optional sd)"))
 
     obj, varnames = if !isnothing(model)
@@ -1805,7 +1805,7 @@ function _forecast_scenario(; data::String="", result=nothing, conditions_file::
                              _fwd_seed()...)
     catch e
         e isa CliError && rethrow()
-        throw(_domain_or_data_error(e, "forecast scenario"))
+        throw(_domain_or_data_error(e, "forecast multivariate scenario"))
     end
 
     _maybe_plot(fc; plot=plot, plot_save=plot_save)

@@ -13,7 +13,7 @@ Bewley-bank MIT IRF (variable names from the ImpulseResponse)
 |--------|-------|------|---------|---------|-------------|
 | `--horizon` | — | `Int64` | `20` | — | IRF horizon (≥ 2) |
 | `--shock-size` | — | `Float64` | `0.01` | — | TFP impulse size |
-| `--persist` | — | `Float64` | `0.5` | — | AR(1) decay (default 0.5) |
+| `--persist` | — | `Float64` | `0.5` | — | AR(1) persistence decay |
 | `--n-n` | — | `Int64` | `25` | — | Net-worth grid points (≥ 3) |
 | `--n-xi` | — | `Int64` | `3` | — | Idiosyncratic ξ states |
 | `--z` | — | `Float64` | `0.25` | — | Steady-state TFP |
@@ -46,7 +46,7 @@ Bewley-bank partial equilibrium at given (R, rᵏ)
 | `--zeta2` | — | `Float64` | `2.0` | — | Operating-cost curvature (> 1) |
 | `--r` | — | `Float64` | `1.01` | — | Gross deposit rate R (> 0) |
 | `--rk` | — | `Float64` | `0.05` | — | Net claim return rᵏ |
-| `--z` | — | `Float64` | `0.25` | — | TFP |
+| `--z` | — | `Float64` | `0.25` | — | Total factor productivity (TFP) level |
 | `--alpha` | — | `Float64` | `0.33` | — | Capital share in (0,1) |
 | `--max-iter` | — | `Int64` | `250` | — | PE VFI iterations |
 | `--tol` | — | `Float64` | `1.0e-6` | — | PE VFI tolerance |
@@ -71,7 +71,7 @@ Bewley-bank credit-market stationary equilibrium
 | `--sigma` | — | `Float64` | `0.95` | — | Survival probability |
 | `--lambda` | — | `Float64` | `0.2` | — | Diversion parameter |
 | `--r` | — | `Float64` | `1.01` | — | Gross deposit rate R (held fixed) |
-| `--z` | — | `Float64` | `0.25` | — | TFP |
+| `--z` | — | `Float64` | `0.25` | — | Total factor productivity (TFP) level |
 | `--alpha` | — | `Float64` | `0.33` | — | Capital share |
 | `--r-lo` | — | `Float64` | `NaN` | — | rᵏ bracket lower end (NaN = default) |
 | `--r-hi` | — | `Float64` | `NaN` | — | rᵏ bracket upper end (NaN = default) |
@@ -171,7 +171,7 @@ Estimate a DSGE model with Bayesian sampling and report the posterior
 | `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -1020,18 +1020,19 @@ Estimate DSGE parameters by moment matching
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
+| `--data` | `-d` | `String` | `""` | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 | `--method` | — | `String` | `irf_matching` | `irf_matching`, `euler_gmm`, `smm`, `analytical_gmm` | Estimation method: irf_matching\|euler_gmm\|smm\|analytical_gmm |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names to estimate |
 | `--solve-method` | — | `String` | `gensys` | — | DSGE solution method (analytical_gmm only) |
 | `--solve-order` | — | `Int64` | `1` | — | Perturbation order for solution (analytical_gmm only) |
-| `--weighting` | — | `String` | `optimal` | — | Weighting matrix: identity\|optimal\|diagonal\|two_step\|efficient\|cee (default two_step) |
+| `--weighting` | — | `String` | `optimal` | — | Weighting matrix: identity\|optimal\|diagonal\|two_step\|efficient\|cee |
 | `--irf-horizon` | — | `Int64` | `20` | — | IRF horizon for matching (irf_matching only) |
 | `--var-lags` | — | `Int64` | `4` | — | VAR lags for empirical IRF (irf_matching only) |
 | `--sim-ratio` | — | `Int64` | `5` | — | Simulation-to-data ratio (smm only) |
 | `--bounds` | — | `String` | `""` | — | Path to parameter bounds TOML (currently not used) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `dsge_estimation` (Estimated structural parameters with standard errors, t-stats and p-values)
 
@@ -1175,7 +1176,7 @@ Decompose DSGE observables into historical shock contributions
 | `--max-iter` | — | `Int64` | `0` | — | VFI/PFI max iterations (0 = default 500) |
 | `--damping` | — | `Float64` | `0.0` | — | VFI/PFI mixing factor (0 = default 1.0) |
 | `--anderson-m` | — | `Int64` | `0` | — | PFI Anderson acceleration memory (PFI only) |
-| `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
+| `--data` | `-d` | `String` | `""` | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
 | `--states` | — | `String` | `observables` | — | observables\|all |
 | `--measurement-error` | — | `String` | `""` | — | Measurement error std devs (comma-separated) or auto |
@@ -1219,7 +1220,7 @@ Compute DSGE impulse responses to each structural shock
 | `--anderson-m` | — | `Int64` | `0` | — | PFI Anderson acceleration memory (PFI only) |
 | `--horizon` | — | `Int64` | `40` | — | IRF horizon |
 | `--shock-size` | — | `Float64` | `1.0` | — | Shock size (std devs; perturbation/projection only; ignored for linear solutions) |
-| `--n-sim` | — | `Int64` | `0` | — | Simulated-path replications for projection solutions (default 0 = analytical; ignored for linear/perturbation solutions) |
+| `--n-sim` | — | `Int64` | `0` | — | Simulated-path replications for projection solutions (0 = analytical; ignored for linear/perturbation solutions) |
 | `--constraints` | — | `String` | `""` | — | Path to OccBin constraints TOML (applied to shock 1 only) |
 | `--constraint` | — | `String` | `String[]` | — | OccBin bound 'var[t] >= expr' or 'var[t] <= expr'; repeatable; adds to --constraints and the constraints: stanza |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
@@ -1319,7 +1320,7 @@ Life-cycle OLG stationary equilibrium
 | `--sigma` | — | `Float64` | `2.0` | — | CRRA risk aversion (> 0) |
 | `--alpha` | — | `Float64` | `0.36` | — | Capital share in (0,1) |
 | `--delta` | — | `Float64` | `0.06` | — | Depreciation in [0,1] |
-| `--z` | — | `Float64` | `1.0` | — | TFP |
+| `--z` | — | `Float64` | `1.0` | — | Total factor productivity (TFP) level |
 | `--n-pop` | — | `Float64` | `0.0` | — | Population growth (> −1) |
 | `--replacement` | — | `Float64` | `0.4` | — | Pension replacement (≥ 0) |
 | `--credit-limit` | — | `Float64` | `0.0` | — | Borrowing limit |
@@ -1360,7 +1361,7 @@ Life-cycle OLG perfect-foresight transition (--k0 XOR --z-path)
 | `--sigma` | — | `Float64` | `2.0` | — | CRRA risk aversion |
 | `--alpha` | — | `Float64` | `0.36` | — | Capital share |
 | `--delta` | — | `Float64` | `0.06` | — | Depreciation |
-| `--z` | — | `Float64` | `1.0` | — | TFP |
+| `--z` | — | `Float64` | `1.0` | — | Total factor productivity (TFP) level |
 | `--income-rho` | — | `Float64` | `0.95` | — | Idiosyncratic income persistence |
 | `--income-sigma` | — | `Float64` | `0.2` | — | Idiosyncratic income s.d. |
 | `--income-states` | — | `Int64` | `3` | — | Income states |
@@ -1389,7 +1390,7 @@ Report closed-form DSGE theoretical moments without simulation
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--method` | — | `String` | `perturbation` | — | Solution method: perturbation (the only supported value; moments need a PerturbationSolution) |
-| `--order` | — | `Int64` | `2` | — | Perturbation order: 1, 2 or 3 (default 2; for linear models order 2 equals order 1 exactly) |
+| `--order` | — | `Int64` | `2` | — | Perturbation order: 1, 2 or 3 (for linear models order 2 equals order 1 exactly) |
 | `--lags` | — | `Int64` | `1` | — | Autocovariance lags to report (>= 1) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -1408,7 +1409,7 @@ Blanchard OLG FEVD via to_spec (TFP; NK adds monetary)
 | `--beta` | — | `Float64` | `0.96` | — | Discount factor |
 | `--delta` | — | `Float64` | `0.08` | — | Depreciation |
 | `--gamma` | — | `Float64` | `0.98` | — | Survival probability |
-| `--z` | — | `Float64` | `1.0` | — | TFP |
+| `--z` | — | `Float64` | `1.0` | — | Total factor productivity (TFP) level |
 | `--debt` | — | `Float64` | `0.0` | — | Government debt b |
 | `--rho-z` | — | `Float64` | `0.0` | — | TFP persistence |
 | `--sigma-z` | — | `Float64` | `0.0` | — | TFP shock scale |
@@ -1442,7 +1443,7 @@ Blanchard OLG IRF via to_spec (TFP; NK adds monetary)
 | `--beta` | — | `Float64` | `0.96` | — | Discount factor |
 | `--delta` | — | `Float64` | `0.08` | — | Depreciation |
 | `--gamma` | — | `Float64` | `0.98` | — | Survival probability |
-| `--z` | — | `Float64` | `1.0` | — | TFP |
+| `--z` | — | `Float64` | `1.0` | — | Total factor productivity (TFP) level |
 | `--debt` | — | `Float64` | `0.0` | — | Government debt b |
 | `--rho-z` | — | `Float64` | `0.0` | — | TFP persistence |
 | `--sigma-z` | — | `Float64` | `0.0` | — | TFP shock scale |
@@ -1477,7 +1478,7 @@ Blanchard OLG transitional dynamics from k0 along the saddle path
 | `--beta` | — | `Float64` | `0.96` | — | Discount factor |
 | `--delta` | — | `Float64` | `0.08` | — | Depreciation |
 | `--gamma` | — | `Float64` | `0.98` | — | Survival probability |
-| `--z` | — | `Float64` | `1.0` | — | TFP |
+| `--z` | — | `Float64` | `1.0` | — | Total factor productivity (TFP) level |
 | `--debt` | — | `Float64` | `0.0` | — | Government debt b |
 | `--k0` | — | `Float64` | `0.0` | — | Initial capital (0 = 80% of steady-state k) |
 | `--horizon` | — | `Int64` | `50` | — | Transition periods H |
@@ -1503,7 +1504,7 @@ Blanchard perpetual-youth OLG: steady state + saddle path
 | `--beta` | — | `Float64` | `0.96` | — | Discount factor |
 | `--delta` | — | `Float64` | `0.08` | — | Depreciation |
 | `--gamma` | — | `Float64` | `0.98` | — | Survival probability |
-| `--z` | — | `Float64` | `1.0` | — | TFP |
+| `--z` | — | `Float64` | `1.0` | — | Total factor productivity (TFP) level |
 | `--debt` | — | `Float64` | `0.0` | — | Government debt b (see MEMs#237 if b≠0) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -1618,7 +1619,7 @@ Solve a DSGE model and report the policy solution
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 | Flag | Short | Description |
 |------|-------|-------------|

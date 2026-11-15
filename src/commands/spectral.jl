@@ -17,7 +17,7 @@
 # Spectral analysis — registry pilot (P2-1 / C021)
 
 function spectral_specs()::Vector{CommandSpec}
-    data_arg = [ArgSpec(name="data", description="Path to CSV data file")]
+    data_arg = [ArgSpec(name="data", description="Path to data file or handle stem (.csv, .jld2, .jls)")]
     plot_opts = [OUTPUT_OPTIONS; PLOT_OPTIONS]
     plot_flags = copy(PLOT_FLAGS)
 

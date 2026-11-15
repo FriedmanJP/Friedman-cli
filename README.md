@@ -7,7 +7,7 @@ Estimate, test, and simulate macro models without leaving the shell.
 `friedman` wraps [MacroEconometricModels.jl](https://github.com/FriedmanJP/MacroEconometricModels.jl)
 (exact pin in `Project.toml`) as action-first commands —
 `estimate`, `test`, `irf`, `fevd`, `forecast`, `dsge`, `hadsge`, `did`, `policy`, … —
-that read CSV, print tables, and reproduce bit-for-bit.
+that read CSV or `.jld2`/`.jls` handles, print tables, and reproduce bit-for-bit.
 
 Built for applied economists and researchers who live in the terminal;
 equally callable from scripts and AI agents (see [For agents](#for-agents)).
@@ -150,9 +150,10 @@ round it out.
 - **Same command, same numbers.** `--seed N` is forwarded to samplers/simulators
   and every `--format json` envelope carries a manifest (seed, threads, OS,
   package versions) under `meta.manifest`.
-- **No session state.** Save a fit, reuse it without re-estimating:
+- **Typed handles, zero-hassle reuse.** Save data or fitted models to `.jld2` or `.jls`,
+  reuse them without re-estimating:
   `estimate multivariate var macro.csv --save-model var` →
-  `irf var --model var` → `model reproduce var` to verify against a fresh run.
+  `irf var var.jld2` (or `irf var --model var`) → `model reproduce var` to verify against a fresh run.
 - **Scriptable output.** Every leaf speaks `--format table|csv|json`
   and `--output <path>`; status goes to stderr, data to stdout — pipes compose.
 

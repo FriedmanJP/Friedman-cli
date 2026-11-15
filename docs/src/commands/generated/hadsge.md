@@ -81,10 +81,10 @@ Bayesian estimation of HA-DSGE parameters (MH/SMC)
 | `--sampler` | — | `String` | `mh` | `mh`, `smc` | Posterior sampler: mh (RWMH) or smc |
 | `--n-draws` | — | `Int64` | `2000` | — | Total RWMH draws (including burn-in) |
 | `--burnin` | — | `Int64` | `500` | — | Burn-in draws to discard |
-| `--n-smc` | — | `Int64` | `500` | — | SMC particles (HA default 500) |
+| `--n-smc` | — | `Int64` | `500` | — | SMC particles (HA sampler) |
 | `--n-mh-steps` | — | `Int64` | `1` | — | MH mutation steps per SMC stage |
 | `--ess-target` | — | `Float64` | `0.5` | — | ESS target for SMC resampling |
-| `--t-horizon` | — | `Int64` | `300` | — | Sequence-space truncation length (SSJ/Reiter); default 300 (ABRS 2021) |
+| `--t-horizon` | — | `Int64` | `300` | — | Sequence-space truncation length (SSJ/Reiter; ABRS 2021) |
 | `--n-reduced` | — | `Int64` | `15` | — | Reduced distribution states |
 | `--proposal-scale` | — | `Float64` | `0.01` | — | Initial RWMH proposal scale |
 | `--adapt-interval` | — | `Int64` | `100` | — | Adapt proposal covariance every N draws |
@@ -92,6 +92,7 @@ Bayesian estimation of HA-DSGE parameters (MH/SMC)
 | `--seed` | — | `Int64` | `0` | — | Random seed (0=no seed) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `ha_dsge_bayesian_posterior` (Posterior mean, std, median and 5/95% quantiles per parameter); `ha_dsge_bayesian_settings` (Sampler, solution method, observables and measurement-error provenance)
 
@@ -137,7 +138,7 @@ Historical decomposition of HA-DSGE aggregates
 | `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (not with krusell-smith) |
 | `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
 | `--method` | — | `String` | `ssj` | `ssj`, `reiter` | HA solution method: ssj\|reiter |
-| `--data` | `-d` | `String` | `""` | — | Path to CSV data file (levels) |
+| `--data` | `-d` | `String` | `""` | — | Path to data file or handle stem (.csv, .jld2, .jls; levels) |
 | `--observables` | — | `String` | `""` | — | Observable aggregates (comma-separated; keys of ss.aggregates/ss.prices) |
 | `--measurement-error` | — | `String` | `""` | — | Measurement error std devs (comma-separated) or auto |
 | `--n-reduced` | — | `Int64` | `30` | — | Reduced states |
@@ -277,7 +278,7 @@ Solve HA-DSGE (SSJ / Reiter / Krusell-Smith)
 | `--t-horizon` | — | `Int64` | `300` | — | Sequence-space horizon (SSJ/Reiter; ignored with krusell-smith) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `ha_dsge_solve_diagnostics` (Solution method with its size and fit diagnostics); `krusell_smith_plm_coefficients` (Fitted perceived-law-of-motion coefficients (--method krusell-smith)); `ha_steady_state_aggregates` (Steady-state aggregate quantities); `ha_steady_state_prices` (Steady-state prices); `ha_steady_state_diagnostics` (Steady-state convergence, iterations, Euler error and excess demand); `ha_euler_accuracy_log10_by_convention` (log10 Euler errors by convention (one row per measured convention; absent when the steady-state path records no accuracy))
 
@@ -300,7 +301,7 @@ Compute HA-DSGE stationary equilibrium
 | `--tol` | — | `Float64` | `0.0` | — | Market-clearing tolerance (0 = automatic) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
 **Output tables:** `ha_steady_state_aggregates` (Steady-state aggregate quantities); `ha_steady_state_prices` (Steady-state prices); `ha_steady_state_diagnostics` (Convergence, iterations, Euler error and excess demand); `ha_euler_accuracy_log10_by_convention` (log10 Euler errors by convention (one row per measured convention; absent when the steady-state path records no accuracy))
 

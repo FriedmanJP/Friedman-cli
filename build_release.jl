@@ -73,10 +73,6 @@ end
 Pkg.activate(_BUILD_PROJECT_DIR)
 Pkg.instantiate()
 
-# Add REPL stdlib so interactive mode can load it at runtime
-println("Adding REPL stdlib for interactive mode...")
-Pkg.add("REPL")
-
 # --- Step 2: Install PackageCompiler ---
 println("Loading PackageCompiler...")
 Pkg.activate(; temp=true)
@@ -93,39 +89,105 @@ open(_PRECOMPILE_SCRIPT, "w") do io
     write(io, """
     using Friedman
 
-    # Deterministic fixture (no RNG — sysimage builds must be reproducible)
-    fixture = joinpath(@__DIR__, "precompile_fixture.csv")
+    # Deterministic fixtures inside a scratch dir (no RNG — reproducible sysimages)
+    outdir = mktempdir()
+    fixture = joinpath(outdir, "precompile_fixture.csv")
     open(fixture, "w") do f
-        println(f, "y1,y2,y3")
+        println(f, "y1,y2,y3,y_bin")
         for t in 1:80
-            println(f, string(sin(t/3)) * "," * string(cos(t/4)) * "," *
-                       string(sin(t/5) + cos(t/7)))
+            y1 = sin(t / 3)
+            y2 = cos(t / 4)
+            y3 = sin(t / 5) + cos(t / 7)
+            yb = t % 2
+            println(f, string(y1) * "," * string(y2) * "," * string(y3) * "," * string(yb))
         end
+    end
+    panel_csv = joinpath(outdir, "precompile_panel.csv")
+    open(panel_csv, "w") do f
+        println(f, "id,time,y,x,treat")
+        for i in 1:6, t in 1:12
+            tr = (i >= 4 && t >= 7) ? 1 : 0
+            yv = 0.5 * i + 0.1 * t + 0.8 * tr + sin(i + t) * 0.1
+            xv = cos(i * 0.4 + t * 0.3)
+            println(f, "\$i,\$t,\$yv,\$xv,\$tr")
+        end
+    end
+    rbc_toml = joinpath(outdir, "rbc.toml")
+    open(rbc_toml, "w") do f
+        println(f, \"\"\"
+[dsge]
+endogenous = ["c", "k"]
+exogenous = ["e"]
+[dsge.parameters]
+beta = 0.99
+alpha = 0.36
+delta = 0.025
+rho = 0.9
+[[dsge.equations]]
+lhs = "c + k"
+rhs = "(1 - delta) * k(-1) + k(-1)^alpha"
+[[dsge.equations]]
+lhs = "1 / c"
+rhs = "beta * (1 / c(+1)) * (alpha * k^(alpha - 1) + 1 - delta)"
+\"\"\")
     end
 
     app = Friedman.APP
+    redirect_stdout(devnull) do
+        redirect_stderr(devnull) do
+            # Help, schema & completion index paths
+            Friedman.dispatch(app, ["--help"])
+            Friedman.dispatch(app, ["--version"])
+            for cmd in ["estimate", "test", "irf", "fevd", "hd", "forecast", "predict",
+                        "residuals", "filter", "data", "dsge", "hadsge", "did", "policy",
+                        "spectral", "nowcast", "io", "model"]
+                Friedman.dispatch(app, [cmd, "--help"])
+            end
+            Friedman.dispatch(app, ["schema"])
+            Friedman.dispatch(app, ["schema", "estimate", "multivariate", "var"])
+            Friedman._build_completion_index(app)
 
-    # Help/metadata paths
-    Friedman.dispatch(app, ["--help"])
-    Friedman.dispatch(app, ["--version"])
-    for cmd in ["estimate", "test", "irf", "forecast", "filter", "data",
-                "dsge", "did", "spectral", "nowcast"]
-        Friedman.dispatch(app, [cmd, "--help"])
+            # Core v1.0.4 estimation + downstream + all 3 output formats (keep VAR --lags 1 on one line for bench_release.py)
+            Friedman.dispatch(app, ["estimate", "multivariate", "var", fixture, "--lags", "1"])
+            Friedman.dispatch(app, ["estimate", "multivariate", "var", fixture, "--lags", "1", "--format", "json"])
+            Friedman.dispatch(app, ["estimate", "multivariate", "var", fixture, "--lags", "1", "--format", "csv", "--output", joinpath(outdir, "o.csv")])
+
+            # Typed handles (.jld2 / .jls) + positional model auto-routing + model info/reproduce
+            var_jld2 = joinpath(outdir, "var_m.jld2")
+            var_jls = joinpath(outdir, "var_m.jls")
+            Friedman.dispatch(app, ["estimate", "multivariate", "var", fixture, "--lags", "1", "--save-model", var_jld2, "--format", "json"])
+            Friedman.dispatch(app, ["estimate", "multivariate", "var", fixture, "--lags", "1", "--save-model", var_jls])
+            Friedman.dispatch(app, ["irf", "var", "--model", var_jld2, "--plot-save", joinpath(outdir, "irf.html")])
+            Friedman.dispatch(app, ["irf", "var", var_jls, "--horizons", "8"])
+            Friedman.dispatch(app, ["fevd", "var", "--model", var_jld2, "--horizons", "8"])
+            Friedman.dispatch(app, ["hd", "var", "--model", var_jld2])
+            Friedman.dispatch(app, ["forecast", "multivariate", "var", "--model", var_jld2, "--horizons", "4"])
+            Friedman.dispatch(app, ["predict", "multivariate", "var", "--model", var_jld2])
+            Friedman.dispatch(app, ["residuals", "multivariate", "var", "--model", var_jld2])
+            Friedman.dispatch(app, ["model", "info", var_jld2, "--format", "json"])
+            Friedman.dispatch(app, ["show", var_jld2, "--format", "json"])
+
+            # Cross-family estimators, tests, filters, data pipeline & DSGE
+            Friedman.dispatch(app, ["estimate", "regression", "reg", fixture, "--dep", "y1", "--format", "json"])
+            Friedman.dispatch(app, ["estimate", "choice", "logit", fixture, "--dep", "y_bin"])
+            Friedman.dispatch(app, ["estimate", "panel", "preg", panel_csv, "--dep", "y", "--indep", "x"])
+            Friedman.dispatch(app, ["estimate", "volatility", "garch", fixture])
+            Friedman.dispatch(app, ["estimate", "factor", "static", fixture, "--factors", "1"])
+            Friedman.dispatch(app, ["estimate", "univariate", "arima", fixture, "--p", "1"])
+            Friedman.dispatch(app, ["test", "unit-root", "adf", fixture])
+            Friedman.dispatch(app, ["test", "multivariate", "granger", var_jld2])
+            Friedman.dispatch(app, ["filter", "hp", fixture])
+            Friedman.dispatch(app, ["did", "estimate", panel_csv, "--outcome", "y", "--treatment", "treat"])
+            ts_jld2 = joinpath(outdir, "ts_d.jld2")
+            Friedman.dispatch(app, ["data", "import", fixture, "--kind", "timeseries", "-o", ts_jld2])
+            Friedman.dispatch(app, ["data", "describe", ts_jld2])
+            Friedman.dispatch(app, ["data", "simulate", "var", "--periods", "30", "--seed", "7", "--save-data", joinpath(outdir, "sim.jls")])
+            try
+                Friedman.dispatch(app, ["dsge", "solve", rbc_toml, "--format", "json"])
+            catch
+            end
+        end
     end
-
-    # Real handler paths: estimation, IRF, unit root, filter, forecast,
-    # all three render formats. These dominate agent workloads.
-    outdir = mktempdir()
-    Friedman.dispatch(app, ["estimate", "multivariate", "var", fixture, "--lags", "1"])
-    Friedman.dispatch(app, ["estimate", "multivariate", "var", fixture, "--lags", "1",
-                            "--format", "json"])
-    Friedman.dispatch(app, ["estimate", "multivariate", "var", fixture, "--lags", "1",
-                            "--format", "csv", "--output", joinpath(outdir, "o.csv")])
-    Friedman.dispatch(app, ["irf", "var", fixture, "--lags", "1",
-                            "--plot-save", joinpath(outdir, "irf.html")])
-    Friedman.dispatch(app, ["test", "unit-root", "adf", fixture])
-    Friedman.dispatch(app, ["filter", "hp", fixture])
-    Friedman.dispatch(app, ["forecast", "multivariate", "var", fixture, "--lags", "1"])
     """)
 end
 
@@ -193,10 +255,27 @@ rem Uses precompiled sysimage for instant startup
 set "SCRIPT_DIR=%~dp0.."
 set "SYSIMAGE=%SCRIPT_DIR%\\lib\\$(_SYSIMAGE_NAME)"
 set "READY=%SCRIPT_DIR%\\.artifacts_ready"
+set "JCMD_CACHE=%SCRIPT_DIR%\\.julia_cmd"
 set "INIT_EXPR=using Pkg; Pkg.instantiate()"
 set "MAIN_EXPR=using Friedman; Friedman.main(ARGS)"
 
 set "JULIA_LOAD_PATH=%SCRIPT_DIR%;@stdlib"
+
+rem Zero-probe fast path when .artifacts_ready and .julia_cmd are cached
+if exist "%READY%" if exist "%JCMD_CACHE%" (
+    set "CACHED_JULIA="
+    set /p CACHED_JULIA=<"%JCMD_CACHE%"
+    if "%CACHED_JULIA%"=="juliaup:+1.13" (
+        julia +1.13 --project="%SCRIPT_DIR%" --sysimage="%SYSIMAGE%" ^
+            --startup-file=no -e "%MAIN_EXPR%" -- %*
+        exit /b %errorlevel%
+    )
+    if "%CACHED_JULIA%"=="julia" (
+        julia --project="%SCRIPT_DIR%" --sysimage="%SYSIMAGE%" ^
+            --startup-file=no -e "%MAIN_EXPR%" -- %*
+        exit /b %errorlevel%
+    )
+)
 
 rem Find Julia: prefer juliaup, fallback to julia on PATH
 rem Prefer julia +1.13 (juliaup channel); juliaup run is not portable on 1.20.x
@@ -209,6 +288,7 @@ if %errorlevel% equ 0 (
         julia +1.13 --project="%SCRIPT_DIR%" --startup-file=no ^
             -e "%INIT_EXPR%" 1>&2 && type nul > "%READY%"
     )
+    (echo juliaup:+1.13)> "%JCMD_CACHE%" 2>nul
     julia +1.13 --project="%SCRIPT_DIR%" --sysimage="%SYSIMAGE%" ^
         --startup-file=no -e "%MAIN_EXPR%" -- %*
     exit /b %errorlevel%
@@ -226,6 +306,7 @@ if not exist "%READY%" (
     julia --project="%SCRIPT_DIR%" --startup-file=no ^
         -e "%INIT_EXPR%" 1>&2 && type nul > "%READY%"
 )
+(echo julia)> "%JCMD_CACHE%" 2>nul
 julia --project="%SCRIPT_DIR%" --sysimage="%SYSIMAGE%" ^
     --startup-file=no -e "%MAIN_EXPR%" -- %*
 exit /b %errorlevel%
@@ -257,6 +338,26 @@ SYSIMAGE="\$SCRIPT_DIR/lib/$(_SYSIMAGE_NAME)"
 
 export JULIA_LOAD_PATH="\$SCRIPT_DIR:@stdlib"
 
+# Zero-probe fast path when runtime artifacts and Julia command are cached
+if [ -f "\$SCRIPT_DIR/.artifacts_ready" ] && [ -s "\$SCRIPT_DIR/.julia_cmd" ]; then
+    IFS= read -r CACHED_JULIA < "\$SCRIPT_DIR/.julia_cmd"
+    if [ "\$CACHED_JULIA" = "juliaup:+1.13" ] && command -v julia >/dev/null 2>&1; then
+        exec julia +1.13 \\
+            --project="\$SCRIPT_DIR" \\
+            --sysimage="\$SYSIMAGE" \\
+            --startup-file=no \\
+            -e 'using Friedman; Friedman.main(ARGS)' \\
+            -- "\$@"
+    elif [ -x "\$CACHED_JULIA" ]; then
+        exec "\$CACHED_JULIA" \\
+            --project="\$SCRIPT_DIR" \\
+            --sysimage="\$SYSIMAGE" \\
+            --startup-file=no \\
+            -e 'using Friedman; Friedman.main(ARGS)' \\
+            -- "\$@"
+    fi
+fi
+
 # Find Julia: prefer channel `julia +1.13` (juliaup), then bare julia ≥1.13.
 # Note: `juliaup run` is not portable across juliaup versions (1.20.x has no `run`).
 if command -v julia >/dev/null 2>&1; then
@@ -268,6 +369,7 @@ if command -v julia >/dev/null 2>&1; then
                 -e 'using Pkg; Pkg.instantiate()' >&2 \\
                 && touch "\$SCRIPT_DIR/.artifacts_ready"
         fi
+        printf '%s\n' 'juliaup:+1.13' > "\$SCRIPT_DIR/.julia_cmd" 2>/dev/null || true
         exec julia +1.13 \\
             --project="\$SCRIPT_DIR" \\
             --sysimage="\$SYSIMAGE" \\
@@ -279,14 +381,16 @@ if command -v julia >/dev/null 2>&1; then
     JULIA_MAJOR=\$(echo "\$JULIA_VER" | cut -d. -f1)
     JULIA_MINOR=\$(echo "\$JULIA_VER" | cut -d. -f2)
     if [ "\$JULIA_MAJOR" -ge 1 ] && [ "\$JULIA_MINOR" -ge 13 ]; then
+        JULIA_BIN="\$(command -v julia)"
         if [ ! -f "\$SCRIPT_DIR/.artifacts_ready" ]; then
-            JULIA_PKG_PRECOMPILE_AUTO=0 julia \\
+            JULIA_PKG_PRECOMPILE_AUTO=0 "\$JULIA_BIN" \\
                 --project="\$SCRIPT_DIR" \\
                 --startup-file=no \\
                 -e 'using Pkg; Pkg.instantiate()' >&2 \\
                 && touch "\$SCRIPT_DIR/.artifacts_ready"
         fi
-        exec julia \\
+        printf '%s\n' "\$JULIA_BIN" > "\$SCRIPT_DIR/.julia_cmd" 2>/dev/null || true
+        exec "\$JULIA_BIN" \\
             --project="\$SCRIPT_DIR" \\
             --sysimage="\$SYSIMAGE" \\
             --startup-file=no \\
