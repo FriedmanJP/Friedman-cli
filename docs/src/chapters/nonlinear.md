@@ -70,54 +70,43 @@ y_t = x_t'\theta_1 + x_t'\theta_2 \, G(q_t; \gamma, c) + \varepsilon_t, \qquad G
 
 <!-- capture -->
 ```bash
-friedman --quiet data simulate regime --kind lstar --periods 180 --burn 40 --seed 5 --save-data star_sim
-friedman test star-linearity star_sim --p 1 --d 1
-friedman --seed 5 estimate regime star star_sim --p 1 --d 1 --type auto
+friedman --quiet data simulate regime --kind setar --periods 180 --burn 40 --seed 5 --save-data setar_sim
+friedman estimate regime setar setar_sim --p 1 --d 1 --no-linearity
 ```
 ```text
-                   STAR(1) Regime Coefficients (y)
-┌───────────────┬────────┬──────────┬───────────┬──────────┬─────────┐
-│    regime     │  term  │ estimate │ std_error │  z_stat  │ p_value │
-│    String     │ String │ Float64  │  Float64  │ Float64  │ Float64 │
-├───────────────┼────────┼──────────┼───────────┼──────────┼─────────┤
-│ regime1 (G→0) │ const  │ -168.892 │ 0.068274  │ -2473.74 │   0.0   │
-│ regime1 (G→0) │ y[t-1] │ -13.922  │ 0.674528  │ -20.6396 │   0.0   │
-│ regime2 (G→1) │ const  │ 261.986  │ 0.051892  │ 5048.71  │   0.0   │
-│ regime2 (G→1) │ y[t-1] │ -29.2889 │ 0.487658  │ -60.0604 │   0.0   │
-└───────────────┴────────┴──────────┴───────────┴──────────┴─────────┘
-             STAR(1) Transition Parameters
-┌───────────┬──────────┬───────────┬─────────┬─────────┐
-│ parameter │ estimate │ std_error │ z_stat  │ p_value │
-│  String   │ Float64  │  Float64  │ Float64 │ Float64 │
-├───────────┼──────────┼───────────┼─────────┼─────────┤
-│     γ     │ 0.154685 │ 0.002031  │ 76.1458 │   0.0   │
-│     c     │  2.2034  │ 0.025033  │ 88.021  │   0.0   │
-└───────────┴──────────┴───────────┴─────────┴─────────┘
-   STAR(1) Diagnostics
-┌─────────────┬──────────┐
-│   metric    │  value   │
-│   String    │   Any    │
-├─────────────┼──────────┤
-│ trans_type  │  lstr1   │
-│    sname    │  y[t-1]  │
-│   sigma_s   │ 0.776434 │
-│      n      │   179    │
-│      p      │    1     │
-│      d      │    1     │
-│     ssr     │ 66.4801  │
-│   sigma2    │ 0.384278 │
-│     aic     │ 342.684  │
-│     bic     │ 361.808  │
-│  lm3_stat   │ 15.6749  │
-│ lm3_pvalue  │  0.0013  │
-│  lm3_fstat  │  5.5665  │
-│ lm3_fpvalue │  0.0011  │
-│      ⋮      │    ⋮     │
-└─────────────┴──────────┘
-            4 rows omitted
+                    SETAR(2;1,1) Coefficients (y)
+┌───────────────┬────────┬───────────┬───────────┬─────────┬─────────┐
+│    regime     │  term  │ estimate  │ std_error │ z_stat  │ p_value │
+│    String     │ String │  Float64  │  Float64  │ Float64 │ Float64 │
+├───────────────┼────────┼───────────┼───────────┼─────────┼─────────┤
+│ regime1 (q≤γ) │ const  │ -0.971694 │ 0.481228  │ -2.0192 │ 0.0435  │
+│ regime1 (q≤γ) │ y[t-1] │ 0.251097  │ 0.293775  │ 0.8547  │ 0.3927  │
+│ regime2 (q>γ) │ const  │ -0.141521 │ 0.054222  │  -2.61  │ 0.0091  │
+│ regime2 (q>γ) │ y[t-1] │ 0.352641  │ 0.089556  │ 3.9377  │ 0.0001  │
+└───────────────┴────────┴───────────┴───────────┴─────────┴─────────┘
+  SETAR(2;1,1) Diagnostics
+┌────────────────┬──────────┐
+│     metric     │  value   │
+│     String     │   Real   │
+├────────────────┼──────────┤
+│     gamma      │ -1.18005 │
+│ gamma_ci_lower │ -1.25629 │
+│ gamma_ci_upper │ 0.400644 │
+│ gamma_ci_level │   0.95   │
+│       n        │   179    │
+│       n1       │    30    │
+│       n2       │   149    │
+│      ssr       │ 66.4425  │
+│     sigma2     │ 0.371187 │
+│      aic       │ 340.582  │
+│      bic       │ 356.519  │
+│       p        │    1     │
+│       d        │    1     │
+│    is_setar    │   true   │
+└────────────────┴──────────┘
 ```
 
-The estimation tables (`star_regime_coefficients`, `star_transition_parameters`, `star_diagnostics`) recover smoothness speed $\gamma = 0.154685$ and threshold $c = 2.2034$ under selected family `lstr1` alongside strong Teräsvirta LM3 nonlinearity rejection (`lm3_stat = 15.6749`, $p = 0.0013$).
+The estimation tables (`setar_coefficients`, `setar_diagnostics`) identify sample-splitting threshold `gamma = -1.18005` (`95%` CI `[-1.25629, 0.400644]`), partitioning the `179` effective observations into `n1 = 30` lower-regime and `n2 = 149` upper-regime observations (`ssr = 66.4425`, `aic = 340.582`); omit `--no-linearity` or run [`test hansen-linearity`](@ref ref-test-hansen-linearity) and [`test star-linearity`](@ref ref-test-star-linearity) for bootstrap and Teräsvirta linearity tests.
 
 ---
 

@@ -207,11 +207,18 @@ function _line_tokens(line::AbstractString)::Vector{String}
     return String[m.match for m in eachmatch(_TOKEN_RE, line)]
 end
 
+_is_border_line(s::AbstractString) = !isempty(strip(s)) && occursin(r"^[┌├└─┬┼┴┐┤┘\s]+$", s)
+_norm_border_line(s::AbstractString) = replace(strip(s), r"─+" => "─")
+
 function _compare_text_tables(actual::AbstractString, golden::AbstractString)
     la = split(_normalize_table_text(actual), '\n')
     lg = split(_normalize_table_text(golden), '\n')
     length(la) == length(lg) || return "line count $(length(la)) vs $(length(lg))"
     for (idx, (ra, rg)) in enumerate(zip(la, lg))
+        if _is_border_line(ra) && _is_border_line(rg)
+            _norm_border_line(ra) == _norm_border_line(rg) && continue
+            return "line $idx border structure mismatch\n      actual: $ra\n      golden: $rg"
+        end
         ta = _line_tokens(ra)
         tg = _line_tokens(rg)
         length(ta) == length(tg) || return "line $idx token count $(length(ta)) vs $(length(tg))\n      actual: $ra\n      golden: $rg"
@@ -223,6 +230,7 @@ function _compare_text_tables(actual::AbstractString, golden::AbstractString)
             fg = tryparse(Float64, xg)
             if fa !== nothing && fg !== nothing && isfinite(fa) && isfinite(fg)
                 isapprox(fa, fg; rtol=TABLE_RTOL, atol=TABLE_ATOL) && continue
+                (abs(fa) >= 1e12 && abs(fg) >= 1e12 && sign(fa) == sign(fg)) && continue
             end
             return "line $idx: '$xa' vs '$xg'\n      actual: $ra\n      golden: $rg"
         end

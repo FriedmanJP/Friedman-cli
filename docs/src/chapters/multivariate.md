@@ -181,7 +181,7 @@ All three PCA/spectral factor models support common-component fitted values via 
 <!-- capture -->
 ```bash
 friedman --quiet data simulate factors --series 10 --periods 80 --burn 20 --seed 9 --save-data fac_sim
-friedman estimate factor static fac_sim --criterion ic1
+friedman estimate factor static fac_sim --nfactors 2
 ```
 ```text
 Scree Data (Eigenvalues & Variance Shares)
@@ -200,26 +200,25 @@ Scree Data (Eigenvalues & Variance Shares)
 │     9     │ 0.0168665  │  0.988501  │
 │    10     │  0.011499  │    1.0     │
 └───────────┴────────────┴────────────┘
-                                Factor Loadings
-┌──────────┬───────────┬────────────┬────────────┬────────────┬────────────┬────
-│ variable │    F1     │     F2     │     F3     │     F4     │     F5     │   ⋯
-│  String  │  Float64  │  Float64   │  Float64   │  Float64   │  Float64   │   ⋯
-├──────────┼───────────┼────────────┼────────────┼────────────┼────────────┼────
-│    x1    │ 0.795769  │ -0.393819  │ 0.0536809  │ 0.0226215  │  0.353663  │ 0 ⋯
-│    x2    │ 0.254682  │  0.865641  │ 0.0891881  │ -0.172873  │  0.162754  │ - ⋯
-│    x3    │ -0.847457 │ -0.342054  │  0.23242   │ 0.0160583  │ 0.0285133  │ 0 ⋯
-│    x4    │ 0.900288  │ 0.0999792  │ 0.0734456  │ 0.0441097  │ 0.0824757  │ 0 ⋯
-│    x5    │ 0.668674  │ -0.535883  │  0.225582  │  -0.40121  │ -0.0313043 │ - ⋯
-│    x6    │ 0.450025  │ -0.695123  │ -0.483842  │ 0.0357788  │ 0.0512486  │ - ⋯
-│    x7    │ -0.612411 │ -0.682591  │ -0.0604466 │ -0.159465  │ 0.0505002  │ 0 ⋯
-│    x8    │  0.88683  │ -0.0876232 │ -0.026613  │ -0.0998611 │ -0.321638  │ 0 ⋯
-│    x9    │ -0.75204  │ -0.516101  │  0.137549  │ -0.0362962 │ 0.0187165  │ - ⋯
-│   x10    │ -0.667175 │  0.515989  │ -0.333252  │ -0.323313  │  0.067243  │ 0 ⋯
-└──────────┴───────────┴────────────┴────────────┴────────────┴────────────┴────
-                                                               5 columns omitted
+           Factor Loadings
+┌──────────┬───────────┬────────────┐
+│ variable │    F1     │     F2     │
+│  String  │  Float64  │  Float64   │
+├──────────┼───────────┼────────────┤
+│    x1    │ 0.795769  │ -0.393819  │
+│    x2    │ 0.254682  │  0.865641  │
+│    x3    │ -0.847457 │ -0.342054  │
+│    x4    │ 0.900288  │ 0.0999792  │
+│    x5    │ 0.668674  │ -0.535883  │
+│    x6    │ 0.450025  │ -0.695123  │
+│    x7    │ -0.612411 │ -0.682591  │
+│    x8    │  0.88683  │ -0.0876232 │
+│    x9    │ -0.75204  │ -0.516101  │
+│   x10    │ -0.667175 │  0.515989  │
+└──────────┴───────────┴────────────┘
 ```
 
-The Bai–Ng `ic1` criterion selects factor dimension automatically, reporting the first two components explaining `0.795612` (`0.511257` + `0.284355`) cumulative variance share in `scree_data_eigenvalues_variance_shares` alongside loadings in `factor_loadings`.
+Extracting two static factors (`--nfactors 2`; omit `--nfactors` to select rank automatically via `--criterion ic1|ic2|ic3`), the first two components explain `0.795612` (`0.511257` + `0.284355`) cumulative variance share in `scree_data_eigenvalues_variance_shares` alongside loadings in `factor_loadings`.
 
 ---
 

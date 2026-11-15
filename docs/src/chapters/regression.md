@@ -4,37 +4,35 @@ Continuous cross-sectional, cointegrating, regularized, quantile, nonparametric,
 
 ## Quick Start
 
-Simulate an instrumental-variables dataset (`iv`) with one endogenous regressor and three excluded instruments, fit 2SLS (`--method tsls`) with HC1 covariance, and run first-stage weak-instrument diagnostics:
+Simulate an instrumental-variables dataset (`lp-iv`) with endogenous regressor `s`, control `x2`, and excluded instrument `z1`, then fit 2SLS (`--method tsls`) with HC1 covariance:
 
 <!-- capture -->
 ```bash
-friedman --quiet data simulate cross-section --kind iv --n 200 --seed 42 --save-data iv_sim
-friedman estimate regression iv iv_sim --dep y --endogenous x1 --instruments z1,z2,z3 --method tsls --cov-type hc1
+friedman --quiet data simulate lp-iv --periods 200 --seed 42 --save-data iv_sim
+friedman estimate regression iv iv_sim --dep y --endogenous s --instruments z1 --method tsls --cov-type hc1
 ```
 ```text
-                     IV (2SLS) Regression Coefficients
-┌────────┬──────────┬───────────┬─────────┬─────────┬──────────┬──────────┐
-│  term  │ estimate │ std_error │  stat   │ p_value │ ci_lower │ ci_upper │
-│ String │ Float64  │  Float64  │ Float64 │ Float64 │ Float64  │ Float64  │
-├────────┼──────────┼───────────┼─────────┼─────────┼──────────┼──────────┤
-│   x1   │ 1.00759  │ 0.064999  │ 15.5016 │   0.0   │ 0.879411 │ 1.13577  │
-│   x2   │ 0.848387 │ 0.0483366 │ 17.5517 │   0.0   │ 0.753067 │ 0.943708 │
-└────────┴──────────┴───────────┴─────────┴─────────┴──────────┴──────────┘
-         IV Diagnostics
-┌──────────────────┬────────────┐
-│      metric      │   value    │
-│      String      │    Any     │
-├──────────────────┼────────────┤
-│        R²        │  0.638708  │
-│     Adj. R²      │  0.636883  │
-│      method      │    tsls    │
-│  First-stage F   │ 6.70943e33 │
-│ Sargan statistic │  28.1163   │
-│  Sargan p-value  │    0.0     │
-└──────────────────┴────────────┘
+                       IV (2SLS) Regression Coefficients
+┌────────┬──────────┬───────────┬─────────┬─────────────┬──────────┬──────────┐
+│  term  │ estimate │ std_error │  stat   │   p_value   │ ci_lower │ ci_upper │
+│ String │ Float64  │  Float64  │ Float64 │   Float64   │ Float64  │ Float64  │
+├────────┼──────────┼───────────┼─────────┼─────────────┼──────────┼──────────┤
+│   s    │ 0.751309 │ 0.0981391 │ 7.65555 │ 8.29559e-13 │ 0.557777 │ 0.944841 │
+│   x2   │ 0.647819 │ 0.128301  │ 5.04922 │  1.0032e-6  │ 0.394807 │ 0.90083  │
+└────────┴──────────┴───────────┴─────────┴─────────────┴──────────┴──────────┘
+       IV Diagnostics
+┌───────────────┬──────────┐
+│    metric     │  value   │
+│    String     │   Any    │
+├───────────────┼──────────┤
+│      R²       │ 0.600961 │
+│    Adj. R²    │ 0.598946 │
+│    method     │   tsls   │
+│ First-stage F │ 298.231  │
+└───────────────┴──────────┘
 ```
 
-The command returns `iv_coefficients` (`x1 = 1.00759`, SE `0.064999`; `x2 = 0.848387`) and `iv_diagnostics` (`R² = 0.638708`, `Sargan statistic = 28.1163`, reporting weak-IV F-statistics alongside `--method liml|fuller|kclass`); follow up with [`test iv weak-instrument`](@ref ref-test-iv-weak-instrument) and weak-IV-robust [`test iv anderson-rubin`](@ref ref-test-iv-anderson-rubin).
+The command returns `iv_coefficients` (`s = 0.751309`, SE `0.0981391`; `x2 = 0.647819`) and `iv_diagnostics` (`R² = 0.600961`, `First-stage F = 298.231`, alongside `--method liml|fuller|kclass`); follow up with [`test iv weak-instrument`](@ref ref-test-iv-weak-instrument) and weak-IV-robust [`test iv anderson-rubin`](@ref ref-test-iv-anderson-rubin).
 
 ---
 
