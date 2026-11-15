@@ -4840,6 +4840,18 @@ end
     mv1 = _cached_mems_version()
     mv2 = _cached_mems_version()
     @test !isempty(mv1) && mv1 == mv2
+
+    # Help repeatable annotation (help.jl L176) and unknown multi-option error (parser.jl L244-246)
+    leaf_rep = LeafCommand("rep", handler, Argument[],
+                           [Option("tag"; type=String, default="", description="Filter tag", repeatable=true)],
+                           Flag[], "Repeatable option check")
+    io_rep = IOBuffer()
+    print_help(io_rep, leaf_rep; prog="friedman rep")
+    @test occursin("(repeatable)", String(take!(io_rep)))
+
+    pa_multi = ParsedArgs(String[], Dict{String,String}(), Set{String}(), Dict("coun" => ["1"]))
+    err_multi = try; bind_args(pa_multi, l6); nothing; catch e; e; end
+    @test err_multi isa ParseError && occursin("--count", err_multi.message)
 end
 
 include(joinpath(@__DIR__, "test_e2e.jl"))

@@ -1980,3 +1980,268 @@ end
         end
     end
 end
+
+@testset "v1.0.4 patch coverage: policy routes, handles, irf, data, dsge & test" begin
+    import JLD2
+    mktempdir() do dir
+        obs1_csv = joinpath(dir, "obs1.csv")
+        CSV.write(obs1_csv, DataFrame(Y=randn(40)))
+        obs3_csv = joinpath(dir, "obs3.csv")
+        CSV.write(obs3_csv, DataFrame(infl=randn(60), ygap=randn(60), rate=randn(60)))
+
+        # 1. model_handle.jl, handles.jl & adapter.jl .fmod fallback
+        @test _is_mems_jld2_dict(Dict("container" => Dict("type" => "VARModel")))
+        @test !_is_mems_jld2_dict(Dict("container" => Dict("other" => 1)))
+        @test endswith(_default_edit_output(joinpath(dir, "x.jls"), "_clean"), "_clean.jls")
+
+        unreadable = joinpath(dir, "unreadable.jld2")
+        write(unreadable, _HDF5_MAGIC)
+        chmod(unreadable, 0o000)
+        try
+            _ = _is_hdf5_file(unreadable)
+        finally
+            chmod(unreadable, 0o644)
+        end
+
+        hdr_jls = joinpath(dir, "hdr.jls")
+        open(io -> Serialization.serialize(io,
+            (ModelHandleHeader(FMOD_MAGIC, string(FRIEDMAN_VERSION), _mems_version_string(), "String"),
+             "payload_ok")), hdr_jls, "w")
+        @test load_model_dispatch(hdr_jls) == "payload_ok"
+
+        bad_hdf5 = joinpath(dir, "bad_hdf5.jld2")
+        write(bad_hdf5, vcat(_HDF5_MAGIC, zeros(UInt8, 24)))
+        @test_throws MacroEconometricModels.SerializationError load_model_dispatch(bad_hdf5)
+
+        fake_mems_jld2 = joinpath(dir, "fake_mems.jld2")
+        JLD2.jldsave(fake_mems_jld2; format_version="99.0", payload=1)
+        @test_throws MacroEconometricModels.SerializationError load_model_dispatch(fake_mems_jld2)
+
+        onlyfmod_stem = joinpath(dir, "onlyfmod")
+        save_model_handle(onlyfmod_stem * ".fmod", estimate_var(randn(40, 2), 1; varnames=["y1", "y2"]))
+        out_fmod_irf = _capture() do
+            _dispatch_via_app(["irf", "var", onlyfmod_stem, "--horizons", "4", "--ci", "none", "--format", "json"])
+        end
+        @test occursin("\"irf\"", out_fmod_irf)
+
+        # 2. data.jl load --path and :fred_md --vars/--dates → .jls
+        path_jls = joinpath(dir, "from_path.jls")
+        _capture() do
+            _dispatch_via_app(["data", "load", "--path", obs3_csv, "-o", path_jls])
+        end
+        @test isfile(path_jls)
+        @test _data_kind_of(load_model_dispatch(path_jls)) === :timeseries
+
+        fred_jls = joinpath(dir, "fred_sub.jls")
+        _capture() do
+            _dispatch_via_app(["data", "load", "fred_md", "--vars", "INDPRO,CPIAUCSL",
+                               "--dates", "INDPRO", "-o", fred_jls])
+        end
+        @test isfile(fred_jls)
+        @test _data_kind_of(load_model_dispatch(fred_jls)) === :timeseries
+
+        # 3. irf.jl SVARModel with --ci bootstrap
+        svar_stem = joinpath(dir, "svar_boot")
+        _capture() do
+            _dispatch_via_app(["estimate", "multivariate", "svar", obs3_csv, "--lags", "2",
+                               "--save-model", svar_stem, "--format", "json"])
+        end
+        out_svar_boot = _capture() do
+            _dispatch_via_app(["irf", "var", svar_stem, "--horizons", "4", "--ci", "bootstrap",
+                               "--replications", "10", "--format", "json"])
+        end
+        @test occursin("\"irf\"", out_svar_boot)
+
+        # 4. test.jl VECM Granger & _vecm_for_restriction error paths
+        vecm_stem = joinpath(dir, "gr_vecm")
+        save_model_dispatch(vecm_stem * ".jld2", estimate_vecm(randn(50, 2), 2; rank=1, varnames=["y1", "y2"]))
+        out_gr_vecm = _capture() do
+            _dispatch_via_app(["test", "multivariate", "granger", vecm_stem,
+                               "--cause", "1", "--effect", "2", "--format", "json"])
+        end
+        @test occursin("granger_causality", out_gr_vecm)
+        @test_throws CliError _vecm_for_restriction(joinpath(dir, "missing.csv"), 2, "auto", "constant", "johansen", 0.05)
+        @test_throws CliError _vecm_for_restriction(obs3_csv, 2, "-1", "constant", "johansen", 0.05)
+
+        # 5. dsge.jl: bayes compare dual-handle, hadsge accuracy reiter & --t-fit guard, simulate-panel HASteadyState, hadsge hd
+        rbc_toml = joinpath(dir, "rbc.toml")
+        write(rbc_toml, """
+        [model]
+        parameters = { rho = 0.8 }
+        endogenous = ["Y", "C", "K"]
+        exogenous = ["e"]
+        linear = true
+        [[model.equations]]
+        expr = "Y[t] = C[t] + K[t]"
+        [[model.equations]]
+        expr = "C[t] = rho * Y[t]"
+        [[model.equations]]
+        expr = "K[t] = e[t]"
+        """)
+        b1_stem = joinpath(dir, "b1")
+        _capture() do
+            _dispatch_via_app(["dsge", "bayes", "estimate", rbc_toml, "--data", obs1_csv,
+                               "--params", "rho", "--prior", "rho ~ beta(2, 2)",
+                               "--n-smc", "10", "--n-particles", "20", "--n-draws", "10",
+                               "--save-model", b1_stem, "--format", "json"])
+        end
+        b2_stem = joinpath(dir, "b2")
+        save_model_dispatch(b2_stem * ".jld2", load_model_dispatch(b1_stem * ".jld2"))
+        out_bcmp = _capture() do
+            _dispatch_via_app(["dsge", "bayes", "compare", b1_stem, "--model2", b2_stem, "--format", "json"])
+        end
+        @test occursin("bayesian_model_comparison", out_bcmp)
+
+        out_acc_oah = _capture() do
+            _dispatch_via_app(["hadsge", "accuracy", "one-asset-hank", "--method", "reiter",
+                               "--n-reduced", "4", "--t-sim", "120", "--t-burn", "20",
+                               "--t-fit", "120", "--format", "json"])
+        end
+        @test occursin("den_haan_accuracy", out_acc_oah)
+        @test_throws CliError _dispatch_via_app(["hadsge", "accuracy", "one-asset-hank",
+                                                 "--method", "reiter", "--t-fit", "50"])
+
+        oah_stem = joinpath(dir, "oah_sol")
+        _capture() do
+            _dispatch_via_app(["hadsge", "solve", "one-asset-hank", "--method", "reiter",
+                               "--n-reduced", "4", "--save-model", oah_stem, "--format", "json"])
+        end
+        @test_throws CliError _dispatch_via_app(["hadsge", "accuracy", oah_stem, "--t-fit", "50"])
+
+        hass_stem = joinpath(dir, "huggett_ss")
+        save_model_dispatch(hass_stem * ".jld2", compute_steady_state(load_ha_example(:huggett)))
+        out_ss_pan = _capture() do
+            _dispatch_via_app(["hadsge", "simulate-panel", hass_stem, "--n-agents", "10", "--periods", "5", "--format", "json"])
+        end
+        @test occursin("ha_panel_simulation_summary", out_ss_pan)
+
+        hasol_stem = joinpath(dir, "huggett_sol")
+        _capture() do
+            _dispatch_via_app(["hadsge", "solve", "huggett", "--method", "reiter",
+                               "--n-reduced", "4", "--save-model", hasol_stem, "--format", "json"])
+        end
+        out_hahd = _capture() do
+            _dispatch_via_app(["hadsge", "hd", hasol_stem, "--data", obs1_csv, "--observables", "Y", "--format", "json"])
+        end
+        @test occursin("ha_historical_decomposition", out_hahd)
+
+        # 6. policy.jl: bvar/lp/sign routes, saved handles, --result re-renders, ha news, bvar history
+        var_stem = joinpath(dir, "pvar")
+        save_model_dispatch(var_stem * ".jld2", estimate_var(randn(60, 3), 2; varnames=["infl", "ygap", "rate"]))
+
+        bvar_stem = joinpath(dir, "pbvar")
+        save_model_dispatch(bvar_stem * ".jld2",
+            estimate_bvar(randn(60, 3), 2; n_draws=20, varnames=["infl", "ygap", "rate"]))
+        @test occursin("policy_causal_effects_menu", _capture() do
+            _dispatch_via_app(["policy", "effects", "bvar", obs3_csv, "--lags", "2", "--draws", "20",
+                               "--horizon", "3", "--shocks", "3", "--outcomes", "infl=1,ygap=2",
+                               "--instruments", "rate=3", "--format", "json"])
+        end)
+
+        @test occursin("policy_causal_effects_menu", _capture() do
+            _dispatch_via_app(["policy", "effects", "lp", obs3_csv, "--horizon", "4", "--lags", "2",
+                               "--n-draws", "10", "--shocks", "3", "--outcomes", "infl=1,ygap=2",
+                               "--instruments", "rate=3", "--format", "json"])
+        end)
+        slp_stem = joinpath(dir, "pslp")
+        save_model_dispatch(slp_stem * ".jld2", structural_lp(randn(60, 3), 4; lags=2))
+        @test occursin("policy_causal_effects_menu", _capture() do
+            _dispatch_via_app(["policy", "effects", "lp", slp_stem, "--horizon", "4", "--n-draws", "10",
+                               "--shocks", "3", "--outcomes", "infl=1,ygap=2",
+                               "--instruments", "rate=3", "--format", "json"])
+        end)
+        @test_throws CliError _policy_menu("lp"; model=estimate_var(randn(40, 3), 1),
+            lags=1, horizon=4, draws=10, replications=0, n_draws=5, config="",
+            shocks=Union{Int,String}[1],
+            outcomes=Pair{Symbol,Union{Int,String}}[:infl => 1],
+            instruments=Pair{Symbol,Union{Int,String}}[:rate => 3],
+            normalize=:none)
+
+        sign_cfg = _make_sign_config(dir)
+        @test occursin("policy_causal_effects_menu", _capture() do
+            _dispatch_via_app(["policy", "effects", "sign", obs3_csv, "--config", sign_cfg,
+                               "--replications", "10", "--horizon", "4", "--shocks", "1",
+                               "--outcomes", "infl=1,ygap=2", "--instruments", "rate=3", "--format", "json"])
+        end)
+        @test_throws CliError _dispatch_via_app(["policy", "effects", "sign", obs3_csv,
+                                                 "--horizon", "4", "--shocks", "1",
+                                                 "--outcomes", "infl=1,ygap=2", "--instruments", "rate=3"])
+        sign_stem = joinpath(dir, "psign")
+        cf_sign, _ = _build_check_func(sign_cfg)
+        save_model_dispatch(sign_stem * ".jld2",
+            identify_sign(estimate_var(randn(60, 3), 2), 4, cf_sign; max_draws=20, store_all=true))
+        @test occursin("policy_causal_effects_menu", _capture() do
+            _dispatch_via_app(["policy", "effects", "sign", sign_stem, "--horizon", "4", "--shocks", "1",
+                               "--outcomes", "infl=1,ygap=2", "--instruments", "rate=3", "--format", "json"])
+        end)
+
+        loss_toml = joinpath(dir, "loss.toml")
+        write(loss_toml, """
+        [loss]
+        outcomes = ["infl", "ygap"]
+        lambda = [1.0, 0.5]
+        """)
+        opt_stem = joinpath(dir, "popt")
+        _capture() do
+            _dispatch_via_app(["policy", "optimal", "var", var_stem, "--horizon", "4", "--shocks", "3",
+                               "--nonpolicy-shock", "1", "--outcomes", "infl=1,ygap=2",
+                               "--instruments", "rate=3", "--loss-config", loss_toml,
+                               "--save-result", opt_stem, "--format", "json"])
+        end
+        @test occursin("policy_counterfactual_paths", _capture() do
+            _dispatch_via_app(["policy", "optimal", "var", "--result", opt_stem, "--format", "json"])
+        end)
+
+        mom_stem = joinpath(dir, "pmom")
+        _capture() do
+            _dispatch_via_app(["policy", "moments", "bvar", obs3_csv, "--lags", "2", "--draws", "20",
+                               "--horizon", "3", "--shocks", "3", "--outcomes", "infl=1,ygap=2",
+                               "--instruments", "rate=3", "--rule", "rate-peg",
+                               "--save-result", mom_stem, "--format", "json"])
+        end
+        @test occursin("counterfactual_standard_deviations", _capture() do
+            _dispatch_via_app(["policy", "moments", "bvar", "--result", mom_stem, "--format", "json"])
+        end)
+
+        opp_stem = joinpath(dir, "popp")
+        _capture() do
+            _dispatch_via_app(["policy", "opp", "var", var_stem, "--loss-config", loss_toml,
+                               "--horizon", "4", "--shocks", "3", "--outcomes", "infl=1,ygap=2",
+                               "--instruments", "rate=3", "--targets", "infl=0,ygap=0", "--n-sim", "0",
+                               "--save-result", opp_stem, "--format", "json"])
+        end
+        @test occursin("opp_recommendation_delta", _capture() do
+            _dispatch_via_app(["policy", "opp", "var", "--result", opp_stem, "--format", "json"])
+        end)
+
+        fdir = joinpath(dir, "fc"); mkpath(fdir)
+        for d in ("2020Q1", "2020Q2")
+            CSV.write(joinpath(fdir, "$d.csv"), DataFrame(infl=fill(0.2, 4), ygap=fill(-0.5, 4)))
+        end
+        seq_stem = joinpath(dir, "pseq")
+        _capture() do
+            _dispatch_via_app(["policy", "opp-sequence", "var", var_stem, "--loss-config", loss_toml,
+                               "--forecasts-dir", fdir, "--sd", "0.5,0.5", "--horizon", "4",
+                               "--shocks", "3", "--outcomes", "infl=1,ygap=2", "--instruments", "rate=3",
+                               "--save-result", seq_stem, "--format", "json"])
+        end
+        @test occursin("opp_sequence_delta_by_date", _capture() do
+            _dispatch_via_app(["policy", "opp-sequence", "var", "--result", seq_stem, "--format", "json"])
+        end)
+
+        @test occursin("policy_causal_effects_menu", _capture() do
+            _dispatch_via_app(["policy", "news", "ha", "huggett", "--outcomes", "c=C",
+                               "--horizon", "4", "--t-horizon", "10", "--format", "json"])
+        end)
+        @test occursin("policy_causal_effects_menu", _capture() do
+            _dispatch_via_app(["policy", "news", "ha", hasol_stem, "--outcomes", "c=C",
+                               "--horizon", "4", "--t-horizon", "10", "--format", "json"])
+        end)
+
+        @test occursin("counterfactual_history", _capture() do
+            _dispatch_via_app(["policy", "history", "bvar", bvar_stem, "--horizon", "3", "--shocks", "3",
+                               "--outcomes", "infl=1,ygap=2", "--instruments", "rate=3",
+                               "--rule", "rate-peg", "--t-range", "2:3", "--format", "json"])
+        end)
+    end
+end

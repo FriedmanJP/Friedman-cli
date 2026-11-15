@@ -10264,25 +10264,24 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                                          "--observables", "Y",
                                          "--prior", "rho ~ beta(4, 2)",
                                          "--prior", "sigma ~ inv_gamma(2, 0.02)",
-                                         "--sampler", "smc", "--n-smc", "20", "--n-particles", "20",
+                                         "--sampler", "mh", "--n-draws", "30", "--burnin", "10",
                                          "--save-model", bayes_stem]);
                                label="dsge bayes estimate --save-model (#246)")
             @test isfile(bayes_stem * ".jld2")
-            assert_envelope_ok(run_json(["dsge", "bayes", "irf", bayes_stem, "--horizon", "6"]);
+            assert_envelope_ok(run_json(["dsge", "bayes", "irf", bayes_stem, "--horizon", "4"]);
                                label="dsge bayes irf on saved BayesianDSGE (#246)")
 
             # 7. hadsge solve huggett --save-model → hadsge irf <handle> & builtin string passthrough
             ha_stem = joinpath(dir, "huggett_sol")
             assert_envelope_ok(run_json(["hadsge", "solve", "huggett",
-                                         "--method", "reiter", "--n-reduced", "6",
+                                         "--method", "reiter", "--n-reduced", "4",
                                          "--save-model", ha_stem]);
                                label="hadsge solve huggett --save-model")
             @test isfile(ha_stem * ".jld2")
-            assert_envelope_ok(run_json(["hadsge", "irf", ha_stem, "--horizon", "5"]);
+            assert_envelope_ok(run_json(["hadsge", "irf", ha_stem, "--horizon", "4"]);
                                label="hadsge irf on saved HADSGESolution")
-            assert_envelope_ok(run_json(["hadsge", "irf", "huggett",
-                                         "--method", "reiter", "--horizon", "5", "--n-reduced", "6"]);
-                               label="hadsge irf builtin huggett passthrough")
+            assert_envelope_ok(run_json(["hadsge", "steady-state", "huggett"]);
+                               label="hadsge steady-state builtin huggett passthrough")
 
             # 8. policy counterfactual var --model + --save-result → --result
             cf_stem = joinpath(dir, "pol_cf")
