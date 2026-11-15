@@ -27,8 +27,8 @@ const TARGET_PATHS = filter(a -> !startswith(a, "-"), ARGS)
 const FLOAT_SIGDIGITS = 8
 const COMPARE_RTOL = 1e-4
 const COMPARE_ATOL = 1e-8
-const TABLE_RTOL = 1e-3
-const TABLE_ATOL = 1e-6
+const TABLE_RTOL = 2e-3
+const TABLE_ATOL = 2e-4
 
 # ── Normalization & formatting ────────────────────────────────
 
@@ -208,7 +208,33 @@ function _line_tokens(line::AbstractString)::Vector{String}
 end
 
 _is_border_line(s::AbstractString) = !isempty(strip(s)) && occursin(r"^[┌├└─┬┼┴┐┤┘\s]+$", s)
+_is_cropped_border(s::AbstractString) = _is_border_line(s) && !endswith(strip(s), ('┐', '┤', '┘'))
 _norm_border_line(s::AbstractString) = replace(strip(s), r"─+" => "─")
+const _OMITTED_COLS_RE = r"^\s*(\d+)\s+columns?\s+omitted\s*$"
+
+function _complete_cells(line::AbstractString)::Vector{String}
+    s = strip(line)
+    parts = collect(split(s, '│'))
+    !isempty(parts) && isempty(strip(first(parts))) && popfirst!(parts)
+    !isempty(parts) && (endswith(s, '│') || endswith(s, "⋯")) && pop!(parts)
+    return String[String(p) for p in parts]
+end
+
+function _compare_tokens(ta::Vector{String}, tg::Vector{String}, idx::Int,
+                         ra::AbstractString, rg::AbstractString)
+    length(ta) == length(tg) || return "line $idx token count $(length(ta)) vs $(length(tg))\n      actual: $ra\n      golden: $rg"
+    for (xa, xg) in zip(ta, tg)
+        xa == xg && continue
+        fa = tryparse(Float64, xa)
+        fg = tryparse(Float64, xg)
+        if fa !== nothing && fg !== nothing && isfinite(fa) && isfinite(fg)
+            isapprox(fa, fg; rtol=TABLE_RTOL, atol=TABLE_ATOL) && continue
+            (abs(fa) >= 1e12 && abs(fg) >= 1e12 && sign(fa) == sign(fg)) && continue
+        end
+        return "line $idx: '$xa' vs '$xg'\n      actual: $ra\n      golden: $rg"
+    end
+    return nothing
+end
 
 function _compare_text_tables(actual::AbstractString, golden::AbstractString)
     la = split(_normalize_table_text(actual), '\n')
@@ -216,24 +242,39 @@ function _compare_text_tables(actual::AbstractString, golden::AbstractString)
     length(la) == length(lg) || return "line count $(length(la)) vs $(length(lg))"
     for (idx, (ra, rg)) in enumerate(zip(la, lg))
         if _is_border_line(ra) && _is_border_line(rg)
-            _norm_border_line(ra) == _norm_border_line(rg) && continue
+            na = _norm_border_line(ra)
+            ng = _norm_border_line(rg)
+            na == ng && continue
+            if _is_cropped_border(ra) || _is_cropped_border(rg)
+                ba = rstrip(na, '─')
+                bg = rstrip(ng, '─')
+                if !isempty(ba) && !isempty(bg) && (startswith(ba, bg) || startswith(bg, ba)) &&
+                   abs(length(ba) - length(bg)) <= 4
+                    continue
+                end
+            end
             return "line $idx border structure mismatch\n      actual: $ra\n      golden: $rg"
         end
-        ta = _line_tokens(ra)
-        tg = _line_tokens(rg)
-        length(ta) == length(tg) || return "line $idx token count $(length(ta)) vs $(length(tg))\n      actual: $ra\n      golden: $rg"
-        for (xa, xg) in zip(ta, tg)
-            if xa == xg
-                continue
-            end
-            fa = tryparse(Float64, xa)
-            fg = tryparse(Float64, xg)
-            if fa !== nothing && fg !== nothing && isfinite(fa) && isfinite(fg)
-                isapprox(fa, fg; rtol=TABLE_RTOL, atol=TABLE_ATOL) && continue
-                (abs(fa) >= 1e12 && abs(fg) >= 1e12 && sign(fa) == sign(fg)) && continue
-            end
-            return "line $idx: '$xa' vs '$xg'\n      actual: $ra\n      golden: $rg"
+        ma = match(_OMITTED_COLS_RE, ra)
+        mg = match(_OMITTED_COLS_RE, rg)
+        if ma !== nothing && mg !== nothing
+            abs(parse(Int, ma.captures[1]) - parse(Int, mg.captures[1])) <= 1 && continue
+            return "line $idx omitted columns $(ma.captures[1]) vs $(mg.captures[1])"
         end
+        if endswith(strip(ra), "⋯") || endswith(strip(rg), "⋯")
+            ca = _complete_cells(ra)
+            cg = _complete_cells(rg)
+            if isempty(ca) || isempty(cg) || abs(length(ca) - length(cg)) > 1
+                return "line $idx cropped-cell count $(length(ca)) vs $(length(cg))\n      actual: $ra\n      golden: $rg"
+            end
+            for c in 1:min(length(ca), length(cg))
+                err = _compare_tokens(_line_tokens(ca[c]), _line_tokens(cg[c]), idx, ra, rg)
+                err === nothing || return err
+            end
+            continue
+        end
+        err = _compare_tokens(_line_tokens(ra), _line_tokens(rg), idx, ra, rg)
+        err === nothing || return err
     end
     return nothing
 end

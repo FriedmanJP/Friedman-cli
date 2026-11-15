@@ -115,20 +115,18 @@ open(_PRECOMPILE_SCRIPT, "w") do io
     rbc_toml = joinpath(outdir, "rbc.toml")
     open(rbc_toml, "w") do f
         println(f, \"\"\"
-[dsge]
-endogenous = ["c", "k"]
-exogenous = ["e"]
-[dsge.parameters]
-beta = 0.99
-alpha = 0.36
-delta = 0.025
-rho = 0.9
-[[dsge.equations]]
-lhs = "c + k"
-rhs = "(1 - delta) * k(-1) + k(-1)^alpha"
-[[dsge.equations]]
-lhs = "1 / c"
-rhs = "beta * (1 / c(+1)) * (alpha * k^(alpha - 1) + 1 - delta)"
+[model]
+endogenous = ["y", "pi"]
+exogenous = ["e_a"]
+linear = true
+[model.parameters]
+rho = 0.85
+sigma = 0.02
+kappa = 0.25
+[[model.equations]]
+expr = "y[t] = rho * y[t-1] + sigma * e_a[t]"
+[[model.equations]]
+expr = "pi[t] = 0.99 * pi[t+1] + kappa * y[t]"
 \"\"\")
     end
 
@@ -145,7 +143,7 @@ rhs = "beta * (1 / c(+1)) * (alpha * k^(alpha - 1) + 1 - delta)"
             end
             Friedman.dispatch(app, ["schema"])
             Friedman.dispatch(app, ["schema", "estimate", "multivariate", "var"])
-            Friedman._build_completion_index(app)
+            Friedman.build_completion_index(app)
 
             # Core v1.0.4 estimation + downstream + all 3 output formats (keep VAR --lags 1 on one line for bench_release.py)
             Friedman.dispatch(app, ["estimate", "multivariate", "var", fixture, "--lags", "1"])
@@ -172,7 +170,7 @@ rhs = "beta * (1 / c(+1)) * (alpha * k^(alpha - 1) + 1 - delta)"
             Friedman.dispatch(app, ["estimate", "choice", "logit", fixture, "--dep", "y_bin"])
             Friedman.dispatch(app, ["estimate", "panel", "preg", panel_csv, "--dep", "y", "--indep", "x"])
             Friedman.dispatch(app, ["estimate", "volatility", "garch", fixture])
-            Friedman.dispatch(app, ["estimate", "factor", "static", fixture, "--factors", "1"])
+            Friedman.dispatch(app, ["estimate", "factor", "static", fixture, "--nfactors", "1"])
             Friedman.dispatch(app, ["estimate", "univariate", "arima", fixture, "--p", "1"])
             Friedman.dispatch(app, ["test", "unit-root", "adf", fixture])
             Friedman.dispatch(app, ["test", "multivariate", "granger", var_jld2])
@@ -182,10 +180,7 @@ rhs = "beta * (1 / c(+1)) * (alpha * k^(alpha - 1) + 1 - delta)"
             Friedman.dispatch(app, ["data", "import", fixture, "--kind", "timeseries", "-o", ts_jld2])
             Friedman.dispatch(app, ["data", "describe", ts_jld2])
             Friedman.dispatch(app, ["data", "simulate", "var", "--periods", "30", "--seed", "7", "--save-data", joinpath(outdir, "sim.jls")])
-            try
-                Friedman.dispatch(app, ["dsge", "solve", rbc_toml, "--format", "json"])
-            catch
-            end
+            Friedman.dispatch(app, ["dsge", "solve", rbc_toml, "--format", "json"])
         end
     end
     """)

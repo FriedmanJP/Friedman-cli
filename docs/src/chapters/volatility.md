@@ -19,11 +19,11 @@ GARCH(1,1) Volatility Forecast (series, h=6)
 │  Int64  │ Float64  │  Float64   │
 ├─────────┼──────────┼────────────┤
 │    1    │ 0.320159 │  0.565826  │
-│    2    │ 0.323967 │  0.569181  │
-│    3    │ 0.327561 │  0.57233   │
-│    4    │ 0.330777 │  0.575132  │
-│    5    │ 0.333952 │  0.577886  │
-│    6    │ 0.336896 │  0.580428  │
+│    2    │ 0.324216 │   0.5694   │
+│    3    │ 0.32767  │  0.572425  │
+│    4    │ 0.330953 │  0.575285  │
+│    5    │ 0.333896 │  0.577838  │
+│    6    │ 0.336826 │  0.580367  │
 └─────────┴──────────┴────────────┘
 ```
 
@@ -97,7 +97,7 @@ Q_t = (1 - a - b)\bar{Q} + a (\tilde{\varepsilon}_{t-1}\tilde{\varepsilon}_{t-1}
 
 <!-- capture -->
 ```bash
-friedman --quiet data simulate var --periods 200 --burn 50 --seed 3 --save-data mv_sim
+friedman --quiet data simulate var --periods 300 --burn 50 --seed 2 --save-data mv_sim
 friedman estimate volatility dcc mv_sim --p 1 --q 1 --correction none
 ```
 ```text
@@ -106,36 +106,36 @@ friedman estimate volatility dcc mv_sim --p 1 --q 1 --correction none
 │ series │    y1    │    y2    │    y3    │
 │ String │ Float64  │ Float64  │ Float64  │
 ├────────┼──────────┼──────────┼──────────┤
-│   y1   │   1.0    │ 0.537948 │ 0.371651 │
-│   y2   │ 0.537948 │   1.0    │ 0.365068 │
-│   y3   │ 0.371651 │ 0.365068 │   1.0    │
+│   y1   │   1.0    │ 0.383801 │ 0.413936 │
+│   y2   │ 0.383801 │   1.0    │ 0.12696  │
+│   y3   │ 0.413936 │ 0.12696  │   1.0    │
 └────────┴──────────┴──────────┴──────────┘
              DCC-GARCH Dynamics Parameters
 ┌───────────┬──────────┬───────────┬─────────┬─────────┐
 │ parameter │ estimate │ std_error │ z_stat  │ p_value │
 │  String   │ Float64  │  Float64  │ Float64 │ Float64 │
 ├───────────┼──────────┼───────────┼─────────┼─────────┤
-│     a     │ 0.048525 │ 0.052578  │ 0.9229  │  0.356  │
-│     b     │   0.0    │ 0.380144  │   0.0   │   1.0   │
+│     a     │ 0.15717  │ 0.040307  │ 3.8993  │ 0.0001  │
+│     b     │ 0.150718 │ 0.127061  │ 1.1862  │ 0.2355  │
 └───────────┴──────────┴───────────┴─────────┴─────────┘
    DCC-GARCH Diagnostics
 ┌──────────────┬──────────┐
 │    metric    │  value   │
 │    String    │   Any    │
 ├──────────────┼──────────┤
-│    loglik    │ -885.348 │
-│     aic      │  1798.7  │
-│     bic      │ 1844.87  │
+│    loglik    │ -1293.58 │
+│     aic      │ 2615.16  │
+│     bic      │ 2667.01  │
 │    series    │    3     │
-│ observations │   200    │
-│  converged   │  false   │
+│ observations │   300    │
+│  converged   │   true   │
 │     kind     │   dcc    │
 │  correction  │   none   │
-│ persistence  │ 0.048525 │
+│ persistence  │ 0.307888 │
 └──────────────┴──────────┘
 ```
 
-The command emits `dcc_garch_conditional_correlation` (`(y1, y2) = 0.537948`, `(y1, y3) = 0.371651`), `dcc_garch_dynamics_parameters` (`a = 0.048525`, `b = 0.0`), and `dcc_garch_diagnostics` (`loglik = -885.348`, `bic = 1844.87`, `persistence = 0.048525`) under `--format json`. Notice multivariate GARCH commands (`ccc`, `dcc`, `bekk`) estimate full-system dynamics and do not have separate `predict`/`forecast`/`residuals` leaves.
+The command emits `dcc_garch_conditional_correlation` (`(y1, y2) = 0.383801`, `(y1, y3) = 0.413936`), `dcc_garch_dynamics_parameters` (`a = 0.15717`, `b = 0.150718`), and `dcc_garch_diagnostics` (`loglik = -1293.58`, `bic = 2667.01`, `persistence = 0.307888`) under `--format json`. Notice multivariate GARCH commands (`ccc`, `dcc`, `bekk`) estimate full-system dynamics and do not have separate `predict`/`forecast`/`residuals` leaves.
 
 ---
 
