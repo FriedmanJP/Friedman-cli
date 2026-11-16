@@ -2104,16 +2104,29 @@ end
 
 # ── Plot Helpers ──────────────────────────────────────────
 
-# Issue #229: MacroEconometricModels._d3_script() lazily reads d3.min.js from
-# joinpath(@__DIR__, "assets", "d3.min.js") when _D3_SOURCE[] is empty. In a
+# Issue #229: MacroEconometricModels._d3_script() lazily reads d3.v7.min.js from
+# joinpath(@__DIR__, "assets", "d3.v7.min.js") when _D3_SOURCE[] is empty. In a
 # relocatable PackageCompiler sysimage, @__DIR__ points to the build-machine
 # runner depot path, which does not exist on user machines. Embed the D3 asset
 # at compile time and seed MacroEconometricModels._D3_SOURCE[] before plotting.
 const _BUNDLED_D3_SOURCE = let
-    pkg_root = pkgdir(MacroEconometricModels)
-    d3_path = pkg_root === nothing ? "" :
-        joinpath(pkg_root, "src", "plotting", "assets", "d3.min.js")
-    !isempty(d3_path) && isfile(d3_path) ? read(d3_path, String) : ""
+    pkg_root = isdefined(@__MODULE__, :MacroEconometricModels) ? pkgdir(MacroEconometricModels) : nothing
+    d3_path = ""
+    if pkg_root !== nothing
+        for fname in ("d3.v7.min.js", "d3.min.js")
+            cand = joinpath(pkg_root, "src", "plotting", "assets", fname)
+            if isfile(cand)
+                d3_path = cand
+                break
+            end
+        end
+    end
+    if !isempty(d3_path)
+        Base.include_dependency(d3_path)
+        read(d3_path, String)
+    else
+        ""
+    end
 end
 
 """

@@ -179,6 +179,9 @@ expr = "pi[t] = 0.99 * pi[t+1] + kappa * y[t]"
             ts_jld2 = joinpath(outdir, "ts_d.jld2")
             Friedman.dispatch(app, ["data", "import", fixture, "--kind", "timeseries", "-o", ts_jld2])
             Friedman.dispatch(app, ["data", "describe", ts_jld2])
+            Friedman.dispatch(app, ["data", "describe", ":denmark", "--format", "json"])
+            Friedman.dispatch(app, ["data", "import", ":denmark", "-o", joinpath(outdir, "denmark.jld2")])
+            Friedman.dispatch(app, ["io", "leontief", "--format", "json"])
             Friedman.dispatch(app, ["data", "simulate", "var", "--periods", "30", "--seed", "7", "--save-data", joinpath(outdir, "sim.jls")])
             Friedman.dispatch(app, ["dsge", "solve", rbc_toml, "--format", "json"])
         end

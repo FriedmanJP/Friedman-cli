@@ -352,7 +352,7 @@ function _data_load(; name::String="", output::String="", format::String="table"
 
     name_sym = parse_dataset_name(name)
     name = String(name_sym)   # canonical stem for messages and default output paths
-    dataset = load_example(name_sym)
+    dataset = _load_example(name_sym)
 
     if dataset isa PanelData
         data_mat = to_matrix(dataset)
@@ -878,7 +878,7 @@ function _data_import(; data::String, kind::String="", frequency::String="other"
     _validate_output_path(out_path)
 
     obj = if startswith(src, ":")
-        ds = load_example(parse_dataset_name(src))
+        ds = _load_example(parse_dataset_name(src))
         inferred = _data_kind_of(ds)
         if !isempty(kind)
             want = _parse_kind(kind)

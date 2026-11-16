@@ -122,6 +122,20 @@ jobs:
           "$BIN" schema estimate multivariate var > schema_out.json
           python3 -c "import json; json.load(open('schema_out.json')); print('schema json ok')"
 
+          # Bundled example datasets (:denmark, :wiot) & non-"nothing" mems_version in sysimage
+          "$BIN" --quiet data describe :denmark --format json > denmark_out.json
+          python3 - <<'PY'
+          import json
+          d = json.load(open("denmark_out.json"))
+          assert d.get("status") == "ok", d
+          mv = d.get("meta", {}).get("mems_version", "")
+          assert mv and mv != "nothing" and mv != "unknown", f"bad mems_version in sysimage: {mv!r}"
+          print(f"bundled :denmark + mems_version ({mv}) ok")
+          PY
+          "$BIN" --quiet data import :denmark -o smoke_denmark.jld2 --format json > /dev/null
+          "$BIN" --quiet io leontief --format json > wiot_out.json
+          python3 -c "import json; d=json.load(open('wiot_out.json')); assert d.get('status')=='ok'; print('bundled :wiot ok')"
+
           # exit codes: unknown command → 2, missing file → 3
           set +e
           "$BIN" nosuchcmd >/dev/null 2>&1

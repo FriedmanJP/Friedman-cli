@@ -8420,6 +8420,30 @@ end  # Enhanced Granger handlers
         @test nrow(cs) == 21
     end
 
+    @testset "_load_example bundled cache & deepcopy isolation" begin
+        dn = _load_example(:denmark)
+        @test size(to_matrix(dn)) == (55, 5)
+        @test varnames(dn) == ["LRM", "LRY", "LPY", "IBO", "IDE"]
+
+        _BUNDLED_EXAMPLES[:_test_bundle] = [1.0, 2.0]
+        try
+            v = _load_example(:_test_bundle)
+            @test v == [1.0, 2.0]
+            v[1] = 99.0
+            @test _load_example(:_test_bundle) == [1.0, 2.0]
+        finally
+            delete!(_BUNDLED_EXAMPLES, :_test_bundle)
+        end
+
+        mktempdir() do dir
+            out = joinpath(dir, "denmark.jld2")
+            _capture() do
+                _data_import(; data=":denmark", output=out, format="json")
+            end
+            @test isfile(out)
+        end
+    end
+
     @testset "_data_describe — n is per-variable" begin
         mktempdir() do dir
             csv = joinpath(dir, "d.csv")

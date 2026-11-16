@@ -274,6 +274,42 @@ const EXAMPLE_DATASETS = (
     :denmark, :gnp_hamilton, :grunfeld, :mp_shocks, :mroz, :nile, :stackloss,
 )
 
+# Precompile-time bundle of all MEMs example datasets (+ :wiot for `io`), ~2.86 MB total.
+# PackageCompiler clears `Base.pkgorigins` in sysimages, making `pkgdir(MacroEconometricModels)`
+# return `nothing` at runtime so raw `load_example` fails to locate `<pkg>/data/*.toml`.
+# Under `test/runtests.jl` (`mocks.jl`), `pkgdir(MacroEconometricModels) === nothing`, so this
+# Dict stays empty at zero cost and `_load_example` delegates to mock `load_example`.
+const _BUNDLED_EXAMPLES = let
+    d = Dict{Symbol,Any}()
+    if isdefined(@__MODULE__, :MacroEconometricModels)
+        pkg_root = pkgdir(MacroEconometricModels)
+        if pkg_root !== nothing
+            data_dir = joinpath(pkg_root, "data")
+            if isdir(data_dir)
+                for f in readdir(data_dir; join=true)
+                    endswith(f, ".toml") && Base.include_dependency(f)
+                end
+            end
+            for sym in (EXAMPLE_DATASETS..., :wiot)
+                d[sym] = load_example(sym)
+            end
+        end
+    end
+    d
+end
+
+"""
+    _load_example(name::Symbol)
+
+Load a bundled MEMs example dataset, returning a fresh `deepcopy` from `_BUNDLED_EXAMPLES`
+when precompiled (works in relocated sysimages with zero disk/depot dependency) and
+falling back to `load_example(name)` otherwise (unit-test mocks and unknown-name errors).
+"""
+function _load_example(name::Symbol)
+    haskey(_BUNDLED_EXAMPLES, name) && return deepcopy(_BUNDLED_EXAMPLES[name])
+    return load_example(name)
+end
+
 """
     parse_dataset_name(name) → Symbol
 
@@ -378,7 +414,7 @@ end
 
 function load_data(path::String)
     if startswith(path, ":")
-        return dataset_to_dataframe(load_example(parse_dataset_name(path)))
+        return dataset_to_dataframe(_load_example(parse_dataset_name(path)))
     end
     path = _expanduser(path)
     # Session URIs are not filesystem paths — confinement would map `model://m1`

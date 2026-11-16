@@ -4839,7 +4839,7 @@ end
 
     mv1 = _cached_mems_version()
     mv2 = _cached_mems_version()
-    @test !isempty(mv1) && mv1 == mv2
+    @test !isempty(mv1) && mv1 == mv2 && mv1 != "nothing"
 
     # Help repeatable annotation (help.jl L176) and unknown multi-option error (parser.jl L244-246)
     leaf_rep = LeafCommand("rep", handler, Argument[],

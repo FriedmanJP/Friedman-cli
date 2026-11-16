@@ -630,12 +630,12 @@ function _load_io(data::String; n_sectors::Int=0, n_fd::Int=1,
                   format::String="csv", year::String="", member::String="",
                   aggregate_cn_mx::Bool=true, check::Bool=false)
     if isempty(data) || data == ":wiot" || data == "wiot"
-        return load_example(:wiot)
+        return _load_example(:wiot)
     end
     if startswith(data, ":")
         name = Symbol(replace(data[2:end], "-" => "_"))
         io = try
-            load_example(name)
+            _load_example(name)
         catch e
             e isa ArgumentError && throw(CliError("usage/unknown-example", _err_message(e);
                 hint="use :wiot for the bundled IO example, or a CSV path with --n-sectors"))

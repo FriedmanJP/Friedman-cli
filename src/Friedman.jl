@@ -184,11 +184,7 @@ function _emit_error_net(args::Vector{String}, err::CliError, t0::UInt64, wants_
             "argv"        => copy(args),
             "elapsed_ms"  => (time_ns() - t0) / 1e6,
         )
-        try
-            env.meta["mems_version"] = string(pkgversion(MacroEconometricModels))
-        catch
-            env.meta["mems_version"] = "unknown"
-        end
+        env.meta["mems_version"] = _cached_mems_version()
         set_error!(env, err.code, err.message; hint=err.hint)
         render(env, :json, stdout)
         _ENVELOPE_EMITTED[] = true

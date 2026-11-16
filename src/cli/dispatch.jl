@@ -16,14 +16,25 @@
 
 # Subcommand dispatch engine
 
+const _BUNDLED_MEMS_VERSION = if isdefined(@__MODULE__, :MacroEconometricModels)
+    let pv = try pkgversion(MacroEconometricModels) catch; nothing end
+        pv === nothing ? "" : string(pv)
+    end
+else
+    ""
+end
+
 const _MEMS_VERSION_CACHE = Ref{String}("")
 
 function _cached_mems_version()::String
     v = _MEMS_VERSION_CACHE[]
     !isempty(v) && return v
-    v = if isdefined(@__MODULE__, :MacroEconometricModels)
+    v = if !isempty(_BUNDLED_MEMS_VERSION)
+        _BUNDLED_MEMS_VERSION
+    elseif isdefined(@__MODULE__, :MacroEconometricModels)
         try
-            string(pkgversion(MacroEconometricModels))
+            pv = pkgversion(MacroEconometricModels)
+            pv === nothing ? "unknown" : string(pv)
         catch
             "unknown"
         end

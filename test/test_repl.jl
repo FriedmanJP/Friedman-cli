@@ -11,7 +11,10 @@ module Friedman
     end
     CliError(code::String, message::String; hint::String="") = CliError(code, message, hint)
 
-    const EXAMPLE_DATASETS = (:fred_md, :fred_qd, :pwt, :mpdta, :ddcg)
+    const EXAMPLE_DATASETS = (
+        :fred_md, :fred_qd, :pwt, :mpdta, :ddcg,
+        :denmark, :gnp_hamilton, :grunfeld, :mp_shocks, :mroz, :nile, :stackloss,
+    )
 
     function parse_dataset_name(name::AbstractString)
         stem = String(strip(name))
@@ -89,6 +92,12 @@ module Friedman
         elseif name == :ddcg
             data = ones(3, 2)
             return (data=data, varnames=["y", "d"])
+        elseif name == :denmark
+            data = ones(55, 5)
+            return (data=data, varnames=["LRM", "LRY", "LPY", "IBO", "IDE"])
+        elseif name in (:gnp_hamilton, :grunfeld, :mp_shocks, :mroz, :nile, :stackloss)
+            data = ones(10, 2)
+            return (data=data, varnames=["x1", "x2"])
         else
             error("unknown dataset: $name")
         end
@@ -595,6 +604,63 @@ end
     end
 end
 
+import REPL
+
+mutable struct _ReplFakeTerminal <: REPL.Terminals.UnixTerminal
+    in_stream::IO
+    out_stream::IO
+    err_stream::IO
+    hascolor::Bool
+    raw::Bool
+    _ReplFakeTerminal(stdin::IO, stdout::IO, stderr::IO, hascolor::Bool=false) =
+        new(stdin, stdout, stderr, hascolor, false)
+end
+REPL.Terminals.hascolor(t::_ReplFakeTerminal) = t.hascolor
+REPL.Terminals.raw!(t::_ReplFakeTerminal, raw::Bool) = (t.raw = raw)
+REPL.Terminals.size(t::_ReplFakeTerminal) = (24, 80)
+
+# Regression guard: must run BEFORE any prior call to `_init_completion_provider()`
+# so `_init_completion_provider()` and `Base.invokelatest` run in the same frame/world age.
+function _exercise_first_lineedit_init(app, s, idx, term, hist_path)
+    Friedman._init_completion_provider()
+    try
+        Base.invokelatest(Friedman._make_tty_terminal)
+    catch
+    end
+    return Base.invokelatest(Friedman._run_lineedit_repl, app, s, idx; term=term, histfile=hist_path)
+end
+
+@testset "LineEdit world-age single-frame initialization (no binding warnings)" begin
+    mktempdir() do dir
+        app = Friedman.build_app()
+        idx = Friedman._reset_completion_index!(app)
+        s = Friedman.Session()
+        term = _ReplFakeTerminal(IOBuffer("data use :denmark\rexit\r"), IOBuffer(), IOBuffer())
+        hist_path = joinpath(dir, ".friedman_history")
+
+        out_path, out_io = mktemp()
+        err_path, err_io = mktemp()
+        err_txt = ""
+        try
+            redirect_stdio(; stdout=out_io, stderr=err_io) do
+                _exercise_first_lineedit_init(app, s, idx, term, hist_path)
+            end
+            close(out_io)
+            close(err_io)
+            err_txt = read(err_path, String)
+        finally
+            try; close(out_io); catch; end
+            try; close(err_io); catch; end
+            rm(out_path; force=true)
+            rm(err_path; force=true)
+        end
+        @test !occursin("Detected access to binding", err_txt)
+        @test !occursin("WARNING:", err_txt)
+        @test s.data_path == ":denmark"
+        @test s.varnames == ["LRM", "LRY", "LPY", "IBO", "IDE"]
+    end
+end
+
 @testset "Tab completion" begin
     app = Friedman.build_app()
 
@@ -773,21 +839,6 @@ end
         @test isempty(s.results)
     end
 end
-
-import REPL
-
-mutable struct _ReplFakeTerminal <: REPL.Terminals.UnixTerminal
-    in_stream::IO
-    out_stream::IO
-    err_stream::IO
-    hascolor::Bool
-    raw::Bool
-    _ReplFakeTerminal(stdin::IO, stdout::IO, stderr::IO, hascolor::Bool=false) =
-        new(stdin, stdout, stderr, hascolor, false)
-end
-REPL.Terminals.hascolor(t::_ReplFakeTerminal) = t.hascolor
-REPL.Terminals.raw!(t::_ReplFakeTerminal, raw::Bool) = (t.raw = raw)
-REPL.Terminals.size(t::_ReplFakeTerminal) = (24, 80)
 
 @testset "LineEdit arrow-key history, editing, completion & persistence (#241, #247)" begin
     @testset "_resolve_histfile env & defaults" begin

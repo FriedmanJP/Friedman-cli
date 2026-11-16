@@ -84,6 +84,13 @@ error-prefix audit (`#242`), runtime hot-path & zero-probe launcher optimization
 - **Panel VAR `--dependent` variable-list parser (`src/commands/shared.jl`):**
   Fixed `_parse_varlist` to return `Vector{String}` rather than
   `Vector{SubString{String}}`, resolving `TypeError` on `estimate panel pvar --dependent`.
+- **REPL world-age bindings & sysimage bundled datasets/metadata (`src/repl.jl`, `src/io.jl`, `src/cli/dispatch.jl`, `src/Friedman.jl`, `src/commands/`):**
+  Pre-declared `_make_tty_terminal` and `_run_lineedit_repl` generic functions before lazy
+  `LineEdit` `@eval` initialization so Julia 1.12+/1.13 world-age binding checks never warn;
+  embedded all 13 bundled MEMs example datasets (`EXAMPLE_DATASETS` + `:wiot`) and
+  `_BUNDLED_MEMS_VERSION` at precompile time so relocated PackageCompiler sysimages (which
+  clear `Base.pkgorigins`) load `:example` datasets offline and report `meta.mems_version`
+  accurately; updated `_BUNDLED_D3_SOURCE` to `d3.v7.min.js`.
 
 ## [1.0.3] — 2026-10-28 — MEMs 1.0.2, BVAR news decomposition, Uhlig penalty scale & MIDAS tidy forecast (#238)
 

@@ -225,13 +225,14 @@ env = os.environ.copy()
 env["FRIEDMAN_HISTFILE"] = sys.argv[3]
 env["TERM"] = "xterm-256color"
 p = subprocess.Popen(
-    [sys.argv[1], f"--project={sys.argv[2]}", os.path.join(sys.argv[2], "bin", "friedman"), "repl"],
+    [sys.argv[1], "--depwarn=error", f"--project={sys.argv[2]}", os.path.join(sys.argv[2], "bin", "friedman"), "repl"],
     stdin=slave, stdout=slave, stderr=slave, env=env, close_fds=True
 )
 os.close(slave)
 buf = b""
+full_transcript = b""
 def wait_for(tok, timeout=90.0):
-    global buf
+    global buf, full_transcript
     deadline = time.time() + timeout
     while tok not in buf and time.time() < deadline:
         r, _, _ = select.select([master], [], [], 0.1)
@@ -240,6 +241,7 @@ def wait_for(tok, timeout=90.0):
                 c = os.read(master, 4096)
                 if not c: break
                 buf += c
+                full_transcript += c
             except OSError:
                 break
     assert tok in buf, f"missing {tok!r} in {buf.decode(errors='replace')}"
@@ -255,10 +257,15 @@ wait_for(b"friedman>")
 os.write(master, b"\\x1b[A\\x1b[A\\r")
 wait_for(b"Loaded :fred_qd")
 wait_for(b"friedman>")
+os.write(master, b"data use :denmark\\r")
+wait_for(b"Loaded :denmark")
+wait_for(b"friedman>")
 os.write(master, b"exit\\r")
 wait_for(b"Goodbye!")
 p.wait(timeout=15)
 os.close(master)
+assert b"Detected access to binding" not in full_transcript, full_transcript.decode(errors="replace")
+assert b"WARNING:" not in full_transcript, full_transcript.decode(errors="replace")
 sys.exit(p.returncode)
 """
                 proc = run(`$py_exe -c $script $julia_exe $_ROOT $hist`; wait=true)

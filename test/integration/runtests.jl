@@ -7430,6 +7430,31 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             end
         end
 
+        @testset "sysimage bundled datasets, version & D3 assets" begin
+            for sym in (Friedman.EXAMPLE_DATASETS..., :wiot)
+                @test haskey(Friedman._BUNDLED_EXAMPLES, sym)
+            end
+            d1 = Friedman._load_example(:denmark)
+            orig = d1.data[1, 1]
+            d1.data[1, 1] = -999.0
+            @test Friedman._load_example(:denmark).data[1, 1] == orig
+
+            @test !isempty(Friedman._BUNDLED_D3_SOURCE)
+            mv = Friedman._cached_mems_version()
+            @test mv == string(pkgversion(Friedman.MacroEconometricModels))
+            @test mv != "nothing" && mv != "unknown"
+
+            mktempdir() do dir
+                out = joinpath(dir, "denmark.jld2")
+                @test run_json(["data", "import", ":denmark", "-o", out]).code == 0
+                @test isfile(out)
+            end
+            s = Friedman.Session()
+            Friedman.session_load_builtin!(s, :denmark)
+            @test s.data_path == ":denmark"
+            @test size(s.Y) == (55, 5)
+        end
+
         @testset "data describe reports a scalar n per variable" begin
             mktempdir() do dir
                 src = joinpath(dir, "d.csv")

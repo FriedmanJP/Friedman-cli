@@ -520,8 +520,12 @@ const _REPL_PKG_ID = Base.PkgId(
     "REPL",
 )
 
+const _LINEEDIT_INITIALIZED = Ref(false)
+function _make_tty_terminal end
+function _run_lineedit_repl end
+
 function _init_completion_provider()
-    isdefined(@__MODULE__, :FriedmanCompletionProvider) && return nothing
+    _LINEEDIT_INITIALIZED[] && return nothing
     REPLmod = isdefined(@__MODULE__, :REPL) ? getfield(@__MODULE__, :REPL) : Base.require(_REPL_PKG_ID)
     LineEditmod = getfield(REPLmod, :LineEdit)
     Terminalsmod = getfield(REPLmod, :Terminals)
@@ -619,6 +623,7 @@ function _init_completion_provider()
             return nothing
         end
     end
+    _LINEEDIT_INITIALIZED[] = true
     return nothing
 end
 
