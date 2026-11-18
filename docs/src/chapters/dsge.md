@@ -25,21 +25,19 @@ friedman dsge solve rbc_lin.jl --method gensys --periods 6
                  Determinacy Verdict
 ┌────────────┬──────────────────────────────────────┐
 │   metric   │                value                 │
-│   String   │                 Any                  │
 ├────────────┼──────────────────────────────────────┤
 │ existence  │                  1                   │
 │ uniqueness │                  1                   │
 │  verdict   │ determinate (unique stable solution) │
 │   solver   │                gensys                │
 └────────────┴──────────────────────────────────────┘
- DSGE Solution (method=gensys)
-┌──────────┬─────────┬─────────┐
-│ variable │  G1_y   │  G1_pi  │
-│  String  │ Float64 │ Float64 │
-├──────────┼─────────┼─────────┤
-│    y     │  0.85   │  -0.0   │
-│    pi    │ 1.34069 │  -0.0   │
-└──────────┴─────────┴─────────┘
+DSGE Solution (method=gensys)
+┌──────────┬─────────┬───────┐
+│ variable │  G1_y   │ G1_pi │
+├──────────┼─────────┼───────┤
+│    y     │  0.85   │ -0.0  │
+│    pi    │ 1.34069 │ -0.0  │
+└──────────┴─────────┴───────┘
 ```
 
 Under `--format json`, [`dsge solve`](@ref ref-dsge-solve) emits `dsge_solution`, `perturbation_policy_gx`, and `determinacy_verdict` (unique stable equilibrium with `G1_y = 0.85` and `G1_pi = 1.34069` under `gensys`).
@@ -84,7 +82,6 @@ friedman dsge irf nk_occ.jl --method gensys --horizon 6 --constraint 'c[t] >= 0.
          OccBin IRF: y ← e
 ┌─────────┬───────────┬───────────┐
 │ horizon │  linear   │ piecewise │
-│  Int64  │  Float64  │  Float64  │
 ├─────────┼───────────┼───────────┤
 │    0    │   0.01    │   0.01    │
 │    1    │   0.008   │   0.008   │
@@ -96,7 +93,6 @@ friedman dsge irf nk_occ.jl --method gensys --horizon 6 --constraint 'c[t] >= 0.
          OccBin IRF: c ← e
 ┌─────────┬───────────┬───────────┐
 │ horizon │  linear   │ piecewise │
-│  Int64  │  Float64  │  Float64  │
 ├─────────┼───────────┼───────────┤
 │    0    │   0.01    │   0.01    │
 │    1    │   0.008   │   0.008   │
@@ -142,7 +138,6 @@ friedman dsge bayes identification ar_id.jl --params rho,sigma --observables y
 Identification Diagnostics
 ┌────────────┬────────────┐
 │   metric   │   value    │
-│   String   │    Real    │
 ├────────────┼────────────┤
 │    rank    │     2      │
 │  n_params  │     2      │
@@ -154,7 +149,6 @@ Identification Diagnostics
      Singular Values
 ┌───────┬────────────────┐
 │ index │ singular_value │
-│ Int64 │    Float64     │
 ├───────┼────────────────┤
 │   1   │    0.125439    │
 │   2   │   0.00125848   │

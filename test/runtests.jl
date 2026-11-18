@@ -2712,18 +2712,6 @@ let project_root = dirname(@__DIR__)
     include(joinpath(project_root, "src", "output", "render.jl"))
 end
 
-# PrettyTables v3 changed its API (tf/show_subheader removed).
-# Override _write_table to use the v3 API so table output tests work.
-function _write_table(df::DataFrame, output::String, title::String)
-    io = isempty(output) ? stdout : open(output, "w")
-    try
-        pretty_table(io, df; title=title, alignment=:c)
-    finally
-        isempty(output) || close(io)
-    end
-    isempty(output) || println("Results written to $output")
-end
-
 @testset "envelope core" begin
     env = Envelope(command="estimate multivariate var")
     add_table!(env, :coefficients, DataFrame(variable=["y1"], est=[0.5]))
@@ -5020,6 +5008,66 @@ end
         log_txt = String(take!(log_buf))
         @test occursin("Matrix near-singular", log_txt)
         @test !occursin("└ @", log_txt)
+    end
+end
+
+@testset "Wave C (#250): PrettyTables v3 uncropped rendering & single-row headers" begin
+    mktempdir() do dir
+        # 1. Tall table (> 25 rows): never crops vertically on file, pipe/stdout, or IOBuffer
+        tall_df = DataFrame(
+            id = ["row_$(lpad(i, 2, '0'))" for i in 1:30],
+            v1 = collect(1.0:30.0),
+            v2 = Union{Float64,Missing}[i == 5 ? missing : 0.1 * i for i in 1:30],
+        )
+        tall_file = joinpath(dir, "tall.txt")
+        redirect_stderr(devnull) do
+            output_result(tall_df; format=:table, output=tall_file, title="Tall Table")
+        end
+        tall_txt = read(tall_file, String)
+        @test occursin("row_01", tall_txt) && occursin("row_30", tall_txt)
+        @test !occursin("omitted", tall_txt) && !occursin("⋮", tall_txt)
+        @test !occursin("String", tall_txt) && !occursin("Float64", tall_txt)
+
+        # stdout pipe path
+        pipe_txt = mktemp() do _, pio
+            redirect_stdout(pio) do
+                redirect_stderr(devnull) do
+                    output_result(tall_df; format=:table, title="Tall Pipe")
+                end
+            end
+            flush(pio); seekstart(pio); read(pio, String)
+        end
+        @test occursin("row_30", pipe_txt) && !occursin("omitted", pipe_txt)
+
+        # Envelope render(:table) path
+        env_tall = Envelope(command="forecast multivariate var")
+        add_table!(env_tall, :tall, tall_df)
+        ebuf = IOBuffer()
+        render(env_tall, :table, ebuf)
+        env_tall_txt = String(take!(ebuf))
+        @test occursin("row_30", env_tall_txt) && !occursin("omitted", env_tall_txt)
+        @test !occursin("Float64", env_tall_txt)
+
+        # 2. Wide table (> 12 columns): never crops horizontally on file or Envelope render(:table)
+        wide_cols = [Symbol("col_$(lpad(j, 2, '0'))") => fill(round(0.11 * j; digits=4), 5) for j in 1:14]
+        wide_df = DataFrame(wide_cols...)
+        wide_file = joinpath(dir, "wide.txt")
+        redirect_stderr(devnull) do
+            output_result(wide_df; format=:table, output=wide_file, title="Wide Table")
+        end
+        wide_txt = read(wide_file, String)
+        @test occursin("col_01", wide_txt) && occursin("col_14", wide_txt)
+        @test !occursin("omitted", wide_txt) && !occursin("⋯", wide_txt)
+        @test !occursin("Float64", wide_txt)
+
+        env_wide = Envelope(command="estimate multivariate bvar")
+        add_table!(env_wide, :bvar_coefficients, wide_df)
+        wbuf = IOBuffer()
+        render(env_wide, :table, wbuf)
+        env_wide_txt = String(take!(wbuf))
+        @test occursin("col_01", env_wide_txt) && occursin("col_14", env_wide_txt)
+        @test !occursin("omitted", env_wide_txt) && !occursin("⋯", env_wide_txt)
+        @test !occursin("Float64", env_wide_txt)
     end
 end
 

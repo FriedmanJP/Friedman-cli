@@ -12,18 +12,16 @@ friedman --quiet data simulate lp-iv --periods 200 --seed 42 --save-data iv_sim
 friedman estimate regression iv iv_sim --dep y --endogenous s --instruments z1 --method tsls --cov-type hc1
 ```
 ```text
-                       IV (2SLS) Regression Coefficients
-┌────────┬──────────┬───────────┬─────────┬─────────────┬──────────┬──────────┐
-│  term  │ estimate │ std_error │  stat   │   p_value   │ ci_lower │ ci_upper │
-│ String │ Float64  │  Float64  │ Float64 │   Float64   │ Float64  │ Float64  │
-├────────┼──────────┼───────────┼─────────┼─────────────┼──────────┼──────────┤
-│   s    │ 0.751309 │ 0.0981391 │ 7.65555 │ 8.29559e-13 │ 0.557777 │ 0.944841 │
-│   x2   │ 0.647819 │ 0.128301  │ 5.04922 │  1.0032e-6  │ 0.394807 │ 0.90083  │
-└────────┴──────────┴───────────┴─────────┴─────────────┴──────────┴──────────┘
+                      IV (2SLS) Regression Coefficients
+┌──────┬──────────┬───────────┬─────────┬─────────────┬──────────┬──────────┐
+│ term │ estimate │ std_error │  stat   │   p_value   │ ci_lower │ ci_upper │
+├──────┼──────────┼───────────┼─────────┼─────────────┼──────────┼──────────┤
+│  s   │ 0.751309 │ 0.0981391 │ 7.65555 │ 8.29559e-13 │ 0.557777 │ 0.944841 │
+│  x2  │ 0.647819 │ 0.128301  │ 5.04922 │  1.0032e-6  │ 0.394807 │ 0.90083  │
+└──────┴──────────┴───────────┴─────────┴─────────────┴──────────┴──────────┘
        IV Diagnostics
 ┌───────────────┬──────────┐
 │    metric     │  value   │
-│    String     │   Any    │
 ├───────────────┼──────────┤
 │      R²       │ 0.600961 │
 │    Adj. R²    │ 0.598946 │
@@ -68,7 +66,6 @@ friedman estimate regression robust :stackloss --dep stack.loss --psi huber --me
               Robust Regression Coefficients
 ┌────────────┬───────────┬───────────┬─────────┬─────────┐
 │ parameter  │ estimate  │ std_error │ z_stat  │ p_value │
-│   String   │  Float64  │  Float64  │ Float64 │ Float64 │
 ├────────────┼───────────┼───────────┼─────────┼─────────┤
 │  Air.Flow  │  0.81035  │ 0.174304  │ 4.6491  │   0.0   │
 │ Water.Temp │  1.01971  │ 0.478114  │ 2.1328  │ 0.0329  │
@@ -77,7 +74,6 @@ friedman estimate regression robust :stackloss --dep stack.loss --psi huber --me
 Robust Regression Diagnostics
 ┌────────────┬──────────┐
 │   metric   │  value   │
-│   String   │   Any    │
 ├────────────┼──────────┤
 │    psi     │ bisquare │
 │   method   │    mm    │
@@ -122,7 +118,6 @@ friedman --seed 9 estimate regression smm ar1_sim --config smm_card --sim-ratio 
      SMM Estimation (model=ar1, weighting=two_step)
 ┌───────────┬──────────┬───────────┬─────────┬─────────┐
 │ parameter │ estimate │ std_error │ t_stat  │ p_value │
-│  String   │ Float64  │  Float64  │ Float64 │ Float64 │
 ├───────────┼──────────┼───────────┼─────────┼─────────┤
 │    phi    │ 0.641416 │ 0.071546  │ 8.9651  │   0.0   │
 │   sigma   │ 0.799064 │ 0.055001  │ 14.5282 │   0.0   │

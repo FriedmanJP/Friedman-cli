@@ -73,7 +73,12 @@ function render(env::Envelope, fmt::Symbol, out::IO)
         CSV.write(out, env.tables[1].second)
     else  # :table
         for (name, df) in env.tables
-            pretty_table(out, df; title=string(name), alignment=:c)
+            pretty_table(out, df;
+                title=string(name),
+                alignment=:c,
+                column_labels=names(df),
+                fit_table_in_display_horizontally=false,
+                fit_table_in_display_vertically=false)
         end
     end
     return nothing

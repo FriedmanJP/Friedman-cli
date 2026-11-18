@@ -30,35 +30,31 @@ friedman --quiet model info var_fit.jld2
 friedman irf var --model var_fit.jld2 --horizons 4 --shock 1 --ci none
 ```
 ```text
-             IRF to LRM shock (cholesky identification)
-┌─────────┬──────────┬────────┬──────────────┬──────────┬──────────┐
-│ horizon │ variable │ shock  │    value     │  lower   │  upper   │
-│  Int64  │  String  │ String │   Float64    │ Float64? │ Float64? │
-├─────────┼──────────┼────────┼──────────────┼──────────┼──────────┤
-│    1    │   LRM    │  LRM   │  0.0211523   │ missing  │ missing  │
-│    1    │   LRY    │  LRM   │  0.00867905  │ missing  │ missing  │
-│    1    │   LPY    │  LRM   │ -0.00301527  │ missing  │ missing  │
-│    1    │   IBO    │  LRM   │ -0.00275231  │ missing  │ missing  │
-│    1    │   IDE    │  LRM   │ -0.000271827 │ missing  │ missing  │
-│    2    │   LRM    │  LRM   │  0.0125777   │ missing  │ missing  │
-│    2    │   LRY    │  LRM   │  0.0111191   │ missing  │ missing  │
-│    2    │   LPY    │  LRM   │ -0.00343509  │ missing  │ missing  │
-│    2    │   IBO    │  LRM   │ -0.00214358  │ missing  │ missing  │
-│    2    │   IDE    │  LRM   │ -0.000878119 │ missing  │ missing  │
-│    3    │   LRM    │  LRM   │  0.0143858   │ missing  │ missing  │
-│    3    │   LRY    │  LRM   │  0.0067444   │ missing  │ missing  │
-│    3    │   LPY    │  LRM   │  -0.0032946  │ missing  │ missing  │
-│    3    │   IBO    │  LRM   │ -0.00134605  │ missing  │ missing  │
-│    ⋮    │    ⋮     │   ⋮    │      ⋮       │    ⋮     │    ⋮     │
-└─────────┴──────────┴────────┴──────────────┴──────────┴──────────┘
-                                                      6 rows omitted
-```3858   │ missing  │ missing  │
-│    3    │   LRY    │  LRM   │  0.0067444   │ missing  │ missing  │
-│    3    │   LPY    │  LRM   │  -0.0032946  │ missing  │ missing  │
-│    3    │   IBO    │  LRM   │ -0.00134605  │ missing  │ missing  │
-│    ⋮    │    ⋮     │   ⋮    │      ⋮       │    ⋮     │    ⋮     │
-└─────────┴──────────┴────────┴──────────────┴──────────┴──────────┘
-                                                      6 rows omitted
+           IRF to LRM shock (cholesky identification)
+┌─────────┬──────────┬───────┬──────────────┬─────────┬─────────┐
+│ horizon │ variable │ shock │    value     │  lower  │  upper  │
+├─────────┼──────────┼───────┼──────────────┼─────────┼─────────┤
+│    1    │   LRM    │  LRM  │  0.0211523   │ missing │ missing │
+│    1    │   LRY    │  LRM  │  0.00867905  │ missing │ missing │
+│    1    │   LPY    │  LRM  │ -0.00301527  │ missing │ missing │
+│    1    │   IBO    │  LRM  │ -0.00275231  │ missing │ missing │
+│    1    │   IDE    │  LRM  │ -0.000271827 │ missing │ missing │
+│    2    │   LRM    │  LRM  │  0.0125777   │ missing │ missing │
+│    2    │   LRY    │  LRM  │  0.0111191   │ missing │ missing │
+│    2    │   LPY    │  LRM  │ -0.00343509  │ missing │ missing │
+│    2    │   IBO    │  LRM  │ -0.00214358  │ missing │ missing │
+│    2    │   IDE    │  LRM  │ -0.000878119 │ missing │ missing │
+│    3    │   LRM    │  LRM  │  0.0143858   │ missing │ missing │
+│    3    │   LRY    │  LRM  │  0.0067444   │ missing │ missing │
+│    3    │   LPY    │  LRM  │  -0.0032946  │ missing │ missing │
+│    3    │   IBO    │  LRM  │ -0.00134605  │ missing │ missing │
+│    3    │   IDE    │  LRM  │ -0.00103512  │ missing │ missing │
+│    4    │   LRM    │  LRM  │  0.0102766   │ missing │ missing │
+│    4    │   LRY    │  LRM  │  0.00552347  │ missing │ missing │
+│    4    │   LPY    │  LRM  │ -0.00329447  │ missing │ missing │
+│    4    │   IBO    │  LRM  │ -0.00141897  │ missing │ missing │
+│    4    │   IDE    │  LRM  │ -0.000667991 │ missing │ missing │
+└─────────┴──────────┴───────┴──────────────┴─────────┴─────────┘
 ```
 
 At horizon `1`, a one-standard-deviation Cholesky shock to `LRM` raises `LRM` by `0.0211523` and `LRY` by `0.00867905` while lowering `IBO` by `-0.00275231`. Chaining `--save-model` to `--model` skips OLS estimation during `irf`, guarantees the exact same lag structure and covariance matrix across `irf`, `fevd`, `hd`, and `forecast` (JSON key `irf`), and accepts `-f json` or `-f csv` identically on every leaf.

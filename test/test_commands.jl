@@ -51,17 +51,6 @@ include(joinpath(project_root, "src", "config.jl"))
 const FRIEDMAN_VERSION = VersionNumber(
     TOML.parsefile(joinpath(project_root, "Project.toml"))["version"])
 
-# Override _write_table for PrettyTables v3 (tf/show_subheader kwargs removed)
-function _write_table(df::DataFrame, output::String, title::String)
-    io = isempty(output) ? stdout : open(output, "w")
-    try
-        pretty_table(io, df; title=title, alignment=:c)
-    finally
-        isempty(output) || close(io)
-    end
-    isempty(output) || _status("Results written to $output")
-end
-
 # Include CLI types (needed for LeafCommand, NodeCommand, etc.)
 include(joinpath(project_root, "src", "cli", "types.jl"))
 include(joinpath(project_root, "src", "cli", "parser.jl"))
@@ -14260,6 +14249,10 @@ end  # Command Handlers
     # Renderer goldens (normalize CRLF — Windows checkout may convert golden text files)
     env = Envelope(command="estimate multivariate var")
     add_table!(env, :coefficients, DataFrame(variable=["y1", "y2"], est=[0.5, -0.25]))
+    tbuf = IOBuffer(); render(env, :table, tbuf)
+    tbl_out = replace(String(take!(tbuf)), "\r\n" => "\n")
+    golden_tbl = replace(read(joinpath(_GOLDEN_DIR, "render.table.txt"), String), "\r\n" => "\n")
+    @test tbl_out == golden_tbl
     buf = IOBuffer(); render(env, :csv, buf)
     csv_out = replace(String(take!(buf)), "\r\n" => "\n")
     golden_csv = replace(read(joinpath(_GOLDEN_DIR, "render.csv.txt"), String), "\r\n" => "\n")
