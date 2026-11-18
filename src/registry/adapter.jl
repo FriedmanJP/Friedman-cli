@@ -116,6 +116,17 @@ function wrap_legacy(handler::Function)
         # Stem-resolve + type-check the data slot (or auto-route a model handle to kwargs[:model]).
         has_pos_model = any(a -> a.name == "model", ctx.spec.args)
         can_autoroute_model = !isempty(ctx.spec.model_types) && !has_pos_model
+        if can_autoroute_model && _slot_set(get(kwargs, :model, "")) && _slot_set(get(kwargs, :data, ""))
+            mp_raw = get(kwargs, :model, "")
+            is_domain_choice = mp_raw isa AbstractString &&
+                ctx.spec.path == ["test", "multivariate", "granger"] &&
+                String(mp_raw) in ("var", "vecm")
+            if !is_domain_choice
+                throw(CliError("usage/invalid",
+                    "--model cannot be combined with a <data> argument; the saved model already carries its sample";
+                    hint="omit <data> to use --model, or omit --model to estimate from <data>"))
+            end
+        end
         if haskey(kwargs, :data) && kwargs[:data] isa AbstractString && !isempty(kwargs[:data])
             raw_data = String(kwargs[:data])
             resolved = try

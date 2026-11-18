@@ -10,7 +10,7 @@ Simulate a 2-regime Markov-switching series with a fixed seed, estimate regime-d
 ```bash
 friedman --quiet data simulate regime --kind ms --periods 180 --burn 40 --seed 12 --save-data ms_sim
 friedman --quiet estimate regime ms-ar ms_sim --p 1 --k-regimes 2 --switching-variance --save-model ms_fit
-friedman forecast regime ms-ar ms_sim --model ms_fit.jld2 --horizons 4 --reps 100
+friedman forecast regime ms-ar --model ms_fit.jld2 --horizons 4 --reps 100
 ```
 ```text
         MS-AR(1) Forecast for model (h=4, 90% CI)

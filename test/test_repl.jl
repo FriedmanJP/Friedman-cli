@@ -113,8 +113,20 @@ module Friedman
     struct NodeCommand; name::String; subcmds::Dict{String,Union{NodeCommand,LeafCommand}}; description::String; end
     struct Entry; name::String; root::NodeCommand; version::VersionNumber; end
     const FRIEDMAN_VERSION = v"0.4.1"
+    const _QUIET = Ref(false)
+    const _COLOR = Ref(true)
+    const _SEED  = Ref{Union{Int,Nothing}}(nothing)
     _last_injected_model = nothing
+    _last_dispatched_args = String[]
+    _last_seen_seed = nothing
+    _last_seen_quiet = false
     function dispatch(app, args; extra_kwargs...)
+        global _last_dispatched_args = copy(args)
+        global _last_seen_seed = _SEED[]
+        global _last_seen_quiet = _QUIET[]
+        if !isempty(args) && startswith(args[1], "-")
+            throw(DispatchError("friedman: unknown command '$(args[1])'"))
+        end
         # Return a mock result for estimate commands (model token: depth-3
         # family path, else the flat leaf)
         if !isempty(args) && args[1] == "estimate" && length(args) >= 2
@@ -597,10 +609,47 @@ end
         Friedman.repl_dispatch(s, app, ["estimate", "multivariate", "var", "data.csv"])
         @test Friedman.session_get_result(s, :var) == "mock_var_model"
 
-        # Now run downstream — should inject cached model
+        # Now run downstream without explicit <data> — should inject cached model
         Friedman._last_injected_model = nothing
-        Friedman.repl_dispatch(s, app, ["irf", "var", "data.csv"])
+        Friedman.repl_dispatch(s, app, ["irf", "var"])
         @test Friedman._last_injected_model == "mock_var_model"
+        @test Friedman._last_dispatched_args == ["irf", "var"]
+
+        # Explicit <data>, --model, --result, or re-estimation flags must NOT inject cached model (#253)
+        for override_args in (
+            ["irf", "var", "other.csv"],
+            ["irf", "var", "--model", "other.jld2"],
+            ["irf", "var", "--result", "res.jld2"],
+            ["irf", "var", "--lags", "3"],
+            ["irf", "var", "-p", "3"],
+        )
+            Friedman._last_injected_model = nothing
+            Friedman.repl_dispatch(s, app, override_args)
+            @test Friedman._last_injected_model === nothing
+        end
+
+        # Downstream-only options (--horizons, --id/--config, --format) still inject cached model (#253)
+        Friedman._last_injected_model = nothing
+        Friedman.repl_dispatch(s, app, ["irf", "var", "--horizons", "8", "--id", "sign", "--config", "s.toml", "--format", "json"])
+        @test Friedman._last_injected_model == "mock_var_model"
+        @test !("/tmp/test.csv" in Friedman._last_dispatched_args)
+    end
+
+    @testset "leading global flags in REPL (#253)" begin
+        s = Friedman.Session()
+        s.data_path = "/tmp/test.csv"
+        app = Friedman.build_app()
+        Friedman._QUIET[] = false
+        Friedman._SEED[] = nothing
+
+        Friedman.repl_dispatch(s, app, ["--seed", "42", "--quiet", "--json", "estimate", "multivariate", "var", "data.csv"])
+        @test Friedman.session_get_result(s, :var) == "mock_var_model"
+        @test Friedman._last_seen_seed == 42
+        @test Friedman._last_seen_quiet == true
+        @test "--format" in Friedman._last_dispatched_args && "json" in Friedman._last_dispatched_args
+        # Global flag state must NOT leak to subsequent REPL lines
+        @test Friedman._QUIET[] == false
+        @test Friedman._SEED[] === nothing
     end
 end
 
@@ -828,9 +877,9 @@ end
         @test s.results[:var] == "mock_var_model"
         @test s.last_model == :var
 
-        # Downstream gets cached model injected
+        # Downstream (without explicit <data> override) gets cached model injected
         Friedman._last_injected_model = nothing
-        Friedman.repl_dispatch(s, app, ["irf", "var", "data.csv"])
+        Friedman.repl_dispatch(s, app, ["irf", "var"])
         @test Friedman._last_injected_model == "mock_var_model"
 
         # Clear resets everything

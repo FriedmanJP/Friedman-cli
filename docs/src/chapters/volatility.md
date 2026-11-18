@@ -10,7 +10,7 @@ Simulate a 250-period GARCH(1,1) series with a fixed seed, estimate conditional 
 ```bash
 friedman --quiet data simulate garch --kind garch --periods 250 --seed 42 --save-data garch_sim
 friedman --quiet estimate volatility garch garch_sim --p 1 --q 1 --save-model garch_fit
-friedman forecast volatility garch garch_sim --model garch_fit.jld2 --horizons 6
+friedman forecast volatility garch --model garch_fit.jld2 --horizons 6
 ```
 ```text
 GARCH(1,1) Volatility Forecast (series, h=6)

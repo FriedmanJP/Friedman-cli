@@ -10,7 +10,7 @@ Import the five-series Danish money demand panel (`:denmark`), fit a reduced-for
 ```bash
 friedman --quiet data import :denmark -o macro
 friedman --seed 42 --quiet estimate multivariate var macro --lags 2 --save-model var_fit
-friedman forecast multivariate var macro --model var_fit.jld2 --horizons 4 --ci-method analytical
+friedman forecast multivariate var --model var_fit.jld2 --horizons 4 --ci-method analytical
 ```
 ```text
               VAR(2) Forecast (h=4, 95% CI)

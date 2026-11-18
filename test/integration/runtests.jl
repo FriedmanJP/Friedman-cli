@@ -10438,6 +10438,110 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         end
     end
 
+    @testset "Wave B (#253, #257) real MacroEconometricModels integration" begin
+        mktempdir() do dir
+            # 1. #253: <data> + --model rejected with exit 2 (usage/invalid)
+            rng_b = MersenneTwister(253)
+            csv1 = joinpath(dir, "d1.csv")
+            csv2 = joinpath(dir, "d2.csv")
+            CSV.write(csv1, DataFrame(a=0.4 .* randn(rng_b, 60), b=0.4 .* randn(rng_b, 60)))
+            CSV.write(csv2, DataFrame(c1=2.0 .* randn(rng_b, 60), c2=2.0 .* randn(rng_b, 60)))
+            v1 = joinpath(dir, "v1")
+            v2 = joinpath(dir, "v2")
+            assert_envelope_ok(run_json(["estimate", "multivariate", "var", csv1, "--lags", "1", "--save-model", v1]))
+            assert_envelope_ok(run_json(["estimate", "multivariate", "var", csv2, "--lags", "2", "--save-model", v2]))
+
+            r_both = run_json(["forecast", "multivariate", "var", csv2, "--model", v1 * ".jld2", "--horizons", "2"])
+            @test r_both.code == 2
+            @test r_both.doc.error.code == "usage/invalid"
+
+            # 2. #253: REPL leading globals + cached model vs explicit --model / <data> / --lags override
+            sess = Friedman.Session()
+            app = Friedman.APP
+            Friedman.session_load_data!(sess, csv1)
+            mktemp() do _, out_io
+                redirect_stdout(out_io) do
+                    redirect_stderr(devnull) do
+                        Friedman.repl_dispatch(sess, app, ["--seed", "42", "--quiet", "estimate", "multivariate", "var", "--lags", "1"])
+                    end
+                end
+            end
+            @test sess.results[:var] isa MacroEconometricModels.VARModel
+            @test sess.results[:var].p == 1
+            @test Friedman._QUIET[] == false
+            @test Friedman._SEED[] === nothing
+
+            # Cached VAR(1) used when no override is passed
+            out_cached = mktemp() do _, out_io
+                redirect_stdout(out_io) do
+                    redirect_stderr(devnull) do
+                        Friedman.repl_dispatch(sess, app, ["forecast", "multivariate", "var", "--horizons", "2"])
+                    end
+                end
+                flush(out_io); seekstart(out_io); read(out_io, String)
+            end
+            @test occursin("VAR(1) Forecast", out_cached)
+
+            # Explicit --model v2 overrides cached VAR(1) -> VAR(2)
+            out_mod = mktemp() do _, out_io
+                redirect_stdout(out_io) do
+                    redirect_stderr(devnull) do
+                        Friedman.repl_dispatch(sess, app, ["forecast", "multivariate", "var", "--model", v2, "--horizons", "2"])
+                    end
+                end
+                flush(out_io); seekstart(out_io); read(out_io, String)
+            end
+            @test occursin("VAR(2) Forecast", out_mod)
+
+            # Explicit --lags 3 overrides cached VAR(1) -> re-estimates VAR(3) on session data
+            out_reest = mktemp() do _, out_io
+                redirect_stdout(out_io) do
+                    redirect_stderr(devnull) do
+                        Friedman.repl_dispatch(sess, app, ["forecast", "multivariate", "var", "--lags", "3", "--horizons", "2"])
+                    end
+                end
+                flush(out_io); seekstart(out_io); read(out_io, String)
+            end
+            @test occursin("VAR(3) Forecast", out_reest)
+
+            # Explicit <data> csv2 overrides cached VAR(1) on csv1 -> forecasts csv2's columns (c1, c2)
+            out_data = mktemp() do _, out_io
+                redirect_stdout(out_io) do
+                    redirect_stderr(devnull) do
+                        Friedman.repl_dispatch(sess, app, ["forecast", "multivariate", "var", csv2, "--horizons", "2"])
+                    end
+                end
+                flush(out_io); seekstart(out_io); read(out_io, String)
+            end
+            @test occursin("c1", out_data) && occursin("c2", out_data) && !occursin("│    a     │", out_data)
+
+            # 3. #257: real volatility variants + MIDAS forecast/predict/residuals with --model and NO <data>
+            vol_csv = dgp_garch(; T=300, seed=257)
+            for v in ("igarch", "cgarch", "aparch", "figarch", "fiegarch")
+                mstem = joinpath(dir, "$(v)_real")
+                assert_envelope_ok(run_json(["estimate", "volatility", v, vol_csv, "--save-model", mstem]); label="est $v")
+                assert_envelope_ok(run_json(["forecast", "volatility", v, "--model", mstem, "--horizons", "3"]); label="fc $v --model")
+                assert_envelope_ok(run_json(["predict", "volatility", v, "--model", mstem]); label="pred $v --model")
+                assert_envelope_ok(run_json(["residuals", "volatility", v, "--model", mstem]); label="res $v --model")
+            end
+            gm_stem = joinpath(dir, "gm_real")
+            assert_envelope_ok(run_json(["estimate", "volatility", "garch-midas", vol_csv, "--m-freq", "15", "--k", "4", "--save-model", gm_stem]); label="est garch-midas")
+            assert_envelope_ok(run_json(["forecast", "volatility", "garch-midas", "--model", gm_stem, "--horizons", "3"]); label="fc garch-midas --model")
+            assert_envelope_ok(run_json(["predict", "volatility", "garch-midas", "--model", gm_stem]); label="pred garch-midas --model")
+            assert_envelope_ok(run_json(["residuals", "volatility", "garch-midas", "--model", gm_stem]); label="res garch-midas --model")
+
+            lf_csv = joinpath(dir, "lf.csv")
+            hf_csv = joinpath(dir, "hf.csv")
+            CSV.write(lf_csv, DataFrame(y=randn(rng_b, 40)))
+            CSV.write(hf_csv, DataFrame(x=randn(rng_b, 120)))
+            md_stem = joinpath(dir, "midas_real")
+            assert_envelope_ok(run_json(["estimate", "univariate", "midas", lf_csv, "--hf-data", hf_csv, "--m", "3", "--k", "6", "--save-model", md_stem]); label="est midas")
+            assert_envelope_ok(run_json(["forecast", "univariate", "midas", "--model", md_stem]); label="fc midas --model")
+            assert_envelope_ok(run_json(["forecast", "univariate", "midas", "--model", md_stem, "--hf-data", hf_csv]); label="fc midas --model --hf-data")
+            rm(vol_csv; force=true)
+        end
+    end
+
 end
 
 # Real entry-point coverage (C036) — also on core/CI path

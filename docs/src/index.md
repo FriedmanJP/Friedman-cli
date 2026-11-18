@@ -42,7 +42,7 @@ friedman data import :denmark --vars LRM,LRY,IBO -o macro
 friedman --seed 42 estimate multivariate var macro --lags 2 --save-model var_fit
 
 # Compute Cholesky impulse responses without re-estimating the VAR
-friedman irf var macro --model var_fit.jld2 --horizons 8 --shock 1
+friedman irf var --model var_fit.jld2 --horizons 8 --shock 1
 
 # Verify reproducibility and inspect handle provenance
 friedman model info var_fit.jld2

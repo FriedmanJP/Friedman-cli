@@ -63,7 +63,7 @@ function _capture_all(f)
 end
 
 """Dispatch via a minimal Entry built from register_* (mock-bound)."""
-function _dispatch_via_app(args::Vector{String})
+function _dispatch_via_app(args::Vector{String}; extra_kwargs...)
     root_cmds = Dict{String,Union{NodeCommand,LeafCommand}}(
         "estimate" => register_estimate_commands!(),
         "test"     => register_test_commands!(),
@@ -87,7 +87,7 @@ function _dispatch_via_app(args::Vector{String})
     )
     root = NodeCommand("friedman", root_cmds, "test tree")
     entry = Entry("friedman", root; version=v"0.4.3")
-    return dispatch(entry, args)
+    return dispatch(entry, args; extra_kwargs...)
 end
 
 """Prepend `verb` and the v1.0.0 family segment when `rest` still starts on a leaf token.

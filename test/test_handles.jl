@@ -1446,14 +1446,26 @@ end
         @test err_conf isa CliError
         @test err_conf.code == "usage/invalid"
 
-        # 3. Review Focus #2 (coexistence): data handle in <data> + model handle in --model
+        # 3. #253: combining <data> + --model on leaves whose --model path ignores <data> is usage/invalid (exit 2)
         ts_new = TimeSeriesData(randn(20, 2); varnames=["y1", "y2"])
         save_model_dispatch(joinpath(dir, "new_ts.jld2"), ts_new)
-        out_pred = _capture() do
-            _dispatch_via_app(["predict", "multivariate", "var", joinpath(dir, "new_ts.jld2"),
-                               "--model", joinpath(dir, "vmod.jld2"), "--format", "json"])
-        end
-        @test occursin("fitted", out_pred) || occursin("y1", out_pred)
+        err_coexist = try
+            _capture() do
+                _dispatch_via_app(["predict", "multivariate", "var", joinpath(dir, "new_ts.jld2"),
+                                   "--model", joinpath(dir, "vmod.jld2"), "--format", "json"])
+            end
+            nothing
+        catch e; e; end
+        @test err_coexist isa CliError && err_coexist.code == "usage/invalid"
+
+        err_nonexist_data = try
+            _capture() do
+                _dispatch_via_app(["forecast", "multivariate", "var", joinpath(dir, "NONEXISTENT.csv"),
+                                   "--model", joinpath(dir, "vmod.jld2"), "--horizons", "2"])
+            end
+            nothing
+        catch e; e; end
+        @test err_nonexist_data isa CliError && err_nonexist_data.code == "usage/invalid"
 
         # 4. Tabular .jls accepted on :csv leaves via wrap_legacy, rejected on non-:csv leaves (data export)
         tab_jls = joinpath(dir, "tab.jls")
@@ -1969,12 +1981,10 @@ end
             @test occursin("\"a\"", out_handle)
             @test !occursin("\"y3\"", out_handle)
 
-            # On other leaves (e.g. forecast multivariate var <oos> --model var --lags 3),
-            # stem `var` still loads ./var.jld2 (VAR(1)) rather than estimating VAR(3) on oos2.csv
-            oos_csv = joinpath(dir, "oos2.csv")
-            CSV.write(oos_csv, DataFrame(a=randn(20), b=randn(20)))
+            # On other leaves (e.g. forecast multivariate var --model var --lags 3),
+            # stem `var` still loads ./var.jld2 (VAR(1)) rather than treating `var` as a domain choice
             out_fc = _capture() do
-                _dispatch_via_app(["forecast", "multivariate", "var", oos_csv, "--model", "var", "--lags", "3", "--horizons", "2", "--format", "json"])
+                _dispatch_via_app(["forecast", "multivariate", "var", "--model", "var", "--lags", "3", "--horizons", "2", "--format", "json"])
             end
             @test occursin("VAR(1)", out_fc)
         end
@@ -2243,5 +2253,91 @@ end
                                "--outcomes", "infl=1,ygap=2", "--instruments", "rate=3",
                                "--rule", "rate-peg", "--t-range", "2:3", "--format", "json"])
         end)
+    end
+end
+
+@testset "Wave B (#253, #257): dispatch_leaf extra_kwargs precedence + volatility/MIDAS --model without <data>" begin
+    mktempdir() do dir
+        # 1. #253: dispatch_leaf supports bare REPL cached model injection (no <data> arg)
+        #    AND never lets extra_kwargs[:model] clobber an explicit --model on the command line.
+        ts_csv = joinpath(dir, "ts.csv")
+        CSV.write(ts_csv, DataFrame(a=randn(40), b=randn(40)))
+        v1_stem = joinpath(dir, "v1")
+        v2_stem = joinpath(dir, "v2")
+        _capture() do
+            _dispatch_via_app(["estimate", "multivariate", "var", ts_csv, "--lags", "1", "--save-model", v1_stem])
+            _dispatch_via_app(["estimate", "multivariate", "var", ts_csv, "--lags", "2", "--save-model", v2_stem])
+        end
+        v1_obj = load_model_dispatch(v1_stem * ".jld2")
+
+        # Bare ["forecast", "multivariate", "var"] with extra_kwargs model=v1_obj works without <data>
+        ret_cached = Ref{Any}(nothing)
+        _capture() do
+            ret_cached[] = _dispatch_via_app(["forecast", "multivariate", "var", "--horizons", "2", "--format", "json"]; model=v1_obj)
+        end
+        @test ret_cached[].model.p == 1
+
+        # Even empty leaf args ["hd", "var"] with extra_kwargs model=v1_obj runs instead of printing help
+        out_bare_hd = _capture() do
+            _dispatch_via_app(["hd", "var"]; model=v1_obj)
+        end
+        @test !occursin("Usage:", out_bare_hd)
+
+        # Explicit --model v2_stem MUST win over extra_kwargs model=v1_obj
+        ret_explicit_mod = Ref{Any}(nothing)
+        _capture() do
+            ret_explicit_mod[] = _dispatch_via_app(["forecast", "multivariate", "var", "--model", v2_stem, "--horizons", "2", "--format", "json"]; model=v1_obj)
+        end
+        @test ret_explicit_mod[].model.p == 2
+
+        # 2. #257: volatility variants (igarch, cgarch, aparch, figarch, fiegarch, garch-midas)
+        #    run forecast/predict/residuals with --model <stem> and NO <data>
+        vol_csv = joinpath(dir, "vol.csv")
+        CSV.write(vol_csv, DataFrame(r=randn(120)))
+        for v in ("igarch", "cgarch", "aparch", "figarch", "fiegarch")
+            mstem = joinpath(dir, "$(v)_fit")
+            _capture() do
+                _dispatch_via_app(["estimate", "volatility", v, vol_csv, "--save-model", mstem, "--format", "json"])
+            end
+            for verb in ("forecast", "predict", "residuals")
+                extra = verb == "forecast" ? ["--horizons", "3"] : String[]
+                out_v = _capture() do
+                    _dispatch_via_app(vcat(["$(verb)", "volatility", v, "--model", mstem, "--format", "json"], extra))
+                end
+                @test occursin("\"status\":\"ok\"", replace(out_v, " " => ""))
+            end
+        end
+
+        gm_stem = joinpath(dir, "garch_midas_fit")
+        _capture() do
+            _dispatch_via_app(["estimate", "volatility", "garch-midas", vol_csv, "--m-freq", "10", "--k", "4",
+                               "--save-model", gm_stem, "--format", "json"])
+        end
+        for verb in ("forecast", "predict", "residuals")
+            extra = verb == "forecast" ? ["--horizons", "3"] : String[]
+            out_gm = _capture() do
+                _dispatch_via_app(vcat([verb, "volatility", "garch-midas", "--model", gm_stem, "--format", "json"], extra))
+            end
+            @test occursin("\"status\":\"ok\"", replace(out_gm, " " => ""))
+        end
+
+        # 3. #257: forecast univariate midas --model <stem> works without <data> (and also with optional --hf-data)
+        lf_csv = joinpath(dir, "lf.csv")
+        hf_csv = joinpath(dir, "hf.csv")
+        CSV.write(lf_csv, DataFrame(y=randn(30)))
+        CSV.write(hf_csv, DataFrame(x=randn(90)))
+        midas_stem = joinpath(dir, "midas_fit")
+        _capture() do
+            _dispatch_via_app(["estimate", "univariate", "midas", lf_csv, "--hf-data", hf_csv,
+                               "--m", "3", "--k", "6", "--save-model", midas_stem, "--format", "json"])
+        end
+        out_midas = _capture() do
+            _dispatch_via_app(["forecast", "univariate", "midas", "--model", midas_stem, "--format", "json"])
+        end
+        @test occursin("midas_forecast", out_midas)
+        out_midas_hf = _capture() do
+            _dispatch_via_app(["forecast", "univariate", "midas", "--model", midas_stem, "--hf-data", hf_csv, "--format", "json"])
+        end
+        @test occursin("midas_forecast", out_midas_hf)
     end
 end

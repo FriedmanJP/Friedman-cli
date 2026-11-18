@@ -27,7 +27,7 @@ The workflow below imports `:denmark` (55 quarterly observations across `LRM`, `
 friedman --quiet data import :denmark -o macro
 friedman --seed 42 --quiet estimate multivariate var macro --lags 2 --save-model var_fit
 friedman --quiet model info var_fit.jld2
-friedman irf var macro --model var_fit.jld2 --horizons 4 --shock 1 --ci none
+friedman irf var --model var_fit.jld2 --horizons 4 --shock 1 --ci none
 ```
 ```text
              IRF to LRM shock (cholesky identification)
