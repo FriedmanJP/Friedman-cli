@@ -117,6 +117,9 @@ function _domain_error_class(e)
                              "guess/bounds, or the parameterization (try `dsge determinacy-map`)")
     elseif _has_supertype_named(typeof(e), :MacroModelError)
         return CliError("model/error", _err_message(e))
+    elseif e isa ErrorException && occursin("All posterior draws are non-stationary", _err_message(e))
+        return CliError("model/nonstationary", _err_message(e);
+                        hint="reduce lag order, tighten shrinkage, or transform non-stationary series")
     elseif e isa ArgumentError && _is_orientation_error(_err_message(e))
         # MEMs' `_orient_data` (DSGE bayes/HA paths, #142) throws a plain
         # ArgumentError when no data dimension matches the observable count.

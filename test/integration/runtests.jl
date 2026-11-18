@@ -10330,6 +10330,114 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         end
     end
 
+    @testset "BVAR/FAVAR coefs, BVARPosterior handles, REPL & reproduce (#249, #251, #252, #254)" begin
+        mktempdir() do dir
+            bvar_stem = joinpath(dir, "bvar_denmark")
+            Friedman._SEED[] = 42
+            r_est = try
+                run_json(["estimate", "multivariate", "bvar", ":denmark",
+                          "--lags", "2", "--draws", "80", "--sampler", "direct",
+                          "--save-model", bvar_stem])
+            finally
+                Friedman._SEED[] = nothing
+            end
+            assert_envelope_ok(r_est; label="estimate multivariate bvar :denmark --save-model (#251, #252)")
+            @test isfile(bvar_stem * ".jld2")
+
+            # #252: Saved handle is a BVARPosterior with real :denmark varnames (#251)
+            post = Friedman.load_model_dispatch(bvar_stem * ".jld2")
+            @test post isa MacroEconometricModels.BVARPosterior
+            @test post.varnames == ["LRM", "LRY", "LPY", "IBO", "IDE"]
+
+            # #249: Exact cell alignment of bvar_coefficients against posterior_mean_model(post; data=post.data).B
+            pm = MacroEconometricModels.posterior_mean_model(post; data=post.data)
+            bcoef = r_est.doc.data.bvar_coefficients
+            cols = table_cols(bcoef)
+            @test cols[1:7] == ["equation", "const", "LRM_L1", "LRY_L1", "LPY_L1", "IBO_L1", "IDE_L1"]
+            row1 = collect(first(table_rows(bcoef)))
+            @test String(row1[1]) == "LRM"
+            @test isapprox(Float64(row1[2]), pm.B[1, 1]; atol=1e-6)   # intercept
+            @test isapprox(Float64(row1[3]), pm.B[2, 1]; atol=1e-6)   # LRM_L1
+            @test isapprox(Float64(row1[4]), pm.B[3, 1]; atol=1e-6)   # LRY_L1
+
+            # #251: Non-zero Lütkepohl AIC / BIC / HQC in information_criteria
+            ic_rows = Dict(String(collect(r)[1]) => Float64(collect(r)[2])
+                           for r in table_rows(r_est.doc.data.information_criteria))
+            @test ic_rows["AIC"] != 0.0 && ic_rows["BIC"] != 0.0 && ic_rows["HQC"] != 0.0
+
+            # #251: Stderr report renders Bayesian VAR — BVAR(2), not frequentist OLS VAR(2)
+            err_path, err_io = mktemp()
+            est_stderr = try
+                redirect_stdio(stdout=devnull, stderr=err_io) do
+                    Friedman.run_cli(["estimate", "multivariate", "bvar", ":denmark",
+                                      "--lags", "2", "--draws", "40", "--sampler", "direct"])
+                end
+                close(err_io)
+                read(err_path, String)
+            finally
+                try; close(err_io); catch; end
+                try; rm(err_path; force=true); catch; end
+            end
+            @test occursin("Bayesian VAR", est_stderr)
+            @test !occursin("Vector Autoregression — VAR(2)", est_stderr)
+
+            # #249: FAVAR exact cell alignment against to_var(favar).B
+            favar_csv = joinpath(dir, "favar6.csv")
+            rng_f = MersenneTwister(249)
+            f_lat = randn(rng_f, 80)
+            CSV.write(favar_csv, DataFrame(
+                x1 = 0.8 .* f_lat .+ 0.2 .* randn(rng_f, 80),
+                x2 = -0.6 .* f_lat .+ 0.2 .* randn(rng_f, 80),
+                x3 = 0.5 .* f_lat .+ 0.2 .* randn(rng_f, 80),
+                x4 = 0.7 .* f_lat .+ 0.2 .* randn(rng_f, 80),
+                r_key = 0.3 .* f_lat .+ 0.5 .* randn(rng_f, 80),
+            ))
+            r_fav = run_json(["estimate", "multivariate", "favar", favar_csv,
+                              "--factors", "1", "--lags", "1", "--key-vars", "5"])
+            assert_envelope_ok(r_fav; label="estimate factor favar (#249)")
+            fcols = table_cols(r_fav.doc.data.favar_coefficients)
+            @test fcols[1] == "equation" && fcols[2] == "const"
+
+            # #252: Downstream bvar --model round-trips + model reproduce
+            # Use a well-stationary simulated VAR dataset for forecast (since :denmark in levels has unit-root draws)
+            stat_csv = joinpath(dir, "stat_bvar.csv")
+            rng_s = MersenneTwister(252)
+            CSV.write(stat_csv, DataFrame(y1=0.3 .* randn(rng_s, 60), y2=0.3 .* randn(rng_s, 60)))
+            stat_stem = joinpath(dir, "bvar_stat")
+            assert_envelope_ok(run_json(["--seed", "123", "estimate", "multivariate", "bvar", stat_csv,
+                                         "--lags", "1", "--draws", "60", "--sampler", "direct",
+                                         "--save-model", stat_stem]);
+                               label="estimate stationary bvar --save-model (#252)")
+            for (lbl, argv) in (
+                ("forecast bvar --model", ["forecast", "multivariate", "bvar", "--model", stat_stem, "--horizons", "3"]),
+                ("irf bvar --model",      ["irf", "bvar", "--model", stat_stem, "--horizons", "3"]),
+                ("fevd bvar --model",     ["fevd", "bvar", "--model", stat_stem, "--horizons", "3"]),
+                ("hd bvar --model",       ["hd", "bvar", "--model", stat_stem]),
+                ("predict bvar --model",  ["predict", "multivariate", "bvar", "--model", stat_stem]),
+                ("residuals bvar --model",["residuals", "multivariate", "bvar", "--model", stat_stem]),
+                ("model reproduce bvar",  ["model", "reproduce", stat_stem * ".jld2"]),
+            )
+                r_ds = run_json(argv)
+                assert_envelope_ok(r_ds; label=lbl)
+                if lbl == "model reproduce bvar"
+                    rep_rows = Dict(String(collect(r)[1]) => String(collect(r)[2])
+                                    for r in table_rows(r_ds.doc.data.model_reproduce_summary))
+                    @test rep_rows["matched"] == "true"
+                end
+            end
+
+            # #252: REPL session estimate bvar → predict / residuals / hd bvar does not crash
+            sess = Friedman.Session()
+            app = Friedman.build_app()
+            Friedman.session_load_data!(sess, stat_csv)
+            Friedman.repl_dispatch(sess, app, ["estimate", "multivariate", "bvar", "--lags", "1", "--draws", "40", "--format", "json"])
+            @test sess.results[:bvar] isa MacroEconometricModels.BVARPosterior
+            Friedman.repl_dispatch(sess, app, ["predict", "multivariate", "bvar", "--format", "json"])
+            Friedman.repl_dispatch(sess, app, ["residuals", "multivariate", "bvar", "--format", "json"])
+            Friedman.repl_dispatch(sess, app, ["hd", "bvar", "--format", "json"])
+        end
+    end
+
 end
 
 # Real entry-point coverage (C036) — also on core/CI path

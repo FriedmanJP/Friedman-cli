@@ -360,7 +360,7 @@ Bayesian VAR with Minnesota prior (GLP/grid hyperopt)
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
-**Output tables:** `bvar_coefficients` (Posterior mean (or median) BVAR coefficients, one row per equation x regressor); `minnesota_hyperparameters` (Selected Minnesota hyperparameters and, for --hyperopt glp, the optimizer diagnostics); `information_criteria` (AIC / BIC / HQC and the log-likelihood of the posterior point model)
+**Output tables:** `bvar_coefficients` (Posterior mean (or median) BVAR coefficients, one row per equation with columns const and <var>_L<lag>); `minnesota_hyperparameters` (Selected Minnesota hyperparameters and, for --hyperopt glp, the optimizer diagnostics); `information_criteria` (AIC / BIC / HQC and the log-likelihood of the posterior point model)
 
 ### [`friedman estimate multivariate favar`](@id ref-estimate-multivariate-favar)
 

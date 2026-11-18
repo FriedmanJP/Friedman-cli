@@ -160,7 +160,7 @@ function estimate_specs()::Vector{CommandSpec}
             ],
             flags=FlagSpec[],
             tables=[TableSpec(name=:bvar_coefficients,
-                              description="Posterior mean (or median) BVAR coefficients, one row per equation x regressor"),
+                              description="Posterior mean (or median) BVAR coefficients, one row per equation with columns const and <var>_L<lag>"),
                     TableSpec(name=:minnesota_hyperparameters,
                               description="Selected Minnesota hyperparameters and, for --hyperopt glp, the optimizer diagnostics"),
                     TableSpec(name=:information_criteria,
@@ -2014,15 +2014,15 @@ function _estimate_bvar(; data::String, lags::Int=4, prior::String="minnesota",
 
     post = estimate_bvar(Y, p;
         sampler=Symbol(sampler), n_draws=draws,
-        prior=prior_sym, hyper=prior_obj, seed=_SEED[])
+        prior=prior_sym, hyper=prior_obj, varnames=varnames, seed=_SEED[])
 
     model = if method == "median"
-        posterior_median_model(post)
+        posterior_median_model(post; data=Y)
     else
-        posterior_mean_model(post)
+        posterior_mean_model(post; data=Y)
     end
 
-    _status_report(() -> report(model))
+    _status_report(() -> report(post))
 
     coef_df = _build_var_coef_table(coef(model), varnames, p)
     output_result(coef_df; format=Symbol(format), output=output,
@@ -2038,7 +2038,7 @@ function _estimate_bvar(; data::String, lags::Int=4, prior::String="minnesota",
 
     _status()
     output_model_criteria(model; format=format, title="Information Criteria (Posterior $(titlecase(method)))")
-    return model
+    return post
 end
 
 # ── LP ─────────────────────────────────────────────────────

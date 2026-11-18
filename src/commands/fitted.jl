@@ -46,7 +46,7 @@ function _predict_bvar(; data::String="", lags::Int=4, draws::Int=2000,
         post = model
         varnames = post.varnames
         p = post.p
-        Y = post.Y
+        Y = post.data
     end
 
     _status("Computing BVAR($p) in-sample predictions (posterior mean)")
@@ -725,7 +725,7 @@ function _residuals_bvar(; data::String="", lags::Int=4, draws::Int=2000,
         post = model
         varnames = post.varnames
         p = post.p
-        Y = post.Y
+        Y = post.data
     end
 
     _status("Computing BVAR($p) residuals (posterior mean)")

@@ -21,7 +21,7 @@
 using Test
 using CSV, DataFrames, JSON3, PrettyTables, TOML
 using Dates
-using LinearAlgebra: eigvals, diag, I, svd, diagm
+using LinearAlgebra: eigvals, diag, I, svd, diagm, logdet, det
 using Statistics: mean, median, var, quantile, std
 using Random
 using Serialization

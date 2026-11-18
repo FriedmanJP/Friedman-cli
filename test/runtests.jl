@@ -4945,4 +4945,82 @@ end
     @test err_mh isa CliError && occursin("handle", err_mh.hint) && !occursin("--model", err_mh.hint)
 end
 
+@testset "Wave A: BVAR/FAVAR coefs, BVARPosterior round-trip & logger/errors (#249, #251, #252, #254)" begin
+    # #249: VARModel.B places intercept in row 1 (B[1, :]), followed by lag 1 (B[2:1+n, :]) .. lag p
+    B_known = [
+        0.01  0.02;   # row 1: const for eq 1 (LRM), eq 2 (LRY)
+        0.81  0.11;   # row 2: LRM_L1
+        0.21  0.71;   # row 3: LRY_L1
+        0.05 -0.04;   # row 4: LRM_L2
+       -0.03  0.15;   # row 5: LRY_L2
+    ]
+    coef_df = _build_var_coef_table(B_known, ["LRM", "LRY"], 2)
+    @test names(coef_df) == ["equation", "const", "LRM_L1", "LRY_L1", "LRM_L2", "LRY_L2"]
+    @test coef_df.const == [0.01, 0.02]
+    @test coef_df.LRM_L1 == [0.81, 0.11]
+    @test coef_df.LRY_L1 == [0.21, 0.71]
+    @test coef_df.LRM_L2 == [0.05, -0.04]
+    @test coef_df.LRY_L2 == [-0.03, 0.15]
+
+    mktempdir() do dir
+        csv = joinpath(dir, "denmark_sub.csv")
+        CSV.write(csv, DataFrame(LRM=randn(60), LRY=randn(60), LPY=randn(60)))
+
+        # #251 + #252: _estimate_bvar preserves varnames, calls report(post::BVARPosterior),
+        # emits non-zero Lütkepohl AIC/BIC/HQC, and returns BVARPosterior!
+        est_res = Ref{Any}(nothing)
+        out_bvar = _capture() do
+            est_res[] = _estimate_bvar(; data=csv, lags=2, prior="minnesota", draws=50,
+                                         sampler="direct", method="mean", format="json")
+        end
+        @test est_res[] isa BVARPosterior
+        @test est_res[].varnames == ["LRM", "LRY", "LPY"]
+        @test occursin("Bayesian VAR — BVAR(2) (LRM, LRY, LPY)", out_bvar)
+        # Check non-zero AIC/BIC/HQC in output_model_criteria
+        ic_out = _capture() do
+            pm = posterior_mean_model(est_res[]; data=est_res[].data)
+            output_model_criteria(pm; format="json")
+        end
+        @test !occursin("\"AIC\":0.0", ic_out) && !occursin("\"BIC\":0.0", ic_out) && !occursin("\"HQC\":0.0", ic_out)
+
+        # #252: _load_and_estimate_bvar defaults to :minnesota (not :normal) when config is empty
+        post_def, _, vn_def, _, _ = _load_and_estimate_bvar(csv, 2, "", 50, "direct")
+        @test post_def.prior === :minnesota
+        @test vn_def == ["LRM", "LRY", "LPY"]
+
+        # #252: forecast, predict, and residuals bvar work with a pre-loaded BVARPosterior (post.data, not post.Y)
+        fc_res = _capture() do
+            _forecast_bvar(; model=est_res[], horizons=3, format="json")
+        end
+        @test occursin("Bayesian forecast", fc_res)
+
+        pred_res = _capture() do
+            _predict_bvar(; model=est_res[], format="json")
+        end
+        @test occursin("LRM", pred_res)
+
+        resid_res = _capture() do
+            _residuals_bvar(; model=est_res[], format="json")
+        end
+        @test occursin("LRM", resid_res)
+    end
+
+    # #254: All posterior draws are non-stationary maps to model/nonstationary (exit 5)
+    mapped_ns = _domain_error_class(ErrorException("All posterior draws are non-stationary"))
+    @test mapped_ns isa CliError
+    @test exit_class(mapped_ns) == 5
+    @test startswith(mapped_ns.code, "model/")
+
+    # #254: _mems_logger formats @warn / @info cleanly without raw @ Module path:line footers
+    if @isdefined(_mems_logger)
+        log_buf = IOBuffer()
+        Logging.with_logger(_mems_logger(log_buf)) do
+            @warn "Matrix near-singular (1-norm cond ≈ 7.35e7). Using pseudo-inverse."
+        end
+        log_txt = String(take!(log_buf))
+        @test occursin("Matrix near-singular", log_txt)
+        @test !occursin("└ @", log_txt)
+    end
+end
+
 include(joinpath(@__DIR__, "test_e2e.jl"))
