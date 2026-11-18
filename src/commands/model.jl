@@ -149,5 +149,5 @@ end
 function register_model_commands!()
     specs = with_default_csv_kinds(model_specs())
     specs = register!(specs)
-    return build_node("model", specs; description="Model handles: inspect and reproduce-verify .jld2, .fmod, and model:// session handles")
+    return build_node("model", specs; description="Model handles: inspect and reproduce-verify .jld2, .jls, .fmod, and model:// session handles")
 end

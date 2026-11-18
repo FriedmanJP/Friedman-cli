@@ -61,6 +61,11 @@ end
         @test occursin("estimate", r.out)
         @test occursin("Commands", r.out) || occursin("command", lowercase(r.out))
 
+        r_repl = _e2e_run(["repl", "--help"])
+        @test r_repl.code == 0
+        @test occursin("friedman repl", r_repl.out)
+        @test occursin("FRIEDMAN_HISTFILE", r_repl.out)
+
         r = _e2e_run(["schema", "estimate", "multivariate", "var"])
         @test r.code == 0
         @test _exactly_one_json(r.out) || occursin("{", r.out)

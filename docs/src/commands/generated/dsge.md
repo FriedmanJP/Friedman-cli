@@ -1011,7 +1011,7 @@ Estimate a DSGE model with Bayesian sampling and run the Koop-Pesaran-Smith lear
 | `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--fractions` | — | `String` | `0.5,1.0` | — | Nested subsample fractions (comma-separated, in (0,1]) |
+| `--fractions` | — | `String` | `0.5,1.0` | — | Nested subsample fractions (comma-separated, 0 < f <= 1) |
 | `--threshold` | — | `Float64` | `0.2` | — | Flag threshold on the learning rate α |
 | `--refit-n-smc` | — | `Int64` | `100` | — | SMC particles per subsample refit |
 

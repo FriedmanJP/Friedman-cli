@@ -4854,4 +4854,95 @@ end
     @test err_multi isa ParseError && occursin("--count", err_multi.message)
 end
 
+@testset "Help & CLI usage contract (#255, #256)" begin
+    root_cmds = Dict{String,Union{NodeCommand,LeafCommand}}(
+        "estimate"    => register_estimate_commands!(),
+        "test"        => register_test_commands!(),
+        "irf"         => register_irf_commands!(),
+        "fevd"        => register_fevd_commands!(),
+        "hd"          => register_hd_commands!(),
+        "forecast"    => register_forecast_commands!(),
+        "predict"     => register_predict_commands!(),
+        "residuals"   => register_residuals_commands!(),
+        "filter"      => register_filter_commands!(),
+        "data"        => register_data_commands!(),
+        "io"          => register_io_commands!(),
+        "nowcast"     => register_nowcast_commands!(),
+        "dsge"        => register_dsge_commands!(),
+        "hadsge"      => register_hadsge_commands!(),
+        "did"         => register_did_commands!(),
+        "policy"      => register_policy_commands!(),
+        "spectral"    => register_spectral_commands!(),
+        "schema"      => register_schema_command!(),
+        "model"       => register_model_commands!(),
+        "completions" => register_completions_commands!(),
+        "serve"       => register_serve_commands!(),
+        "show"        => register_show_commands!(),
+    )
+    app = Entry("friedman",
+        NodeCommand("friedman", root_cmds,
+            "A macroeconometric analysis toolkit powered by MacroEconometricModels.jl");
+        version=PROJECT_VERSION)
+
+    # 1. Root --help merges top-level nodes & leaves into ONE Commands: section
+    buf_root = IOBuffer()
+    print_help(buf_root, app)
+    root_help = String(take!(buf_root))
+    @test count("Commands:\n", root_help) == 1
+    @test !occursin("\nschema:\n", root_help)
+    @test occursin("schema", root_help) && occursin("serve", root_help) && occursin("show", root_help)
+
+    # 2. print_repl_help renders concise REPL usage, keybindings, and FRIEDMAN_HISTFILE
+    rbuf = IOBuffer()
+    print_repl_help(rbuf)
+    rtxt = String(take!(rbuf))
+    @test occursin("friedman repl", rtxt)
+    @test occursin("FRIEDMAN_HISTFILE", rtxt)
+    @test occursin("data use", rtxt)
+
+    # 3. Zero (default: NaN) / (default: Inf) sentinels across all 478 leaves,
+    #    balanced parens on dsge bayes learning-rate --fractions, and optionality cue with --model/--result
+    sentinel_hits = String[]
+    function _check_leaf_help(n::NodeCommand, prefix::String="")
+        p = isempty(prefix) ? n.name : "$prefix $(n.name)"
+        for (k, v) in n.subcmds
+            if v isa NodeCommand
+                _check_leaf_help(v, p)
+            else
+                lbuf = IOBuffer()
+                print_help(lbuf, v; prog="$p $k")
+                ht = String(take!(lbuf))
+                if occursin("(default: NaN)", ht) || occursin("(default: Inf)", ht) || occursin("(default: -Inf)", ht)
+                    push!(sentinel_hits, "$p $k")
+                end
+            end
+        end
+    end
+    _check_leaf_help(app.root)
+    @test isempty(sentinel_hits)
+
+    lr_leaf = app.root.subcmds["dsge"].subcmds["bayes"].subcmds["learning-rate"]
+    frac_opt = first(filter(o -> o.name == "fractions", lr_leaf.options))
+    @test count(==('('), frac_opt.description) == count(==(')'), frac_opt.description)
+
+    irf_buf = IOBuffer()
+    print_help(irf_buf, app.root.subcmds["irf"].subcmds["var"]; prog="friedman irf var")
+    irf_ht = String(take!(irf_buf))
+    @test occursin("optional when --model or --result", irf_ht)
+
+    # 4. Missing-option / invalid-choice checks throw typed CliError (exit_class == 2) (#256)
+    err_dv = try; _data_validate(; data="x.csv", model=""); nothing; catch e; e; end
+    @test err_dv isa CliError && exit_class(err_dv) == 2
+    @test occursin("gjr_garch", err_dv.message) && occursin("gdfm", err_dv.message)
+
+    err_did = try; _did_estimate(; data="x.csv", outcome="", treatment="d"); nothing; catch e; e; end
+    @test err_did isa CliError && exit_class(err_did) == 2
+
+    err_dsge = try; _dsge_estimate(; model="m.toml", data="", params="alpha"); nothing; catch e; e; end
+    @test err_dsge isa CliError && exit_class(err_dsge) == 2
+
+    err_mh = try; load_model_dispatch("/nonexistent/friedman_missing_handle_xyz.jld2"); nothing; catch e; e; end
+    @test err_mh isa CliError && occursin("handle", err_mh.hint) && !occursin("--model", err_mh.hint)
+end
+
 include(joinpath(@__DIR__, "test_e2e.jl"))

@@ -373,7 +373,8 @@ function _irf_var(; data::String="", result=nothing, model=nothing, lags=nothing
     # Sign-identified set: return full draw set instead of point estimates
     if identified_set && id == "sign"
         check_func, _ = _build_check_func(config)
-        isnothing(check_func) && error("--identified-set requires a --config file with sign restrictions")
+        isnothing(check_func) && throw(CliError("usage/missing-option",
+            "--identified-set requires a --config file with sign restrictions"))
         set = identify_sign(model, horizons, check_func; max_draws=replications, store_all=true,
                             _fwd_seed()...)
         # W2/#166 (#746): set-identified summaries operate on the held set.

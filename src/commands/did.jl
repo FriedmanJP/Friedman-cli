@@ -53,8 +53,8 @@ function _did_estimate(; data::String, outcome::String, treatment::String,
         output::String="", format::String="table",
         plot::Bool=false, plot_save::String="")
 
-    isempty(outcome) && error("--outcome is required")
-    isempty(treatment) && error("--treatment is required")
+    isempty(outcome) && throw(CliError("usage/missing-option", "--outcome is required"))
+    isempty(treatment) && throw(CliError("usage/missing-option", "--treatment is required"))
 
     df = load_data(data)
     id, tc = _did_panel_cols(df, id_col, time_col)
@@ -107,8 +107,8 @@ function _did_event_study(; data::String, outcome::String, treatment::String,
         output::String="", format::String="table",
         plot::Bool=false, plot_save::String="")
 
-    isempty(outcome) && error("--outcome is required")
-    isempty(treatment) && error("--treatment is required")
+    isempty(outcome) && throw(CliError("usage/missing-option", "--outcome is required"))
+    isempty(treatment) && throw(CliError("usage/missing-option", "--treatment is required"))
 
     df = load_data(data)
     id, tc = _did_panel_cols(df, id_col, time_col)
@@ -158,8 +158,8 @@ function _did_lp_did(; data::String, outcome::String, treatment::String,
         output::String="", format::String="table",
         plot::Bool=false, plot_save::String="")
 
-    isempty(outcome) && error("--outcome is required")
-    isempty(treatment) && error("--treatment is required")
+    isempty(outcome) && throw(CliError("usage/missing-option", "--outcome is required"))
+    isempty(treatment) && throw(CliError("usage/missing-option", "--treatment is required"))
 
     df = load_data(data)
     id, tc = _did_panel_cols(df, id_col, time_col)
@@ -231,8 +231,8 @@ function _did_test_bacon(; data::String, outcome::String, treatment::String,
         output::String="", format::String="table",
         plot::Bool=false, plot_save::String="")
 
-    isempty(outcome) && error("--outcome is required")
-    isempty(treatment) && error("--treatment is required")
+    isempty(outcome) && throw(CliError("usage/missing-option", "--outcome is required"))
+    isempty(treatment) && throw(CliError("usage/missing-option", "--treatment is required"))
 
     df = load_data(data)
     id, tc = _did_panel_cols(df, id_col, time_col)
@@ -265,8 +265,8 @@ function _did_test_pretrend(; data::String, outcome::String, treatment::String,
         method::String="did", did_method::String="twfe",
         output::String="", format::String="table")
 
-    isempty(outcome) && error("--outcome is required")
-    isempty(treatment) && error("--treatment is required")
+    isempty(outcome) && throw(CliError("usage/missing-option", "--outcome is required"))
+    isempty(treatment) && throw(CliError("usage/missing-option", "--treatment is required"))
 
     df = load_data(data)
     id, tc = _did_panel_cols(df, id_col, time_col)
@@ -298,7 +298,7 @@ function _did_test_negweight(; data::String, treatment::String,
         id_col::String="", time_col::String="",
         output::String="", format::String="table")
 
-    isempty(treatment) && error("--treatment is required")
+    isempty(treatment) && throw(CliError("usage/missing-option", "--treatment is required"))
 
     df = load_data(data)
     id, tc = _did_panel_cols(df, id_col, time_col)
@@ -334,8 +334,8 @@ function _did_test_honest(; data::String, outcome::String, treatment::String,
         output::String="", format::String="table",
         plot::Bool=false, plot_save::String="")
 
-    isempty(outcome) && error("--outcome is required")
-    isempty(treatment) && error("--treatment is required")
+    isempty(outcome) && throw(CliError("usage/missing-option", "--outcome is required"))
+    isempty(treatment) && throw(CliError("usage/missing-option", "--treatment is required"))
 
     df = load_data(data)
     id, tc = _did_panel_cols(df, id_col, time_col)

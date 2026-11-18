@@ -2353,24 +2353,26 @@ function _test_heteroskedasticity(; data::String, lags=nothing, method::String="
         identify_garch(model)
     elseif method == "smooth_transition"
         if isempty(config)
-            error("smooth_transition requires --config specifying [nongaussian] transition_variable")
+            throw(CliError("usage/missing-option",
+                "smooth_transition requires --config specifying [nongaussian] transition_variable"))
         end
         cfg = load_config(config)
         ng_cfg = get_nongaussian(cfg)
         tv_name = ng_cfg["transition_variable"]
         tv_idx = findfirst(==(tv_name), names(df))
-        isnothing(tv_idx) && error("transition variable '$tv_name' not found in data")
+        isnothing(tv_idx) && throw(CliError("data/column-not-found", "transition variable '$tv_name' not found in data"))
         transition_var = Vector{Float64}(df[!, tv_name])
         identify_smooth_transition(model, transition_var)
     elseif method == "external"
         if isempty(config)
-            error("external requires --config specifying [nongaussian] regime_variable")
+            throw(CliError("usage/missing-option",
+                "external requires --config specifying [nongaussian] regime_variable"))
         end
         cfg = load_config(config)
         ng_cfg = get_nongaussian(cfg)
         rv_name = ng_cfg["regime_variable"]
         rv_idx = findfirst(==(rv_name), names(df))
-        isnothing(rv_idx) && error("regime variable '$rv_name' not found in data")
+        isnothing(rv_idx) && throw(CliError("data/column-not-found", "regime variable '$rv_name' not found in data"))
         regime_indicator = Vector{Float64}(df[!, rv_name])
         identify_external_volatility(model, regime_indicator; regimes=regimes)
     else

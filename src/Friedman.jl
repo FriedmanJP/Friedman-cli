@@ -203,6 +203,15 @@ Single entry shared by `main` (dev) and `julia_main` (compiled). Exit codes
 function run_cli(args::Vector{String})::Cint
     # Launch REPL if "repl" is the first argument
     if !isempty(args) && args[1] == "repl"
+        if any(a -> a in ("--help", "-h"), @view args[2:end])
+            print_repl_help(stdout; prog="friedman repl")
+            return Cint(0)
+        elseif length(args) > 1
+            msg = "friedman repl takes no positional arguments (got '$(args[2])'); run 'friedman repl --help'"
+            _status_styled("Error: "; bold=true, color=:red)
+            println(stderr, msg)
+            return Cint(2)
+        end
         start_repl()
         return Cint(0)
     end

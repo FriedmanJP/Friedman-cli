@@ -2332,7 +2332,7 @@ function _estimate_lp_smooth(data, shock, horizons, knots, lambda, output, forma
 end
 
 function _estimate_lp_state(data, shock, horizons, state_var, gamma, transition, output, format)
-    isnothing(state_var) && error("state-dependent LP requires --state-var=<idx>")
+    isnothing(state_var) && throw(CliError("usage/missing-option", "state-dependent LP requires --state-var=<idx>"))
 
     Y, varnames = load_multivariate_data(data)
     n = size(Y, 2)
@@ -2846,7 +2846,8 @@ end
 function _estimate_gmm(; data::String, config::String="",
                         weighting::String="twostep",
                         output::String="", format::String="table")
-    isempty(config) && error("GMM requires a --config=<file.toml> specifying moment conditions and instruments")
+    isempty(config) && throw(CliError("usage/missing-option",
+        "GMM requires a --config=<file.toml> specifying moment conditions and instruments"))
 
     cfg = _load_config_or_card(config, :gmm)
     gmm_cfg = get_gmm(cfg)
@@ -4526,7 +4527,7 @@ function _estimate_plogit(; data::String, dep::String="", indep::String="",
                            method::String="pooled", cov_type::String="cluster",
                            id_col::String="", time_col::String="",
                            output::String="", format::String="table")
-    isempty(dep) && error("--dep is required")
+    isempty(dep) && throw(CliError("usage/missing-option", "--dep is required"))
     pd = _load_panel_for_preg(data, id_col, time_col)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
@@ -4558,7 +4559,7 @@ function _estimate_pprobit(; data::String, dep::String="", indep::String="",
                             method::String="pooled", cov_type::String="cluster",
                             id_col::String="", time_col::String="",
                             output::String="", format::String="table")
-    isempty(dep) && error("--dep is required")
+    isempty(dep) && throw(CliError("usage/missing-option", "--dep is required"))
     pd = _load_panel_for_preg(data, id_col, time_col)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
