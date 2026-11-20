@@ -4,6 +4,72 @@ All notable changes to Friedman-cli are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to
 Semantic Versioning. Releases before v0.6.0 are recorded in the git tag history.
 
+## [1.0.5] — 2026-11-20 — BVAR/FAVAR fixes, REPL & handle contract hardening, help/exit hygiene & uncropped table rendering (#258)
+
+Post-v1.0.4 bugfix release on MacroEconometricModels `=1.0.3` (`#249`–`#258`): aligned
+BVAR/FAVAR coefficient columns, preserved `BVARPosterior` handles and variable names,
+hardened `<data>` + `--model` and REPL session precedence, fixed volatility/MIDAS
+`--model` without `<data>`, unified CLI `--help` and typed usage errors, and disabled
+PrettyTables v3 display truncation with refreshed documentation captures.
+477 registry leaves + top-level `schema` / `repl` unchanged.
+
+### BVAR, FAVAR & Logger Hygiene (#249, #251, #252, #254)
+
+- **Aligned VAR/BVAR/FAVAR coefficient columns (`src/commands/shared.jl`, #249):**
+  Prepended `"const"` at row 1 in `_build_var_coef_table` to match
+  `MacroEconometricModels`' `[1; y_{t-1}; ...; y_{t-p}]` layout instead of shifting every
+  lag column by one.
+- **`BVARPosterior` persistence, varnames & information criteria (`src/commands/estimate.jl`, `src/commands/forecast.jl`, `src/commands/fitted.jl`, `src/commands/shared.jl`, #251, #252):**
+  Forwarded `varnames=varnames` in `_estimate_bvar`, rendered `report(post::BVARPosterior)`
+  instead of frequentist OLS `report(model)`, computed Lütkepohl per-observation
+  `AIC`/`BIC`/`HQC` when posterior point models carry placeholder `0.0` criteria, returned
+  `BVARPosterior` directly for `--save-model` and REPL caching (enabling downstream
+  `irf`/`fevd`/`hd`/`forecast`/`predict`/`residuals bvar --model` and bit-for-bit
+  `model reproduce`), fixed `post.Y` → `post.data` across BVAR post-estimation handlers,
+  and aligned `_load_and_estimate_bvar`'s default prior to `:minnesota`.
+- **Clean library logging & non-stationary error mapping (`src/Friedman.jl`, `src/output/errors.jl`, #254):**
+  Replaced raw `ConsoleLogger` with `_MemsCliLogger` (dropping raw `~/.julia/packages/...`
+  source footers on stderr) and mapped `"All posterior draws are non-stationary"` to
+  `CliError("model/nonstationary", ...)` (exit `5`).
+
+### REPL, Model Handles & Volatility/MIDAS `--model` (#253, #257)
+
+- **`<data>` + `--model` guard (`src/registry/adapter.jl`, #253):**
+  Rejected combining positional `<data>` with handle `--model` (`usage/invalid`, exit `2`)
+  on leaves whose `--model` branch ignores `<data>` (preserving
+  `test multivariate granger <data> --model var|vecm`), and cleaned up redundant `<data>`
+  arguments before `--model` in documentation examples.
+- **REPL cache precedence & per-line globals (`src/repl.jl`, `src/cli/parser.jl`, `src/cli/dispatch.jl`, #253):**
+  Restricted cached `Session.results` injection in `repl_dispatch` to commands with no
+  explicit `<data>`, `--model`, `--result`, or re-estimation option/flag, prevented
+  `extra_kwargs[:model]` from overwriting explicit `--model`, and added per-line leading
+  global flags (`--seed`, `--quiet`/`-q`, `--json`, `--no-color`) plus `_mems_logger`
+  without leaking state across prompts.
+- **Volatility & MIDAS `--model` without `<data>` (`src/commands/estimate.jl`, #257):**
+  Guarded data loading behind `model === nothing` (defaulting `data=""`) across `igarch`,
+  `cgarch`, `aparch`, `figarch`, `fiegarch`, `garch-midas`, and `midas`
+  `forecast`/`predict`/`residuals` handlers (conditioning MIDAS on `mdl.Xlags[end, :]`
+  when `--hf-data` is omitted).
+
+### CLI Help, Usage Exit Codes & Uncropped Table Rendering (#250, #255, #256)
+
+- **Unified `--help` & `repl --help` (`src/Friedman.jl`, `src/cli/help.jl`, #255):**
+  Unified root `friedman --help` into one alphabetically sorted `Commands:` block, added
+  `friedman repl --help` (`-h`), suppressed `NaN`/`Inf` sentinel defaults, clarified
+  `<data>`/`<model>` handle optionality, and balanced parentheses on
+  `dsge bayes learning-rate --fractions`.
+- **Typed usage exit code `2` (`src/commands/`, `src/model_handle.jl`, #256):**
+  Converted missing-option and invalid-choice bare `error(...)` checks across `data`,
+  `did`, `dsge`, `estimate`, `irf`, and `test` handlers to `CliError("usage/...", ...)`
+  (exit `2`), synced `data validate` estimator choices, and generalized
+  `load_model_dispatch`'s hint.
+- **Uncropped PrettyTables v3 tables & docs sync (`src/io.jl`, `src/output/render.jl`, `docs/src/`, #250):**
+  Disabled horizontal and vertical display cropping
+  (`fit_table_in_display_horizontally=false`, `fit_table_in_display_vertically=false`) and
+  dropped Julia eltype subheaders (`column_labels=names(df)`) in `_write_table` and
+  `render`, updated `test/golden/render.table.txt`, and refreshed all 46 `<!-- capture -->`
+  blocks across `docs/src/`.
+
 ## [1.0.4] — 2026-11-16 — MEMs 1.0.3, serialized data/model pipeline, REPL history, CLI help audit, runtime/build speedups & domain docs overhaul (#245)
 
 MacroEconometricModels pin **1.0.2 → 1.0.3** (`#239`–`#247`), end-to-end serialized
