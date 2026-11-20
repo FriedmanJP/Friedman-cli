@@ -144,6 +144,8 @@ function _unknown_command_message(prog::AbstractString, subcmd::AbstractString,
     return "$prog: unknown command '$subcmd'"
 end
 
+_slot_set_cli(v) = v isa AbstractString ? !isempty(v) : v !== nothing
+
 """
     dispatch_leaf(leaf, args; prog)
 
@@ -156,14 +158,17 @@ function dispatch_leaf(leaf::LeafCommand, args::Vector{String}; prog::String=lea
         return
     end
 
-    if isempty(args) && any(a -> a.required, leaf.args)
+    extra_dict = Dict{Symbol,Any}(extra_kwargs)
+    has_extra_model = haskey(extra_dict, :model) && _slot_set_cli(extra_dict[:model])
+
+    if isempty(args) && any(a -> a.required, leaf.args) && !has_extra_model
         print_help(stdout, leaf; prog=prog)
         return
     end
 
     try
         parsed = tokenize(args)
-        bound = bind_args(parsed, leaf)
+        bound = bind_args(parsed, leaf; has_extra_model=has_extra_model)
         # Single-envelope JSON accumulation (P1-1 / F17; C055: the
         # FRIEDMAN_LEGACY_OUTPUT escape hatch was removed at v1.0.0)
         fmt = get(bound, :format, nothing)
@@ -186,8 +191,18 @@ function dispatch_leaf(leaf::LeafCommand, args::Vector{String}; prog::String=lea
             _ENVELOPE[] = env
         end
         try
-            result = isempty(extra_kwargs) ? leaf.handler(; bound...) :
-                leaf.handler(; merge(Dict{Symbol,Any}(pairs(bound)), Dict{Symbol,Any}(extra_kwargs))...)
+            result = if isempty(extra_dict)
+                leaf.handler(; bound...)
+            else
+                merged = Dict{Symbol,Any}(pairs(bound))
+                for (k, v) in extra_dict
+                    cur = get(merged, k, nothing)
+                    if !_slot_set_cli(cur)
+                        merged[k] = v
+                    end
+                end
+                leaf.handler(; merged...)
+            end
             if use_env && _ENVELOPE[] !== nothing
                 _ENVELOPE[].meta["elapsed_ms"] = (time_ns() - t0) / 1e6
                 render(_ENVELOPE[], :json, stdout)

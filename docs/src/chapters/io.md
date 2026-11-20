@@ -14,7 +14,6 @@ friedman io leontief --matrix L
              Leontief Inverse (L)
 ┌───────────────┬─────────────┬───────────────┐
 │    sector     │ Agriculture │ Manufacturing │
-│    String     │   Float64   │    Float64    │
 ├───────────────┼─────────────┼───────────────┤
 │  Agriculture  │   1.25412   │   0.330033    │
 │ Manufacturing │  0.264026   │    1.12211    │
@@ -22,6 +21,8 @@ friedman io leontief --matrix L
 ```
 
 The command returns `leontief_inverse_l` (an extra dollar of agricultural demand induces `1.25412` of total agricultural output and `0.264026` of manufacturing output, or both `technical_coefficients_a` and `leontief_inverse_l` under `--matrix both`; pass `--data <path>` alongside `--n-sectors` and `--n-fd` for custom CSV/ICIO tables).
+
+Every analysis leaf runs offline against the bundled `:wiot` fixture when `--data` is omitted. For multi-step custom workflows, parse raw CSV or OECD ICIO files once with [`io load`](@ref ref-io-load) (or repair/collapse them via [`io balance`](@ref ref-io-balance) and [`io aggregate`](@ref ref-io-aggregate)) using `--save-model <stem.jld2>`, then pass the persisted `IOData` handle to `--data` across downstream multiplier, linkage, footprint, and Baqaee–Farhi commands.
 
 ---
 
@@ -46,13 +47,12 @@ friedman io linkages --forward ghosh
 ```
 ```text
                       Linkages (forward=ghosh)
-┌───────────────┬──────────┬─────────┬──────────┬──────────┬────────┐
-│    sector     │ backward │ forward │    Ui    │    Uj    │ class  │
-│    String     │ Float64  │ Float64 │ Float64  │ Float64  │ String │
-├───────────────┼──────────┼─────────┼──────────┼──────────┼────────┤
-│  Agriculture  │ 1.51815  │ 1.91419 │ 1.02222  │ 1.20833  │  key   │
-│ Manufacturing │ 1.45215  │ 1.25412 │ 0.977778 │ 0.791667 │  weak  │
-└───────────────┴──────────┴─────────┴──────────┴──────────┴────────┘
+┌───────────────┬──────────┬─────────┬──────────┬──────────┬───────┐
+│    sector     │ backward │ forward │    Ui    │    Uj    │ class │
+├───────────────┼──────────┼─────────┼──────────┼──────────┼───────┤
+│  Agriculture  │ 1.51815  │ 1.91419 │ 1.02222  │ 1.20833  │  key  │
+│ Manufacturing │ 1.45215  │ 1.25412 │ 0.977778 │ 0.791667 │ weak  │
+└───────────────┴──────────┴─────────┴──────────┴──────────┴───────┘
 ```
 
 Under [`io linkages`](@ref ref-io-linkages), each sector is classified (`class`) using normalized backward dispersion $U_j$ and forward dispersion $U_i$ relative to `1.0` (`Agriculture` has $U_i = 1.02222$, $U_j = 1.20833$ -> `key`, while `Manufacturing` has $0.977778$, $0.791667$ -> `weak`; [`io key-sectors`](@ref ref-io-key-sectors) extracts `key` vs `weak` rankings cleanly).
@@ -80,7 +80,6 @@ friedman io bf equilibrium --model bf_net.fmod --dlog-a 0.05,0.0 --method newton
   BF Equilibrium Summary
 ┌──────────────┬──────────┐
 │    metric    │  value   │
-│    String    │   Any    │
 ├──────────────┼──────────┤
 │    dlogY     │ 0.024402 │
 │    hulten    │ 0.02439  │
@@ -94,7 +93,6 @@ friedman io bf equilibrium --model bf_net.fmod --dlog-a 0.05,0.0 --method newton
          BF Equilibrium Sectors
 ┌───────────────┬──────────┬───────────┐
 │    sector     │  dlog_x  │  dlog_p   │
-│    String     │ Float64  │  Float64  │
 ├───────────────┼──────────┼───────────┤
 │  Agriculture  │ 0.063594 │ -0.062575 │
 │ Manufacturing │ 0.016442 │ -0.016543 │
@@ -110,6 +108,8 @@ The exact nonlinear CES general-equilibrium response outputs scalar aggregate `d
 1. **Forgetting `--n-sectors` when loading custom CSV IO tables:** The built-in 2-sector example runs with zero flags, but custom CSV files passed via `--data` must declare `--n-sectors` (and `--n-fd`, defaulting to `1`).
 2. **Expecting Type II (`--type II`) multipliers or `--kind employment` without household/employment rows:** When a CSV matrix omits compensation or employment accounts, employment/Type-II requests fail validation cleanly (`data/*` error).
 3. **Treating `maxiter`-truncated `io bf equilibrium` as a CLI error:** Non-convergence inside `io bf equilibrium` reports `converged = false` in `bf_equilibrium_summary` (`exit 0`, result payload) rather than aborting with exit `5`; always check the `converged` row or reduce `--damping`.
+4. **Network access and credentials in `io download`:** [`io download`](@ref ref-io-download) is the only network-touching command in the `io` family ([`io sources`](@ref ref-io-sources) runs offline); pass `--offline` in restricted environments to fail cleanly with exit `6` (`env/network`), and supply `--email` and `--password` when fetching `eora26`.
+5. **Re-calibrating `io bf` networks on every counterfactual:** Persist a calibrated `ProductionNetwork` once via [`io bf network`](@ref ref-io-bf-network) `--save-model` (`.jld2` native or `.fmod`) and pass `--model` to `equilibrium`, `elasticities`, `local`, `wedges`, `misallocation`, and `shock-curve` so all counterfactuals share identical elasticities and markups.
 
 ---
 

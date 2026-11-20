@@ -155,13 +155,13 @@ function _build_var_coef_table(coef_mat::AbstractMatrix, varnames::Vector{String
     n = length(varnames)
     n_rows = size(coef_mat, 1)
     row_names = String[]
+    if n_rows > n * p
+        push!(row_names, "const")
+    end
     for lag in 1:p
         for v in varnames
             push!(row_names, "$(v)_L$(lag)")
         end
-    end
-    if n_rows > n * p
-        push!(row_names, "const")
     end
     coef_df = DataFrame(permutedims(coef_mat), row_names)
     insertcols!(coef_df, 1, :equation => varnames)
@@ -170,10 +170,27 @@ end
 
 """Output AIC/BIC/HQC/loglik for a VAR-like model."""
 function output_model_criteria(model; format::String="table", output::String="", title::String="Information Criteria")
+    aic_val, bic_val, hqic_val = model.aic, model.bic, model.hqic
+    # Upstream parameters_to_model leaves aic=bic=hqic=0.0 on posterior point models (#251);
+    # compute Lütkepohl per-observation criteria matching MacroEconometricModels estimate_var.
+    if aic_val == 0 && bic_val == 0 && hqic_val == 0 &&
+       hasproperty(model, :Sigma) && hasproperty(model, :B) &&
+       hasproperty(model, :U) && size(model.U, 1) > 1
+        T_eff = size(model.U, 1)
+        k_sys = size(model.B, 1) * size(model.B, 2)
+        log_det = try
+            logdet(model.Sigma)
+        catch
+            log(abs(det(model.Sigma)))
+        end
+        aic_val  = log_det + 2 * k_sys / T_eff
+        bic_val  = log_det + k_sys * log(T_eff) / T_eff
+        hqic_val = log_det + 2 * k_sys * log(log(T_eff)) / T_eff
+    end
     pairs = Pair{String,Any}[
-        "AIC" => model.aic,
-        "BIC" => model.bic,
-        "HQC" => model.hqic,
+        "AIC" => aic_val,
+        "BIC" => bic_val,
+        "HQC" => hqic_val,
     ]
     if hasproperty(model, :loglik) || hasmethod(loglikelihood, (typeof(model),))
         try
@@ -840,7 +857,7 @@ function _load_and_estimate_bvar(data::String, lags::Int, config::String,
         "invalid --hyperopt '$hyperopt'; must be glp or grid"))
 
     prior_obj = _build_prior(config, Y, p)
-    prior_sym = isnothing(prior_obj) ? :normal : :minnesota
+    prior_sym = :minnesota
 
     # --hyperopt only bites when the hyperparameters are NOT pinned: upstream ignores it
     # entirely once `hyper` is supplied. Config therefore wins over the flag, and saying so

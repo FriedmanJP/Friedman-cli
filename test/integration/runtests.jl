@@ -4370,24 +4370,26 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
     @testset "W3 native round-trips + model reproduce" begin
         csv = dgp_var2(; T=100, seed=43)
 
-        # Seeded BVAR: save → downstream irf --model still works on the
-        # posterior-mean VARModel file. That file carries NO manifest (the
-        # seed went into the sampler, the saved object is deterministic), so
-        # reproduce honestly reports unverifiable — exit 0, not a refusal.
+        # Seeded BVAR (#252): save persists the native BVARPosterior (with its
+        # ReproManifest seed), so downstream `irf bvar --model` loads it directly
+        # and `model reproduce` re-runs from seed=11 and verifies bit-for-bit.
         bjld = tempname() * ".jld2"
         rb = run_json(["--seed", "11", "estimate", "multivariate", "bvar", csv, "--lags", "1",
                        "--draws", "50", "--save-model", bjld])
         assert_envelope_ok(rb; label="w3 seeded bvar save")
         @test isfile(bjld)
-        # Wave 2: the saved object is VARModel, so the typed --model slot is irf var.
-        ri = run_json(["irf", "var", "--model", bjld, "--horizons", "4"])
-        assert_envelope_ok(ri; label="w3 irf var --model posterior-mean")
+        rbi = run_json(["model", "info", bjld])
+        assert_envelope_ok(rbi; label="w3 bvar info")
+        @test only(r for r in rbi.doc.data.model_handle_info.rows if r[1] == "model_type")[2] == "BVARPosterior"
+        ri = run_json(["irf", "bvar", "--model", bjld, "--horizons", "4"])
+        assert_envelope_ok(ri; label="w3 irf bvar --model BVARPosterior")
         rp = run_json(["model", "reproduce", bjld])
-        assert_envelope_ok(rp; label="w3 reproduce bvar unverifiable")
+        assert_envelope_ok(rp; label="w3 reproduce bvar match")
         summ = rp.doc.data.model_reproduce_summary
-        @test only(r for r in summ.rows if r[1] == "matched")[2] == "unverifiable (no recorded seed)"
-        @test only(r for r in summ.rows if r[1] == "seed")[2] == "none recorded"
-        @test !haskey(rp.doc.data, :model_reproduce_fields)
+        @test only(r for r in summ.rows if r[1] == "matched")[2] == "true"
+        @test only(r for r in summ.rows if r[1] == "seed")[2] == "11"
+        @test haskey(rp.doc.data, :model_reproduce_fields)
+        @test length(rp.doc.data.model_reproduce_fields.rows) >= 1
         rm(bjld; force=true)
 
         # TRUE matched path (MEMs#769): estimate volatility sv --seed records a
@@ -4427,6 +4429,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         assert_envelope_ok(rsr; label="w3 reproduce svar unverifiable")
         ssumm = rsr.doc.data.model_reproduce_summary
         @test only(r for r in ssumm.rows if r[1] == "matched")[2] == "unverifiable (no recorded seed)"
+        @test only(r for r in ssumm.rows if r[1] == "seed")[2] == "none recorded"
         @test !haskey(rsr.doc.data, :model_reproduce_fields)
         rm(sjld; force=true)
         rm(csv; force=true)
@@ -10327,6 +10330,218 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                   ["test", "unit-root", "adf", "session.csv", "--model", "trend"]
             @test Friedman.inject_session_data(sess, ["irf", "var", "--model", var_stem], app) ==
                   ["irf", "var", "--model", var_stem]
+        end
+    end
+
+    @testset "BVAR/FAVAR coefs, BVARPosterior handles, REPL & reproduce (#249, #251, #252, #254)" begin
+        mktempdir() do dir
+            bvar_stem = joinpath(dir, "bvar_denmark")
+            Friedman._SEED[] = 42
+            r_est = try
+                run_json(["estimate", "multivariate", "bvar", ":denmark",
+                          "--lags", "2", "--draws", "80", "--sampler", "direct",
+                          "--save-model", bvar_stem])
+            finally
+                Friedman._SEED[] = nothing
+            end
+            assert_envelope_ok(r_est; label="estimate multivariate bvar :denmark --save-model (#251, #252)")
+            @test isfile(bvar_stem * ".jld2")
+
+            # #252: Saved handle is a BVARPosterior with real :denmark varnames (#251)
+            post = Friedman.load_model_dispatch(bvar_stem * ".jld2")
+            @test post isa MacroEconometricModels.BVARPosterior
+            @test post.varnames == ["LRM", "LRY", "LPY", "IBO", "IDE"]
+
+            # #249: Exact cell alignment of bvar_coefficients against posterior_mean_model(post; data=post.data).B
+            pm = MacroEconometricModels.posterior_mean_model(post; data=post.data)
+            bcoef = r_est.doc.data.bvar_coefficients
+            cols = table_cols(bcoef)
+            @test cols[1:7] == ["equation", "const", "LRM_L1", "LRY_L1", "LPY_L1", "IBO_L1", "IDE_L1"]
+            row1 = collect(first(table_rows(bcoef)))
+            @test String(row1[1]) == "LRM"
+            @test isapprox(Float64(row1[2]), pm.B[1, 1]; atol=1e-6)   # intercept
+            @test isapprox(Float64(row1[3]), pm.B[2, 1]; atol=1e-6)   # LRM_L1
+            @test isapprox(Float64(row1[4]), pm.B[3, 1]; atol=1e-6)   # LRY_L1
+
+            # #251: Non-zero Lütkepohl AIC / BIC / HQC in information_criteria
+            ic_rows = Dict(String(collect(r)[1]) => Float64(collect(r)[2])
+                           for r in table_rows(r_est.doc.data.information_criteria))
+            @test ic_rows["AIC"] != 0.0 && ic_rows["BIC"] != 0.0 && ic_rows["HQC"] != 0.0
+
+            # #251: Stderr report renders Bayesian VAR — BVAR(2), not frequentist OLS VAR(2)
+            err_path, err_io = mktemp()
+            est_stderr = try
+                redirect_stdio(stdout=devnull, stderr=err_io) do
+                    Friedman.run_cli(["estimate", "multivariate", "bvar", ":denmark",
+                                      "--lags", "2", "--draws", "40", "--sampler", "direct"])
+                end
+                close(err_io)
+                read(err_path, String)
+            finally
+                try; close(err_io); catch; end
+                try; rm(err_path; force=true); catch; end
+            end
+            @test occursin("Bayesian VAR", est_stderr)
+            @test !occursin("Vector Autoregression — VAR(2)", est_stderr)
+
+            # #249: FAVAR exact cell alignment against to_var(favar).B
+            favar_csv = joinpath(dir, "favar6.csv")
+            rng_f = MersenneTwister(249)
+            f_lat = randn(rng_f, 80)
+            CSV.write(favar_csv, DataFrame(
+                x1 = 0.8 .* f_lat .+ 0.2 .* randn(rng_f, 80),
+                x2 = -0.6 .* f_lat .+ 0.2 .* randn(rng_f, 80),
+                x3 = 0.5 .* f_lat .+ 0.2 .* randn(rng_f, 80),
+                x4 = 0.7 .* f_lat .+ 0.2 .* randn(rng_f, 80),
+                r_key = 0.3 .* f_lat .+ 0.5 .* randn(rng_f, 80),
+            ))
+            r_fav = run_json(["estimate", "multivariate", "favar", favar_csv,
+                              "--factors", "1", "--lags", "1", "--key-vars", "5"])
+            assert_envelope_ok(r_fav; label="estimate factor favar (#249)")
+            fcols = table_cols(r_fav.doc.data.favar_coefficients)
+            @test fcols[1] == "equation" && fcols[2] == "const"
+
+            # #252: Downstream bvar --model round-trips + model reproduce
+            # Use a well-stationary simulated VAR dataset for forecast (since :denmark in levels has unit-root draws)
+            stat_csv = joinpath(dir, "stat_bvar.csv")
+            rng_s = MersenneTwister(252)
+            CSV.write(stat_csv, DataFrame(y1=0.3 .* randn(rng_s, 60), y2=0.3 .* randn(rng_s, 60)))
+            stat_stem = joinpath(dir, "bvar_stat")
+            assert_envelope_ok(run_json(["--seed", "123", "estimate", "multivariate", "bvar", stat_csv,
+                                         "--lags", "1", "--draws", "60", "--sampler", "direct",
+                                         "--save-model", stat_stem]);
+                               label="estimate stationary bvar --save-model (#252)")
+            for (lbl, argv) in (
+                ("forecast bvar --model", ["forecast", "multivariate", "bvar", "--model", stat_stem, "--horizons", "3"]),
+                ("irf bvar --model",      ["irf", "bvar", "--model", stat_stem, "--horizons", "3"]),
+                ("fevd bvar --model",     ["fevd", "bvar", "--model", stat_stem, "--horizons", "3"]),
+                ("hd bvar --model",       ["hd", "bvar", "--model", stat_stem]),
+                ("predict bvar --model",  ["predict", "multivariate", "bvar", "--model", stat_stem]),
+                ("residuals bvar --model",["residuals", "multivariate", "bvar", "--model", stat_stem]),
+                ("model reproduce bvar",  ["model", "reproduce", stat_stem * ".jld2"]),
+            )
+                r_ds = run_json(argv)
+                assert_envelope_ok(r_ds; label=lbl)
+                if lbl == "model reproduce bvar"
+                    rep_rows = Dict(String(collect(r)[1]) => String(collect(r)[2])
+                                    for r in table_rows(r_ds.doc.data.model_reproduce_summary))
+                    @test rep_rows["matched"] == "true"
+                end
+            end
+
+            # #252: REPL session estimate bvar → predict / residuals / hd bvar does not crash
+            sess = Friedman.Session()
+            app = Friedman.build_app()
+            Friedman.session_load_data!(sess, stat_csv)
+            Friedman.repl_dispatch(sess, app, ["estimate", "multivariate", "bvar", "--lags", "1", "--draws", "40", "--format", "json"])
+            @test sess.results[:bvar] isa MacroEconometricModels.BVARPosterior
+            Friedman.repl_dispatch(sess, app, ["predict", "multivariate", "bvar", "--format", "json"])
+            Friedman.repl_dispatch(sess, app, ["residuals", "multivariate", "bvar", "--format", "json"])
+            Friedman.repl_dispatch(sess, app, ["hd", "bvar", "--format", "json"])
+        end
+    end
+
+    @testset "Wave B (#253, #257) real MacroEconometricModels integration" begin
+        mktempdir() do dir
+            # 1. #253: <data> + --model rejected with exit 2 (usage/invalid)
+            rng_b = MersenneTwister(253)
+            csv1 = joinpath(dir, "d1.csv")
+            csv2 = joinpath(dir, "d2.csv")
+            CSV.write(csv1, DataFrame(a=0.4 .* randn(rng_b, 60), b=0.4 .* randn(rng_b, 60)))
+            CSV.write(csv2, DataFrame(c1=2.0 .* randn(rng_b, 60), c2=2.0 .* randn(rng_b, 60)))
+            v1 = joinpath(dir, "v1")
+            v2 = joinpath(dir, "v2")
+            assert_envelope_ok(run_json(["estimate", "multivariate", "var", csv1, "--lags", "1", "--save-model", v1]))
+            assert_envelope_ok(run_json(["estimate", "multivariate", "var", csv2, "--lags", "2", "--save-model", v2]))
+
+            r_both = run_json(["forecast", "multivariate", "var", csv2, "--model", v1 * ".jld2", "--horizons", "2"])
+            @test r_both.code == 2
+            @test r_both.doc.error.code == "usage/invalid"
+
+            # 2. #253: REPL leading globals + cached model vs explicit --model / <data> / --lags override
+            sess = Friedman.Session()
+            app = Friedman.APP
+            Friedman.session_load_data!(sess, csv1)
+            mktemp() do _, out_io
+                redirect_stdout(out_io) do
+                    redirect_stderr(devnull) do
+                        Friedman.repl_dispatch(sess, app, ["--seed", "42", "--quiet", "estimate", "multivariate", "var", "--lags", "1"])
+                    end
+                end
+            end
+            @test sess.results[:var] isa MacroEconometricModels.VARModel
+            @test sess.results[:var].p == 1
+            @test Friedman._QUIET[] == false
+            @test Friedman._SEED[] === nothing
+
+            # Cached VAR(1) used when no override is passed
+            out_cached = mktemp() do _, out_io
+                redirect_stdout(out_io) do
+                    redirect_stderr(devnull) do
+                        Friedman.repl_dispatch(sess, app, ["forecast", "multivariate", "var", "--horizons", "2"])
+                    end
+                end
+                flush(out_io); seekstart(out_io); read(out_io, String)
+            end
+            @test occursin("VAR(1) Forecast", out_cached)
+
+            # Explicit --model v2 overrides cached VAR(1) -> VAR(2)
+            out_mod = mktemp() do _, out_io
+                redirect_stdout(out_io) do
+                    redirect_stderr(devnull) do
+                        Friedman.repl_dispatch(sess, app, ["forecast", "multivariate", "var", "--model", v2, "--horizons", "2"])
+                    end
+                end
+                flush(out_io); seekstart(out_io); read(out_io, String)
+            end
+            @test occursin("VAR(2) Forecast", out_mod)
+
+            # Explicit --lags 3 overrides cached VAR(1) -> re-estimates VAR(3) on session data
+            out_reest = mktemp() do _, out_io
+                redirect_stdout(out_io) do
+                    redirect_stderr(devnull) do
+                        Friedman.repl_dispatch(sess, app, ["forecast", "multivariate", "var", "--lags", "3", "--horizons", "2"])
+                    end
+                end
+                flush(out_io); seekstart(out_io); read(out_io, String)
+            end
+            @test occursin("VAR(3) Forecast", out_reest)
+
+            # Explicit <data> csv2 overrides cached VAR(1) on csv1 -> forecasts csv2's columns (c1, c2)
+            out_data = mktemp() do _, out_io
+                redirect_stdout(out_io) do
+                    redirect_stderr(devnull) do
+                        Friedman.repl_dispatch(sess, app, ["forecast", "multivariate", "var", csv2, "--horizons", "2"])
+                    end
+                end
+                flush(out_io); seekstart(out_io); read(out_io, String)
+            end
+            @test occursin("c1", out_data) && occursin("c2", out_data) && !occursin("│    a     │", out_data)
+
+            # 3. #257: real volatility variants + MIDAS forecast/predict/residuals with --model and NO <data>
+            vol_csv = dgp_garch(; T=300, seed=257)
+            for v in ("igarch", "cgarch", "aparch", "figarch", "fiegarch")
+                mstem = joinpath(dir, "$(v)_real")
+                assert_envelope_ok(run_json(["estimate", "volatility", v, vol_csv, "--save-model", mstem]); label="est $v")
+                assert_envelope_ok(run_json(["forecast", "volatility", v, "--model", mstem, "--horizons", "3"]); label="fc $v --model")
+                assert_envelope_ok(run_json(["predict", "volatility", v, "--model", mstem]); label="pred $v --model")
+                assert_envelope_ok(run_json(["residuals", "volatility", v, "--model", mstem]); label="res $v --model")
+            end
+            gm_stem = joinpath(dir, "gm_real")
+            assert_envelope_ok(run_json(["estimate", "volatility", "garch-midas", vol_csv, "--m-freq", "15", "--k", "4", "--save-model", gm_stem]); label="est garch-midas")
+            assert_envelope_ok(run_json(["forecast", "volatility", "garch-midas", "--model", gm_stem, "--horizons", "3"]); label="fc garch-midas --model")
+            assert_envelope_ok(run_json(["predict", "volatility", "garch-midas", "--model", gm_stem]); label="pred garch-midas --model")
+            assert_envelope_ok(run_json(["residuals", "volatility", "garch-midas", "--model", gm_stem]); label="res garch-midas --model")
+
+            lf_csv = joinpath(dir, "lf.csv")
+            hf_csv = joinpath(dir, "hf.csv")
+            CSV.write(lf_csv, DataFrame(y=randn(rng_b, 40)))
+            CSV.write(hf_csv, DataFrame(x=randn(rng_b, 120)))
+            md_stem = joinpath(dir, "midas_real")
+            assert_envelope_ok(run_json(["estimate", "univariate", "midas", lf_csv, "--hf-data", hf_csv, "--m", "3", "--k", "6", "--save-model", md_stem]); label="est midas")
+            assert_envelope_ok(run_json(["forecast", "univariate", "midas", "--model", md_stem]); label="fc midas --model")
+            assert_envelope_ok(run_json(["forecast", "univariate", "midas", "--model", md_stem, "--hf-data", hf_csv]); label="fc midas --model --hf-data")
+            rm(vol_csv; force=true)
         end
     end
 

@@ -15,7 +15,6 @@ friedman policy counterfactual var pol_sim --shocks 3 --nonpolicy-shock 1 --outc
                   Policy Counterfactual Paths
 ┌──────────┬────────────┬─────────┬──────────┬────────────────┐
 │ variable │    role    │ horizon │ baseline │ counterfactual │
-│  String  │   String   │  Int64  │ Float64  │    Float64     │
 ├──────────┼────────────┼─────────┼──────────┼────────────────┤
 │    y1    │  outcome   │    1    │ 1.05875  │    1.05875     │
 │    y1    │  outcome   │    2    │ 0.553439 │    0.594849    │
@@ -31,20 +30,20 @@ friedman policy counterfactual var pol_sim --shocks 3 --nonpolicy-shock 1 --outc
 │    y2    │  outcome   │    6    │ 0.126217 │    0.129473    │
 │    y3    │ instrument │    1    │ 0.336632 │   -0.001015    │
 │    y3    │ instrument │    2    │ 0.05319  │   -0.018851    │
-│    ⋮     │     ⋮      │    ⋮    │    ⋮     │       ⋮        │
+│    y3    │ instrument │    3    │ 0.070097 │    0.044004    │
+│    y3    │ instrument │    4    │ 0.059453 │    0.050898    │
+│    y3    │ instrument │    5    │ 0.045698 │    0.043277    │
+│    y3    │ instrument │    6    │ 0.033642 │    0.033267    │
 └──────────┴────────────┴─────────┴──────────┴────────────────┘
-                                                 4 rows omitted
 Enforcing Policy Shocks (nu)
-┌────────┬───────────┐
-│ shock  │    nu     │
-│ String │  Float64  │
-├────────┼───────────┤
-│   y3   │ -0.370186 │
-└────────┴───────────┘
+┌───────┬───────────┐
+│ shock │    nu     │
+├───────┼───────────┤
+│  y3   │ -0.370186 │
+└───────┴───────────┘
 Implementation Error Path
 ┌───────┬───────────┐
 │ index │   error   │
-│ Int64 │  Float64  │
 ├───────┼───────────┤
 │   1   │ -0.001015 │
 │   2   │ -0.018851 │
@@ -53,21 +52,19 @@ Implementation Error Path
 │   5   │ 0.043277  │
 │   6   │ 0.033267  │
 └───────┴───────────┘
-                             Counterfactual Summary
-┌─────────────────┬─────────────────────────────────────────────────────────────
-│     metric      │                                                            ⋯
-│     String      │                                                            ⋯
-├─────────────────┼─────────────────────────────────────────────────────────────
-│      rule       │                                                            ⋯
-│        H        │                                                            ⋯
-│  rel_residual   │                                                            ⋯
-│     spanned     │                                                            ⋯
-│  n_draws_used   │                                                            ⋯
-│ n_draws_failed  │                                                            ⋯
-│ quantile_levels │                                                            ⋯
-│      note       │ rule NOT enforceable within the span of the supplied polic ⋯
-└─────────────────┴─────────────────────────────────────────────────────────────
-                                                                1 column omitted
+                                                                    Counterfactual Summary
+┌─────────────────┬───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│     metric      │                                                                   value                                                                   │
+├─────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│      rule       │                                                                 rate peg                                                                  │
+│        H        │                                                                     6                                                                     │
+│  rel_residual   │                                                                 0.248025                                                                  │
+│     spanned     │                                                                   false                                                                   │
+│  n_draws_used   │                                                                     0                                                                     │
+│ n_draws_failed  │                                                                     0                                                                     │
+│ quantile_levels │                                                              0.16, 0.5, 0.84                                                              │
+│      note       │ rule NOT enforceable within the span of the supplied policy shocks; the counterfactual is a least-squares approximation — read error_path │
+└─────────────────┴───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 The command returns `policy_counterfactual_paths` (`y1` shifts from baseline `0.553439` to `0.594849` at $h=2$ under enforcing shock `nu = -0.370186`), `enforcing_policy_shocks_nu`, `implementation_error_path` (`-0.001015` at $h=1$), and `counterfactual_summary` (including spanning residual diagnostics `rel_residual` and `spanned`).
@@ -97,32 +94,32 @@ friedman --quiet data simulate var --periods 150 --burn 50 --seed 7 --save-data 
 friedman policy effects var pol_sim2 --shocks 3 --outcomes y1=1,y2=2 --instruments y3=3 --horizon 6 --normalize instrument-impact
 ```
 ```text
-               Policy Causal Effects Menu
-┌──────────┬────────────┬────────┬─────────┬───────────┐
-│ variable │    role    │ shock  │ horizon │   value   │
-│  String  │   String   │ String │  Int64  │  Float64  │
-├──────────┼────────────┼────────┼─────────┼───────────┤
-│    y1    │  outcome   │   y3   │    1    │    0.0    │
-│    y1    │  outcome   │   y3   │    2    │ -0.12264  │
-│    y1    │  outcome   │   y3   │    3    │ -0.059599 │
-│    y1    │  outcome   │   y3   │    4    │ -0.033609 │
-│    y1    │  outcome   │   y3   │    5    │ -0.020582 │
-│    y1    │  outcome   │   y3   │    6    │ -0.013376 │
-│    y2    │  outcome   │   y3   │    1    │    0.0    │
-│    y2    │  outcome   │   y3   │    2    │ 0.061427  │
-│    y2    │  outcome   │   y3   │    3    │ 0.005253  │
-│    y2    │  outcome   │   y3   │    4    │ -0.009104 │
-│    y2    │  outcome   │   y3   │    5    │ -0.011176 │
-│    y2    │  outcome   │   y3   │    6    │ -0.009641 │
-│    y3    │ instrument │   y3   │    1    │    1.0    │
-│    y3    │ instrument │   y3   │    2    │ 0.213361  │
-│    ⋮     │     ⋮      │   ⋮    │    ⋮    │     ⋮     │
-└──────────┴────────────┴────────┴─────────┴───────────┘
-                                          4 rows omitted
+              Policy Causal Effects Menu
+┌──────────┬────────────┬───────┬─────────┬───────────┐
+│ variable │    role    │ shock │ horizon │   value   │
+├──────────┼────────────┼───────┼─────────┼───────────┤
+│    y1    │  outcome   │  y3   │    1    │    0.0    │
+│    y1    │  outcome   │  y3   │    2    │ -0.12264  │
+│    y1    │  outcome   │  y3   │    3    │ -0.059599 │
+│    y1    │  outcome   │  y3   │    4    │ -0.033609 │
+│    y1    │  outcome   │  y3   │    5    │ -0.020582 │
+│    y1    │  outcome   │  y3   │    6    │ -0.013376 │
+│    y2    │  outcome   │  y3   │    1    │    0.0    │
+│    y2    │  outcome   │  y3   │    2    │ 0.061427  │
+│    y2    │  outcome   │  y3   │    3    │ 0.005253  │
+│    y2    │  outcome   │  y3   │    4    │ -0.009104 │
+│    y2    │  outcome   │  y3   │    5    │ -0.011176 │
+│    y2    │  outcome   │  y3   │    6    │ -0.009641 │
+│    y3    │ instrument │  y3   │    1    │    1.0    │
+│    y3    │ instrument │  y3   │    2    │ 0.213361  │
+│    y3    │ instrument │  y3   │    3    │ 0.077276  │
+│    y3    │ instrument │  y3   │    4    │ 0.025338  │
+│    y3    │ instrument │  y3   │    5    │ 0.007169  │
+│    y3    │ instrument │  y3   │    6    │ 0.001111  │
+└──────────┴────────────┴───────┴─────────┴───────────┘
    Policy Causal Effects Summary
 ┌──────────────┬───────────────────┐
 │    metric    │       value       │
-│    String    │        Any        │
 ├──────────────┼───────────────────┤
 │ H (horizon)  │         6         │
 │   n_shocks   │         1         │

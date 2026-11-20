@@ -21,9 +21,33 @@ const COL_WIDTH = 24
 
 _has_printable_default(d) = d !== nothing &&
     !(d isa AbstractString && isempty(d)) &&
-    !(d isa AbstractVector && isempty(d))
+    !(d isa AbstractVector && isempty(d)) &&
+    !(d isa AbstractFloat && (isnan(d) || isinf(d)))
 
 _desc_mentions_default(desc::AbstractString) = occursin(r"\(default[:\s]"i, desc)
+
+"""
+    print_repl_help(io=stdout; prog="friedman repl")
+
+Print help for the interactive `friedman repl` subcommand.
+"""
+function print_repl_help(io::IO=stdout; prog::String="friedman repl")
+    printstyled(io, prog, "\n"; bold=true)
+    println(io)
+    println(io, "Start an interactive session with persistent arrow-key history, line editing, and tab completion.")
+    println(io)
+    printstyled(io, "Usage:\n"; bold=true, color=:yellow)
+    println(io, INDENT, prog)
+    println(io)
+    printstyled(io, "Session Commands:\n"; bold=true, color=:yellow)
+    print_entry_line(io, "data use <source>", "Bind a dataset (.csv, .jld2, .jls, stem, or :example) to the session")
+    print_entry_line(io, "data current", "Show the active session dataset and cached estimation results")
+    print_entry_line(io, "data clear", "Clear the active session dataset and cached results")
+    print_entry_line(io, "exit, quit", "Exit the interactive session (or press Ctrl-D)")
+    println(io)
+    printstyled(io, "Environment:\n"; bold=true, color=:yellow)
+    print_entry_line(io, "FRIEDMAN_HISTFILE", "History file path (default: ~/.friedman_history; set to none to disable)")
+end
 
 """
     print_help(io, entry)
@@ -82,32 +106,40 @@ function print_help(io::IO, node::NodeCommand; prog::String=node.name, version::
             push!(leaves, name => cmd)
         end
     end
-    if !isempty(nodes)
+    if !isnothing(version) && !isempty(node.subcmds)
         println(io)
         printstyled(io, "Commands:\n"; bold=true, color=:yellow)
-        for (name, cmd) in nodes
-            print_entry_line(io, name, cmd.description)
+        for name in sort!(collect(keys(node.subcmds)))
+            print_entry_line(io, name, node.subcmds[name].description)
         end
-    end
-    if !isempty(leaves)
-        grouped = any(!isempty, (cmd.family for (_, cmd) in leaves))
-        if !grouped
+    else
+        if !isempty(nodes)
             println(io)
             printstyled(io, "Commands:\n"; bold=true, color=:yellow)
-            for (name, cmd) in leaves
+            for (name, cmd) in nodes
                 print_entry_line(io, name, cmd.description)
             end
-        else
-            fams = Dict{String,Vector{Pair{String,LeafCommand}}}()
-            for pair in leaves
-                push!(get!(fams, pair.second.family, Pair{String,LeafCommand}[]), pair)
-            end
-            for fam in sort!(collect(keys(fams)))
+        end
+        if !isempty(leaves)
+            grouped = any(!isempty, (cmd.family for (_, cmd) in leaves))
+            if !grouped
                 println(io)
-                label = isempty(fam) ? "Commands" : fam
-                printstyled(io, label, ":\n"; bold=true, color=:yellow)
-                for (name, cmd) in fams[fam]
+                printstyled(io, "Commands:\n"; bold=true, color=:yellow)
+                for (name, cmd) in leaves
                     print_entry_line(io, name, cmd.description)
+                end
+            else
+                fams = Dict{String,Vector{Pair{String,LeafCommand}}}()
+                for pair in leaves
+                    push!(get!(fams, pair.second.family, Pair{String,LeafCommand}[]), pair)
+                end
+                for fam in sort!(collect(keys(fams)))
+                    println(io)
+                    label = isempty(fam) ? "Commands" : fam
+                    printstyled(io, label, ":\n"; bold=true, color=:yellow)
+                    for (name, cmd) in fams[fam]
+                        print_entry_line(io, name, cmd.description)
+                    end
                 end
             end
         end
@@ -149,11 +181,23 @@ function print_help(io::IO, leaf::LeafCommand; prog::String=leaf.name)
 
     # Arguments
     if !isempty(leaf.args)
+        has_mod_handle = any(o -> o.name == "model" && o.default === "" && o.choices === nothing, leaf.options)
+        has_res_handle = any(o -> o.name == "result" && o.default === "" && o.choices === nothing, leaf.options)
         println(io)
         printstyled(io, "Arguments:\n"; bold=true, color=:yellow)
         for arg in leaf.args
             label = arg.required ? "<$(arg.name)>" : "[$(arg.name)]"
             desc = arg.description
+            if arg.required && arg.name in ("data", "model") && (has_mod_handle || has_res_handle) &&
+               !occursin("optional when", lowercase(desc))
+                if has_mod_handle && has_res_handle
+                    desc *= " (optional when --model or --result is given)"
+                elseif has_mod_handle
+                    desc *= " (optional when --model is given)"
+                else
+                    desc *= " (optional when --result is given)"
+                end
+            end
             if !arg.required && _has_printable_default(arg.default) && !_desc_mentions_default(desc)
                 desc *= " (default: $(arg.default))"
             end

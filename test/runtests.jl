@@ -2712,18 +2712,6 @@ let project_root = dirname(@__DIR__)
     include(joinpath(project_root, "src", "output", "render.jl"))
 end
 
-# PrettyTables v3 changed its API (tf/show_subheader removed).
-# Override _write_table to use the v3 API so table output tests work.
-function _write_table(df::DataFrame, output::String, title::String)
-    io = isempty(output) ? stdout : open(output, "w")
-    try
-        pretty_table(io, df; title=title, alignment=:c)
-    finally
-        isempty(output) || close(io)
-    end
-    isempty(output) || println("Results written to $output")
-end
-
 @testset "envelope core" begin
     env = Envelope(command="estimate multivariate var")
     add_table!(env, :coefficients, DataFrame(variable=["y1"], est=[0.5]))
@@ -4852,6 +4840,235 @@ end
     pa_multi = ParsedArgs(String[], Dict{String,String}(), Set{String}(), Dict("coun" => ["1"]))
     err_multi = try; bind_args(pa_multi, l6); nothing; catch e; e; end
     @test err_multi isa ParseError && occursin("--count", err_multi.message)
+end
+
+@testset "Help & CLI usage contract (#255, #256)" begin
+    root_cmds = Dict{String,Union{NodeCommand,LeafCommand}}(
+        "estimate"    => register_estimate_commands!(),
+        "test"        => register_test_commands!(),
+        "irf"         => register_irf_commands!(),
+        "fevd"        => register_fevd_commands!(),
+        "hd"          => register_hd_commands!(),
+        "forecast"    => register_forecast_commands!(),
+        "predict"     => register_predict_commands!(),
+        "residuals"   => register_residuals_commands!(),
+        "filter"      => register_filter_commands!(),
+        "data"        => register_data_commands!(),
+        "io"          => register_io_commands!(),
+        "nowcast"     => register_nowcast_commands!(),
+        "dsge"        => register_dsge_commands!(),
+        "hadsge"      => register_hadsge_commands!(),
+        "did"         => register_did_commands!(),
+        "policy"      => register_policy_commands!(),
+        "spectral"    => register_spectral_commands!(),
+        "schema"      => register_schema_command!(),
+        "model"       => register_model_commands!(),
+        "completions" => register_completions_commands!(),
+        "serve"       => register_serve_commands!(),
+        "show"        => register_show_commands!(),
+    )
+    app = Entry("friedman",
+        NodeCommand("friedman", root_cmds,
+            "A macroeconometric analysis toolkit powered by MacroEconometricModels.jl");
+        version=PROJECT_VERSION)
+
+    # 1. Root --help merges top-level nodes & leaves into ONE Commands: section
+    buf_root = IOBuffer()
+    print_help(buf_root, app)
+    root_help = String(take!(buf_root))
+    @test count("Commands:\n", root_help) == 1
+    @test !occursin("\nschema:\n", root_help)
+    @test occursin("schema", root_help) && occursin("serve", root_help) && occursin("show", root_help)
+
+    # 2. print_repl_help renders concise REPL usage, keybindings, and FRIEDMAN_HISTFILE
+    rbuf = IOBuffer()
+    print_repl_help(rbuf)
+    rtxt = String(take!(rbuf))
+    @test occursin("friedman repl", rtxt)
+    @test occursin("FRIEDMAN_HISTFILE", rtxt)
+    @test occursin("data use", rtxt)
+
+    # 3. Zero (default: NaN) / (default: Inf) sentinels across all 478 leaves,
+    #    balanced parens on dsge bayes learning-rate --fractions, and optionality cue with --model/--result
+    sentinel_hits = String[]
+    function _check_leaf_help(n::NodeCommand, prefix::String="")
+        p = isempty(prefix) ? n.name : "$prefix $(n.name)"
+        for (k, v) in n.subcmds
+            if v isa NodeCommand
+                _check_leaf_help(v, p)
+            else
+                lbuf = IOBuffer()
+                print_help(lbuf, v; prog="$p $k")
+                ht = String(take!(lbuf))
+                if occursin("(default: NaN)", ht) || occursin("(default: Inf)", ht) || occursin("(default: -Inf)", ht)
+                    push!(sentinel_hits, "$p $k")
+                end
+            end
+        end
+    end
+    _check_leaf_help(app.root)
+    @test isempty(sentinel_hits)
+
+    lr_leaf = app.root.subcmds["dsge"].subcmds["bayes"].subcmds["learning-rate"]
+    frac_opt = first(filter(o -> o.name == "fractions", lr_leaf.options))
+    @test count(==('('), frac_opt.description) == count(==(')'), frac_opt.description)
+
+    irf_buf = IOBuffer()
+    print_help(irf_buf, app.root.subcmds["irf"].subcmds["var"]; prog="friedman irf var")
+    irf_ht = String(take!(irf_buf))
+    @test occursin("optional when --model or --result", irf_ht)
+
+    # 4. Missing-option / invalid-choice checks throw typed CliError (exit_class == 2) (#256)
+    err_dv = try; _data_validate(; data="x.csv", model=""); nothing; catch e; e; end
+    @test err_dv isa CliError && exit_class(err_dv) == 2
+    @test occursin("gjr_garch", err_dv.message) && occursin("gdfm", err_dv.message)
+
+    err_did = try; _did_estimate(; data="x.csv", outcome="", treatment="d"); nothing; catch e; e; end
+    @test err_did isa CliError && exit_class(err_did) == 2
+
+    err_dsge = try; _dsge_estimate(; model="m.toml", data="", params="alpha"); nothing; catch e; e; end
+    @test err_dsge isa CliError && exit_class(err_dsge) == 2
+
+    err_mh = try; load_model_dispatch("/nonexistent/friedman_missing_handle_xyz.jld2"); nothing; catch e; e; end
+    @test err_mh isa CliError && occursin("handle", err_mh.hint) && !occursin("--model", err_mh.hint)
+end
+
+@testset "Wave A: BVAR/FAVAR coefs, BVARPosterior round-trip & logger/errors (#249, #251, #252, #254)" begin
+    # #249: VARModel.B places intercept in row 1 (B[1, :]), followed by lag 1 (B[2:1+n, :]) .. lag p
+    B_known = [
+        0.01  0.02;   # row 1: const for eq 1 (LRM), eq 2 (LRY)
+        0.81  0.11;   # row 2: LRM_L1
+        0.21  0.71;   # row 3: LRY_L1
+        0.05 -0.04;   # row 4: LRM_L2
+       -0.03  0.15;   # row 5: LRY_L2
+    ]
+    coef_df = _build_var_coef_table(B_known, ["LRM", "LRY"], 2)
+    @test names(coef_df) == ["equation", "const", "LRM_L1", "LRY_L1", "LRM_L2", "LRY_L2"]
+    @test coef_df.const == [0.01, 0.02]
+    @test coef_df.LRM_L1 == [0.81, 0.11]
+    @test coef_df.LRY_L1 == [0.21, 0.71]
+    @test coef_df.LRM_L2 == [0.05, -0.04]
+    @test coef_df.LRY_L2 == [-0.03, 0.15]
+
+    mktempdir() do dir
+        csv = joinpath(dir, "denmark_sub.csv")
+        CSV.write(csv, DataFrame(LRM=randn(60), LRY=randn(60), LPY=randn(60)))
+
+        # #251 + #252: _estimate_bvar preserves varnames, calls report(post::BVARPosterior),
+        # emits non-zero Lütkepohl AIC/BIC/HQC, and returns BVARPosterior!
+        est_res = Ref{Any}(nothing)
+        out_bvar = _capture() do
+            est_res[] = _estimate_bvar(; data=csv, lags=2, prior="minnesota", draws=50,
+                                         sampler="direct", method="mean", format="json")
+        end
+        @test est_res[] isa BVARPosterior
+        @test est_res[].varnames == ["LRM", "LRY", "LPY"]
+        @test occursin("Bayesian VAR — BVAR(2) (LRM, LRY, LPY)", out_bvar)
+        # Check non-zero AIC/BIC/HQC in output_model_criteria
+        ic_out = _capture() do
+            pm = posterior_mean_model(est_res[]; data=est_res[].data)
+            output_model_criteria(pm; format="json")
+        end
+        @test !occursin("\"AIC\":0.0", ic_out) && !occursin("\"BIC\":0.0", ic_out) && !occursin("\"HQC\":0.0", ic_out)
+
+        # #252: _load_and_estimate_bvar defaults to :minnesota (not :normal) when config is empty
+        post_def, _, vn_def, _, _ = _load_and_estimate_bvar(csv, 2, "", 50, "direct")
+        @test post_def.prior === :minnesota
+        @test vn_def == ["LRM", "LRY", "LPY"]
+
+        # #252: forecast, predict, and residuals bvar work with a pre-loaded BVARPosterior (post.data, not post.Y)
+        fc_res = _capture() do
+            _forecast_bvar(; model=est_res[], horizons=3, format="json")
+        end
+        @test occursin("Bayesian forecast", fc_res)
+
+        pred_res = _capture() do
+            _predict_bvar(; model=est_res[], format="json")
+        end
+        @test occursin("LRM", pred_res)
+
+        resid_res = _capture() do
+            _residuals_bvar(; model=est_res[], format="json")
+        end
+        @test occursin("LRM", resid_res)
+    end
+
+    # #254: All posterior draws are non-stationary maps to model/nonstationary (exit 5)
+    mapped_ns = _domain_error_class(ErrorException("All posterior draws are non-stationary"))
+    @test mapped_ns isa CliError
+    @test exit_class(mapped_ns) == 5
+    @test startswith(mapped_ns.code, "model/")
+
+    # #254: _mems_logger formats @warn / @info cleanly without raw @ Module path:line footers
+    if @isdefined(_mems_logger)
+        log_buf = IOBuffer()
+        Logging.with_logger(_mems_logger(log_buf)) do
+            @warn "Matrix near-singular (1-norm cond ≈ 7.35e7). Using pseudo-inverse."
+        end
+        log_txt = String(take!(log_buf))
+        @test occursin("Matrix near-singular", log_txt)
+        @test !occursin("└ @", log_txt)
+    end
+end
+
+@testset "Wave C (#250): PrettyTables v3 uncropped rendering & single-row headers" begin
+    mktempdir() do dir
+        # 1. Tall table (> 25 rows): never crops vertically on file, pipe/stdout, or IOBuffer
+        tall_df = DataFrame(
+            id = ["row_$(lpad(i, 2, '0'))" for i in 1:30],
+            v1 = collect(1.0:30.0),
+            v2 = Union{Float64,Missing}[i == 5 ? missing : 0.1 * i for i in 1:30],
+        )
+        tall_file = joinpath(dir, "tall.txt")
+        redirect_stderr(devnull) do
+            output_result(tall_df; format=:table, output=tall_file, title="Tall Table")
+        end
+        tall_txt = read(tall_file, String)
+        @test occursin("row_01", tall_txt) && occursin("row_30", tall_txt)
+        @test !occursin("omitted", tall_txt) && !occursin("⋮", tall_txt)
+        @test !occursin("String", tall_txt) && !occursin("Float64", tall_txt)
+
+        # stdout pipe path
+        pipe_txt = mktemp() do _, pio
+            redirect_stdout(pio) do
+                redirect_stderr(devnull) do
+                    output_result(tall_df; format=:table, title="Tall Pipe")
+                end
+            end
+            flush(pio); seekstart(pio); read(pio, String)
+        end
+        @test occursin("row_30", pipe_txt) && !occursin("omitted", pipe_txt)
+
+        # Envelope render(:table) path
+        env_tall = Envelope(command="forecast multivariate var")
+        add_table!(env_tall, :tall, tall_df)
+        ebuf = IOBuffer()
+        render(env_tall, :table, ebuf)
+        env_tall_txt = String(take!(ebuf))
+        @test occursin("row_30", env_tall_txt) && !occursin("omitted", env_tall_txt)
+        @test !occursin("Float64", env_tall_txt)
+
+        # 2. Wide table (> 12 columns): never crops horizontally on file or Envelope render(:table)
+        wide_cols = [Symbol("col_$(lpad(j, 2, '0'))") => fill(round(0.11 * j; digits=4), 5) for j in 1:14]
+        wide_df = DataFrame(wide_cols...)
+        wide_file = joinpath(dir, "wide.txt")
+        redirect_stderr(devnull) do
+            output_result(wide_df; format=:table, output=wide_file, title="Wide Table")
+        end
+        wide_txt = read(wide_file, String)
+        @test occursin("col_01", wide_txt) && occursin("col_14", wide_txt)
+        @test !occursin("omitted", wide_txt) && !occursin("⋯", wide_txt)
+        @test !occursin("Float64", wide_txt)
+
+        env_wide = Envelope(command="estimate multivariate bvar")
+        add_table!(env_wide, :bvar_coefficients, wide_df)
+        wbuf = IOBuffer()
+        render(env_wide, :table, wbuf)
+        env_wide_txt = String(take!(wbuf))
+        @test occursin("col_01", env_wide_txt) && occursin("col_14", env_wide_txt)
+        @test !occursin("omitted", env_wide_txt) && !occursin("⋯", env_wide_txt)
+        @test !occursin("Float64", env_wide_txt)
+    end
 end
 
 include(joinpath(@__DIR__, "test_e2e.jl"))

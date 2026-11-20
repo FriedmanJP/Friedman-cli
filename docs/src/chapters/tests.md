@@ -14,7 +14,6 @@ friedman test unit-root adf :denmark --column 1 --trend constant
        ADF Test: LRM
 ┌────────────────┬────────┐
 │     metric     │ value  │
-│     String     │  Real  │
 ├────────────────┼────────┤
 │ Test statistic │ -1.263 │
 │      Lags      │   2    │
@@ -61,7 +60,6 @@ friedman test stability bai-perron :nile --response 1 --max-breaks 3 --criterion
       Bai-Perron Test
 ┌──────────────────┬───────┐
 │      metric      │ value │
-│      String      │  Any  │
 ├──────────────────┼───────┤
 │ Number of breaks │   1   │
 │   Break dates    │  28   │
@@ -84,28 +82,26 @@ The `bai_perron_test` table identifies `1` endogenous level shift in `:nile` at 
 friedman test coint johansen :denmark --lags 2 --trend constant
 ```
 ```text
-           Johansen Trace Test
-┌───────┬────────────┬─────────┬────────┐
-│ rank  │ trace_stat │ p_value │ reject │
-│ Int64 │  Float64   │ Float64 │ String │
-├───────┼────────────┼─────────┼────────┤
-│   0   │  123.686   │   0.0   │  yes   │
-│   1   │  60.1904   │ 0.0117  │  yes   │
-│   2   │  27.7573   │ 0.2556  │   no   │
-│   3   │  10.2196   │ 0.6242  │   no   │
-│   4   │   1.9722   │ 0.7794  │   no   │
-└───────┴────────────┴─────────┴────────┘
+          Johansen Trace Test
+┌──────┬────────────┬─────────┬────────┐
+│ rank │ trace_stat │ p_value │ reject │
+├──────┼────────────┼─────────┼────────┤
+│  0   │  123.686   │   0.0   │  yes   │
+│  1   │  60.1904   │ 0.0117  │  yes   │
+│  2   │  27.7573   │ 0.2556  │   no   │
+│  3   │  10.2196   │ 0.6242  │   no   │
+│  4   │   1.9722   │ 0.7794  │   no   │
+└──────┴────────────┴─────────┴────────┘
      Johansen Max Eigenvalue Test
-┌───────┬──────────┬─────────┬────────┐
-│ rank  │ max_stat │ p_value │ reject │
-│ Int64 │ Float64  │ Float64 │ String │
-├───────┼──────────┼─────────┼────────┤
-│   0   │ 63.4959  │   0.0   │  yes   │
-│   1   │ 32.4331  │ 0.0124  │  yes   │
-│   2   │ 17.5377  │  0.21   │   no   │
-│   3   │  8.2474  │ 0.5295  │   no   │
-│   4   │  1.9722  │ 0.7783  │   no   │
-└───────┴──────────┴─────────┴────────┘
+┌──────┬──────────┬─────────┬────────┐
+│ rank │ max_stat │ p_value │ reject │
+├──────┼──────────┼─────────┼────────┤
+│  0   │ 63.4959  │   0.0   │  yes   │
+│  1   │ 32.4331  │ 0.0124  │  yes   │
+│  2   │ 17.5377  │  0.21   │   no   │
+│  3   │  8.2474  │ 0.5295  │   no   │
+│  4   │  1.9722  │ 0.7783  │   no   │
+└──────┴──────────┴─────────┴────────┘
 ```
 
 Both `johansen_trace_test` and `johansen_max_eigenvalue_test` reject rank `0` ($p = 0.0$) and rank `1` ($p = 0.0117$ trace; $p = 0.0124$ max-eigenvalue) at the 5% level while failing to reject rank `2` ($27.7573$, $p = 0.2556$; $17.5377$, $p = 0.21$), indicating cointegrating rank $r = 2$ across Danish money demand (`LRM`, `LRY`, `LPY`, `IBO`, `IDE`).

@@ -22,12 +22,12 @@ using MacroEconometricModels
 # backs MEMs `save_model`/`load_model` (native `.jld2` handles). Unlike FFTW — pulled in
 # transitively — a bare JLD2 dep does NOT auto-load at runtime, so import it explicitly.
 import JLD2
-using LinearAlgebra: eigvals, diag, I, svd
+using LinearAlgebra: eigvals, diag, I, svd, logdet, det
 using Statistics: mean, median, var, quantile, std
 using Random
 using Serialization
 import REPL
-using Logging: ConsoleLogger, with_logger, Info, Warn
+using Logging: Logging, AbstractLogger, LogLevel, with_logger, Info, Warn
 
 # CLI engine
 include("cli/types.jl")
@@ -131,16 +131,34 @@ end
 """Memoized command tree, built once at precompile time (F57)."""
 const APP = build_app()
 
-"""
-    _mems_logger(io=stderr) → ConsoleLogger
+struct _MemsCliLogger <: AbstractLogger
+    stream::IO
+    min_level::LogLevel
+end
+Logging.min_enabled_level(l::_MemsCliLogger) = l.min_level
+Logging.shouldlog(l::_MemsCliLogger, level, _module, group, id) = level >= l.min_level
+Logging.catch_exceptions(::_MemsCliLogger) = true
+function Logging.handle_message(l::_MemsCliLogger, level::LogLevel, message, _module, group, id, file, line; kwargs...)
+    msg = strip(string(message))
+    isempty(msg) && return nothing
+    if level >= Warn
+        printstyled(l.stream, "Warning: "; bold=true, color=:yellow)
+        println(l.stream, msg)
+    else
+        println(l.stream, msg)
+    end
+    return nothing
+end
 
-Logger for MacroEconometricModels diagnostics (#348 / C050). Emits `@info` and
-above by default; under `--quiet` (`_QUIET[]`) the threshold rises to `@warn`, so
-info-level chatter is dropped while warnings and errors are always surfaced.
-`@debug` stays below threshold unless the user opts in via `JULIA_DEBUG`. `io` is
-injectable so tests can capture the stream.
 """
-_mems_logger(io::IO=stderr) = ConsoleLogger(io, _QUIET[] ? Warn : Info)
+    _mems_logger(io=stderr) → _MemsCliLogger
+
+Logger for MacroEconometricModels diagnostics (#348 / C050 / #254). Emits `@info`
+and above by default; under `--quiet` (`_QUIET[]`) the threshold rises to `@warn`, so
+info-level chatter is dropped while warnings and errors are always surfaced without
+raw `~/.julia/packages/...` source-path footers. `io` is injectable for tests.
+"""
+_mems_logger(io::IO=stderr) = _MemsCliLogger(io, _QUIET[] ? Warn : Info)
 
 """Best-effort `command` for a net-emitted error envelope: resolve the raw
 argv's non-dash tokens against the registry tree, stopping at the first token
@@ -203,6 +221,15 @@ Single entry shared by `main` (dev) and `julia_main` (compiled). Exit codes
 function run_cli(args::Vector{String})::Cint
     # Launch REPL if "repl" is the first argument
     if !isempty(args) && args[1] == "repl"
+        if any(a -> a in ("--help", "-h"), @view args[2:end])
+            print_repl_help(stdout; prog="friedman repl")
+            return Cint(0)
+        elseif length(args) > 1
+            msg = "friedman repl takes no positional arguments (got '$(args[2])'); run 'friedman repl --help'"
+            _status_styled("Error: "; bold=true, color=:red)
+            println(stderr, msg)
+            return Cint(2)
+        end
         start_repl()
         return Cint(0)
     end

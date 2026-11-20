@@ -655,7 +655,8 @@ function _data_filter(; data::String, method::String="hp", component::String="cy
 end
 
 function _data_validate(; data::String, model::String="", format::String="table", output::String="")
-    isempty(model) && error("--model is required (var|bvar|vecm|arima|garch|sv|lp|gmm|factor)")
+    isempty(model) && throw(CliError("usage/missing-option",
+        "--model is required (var|bvar|vecm|arima|garch|sv|lp|gmm|factor|arch|egarch|gjr_garch|static|dynamic|gdfm)"))
 
     allowed_models = ["var", "bvar", "vecm", "arima", "garch", "sv", "lp", "gmm", "factor",
                        "arch", "egarch", "gjr_garch", "static", "dynamic", "gdfm"]

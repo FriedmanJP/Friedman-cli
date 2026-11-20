@@ -491,7 +491,7 @@ function dsge_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="Path to DSGE model file (.toml or .jl)")],
             options=[
                 BAYES_OPTIONS...,
-                OptionSpec(name="fractions", type=String, default="0.5,1.0", description="Nested subsample fractions (comma-separated, in (0,1])"),
+                OptionSpec(name="fractions", type=String, default="0.5,1.0", description="Nested subsample fractions (comma-separated, 0 < f <= 1)"),
                 OptionSpec(name="threshold", type=Float64, default=0.2, description="Flag threshold on the learning rate α"),
                 OptionSpec(name="refit-n-smc", type=Int, default=100, description="SMC particles per subsample refit"),
             ],
@@ -1706,7 +1706,8 @@ function _dsge_solve(; model::String, method::String="gensys", order::Int=1,
                       output::String="", format::String="table",
                       plot::Bool=false, plot_save::String="")
     if !isempty(constraint_solver) && !(constraint_solver in ("nonlinearsolve", "optim", "nlopt", "ipopt", "path"))
-        error("invalid --constraint-solver value '$constraint_solver'; must be one of: nonlinearsolve, optim, nlopt, ipopt, path")
+        throw(CliError("usage/invalid-option",
+            "invalid --constraint-solver value '$constraint_solver'; must be one of: nonlinearsolve, optim, nlopt, ipopt, path"))
     end
 
     # CARD-W2 (#210): this leaf is the one that CONSUMES a `constraints:` stanza, so
@@ -2139,7 +2140,8 @@ function _dsge_steady_state(; model::String, constraints::String="",
                              constraint::Vector{String}=String[],
                              output::String="", format::String="table")
     if !isempty(constraint_solver) && !(constraint_solver in ("nonlinearsolve", "optim", "nlopt", "ipopt", "path"))
-        error("invalid --constraint-solver value '$constraint_solver'; must be one of: nonlinearsolve, optim, nlopt, ipopt, path")
+        throw(CliError("usage/invalid-option",
+            "invalid --constraint-solver value '$constraint_solver'; must be one of: nonlinearsolve, optim, nlopt, ipopt, path"))
     end
 
     # CARD-W2 (#210): this leaf CONSUMES a `constraints:` stanza, so it is the only
@@ -2381,14 +2383,14 @@ function _dsge_estimate(; model::String, data::String="", method::String="irf_ma
                          irf_horizon::Int=20, var_lags::Int=4,
                          sim_ratio::Int=5, bounds::String="",
                          output::String="", format::String="table")
-    isempty(data) && error("--data/-d is required for DSGE estimation")
-    isempty(params) && error("--params is required (comma-separated parameter names)")
+    isempty(data) && throw(CliError("usage/missing-option", "--data/-d is required for DSGE estimation"))
+    isempty(params) && throw(CliError("usage/missing-option", "--params is required (comma-separated parameter names)"))
 
     spec = _load_dsge_model(model)
     Y, varnames = load_multivariate_data(data)
     param_names = [strip(s) for s in split(params, ",") if !isempty(strip(s))]
 
-    isempty(param_names) && error("--params is required (comma-separated parameter names)")
+    isempty(param_names) && throw(CliError("usage/missing-option", "--params is required (comma-separated parameter names)"))
 
     _status("Estimating DSGE model: method=$method, params=$(join(param_names, ", "))")
     _status("  Data: $(size(Y, 1)) obs × $(size(Y, 2)) vars")
@@ -2435,7 +2437,8 @@ function _dsge_perfect_foresight(; model::String, shocks::String="",
                                   output::String="", format::String="table",
                                   plot::Bool=false, plot_save::String="")
     if !isempty(constraint_solver) && !(constraint_solver in ("nonlinearsolve", "optim", "nlopt", "ipopt", "path"))
-        error("invalid --constraint-solver value '$constraint_solver'; must be one of: nonlinearsolve, optim, nlopt, ipopt, path")
+        throw(CliError("usage/invalid-option",
+            "invalid --constraint-solver value '$constraint_solver'; must be one of: nonlinearsolve, optim, nlopt, ipopt, path"))
     end
     periods >= 1 || throw(CliError("usage/invalid",
         "perfect-foresight: --periods must be ≥ 1 (got $periods)"))
@@ -3048,8 +3051,8 @@ function _dsge_hd(; model="", method::String="gensys", order::Int=1,
                    measurement_error::String="",
                    output::String="", format::String="table",
                    plot::Bool=false, plot_save::String="")
-    isempty(data) && error("--data is required for DSGE historical decomposition")
-    isempty(observables) && error("--observables is required (comma-separated variable names)")
+    isempty(data) && throw(CliError("usage/missing-option", "--data is required for DSGE historical decomposition"))
+    isempty(observables) && throw(CliError("usage/missing-option", "--observables is required (comma-separated variable names)"))
     if model isa AbstractString
         meth = _parse_ra_method(method)
         meth in (:projection, :pfi, :vfi) && throw(CliError("usage/invalid",
@@ -3123,7 +3126,7 @@ function _dsge_bayes_hd(; model="", data::String="", params::String="",
                                measurement_error::String="none",
                          output::String="", format::String="table",
                          plot::Bool=false, plot_save::String="")
-    isempty(observables) && error("--observables is required (comma-separated variable names)")
+    isempty(observables) && throw(CliError("usage/missing-option", "--observables is required (comma-separated variable names)"))
 
     bd = model isa AbstractString ?
         _dsge_bayes_run_estimation(; model=String(model), data, params, priors, prior, sampler,

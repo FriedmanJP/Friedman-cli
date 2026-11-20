@@ -342,7 +342,7 @@ function load_model_dispatch(path::String)
         return store[path]
     end
     isfile(path) || throw(CliError("data/file-not-found", "model file not found: $path",
-                                   hint="check --model path"))
+                                   hint="check handle path"))
     lc = lowercase(path)
     if endswith(lc, ".jls")
         payload = try

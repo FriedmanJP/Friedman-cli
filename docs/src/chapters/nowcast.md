@@ -41,7 +41,6 @@ friedman nowcast dfm ragged.csv --monthly-vars 2 --quarterly-vars 1 --factors 1 
 Nowcast DFM (r=1, p=1, target=gdp)
 ┌────────────────┬──────────┐
 │     metric     │  value   │
-│     String     │ Float64  │
 ├────────────────┼──────────┤
 │    nowcast     │ 0.197516 │
 │    forecast    │ 0.34259  │
@@ -104,23 +103,20 @@ EOF
 friedman forecast evaluate metrics eval.csv --actual y --forecasts f1,f2
 ```
 ```text
-                           Forecast Accuracy Metrics
-┌────────┬──────────┬──────────┬──────────┬─────────┬─────────┬──────────┬──────
-│ model  │    ME    │   MAE    │   RMSE   │  MAPE   │  sMAPE  │   MASE   │     ⋯
-│ String │ Float64  │ Float64  │ Float64  │ Float64 │ Float64 │ Float64  │ Flo ⋯
-├────────┼──────────┼──────────┼──────────┼─────────┼─────────┼──────────┼──────
-│   f1   │ 0.020833 │ 0.060833 │ 0.063443 │ 1.0971  │ 1.09893 │ 0.087245 │ 0.0 ⋯
-│   f2   │ 0.220833 │  0.5625  │ 0.570694 │ 10.3201 │ 10.5967 │ 0.806714 │ 0.0 ⋯
-└────────┴──────────┴──────────┴──────────┴─────────┴─────────┴──────────┴──────
-                                                               2 columns omitted
-           Theil MSE Decomposition
-┌────────┬──────────┬──────────┬────────────┐
-│ model  │   bias   │ variance │ covariance │
-│ String │ Float64  │ Float64  │  Float64   │
-├────────┼──────────┼──────────┼────────────┤
-│   f1   │ 0.107833 │ 0.315233 │  0.576934  │
-│   f2   │ 0.149735 │ 0.181492 │  0.668774  │
-└────────┴──────────┴──────────┴────────────┘
+                                   Forecast Accuracy Metrics
+┌───────┬──────────┬──────────┬──────────┬─────────┬─────────┬──────────┬──────────┬──────────┐
+│ model │    ME    │   MAE    │   RMSE   │  MAPE   │  sMAPE  │   MASE   │    U1    │    U2    │
+├───────┼──────────┼──────────┼──────────┼─────────┼─────────┼──────────┼──────────┼──────────┤
+│  f1   │ 0.020833 │ 0.060833 │ 0.063443 │ 1.0971  │ 1.09893 │ 0.087245 │ 0.005764 │ 0.084453 │
+│  f2   │ 0.220833 │  0.5625  │ 0.570694 │ 10.3201 │ 10.5967 │ 0.806714 │ 0.05265  │ 0.754038 │
+└───────┴──────────┴──────────┴──────────┴─────────┴─────────┴──────────┴──────────┴──────────┘
+          Theil MSE Decomposition
+┌───────┬──────────┬──────────┬────────────┐
+│ model │   bias   │ variance │ covariance │
+├───────┼──────────┼──────────┼────────────┤
+│  f1   │ 0.107833 │ 0.315233 │  0.576934  │
+│  f2   │ 0.149735 │ 0.181492 │  0.668774  │
+└───────┴──────────┴──────────┴────────────┘
 ```
 
 [`forecast evaluate metrics`](@ref ref-forecast-evaluate-metrics) emits `forecast_accuracy_metrics` (`f1` achieves `RMSE = 0.063443` and `MAE = 0.060833` vs. `f2`'s `0.570694` and `0.5625`) together with `theil_mse_decomposition` (`bias = 0.107833`, `variance = 0.315233`, `covariance = 0.576934` shares summing to `1.0`). Follow up with [`dm`](@ref ref-forecast-evaluate-dm), [`clark-west`](@ref ref-forecast-evaluate-clark-west) (nested models), [`mincer-zarnowitz`](@ref ref-forecast-evaluate-mincer-zarnowitz) (bias/efficiency), [`encompassing`](@ref ref-forecast-evaluate-encompassing), or [`combine`](@ref ref-forecast-evaluate-combine) (`--method equal|bates-granger|granger-ramanathan`).

@@ -12,13 +12,12 @@ friedman --quiet data simulate cross-section --kind logit --n 200 --seed 11 --sa
 friedman predict choice logit bin_sim --dep y --cov-type hc1 --marginal-effects --classification-table
 ```
 ```text
-                       Average Marginal Effects (Logit)
-┌────────┬──────────┬───────────┬─────────┬───────────┬────────────┬──────────┐
-│  term  │ estimate │ std_error │  stat   │  p_value  │  ci_lower  │ ci_upper │
-│ String │ Float64  │  Float64  │ Float64 │  Float64  │  Float64   │ Float64  │
-├────────┼──────────┼───────────┼─────────┼───────────┼────────────┼──────────┤
-│   x2   │ 0.056878 │ 0.0279252 │ 2.0368  │ 0.0416704 │ 0.00214558 │ 0.11161  │
-└────────┴──────────┴───────────┴─────────┴───────────┴────────────┴──────────┘
+                      Average Marginal Effects (Logit)
+┌──────┬──────────┬───────────┬────────┬───────────┬────────────┬──────────┐
+│ term │ estimate │ std_error │  stat  │  p_value  │  ci_lower  │ ci_upper │
+├──────┼──────────┼───────────┼────────┼───────────┼────────────┼──────────┤
+│  x2  │ 0.056878 │ 0.0279252 │ 2.0368 │ 0.0416704 │ 0.00214558 │ 0.11161  │
+└──────┴──────────┴───────────┴────────┴───────────┴────────────┴──────────┘
 ```
 
 The command produces predicted probabilities (`logit_fitted_probabilities`), average marginal effects (`average_marginal_effects_logit`, here `x2 = 0.056878`, `p = 0.0416704`), classification accuracy (`classification_metrics`, `confusion_matrix`), and optional odds ratios (`--odds-ratio`).
@@ -45,28 +44,24 @@ friedman estimate choice ologit ord_sim --dep y --cov-type hc1
        Cutpoints
 ┌──────────┬───────────┐
 │ Cutpoint │   Value   │
-│  String  │  Float64  │
 ├──────────┼───────────┤
 │   cut1   │ -1.69797  │
 │   cut2   │ -0.308124 │
 │   cut3   │  1.32528  │
 └──────────┴───────────┘
-                           Ordered Logit Coefficients
-┌──────────┬────────┬───────────┬───────────┬──────────┬─────────────┬──────────
-│  block   │  term  │ estimate  │ std_error │   stat   │   p_value   │ ci_lowe ⋯
-│  String  │ String │  Float64  │  Float64  │ Float64  │   Float64   │  Float6 ⋯
-├──────────┼────────┼───────────┼───────────┼──────────┼─────────────┼──────────
-│   coef   │   x1   │ 0.680818  │ 0.110363  │ 6.16891  │ 6.87609e-10 │ 0.46451 ⋯
-│   coef   │   x2   │  1.16801  │ 0.165612  │  7.0527  │ 1.75482e-12 │ 0.84341 ⋯
-│ cutpoint │  cut1  │ -1.69797  │ 0.162727  │ -10.4345 │     0.0     │ -2.0169 ⋯
-│ cutpoint │  cut2  │ -0.308124 │ 0.103522  │ -2.9764  │ 0.00291654  │ -0.5110 ⋯
-│ cutpoint │  cut3  │  1.32528  │ 0.131603  │ 10.0702  │     0.0     │  1.0673 ⋯
-└──────────┴────────┴───────────┴───────────┴──────────┴─────────────┴──────────
-                                                               2 columns omitted
+                                 Ordered Logit Coefficients
+┌──────────┬──────┬───────────┬───────────┬──────────┬─────────────┬───────────┬───────────┐
+│  block   │ term │ estimate  │ std_error │   stat   │   p_value   │ ci_lower  │ ci_upper  │
+├──────────┼──────┼───────────┼───────────┼──────────┼─────────────┼───────────┼───────────┤
+│   coef   │  x1  │ 0.680818  │ 0.110363  │ 6.16891  │ 6.87609e-10 │ 0.464511  │ 0.897126  │
+│   coef   │  x2  │  1.16801  │ 0.165612  │  7.0527  │ 1.75482e-12 │ 0.843416  │  1.4926   │
+│ cutpoint │ cut1 │ -1.69797  │ 0.162727  │ -10.4345 │     0.0     │ -2.01691  │ -1.37903  │
+│ cutpoint │ cut2 │ -0.308124 │ 0.103522  │ -2.9764  │ 0.00291654  │ -0.511025 │ -0.105224 │
+│ cutpoint │ cut3 │  1.32528  │ 0.131603  │ 10.0702  │     0.0     │  1.06734  │  1.58321  │
+└──────────┴──────┴───────────┴───────────┴──────────┴─────────────┴───────────┴───────────┘
        Fit Statistics
 ┌────────────────┬──────────┐
 │     metric     │  value   │
-│     String     │   Real   │
 ├────────────────┼──────────┤
 │   Pseudo R2    │ 0.117169 │
 │ Log-likelihood │ -232.635 │
@@ -110,7 +105,6 @@ friedman estimate regression tobit tob_sim --dep y --lower 0.0
                    Tobit Coefficients
 ┌───────────┬──────────┬───────────┬─────────┬─────────┐
 │ parameter │ estimate │ std_error │ z_stat  │ p_value │
-│  String   │ Float64  │  Float64  │ Float64 │ Float64 │
 ├───────────┼──────────┼───────────┼─────────┼─────────┤
 │    x1     │ 0.88883  │ 0.081545  │ 10.8999 │   0.0   │
 │    x2     │ 0.506189 │ 0.080424  │  6.294  │   0.0   │
@@ -118,7 +112,6 @@ friedman estimate regression tobit tob_sim --dep y --lower 0.0
        Tobit Diagnostics
 ┌──────────────────┬──────────┐
 │      metric      │  value   │
-│      String      │   Any    │
 ├──────────────────┼──────────┤
 │      sigma       │ 1.10693  │
 │      loglik      │ -276.908 │

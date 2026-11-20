@@ -221,7 +221,7 @@ end
 Bind parsed tokens to a LeafCommand's declared arguments, options, and flags.
 Unknown options throw ParseError with a did-you-mean hint (F1).
 """
-function bind_args(parsed::ParsedArgs, cmd::LeafCommand)
+function bind_args(parsed::ParsedArgs, cmd::LeafCommand; has_extra_model::Bool=false)
     # Unknown option / flag detection (F1)
     known = cmd.known_opts
     for k in keys(parsed.options)
@@ -252,10 +252,12 @@ function bind_args(parsed::ParsedArgs, cmd::LeafCommand)
     bound = Dict{Symbol,Any}()
     sizehint!(bound, length(cmd.args) + length(cmd.options) + length(cmd.flags))
 
-    # --model PATH.fmod makes <data> optional (C029): model handle skips re-estimation
+    # --model PATH.fmod (or REPL extra_kwargs model) makes <data> optional (C029 / #253):
+    # only handle-style --model options (no fixed choices, empty/nothing default) relax <data>.
+    has_mod_handle = any(o -> o.name == "model" && (o.default === "" || o.default === nothing) && o.choices === nothing, cmd.options)
     model_val = get(parsed.options, "model", "")
     result_val = get(parsed.options, "result", "")
-    model_set = !isempty(model_val)
+    model_set = has_extra_model || (has_mod_handle && !isempty(model_val))
     result_set = !isempty(result_val)
 
     n_pos = length(parsed.positional)

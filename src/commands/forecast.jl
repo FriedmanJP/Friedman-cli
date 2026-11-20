@@ -824,7 +824,7 @@ function _forecast_bvar(; data::String="", result=nothing, lags::Int=4, horizons
         varnames = post.varnames
         p = post.p
         n = length(varnames)
-        Y = post.Y
+        Y = post.data
     end
 
     _status("Computing Bayesian forecast: BVAR($p), horizons=$horizons")

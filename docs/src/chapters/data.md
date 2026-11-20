@@ -11,25 +11,23 @@ List bundled benchmark datasets, import `:denmark` into a typed native `.jld2` h
 friedman data list
 ```
 ```text
-                               Available Datasets
-┌──────────────┬───────────────┬──────────────┬─────────────────────────────────
-│     name     │     type      │  dimensions  │                                ⋯
-│    String    │    String     │    String    │                                ⋯
-├──────────────┼───────────────┼──────────────┼─────────────────────────────────
-│   fred_md    │  Time Series  │  804 × 126   │                 FRED-MD Monthl ⋯
-│   fred_qd    │  Time Series  │  268 × 245   │                FRED-QD Quarter ⋯
-│     pwt      │     Panel     │ 38 × 74 × 42 │               Penn World Table ⋯
-│    mpdta     │     Panel     │ 500 × 5 × 3  │                       Callaway ⋯
-│     ddcg     │     Panel     │ 184 × 51 × 2 │                           Acem ⋯
-│   denmark    │  Time Series  │    55 × 5    │                Danish money-de ⋯
-│ gnp_hamilton │  Time Series  │   135 × 1    │                  US GNP growth ⋯
-│   grunfeld   │     Panel     │ 10 × 20 × 3  │                      Grunfeld  ⋯
-│  mp_shocks   │  Time Series  │   240 × 8    │ US monetary panel + policy-sho ⋯
-│     mroz     │ Cross Section │   753 × 22   │                             Mr ⋯
-│     nile     │  Time Series  │   100 × 1    │                     Nile river ⋯
-│  stackloss   │ Cross Section │    21 × 4    │                    Brownlee st ⋯
-└──────────────┴───────────────┴──────────────┴─────────────────────────────────
-                                                                1 column omitted
+                                                            Available Datasets
+┌──────────────┬───────────────┬──────────────┬──────────────────────────────────────────────────────────────────────────────────────────┐
+│     name     │     type      │  dimensions  │                                       description                                        │
+├──────────────┼───────────────┼──────────────┼──────────────────────────────────────────────────────────────────────────────────────────┤
+│   fred_md    │  Time Series  │  804 × 126   │                 FRED-MD Monthly Database (126 macroeconomic indicators)                  │
+│   fred_qd    │  Time Series  │  268 × 245   │                FRED-QD Quarterly Database (245 macroeconomic indicators)                 │
+│     pwt      │     Panel     │ 38 × 74 × 42 │               Penn World Table (38 OECD countries, 74 years, 42 variables)               │
+│    mpdta     │     Panel     │ 500 × 5 × 3  │                       Callaway-Sant'Anna (2021) minimum wage panel                       │
+│     ddcg     │     Panel     │ 184 × 51 × 2 │                           Acemoglu et al. democracy-GDP panel                            │
+│   denmark    │  Time Series  │    55 × 5    │                Danish money-demand data (Johansen-Juselius cointegration)                │
+│ gnp_hamilton │  Time Series  │   135 × 1    │                  US GNP growth (Hamilton 1989 Markov-switching example)                  │
+│   grunfeld   │     Panel     │ 10 × 20 × 3  │                      Grunfeld investment panel (10 firms, 20 years)                      │
+│  mp_shocks   │  Time Series  │   240 × 8    │ US monetary panel + policy-shock series (McKay-Wolf 2023; NaN outside published samples) │
+│     mroz     │ Cross Section │   753 × 22   │                             Mroz (1987) female labour supply                             │
+│     nile     │  Time Series  │   100 × 1    │                     Nile river annual flow (local-level state space)                     │
+│  stackloss   │ Cross Section │    21 × 4    │                    Brownlee stack-loss plant data (robust regression)                    │
+└──────────────┴───────────────┴──────────────┴──────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 All 12 built-in datasets can be passed directly to estimators via a leading colon (`:denmark`, `:fred_md`, `:pwt`) or materialized into a persistent handle with `friedman data import :denmark -o denmark`.
@@ -73,18 +71,16 @@ friedman --quiet data import :denmark -o macro
 friedman data describe macro
 ```
 ```text
-                             Descriptive Statistics
-┌──────────┬───────┬─────────────┬────────────┬─────────┬─────────┬─────────┬───
-│ variable │   n   │ first_valid │ last_valid │  mean   │   std   │   min   │  ⋯
-│  String  │ Int64 │    Int64    │   Int64    │ Float64 │ Float64 │ Float64 │  ⋯
-├──────────┼───────┼─────────────┼────────────┼─────────┼─────────┼─────────┼───
-│   LRM    │  55   │      1      │     55     │ 11.7544 │ 0.1524  │ 11.5815 │  ⋯
-│   LRY    │  55   │      1      │     55     │ 5.9524  │ 0.0728  │ 5.7868  │  ⋯
-│   LPY    │  55   │      1      │     55     │ 0.0095  │  0.334  │ -0.6187 │  ⋯
-│   IBO    │  55   │      1      │     55     │ 0.1564  │ 0.0308  │ 0.0977  │  ⋯
-│   IDE    │  55   │      1      │     55     │ 0.0904  │ 0.0141  │ 0.0675  │  ⋯
-└──────────┴───────┴─────────────┴────────────┴─────────┴─────────┴─────────┴───
-                                                               6 columns omitted
+                                                        Descriptive Statistics
+┌──────────┬────┬─────────────┬────────────┬─────────┬────────┬─────────┬─────────┬─────────┬────────┬─────────┬──────────┬──────────┐
+│ variable │ n  │ first_valid │ last_valid │  mean   │  std   │   min   │   p25   │ median  │  p75   │   max   │ skewness │ kurtosis │
+├──────────┼────┼─────────────┼────────────┼─────────┼────────┼─────────┼─────────┼─────────┼────────┼─────────┼──────────┼──────────┤
+│   LRM    │ 55 │      1      │     55     │ 11.7544 │ 0.1524 │ 11.5815 │ 11.629  │ 11.7049 │ 11.819 │ 12.0755 │  0.8781  │ -0.4777  │
+│   LRY    │ 55 │      1      │     55     │ 5.9524  │ 0.0728 │ 5.7868  │ 5.9098  │ 5.9396  │ 5.9858 │  6.099  │  0.1084  │ -0.0413  │
+│   LPY    │ 55 │      1      │     55     │ 0.0095  │ 0.334  │ -0.6187 │ -0.2763 │ 0.0333  │ 0.3236 │ 0.4683  │ -0.2525  │ -1.2915  │
+│   IBO    │ 55 │      1      │     55     │ 0.1564  │ 0.0308 │ 0.0977  │ 0.1336  │ 0.1611  │ 0.1794 │ 0.2108  │ -0.1355  │ -0.9956  │
+│   IDE    │ 55 │      1      │     55     │ 0.0904  │ 0.0141 │ 0.0675  │ 0.0775  │  0.088  │ 0.102  │  0.121  │  0.3683  │ -0.9232  │
+└──────────┴────┴─────────────┴────────────┴─────────┴────────┴─────────┴─────────┴─────────┴────────┴─────────┴──────────┴──────────┘
 ```
 
 Notice `descriptive_statistics` (JSON `data` table key) reports `55` non-missing observations per series alongside mean and standard deviation (`LRM`: `11.7544`, `0.1524`; `LRY`: `5.9524`, `0.0728`) across all five Danish macro series, whereas `data diagnose` emits `data_diagnostics` and `data balance` emits `balanced_panel`.
@@ -113,7 +109,6 @@ friedman data diagnose sim_var
              Data Diagnostics
 ┌──────────┬───────┬───────┬─────────────┐
 │ variable │ n_nan │ n_inf │ is_constant │
-│  String  │ Int64 │ Int64 │    Bool     │
 ├──────────┼───────┼───────┼─────────────┤
 │    y1    │   0   │   0   │    false    │
 │    y2    │   0   │   0   │    false    │

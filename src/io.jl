@@ -599,7 +599,10 @@ function _write_table(df::DataFrame, output::String, title::String)
     try
         pretty_table(io, df;
             title=title,
-            alignment=:c)
+            alignment=:c,
+            column_labels=names(df),
+            fit_table_in_display_horizontally=false,
+            fit_table_in_display_vertically=false)
     finally
         isempty(output) || close(io)
     end

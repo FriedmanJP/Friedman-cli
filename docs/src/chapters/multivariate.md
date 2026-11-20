@@ -10,13 +10,12 @@ Import the five-series Danish money demand panel (`:denmark`), fit a reduced-for
 ```bash
 friedman --quiet data import :denmark -o macro
 friedman --seed 42 --quiet estimate multivariate var macro --lags 2 --save-model var_fit
-friedman forecast multivariate var macro --model var_fit.jld2 --horizons 4 --ci-method analytical
+friedman forecast multivariate var --model var_fit.jld2 --horizons 4 --ci-method analytical
 ```
 ```text
               VAR(2) Forecast (h=4, 95% CI)
 ┌─────────┬──────────┬───────────┬───────────┬───────────┐
 │ horizon │ variable │   value   │   lower   │   upper   │
-│  Int64  │  String  │  Float64  │ Float64?  │ Float64?  │
 ├─────────┼──────────┼───────────┼───────────┼───────────┤
 │    1    │   LRM    │  12.0431  │  12.0017  │  12.0846  │
 │    1    │   LRY    │  6.06282  │  6.02513  │  6.10051  │
@@ -32,9 +31,13 @@ friedman forecast multivariate var macro --model var_fit.jld2 --horizons 4 --ci-
 │    3    │   LRY    │  6.08565  │  6.02649  │  6.14481  │
 │    3    │   LPY    │ 0.495256  │ 0.471094  │ 0.519417  │
 │    3    │   IBO    │  0.11898  │ 0.0841536 │ 0.153806  │
-│    ⋮    │    ⋮     │     ⋮     │     ⋮     │     ⋮     │
+│    3    │   IDE    │ 0.0758145 │ 0.0573776 │ 0.0942515 │
+│    4    │   LRM    │  12.0546  │  11.9636  │  12.1457  │
+│    4    │   LRY    │  6.09093  │  6.0274   │  6.15446  │
+│    4    │   LPY    │  0.50496  │ 0.476321  │ 0.533598  │
+│    4    │   IBO    │ 0.120596  │ 0.079573  │ 0.161619  │
+│    4    │   IDE    │ 0.0773089 │ 0.0562775 │ 0.0983403 │
 └─────────┴──────────┴───────────┴───────────┴───────────┘
-                                            6 rows omitted
 ```
 
 The command populates `var_forecast` in `--format json` (`LRM = 12.0431` with 95% analytical CI `[12.0017, 12.0846]` and `LRY = 6.06282` at horizon 1), while saving `var_fit.jld2` avoids redundant OLS estimation when moving to [`irf var`](@ref ref-irf-var), [`fevd var`](@ref ref-fevd-var), and [`hd var`](@ref ref-hd-var).
@@ -60,22 +63,19 @@ y_t = c + A_1 y_{t-1} + \dots + A_p y_{t-p} + u_t, \qquad u_t \sim (0, \Sigma).
 friedman --seed 42 estimate multivariate bvar :denmark --lags 2 --draws 300 --sampler direct
 ```
 ```text
-                      BVAR(2) Posterior Mean Coefficients
-┌──────────┬──────────────┬────────────┬───────────┬────────────┬────────────┬──
-│ equation │    LRM_L1    │   LRY_L1   │  LPY_L1   │   IBO_L1   │   IDE_L1   │ ⋯
-│  String  │   Float64    │  Float64   │  Float64  │  Float64   │  Float64   │ ⋯
-├──────────┼──────────────┼────────────┼───────────┼────────────┼────────────┼──
-│   LRM    │  0.0119857   │  0.877118  │ 0.067989  │ -0.170647  │ -0.243739  │ ⋯
-│   LRY    │  0.00464019  │  0.170573  │ 0.878546  │ -0.104794  │ -0.0559101 │ ⋯
-│   LPY    │   0.025765   │ -0.0522971 │ -0.017193 │  0.695814  │ 0.0536953  │ ⋯
-│   IBO    │ -0.00111207  │ -0.0203468 │ 0.0780604 │ 0.00957638 │  0.714109  │ ⋯
-│   IDE    │ -0.000842009 │ -0.014142  │ 0.0138447 │ 0.0359852  │  0.092833  │ ⋯
-└──────────┴──────────────┴────────────┴───────────┴────────────┴────────────┴──
-                                                               6 columns omitted
+                                                            BVAR(2) Posterior Mean Coefficients
+┌──────────┬──────────────┬────────────┬───────────┬────────────┬────────────┬───────────┬───────────┬────────────┬─────────────┬────────────┬────────────┐
+│ equation │    const     │   LRM_L1   │  LRY_L1   │   LPY_L1   │   IBO_L1   │  IDE_L1   │  LRM_L2   │   LRY_L2   │   LPY_L2    │   IBO_L2   │   IDE_L2   │
+├──────────┼──────────────┼────────────┼───────────┼────────────┼────────────┼───────────┼───────────┼────────────┼─────────────┼────────────┼────────────┤
+│   LRM    │  0.0119857   │  0.877118  │ 0.067989  │ -0.170647  │ -0.243739  │ -0.162389 │ 0.122886  │ -0.0679922 │  0.170749   │  0.24229   │  0.161367  │
+│   LRY    │  0.00464019  │  0.170573  │ 0.878546  │ -0.104794  │ -0.0559101 │ -0.103104 │ -0.170566 │  0.121446  │  0.104554   │ 0.0560048  │  0.10113   │
+│   LPY    │   0.025765   │ -0.0522971 │ -0.017193 │  0.695814  │ 0.0536953  │ 0.0197322 │ 0.052289  │ 0.0171971  │   0.30337   │ -0.0527678 │ -0.018495  │
+│   IBO    │ -0.00111207  │ -0.0203468 │ 0.0780604 │ 0.00957638 │  0.714109  │ 0.0361603 │ 0.0203441 │ -0.0780697 │ -0.00973801 │  0.284686  │ -0.0369764 │
+│   IDE    │ -0.000842009 │ -0.014142  │ 0.0138447 │ 0.0359852  │  0.092833  │ 0.589778  │ 0.0141426 │ -0.0138534 │ -0.0359335  │ -0.0928275 │  0.407752  │
+└──────────┴──────────────┴────────────┴───────────┴────────────┴────────────┴───────────┴───────────┴────────────┴─────────────┴────────────┴────────────┘
 Minnesota Hyperparameters (glp)
 ┌────────────────┬───────────┐
 │   parameter    │   value   │
-│     String     │  Float64  │
 ├────────────────┼───────────┤
 │      tau       │ 0.358498  │
 │     decay      │    0.5    │
@@ -90,15 +90,14 @@ Minnesota Hyperparameters (glp)
 │   iterations   │   273.0   │
 └────────────────┴───────────┘
 Information Criteria (Posterior Mean)
-┌────────────────┬─────────┐
-│     metric     │  value  │
-│     String     │ Float64 │
-├────────────────┼─────────┤
-│      AIC       │   0.0   │
-│      BIC       │   0.0   │
-│      HQC       │   0.0   │
-│ Log-likelihood │ 724.887 │
-└────────────────┴─────────┘
+┌────────────────┬──────────┐
+│     metric     │  value   │
+├────────────────┼──────────┤
+│      AIC       │ -39.4682 │
+│      BIC       │ -37.4235 │
+│      HQC       │ -38.6819 │
+│ Log-likelihood │ 724.887  │
+└────────────────┴──────────┘
 ```
 
 The `bvar_coefficients`, `minnesota_hyperparameters`, and `information_criteria` tables show shrunk cross-lag responses alongside GLP-optimized overall tightness `tau = 0.358498` (`log_ml = 766.07` vs default `697.472`, `Log-likelihood = 724.887`).
@@ -125,7 +124,6 @@ friedman estimate multivariate vecm :denmark --lags 2 --deterministic constant
       Cointegrating Vectors (beta)
 ┌──────────┬─────────────┬─────────────┐
 │ variable │     CV1     │     CV2     │
-│  String  │   Float64   │   Float64   │
 ├──────────┼─────────────┼─────────────┤
 │   LRM    │     1.0     │ 5.24407e-17 │
 │   LRY    │ -1.2858e-16 │     1.0     │
@@ -136,7 +134,6 @@ friedman estimate multivariate vecm :denmark --lags 2 --deterministic constant
    Adjustment Coefficients (alpha)
 ┌──────────┬────────────┬────────────┐
 │ equation │    CV1     │    CV2     │
-│  String  │  Float64   │  Float64   │
 ├──────────┼────────────┼────────────┤
 │   LRM    │ -0.332801  │ 0.0659877  │
 │   LRY    │ -0.0234682 │ -0.0481643 │
@@ -147,7 +144,6 @@ friedman estimate multivariate vecm :denmark --lags 2 --deterministic constant
     Information Criteria
 ┌────────────────┬──────────┐
 │     metric     │  value   │
-│     String     │ Float64  │
 ├────────────────┼──────────┤
 │      AIC       │ -44.9501 │
 │      BIC       │ -43.4631 │
@@ -187,7 +183,6 @@ friedman estimate factor static fac_sim --nfactors 2
 Scree Data (Eigenvalues & Variance Shares)
 ┌───────────┬────────────┬────────────┐
 │ component │ eigenvalue │ cumulative │
-│   Int64   │  Float64   │  Float64   │
 ├───────────┼────────────┼────────────┤
 │     1     │  0.511257  │  0.511257  │
 │     2     │  0.284355  │  0.795612  │
@@ -203,7 +198,6 @@ Scree Data (Eigenvalues & Variance Shares)
            Factor Loadings
 ┌──────────┬───────────┬────────────┐
 │ variable │    F1     │     F2     │
-│  String  │  Float64  │  Float64   │
 ├──────────┼───────────┼────────────┤
 │    x1    │ 0.795769  │ -0.393819  │
 │    x2    │ 0.254682  │  0.865641  │

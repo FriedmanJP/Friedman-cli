@@ -179,74 +179,201 @@ function is_estimate_command(args::Vector{String})
     !isempty(args) && args[1] == "estimate"
 end
 
+# Options/flags on downstream leaves (irf/fevd/hd/forecast/predict/residuals) that apply to an
+# ALREADY-estimated model (#253). Any other option/flag (such as --model, --result, --lags/-p,
+# --draws/-n, --prior, --rank/-r, --column/-c, --dep, etc.) indicates an explicit handle or a
+# re-estimation specification and suppresses Session.results model-cache injection.
+const _DOWNSTREAM_ONLY_OPTS = Set([
+    "horizons", "ci", "ci-level", "ci-method", "conf-level", "confidence", "level",
+    "replications", "reps", "boot-draws", "irf-draws",
+    "id", "config-json", "set",
+    "shock", "shock-size", "shocks", "irf-type", "summary",
+    "conditions-file", "x-future", "hf-data", "hf-column", "threshold",
+    "format", "output", "plot-save", "save-result", "save-model",
+])
+
+const _DOWNSTREAM_ONLY_FLAGS = Set([
+    "plot", "strict", "cumulative", "generalized", "identified-set", "normalize",
+    "marginal-effects", "odds-ratio", "classification-table", "standardized", "emit-series",
+])
+
+function _can_inject_cached_model(app::Entry, args::Vector{String})::Bool
+    is_downstream_command(args) || return false
+    any(a -> a in ("--help", "-h"), args) && return false
+    node_or_leaf, depth = _walk_command_path(app, args)
+    (depth > 0 && node_or_leaf isa LeafCommand) || return false
+    has_id_opt = any(t -> t == "--id" || startswith(t, "--id="), @view args[(depth + 1):end])
+    i = depth + 1
+    n = length(args)
+    while i <= n
+        tok = args[i]
+        if tok == "--"
+            return i == n
+        elseif startswith(tok, "--")
+            eq = findfirst('=', tok)
+            oname = eq === nothing ? tok[3:end] : tok[3:(eq - 1)]
+            if oname in _DOWNSTREAM_ONLY_OPTS || (oname == "config" && has_id_opt)
+                is_flag = any(f -> f.name == oname, node_or_leaf.flags)
+                i += (eq === nothing && !is_flag) ? 2 : 1
+            elseif oname in _DOWNSTREAM_ONLY_FLAGS && eq === nothing
+                i += 1
+            else
+                return false
+            end
+        elseif startswith(tok, "-") && length(tok) >= 2
+            if tok in ("-H", "-f", "-o")
+                i += 2
+            elseif startswith(tok, "-H=") || startswith(tok, "-f=") || startswith(tok, "-o=")
+                i += 1
+            else
+                return false
+            end
+        else
+            # Explicit positional (<data> or <model>) supplied by the user
+            return false
+        end
+    end
+    return true
+end
+
+function _repl_extract_globals!(args::Vector{String})
+    if @isdefined(_extract_global_flags!)
+        return _extract_global_flags!(copy(args))
+    end
+    @isdefined(_QUIET) && (_QUIET[] = false)
+    @isdefined(_COLOR) && (_COLOR[] = !haskey(ENV, "NO_COLOR"))
+    @isdefined(_SEED)  && (_SEED[] = nothing)
+    force_json = false
+    i = 1
+    n = length(args)
+    while i <= n
+        tok = args[i]
+        if tok == "--quiet" || tok == "-q"
+            @isdefined(_QUIET) && (_QUIET[] = true)
+            i += 1
+        elseif tok == "--no-color"
+            @isdefined(_COLOR) && (_COLOR[] = false)
+            i += 1
+        elseif tok == "--json"
+            force_json = true
+            i += 1
+        elseif tok == "--seed"
+            i + 1 <= n || throw(CliError("usage/bad-seed", "--seed requires an integer argument"))
+            sval = tryparse(Int, args[i + 1])
+            sval === nothing && throw(CliError("usage/bad-seed", "invalid --seed value '$(args[i + 1])'"))
+            @isdefined(_SEED) && (_SEED[] = sval)
+            i += 2
+        elseif startswith(tok, "--seed=")
+            raw = tok[8:end]
+            sval = tryparse(Int, raw)
+            sval === nothing && throw(CliError("usage/bad-seed", "invalid --seed value '$raw'"))
+            @isdefined(_SEED) && (_SEED[] = sval)
+            i += 1
+        else
+            break
+        end
+    end
+    remaining = args[i:end]
+    if force_json
+        has_fmt = any(t -> startswith(t, "--format") || t == "-f", remaining)
+        if !has_fmt
+            remaining = vcat(remaining, String["--format", "json"])
+        end
+    end
+    return remaining
+end
+
 """
-    repl_dispatch(session, app, args)
+    repl_dispatch(session, app, args; err=stderr)
 
 Dispatch a command within the REPL. Handles REPL-specific commands
-(data use/current/clear, exit/quit), injects session data, captures
-estimation results. Never calls exit().
+(data use/current/clear, exit/quit), per-command leading global flags,
+session data injection, and cached estimation results. Never calls exit().
 """
-function repl_dispatch(s::Session, app::Entry, args::Vector{String})
+function repl_dispatch(s::Session, app::Entry, args::Vector{String}; err::IO=stderr)
     isempty(args) && return
 
-    # REPL-only commands
-    if args[1] == "exit" || args[1] == "quit"
-        throw(InterruptException())
-    end
+    prev_quiet = @isdefined(_QUIET) ? _QUIET[] : false
+    prev_color = @isdefined(_COLOR) ? _COLOR[] : true
+    prev_seed  = @isdefined(_SEED)  ? _SEED[]  : nothing
+    raw_args = copy(args)
+    try
+        args = _repl_extract_globals!(args)
+        isempty(args) && return
+        @isdefined(_LAST_ARGV) && (_LAST_ARGV[] = raw_args)
 
-    # data use / data current / data clear
-    if length(args) >= 2 && args[1] == "data"
-        if args[2] == "use" && length(args) >= 3
-            source = args[3]
-            kind, val = parse_data_source(source)
-            if kind == :builtin
-                session_load_builtin!(s, val)
-            else
-                session_load_data!(s, val)
-            end
-            printstyled("✓ "; color=:green)
-            println("Loaded $(s.data_path) ($(size(s.Y, 1))×$(size(s.Y, 2)), vars: $(join(s.varnames, ", ")))")
-            return
-        elseif args[2] == "current"
-            if session_has_data(s)
-                println("$(s.data_path) ($(size(s.Y, 1))×$(size(s.Y, 2)))")
-                if !isempty(s.results)
-                    println("Cached results: $(join(keys(s.results), ", "))")
+        # REPL-only commands
+        if args[1] == "exit" || args[1] == "quit"
+            throw(InterruptException())
+        end
+
+        # data use / data current / data clear
+        if length(args) >= 2 && args[1] == "data"
+            if args[2] == "use" && length(args) >= 3
+                source = args[3]
+                kind, val = parse_data_source(source)
+                if kind == :builtin
+                    session_load_builtin!(s, val)
+                else
+                    session_load_data!(s, val)
                 end
-            else
-                println("No data loaded")
+                printstyled("✓ "; color=:green)
+                println("Loaded $(s.data_path) ($(size(s.Y, 1))×$(size(s.Y, 2)), vars: $(join(s.varnames, ", ")))")
+                return
+            elseif args[2] == "current"
+                if session_has_data(s)
+                    println("$(s.data_path) ($(size(s.Y, 1))×$(size(s.Y, 2)))")
+                    if !isempty(s.results)
+                        println("Cached results: $(join(keys(s.results), ", "))")
+                    end
+                else
+                    println("No data loaded")
+                end
+                return
+            elseif args[2] == "clear"
+                session_clear!(s)
+                printstyled("✓ "; color=:green)
+                println("Data and results cleared")
+                return
             end
-            return
-        elseif args[2] == "clear"
-            session_clear!(s)
-            printstyled("✓ "; color=:green)
-            println("Data and results cleared")
-            return
         end
-    end
 
-    # Inject session data if needed (tree-walk on registry)
-    args = inject_session_data(s, args, app)
-
-    # Check if downstream command can use cached model
-    extra_kw = Dict{Symbol,Any}()
-    if is_downstream_command(args)
-        model_type = detect_model_type(args)
-        cached = session_get_result(s, model_type)
-        if !isnothing(cached)
-            extra_kw[:model] = cached
+        # Check BEFORE inject_session_data whether downstream command should use cached model (#253)
+        extra_kw = Dict{Symbol,Any}()
+        if _can_inject_cached_model(app, args)
+            model_type = detect_model_type(args)
+            cached = session_get_result(s, model_type)
+            if !isnothing(cached)
+                extra_kw[:model] = cached
+            end
         end
-    end
 
-    # Dispatch and capture result
-    result = dispatch(app, args; extra_kw...)
-
-    # Cache estimation results
-    if is_estimate_command(args) && !isnothing(result)
-        model_type = detect_model_type(args)
-        if model_type != :none
-            session_store_result!(s, model_type, result)
+        # Only inject session data when no cached model is being used
+        if !haskey(extra_kw, :model)
+            args = inject_session_data(s, args, app)
         end
+
+        # Dispatch (under _mems_logger when available) and capture result
+        result = if @isdefined(_mems_logger)
+            Logging.with_logger(_mems_logger(err)) do
+                dispatch(app, args; extra_kw...)
+            end
+        else
+            dispatch(app, args; extra_kw...)
+        end
+
+        # Cache estimation results
+        if is_estimate_command(args) && !isnothing(result)
+            model_type = detect_model_type(args)
+            if model_type != :none
+                cached_obj = (result isa NamedTuple && haskey(result, :model)) ? result.model : result
+                isnothing(cached_obj) || session_store_result!(s, model_type, cached_obj)
+            end
+        end
+    finally
+        @isdefined(_QUIET) && (_QUIET[] = prev_quiet)
+        @isdefined(_COLOR) && (_COLOR[] = prev_color)
+        @isdefined(_SEED)  && (_SEED[] = prev_seed)
     end
 end
 
@@ -276,7 +403,7 @@ function _exec_repl_line!(
 
     args = _split_repl_line(line)
     try
-        repl_dispatch(s, app, args)
+        repl_dispatch(s, app, args; err=err)
     catch e
         if e isa InterruptException
             println(output, "Goodbye!")

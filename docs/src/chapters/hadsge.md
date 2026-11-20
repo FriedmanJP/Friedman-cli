@@ -15,21 +15,19 @@ friedman hadsge solve ha_huggett.jl --method ssj --n-reduced 10 --t-horizon 100
 ```
 ```text
 HA-DSGE Solve Diagnostics (method=ssj)
-┌────────────────────┬────────┐
-│       metric       │ value  │
-│       String       │ String │
-├────────────────────┼────────┤
-│       method       │  ssj   │
-│   n_full_states    │  100   │
-│     n_reduced      │   10   │
-│ explained_variance │  1.0   │
-│      obs_rows      │   1    │
-│      obs_cols      │   10   │
-└────────────────────┴────────┘
+┌────────────────────┬───────┐
+│       metric       │ value │
+├────────────────────┼───────┤
+│       method       │  ssj  │
+│   n_full_states    │  100  │
+│     n_reduced      │  10   │
+│ explained_variance │  1.0  │
+│      obs_rows      │   1   │
+│      obs_cols      │  10   │
+└────────────────────┴───────┘
    HA Steady-State Aggregates
 ┌───────────────┬──────────────┐
 │     name      │    value     │
-│    String     │   Float64    │
 ├───────────────┼──────────────┤
 │   K_demand    │     0.0      │
 │   A_policy    │ -5.91356e-9  │
@@ -39,17 +37,15 @@ HA-DSGE Solve Diagnostics (method=ssj)
 │ excess_demand │ -5.91356e-9  │
 └───────────────┴──────────────┘
 HA Steady-State Prices
-┌────────┬────────────┐
-│  name  │   value    │
-│ String │  Float64   │
-├────────┼────────────┤
-│   w    │    1.0     │
-│   r    │ -0.0130703 │
-└────────┴────────────┘
+┌──────┬────────────┐
+│ name │   value    │
+├──────┼────────────┤
+│  w   │    1.0     │
+│  r   │ -0.0130703 │
+└──────┴────────────┘
   HA Steady-State Diagnostics
 ┌───────────────┬─────────────┐
 │    metric     │    value    │
-│    String     │   Float64   │
 ├───────────────┼─────────────┤
 │   converged   │     1.0     │
 │  iterations   │    28.0     │
@@ -59,7 +55,6 @@ HA Steady-State Prices
                    HA Euler Accuracy (log10, by convention)
 ┌────────────┬──────────┬──────────┬─────────────┬───────────────┬───────────┐
 │ convention │   max    │   mean   │ n_evaluated │ n_constrained │ n_offgrid │
-│   String   │ Float64  │ Float64  │    Int64    │     Int64     │   Int64   │
 ├────────────┼──────────┼──────────┼─────────────┼───────────────┼───────────┤
 │ midpoints  │ -1.93627 │ -4.53987 │     584     │      14       │     0     │
 │   nodes    │ -4.46995 │ -5.6558  │     585     │      15       │     0     │
@@ -111,18 +106,16 @@ friedman dsge olg solve --alpha 0.36 --beta 0.96 --delta 0.08 --gamma 0.98 --deb
 friedman dsge ct solve --grid-size 25 --max-iter 40 --a-max 20.0
 ```
 ```text
-  CT Aiyagari Prices
-┌────────┬───────────┐
-│  name  │   value   │
-│ String │  Float64  │
-├────────┼───────────┤
-│   r    │ 0.0396901 │
-│   w    │  1.39856  │
-└────────┴───────────┘
+ CT Aiyagari Prices
+┌──────┬───────────┐
+│ name │   value   │
+├──────┼───────────┤
+│  r   │ 0.0396901 │
+│  w   │  1.39856  │
+└──────┴───────────┘
 CT Aiyagari Aggregates
 ┌───────────┬─────────┐
 │   name    │  value  │
-│  String   │ Float64 │
 ├───────────┼─────────┤
 │     K     │ 1.31568 │
 │     L     │  0.15   │

@@ -160,7 +160,7 @@ function estimate_specs()::Vector{CommandSpec}
             ],
             flags=FlagSpec[],
             tables=[TableSpec(name=:bvar_coefficients,
-                              description="Posterior mean (or median) BVAR coefficients, one row per equation x regressor"),
+                              description="Posterior mean (or median) BVAR coefficients, one row per equation with columns const and <var>_L<lag>"),
                     TableSpec(name=:minnesota_hyperparameters,
                               description="Selected Minnesota hyperparameters and, for --hyperopt glp, the optimizer diagnostics"),
                     TableSpec(name=:information_criteria,
@@ -2014,15 +2014,15 @@ function _estimate_bvar(; data::String, lags::Int=4, prior::String="minnesota",
 
     post = estimate_bvar(Y, p;
         sampler=Symbol(sampler), n_draws=draws,
-        prior=prior_sym, hyper=prior_obj, seed=_SEED[])
+        prior=prior_sym, hyper=prior_obj, varnames=varnames, seed=_SEED[])
 
     model = if method == "median"
-        posterior_median_model(post)
+        posterior_median_model(post; data=Y)
     else
-        posterior_mean_model(post)
+        posterior_mean_model(post; data=Y)
     end
 
-    _status_report(() -> report(model))
+    _status_report(() -> report(post))
 
     coef_df = _build_var_coef_table(coef(model), varnames, p)
     output_result(coef_df; format=Symbol(format), output=output,
@@ -2038,7 +2038,7 @@ function _estimate_bvar(; data::String, lags::Int=4, prior::String="minnesota",
 
     _status()
     output_model_criteria(model; format=format, title="Information Criteria (Posterior $(titlecase(method)))")
-    return model
+    return post
 end
 
 # ── LP ─────────────────────────────────────────────────────
@@ -2332,7 +2332,7 @@ function _estimate_lp_smooth(data, shock, horizons, knots, lambda, output, forma
 end
 
 function _estimate_lp_state(data, shock, horizons, state_var, gamma, transition, output, format)
-    isnothing(state_var) && error("state-dependent LP requires --state-var=<idx>")
+    isnothing(state_var) && throw(CliError("usage/missing-option", "state-dependent LP requires --state-var=<idx>"))
 
     Y, varnames = load_multivariate_data(data)
     n = size(Y, 2)
@@ -2846,7 +2846,8 @@ end
 function _estimate_gmm(; data::String, config::String="",
                         weighting::String="twostep",
                         output::String="", format::String="table")
-    isempty(config) && error("GMM requires a --config=<file.toml> specifying moment conditions and instruments")
+    isempty(config) && throw(CliError("usage/missing-option",
+        "GMM requires a --config=<file.toml> specifying moment conditions and instruments"))
 
     cfg = _load_config_or_card(config, :gmm)
     gmm_cfg = get_gmm(cfg)
@@ -4136,7 +4137,7 @@ function _3sls_refit(data, config, instruments, no_intercept)
     end
 end
 
-function _predict_sur(; data::String, config::String="", iterate::Bool=false,
+function _predict_sur(; data::String="", config::String="", iterate::Bool=false,
         no_intercept::Bool=false, output::String="", format::String="table", model=nothing)
     m = model === nothing ? _sur_refit(data, config, iterate, no_intercept) : model
     _status("SUR fitted values: $(length(m.eqnames)) equations"); _status()
@@ -4145,7 +4146,7 @@ function _predict_sur(; data::String, config::String="", iterate::Bool=false,
     return m.fitted
 end
 
-function _residuals_sur(; data::String, config::String="", iterate::Bool=false,
+function _residuals_sur(; data::String="", config::String="", iterate::Bool=false,
         no_intercept::Bool=false, output::String="", format::String="table", model=nothing)
     m = model === nothing ? _sur_refit(data, config, iterate, no_intercept) : model
     _status("SUR residuals: $(length(m.eqnames)) equations"); _status()
@@ -4154,7 +4155,7 @@ function _residuals_sur(; data::String, config::String="", iterate::Bool=false,
     return m.residuals
 end
 
-function _predict_3sls(; data::String, config::String="", instruments::String="common",
+function _predict_3sls(; data::String="", config::String="", instruments::String="common",
         no_intercept::Bool=false, output::String="", format::String="table", model=nothing)
     m = model === nothing ? _3sls_refit(data, config, instruments, no_intercept) : model
     _status("3SLS fitted values: $(length(m.eqnames)) equations"); _status()
@@ -4163,7 +4164,7 @@ function _predict_3sls(; data::String, config::String="", instruments::String="c
     return m.fitted
 end
 
-function _residuals_3sls(; data::String, config::String="", instruments::String="common",
+function _residuals_3sls(; data::String="", config::String="", instruments::String="common",
         no_intercept::Bool=false, output::String="", format::String="table", model=nothing)
     m = model === nothing ? _3sls_refit(data, config, instruments, no_intercept) : model
     _status("3SLS residuals: $(length(m.eqnames)) equations"); _status()
@@ -4526,7 +4527,7 @@ function _estimate_plogit(; data::String, dep::String="", indep::String="",
                            method::String="pooled", cov_type::String="cluster",
                            id_col::String="", time_col::String="",
                            output::String="", format::String="table")
-    isempty(dep) && error("--dep is required")
+    isempty(dep) && throw(CliError("usage/missing-option", "--dep is required"))
     pd = _load_panel_for_preg(data, id_col, time_col)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
@@ -4558,7 +4559,7 @@ function _estimate_pprobit(; data::String, dep::String="", indep::String="",
                             method::String="pooled", cov_type::String="cluster",
                             id_col::String="", time_col::String="",
                             output::String="", format::String="table")
-    isempty(dep) && error("--dep is required")
+    isempty(dep) && throw(CliError("usage/missing-option", "--dep is required"))
     pd = _load_panel_for_preg(data, id_col, time_col)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
@@ -5182,9 +5183,12 @@ function _forecast_igarch(; data::String="", result=nothing, column::Int=1, p::I
     horizons >= 1 || throw(CliError("usage/invalid", "forecast volatility igarch: --horizons must be ≥ 1 (got $horizons)"))
     (0.0 < conf_level < 1.0) || throw(CliError("usage/invalid",
         "forecast volatility igarch: --conf-level must be in (0, 1) (got $conf_level)"))
-    y, vname = load_univariate_series(data, column)
-    m = model === nothing ?
-        (try; estimate_igarch(y, p, q); catch e; throw(_garch_variant_error(e, "IGARCH")); end) : model
+    m, vname = if model === nothing
+        y, vn = load_univariate_series(data, column)
+        (try; estimate_igarch(y, p, q); catch e; throw(_garch_variant_error(e, "IGARCH")); end), vn
+    else
+        model, "model"
+    end
     _status("IGARCH Volatility Forecast: variable=$vname, horizons=$horizons"); _status()
     fc = try
         forecast(m, horizons; conf_level=conf_level)
@@ -5197,20 +5201,26 @@ function _forecast_igarch(; data::String="", result=nothing, column::Int=1, p::I
     return (; model=m, result=fc)
 end
 
-function _predict_igarch(; data::String, column::Int=1, p::Int=1, q::Int=1, model=nothing, output::String="", format::String="table")
-    y, vname = load_univariate_series(data, column)
-    m = model === nothing ?
-        (try; estimate_igarch(y, p, q); catch e; throw(_garch_variant_error(e, "IGARCH")); end) : model
+function _predict_igarch(; data::String="", column::Int=1, p::Int=1, q::Int=1, model=nothing, output::String="", format::String="table")
+    m, vname = if model === nothing
+        y, vn = load_univariate_series(data, column)
+        (try; estimate_igarch(y, p, q); catch e; throw(_garch_variant_error(e, "IGARCH")); end), vn
+    else
+        model, "model"
+    end
     _status("IGARCH conditional variance: variable=$vname"); _status()
     return _vol_variant_predict_output(_vol_variant_cond_var(m), vname,
         "IGARCH($p,$q)" * " Conditional Variance"; format=format, output=output,
         key="igarch_conditional_variance")
 end
 
-function _residuals_igarch(; data::String, column::Int=1, p::Int=1, q::Int=1, model=nothing, output::String="", format::String="table")
-    y, vname = load_univariate_series(data, column)
-    m = model === nothing ?
-        (try; estimate_igarch(y, p, q); catch e; throw(_garch_variant_error(e, "IGARCH")); end) : model
+function _residuals_igarch(; data::String="", column::Int=1, p::Int=1, q::Int=1, model=nothing, output::String="", format::String="table")
+    m, vname = if model === nothing
+        y, vn = load_univariate_series(data, column)
+        (try; estimate_igarch(y, p, q); catch e; throw(_garch_variant_error(e, "IGARCH")); end), vn
+    else
+        model, "model"
+    end
     _status("IGARCH standardized residuals: variable=$vname"); _status()
     return _vol_variant_residuals_output(residuals(m), vname,
         "IGARCH($p,$q)" * " Standardized Residuals"; format=format, output=output,
@@ -5231,9 +5241,12 @@ function _forecast_cgarch(; data::String="", result=nothing, column::Int=1, hori
     horizons >= 1 || throw(CliError("usage/invalid", "forecast volatility cgarch: --horizons must be ≥ 1 (got $horizons)"))
     (0.0 < conf_level < 1.0) || throw(CliError("usage/invalid",
         "forecast volatility cgarch: --conf-level must be in (0, 1) (got $conf_level)"))
-    y, vname = load_univariate_series(data, column)
-    m = model === nothing ?
-        (try; estimate_cgarch(y); catch e; throw(_garch_variant_error(e, "Component-GARCH")); end) : model
+    m, vname = if model === nothing
+        y, vn = load_univariate_series(data, column)
+        (try; estimate_cgarch(y); catch e; throw(_garch_variant_error(e, "Component-GARCH")); end), vn
+    else
+        model, "model"
+    end
     _status("Component-GARCH Volatility Forecast: variable=$vname, horizons=$horizons"); _status()
     fc = try
         forecast(m, horizons; conf_level=conf_level)
@@ -5246,20 +5259,26 @@ function _forecast_cgarch(; data::String="", result=nothing, column::Int=1, hori
     return (; model=m, result=fc)
 end
 
-function _predict_cgarch(; data::String, column::Int=1, model=nothing, output::String="", format::String="table")
-    y, vname = load_univariate_series(data, column)
-    m = model === nothing ?
-        (try; estimate_cgarch(y); catch e; throw(_garch_variant_error(e, "Component-GARCH")); end) : model
+function _predict_cgarch(; data::String="", column::Int=1, model=nothing, output::String="", format::String="table")
+    m, vname = if model === nothing
+        y, vn = load_univariate_series(data, column)
+        (try; estimate_cgarch(y); catch e; throw(_garch_variant_error(e, "Component-GARCH")); end), vn
+    else
+        model, "model"
+    end
     _status("Component-GARCH conditional variance: variable=$vname"); _status()
     return _vol_variant_predict_output(_vol_variant_cond_var(m), vname,
         "Component-GARCH(1,1)" * " Conditional Variance"; format=format, output=output,
         key="cgarch_conditional_variance")
 end
 
-function _residuals_cgarch(; data::String, column::Int=1, model=nothing, output::String="", format::String="table")
-    y, vname = load_univariate_series(data, column)
-    m = model === nothing ?
-        (try; estimate_cgarch(y); catch e; throw(_garch_variant_error(e, "Component-GARCH")); end) : model
+function _residuals_cgarch(; data::String="", column::Int=1, model=nothing, output::String="", format::String="table")
+    m, vname = if model === nothing
+        y, vn = load_univariate_series(data, column)
+        (try; estimate_cgarch(y); catch e; throw(_garch_variant_error(e, "Component-GARCH")); end), vn
+    else
+        model, "model"
+    end
     _status("Component-GARCH standardized residuals: variable=$vname"); _status()
     return _vol_variant_residuals_output(residuals(m), vname,
         "Component-GARCH(1,1)" * " Standardized Residuals"; format=format, output=output,
@@ -5280,9 +5299,12 @@ function _forecast_aparch(; data::String="", result=nothing, column::Int=1, p::I
     horizons >= 1 || throw(CliError("usage/invalid", "forecast volatility aparch: --horizons must be ≥ 1 (got $horizons)"))
     (0.0 < conf_level < 1.0) || throw(CliError("usage/invalid",
         "forecast volatility aparch: --conf-level must be in (0, 1) (got $conf_level)"))
-    y, vname = load_univariate_series(data, column)
-    m = model === nothing ?
-        (try; estimate_aparch(y, p, q; fix_delta=(fix_delta === nothing ? nothing : Float64(fix_delta)), fix_gamma=(fix_gamma === nothing ? nothing : Float64(fix_gamma))); catch e; throw(_garch_variant_error(e, "APARCH")); end) : model
+    m, vname = if model === nothing
+        y, vn = load_univariate_series(data, column)
+        (try; estimate_aparch(y, p, q; fix_delta=(fix_delta === nothing ? nothing : Float64(fix_delta)), fix_gamma=(fix_gamma === nothing ? nothing : Float64(fix_gamma))); catch e; throw(_garch_variant_error(e, "APARCH")); end), vn
+    else
+        model, "model"
+    end
     _status("APARCH Volatility Forecast: variable=$vname, horizons=$horizons"); _status()
     fc = try
         forecast(m, horizons; conf_level=conf_level)
@@ -5295,20 +5317,26 @@ function _forecast_aparch(; data::String="", result=nothing, column::Int=1, p::I
     return (; model=m, result=fc)
 end
 
-function _predict_aparch(; data::String, column::Int=1, p::Int=1, q::Int=1, fix_delta=nothing, fix_gamma=nothing, model=nothing, output::String="", format::String="table")
-    y, vname = load_univariate_series(data, column)
-    m = model === nothing ?
-        (try; estimate_aparch(y, p, q; fix_delta=(fix_delta === nothing ? nothing : Float64(fix_delta)), fix_gamma=(fix_gamma === nothing ? nothing : Float64(fix_gamma))); catch e; throw(_garch_variant_error(e, "APARCH")); end) : model
+function _predict_aparch(; data::String="", column::Int=1, p::Int=1, q::Int=1, fix_delta=nothing, fix_gamma=nothing, model=nothing, output::String="", format::String="table")
+    m, vname = if model === nothing
+        y, vn = load_univariate_series(data, column)
+        (try; estimate_aparch(y, p, q; fix_delta=(fix_delta === nothing ? nothing : Float64(fix_delta)), fix_gamma=(fix_gamma === nothing ? nothing : Float64(fix_gamma))); catch e; throw(_garch_variant_error(e, "APARCH")); end), vn
+    else
+        model, "model"
+    end
     _status("APARCH conditional variance: variable=$vname"); _status()
     return _vol_variant_predict_output(_vol_variant_cond_var(m), vname,
         "APARCH($p,$q)" * " Conditional Variance"; format=format, output=output,
         key="aparch_conditional_variance")
 end
 
-function _residuals_aparch(; data::String, column::Int=1, p::Int=1, q::Int=1, fix_delta=nothing, fix_gamma=nothing, model=nothing, output::String="", format::String="table")
-    y, vname = load_univariate_series(data, column)
-    m = model === nothing ?
-        (try; estimate_aparch(y, p, q; fix_delta=(fix_delta === nothing ? nothing : Float64(fix_delta)), fix_gamma=(fix_gamma === nothing ? nothing : Float64(fix_gamma))); catch e; throw(_garch_variant_error(e, "APARCH")); end) : model
+function _residuals_aparch(; data::String="", column::Int=1, p::Int=1, q::Int=1, fix_delta=nothing, fix_gamma=nothing, model=nothing, output::String="", format::String="table")
+    m, vname = if model === nothing
+        y, vn = load_univariate_series(data, column)
+        (try; estimate_aparch(y, p, q; fix_delta=(fix_delta === nothing ? nothing : Float64(fix_delta)), fix_gamma=(fix_gamma === nothing ? nothing : Float64(fix_gamma))); catch e; throw(_garch_variant_error(e, "APARCH")); end), vn
+    else
+        model, "model"
+    end
     _status("APARCH standardized residuals: variable=$vname"); _status()
     return _vol_variant_residuals_output(residuals(m), vname,
         "APARCH($p,$q)" * " Standardized Residuals"; format=format, output=output,
@@ -5329,9 +5357,12 @@ function _forecast_figarch(; data::String="", result=nothing, column::Int=1, p::
     horizons >= 1 || throw(CliError("usage/invalid", "forecast volatility figarch: --horizons must be ≥ 1 (got $horizons)"))
     (0.0 < conf_level < 1.0) || throw(CliError("usage/invalid",
         "forecast volatility figarch: --conf-level must be in (0, 1) (got $conf_level)"))
-    y, vname = load_univariate_series(data, column)
-    m = model === nothing ?
-        (try; estimate_figarch(y; p=p, q=q, d0=d0, truncation=truncation, dist=Symbol(dist)); catch e; throw(_garch_variant_error(e, "FIGARCH")); end) : model
+    m, vname = if model === nothing
+        y, vn = load_univariate_series(data, column)
+        (try; estimate_figarch(y; p=p, q=q, d0=d0, truncation=truncation, dist=Symbol(dist)); catch e; throw(_garch_variant_error(e, "FIGARCH")); end), vn
+    else
+        model, "model"
+    end
     _status("FIGARCH Volatility Forecast: variable=$vname, horizons=$horizons"); _status()
     fc = try
         forecast(m, horizons; conf_level=conf_level)
@@ -5344,20 +5375,26 @@ function _forecast_figarch(; data::String="", result=nothing, column::Int=1, p::
     return (; model=m, result=fc)
 end
 
-function _predict_figarch(; data::String, column::Int=1, p::Int=1, q::Int=1, d0::Float64=0.4, truncation::Int=1000, dist::String="normal", model=nothing, output::String="", format::String="table")
-    y, vname = load_univariate_series(data, column)
-    m = model === nothing ?
-        (try; estimate_figarch(y; p=p, q=q, d0=d0, truncation=truncation, dist=Symbol(dist)); catch e; throw(_garch_variant_error(e, "FIGARCH")); end) : model
+function _predict_figarch(; data::String="", column::Int=1, p::Int=1, q::Int=1, d0::Float64=0.4, truncation::Int=1000, dist::String="normal", model=nothing, output::String="", format::String="table")
+    m, vname = if model === nothing
+        y, vn = load_univariate_series(data, column)
+        (try; estimate_figarch(y; p=p, q=q, d0=d0, truncation=truncation, dist=Symbol(dist)); catch e; throw(_garch_variant_error(e, "FIGARCH")); end), vn
+    else
+        model, "model"
+    end
     _status("FIGARCH conditional variance: variable=$vname"); _status()
     return _vol_variant_predict_output(_vol_variant_cond_var(m), vname,
         "FIGARCH($p,d,$q)" * " Conditional Variance"; format=format, output=output,
         key="figarch_conditional_variance")
 end
 
-function _residuals_figarch(; data::String, column::Int=1, p::Int=1, q::Int=1, d0::Float64=0.4, truncation::Int=1000, dist::String="normal", model=nothing, output::String="", format::String="table")
-    y, vname = load_univariate_series(data, column)
-    m = model === nothing ?
-        (try; estimate_figarch(y; p=p, q=q, d0=d0, truncation=truncation, dist=Symbol(dist)); catch e; throw(_garch_variant_error(e, "FIGARCH")); end) : model
+function _residuals_figarch(; data::String="", column::Int=1, p::Int=1, q::Int=1, d0::Float64=0.4, truncation::Int=1000, dist::String="normal", model=nothing, output::String="", format::String="table")
+    m, vname = if model === nothing
+        y, vn = load_univariate_series(data, column)
+        (try; estimate_figarch(y; p=p, q=q, d0=d0, truncation=truncation, dist=Symbol(dist)); catch e; throw(_garch_variant_error(e, "FIGARCH")); end), vn
+    else
+        model, "model"
+    end
     _status("FIGARCH standardized residuals: variable=$vname"); _status()
     return _vol_variant_residuals_output(residuals(m), vname,
         "FIGARCH($p,d,$q)" * " Standardized Residuals"; format=format, output=output,
@@ -5378,9 +5415,12 @@ function _forecast_fiegarch(; data::String="", result=nothing, column::Int=1, p:
     horizons >= 1 || throw(CliError("usage/invalid", "forecast volatility fiegarch: --horizons must be ≥ 1 (got $horizons)"))
     (0.0 < conf_level < 1.0) || throw(CliError("usage/invalid",
         "forecast volatility fiegarch: --conf-level must be in (0, 1) (got $conf_level)"))
-    y, vname = load_univariate_series(data, column)
-    m = model === nothing ?
-        (try; estimate_fiegarch(y; p=p, q=q, d0=d0, truncation=truncation, dist=Symbol(dist)); catch e; throw(_garch_variant_error(e, "FIEGARCH")); end) : model
+    m, vname = if model === nothing
+        y, vn = load_univariate_series(data, column)
+        (try; estimate_fiegarch(y; p=p, q=q, d0=d0, truncation=truncation, dist=Symbol(dist)); catch e; throw(_garch_variant_error(e, "FIEGARCH")); end), vn
+    else
+        model, "model"
+    end
     _status("FIEGARCH Volatility Forecast: variable=$vname, horizons=$horizons"); _status()
     fc = try
         forecast(m, horizons; conf_level=conf_level)
@@ -5393,20 +5433,26 @@ function _forecast_fiegarch(; data::String="", result=nothing, column::Int=1, p:
     return (; model=m, result=fc)
 end
 
-function _predict_fiegarch(; data::String, column::Int=1, p::Int=1, q::Int=1, d0::Float64=0.4, truncation::Int=1000, dist::String="normal", model=nothing, output::String="", format::String="table")
-    y, vname = load_univariate_series(data, column)
-    m = model === nothing ?
-        (try; estimate_fiegarch(y; p=p, q=q, d0=d0, truncation=truncation, dist=Symbol(dist)); catch e; throw(_garch_variant_error(e, "FIEGARCH")); end) : model
+function _predict_fiegarch(; data::String="", column::Int=1, p::Int=1, q::Int=1, d0::Float64=0.4, truncation::Int=1000, dist::String="normal", model=nothing, output::String="", format::String="table")
+    m, vname = if model === nothing
+        y, vn = load_univariate_series(data, column)
+        (try; estimate_fiegarch(y; p=p, q=q, d0=d0, truncation=truncation, dist=Symbol(dist)); catch e; throw(_garch_variant_error(e, "FIEGARCH")); end), vn
+    else
+        model, "model"
+    end
     _status("FIEGARCH conditional variance: variable=$vname"); _status()
     return _vol_variant_predict_output(_vol_variant_cond_var(m), vname,
         "FIEGARCH($p,d,$q)" * " Conditional Variance"; format=format, output=output,
         key="fiegarch_conditional_variance")
 end
 
-function _residuals_fiegarch(; data::String, column::Int=1, p::Int=1, q::Int=1, d0::Float64=0.4, truncation::Int=1000, dist::String="normal", model=nothing, output::String="", format::String="table")
-    y, vname = load_univariate_series(data, column)
-    m = model === nothing ?
-        (try; estimate_fiegarch(y; p=p, q=q, d0=d0, truncation=truncation, dist=Symbol(dist)); catch e; throw(_garch_variant_error(e, "FIEGARCH")); end) : model
+function _residuals_fiegarch(; data::String="", column::Int=1, p::Int=1, q::Int=1, d0::Float64=0.4, truncation::Int=1000, dist::String="normal", model=nothing, output::String="", format::String="table")
+    m, vname = if model === nothing
+        y, vn = load_univariate_series(data, column)
+        (try; estimate_fiegarch(y; p=p, q=q, d0=d0, truncation=truncation, dist=Symbol(dist)); catch e; throw(_garch_variant_error(e, "FIEGARCH")); end), vn
+    else
+        model, "model"
+    end
     _status("FIEGARCH standardized residuals: variable=$vname"); _status()
     return _vol_variant_residuals_output(residuals(m), vname,
         "FIEGARCH($p,d,$q)" * " Standardized Residuals"; format=format, output=output,
@@ -5416,6 +5462,7 @@ end
 # garch-midas is the odd one out: forecast(m::GarchMidasModel, h) takes NO conf_level,
 # so this leaf deliberately has no --conf-level (advertising one would be a lie).
 function _garch_midas_refit(data, column, m_freq, k, rv, span, config, model=nothing)
+    model !== nothing && return model, "model"
     # Mirrors `_estimate_garch_midas`'s validation and fit exactly, so the verbs
     # describe the same model that leaf would produce.
     m_freq >= 1 || throw(CliError("usage/missing-option",
@@ -5430,12 +5477,11 @@ function _garch_midas_refit(data, column, m_freq, k, rv, span, config, model=not
             "--rv macro requires --config <toml> with a [garch_midas] x_lf = [...] low-frequency driver"))
         x_lf = get_garch_midas(load_config(config))
     end
-    m = model === nothing ?
-        (try
-            estimate_garch_midas(y, x_lf; K=k, m_freq=m_freq, rv=rv_sym, span=span_sym)
-        catch e
-            throw(_garch_variant_error(e, "GARCH-MIDAS"))
-        end) : model
+    m = try
+        estimate_garch_midas(y, x_lf; K=k, m_freq=m_freq, rv=rv_sym, span=span_sym)
+    catch e
+        throw(_garch_variant_error(e, "GARCH-MIDAS"))
+    end
     return m, vname
 end
 
@@ -5469,7 +5515,7 @@ function _forecast_garch_midas(; data::String="", result=nothing, column::Int=1,
     return (; model=m, result=fc)
 end
 
-function _predict_garch_midas(; data::String, column::Int=1, m_freq::Int=0, k::Int=12,
+function _predict_garch_midas(; data::String="", column::Int=1, m_freq::Int=0, k::Int=12,
         rv::String="realized", span::String="fixed", config::String="",
         model=nothing, output::String="", format::String="table")
     m, vname = _garch_midas_refit(data, column, m_freq, k, rv, span, config, model)
@@ -5479,7 +5525,7 @@ function _predict_garch_midas(; data::String, column::Int=1, m_freq::Int=0, k::I
         key="garch_midas_conditional_variance")
 end
 
-function _residuals_garch_midas(; data::String, column::Int=1, m_freq::Int=0, k::Int=12,
+function _residuals_garch_midas(; data::String="", column::Int=1, m_freq::Int=0, k::Int=12,
         rv::String="realized", span::String="fixed", config::String="",
         model=nothing, output::String="", format::String="table")
     m, vname = _garch_midas_refit(data, column, m_freq, k, rv, span, config, model)
@@ -6875,24 +6921,46 @@ function _forecast_midas(; data::String="", result=nothing, column::Int=1, hf_da
         title="MIDAS Forecast", key="midas_forecast")
     (0.0 < level < 1.0) || throw(CliError("usage/invalid",
         "forecast univariate midas: --level must be in (0, 1) (got $level)"))
-    poly_degree >= 0 || throw(CliError("usage/invalid",
-        "forecast univariate midas: --poly-degree must be ≥ 0 (got $poly_degree)"))
-    horizon >= 1 || throw(CliError("usage/invalid",
-        "forecast univariate midas: --horizon must be ≥ 1 (got $horizon)"))
-    (weights in ("beta2", "beta3") && k < 2) && throw(CliError("data/invalid",
-        "--weights $weights requires --k ≥ 2 (the Beta weight grid needs ≥ 2 lags), got k=$k"))
-    y_lf, x_hf, ynm, xnm = _load_midas_data(data, column, hf_data, hf_column; m=m)
-    mdl = model === nothing ?
-        (try
+    if model === nothing
+        isempty(hf_data) && throw(CliError("usage/missing-option",
+            "forecast univariate midas requires --hf-data <csv> (the high-frequency indicator series)"))
+        m >= 1 || throw(CliError("usage/invalid",
+            "forecast univariate midas: --m (HF/LF frequency ratio) must be ≥ 1 (got $m)"))
+        k >= 1 || throw(CliError("usage/invalid",
+            "forecast univariate midas: --k (number of high-frequency lags) must be ≥ 1 (got $k)"))
+        poly_degree >= 0 || throw(CliError("usage/invalid",
+            "forecast univariate midas: --poly-degree must be ≥ 0 (got $poly_degree)"))
+        horizon >= 1 || throw(CliError("usage/invalid",
+            "forecast univariate midas: --horizon must be ≥ 1 (got $horizon)"))
+        (weights in ("beta2", "beta3") && k < 2) && throw(CliError("data/invalid",
+            "--weights $weights requires --k ≥ 2 (the Beta weight grid needs ≥ 2 lags), got k=$k"))
+        y_lf, x_hf, ynm, xnm = _load_midas_data(data, column, hf_data, hf_column; m=m)
+        mdl = try
             estimate_midas(y_lf, x_hf; m=m, K=k, weights=Symbol(weights), p_ar=p_ar,
                            poly_degree=poly_degree, h=horizon, max_iter=max_iter)
         catch e
             throw(_midas_error(e, "MIDAS"))
-        end) : model
-    # The most recent K high-frequency observations, MOST-RECENT-FIRST.
-    length(x_hf) >= mdl.K || throw(CliError("data/shape",
-        "forecast univariate midas: need at least K=$(mdl.K) high-frequency observations to condition on (got $(length(x_hf)))"))
-    x_new = reverse(Float64.(x_hf[end - mdl.K + 1:end]))
+        end
+        # The most recent K high-frequency observations, MOST-RECENT-FIRST.
+        length(x_hf) >= mdl.K || throw(CliError("data/shape",
+            "forecast univariate midas: need at least K=$(mdl.K) high-frequency observations to condition on (got $(length(x_hf)))"))
+        x_new = reverse(Float64.(x_hf[end - mdl.K + 1:end]))
+    else
+        mdl = model
+        ynm = "model"
+        if !isempty(hf_data)
+            x_hf, xnm = load_univariate_series(resolve_stem(hf_data; slot=:data), hf_column)
+            length(x_hf) >= mdl.K || throw(CliError("data/shape",
+                "forecast univariate midas: need at least K=$(mdl.K) high-frequency observations to condition on (got $(length(x_hf)))"))
+            x_new = reverse(Float64.(x_hf[end - mdl.K + 1:end]))
+        else
+            xnm = "in-sample HF"
+            (size(mdl.Xlags, 1) >= 1 && size(mdl.Xlags, 2) == mdl.K) || throw(CliError("data/shape",
+                "forecast univariate midas: saved MidasModel has no high-frequency lag block; pass --hf-data <csv>"))
+            # mdl.Xlags[end, :] is already stored most-recent-first (`xv[hi:-1:lo]`).
+            x_new = Float64.(collect(mdl.Xlags[end, :]))
+        end
+    end
     _status("MIDAS Forecast: target=$ynm, indicator=$xnm, h=$(mdl.h) (fixed at estimation), K=$(mdl.K)")
     _status()
     fc = try

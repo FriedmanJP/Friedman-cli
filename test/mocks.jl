@@ -214,16 +214,20 @@ struct BVARPosterior{T}
     p::Int
     n::Int
     data::Matrix{T}
+    prior::Symbol
     # Real carries varnames and threads them into posterior_mean/median_model (#119).
     varnames::Vector{String}
     # Real records a ReproManifest when estimate_bvar was called with seed= (#769).
     manifest::Union{Nothing,ReproManifest}
 end
 BVARPosterior(B::Array{T,3}, S::Array{T,3}, nd::Int, p::Int, n::Int, data::Matrix{T}) where {T} =
-    BVARPosterior(B, S, nd, p, n, data, ["y$i" for i in 1:n], nothing)
+    BVARPosterior(B, S, nd, p, n, data, :minnesota, ["y$i" for i in 1:n], nothing)
 BVARPosterior(B::Array{T,3}, S::Array{T,3}, nd::Int, p::Int, n::Int, data::Matrix{T},
               varnames::Vector{String}) where {T} =
-    BVARPosterior(B, S, nd, p, n, data, varnames, nothing)
+    BVARPosterior(B, S, nd, p, n, data, :minnesota, varnames, nothing)
+BVARPosterior(B::Array{T,3}, S::Array{T,3}, nd::Int, p::Int, n::Int, data::Matrix{T},
+              varnames::Vector{String}, manifest::Union{Nothing,ReproManifest}) where {T} =
+    BVARPosterior(B, S, nd, p, n, data, :minnesota, varnames, manifest)
 
 struct MinnesotaHyperparameters
     # `omega` is a SCALAR weight on the residual-covariance prior in real MEMs. It used to
@@ -963,7 +967,7 @@ estimate_var(Y, p; check_stability=true, varnames=nothing) = _mock_var(Y, p; var
 estimate_bvar(Y, p; sampler=:direct, n_draws=1000, prior=:normal, hyper=nothing,
               hyperopt::Symbol=:glp, varnames=nothing, seed=nothing) =
     BVARPosterior(zeros(10, size(Y,2)*p+1, size(Y,2)), zeros(10, size(Y,2), size(Y,2)),
-                  10, p, size(Y,2), Y,
+                  10, p, size(Y,2), Y, prior,
                   varnames === nothing ? ["y$i" for i in 1:size(Y,2)] : varnames,
                   seed === nothing ? nothing : capture_manifest(; seed=seed))
 
@@ -1000,10 +1004,14 @@ function reproduce(x)
         "BayesianDSGE, KrusellSmithSolution, bootstrap ImpulseResponse (reproduce(ir, model)), " *
         "and randomized estimators that record a ReproManifest.")
 end
-posterior_mean_model(post::BVARPosterior; data=nothing) =
-    _mock_var(post.data, post.p; varnames=post.varnames)
-posterior_median_model(post::BVARPosterior; data=nothing) =
-    _mock_var(post.data, post.p; varnames=post.varnames)
+# Real MEMs parameters_to_model leaves aic = bic = hqic = 0.0 on posterior point models (#251).
+function _mock_bvar_point_model(post::BVARPosterior; data=nothing)
+    Y = data === nothing ? post.data : data
+    m = _mock_var(Y, post.p; varnames=post.varnames)
+    return VARModel(m.Y, m.p, m.B, m.U, m.Sigma, 0.0, 0.0, 0.0, m.varnames)
+end
+posterior_mean_model(post::BVARPosterior; data=nothing) = _mock_bvar_point_model(post; data=data)
+posterior_median_model(post::BVARPosterior; data=nothing) = _mock_bvar_point_model(post; data=data)
 # Keep old (chain, p, n) signatures for backward compat
 posterior_mean_model(chain::MockChains, p, n; data=nothing) =
     _mock_var(isnothing(data) ? ones(100, n) : data, p)
@@ -1068,6 +1076,7 @@ residuals(m::Union{ARCHModel,GARCHModel,EGARCHModel,GJRGARCHModel}) = m.residual
 residuals(m::SVModel) = m.y .- m.volatility_mean
 
 report(::VARModel) = nothing
+report(p::BVARPosterior) = println("Bayesian VAR — BVAR($(p.p)) ($(join(p.varnames, ", ")))")
 report(::ImpulseResponse) = nothing
 report(::BayesianImpulseResponse) = nothing
 report(::FEVD) = nothing

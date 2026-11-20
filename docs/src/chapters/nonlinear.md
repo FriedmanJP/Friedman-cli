@@ -10,23 +10,21 @@ Simulate a 2-regime Markov-switching series with a fixed seed, estimate regime-d
 ```bash
 friedman --quiet data simulate regime --kind ms --periods 180 --burn 40 --seed 12 --save-data ms_sim
 friedman --quiet estimate regime ms-ar ms_sim --p 1 --k-regimes 2 --switching-variance --save-model ms_fit
-friedman forecast regime ms-ar ms_sim --model ms_fit.jld2 --horizons 4 --reps 100
+friedman forecast regime ms-ar --model ms_fit.jld2 --horizons 4 --reps 100
 ```
 ```text
-        MS-AR(1) Forecast for model (h=4, 90% CI)
-┌─────────┬──────────┬────────────┬──────────┬──────────┐
-│ horizon │ variable │   value    │  lower   │  upper   │
-│  Int64  │  String  │  Float64   │ Float64? │ Float64? │
-├─────────┼──────────┼────────────┼──────────┼──────────┤
-│    1    │    y1    │ -0.410744  │ -1.47825 │ 3.04695  │
-│    2    │    y1    │ -0.320108  │ -1.74492 │ 3.61703  │
-│    3    │    y1    │ -0.184797  │ -1.78647 │ 3.22296  │
-│    4    │    y1    │ -0.0569165 │ -2.09821 │ 3.73971  │
-└─────────┴──────────┴────────────┴──────────┴──────────┘
+       MS-AR(1) Forecast for model (h=4, 90% CI)
+┌─────────┬──────────┬────────────┬──────────┬─────────┐
+│ horizon │ variable │   value    │  lower   │  upper  │
+├─────────┼──────────┼────────────┼──────────┼─────────┤
+│    1    │    y1    │ -0.410744  │ -1.47825 │ 3.04695 │
+│    2    │    y1    │ -0.320108  │ -1.74492 │ 3.61703 │
+│    3    │    y1    │ -0.184797  │ -1.78647 │ 3.22296 │
+│    4    │    y1    │ -0.0569165 │ -2.09821 │ 3.73971 │
+└─────────┴──────────┴────────────┴──────────┴─────────┘
 MS-AR(1) Predicted Regime Probabilities
 ┌─────────┬──────────┬──────────┐
 │ horizon │ regime1  │ regime2  │
-│  Int64  │ Float64  │ Float64  │
 ├─────────┼──────────┼──────────┤
 │    1    │ 0.910561 │ 0.089439 │
 │    2    │ 0.843968 │ 0.156032 │
@@ -77,7 +75,6 @@ friedman estimate regime setar setar_sim --p 1 --d 1 --no-linearity
                     SETAR(2;1,1) Coefficients (y)
 ┌───────────────┬────────┬───────────┬───────────┬─────────┬─────────┐
 │    regime     │  term  │ estimate  │ std_error │ z_stat  │ p_value │
-│    String     │ String │  Float64  │  Float64  │ Float64 │ Float64 │
 ├───────────────┼────────┼───────────┼───────────┼─────────┼─────────┤
 │ regime1 (q≤γ) │ const  │ -0.971694 │ 0.481228  │ -2.0192 │ 0.0435  │
 │ regime1 (q≤γ) │ y[t-1] │ 0.251097  │ 0.293775  │ 0.8547  │ 0.3927  │
@@ -87,7 +84,6 @@ friedman estimate regime setar setar_sim --p 1 --d 1 --no-linearity
   SETAR(2;1,1) Diagnostics
 ┌────────────────┬──────────┐
 │     metric     │  value   │
-│     String     │   Real   │
 ├────────────────┼──────────┤
 │     gamma      │ -1.18005 │
 │ gamma_ci_lower │ -1.25629 │
