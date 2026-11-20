@@ -1,45 +1,160 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Univariate, Filters &amp; Spectral · Friedman-cli</title><meta name="title" content="Univariate, Filters &amp; Spectral · Friedman-cli"/><meta property="og:title" content="Univariate, Filters &amp; Spectral · Friedman-cli"/><meta property="twitter:title" content="Univariate, Filters &amp; Spectral · Friedman-cli"/><meta name="description" content="Documentation for Friedman-cli."/><meta property="og:description" content="Documentation for Friedman-cli."/><meta property="twitter:description" content="Documentation for Friedman-cli."/><meta property="og:url" content="https://friedmanjp.github.io/Friedman-cli/chapters/univariate/"/><meta property="twitter:url" content="https://friedmanjp.github.io/Friedman-cli/chapters/univariate/"/><link rel="canonical" href="https://friedmanjp.github.io/Friedman-cli/chapters/univariate/"/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../">Friedman-cli</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><span class="tocitem">Getting Started</span><ul><li><a class="tocitem" href="../../getting-started/installation/">Installation &amp; Quickstart</a></li><li><a class="tocitem" href="../../getting-started/pipelines/">Pipelines, Handles &amp; Reproducibility</a></li><li><a class="tocitem" href="../../getting-started/method-guide/">Choosing a Method</a></li><li><a class="tocitem" href="../../getting-started/repl/">Interactive REPL</a></li><li><a class="tocitem" href="../../agent-guide/">Agent Guide</a></li></ul></li><li><span class="tocitem">Macro &amp; Time Series</span><ul><li><a class="tocitem" href="../data/">Data Management &amp; Simulation</a></li><li class="is-active"><a class="tocitem" href>Univariate, Filters &amp; Spectral</a><ul class="internal"><li><a class="tocitem" href="#Quick-Start"><span>Quick Start</span></a></li><li><a class="tocitem" href="#Economic-Time-Series-Filters"><span>Economic Time-Series Filters</span></a></li><li><a class="tocitem" href="#Spectral-and-Cross-Spectral-Analysis"><span>Spectral &amp; Cross-Spectral Analysis</span></a></li><li><a class="tocitem" href="#ARIMA,-SARIMA,-ARFIMA,-ARDL,-NARDL-and-MIDAS"><span>ARIMA, SARIMA, ARFIMA, ARDL, NARDL &amp; MIDAS</span></a></li><li><a class="tocitem" href="#State-Space-and-Time-Varying-Parameters"><span>State-Space &amp; Time-Varying Parameters</span></a></li><li><a class="tocitem" href="#Common-Pitfalls"><span>Common Pitfalls</span></a></li><li><a class="tocitem" href="#References"><span>References</span></a></li></ul></li><li><a class="tocitem" href="../volatility/">Volatility &amp; Multivariate GARCH</a></li><li><a class="tocitem" href="../nonlinear/">Regime-Switching &amp; Nonlinear TS</a></li><li><a class="tocitem" href="../multivariate/">VAR, BVAR, VECM &amp; Factor Models</a></li></ul></li><li><span class="tocitem">Structural, Nowcast &amp; Forecasting</span><ul><li><a class="tocitem" href="../structural/">Structural ID, LP &amp; Innovation Accounting</a></li><li><a class="tocitem" href="../nowcast/">Nowcasting &amp; Forecast Evaluation</a></li></ul></li><li><span class="tocitem">Micro &amp; Panel Econometrics</span><ul><li><a class="tocitem" href="../regression/">Regression, Systems &amp; GMM/SMM</a></li><li><a class="tocitem" href="../choice/">Discrete Choice, Count &amp; Selection</a></li><li><a class="tocitem" href="../panel/">Panel Data, Panel VAR &amp; Causal DiD</a></li></ul></li><li><span class="tocitem">Equilibrium, Policy &amp; Networks</span><ul><li><a class="tocitem" href="../dsge/">Representative-Agent &amp; Bayesian DSGE</a></li><li><a class="tocitem" href="../hadsge/">Heterogeneous-Agent, CT &amp; OLG Models</a></li><li><a class="tocitem" href="../policy/">Policy Counterfactuals &amp; Optimal Policy</a></li><li><a class="tocitem" href="../io/">Input-Output &amp; Production Networks</a></li></ul></li><li><span class="tocitem">Diagnostics</span><ul><li><a class="tocitem" href="../tests/">Hypothesis Testing &amp; Diagnostics</a></li></ul></li><li><span class="tocitem">Configuration &amp; Model Cards</span><ul><li><a class="tocitem" href="../../config/overview/">Model Cards &amp; Config Grammar</a></li><li><a class="tocitem" href="../../config/identification/">Priors, SVAR &amp; VECM Identification</a></li><li><a class="tocitem" href="../../config/dsge/">DSGE Specs, Priors &amp; OccBin Constraints</a></li><li><a class="tocitem" href="../../config/models-policy/">GMM, SMM, Systems, State-Space &amp; Policy</a></li></ul></li><li><span class="tocitem">CLI Reference</span><ul><li><a class="tocitem" href="../../commands/overview/">Overview</a></li><li><a class="tocitem" href="../../commands/generated/completions/">completions</a></li><li><a class="tocitem" href="../../commands/generated/data/">data</a></li><li><a class="tocitem" href="../../commands/generated/did/">did</a></li><li><a class="tocitem" href="../../commands/generated/dsge/">dsge</a></li><li><a class="tocitem" href="../../commands/generated/estimate/">estimate</a></li><li><a class="tocitem" href="../../commands/generated/fevd/">fevd</a></li><li><a class="tocitem" href="../../commands/generated/filter/">filter</a></li><li><a class="tocitem" href="../../commands/generated/forecast/">forecast</a></li><li><a class="tocitem" href="../../commands/generated/hadsge/">hadsge</a></li><li><a class="tocitem" href="../../commands/generated/hd/">hd</a></li><li><a class="tocitem" href="../../commands/generated/io/">io</a></li><li><a class="tocitem" href="../../commands/generated/irf/">irf</a></li><li><a class="tocitem" href="../../commands/generated/model/">model</a></li><li><a class="tocitem" href="../../commands/generated/nowcast/">nowcast</a></li><li><a class="tocitem" href="../../commands/generated/policy/">policy</a></li><li><a class="tocitem" href="../../commands/generated/predict/">predict</a></li><li><a class="tocitem" href="../../commands/generated/residuals/">residuals</a></li><li><a class="tocitem" href="../../commands/generated/serve/">serve</a></li><li><a class="tocitem" href="../../commands/generated/show/">show</a></li><li><a class="tocitem" href="../../commands/generated/spectral/">spectral</a></li><li><a class="tocitem" href="../../commands/generated/test/">test</a></li></ul></li><li><span class="tocitem">Internals</span><ul><li><a class="tocitem" href="../../internals/architecture/">Architecture</a></li><li><a class="tocitem" href="../../internals/api/">API Reference</a></li><li><a class="tocitem" href="../../internals/not-wrapped/">Unwrapped Upstream Surface</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Macro &amp; Time Series</a></li><li class="is-active"><a href>Univariate, Filters &amp; Spectral</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Univariate, Filters &amp; Spectral</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/FriedmanJP/Friedman-cli" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/FriedmanJP/Friedman-cli/blob/master/docs/src/chapters/univariate.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="chap-univariate"><a class="docs-heading-anchor" href="#chap-univariate">Univariate, Filters &amp; Spectral</a><a id="chap-univariate-1"></a><a class="docs-heading-anchor-permalink" href="#chap-univariate" title="Permalink"></a></h1><p>Single-series macroeconomic analysis in <code>Friedman-cli</code> spans trend-cycle decomposition (<a href="../../commands/generated/filter/#ref-filter"><code>friedman filter</code></a>), nonparametric and filter frequency-domain diagnostics (<a href="../../commands/generated/spectral/#ref-spectral"><code>friedman spectral</code></a>), Box–Jenkins, fractional, mixed-frequency, and distributed-lag estimators (<a href="../../commands/generated/estimate/#ref-fam-estimate-univariate"><code>estimate univariate</code></a>), general Gaussian state-space filtering (<a href="../../commands/generated/estimate/#ref-estimate-regression-statespace"><code>estimate regression statespace</code></a>), and time-varying parameter regressions (<a href="../../commands/generated/estimate/#ref-estimate-regime-tvp"><code>estimate regime tvp</code></a>). See <a href="https://friedmanjp.github.io/MacroEconometricModels.jl/dev/filters/">MacroEconometricModels.jl — Univariate &amp; Filters</a> for mathematical details.</p><h2 id="Quick-Start"><a class="docs-heading-anchor" href="#Quick-Start">Quick Start</a><a id="Quick-Start-1"></a><a class="docs-heading-anchor-permalink" href="#Quick-Start" title="Permalink"></a></h2><p>Decompose U.S. real GNP (<code>:gnp_hamilton</code>) with the Hamilton regression filter, inspect spectral power, and fit an automatic BIC ARIMA model with 4-step forecasts:</p><p>&lt;!– capture –&gt;</p><pre><code class="language-bash hljs">friedman estimate univariate arima :gnp_hamilton --criterion bic</code></pre><pre><code class="language-text hljs">            AR(1) Coefficients (gnp_growth)
-┌───────────┬──────────┬───────────┬─────────┬─────────┐
-│ parameter │ estimate │ std_error │ z_stat  │ p_value │
-│  String   │ Float64  │  Float64  │ Float64 │ Float64 │
-├───────────┼──────────┼───────────┼─────────┼─────────┤
-│    ar1    │ 0.493056 │ 0.146847  │  3.358  │ 0.0008  │
-│  const2   │ 0.34205  │ 0.089359  │  3.828  │ 0.0001  │
-└───────────┴──────────┴───────────┴─────────┴─────────┘
+┌───────────┬──────────┬───────────┬────────┬─────────┐
+│ parameter │ estimate │ std_error │ z_stat │ p_value │
+├───────────┼──────────┼───────────┼────────┼─────────┤
+│    ar1    │ 0.493056 │ 0.146847  │ 3.358  │ 0.0008  │
+│  const2   │ 0.34205  │ 0.089359  │ 3.828  │ 0.0001  │
+└───────────┴──────────┴───────────┴────────┴─────────┘
     Information Criteria
 ┌────────────────┬──────────┐
 │     metric     │  value   │
-│     String     │ Float64  │
 ├────────────────┼──────────┤
 │      AIC       │ 390.029  │
 │      BIC       │ 398.744  │
 │ Log-likelihood │ -192.014 │
-└────────────────┴──────────┘</code></pre><p>The command returns both <code>arima_coefficients</code> and <code>information_criteria</code> in <code>--format json</code> (pass <code>--save-model arima_fit</code> to reuse the fitted object in <a href="../../commands/generated/predict/#ref-predict-univariate-arima"><code>predict univariate arima</code></a>, <a href="../../commands/generated/residuals/#ref-residuals-univariate-arima"><code>residuals univariate arima</code></a>, and <a href="../../commands/generated/forecast/#ref-forecast-univariate-arima"><code>forecast univariate arima</code></a>).</p><hr/><h2 id="Economic-Time-Series-Filters"><a class="docs-heading-anchor" href="#Economic-Time-Series-Filters">Economic Time-Series Filters</a><a id="Economic-Time-Series-Filters-1"></a><a class="docs-heading-anchor-permalink" href="#Economic-Time-Series-Filters" title="Permalink"></a></h2><p>A trend-cycle decomposition separates an observable series <span>$y_t$</span> into a stochastic or smooth trend <span>$\tau_t$</span> and a stationary cyclical component <span>$c_t = y_t - \tau_t$</span>. The Hodrick–Prescott (HP) filter solves</p><p class="math-container">\[\min_{\{\tau_t\}} \sum_{t=1}^T (y_t - \tau_t)^2 + \lambda \sum_{t=2}^{T-1} \left[(\tau_{t+1}-\tau_t) - (\tau_t-\tau_{t-1})\right]^2,\]</p><p>while Hamilton (2018) avoids spurious end-of-sample cycles by projecting <span>$y_{t+h}$</span> onto <span>$(1, y_t, \dots, y_{t-p+1})$</span>, boosted HP (<code>bhp</code>) iterates HP to whiten cycles until ADF or BIC convergence, Beveridge–Nelson (<code>bn</code>) extracts long-horizon conditional expectations, Baxter–King (<code>bk</code>) isolates business-cycle frequencies, and X-13ARIMA-SEATS (<code>x13</code>) extracts seasonal factors.</p><table><tr><th style="text-align: right">Filter Leaf</th><th style="text-align: right">Key Hyperparameters</th><th style="text-align: right">Output Table Key (<code>--format json</code>)</th></tr><tr><td style="text-align: right"><a href="../../commands/generated/filter/#ref-filter-hp"><code>filter hp</code></a></td><td style="text-align: right"><code>--lambda</code> (<code>1600.0</code> quarterly)</td><td style="text-align: right"><code>hp_filter</code></td></tr><tr><td style="text-align: right"><a href="../../commands/generated/filter/#ref-filter-bhp"><code>filter bhp</code></a></td><td style="text-align: right"><code>--stopping BIC|ADF|fixed</code>, <code>--max-iter</code></td><td style="text-align: right"><code>boosted_hp_filter</code></td></tr><tr><td style="text-align: right"><a href="../../commands/generated/filter/#ref-filter-hamilton"><code>filter hamilton</code></a></td><td style="text-align: right"><code>--horizon 8</code>, <code>--lags 4</code></td><td style="text-align: right"><code>hamilton_filter</code></td></tr><tr><td style="text-align: right"><a href="../../commands/generated/filter/#ref-filter-bn"><code>filter bn</code></a></td><td style="text-align: right"><code>--method arima|statespace</code>, <code>--p</code>, <code>--q</code></td><td style="text-align: right"><code>beveridge_nelson_decomposition</code></td></tr><tr><td style="text-align: right"><a href="../../commands/generated/filter/#ref-filter-bk"><code>filter bk</code></a></td><td style="text-align: right"><code>--pl 6</code>, <code>--pu 32</code>, <code>--K 12</code></td><td style="text-align: right"><code>baxter_king_filter</code></td></tr><tr><td style="text-align: right"><a href="../../commands/generated/filter/#ref-filter-x13"><code>filter x13</code></a></td><td style="text-align: right"><code>--frequency 12</code>, <code>--method seats|x11</code></td><td style="text-align: right"><code>x_13_seasonally_adjusted</code> (and 4 sibling tables)</td></tr></table><p>&lt;!– capture –&gt;</p><pre><code class="language-bash hljs">friedman filter hp :gnp_hamilton --lambda 1600</code></pre><pre><code class="language-text hljs">             HP Filter (λ=1600.0)
-┌───────┬──────────────────┬──────────────────┐
-│   t   │ gnp_growth_trend │ gnp_growth_cycle │
-│ Int64 │     Float64      │     Float64      │
-├───────┼──────────────────┼──────────────────┤
-│   1   │     1.34338      │     1.24982      │
-│   2   │     1.26205      │     0.940153     │
-│   3   │     1.18149      │    -0.723191     │
-│   4   │     1.10309      │    -0.134385     │
-│   5   │     1.02775      │     -1.26905     │
-│   6   │     0.956306     │    -0.059806     │
-│   7   │     0.888805     │     1.16509      │
-│   8   │     0.825245     │     0.908255     │
-│   9   │     0.766356     │     0.172344     │
-│  10   │     0.713437     │     -1.17824     │
-│  11   │     0.667894     │     -1.47769     │
-│  12   │     0.630395     │      -2.028      │
-│  13   │     0.600687     │    -0.999587     │
-│  14   │     0.577247     │     0.614553     │
-│   ⋮   │        ⋮         │        ⋮         │
-└───────┴──────────────────┴──────────────────┘
-                               121 rows omitted</code></pre><p>Check filter frequency response directly via <a href="../../commands/generated/spectral/#ref-spectral-transfer"><code>spectral transfer</code></a> (output key <code>filter_transfer_function</code>) before applying high-pass smoothers to short samples.</p><hr/><h2 id="Spectral-and-Cross-Spectral-Analysis"><a class="docs-heading-anchor" href="#Spectral-and-Cross-Spectral-Analysis">Spectral &amp; Cross-Spectral Analysis</a><a id="Spectral-and-Cross-Spectral-Analysis-1"></a><a class="docs-heading-anchor-permalink" href="#Spectral-and-Cross-Spectral-Analysis" title="Permalink"></a></h2><p>For covariance-stationary <span>$y_t$</span> with autocovariances <span>$\gamma(k)$</span>, the power spectral density concentrates variance across angular frequencies <span>$\omega \in [0, \pi]$</span>:</p><p class="math-container">\[f_{yy}(\omega) = \frac{1}{2\pi} \sum_{k=-\infty}^{\infty} \gamma(k) e^{-i \omega k}.\]</p><p>Compute time-domain ACF/PACF and bivariate cross-correlations via <a href="../../commands/generated/spectral/#ref-spectral-acf"><code>spectral acf</code></a> (<code>acf_pacf</code>, <code>cross_correlation</code>), unsmoothed FFT ordinates via <a href="../../commands/generated/spectral/#ref-spectral-periodogram"><code>spectral periodogram</code></a> (<code>periodogram</code>), Welch/lag-window/AR smoothed spectra via <a href="../../commands/generated/spectral/#ref-spectral-density"><code>spectral density</code></a> (<code>spectral_density</code>), and coherency, gain, and phase between two series via <a href="../../commands/generated/spectral/#ref-spectral-cross"><code>spectral cross</code></a> (<code>cross_spectral_analysis</code>).</p><p>&lt;!– capture –&gt;</p><pre><code class="language-bash hljs">friedman spectral cross :denmark --var1 1 --var2 2</code></pre><pre><code class="language-text hljs">                           Cross-Spectral Analysis
+└────────────────┴──────────┘</code></pre><p>The command returns both <code>arima_coefficients</code> and <code>information_criteria</code> in <code>--format json</code> (pass <code>--save-model arima_fit</code> to reuse the fitted object in <a href="../../commands/generated/predict/#ref-predict-univariate-arima"><code>predict univariate arima</code></a>, <a href="../../commands/generated/residuals/#ref-residuals-univariate-arima"><code>residuals univariate arima</code></a>, and <a href="../../commands/generated/forecast/#ref-forecast-univariate-arima"><code>forecast univariate arima</code></a>).</p><hr/><h2 id="Economic-Time-Series-Filters"><a class="docs-heading-anchor" href="#Economic-Time-Series-Filters">Economic Time-Series Filters</a><a id="Economic-Time-Series-Filters-1"></a><a class="docs-heading-anchor-permalink" href="#Economic-Time-Series-Filters" title="Permalink"></a></h2><p>A trend-cycle decomposition separates an observable series <span>$y_t$</span> into a stochastic or smooth trend <span>$\tau_t$</span> and a stationary cyclical component <span>$c_t = y_t - \tau_t$</span>. The Hodrick–Prescott (HP) filter solves</p><p class="math-container">\[\min_{\{\tau_t\}} \sum_{t=1}^T (y_t - \tau_t)^2 + \lambda \sum_{t=2}^{T-1} \left[(\tau_{t+1}-\tau_t) - (\tau_t-\tau_{t-1})\right]^2,\]</p><p>while Hamilton (2018) avoids spurious end-of-sample cycles by projecting <span>$y_{t+h}$</span> onto <span>$(1, y_t, \dots, y_{t-p+1})$</span>, boosted HP (<code>bhp</code>) iterates HP to whiten cycles until ADF or BIC convergence, Beveridge–Nelson (<code>bn</code>) extracts long-horizon conditional expectations, Baxter–King (<code>bk</code>) isolates business-cycle frequencies, and X-13ARIMA-SEATS (<code>x13</code>) extracts seasonal factors.</p><table><tr><th style="text-align: right">Filter Leaf</th><th style="text-align: right">Key Hyperparameters</th><th style="text-align: right">Output Table Key (<code>--format json</code>)</th></tr><tr><td style="text-align: right"><a href="../../commands/generated/filter/#ref-filter-hp"><code>filter hp</code></a></td><td style="text-align: right"><code>--lambda</code> (<code>1600.0</code> quarterly)</td><td style="text-align: right"><code>hp_filter</code></td></tr><tr><td style="text-align: right"><a href="../../commands/generated/filter/#ref-filter-bhp"><code>filter bhp</code></a></td><td style="text-align: right"><code>--stopping BIC|ADF|fixed</code>, <code>--max-iter</code></td><td style="text-align: right"><code>boosted_hp_filter</code></td></tr><tr><td style="text-align: right"><a href="../../commands/generated/filter/#ref-filter-hamilton"><code>filter hamilton</code></a></td><td style="text-align: right"><code>--horizon 8</code>, <code>--lags 4</code></td><td style="text-align: right"><code>hamilton_filter</code></td></tr><tr><td style="text-align: right"><a href="../../commands/generated/filter/#ref-filter-bn"><code>filter bn</code></a></td><td style="text-align: right"><code>--method arima|statespace</code>, <code>--p</code>, <code>--q</code></td><td style="text-align: right"><code>beveridge_nelson_decomposition</code></td></tr><tr><td style="text-align: right"><a href="../../commands/generated/filter/#ref-filter-bk"><code>filter bk</code></a></td><td style="text-align: right"><code>--pl 6</code>, <code>--pu 32</code>, <code>--K 12</code></td><td style="text-align: right"><code>baxter_king_filter</code></td></tr><tr><td style="text-align: right"><a href="../../commands/generated/filter/#ref-filter-x13"><code>filter x13</code></a></td><td style="text-align: right"><code>--frequency 12</code>, <code>--method seats|x11</code></td><td style="text-align: right"><code>x_13_seasonally_adjusted</code> (and 4 sibling tables)</td></tr></table><p>&lt;!– capture –&gt;</p><pre><code class="language-bash hljs">friedman filter hp :gnp_hamilton --lambda 1600</code></pre><pre><code class="language-text hljs">            HP Filter (λ=1600.0)
+┌─────┬──────────────────┬──────────────────┐
+│  t  │ gnp_growth_trend │ gnp_growth_cycle │
+├─────┼──────────────────┼──────────────────┤
+│  1  │     1.34338      │     1.24982      │
+│  2  │     1.26205      │     0.940153     │
+│  3  │     1.18149      │    -0.723191     │
+│  4  │     1.10309      │    -0.134385     │
+│  5  │     1.02775      │     -1.26905     │
+│  6  │     0.956306     │    -0.059806     │
+│  7  │     0.888805     │     1.16509      │
+│  8  │     0.825245     │     0.908255     │
+│  9  │     0.766356     │     0.172344     │
+│ 10  │     0.713437     │     -1.17824     │
+│ 11  │     0.667894     │     -1.47769     │
+│ 12  │     0.630395     │      -2.028      │
+│ 13  │     0.600687     │    -0.999587     │
+│ 14  │     0.577247     │     0.614553     │
+│ 15  │     0.55793      │     0.89827      │
+│ 16  │     0.540974     │     1.57713      │
+│ 17  │     0.525176     │     0.564424     │
+│ 18  │     0.510323     │     0.813577     │
+│ 19  │     0.496551     │     0.376449     │
+│ 20  │     0.484506     │    -0.682206     │
+│ 21  │     0.475071     │    -0.020871     │
+│ 22  │     0.468699     │    -0.396499     │
+│ 23  │     0.465834     │     0.637166     │
+│ 24  │     0.466668     │     0.354332     │
+│ 25  │     0.471794     │    -0.529794     │
+│ 26  │     0.482026     │     0.102474     │
+│ 27  │     0.497847     │     -2.05975     │
+│ 28  │     0.519804     │     -2.5702      │
+│ 29  │     0.547155     │    -0.010755     │
+│ 30  │     0.577553     │     1.75925      │
+│ 31  │     0.608646     │     1.73145      │
+│ 32  │     0.639178     │     0.594722     │
+│ 33  │     0.668978     │     1.21802      │
+│ 34  │     0.698246     │     -1.15745     │
+│ 35  │     0.727941     │     0.121459     │
+│ 36  │     0.758303     │     0.943097     │
+│ 37  │     0.789643     │     -1.07724     │
+│ 38  │     0.822866     │    -0.726966     │
+│ 39  │      0.8582      │      -1.719      │
+│ 40  │     0.895421     │     0.139079     │
+│ 41  │     0.933229     │     0.303671     │
+│ 42  │     0.970414     │     0.449586     │
+│ 43  │     1.00595      │     1.21815      │
+│ 44  │      1.0391      │      0.263       │
+│ 45  │     1.06988      │     -0.03468     │
+│ 46  │     1.09848      │    -0.173176     │
+│ 47  │     1.12505      │     -1.29065     │
+│ 48  │     1.14966      │     0.194742     │
+│ 49  │     1.17155      │     0.203455     │
+│ 50  │     1.19008      │     0.542117     │
+│ 51  │     1.20477      │    -0.488667     │
+│ 52  │     1.21543      │     0.994867     │
+│ 53  │     1.22161      │    -0.368311     │
+│ 54  │     1.22345      │    -0.221053     │
+│ 55  │     1.22088      │     -0.79358     │
+│ 56  │     1.21368      │     0.930025     │
+│ 57  │     1.20113      │     0.236773     │
+│ 58  │      1.1831      │     0.396497     │
+│ 59  │     1.15962      │     1.11508      │
+│ 60  │     1.13095      │     0.828654     │
+│ 61  │     1.09804      │    -0.838138     │
+│ 62  │     1.06238      │    -0.042876     │
+│ 63  │     1.02492      │    -0.534717     │
+│ 64  │     0.986589     │    -0.422989     │
+│ 65  │     0.947986     │    -0.351986     │
+│ 66  │     0.90944      │     0.52136      │
+│ 67  │     0.871059     │    -0.308759     │
+│ 68  │     0.833279     │     0.320621     │
+│ 69  │     0.796345     │     0.890855     │
+│ 70  │     0.760699     │     0.013701     │
+│ 71  │     0.727341     │    -0.823841     │
+│ 72  │     0.697281     │     0.698719     │
+│ 73  │     0.671011     │    -0.534511     │
+│ 74  │     0.649464     │    -0.097264     │
+│ 75  │     0.633234     │     -1.03263     │
+│ 76  │     0.622858     │     -1.23956     │
+│ 77  │     0.618227     │    -0.705427     │
+│ 78  │     0.618455     │     0.591745     │
+│ 79  │     0.622217     │     -1.52952     │
+│ 80  │     0.628558     │     2.02064      │
+│ 81  │     0.635567     │    -0.643667     │
+│ 82  │     0.642595     │    -0.131495     │
+│ 83  │     0.648591     │    -0.652591     │
+│ 84  │     0.652422     │     1.51578      │
+│ 85  │     0.652547     │     1.27335      │
+│ 86  │     0.648373     │     0.386627     │
+│ 87  │     0.640102     │      1.2189      │
+│ 88  │     0.628179     │     1.69182      │
+│ 89  │     0.613808     │    -0.358108     │
+│ 90  │     0.599253     │    -0.697853     │
+│ 91  │     0.586554     │     0.304146     │
+│ 92  │     0.577313     │     -1.13631     │
+│ 93  │     0.573325     │    -0.289825     │
+│ 94  │     0.575671     │     -1.88727     │
+│ 95  │     0.585255     │     -1.46806     │
+│ 96  │     0.601797     │     -2.5763      │
+│ 97  │     0.624105     │     0.388695     │
+│ 98  │     0.649371     │     1.03323      │
+│ 99  │     0.675034     │     0.707666     │
+│ 100 │     0.699177     │     1.16152      │
+│ 101 │     0.720325     │    -0.275625     │
+│ 102 │     0.737731     │    -0.323231     │
+│ 103 │     0.750474     │     0.241526     │
+│ 104 │     0.757431     │     0.605369     │
+│ 105 │     0.75763      │     0.84207      │
+│ 106 │     0.750479     │     1.23802      │
+│ 107 │     0.735909     │    -0.992709     │
+│ 108 │     0.714629     │     0.163271     │
+│ 109 │     0.686723     │     2.42288      │
+│ 110 │     0.652381     │     0.200819     │
+│ 111 │     0.613304     │     0.620096     │
+│ 112 │     0.571322     │    -0.568222     │
+│ 113 │     0.52865      │     -0.62295     │
+│ 114 │     0.487148     │     0.411652     │
+│ 115 │     0.448288     │    -0.638688     │
+│ 116 │     0.413798     │     0.583902     │
+│ 117 │     0.385007     │     -2.77621     │
+│ 118 │     0.36361      │     -0.29711     │
+│ 119 │     0.349566     │     0.911834     │
+│ 120 │     0.342648     │     1.57375      │
+│ 121 │      0.3432      │      -0.678      │
+│ 122 │     0.352548     │     0.089552     │
+│ 123 │     0.371595     │     -1.77819     │
+│ 124 │     0.401302     │     -1.9226      │
+│ 125 │     0.441515     │    -0.142315     │
+│ 126 │     0.490881     │     -1.29288     │
+│ 127 │     0.547956     │    -0.395956     │
+│ 128 │     0.610491     │     0.375409     │
+│ 129 │     0.675987     │     1.45431      │
+│ 130 │     0.742179     │     0.601821     │
+│ 131 │     0.807714     │     0.807786     │
+│ 132 │     0.871612     │     1.83769      │
+│ 133 │     0.933401     │     0.311199     │
+│ 134 │     0.993754     │    -0.485354     │
+│ 135 │     1.05354      │    -0.905541     │
+└─────┴──────────────────┴──────────────────┘</code></pre><p>Check filter frequency response directly via <a href="../../commands/generated/spectral/#ref-spectral-transfer"><code>spectral transfer</code></a> (output key <code>filter_transfer_function</code>) before applying high-pass smoothers to short samples.</p><hr/><h2 id="Spectral-and-Cross-Spectral-Analysis"><a class="docs-heading-anchor" href="#Spectral-and-Cross-Spectral-Analysis">Spectral &amp; Cross-Spectral Analysis</a><a id="Spectral-and-Cross-Spectral-Analysis-1"></a><a class="docs-heading-anchor-permalink" href="#Spectral-and-Cross-Spectral-Analysis" title="Permalink"></a></h2><p>For covariance-stationary <span>$y_t$</span> with autocovariances <span>$\gamma(k)$</span>, the power spectral density concentrates variance across angular frequencies <span>$\omega \in [0, \pi]$</span>:</p><p class="math-container">\[f_{yy}(\omega) = \frac{1}{2\pi} \sum_{k=-\infty}^{\infty} \gamma(k) e^{-i \omega k}.\]</p><p>Compute time-domain ACF/PACF and bivariate cross-correlations via <a href="../../commands/generated/spectral/#ref-spectral-acf"><code>spectral acf</code></a> (<code>acf_pacf</code>, <code>cross_correlation</code>), unsmoothed FFT ordinates via <a href="../../commands/generated/spectral/#ref-spectral-periodogram"><code>spectral periodogram</code></a> (<code>periodogram</code>), Welch/lag-window/AR smoothed spectra via <a href="../../commands/generated/spectral/#ref-spectral-density"><code>spectral density</code></a> (<code>spectral_density</code>), and coherency, gain, and phase between two series via <a href="../../commands/generated/spectral/#ref-spectral-cross"><code>spectral cross</code></a> (<code>cross_spectral_analysis</code>).</p><p>&lt;!– capture –&gt;</p><pre><code class="language-bash hljs">friedman spectral cross :denmark --var1 1 --var2 2</code></pre><pre><code class="language-text hljs">                           Cross-Spectral Analysis
 ┌───────────┬─────────────┬───────────────┬───────────┬───────────┬──────────┐
 │ Frequency │ Co_spectrum │ Quad_spectrum │ Coherence │   Phase   │   Gain   │
-│  Float64  │   Float64   │    Float64    │  Float64  │  Float64  │ Float64  │
 ├───────────┼─────────────┼───────────────┼───────────┼───────────┼──────────┤
 │    0.0    │  0.002855   │     -0.0      │ 0.435035  │   -0.0    │ 0.290588 │
 │ 0.392699  │  0.001637   │   -0.000172   │ 0.424653  │ -0.104873 │ 0.310623 │
@@ -53,7 +168,6 @@
 └───────────┴─────────────┴───────────────┴───────────┴───────────┴──────────┘</code></pre><p>The <code>cross_spectral_analysis</code> JSON table reports frequency-by-frequency squared coherence (<code>0.435035</code> at frequency <code>0.0</code>, peaking near <code>0.666699</code> at <code>1.96349</code>) and phase lead/lag between <code>LRM</code> and <code>LRY</code>.</p><hr/><h2 id="ARIMA,-SARIMA,-ARFIMA,-ARDL,-NARDL-and-MIDAS"><a class="docs-heading-anchor" href="#ARIMA,-SARIMA,-ARFIMA,-ARDL,-NARDL-and-MIDAS">ARIMA, SARIMA, ARFIMA, ARDL, NARDL &amp; MIDAS</a><a id="ARIMA,-SARIMA,-ARFIMA,-ARDL,-NARDL-and-MIDAS-1"></a><a class="docs-heading-anchor-permalink" href="#ARIMA,-SARIMA,-ARFIMA,-ARDL,-NARDL-and-MIDAS" title="Permalink"></a></h2><p>Univariate dynamic models span short-memory differenced processes, seasonal multiplicative forms, fractional integration <span>$(1-L)^d$</span>, mixed-frequency regressors, and bounds-tested cointegrating lag structures:</p><p class="math-container">\[\phi(L)(1-L)^d (y_t - \mu) = \theta(L)\varepsilon_t, \qquad \varepsilon_t \sim (0, \sigma^2).\]</p><ul><li><strong>Short &amp; Seasonal Memory:</strong> <a href="../../commands/generated/estimate/#ref-estimate-univariate-arima"><code>estimate univariate arima</code></a> (pass <code>--d 0 --q 0</code> for pure AR, <code>--p 0 --d 0</code> for MA, or omit <code>--p</code> for automatic criterion search) and <a href="../../commands/generated/estimate/#ref-estimate-univariate-sarima"><code>estimate univariate sarima</code></a> (<code>--auto</code> selects <span>$(p,d,q)(P,D,Q)_s$</span>). Both pair with <a href="../../commands/generated/forecast/#ref-forecast"><code>forecast</code></a>, <a href="../../commands/generated/predict/#ref-predict"><code>predict</code></a>, and <a href="../../commands/generated/residuals/#ref-residuals"><code>residuals</code></a>.</li><li><strong>Fractional Integration:</strong> <a href="../../commands/generated/estimate/#ref-estimate-univariate-arfima"><code>estimate univariate arfima</code></a> jointly estimates <span>$d \in (-0.5, 0.5)$</span> alongside ARMA dynamics via CSS or exact MLE.</li><li><strong>Mixed-Frequency Regressions:</strong> <a href="../../commands/generated/estimate/#ref-estimate-univariate-midas"><code>estimate univariate midas</code></a> projects low-frequency targets on high-frequency lags using Almon, Beta (<code>beta2</code>/<code>beta3</code>), Exponential Almon, or U-MIDAS polynomial weights (<code>midas_weight_curve</code>, <code>midas_coefficients</code>, <code>midas_diagnostics</code>).</li><li><strong>Cointegrating ARDL &amp; Asymmetric NARDL:</strong> <a href="../../commands/generated/estimate/#ref-estimate-univariate-ardl"><code>estimate univariate ardl</code></a> estimates optimal <span>$(p, q_1, \dots, q_k)$</span> lag lengths alongside levels-relationship long-run multipliers (<code>ardl_long_run_coefficients</code>), testable via <a href="../../commands/generated/test/#ref-test-coint-ardl-bounds"><code>test coint ardl-bounds</code></a>. <a href="../../commands/generated/estimate/#ref-estimate-univariate-nardl"><code>estimate univariate nardl</code></a> decomposes explanatory series into partial sum positive and negative cumulative shocks <span>$x_t^+, x_t^-$</span>, computing bootstrap cumulative dynamic multipliers (<code>nardl_cumulative_dynamic_multipliers</code>) testable via <a href="../../commands/generated/test/#ref-test-nardl-symmetry"><code>test nardl-symmetry</code></a>.</li></ul><hr/><h2 id="State-Space-and-Time-Varying-Parameters"><a class="docs-heading-anchor" href="#State-Space-and-Time-Varying-Parameters">State-Space &amp; Time-Varying Parameters</a><a id="State-Space-and-Time-Varying-Parameters-1"></a><a class="docs-heading-anchor-permalink" href="#State-Space-and-Time-Varying-Parameters" title="Permalink"></a></h2><p>Linear Gaussian state-space systems filter and smooth latent states <span>$\alpha_t$</span> given observation equations <span>$y_t = Z \alpha_t + d + \varepsilon_t$</span> and transition equations <span>$\alpha_{t+1} = T \alpha_t + c + R \eta_t$</span>.</p><ul><li><strong>Local Level &amp; General <code>[statespace]</code>:</strong> Pass <a href="../../commands/generated/estimate/#ref-estimate-regression-statespace"><code>estimate regression statespace</code></a> with a TOML <code>[statespace]</code> config (<a href="../../config/models-policy/#cfg-models-policy">GMM, SMM, Systems, State-Space &amp; Policy</a>), or inspect local-level / local-linear-trend filtered and smoothed state paths directly with <a href="../../commands/generated/predict/#ref-predict-regression-statespace"><code>predict regression statespace</code></a> (<code>--kind local-level|local-linear-trend</code>) and standardized innovations with <a href="../../commands/generated/residuals/#ref-residuals-regression-statespace"><code>residuals regression statespace</code></a>.</li><li><strong>Time-Varying Parameter Regression:</strong> <a href="../../commands/generated/estimate/#ref-estimate-regime-tvp"><code>estimate regime tvp</code></a> treats regression slopes <span>$\beta_t = \beta_{t-1} + \eta_t$</span> as random walks estimated via exact Kalman filtering and Rauch–Tung–Striebel smoothing (<code>tvp_hyper_parameters</code>, <code>tvp_coefficient_paths</code>, <code>tvp_diagnostics</code>).</li></ul><p>&lt;!– capture –&gt;</p><pre><code class="language-bash hljs">friedman predict regression statespace :nile --kind local-level --state smoothed</code></pre><pre><code class="language-text hljs">State-Space State Paths (local-level, Nile)
 ┌────────┬────────┬──────────┐
 │ period │ state  │ smoothed │
-│ Int64  │ String │ Float64  │
 ├────────┼────────┼──────────┤
 │   1    │ state1 │  1107.2  │
 │   2    │ state1 │ 1107.57  │
@@ -69,6 +183,90 @@
 │   12   │ state1 │ 1058.06  │
 │   13   │ state1 │ 1054.13  │
 │   14   │ state1 │ 1044.79  │
-│   ⋮    │   ⋮    │    ⋮     │
-└────────┴────────┴──────────┘
-               86 rows omitted</code></pre><p>The <code>state_space_state_paths</code> table aligns the annual Nile discharge series (<code>:nile</code>) with its RTS smoothed level (starting at <code>1107.2</code> in period <code>1</code>), reflecting the abrupt hydrological drop near observation 28 (Aswan dam).</p><hr/><h2 id="Common-Pitfalls"><a class="docs-heading-anchor" href="#Common-Pitfalls">Common Pitfalls</a><a id="Common-Pitfalls-1"></a><a class="docs-heading-anchor-permalink" href="#Common-Pitfalls" title="Permalink"></a></h2><ol><li><strong>Omitting <code>--dep</code> on <code>ardl</code> and <code>nardl</code>:</strong> Unlike univariate <code>arima</code> (<code>--column 1</code>), <a href="../../commands/generated/estimate/#ref-estimate-univariate-ardl"><code>estimate univariate ardl</code></a> and <a href="../../commands/generated/estimate/#ref-estimate-univariate-nardl"><code>estimate univariate nardl</code></a> require an explicit dependent column name or index via <code>--dep</code>.</li><li><strong>Expecting separate <code>ar</code> / <code>ma</code> subcommands:</strong> Pure AR(<span>$p$</span>) and MA(<span>$q$</span>) models use <a href="../../commands/generated/estimate/#ref-estimate-univariate-arima"><code>estimate univariate arima</code></a> with <code>--d 0</code> and <code>--q 0</code> (or <code>--p 0</code>) rather than separate leaves.</li><li><strong>Interpreting HP endpoints mechanically:</strong> Standard <a href="../../commands/generated/filter/#ref-filter-hp"><code>filter hp</code></a> exhibits severe end-of-sample bias; compare against <a href="../../commands/generated/filter/#ref-filter-hamilton"><code>filter hamilton</code></a> or <a href="../../commands/generated/filter/#ref-filter-bhp"><code>filter bhp</code></a> and verify transfer attenuation via <a href="../../commands/generated/spectral/#ref-spectral-transfer"><code>spectral transfer</code></a>.</li><li><strong>Missing <code>--hf-data</code> in <code>midas</code>:</strong> Supplying a single dataset without <code>--hf-data</code> triggers a usage error unless both low-frequency (<code>&lt;data&gt;</code>) and high-frequency (<code>--hf-data</code>) inputs plus <code>--m</code> frequency ratio are passed.</li></ol><hr/><h2 id="References"><a class="docs-heading-anchor" href="#References">References</a><a id="References-1"></a><a class="docs-heading-anchor-permalink" href="#References" title="Permalink"></a></h2><ul><li>Hamilton, J. D. (2018). Why you should never use the Hodrick-Prescott filter. <em>Review of Economics and Statistics</em>, 100(5), 831–843.</li><li>Phillips, P. C., &amp; Shi, Z. (2021). Boosting: Why you can use the HP filter. <em>International Economic Review</em>, 62(2), 521–570.</li><li>Pesaran, M. H., Shin, Y., &amp; Smith, R. J. (2001). Bounds testing approaches to the analysis of level relationships. <em>Journal of Applied Econometrics</em>, 16(3), 289–326.</li><li>Upstream manual: <a href="https://friedmanjp.github.io/MacroEconometricModels.jl/dev/filters/">MacroEconometricModels.jl — Univariate &amp; Filters</a></li><li>CLI reference: <a href="../../commands/generated/filter/#ref-filter"><code>friedman filter</code></a>, <a href="../../commands/generated/spectral/#ref-spectral"><code>friedman spectral</code></a>, <a href="../../commands/generated/estimate/#ref-fam-estimate-univariate"><code>friedman estimate univariate</code></a>, <a href="../../commands/generated/forecast/#ref-fam-forecast-univariate"><code>friedman forecast univariate</code></a></li></ul></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../data/">« Data Management &amp; Simulation</a><a class="docs-footer-nextpage" href="../volatility/">Volatility &amp; Multivariate GARCH »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.16.1 on <span class="colophon-date" title="Monday 16 November 2026 04:54">Monday 16 November 2026</span>. Using Julia version 1.13.4.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+│   15   │ state1 │ 1040.36  │
+│   16   │ state1 │ 1037.91  │
+│   17   │ state1 │ 1043.01  │
+│   18   │ state1 │ 1034.84  │
+│   19   │ state1 │ 1049.51  │
+│   20   │ state1 │ 1073.04  │
+│   21   │ state1 │ 1090.09  │
+│   22   │ state1 │ 1106.18  │
+│   23   │ state1 │ 1112.22  │
+│   24   │ state1 │ 1114.59  │
+│   25   │ state1 │ 1103.85  │
+│   26   │ state1 │ 1077.98  │
+│   27   │ state1 │ 1038.36  │
+│   28   │ state1 │ 999.547  │
+│   29   │ state1 │ 951.005  │
+│   30   │ state1 │ 919.607  │
+│   31   │ state1 │  895.92  │
+│   32   │ state1 │ 874.356  │
+│   33   │ state1 │ 870.261  │
+│   34   │ state1 │ 859.411  │
+│   35   │ state1 │  851.12  │
+│   36   │ state1 │ 857.368  │
+│   37   │ state1 │ 857.938  │
+│   38   │ state1 │ 874.581  │
+│   39   │ state1 │ 877.138  │
+│   40   │ state1 │ 862.952  │
+│   41   │ state1 │ 838.494  │
+│   42   │ state1 │ 814.763  │
+│   43   │ state1 │ 799.628  │
+│   44   │ state1 │ 817.778  │
+│   45   │ state1 │ 835.324  │
+│   46   │ state1 │ 865.784  │
+│   47   │ state1 │ 871.621  │
+│   48   │ state1 │ 855.337  │
+│   49   │ state1 │ 841.314  │
+│   50   │ state1 │  834.78  │
+│   51   │ state1 │  829.58  │
+│   52   │ state1 │ 830.345  │
+│   53   │ state1 │  829.69  │
+│   54   │ state1 │ 825.712  │
+│   55   │ state1 │ 818.219  │
+│   56   │ state1 │ 822.371  │
+│   57   │ state1 │  824.33  │
+│   58   │ state1 │ 834.071  │
+│   59   │ state1 │ 847.498  │
+│   60   │ state1 │ 842.281  │
+│   61   │ state1 │ 845.129  │
+│   62   │ state1 │  854.19  │
+│   63   │ state1 │ 862.203  │
+│   64   │ state1 │ 871.882  │
+│   65   │ state1 │ 874.576  │
+│   66   │ state1 │ 866.672  │
+│   67   │ state1 │  855.83  │
+│   68   │ state1 │ 848.264  │
+│   69   │ state1 │ 825.034  │
+│   70   │ state1 │ 807.036  │
+│   71   │ state1 │ 801.731  │
+│   72   │ state1 │  811.22  │
+│   73   │ state1 │ 817.339  │
+│   74   │ state1 │ 823.975  │
+│   75   │ state1 │ 838.552  │
+│   76   │ state1 │ 856.766  │
+│   77   │ state1 │ 857.232  │
+│   78   │ state1 │  857.43  │
+│   79   │ state1 │ 856.022  │
+│   80   │ state1 │ 855.392  │
+│   81   │ state1 │  851.41  │
+│   82   │ state1 │ 857.832  │
+│   83   │ state1 │ 874.795  │
+│   84   │ state1 │ 895.321  │
+│   85   │ state1 │ 900.866  │
+│   86   │ state1 │ 904.751  │
+│   87   │ state1 │ 900.766  │
+│   88   │ state1 │ 906.832  │
+│   89   │ state1 │ 911.332  │
+│   90   │ state1 │ 909.666  │
+│   91   │ state1 │ 917.168  │
+│   92   │ state1 │ 914.711  │
+│   93   │ state1 │ 913.097  │
+│   94   │ state1 │ 912.655  │
+│   95   │ state1 │ 887.287  │
+│   96   │ state1 │ 859.525  │
+│   97   │ state1 │ 842.758  │
+│   98   │ state1 │ 818.607  │
+│   99   │ state1 │ 804.201  │
+│  100   │ state1 │ 798.532  │
+└────────┴────────┴──────────┘</code></pre><p>The <code>state_space_state_paths</code> table aligns the annual Nile discharge series (<code>:nile</code>) with its RTS smoothed level (starting at <code>1107.2</code> in period <code>1</code>), reflecting the abrupt hydrological drop near observation 28 (Aswan dam).</p><hr/><h2 id="Common-Pitfalls"><a class="docs-heading-anchor" href="#Common-Pitfalls">Common Pitfalls</a><a id="Common-Pitfalls-1"></a><a class="docs-heading-anchor-permalink" href="#Common-Pitfalls" title="Permalink"></a></h2><ol><li><strong>Omitting <code>--dep</code> on <code>ardl</code> and <code>nardl</code>:</strong> Unlike univariate <code>arima</code> (<code>--column 1</code>), <a href="../../commands/generated/estimate/#ref-estimate-univariate-ardl"><code>estimate univariate ardl</code></a> and <a href="../../commands/generated/estimate/#ref-estimate-univariate-nardl"><code>estimate univariate nardl</code></a> require an explicit dependent column name or index via <code>--dep</code>.</li><li><strong>Expecting separate <code>ar</code> / <code>ma</code> subcommands:</strong> Pure AR(<span>$p$</span>) and MA(<span>$q$</span>) models use <a href="../../commands/generated/estimate/#ref-estimate-univariate-arima"><code>estimate univariate arima</code></a> with <code>--d 0</code> and <code>--q 0</code> (or <code>--p 0</code>) rather than separate leaves.</li><li><strong>Interpreting HP endpoints mechanically:</strong> Standard <a href="../../commands/generated/filter/#ref-filter-hp"><code>filter hp</code></a> exhibits severe end-of-sample bias; compare against <a href="../../commands/generated/filter/#ref-filter-hamilton"><code>filter hamilton</code></a> or <a href="../../commands/generated/filter/#ref-filter-bhp"><code>filter bhp</code></a> and verify transfer attenuation via <a href="../../commands/generated/spectral/#ref-spectral-transfer"><code>spectral transfer</code></a>.</li><li><strong>Missing <code>--hf-data</code> in <code>midas</code>:</strong> Supplying a single dataset without <code>--hf-data</code> triggers a usage error unless both low-frequency (<code>&lt;data&gt;</code>) and high-frequency (<code>--hf-data</code>) inputs plus <code>--m</code> frequency ratio are passed.</li></ol><hr/><h2 id="References"><a class="docs-heading-anchor" href="#References">References</a><a id="References-1"></a><a class="docs-heading-anchor-permalink" href="#References" title="Permalink"></a></h2><ul><li>Hamilton, J. D. (2018). Why you should never use the Hodrick-Prescott filter. <em>Review of Economics and Statistics</em>, 100(5), 831–843.</li><li>Phillips, P. C., &amp; Shi, Z. (2021). Boosting: Why you can use the HP filter. <em>International Economic Review</em>, 62(2), 521–570.</li><li>Pesaran, M. H., Shin, Y., &amp; Smith, R. J. (2001). Bounds testing approaches to the analysis of level relationships. <em>Journal of Applied Econometrics</em>, 16(3), 289–326.</li><li>Upstream manual: <a href="https://friedmanjp.github.io/MacroEconometricModels.jl/dev/filters/">MacroEconometricModels.jl — Univariate &amp; Filters</a></li><li>CLI reference: <a href="../../commands/generated/filter/#ref-filter"><code>friedman filter</code></a>, <a href="../../commands/generated/spectral/#ref-spectral"><code>friedman spectral</code></a>, <a href="../../commands/generated/estimate/#ref-fam-estimate-univariate"><code>friedman estimate univariate</code></a>, <a href="../../commands/generated/forecast/#ref-fam-forecast-univariate"><code>friedman forecast univariate</code></a></li></ul></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../data/">« Data Management &amp; Simulation</a><a class="docs-footer-nextpage" href="../volatility/">Volatility &amp; Multivariate GARCH »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.16.1 on <span class="colophon-date" title="Friday 20 November 2026 11:37">Friday 20 November 2026</span>. Using Julia version 1.13.4.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
