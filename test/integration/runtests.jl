@@ -4370,24 +4370,26 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
     @testset "W3 native round-trips + model reproduce" begin
         csv = dgp_var2(; T=100, seed=43)
 
-        # Seeded BVAR: save → downstream irf --model still works on the
-        # posterior-mean VARModel file. That file carries NO manifest (the
-        # seed went into the sampler, the saved object is deterministic), so
-        # reproduce honestly reports unverifiable — exit 0, not a refusal.
+        # Seeded BVAR (#252): save persists the native BVARPosterior (with its
+        # ReproManifest seed), so downstream `irf bvar --model` loads it directly
+        # and `model reproduce` re-runs from seed=11 and verifies bit-for-bit.
         bjld = tempname() * ".jld2"
         rb = run_json(["--seed", "11", "estimate", "multivariate", "bvar", csv, "--lags", "1",
                        "--draws", "50", "--save-model", bjld])
         assert_envelope_ok(rb; label="w3 seeded bvar save")
         @test isfile(bjld)
-        # Wave 2: the saved object is VARModel, so the typed --model slot is irf var.
-        ri = run_json(["irf", "var", "--model", bjld, "--horizons", "4"])
-        assert_envelope_ok(ri; label="w3 irf var --model posterior-mean")
+        rbi = run_json(["model", "info", bjld])
+        assert_envelope_ok(rbi; label="w3 bvar info")
+        @test only(r for r in rbi.doc.data.model_handle_info.rows if r[1] == "model_type")[2] == "BVARPosterior"
+        ri = run_json(["irf", "bvar", "--model", bjld, "--horizons", "4"])
+        assert_envelope_ok(ri; label="w3 irf bvar --model BVARPosterior")
         rp = run_json(["model", "reproduce", bjld])
-        assert_envelope_ok(rp; label="w3 reproduce bvar unverifiable")
+        assert_envelope_ok(rp; label="w3 reproduce bvar match")
         summ = rp.doc.data.model_reproduce_summary
-        @test only(r for r in summ.rows if r[1] == "matched")[2] == "unverifiable (no recorded seed)"
-        @test only(r for r in summ.rows if r[1] == "seed")[2] == "none recorded"
-        @test !haskey(rp.doc.data, :model_reproduce_fields)
+        @test only(r for r in summ.rows if r[1] == "matched")[2] == "true"
+        @test only(r for r in summ.rows if r[1] == "seed")[2] == "11"
+        @test haskey(rp.doc.data, :model_reproduce_fields)
+        @test length(rp.doc.data.model_reproduce_fields.rows) >= 1
         rm(bjld; force=true)
 
         # TRUE matched path (MEMs#769): estimate volatility sv --seed records a
@@ -4427,6 +4429,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         assert_envelope_ok(rsr; label="w3 reproduce svar unverifiable")
         ssumm = rsr.doc.data.model_reproduce_summary
         @test only(r for r in ssumm.rows if r[1] == "matched")[2] == "unverifiable (no recorded seed)"
+        @test only(r for r in ssumm.rows if r[1] == "seed")[2] == "none recorded"
         @test !haskey(rsr.doc.data, :model_reproduce_fields)
         rm(sjld; force=true)
         rm(csv; force=true)
