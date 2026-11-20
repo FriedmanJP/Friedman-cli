@@ -69,9 +69,13 @@ if isfile(_SRC_MANIFEST)
     cp(_SRC_MANIFEST, joinpath(_BUILD_PROJECT_DIR, "Manifest.toml"))
 end
 
-# Activate build env and install exactly the Manifest's dependency graph
+# Activate build env and install exactly the Manifest's dependency graph.
+# Disable --pkgimages=yes autoprecompilation: PackageCompiler forces
+# --pkgimages=no in its subprocesses, so default pkgimages would be discarded.
 Pkg.activate(_BUILD_PROJECT_DIR)
-Pkg.instantiate()
+withenv("JULIA_PKG_PRECOMPILE_AUTO" => "0") do
+    Pkg.instantiate()
+end
 
 # --- Step 2: Install PackageCompiler ---
 println("Loading PackageCompiler...")
@@ -198,26 +202,41 @@ println("This will take several minutes.")
 # Validated by release smoke (C006) on the next tag — do NOT add --strip-ir
 # (MissingCodeError) or filter_stdlibs (needs incremental=false).
 #
+# -O1: cuts LLVM codegen time and peak RAM substantially during --output-o
+# without hurting runtime latency (econometric kernels live in -O3 JLLs and
+# runtime JIT still uses -O2). Do NOT enable compress_sysimage=true here:
+# zstd decompression adds ~330–400 ms per CLI call while release tarballs/zips
+# already compress to ~200–230 MB.
+#
+# JULIA_IMAGE_THREADS: PackageCompiler's --threads=1 only limits Julia task
+# threads, not Julia 1.13's parallel LLVM image codegen threads. On runners
+# with <24 GiB RAM (7 GiB macos-latest, 15–16 GiB ubuntu/windows-latest),
+# parallel LLVM codegen spills into swap and caused v1.0.5 ubuntu-latest to
+# thrash for 56 min and lose runner communication. Default to 1 thread on
+# <24 GiB hosts unless explicitly overridden via ENV["JULIA_IMAGE_THREADS"].
+#
+# include_transitive_dependencies=false: `Base.require(Friedman)` already loads
+# all 258 packages + extensions Friedman uses, without force-loading unused
+# transitive JLLs (e.g. MKL_jll/oneTBB_jll/IntelOpenMP_jll, which otherwise
+# triggered a ~200 MB MKL download on first `friedman --version` on Windows).
+#
 # Julia 1.13 PackageCompiler defaults cpu_target to "sysimage". On the official
 # x86_64 build that is three clones
-# (generic;sandybridge,-xsaveopt,clone_all;haswell,-rdrnd,base(1)). Julia 1.12
-# defaulted to "native" (one clone), and the v0.13.1 ubuntu release finished
-# "compiling incremental system image" in ~19 min on the same 15Gi runner.
-# v1.0.0 died there twice (14 min and 17 min) with SIGTERM — the runner
-# shutdown that follows an OOM, not the 120 min step timeout. One portable
-# clone fits: x86_64 uses "generic". aarch64 uses "apple-m1" (one clone).
-# "sysimage" there is generic;apple-m1,clone_all, and macos-14 (3-core M1,
-# 7 GB) was still in that compile when the 120-minute step timeout fired
-# (run 36456649455). Later Apple Silicon runs apple-m1 code.
+# (generic;sandybridge,-xsaveopt,clone_all;haswell,-rdrnd,base(1)). One portable
+# clone fits: x86_64 uses "generic", aarch64 uses "apple-m1".
 const _CPU_TARGET = Sys.ARCH === :x86_64 ? "generic" : "apple-m1"
-println("Sysimage cpu_target: $_CPU_TARGET")
+if !haskey(ENV, "JULIA_IMAGE_THREADS") && Sys.total_memory() < 24 * 1024^3
+    ENV["JULIA_IMAGE_THREADS"] = "1"
+end
+println("Sysimage cpu_target: $_CPU_TARGET (JULIA_IMAGE_THREADS=$(get(ENV, "JULIA_IMAGE_THREADS", "default")))")
 create_sysimage(
     [:Friedman];
     sysimage_path=_SYSIMAGE_PATH,
     precompile_execution_file=_PRECOMPILE_SCRIPT,
     project=_BUILD_PROJECT_DIR,
     cpu_target=_CPU_TARGET,
-    sysimage_build_args=`--strip-metadata`,
+    sysimage_build_args=`-O1 --strip-metadata`,
+    include_transitive_dependencies=false,
 )
 
 # --- Step 5: Bundle into app directory ---
@@ -226,8 +245,8 @@ rm(_APP_DIR; force=true, recursive=true)
 mkpath(joinpath(_APP_DIR, "bin"))
 mkpath(joinpath(_APP_DIR, "lib"))
 
-# Copy sysimage
-cp(_SYSIMAGE_PATH, joinpath(_APP_DIR, "lib", _SYSIMAGE_NAME))
+# Move sysimage (avoids holding two ~900 MB copies simultaneously on tight CI disks)
+mv(_SYSIMAGE_PATH, joinpath(_APP_DIR, "lib", _SYSIMAGE_NAME); force=true)
 
 # Copy project files for LOAD_PATH
 cp(joinpath(_BUILD_PROJECT_DIR, "Project.toml"), joinpath(_APP_DIR, "Project.toml"))
@@ -243,11 +262,10 @@ end
 
 # --- Step 5a: Create platform-appropriate launcher ---
 if Sys.iswindows()
-    # Windows batch launcher
+    # Windows batch launcher (pure ASCII + CRLF so cmd.exe never mis-parses `rem` lines)
     launcher = joinpath(_APP_DIR, "bin", "friedman.cmd")
-    open(launcher, "w") do io
-        write(io, """@echo off
-rem Friedman-cli — compiled launcher
+    cmd_body = """@echo off
+rem Friedman-cli -- compiled launcher
 rem Uses precompiled sysimage for instant startup
 
 set "SCRIPT_DIR=%~dp0.."
@@ -314,7 +332,9 @@ echo Error: Julia 1.13+ is required but not found.
 echo Install via: winget install --id Julialang.Juliaup
 echo Then run: juliaup add 1.13
 exit /b 1
-""")
+"""
+    open(launcher, "w") do io
+        write(io, replace(replace(cmd_body, "\r\n" => "\n"), "\n" => "\r\n"))
     end
 else
     # macOS/Linux bash launcher

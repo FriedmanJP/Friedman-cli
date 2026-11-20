@@ -111,7 +111,14 @@ def run_case(cmd, n):
     times = []
     for _ in range(n):
         t0 = time.perf_counter()
-        r = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        r = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
         dt_ms = (time.perf_counter() - t0) * 1000.0
         if r.returncode != 0:
             _fail_broken(cmd, r.returncode, r.stdout or "", r.stderr or "")

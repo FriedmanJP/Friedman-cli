@@ -34,7 +34,7 @@ jobs:
     # build past the old 90/60 caps. Headroom for setup+deps+build+archive+upload.
     timeout-minutes: 150
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         include:
           - os: macos-latest
@@ -61,18 +61,18 @@ jobs:
       - uses: julia-actions/cache@d10a6fd8f31b12404a54613ebad242900567f2b9 # v2
 
       - name: Install dependencies
+        env:
+          # PackageCompiler forces --pkgimages=no and ignores --pkgimages=yes
+          # caches; skipping autoprecompile here saves 6–10 min and ~2 GiB disk.
+          JULIA_PKG_PRECOMPILE_AUTO: "0"
         run: |
-          # Registry MacroEconometricModels pinned =1.0.0 via [compat]
+          # Registry MacroEconometricModels exact-pinned in Project.toml [compat]
           julia --project -e 'using Pkg; Pkg.instantiate()'
 
-      # Swap is headroom only. The v1.0.0 ubuntu death (signal 15 during
-      # "compiling incremental system image", twice, ~15 min in, under the 120 min
-      # cap) is Julia 1.13's PackageCompiler default cpu_target="sysimage"
-      # (three x86_64 clones). build_release.jl passes cpu_target="generic" there
-      # and cpu_target="apple-m1" on aarch64 (one clone). macos-14 timed out at
-      # 120 min on generic;apple-m1,clone_all.
-      # The runner is 15Gi, not the old ~7 GB image. Linux-only (fallocate).
-      - name: Add swap space (Linux OOM headroom)
+      # Swap + TMPDIR on /mnt are headroom on Linux (15 GiB RAM, ~14 GiB free on /).
+      # build_release.jl bounds peak RSS via single cpu_target ("generic"/"apple-m1"),
+      # -O1, include_transitive_dependencies=false, and JULIA_IMAGE_THREADS=1.
+      - name: Add swap space and /mnt temp dir (Linux headroom)
         if: runner.os == 'Linux'
         run: |
           # GitHub ubuntu runners already have an active /swapfile (fallocate over it
@@ -81,10 +81,17 @@ jobs:
           sudo chmod 600 /mnt/swapfile
           sudo mkswap /mnt/swapfile
           sudo swapon /mnt/swapfile
+          # Put PackageCompiler's ~1.2 GB temporary -o.a archive on /mnt instead of /.
+          sudo mkdir -p /mnt/tmp
+          sudo chmod 1777 /mnt/tmp
+          echo "TMPDIR=/mnt/tmp" >> "$GITHUB_ENV"
           swapon --show
           free -h
+          df -h / /mnt
 
       - name: Build sysimage
+        env:
+          JULIA_IMAGE_THREADS: "1"
         run: julia build_release.jl
         timeout-minutes: 120
 
