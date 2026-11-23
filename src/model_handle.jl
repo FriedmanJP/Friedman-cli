@@ -131,7 +131,12 @@ Read header (and light model summary) without re-running estimation.
 """
 function model_handle_info(path::String)
     isfile(path) || throw(CliError("data/file-not-found", "model handle not found: $path"))
-    payload = open(deserialize, path)
+    payload = try
+        open(deserialize, path)
+    catch e
+        throw(CliError("env/model-corrupt", "failed to read model handle: $path",
+                       hint=sprint(showerror, e)))
+    end
     header, model = _unpack_fmod(payload, path)
     dims = _model_dims(model)
     return (
@@ -143,6 +148,40 @@ function model_handle_info(path::String)
         runtime_cli = _cli_version_string(),
         runtime_mems = _mems_version_string(),
         dimensions = dims,
+    )
+end
+
+function _jls_model_info(path::String)
+    isfile(path) || throw(CliError("data/file-not-found", "model handle not found: $path",
+                                   hint="check handle path"))
+    payload = try
+        open(deserialize, path)
+    catch e
+        throw(CliError("data/serialization", "failed to read serialized .jls file: $path",
+                       hint=sprint(showerror, e)))
+    end
+    if payload isa Tuple && length(payload) == 2 && payload[1] isa ModelHandleHeader
+        header, model = payload
+        return (
+            path = path,
+            magic = "Julia Serialization (jls)",
+            cli_version = header.cli_version,
+            mems_version = header.mems_version,
+            model_type = header.model_type,
+            runtime_cli = _cli_version_string(),
+            runtime_mems = _mems_version_string(),
+            dimensions = _model_dims(model),
+        )
+    end
+    return (
+        path = path,
+        magic = "Julia Serialization (jls)",
+        cli_version = "n/a",
+        mems_version = "n/a",
+        model_type = string(nameof(typeof(payload))),
+        runtime_cli = _cli_version_string(),
+        runtime_mems = _mems_version_string(),
+        dimensions = _model_dims(payload),
     )
 end
 
@@ -277,6 +316,70 @@ are explicit no-surface) and backward-compatible old handles.
 # long as the serve session (`_serve_loop` sets and clears it) — outside serve,
 # a `model://` path is a typed usage error, never a filesystem access.
 const _SERVE_MODEL_STORE = Ref{Union{Nothing,Dict{String,Any}}}(nothing)
+const _SERVE_SOURCE_MODELS = Ref{Union{Nothing,Dict{String,Any}}}(nothing)
+
+function attach_source_model!(path::String, model)
+    isempty(path) && return nothing
+    if startswith(path, "model://")
+        sm = _SERVE_SOURCE_MODELS[]
+        sm !== nothing && (sm[path] = model)
+        return nothing
+    end
+    lc = lowercase(path)
+    endswith(lc, ".jld2") || return nothing
+    if _is_hdf5_file(path)
+        if _is_native_saveable(model) && isdefined(MacroEconometricModels, :_build_container)
+            try
+                container = MacroEconometricModels._build_container(model)
+                JLD2.jldopen(path, "r+") do f
+                    f["_friedman_source_model"] = container
+                end
+            catch
+            end
+        end
+    else
+        # Mock `.jld2` uses Serialization Dict container
+        try
+            d = open(deserialize, path)
+            if d isa AbstractDict
+                d["_friedman_source_model"] = model
+                open(io -> serialize(io, d), path, "w")
+            end
+        catch
+        end
+    end
+    return nothing
+end
+
+function load_source_model(path::String)
+    isempty(path) && return nothing
+    if startswith(path, "model://")
+        sm = _SERVE_SOURCE_MODELS[]
+        return sm === nothing ? nothing : get(sm, path, nothing)
+    end
+    isfile(path) || return nothing
+    lc = lowercase(path)
+    endswith(lc, ".jld2") || return nothing
+    if _is_hdf5_file(path)
+        isdefined(MacroEconometricModels, :_reconstruct_from_container) || return nothing
+        return try
+            JLD2.jldopen(path, "r") do f
+                haskey(f, "_friedman_source_model") ?
+                    MacroEconometricModels._reconstruct_from_container(f["_friedman_source_model"]) :
+                    nothing
+            end
+        catch
+            nothing
+        end
+    else
+        return try
+            d = open(deserialize, path)
+            (d isa AbstractDict && haskey(d, "_friedman_source_model")) ? d["_friedman_source_model"] : nothing
+        catch
+            nothing
+        end
+    end
+end
 
 function _serve_store_or_throw(path::String)
     store = _SERVE_MODEL_STORE[]
@@ -306,6 +409,24 @@ function save_model_dispatch(path::String, model)
         ))
         _validate_output_path(path)
         MacroEconometricModels.save_model(model, path)
+        cli_ver = _cli_version_string()
+        if _is_hdf5_file(path)
+            try
+                JLD2.jldopen(path, "r+") do f
+                    f["_friedman_cli_version"] = cli_ver
+                end
+            catch
+            end
+        else
+            try
+                d = open(deserialize, path)
+                if d isa AbstractDict
+                    d["_friedman_cli_version"] = cli_ver
+                    open(io -> serialize(io, d), path, "w")
+                end
+            catch
+            end
+        end
         _status("Model saved to $path (native jld2, $(nameof(typeof(model))))")
         return path
     elseif endswith(lc, ".jls")
@@ -398,18 +519,46 @@ end
 Reproducibility manifest for the envelope `meta` (C052 / #345): MEMs
 `capture_manifest` (cheap, always-on) tagged with the CLI's active `--seed`.
 """
+const _BAKED_CLI_GIT_SHA = isdefined(@__MODULE__, :_BUNDLED_CLI_GIT_SHA) ?
+    _BUNDLED_CLI_GIT_SHA : "unknown"
+const _BAKED_GIT_SHA = (isdefined(@__MODULE__, :_BUNDLED_MANIFEST_STATIC) &&
+    _BUNDLED_MANIFEST_STATIC.git_sha != "unknown") ? _BUNDLED_MANIFEST_STATIC.git_sha : _BAKED_CLI_GIT_SHA
+const _BAKED_DEP_VERSIONS = let d = Dict{String,String}()
+    if isdefined(@__MODULE__, :_BUNDLED_MANIFEST_STATIC)
+        for (k, v) in _BUNDLED_MANIFEST_STATIC.deps
+            d[String(k)] = String(v)
+        end
+    end
+    d
+end
+
 function _envelope_manifest()
     m = MacroEconometricModels.capture_manifest(; seed=_SEED[])
+    pkg_ver = (isempty(m.package_version) || m.package_version == "unknown") ?
+        _cached_mems_version() : m.package_version
+    deps = Dict{String,Any}()
+    for (k, v) in m.dependency_versions
+        ks = String(k)
+        vs = String(v)
+        if (isempty(vs) || vs == "unknown") && haskey(_BAKED_DEP_VERSIONS, ks)
+            vs = _BAKED_DEP_VERSIONS[ks]
+        end
+        deps[ks] = vs
+    end
+    for (k, v) in _BAKED_DEP_VERSIONS
+        get(deps, k, "unknown") in ("", "unknown") && (deps[k] = v)
+    end
+    git_sha = (isempty(m.git_sha) || m.git_sha == "unknown") ? _BAKED_GIT_SHA : m.git_sha
     return Dict{String,Any}(
         "seed"                => m.seed,
         "n_threads"           => m.n_threads,
         "julia_version"       => m.julia_version,
-        "package_version"     => m.package_version,
-        "dependency_versions" => Dict{String,Any}(m.dependency_versions),
+        "package_version"     => pkg_ver,
+        "dependency_versions" => deps,
         "os"                  => m.os,
         "machine"             => m.machine,
         "timestamp"           => m.timestamp,
-        "git_sha"             => m.git_sha,
+        "git_sha"             => git_sha,
         "git_dirty"           => m.git_dirty,
         "settings"            => Dict{String,Any}(m.settings),
     )
@@ -447,11 +596,30 @@ function _native_model_info(path::String)
     catch
         Dict{String,Any}()
     end
+    cli_ver = if _is_hdf5_file(path)
+        try
+            JLD2.jldopen(path, "r") do f
+                haskey(f, "_friedman_cli_version") ? string(f["_friedman_cli_version"]) : "n/a"
+            end
+        catch
+            "n/a"
+        end
+    else
+        try
+            d = open(deserialize, path)
+            (d isa AbstractDict && haskey(d, "_friedman_cli_version")) ?
+                string(d["_friedman_cli_version"]) : "n/a"
+        catch
+            "n/a"
+        end
+    end
+    raw_pv = string(get(header, "package_version", ""))
+    mems_ver = (isempty(raw_pv) || raw_pv == "unknown") ? _mems_version_string() : raw_pv
     return (
         path = path,
         magic = "MEMs native (jld2)",
-        cli_version = "n/a",
-        mems_version = string(get(header, "package_version", _mems_version_string())),
+        cli_version = cli_ver,
+        mems_version = mems_ver,
         model_type = model_type,
         runtime_cli = _cli_version_string(),
         runtime_mems = _mems_version_string(),

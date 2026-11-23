@@ -24,7 +24,33 @@ else
     ""
 end
 
+const _BUNDLED_MANIFEST_STATIC = if isdefined(@__MODULE__, :MacroEconometricModels) &&
+                                    isdefined(MacroEconometricModels, :capture_manifest)
+    try
+        m = MacroEconometricModels.capture_manifest()
+        (
+            deps = Dict{String,String}(string(k) => string(v) for (k, v) in m.dependency_versions),
+            git_sha = string(m.git_sha),
+        )
+    catch
+        (deps = Dict{String,String}(), git_sha = "unknown")
+    end
+else
+    (deps = Dict{String,String}(), git_sha = "unknown")
+end
+
+const _BUNDLED_CLI_GIT_SHA = let root = dirname(dirname(@__DIR__))
+    try
+        s = strip(read(pipeline(`git -C $root rev-parse --short HEAD`; stderr=devnull), String))
+        isempty(s) ? "unknown" : String(s)
+    catch
+        "unknown"
+    end
+end
+
 const _MEMS_VERSION_CACHE = Ref{String}("")
+const _CURRENT_EXPLICIT_OPTS = Ref{Set{String}}(Set{String}())
+const _IN_DISPATCH = Ref{Bool}(false)
 
 function _cached_mems_version()::String
     v = _MEMS_VERSION_CACHE[]
@@ -146,6 +172,28 @@ end
 
 _slot_set_cli(v) = v isa AbstractString ? !isempty(v) : v !== nothing
 
+function _collect_explicit_opts(parsed::ParsedArgs, leaf::LeafCommand)
+    explicit = Set{String}()
+    for o in leaf.options
+        if haskey(parsed.options, o.name) ||
+           (!isempty(o.short) && haskey(parsed.options, o.short)) ||
+           any(a -> haskey(parsed.options, a), o.aliases) ||
+           haskey(parsed.multi, o.name) ||
+           (!isempty(o.short) && haskey(parsed.multi, o.short)) ||
+           any(a -> haskey(parsed.multi, a), o.aliases)
+            push!(explicit, o.name)
+        end
+    end
+    for f in leaf.flags
+        if (f.name in parsed.flags) ||
+           (!isempty(f.short) && (f.short in parsed.flags)) ||
+           any(a -> (a in parsed.flags), f.aliases)
+            push!(explicit, f.name)
+        end
+    end
+    return explicit
+end
+
 """
     dispatch_leaf(leaf, args; prog)
 
@@ -167,12 +215,16 @@ function dispatch_leaf(leaf::LeafCommand, args::Vector{String}; prog::String=lea
     end
 
     try
-        parsed = tokenize(args)
+        parsed = tokenize(args, leaf)
         bound = bind_args(parsed, leaf; has_extra_model=has_extra_model)
         # Single-envelope JSON accumulation (P1-1 / F17; C055: the
         # FRIEDMAN_LEGACY_OUTPUT escape hatch was removed at v1.0.0)
-        fmt = get(bound, :format, nothing)
-        use_env = fmt == "json"
+        fmt = get(bound, :format, _FORCE_JSON[] ? "json" : nothing)
+        out_path = string(get(bound, :output, ""))
+        is_comp = startswith(prog, "friedman completions")
+        use_json_env = (fmt == "json") || (_FORCE_JSON[] && is_comp)
+        use_csv_env = (fmt == "csv") && isempty(out_path)
+        use_env = use_json_env || use_csv_env
         t0 = time_ns()
         if use_env
             env = Envelope(command=prog)
@@ -190,6 +242,12 @@ function dispatch_leaf(leaf::LeafCommand, args::Vector{String}; prog::String=lea
             end
             _ENVELOPE[] = env
         end
+        prev_explicit = _CURRENT_EXPLICIT_OPTS[]
+        prev_in_dispatch = _IN_DISPATCH[]
+        prev_json_to_file = _ENVELOPE_JSON_TO_FILE[]
+        _CURRENT_EXPLICIT_OPTS[] = _collect_explicit_opts(parsed, leaf)
+        _IN_DISPATCH[] = true
+        _ENVELOPE_JSON_TO_FILE[] = false
         try
             result = if isempty(extra_dict)
                 leaf.handler(; bound...)
@@ -203,15 +261,34 @@ function dispatch_leaf(leaf::LeafCommand, args::Vector{String}; prog::String=lea
                 end
                 leaf.handler(; merged...)
             end
-            if use_env && _ENVELOPE[] !== nothing
+            if use_json_env && _ENVELOPE[] !== nothing
                 _ENVELOPE[].meta["elapsed_ms"] = (time_ns() - t0) / 1e6
-                render(_ENVELOPE[], :json, stdout)
-                _ENVELOPE_EMITTED[] = true
+                if _ENVELOPE_JSON_TO_FILE[] && !isempty(out_path)
+                    _validate_output_path(out_path)
+                    open(_expanduser(out_path), "w") do io
+                        render(_ENVELOPE[], :json, io)
+                    end
+                    _status("Results written to $out_path")
+                    _ENVELOPE_EMITTED[] = true
+                else
+                    render(_ENVELOPE[], :json, stdout)
+                    _ENVELOPE_EMITTED[] = true
+                end
+            elseif use_csv_env && _ENVELOPE[] !== nothing
+                render(_ENVELOPE[], :csv, stdout)
+                if length(_ENVELOPE[].tables) > 1
+                    extra_names = join(string.(first.(_ENVELOPE[].tables[2:end])), ", ")
+                    _status("Note: CSV stdout emitted primary table '$(_ENVELOPE[].tables[1].first)' only; " *
+                            "omitted secondary table(s): $extra_names (use -o <file.csv> for per-table files or --format json)")
+                end
             end
             return result
         catch e
+            if e isa Base.IOError && e.code == Base.UV_EPIPE
+                rethrow()
+            end
             # In JSON mode, attach error to envelope, render, then rethrow for exit code
-            if use_env && _ENVELOPE[] !== nothing
+            if use_json_env && _ENVELOPE[] !== nothing
                 if e isa CliError
                     set_error!(_ENVELOPE[], e.code, e.message; hint=e.hint)
                 else
@@ -233,6 +310,9 @@ function dispatch_leaf(leaf::LeafCommand, args::Vector{String}; prog::String=lea
             rethrow()
         finally
             _ENVELOPE[] = nothing
+            _CURRENT_EXPLICIT_OPTS[] = prev_explicit
+            _IN_DISPATCH[] = prev_in_dispatch
+            _ENVELOPE_JSON_TO_FILE[] = prev_json_to_file
         end
     catch e
         if e isa ParseError

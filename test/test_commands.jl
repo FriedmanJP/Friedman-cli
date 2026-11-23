@@ -151,7 +151,7 @@ end
 @testset "Shared utilities" begin
 
     @testset "ID_METHOD_MAP" begin
-        @test length(ID_METHOD_MAP) == 18   # 16 + lewis-tvv/sv-em (W1/#186)
+        @test length(ID_METHOD_MAP) == 23   # 18 + 5 kebab-case aliases (#282)
         @test ID_METHOD_MAP["cholesky"] == :cholesky
         @test ID_METHOD_MAP["sign"] == :sign
         @test ID_METHOD_MAP["narrative"] == :narrative
@@ -1834,7 +1834,7 @@ end  # Shared utilities
                 names = Set(string(t.name) for t in spec.tables)
                 @test "nardl_cumulative_dynamic_multipliers" in names
                 @test "nardl_multipliers_summary" in names
-                @test any(o -> o.name == "horizon", spec.options)
+                @test any(o -> o.name == "horizons", spec.options)
                 @test any(f -> f.name == "no-bootstrap", spec.flags)
             end
         end
@@ -8480,13 +8480,20 @@ end  # Enhanced Granger handlers
             src = joinpath(dir, "mine.csv")
             CSV.write(src, DataFrame(a=[1.0, 2.0, 3.0], b=[4.0, 5.0, 6.0]))
 
-            # --path alone (no positional) loads the CSV
+            # --path alone without -o streams to stdout without creating CWD files (#277)
             cd(dir) do
                 _capture() do
                     _data_load(; path=src)
                 end
             end
-            @test isfile(joinpath(dir, "mine_loaded.csv"))
+            @test !isfile(joinpath(dir, "mine_loaded.csv"))
+
+            # With explicit -o, writes to the requested file
+            out_path = joinpath(dir, "mine_loaded.csv")
+            _capture() do
+                _data_load(; path=src, output=out_path)
+            end
+            @test isfile(out_path)
 
             # Neither name nor --path → typed usage error, not a missing-arg crash
             e = try; _capture() do; _data_load(); end; nothing catch err; err end
@@ -8502,8 +8509,9 @@ end  # Enhanced Granger handlers
                         _data_load(; name=form)
                     end
                 end
-                # Default output uses the canonical stem — never ':fred-md.csv'
-                @test isfile(joinpath(dir, "fred_md.csv"))
+                # Without -o, no CWD file is created
+                @test !isfile(joinpath(dir, "fred_md.csv"))
+                @test !isfile(joinpath(dir, ":fred-md.csv"))
             end
         end
 
@@ -8515,12 +8523,13 @@ end  # Enhanced Granger handlers
 
     @testset "_data_load — fred_md" begin
         mktempdir() do dir
-            out = cd(dir) do
+            out_csv = joinpath(dir, "fred_md.csv")
+            cd(dir) do
                 _capture() do
-                    _data_load(; name="fred_md")
+                    _data_load(; name="fred_md", output=out_csv)
                 end
             end
-            @test isfile(joinpath(dir, "fred_md.csv"))
+            @test isfile(out_csv)
         end
     end
 
@@ -8556,13 +8565,14 @@ end  # Enhanced Granger handlers
 
     @testset "_data_load — with --vars" begin
         mktempdir() do dir
-            out = cd(dir) do
+            out_csv = joinpath(dir, "fred_md.csv")
+            cd(dir) do
                 _capture() do
-                    _data_load(; name="fred_md", vars="INDPRO,CPIAUCSL,FEDFUNDS")
+                    _data_load(; name="fred_md", vars="INDPRO,CPIAUCSL,FEDFUNDS", output=out_csv)
                 end
             end
-            @test isfile(joinpath(dir, "fred_md.csv"))
-            result_df = CSV.read(joinpath(dir, "fred_md.csv"), DataFrame)
+            @test isfile(out_csv)
+            result_df = CSV.read(out_csv, DataFrame)
             @test ncol(result_df) == 3
         end
     end
@@ -8589,13 +8599,14 @@ end  # Enhanced Granger handlers
 
     @testset "_data_load — pwt with --vars" begin
         mktempdir() do dir
-            out = cd(dir) do
+            out_csv = joinpath(dir, "pwt.csv")
+            cd(dir) do
                 _capture() do
-                    _data_load(; name="pwt", vars="rgdpna,pop")
+                    _data_load(; name="pwt", vars="rgdpna,pop", output=out_csv)
                 end
             end
-            @test isfile(joinpath(dir, "pwt.csv"))
-            result_df = CSV.read(joinpath(dir, "pwt.csv"), DataFrame)
+            @test isfile(out_csv)
+            result_df = CSV.read(out_csv, DataFrame)
             @test "rgdpna" in names(result_df)
             @test "pop" in names(result_df)
             @test "group" in names(result_df)
@@ -8630,13 +8641,14 @@ end  # Enhanced Granger handlers
 
     @testset "_data_load — mpdta" begin
         mktempdir() do dir
-            out = cd(dir) do
+            out_csv = joinpath(dir, "mpdta.csv")
+            cd(dir) do
                 _capture() do
-                    _data_load(; name="mpdta")
+                    _data_load(; name="mpdta", output=out_csv)
                 end
             end
-            @test isfile(joinpath(dir, "mpdta.csv"))
-            result_df = CSV.read(joinpath(dir, "mpdta.csv"), DataFrame)
+            @test isfile(out_csv)
+            result_df = CSV.read(out_csv, DataFrame)
             @test "lemp" in names(result_df)
             @test "group" in names(result_df)
             @test "time" in names(result_df)
@@ -8645,13 +8657,14 @@ end  # Enhanced Granger handlers
 
     @testset "_data_load — ddcg" begin
         mktempdir() do dir
-            out = cd(dir) do
+            out_csv = joinpath(dir, "ddcg.csv")
+            cd(dir) do
                 _capture() do
-                    _data_load(; name="ddcg")
+                    _data_load(; name="ddcg", output=out_csv)
                 end
             end
-            @test isfile(joinpath(dir, "ddcg.csv"))
-            result_df = CSV.read(joinpath(dir, "ddcg.csv"), DataFrame)
+            @test isfile(out_csv)
+            result_df = CSV.read(out_csv, DataFrame)
             @test "y" in names(result_df)
             @test "dem" in names(result_df)
         end
@@ -8693,15 +8706,16 @@ end  # Enhanced Granger handlers
         end
     end
 
-    @testset "_data_load — mpdta with --vars" begin
+        @testset "_data_load — mpdta with --vars" begin
         mktempdir() do dir
-            out = cd(dir) do
+            out_csv = joinpath(dir, "mpdta.csv")
+            cd(dir) do
                 _capture() do
-                    _data_load(; name="mpdta", vars="lemp,lpop")
+                    _data_load(; name="mpdta", vars="lemp,lpop", output=out_csv)
                 end
             end
-            @test isfile(joinpath(dir, "mpdta.csv"))
-            result_df = CSV.read(joinpath(dir, "mpdta.csv"), DataFrame)
+            @test isfile(out_csv)
+            result_df = CSV.read(out_csv, DataFrame)
             @test "lemp" in names(result_df)
             @test "lpop" in names(result_df)
             @test ncol(result_df) == 4  # group, time, lemp, lpop
@@ -8710,13 +8724,14 @@ end  # Enhanced Granger handlers
 
     @testset "_data_load — ddcg with --vars" begin
         mktempdir() do dir
-            out = cd(dir) do
+            out_csv = joinpath(dir, "ddcg.csv")
+            cd(dir) do
                 _capture() do
-                    _data_load(; name="ddcg", vars="y,dem")
+                    _data_load(; name="ddcg", vars="y,dem", output=out_csv)
                 end
             end
-            @test isfile(joinpath(dir, "ddcg.csv"))
-            result_df = CSV.read(joinpath(dir, "ddcg.csv"), DataFrame)
+            @test isfile(out_csv)
+            result_df = CSV.read(out_csv, DataFrame)
             @test "y" in names(result_df)
             @test "dem" in names(result_df)
             @test ncol(result_df) == 4  # group, time, y, dem
@@ -9529,10 +9544,9 @@ end  # Nowcast handlers
                         format="table", output="",
                         plot=false, plot_save=html_path)
                 end
-                # _per_var_output_path inserts variable name: hp.html → hp_var1.html
-                actual_path = joinpath(dir, "hp_var1.html")
-                @test isfile(actual_path)
-                content = read(actual_path, String)
+                # Single-variable filter uses exact requested --plot-save path (#274 / F-19)
+                @test isfile(html_path)
+                content = read(html_path, String)
             end
         end
     end
@@ -12395,7 +12409,7 @@ end
 
         @testset "_spectral_transfer" begin
             out = _capture() do
-                _spectral_transfer(; filter="hp", lambda=1600.0, nobs=200, format="table", output="")
+                _spectral_transfer(; filter="hp", lambda=1600.0, n_freq=200, format="table", output="")
             end
         end
     end
@@ -13094,27 +13108,39 @@ end
         end
     end
 
-    # LR same-spec warning (lines 1245-1248)
-    @testset "_test_lr — same spec warning" begin
+    # LR same-spec error (#271: equal dof cannot nest)
+    @testset "_test_lr — same spec raises usage/invalid" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=3)
-            out = cd(dir) do
-                _capture() do
-                    _test_lr(; data1=csv, data2=csv, lags1=2, lags2=2)
+            e = try
+                cd(dir) do
+                    _capture() do
+                        _test_lr(; data1=csv, data2=csv, lags1=2, lags2=2)
+                    end
                 end
+                nothing
+            catch ex
+                ex
             end
+            @test e isa CliError && e.code == "usage/invalid"
         end
     end
 
-    # LM same-spec warning (lines 1276-1278)
-    @testset "_test_lm — same spec warning" begin
+    # LM same-spec error (#271: equal dof cannot nest)
+    @testset "_test_lm — same spec raises usage/invalid" begin
         mktempdir() do dir
             csv = _make_csv(dir; T=100, n=3)
-            out = cd(dir) do
-                _capture() do
-                    _test_lm(; data1=csv, data2=csv, lags1=2, lags2=2)
+            e = try
+                cd(dir) do
+                    _capture() do
+                        _test_lm(; data1=csv, data2=csv, lags1=2, lags2=2)
+                    end
                 end
+                nothing
+            catch ex
+                ex
             end
+            @test e isa CliError && e.code == "usage/invalid"
         end
     end
 
@@ -15402,7 +15428,7 @@ end
             doc3 = _run_leaf(["model", "reproduce", varp])
             @test string(doc3.status) == "ok"
             mrow3 = only(r for r in doc3.data.model_reproduce_summary.rows if r[1] == "matched")
-            @test mrow3[2] == "unverifiable (no recorded seed)"
+            @test mrow3[2] == "deterministic (no RNG)"
             @test !haskey(doc3.data, :model_reproduce_fields)
 
             # missing positional: the strict parser throws before any envelope
@@ -15886,6 +15912,217 @@ end
             @test !(ok isa TypeError) && !(ok isa MethodError)
             bad = try f(; p_c..., constraint="i[t] >= 0"); nothing catch e; e end
             @test bad isa TypeError        # ← fails if the kwarg is declared ::String
+        end
+    end
+end
+
+@testset "v1.0.6 CLI regressions (#270-#283)" begin
+    # 1. Global flags anywhere before `--`, -f=json, --json conflicts (#270, #271)
+    @testset "flexible globals & -f=json" begin
+        prev_q, prev_s, prev_c, prev_fj = _QUIET[], _SEED[], _COMPACT[], _FORCE_JSON[]
+        try
+            @test _argv_wants_json(["data", "list", "-f=json"])
+            @test _argv_wants_json(["--json", "data", "list"])
+            @test !_argv_wants_json(["data", "list", "--", "--json"])
+
+            rem = _extract_global_flags!(["data", "list", "-f=json", "--quiet", "--seed", "7", "--compact"])
+            @test _QUIET[] === true
+            @test _SEED[] == 7
+            @test _COMPACT[] === true
+            @test _FORCE_JSON[] === false
+            @test rem == ["data", "list", "-f=json"]
+
+            err_conf = try
+                _extract_global_flags!(["--json", "data", "list", "--format", "csv"])
+                nothing
+            catch e; e; end
+            @test err_conf isa CliError && err_conf.code == "usage/invalid"
+        finally
+            _QUIET[] = prev_q
+            _SEED[] = prev_s
+            _COMPACT[] = prev_c
+            _FORCE_JSON[] = prev_fj
+        end
+    end
+
+    # 2. Multi-table -o JSON/CSV, single-table CSV stdout, filter --plot-save, warnings & --compact (#273-#275, #281)
+    @testset "multi-table output, plot-save, warnings & compact" begin
+        mktempdir() do dir
+            csv = joinpath(dir, "m.csv")
+            CSV.write(csv, DataFrame(y1=randn(40), y2=randn(40)))
+
+            # Multi-table --format json -o writes single complete envelope; stdout stays empty
+            jout = joinpath(dir, "var.json")
+            s_json = _capture_all() do
+                _dispatch_via_app(["estimate", "multivariate", "var", csv, "--lags", "1", "--format", "json", "-o", jout])
+            end
+            @test isempty(strip(s_json.out))
+            @test isfile(jout)
+            jdoc = JSON3.read(read(jout, String))
+            @test String(jdoc.status) == "ok"
+            @test haskey(jdoc.data, :var_coefficients) && haskey(jdoc.data, :information_criteria)
+
+            # Multi-table --format csv stdout emits only the single primary table + secondary note on stderr
+            s_csv = _capture_all() do
+                _dispatch_via_app(["estimate", "multivariate", "var", csv, "--lags", "1", "--format", "csv"])
+            end
+            @test occursin("equation,term", s_csv.out)
+            @test !occursin("metric,value", s_csv.out)
+            @test occursin("omitted secondary table", s_csv.err)
+
+            # Single-variable filter --plot-save preserves exact path & adds artifact
+            phtml = joinpath(dir, "exact_hp.html")
+            s_hp = _capture_all() do
+                _dispatch_via_app(["filter", "hp", csv, "--columns", "1", "--plot-save", phtml, "--format", "json"])
+            end
+            hp_doc = JSON3.read(s_hp.out)
+            @test isfile(phtml)
+            @test any(a -> String(a.path) == phtml, hp_doc.artifacts)
+
+            # _cli_warn! deduplicates and attaches warnings to active Envelope even when quiet
+            env = Envelope(command="test")
+            _ENVELOPE[] = env
+            prev_q = _QUIET[]
+            _QUIET[] = true
+            try
+                redirect_stderr(devnull) do
+                    _cli_warn!("model/non-convergence", "did not converge"; always_stderr=true)
+                    _cli_warn!("model/non-convergence", "did not converge"; always_stderr=true)
+                end
+                @test length(env.warnings) == 1
+                @test env.warnings[1]["code"] == "model/non-convergence"
+            finally
+                _ENVELOPE[] = nothing
+                _QUIET[] = prev_q
+            end
+
+            # _compact_df rounds floats to 4 significant digits when _COMPACT[] is true
+            prev_comp = _COMPACT[]
+            _COMPACT[] = true
+            try
+                cdf = _compact_df(DataFrame(x=[1.23456789]))
+                @test cdf.x[1] == 1.235
+            finally
+                _COMPACT[] = prev_comp
+            end
+        end
+    end
+
+    # 3. Config & empty card guards (#280)
+    @testset "config warnings & empty smm card (#280)" begin
+        if @isdefined(lowered_card)
+            err_smm = try
+                lowered_card("smm:\n  # only comment\n", :smm)
+                nothing
+            catch e; e; end
+            @test err_smm isa CliError && err_smm.code == "config/invalid"
+        end
+    end
+
+    # 4. Schema anyOf/non-finite & MCP scoping/pagination/per-call globals (#278)
+    @testset "schema anyOf & MCP scoping/pagination (#278)" begin
+        leaf_irf = APP.root.subcmds["irf"].subcmds["var"]
+        sch = _input_schema(leaf_irf, ["irf", "var"])
+        @test haskey(sch, "anyOf")
+        @test !("data" in sch["required"])
+
+        leaf_nan = LeafCommand("x", identity; options=[Option("alpha"; type=Float64, default=NaN)])
+        sch_nan = _input_schema(leaf_nan, ["x"])
+        @test !haskey(sch_nan["properties"]["alpha"], "default")
+
+        all_tools = _mcp_tools()
+        @test !any(t -> t[1] == "serve" || t[1] == "schema", all_tools)
+        @test !isempty(_mcp_tools(families="volatility"))
+        @test length(_mcp_tools(tools="estimate_multivariate_var")) == 1
+
+        # Pagination via cursor & limit, and compact mode
+        inp = IOBuffer("""{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"families":"volatility","cursor":"0","limit":2}}\n{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{"tools":"estimate_multivariate_var"}}\n""")
+        out = IOBuffer()
+        _serve_loop(inp, out; compact=true)
+        lines = split(strip(String(take!(out))), '\n')
+        @test length(lines) == 2
+        r1 = JSON3.read(lines[1])
+        @test length(r1.result.tools) == 2 && haskey(r1.result, :nextCursor)
+        r2 = JSON3.read(lines[2])
+        @test length(r2.result.tools) == 1 && !haskey(r2.result.tools[1].inputSchema.properties.lags, Symbol("x-cli"))
+
+        # _mcp_input_schema injects optional seed/quiet; _mcp_argv skips nothing and forwards --seed/--quiet
+        dl_leaf = APP.root.subcmds["data"].subcmds["list"]
+        ms = _mcp_input_schema(dl_leaf, ["data", "list"])
+        @test haskey(ms["properties"], "seed") && haskey(ms["properties"], "quiet")
+        argv_nulls = _mcp_argv(dl_leaf, ["data", "list"],
+                               Dict{Symbol,Any}(:seed => 42, :quiet => true, :extra_null => nothing))
+        @test "--seed" in argv_nulls && "42" in argv_nulls && "--quiet" in argv_nulls
+        @test !any(contains("extra-null"), argv_nulls)
+    end
+
+    # 5. Registry normalization (#282) & dynamic depth-3 completions (#283)
+    @testset "registry canonicalization (#282) & dynamic completions (#283)" begin
+        # Cross-leaf short-flag collisions = 0
+        short_meanings = Dict{String,Set{String}}()
+        function _walk_shorts(node)
+            for sub in values(node.subcmds)
+                if sub isa LeafCommand
+                    for o in sub.options
+                        isempty(o.short) || push!(get!(short_meanings, o.short, Set{String}()), o.name)
+                    end
+                    for f in sub.flags
+                        isempty(f.short) || push!(get!(short_meanings, f.short, Set{String}()), f.name)
+                    end
+                else
+                    _walk_shorts(sub)
+                end
+            end
+        end
+        _walk_shorts(APP.root)
+        @test all(v -> length(v) == 1, values(short_meanings))
+
+        # Kebab-case --id choices accepted
+        for k in ("student-t", "mixture-normal", "skew-normal", "markov-switching", "garch-id")
+            @test haskey(ID_METHOD_MAP, k)
+            @test k in CONFIG_ENUMS["identification.method"]
+        end
+
+        # VAR --trend rejects non-constant with usage/invalid & option omitted from canonical help
+        var_leaf = APP.root.subcmds["estimate"].subcmds["multivariate"].subcmds["var"]
+        @test !any(o -> o.name == "trend", var_leaf.options)
+        err_tr = try
+            _estimate_var(; data="x.csv", trend="none")
+            nothing
+        catch e; e; end
+        @test err_tr isa CliError && err_tr.code == "usage/invalid"
+
+        # ms & ms-ar both advertise --switching-variance and --no-switching-variance
+        est_reg = register_estimate_commands!().subcmds["regime"]
+        for leafname in ("ms", "ms-ar")
+            fnames = [f.name for f in est_reg.subcmds[leafname].flags]
+            @test "switching-variance" in fnames && "no-switching-variance" in fnames
+        end
+
+        # Legacy aliases resolve cleanly via parser tokenize/bind_args
+        irf_leaf = APP.root.subcmds["irf"].subcmds["var"]
+        b_irf = bind_args(tokenize(["x.csv", "--replications", "50"]), irf_leaf)
+        @test b_irf.replications == 50
+        dsge_irf_leaf = APP.root.subcmds["dsge"].subcmds["irf"]
+        b_dsge_irf = bind_args(tokenize(["m.toml", "--horizon", "10"]), dsge_irf_leaf)
+        @test b_dsge_irf.horizon == 10
+        fc_var_leaf = APP.root.subcmds["forecast"].subcmds["multivariate"].subcmds["var"]
+        b_fc_var = bind_args(tokenize(["x.csv", "--confidence", "0.9"]), fc_var_leaf)
+        @test b_fc_var.confidence ≈ 0.9
+        setar_leaf = APP.root.subcmds["forecast"].subcmds["regime"].subcmds["setar"]
+        b_setar = bind_args(tokenize(["x.csv", "--reps", "40", "--ci-level", "0.90"]), setar_leaf)
+        @test b_setar.reps == 40 && b_setar.ci_level ≈ 0.90
+        bayes_leaf = APP.root.subcmds["dsge"].subcmds["bayes"].subcmds["estimate"]
+        b_bayes = bind_args(tokenize(["m.toml", "--n-draws", "20"]), bayes_leaf)
+        @test b_bayes.n_draws == 20
+
+        # Dynamic depth-3 completions (#283)
+        bsh = generate_bash_completion(APP)
+        zsh = generate_zsh_completion(APP)
+        fsh = generate_fish_completion(APP)
+        for s in (bsh, zsh, fsh)
+            @test occursin("schema", s) && occursin("serve", s) && occursin("show", s) && occursin("repl", s)
+            @test occursin("bayes", s) && occursin(":fred_md", s)
         end
     end
 end

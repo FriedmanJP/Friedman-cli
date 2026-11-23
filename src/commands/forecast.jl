@@ -42,7 +42,7 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="d0", type=Float64, default=nothing, description="Starting value for d (default: GPH pre-estimate)"),
                 OptionSpec(name="max-iter", type=Int, default=500, description="Maximum optimizer iterations"),
                 OptionSpec(name="horizons", short="H", type=Int, default=12, description="Forecast horizons (≥ 1)"),
-                OptionSpec(name="confidence", type=Float64, default=0.95, description="Interval level in (0,1)"),
+                OptionSpec(name="conf-level", aliases=["confidence"], kwarg=:confidence, type=Float64, default=0.95, description="Interval level in (0,1)"),
                 OptionSpec(name="trunc-lag", type=Int, default=200, description="AR(inf) truncation lag for the fractional filter (≥ 1)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -71,9 +71,9 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="weights", type=String, default="expalmon", description="MIDAS weight family", choices=["expalmon","beta2","beta3","almon","umidas"]),
                 OptionSpec(name="p-ar", type=Int, default=0, description="Autoregressive lags of the target (ADL-MIDAS)"),
                 OptionSpec(name="poly-degree", type=Int, default=2, description="Almon polynomial degree (≥ 0)"),
-                OptionSpec(name="horizon", type=Int, default=1, description="Direct forecast horizon, fixed at estimation"),
+                OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=1, description="Direct forecast horizon, fixed at estimation"),
                 OptionSpec(name="max-iter", type=Int, default=500, description="Maximum optimizer iterations"),
-                OptionSpec(name="level", type=Float64, default=0.95, description="Prediction-interval level in (0,1)"),
+                OptionSpec(name="conf-level", aliases=["level"], kwarg=:level, type=Float64, default=0.95, description="Prediction-interval level in (0,1)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -241,7 +241,7 @@ function forecast_specs()::Vector{CommandSpec}
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto)"),
                 OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon"),
-                OptionSpec(name="confidence", type=Float64, default=0.95, description="Confidence level for intervals"),
+                OptionSpec(name="conf-level", aliases=["confidence"], kwarg=:confidence, type=Float64, default=0.95, description="Confidence level for intervals"),
                 OptionSpec(name="ci-method", type=String, default="analytical", description="Interval method: analytical|bootstrap|none (none = point forecast)", choices=["analytical","bootstrap","none"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -264,7 +264,7 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto for var, 4 for bvar)"),
                 OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon"),
                 OptionSpec(name="replications", type=Int, default=1000, description="Draws used for the conditional bands"),
-                OptionSpec(name="confidence", type=Float64, default=0.95, description="Confidence level in (0, 1)"),
+                OptionSpec(name="conf-level", aliases=["confidence"], kwarg=:confidence, type=Float64, default=0.95, description="Confidence level in (0, 1)"),
                 OptionSpec(name="draws", short="n", type=Int, default=2000, description="MCMC draws (--method bvar)"),
                 OptionSpec(name="sampler", type=String, default="direct", description="direct|gibbs (--method bvar)"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for the BVAR prior (--method bvar; ignored with --method var)"),
@@ -336,7 +336,7 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="max-q", type=Int, default=5, description="Max MA order for auto selection"),
                 OptionSpec(name="criterion", type=String, default="bic", description="aic|bic"),
                 OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon"),
-                OptionSpec(name="confidence", type=Float64, default=0.95, description="Confidence level"),
+                OptionSpec(name="conf-level", aliases=["confidence"], kwarg=:confidence, type=Float64, default=0.95, description="Confidence level"),
                 OptionSpec(name="method", short="m", type=String, default="css_mle", description="ols|css|mle|css_mle"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -368,8 +368,8 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="p", type=Int, default=1, description="AR order (≥ 1)"),
                 OptionSpec(name="d", type=String, default="1", description="Delay lag: an integer ≥ 1, or 'auto' (=1:p grid)"),
                 OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon (≥ 1)"),
-                OptionSpec(name="reps", type=Int, default=1000, description="Bootstrap simulation paths (≥ 1)"),
-                OptionSpec(name="ci-level", type=Float64, default=0.95, description="Band coverage: 0.90|0.95|0.99", choices=["0.90", "0.95", "0.99"]),
+                OptionSpec(name="draws", aliases=["reps"], kwarg=:reps, type=Int, default=1000, description="Bootstrap simulation paths (≥ 1)"),
+                OptionSpec(name="conf-level", aliases=["ci-level"], kwarg=:ci_level, type=Float64, default=0.95, description="Band coverage: 0.90|0.95|0.99", choices=["0.90", "0.95", "0.99"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table", "csv", "json"])
             ],
@@ -397,8 +397,8 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="d", type=Int, default=1, description="Delay lag for the self-exciting transition var (≥ 1)"),
                 OptionSpec(name="type", type=String, default="auto", description="Transition shape: lstr1|lstr2|estr|auto", choices=["lstr1", "lstr2", "estr", "auto"]),
                 OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon (≥ 1)"),
-                OptionSpec(name="reps", type=Int, default=1000, description="Bootstrap simulation paths (≥ 1)"),
-                OptionSpec(name="ci-level", type=Float64, default=0.95, description="Band coverage: 0.90|0.95|0.99", choices=["0.90", "0.95", "0.99"]),
+                OptionSpec(name="draws", aliases=["reps"], kwarg=:reps, type=Int, default=1000, description="Bootstrap simulation paths (≥ 1)"),
+                OptionSpec(name="conf-level", aliases=["ci-level"], kwarg=:ci_level, type=Float64, default=0.95, description="Band coverage: 0.90|0.95|0.99", choices=["0.90", "0.95", "0.99"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table", "csv", "json"])
             ],
@@ -416,7 +416,7 @@ function forecast_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[SARIMA_OPTIONS...,
                 OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon (>= 1)"),
-                OptionSpec(name="ci-level", type=Float64, default=0.95, description="Band coverage, 0 < level < 1"),
+                OptionSpec(name="conf-level", aliases=["ci-level"], kwarg=:ci_level, type=Float64, default=0.95, description="Band coverage, 0 < level < 1"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 PLOT_OPTIONS...],
@@ -442,12 +442,13 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="k-regimes", type=Int, default=2, description="Number of regimes (≥ 2)"),
                 OptionSpec(name="max-iter", type=Int, default=1000, description="Max EM iterations (≥ 1)"),
                 OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon (≥ 1)"),
-                OptionSpec(name="reps", type=Int, default=1000, description="Simulated regime paths for the bands (≥ 1)"),
-                OptionSpec(name="ci-level", type=Float64, default=0.90, description="Band coverage, 0 < level < 1"),
+                OptionSpec(name="draws", aliases=["reps"], kwarg=:reps, type=Int, default=1000, description="Simulated regime paths for the bands (≥ 1)"),
+                OptionSpec(name="conf-level", aliases=["ci-level"], kwarg=:ci_level, type=Float64, default=0.90, description="Band coverage, 0 < level < 1"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
-            flags=[FlagSpec(name="switching-variance", description="Let σ² switch across regimes (default: off, Hamilton form)")],
+            flags=[FlagSpec(name="switching-variance", description="Let σ² switch across regimes (default for ms-ar: off)"),
+                   FlagSpec(name="no-switching-variance", description="Force common σ² across regimes")],
             tables=[TableSpec(name=:ms_ar_forecast, description="Regime-averaged forecasts with simulated bands, tidy long form: horizon | variable | value | lower | upper"),
                     TableSpec(name=:ms_ar_predicted_regime_probabilities, description="Predicted regime probabilities: horizon | one column per regime")],
             category="forecast",
@@ -464,12 +465,13 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="tol", type=Float64, default=1e-8, description="EM convergence tolerance (> 0)"),
                 OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon (intercept-only models; else use --x-future)"),
                 OptionSpec(name="x-future", type=String, default="", description="CSV of future regressors: h rows x k columns (required unless intercept-only)"),
-                OptionSpec(name="reps", type=Int, default=1000, description="Simulated regime paths for the bands (≥ 1)"),
-                OptionSpec(name="ci-level", type=Float64, default=0.90, description="Band coverage, 0 < level < 1"),
+                OptionSpec(name="draws", aliases=["reps"], kwarg=:reps, type=Int, default=1000, description="Simulated regime paths for the bands (≥ 1)"),
+                OptionSpec(name="conf-level", aliases=["ci-level"], kwarg=:ci_level, type=Float64, default=0.90, description="Band coverage, 0 < level < 1"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
-            flags=[FlagSpec(name="no-switching-variance", description="Force common σ² across regimes (default: σ² switches)")],
+            flags=[FlagSpec(name="switching-variance", description="Let σ² switch across regimes (default for ms: on)"),
+                   FlagSpec(name="no-switching-variance", description="Force common σ² across regimes")],
             tables=[TableSpec(name=:ms_regression_forecast, description="Regime-averaged forecasts with simulated bands, tidy long form: horizon | variable | value | lower | upper"),
                     TableSpec(name=:ms_regression_predicted_regime_probabilities, description="Predicted regime probabilities: horizon | one column per regime")],
             category="forecast",
@@ -480,7 +482,7 @@ function forecast_specs()::Vector{CommandSpec}
             summary="Static-factor observable forecast reconstructed from factors",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
-                OptionSpec(name="nfactors", short="r", type=Int, default=nothing, description="Number of factors (default: auto via IC)"),
+                OptionSpec(name="nfactors", type=Int, default=nothing, description="Number of factors (default: auto via IC)"),
                 OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon"),
                 OptionSpec(name="ci-method", type=String, default="none", description="none|bootstrap|parametric"),
                 OptionSpec(name="conf-level", type=Float64, default=0.95, description="Confidence level for intervals"),
@@ -500,9 +502,9 @@ function forecast_specs()::Vector{CommandSpec}
             summary="Dynamic-factor observable forecast reconstructed from factors",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
-                OptionSpec(name="nfactors", short="r", type=Int, default=nothing, description="Number of factors (default: auto)"),
+                OptionSpec(name="nfactors", type=Int, default=nothing, description="Number of factors (default: auto)"),
                 OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon"),
-                OptionSpec(name="factor-lags", short="p", type=Int, default=1, description="Factor VAR lag order"),
+                OptionSpec(name="factor-lags", type=Int, default=1, description="Factor VAR lag order"),
                 OptionSpec(name="method", type=String, default="twostep", description="twostep|em"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -520,8 +522,8 @@ function forecast_specs()::Vector{CommandSpec}
             summary="GDFM observable forecast reconstructed from factors",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
-                OptionSpec(name="nfactors", short="r", type=Int, default=nothing, description="Number of static factors (default: auto)"),
-                OptionSpec(name="dynamic-rank", short="q", type=Int, default=nothing, description="Dynamic rank (default: auto)"),
+                OptionSpec(name="nfactors", type=Int, default=nothing, description="Number of static factors (default: auto)"),
+                OptionSpec(name="dynamic-rank", type=Int, default=nothing, description="Dynamic rank (default: auto)"),
                 OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon"),
                 OptionSpec(name="method", type=String, default="ar", description="Factor projection: ar (two-sided)|one-sided|spectral (FHLR 2005)", choices=["ar","one-sided","spectral"]),
                 OptionSpec(name="spectral", type=String, default="lag-window", description="GDFM spectrum: lag-window (FHLR)|smoothed-periodogram", choices=["lag-window","smoothed-periodogram"]),
@@ -551,7 +553,7 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for sign restrictions"),
                 OptionSpec(name="ci", type=String, default="none", description="Interval method: none|bootstrap", choices=["none","bootstrap"]),
-                OptionSpec(name="reps", type=Int, default=200, description="Bootstrap replications (with --ci bootstrap)"),
+                OptionSpec(name="draws", aliases=["reps"], kwarg=:reps, type=Int, default=200, description="Bootstrap replications (with --ci bootstrap)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
@@ -575,8 +577,8 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
                 OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon"),
                 OptionSpec(name="ci-method", type=String, default="none", description="none|bootstrap|parametric"),
-                OptionSpec(name="replications", type=Int, default=500, description="Bootstrap replications"),
-                OptionSpec(name="confidence", type=Float64, default=0.95, description="Confidence level for intervals"),
+                OptionSpec(name="draws", aliases=["replications"], kwarg=:replications, type=Int, default=500, description="Bootstrap replications"),
+                OptionSpec(name="conf-level", aliases=["confidence"], kwarg=:confidence, type=Float64, default=0.95, description="Confidence level for intervals"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
@@ -593,7 +595,7 @@ function forecast_specs()::Vector{CommandSpec}
             summary="FAVAR factor-level (or --panel-forecast panel-wide) forecast",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
-                OptionSpec(name="factors", short="r", type=Int, default=nothing, description="Number of factors (default: auto)"),
+                OptionSpec(name="factors", type=Int, default=nothing, description="Number of factors (default: auto)"),
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="VAR lag order"),
                 OptionSpec(name="key-vars", type=String, default="", description="Key variable names or indices (comma-separated)"),
                 OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon"),
@@ -641,7 +643,7 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="forecasts", type=String, default="", description="Two forecast column names, comma-separated (required)"),
                 FCEVAL_RESULT_OPTION,
                 OptionSpec(name="loss", type=String, default="se", choices=["se","ad"], description="Loss: se (squared) | ad (absolute)"),
-                OptionSpec(name="horizon", type=Int, default=1, description="Forecast horizon (sets truncation lag h-1)"),
+                OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=1, description="Forecast horizon (sets truncation lag h-1)"),
                 OptionSpec(name="alternative", type=String, default="two-sided", choices=["two-sided","less","greater"], description="Alternative hypothesis"),
             ], OUTPUT_OPTIONS),
             flags=[FlagSpec(name="no-hln", description="Disable the Harvey-Leybourne-Newbold small-sample correction (use N(0,1))")],
@@ -657,7 +659,7 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="actual", type=String, default="", description="Realized-values column name (required)"),
                 OptionSpec(name="forecasts", type=String, default="", description="Two forecast columns: small (restricted), big (unrestricted)"),
                 FCEVAL_RESULT_OPTION,
-                OptionSpec(name="horizon", type=Int, default=1, description="Forecast horizon (sets truncation lag h-1)"),
+                OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=1, description="Forecast horizon (sets truncation lag h-1)"),
                 OptionSpec(name="alternative", type=String, default="greater", choices=["two-sided","less","greater"], description="Alternative hypothesis"),
             ], OUTPUT_OPTIONS),
             flags=FlagSpec[],
@@ -1485,7 +1487,8 @@ function _forecast_eval_metrics(; data::String, actual::String="", forecasts::St
                     bias = round.(ev.decomp[:, 1]; digits=6),
                     variance = round.(ev.decomp[:, 2]; digits=6),
                     covariance = round.(ev.decomp[:, 3]; digits=6))
-    output_result(dec; format=Symbol(format), output=output, title="Theil MSE Decomposition")
+    output_result(dec; format=Symbol(format), output=_per_var_output_path(output, "decomp"),
+                  title="Theil MSE Decomposition")
     # #95: ForecastEvaluation has a real recipe (bar chart of the chosen metric). The
     # other five `evaluate` leaves return DMTestResult / MincerZarnowitzResult /
     # ForecastEncompassingResult / ForecastCombination, none of which have one — so they
@@ -1635,7 +1638,8 @@ function _forecast_eval_combine(; data::String, actual::String="", forecasts::St
     if emit_series
         stab = DataFrame(index = collect(1:length(r.combined)),
                          combined = round.(r.combined; digits=6))
-        output_result(stab; format=Symbol(format), output=output, title="Combined Forecast Series")
+        output_result(stab; format=Symbol(format), output=_per_var_output_path(output, "combined"),
+                      title="Combined Forecast Series")
     end
     return r
 end
@@ -1840,6 +1844,6 @@ function _forecast_scenario(; data::String="", result=nothing, conditions_file::
         "conf_level"     => fc.conf_level,
         "identification" => String(fc.identification),
         "n_draws"        => fc.n_draws,
-    ]; format=format, title="Scenario Settings")
+    ]; format=format, output=_per_var_output_path(output, "settings"), title="Scenario Settings")
     return (; model=obj, result=fc)
 end

@@ -25,14 +25,21 @@ end
 
 function _to_option(o::OptionSpec)
     _check_reserved("option", o.name, o.short)
+    for a in o.aliases
+        _check_reserved("option", a, "")
+    end
     return Option(o.name; short=o.short, type=o.type, default=o.default,
                   description=o.description, choices=o.choices,
-                  repeatable=o.repeatable)
+                  repeatable=o.repeatable, aliases=o.aliases, kwarg=o.kwarg)
 end
 
 function _to_flag(f::FlagSpec)
     _check_reserved("flag", f.name, f.short)
-    return Flag(f.name; short=f.short, description=f.description)
+    for a in f.aliases
+        _check_reserved("flag", a, "")
+    end
+    return Flag(f.name; short=f.short, description=f.description,
+                aliases=f.aliases, kwarg=f.kwarg)
 end
 
 """True when `v` is a nonempty string (handle path) or a loaded object."""
@@ -271,7 +278,13 @@ function wrap_legacy(handler::Function)
                 (haskey(result, :model) || haskey(result, :result))
             if nt_split
                 isempty(save_path) || _nt_save_slot(result, :model, save_path, "--save-model")
-                isempty(save_result_path) || _nt_save_slot(result, :result, save_result_path, "--save-result")
+                if !isempty(save_result_path)
+                    _nt_save_slot(result, :result, save_result_path, "--save-result")
+                    if haskey(result, :model) && haskey(result, :result) &&
+                       result.result isa ImpulseResponse && result.model isa VARModel
+                        attach_source_model!(save_result_path, result.model)
+                    end
+                end
             elseif !isempty(save_path) && !isempty(save_result_path)
                 throw(CliError("usage/invalid",
                     "handler returned a single object; use a NamedTuple (; model, result)";
@@ -302,8 +315,14 @@ function to_leaf(spec::CommandSpec)
 
     # Hoist partitioning tables and command string once at tree construction time
     arg_names = Set{Symbol}(Symbol(a.name) for a in spec.args)
-    opt_keys = Set{Symbol}(Symbol(replace(o.name, "-" => "_")) for o in spec.options)
-    flag_keys = Set{Symbol}(Symbol(replace(f.name, "-" => "_")) for f in spec.flags)
+    opt_keys = Set{Symbol}(
+        (o.kwarg === Symbol("") ? Symbol(replace(o.name, "-" => "_")) : o.kwarg)
+        for o in spec.options
+    )
+    flag_keys = Set{Symbol}(
+        (f.kwarg === Symbol("") ? Symbol(replace(f.name, "-" => "_")) : f.kwarg)
+        for f in spec.flags
+    )
     cmd_str = join(spec.path, " ")
     handler = spec.handler
 

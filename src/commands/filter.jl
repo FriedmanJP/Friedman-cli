@@ -20,7 +20,7 @@ function filter_specs()::Vector{CommandSpec}
     data_arg = [ArgSpec(name="data", description="Path to data file or handle stem (.csv, .jld2, .jls)")]
     plot_opts = [OUTPUT_OPTIONS; PLOT_OPTIONS]
     plot_flags = copy(PLOT_FLAGS)
-    col = OptionSpec(name="columns", short="c", type=String, default="",
+    col = OptionSpec(name="columns", type=String, default="",
                      description="Column indices, comma-separated (default: all numeric)")
 
     return [
@@ -44,7 +44,7 @@ function filter_specs()::Vector{CommandSpec}
             summary="Hamilton (2018) regression filter",
             args=data_arg,
             options=[
-                OptionSpec(name="horizon", type=Int, default=8, description="Forecast horizon"),
+                OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=8, description="Forecast horizon"),
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="Number of lags in regression"),
                 col, plot_opts...,
             ],
@@ -183,8 +183,12 @@ function _parse_columns(columns_str::String, n::Int)
     isempty(columns_str) && return collect(1:n)
     indices = Int[]
     for s in split(columns_str, ",")
-        idx = parse(Int, strip(s))
-        (idx < 1 || idx > n) && error("column index $idx out of range (data has $n numeric columns)")
+        ts = strip(s)
+        idx = tryparse(Int, ts)
+        idx === nothing && throw(CliError("usage/invalid",
+            "--columns must be comma-separated 1-based integers (got '$ts')"))
+        (idx < 1 || idx > n) && throw(CliError("data/column-range",
+            "column index $idx out of range (data has $n numeric columns)"))
         push!(indices, idx)
     end
     return indices
@@ -229,7 +233,8 @@ function _filter_hp(; data::String, lambda::Float64=1600.0, columns::String="",
         y = Y[:, ci]
         res = hp_filter(y; lambda=lambda)
         last_result = res
-        _maybe_plot(res; plot=plot, plot_save=isempty(plot_save) ? "" : _per_var_output_path(plot_save, vname))
+        ps = isempty(plot_save) ? "" : (length(col_idx) == 1 ? plot_save : _per_var_output_path(plot_save, vname))
+        _maybe_plot(res; plot=plot, plot_save=ps)
         t = trend(res)
         c = cycle(res)
         result_df[!, "$(vname)_trend"] = round.(t; digits=6)
@@ -270,7 +275,8 @@ function _filter_hamilton(; data::String, horizon::Int=8, lags::Int=4, columns::
         y = Y[:, ci]
         res = hamilton_filter(y; h=horizon, p=lags)
         last_result = res
-        _maybe_plot(res; plot=plot, plot_save=isempty(plot_save) ? "" : _per_var_output_path(plot_save, vname), original=y)
+        ps = isempty(plot_save) ? "" : (length(col_idx) == 1 ? plot_save : _per_var_output_path(plot_save, vname))
+        _maybe_plot(res; plot=plot, plot_save=ps, original=y)
         t = trend(res)
         c = cycle(res)
         vr = res.valid_range
@@ -337,7 +343,8 @@ function _filter_bn(; data::String, method::String="arima", p=nothing, q=nothing
             beveridge_nelson(y; kwargs...)
         end
         last_result = res
-        _maybe_plot(res; plot=plot, plot_save=isempty(plot_save) ? "" : _per_var_output_path(plot_save, vname))
+        ps = isempty(plot_save) ? "" : (length(col_idx) == 1 ? plot_save : _per_var_output_path(plot_save, vname))
+        _maybe_plot(res; plot=plot, plot_save=ps)
         t = trend(res)
         c = cycle(res)
         result_df[!, "$(vname)_trend"] = round.(t; digits=6)
@@ -378,7 +385,8 @@ function _filter_bk(; data::String, pl::Int=6, pu::Int=32, K::Int=12, columns::S
         y = Y[:, ci]
         res = baxter_king(y; pl=pl, pu=pu, K=K)
         last_result = res
-        _maybe_plot(res; plot=plot, plot_save=isempty(plot_save) ? "" : _per_var_output_path(plot_save, vname), original=y)
+        ps = isempty(plot_save) ? "" : (length(col_idx) == 1 ? plot_save : _per_var_output_path(plot_save, vname))
+        _maybe_plot(res; plot=plot, plot_save=ps, original=y)
         t = trend(res)
         c = cycle(res)
         vr = res.valid_range
@@ -438,7 +446,8 @@ function _filter_bhp(; data::String, lambda::Float64=1600.0, stopping::String="B
         y = Y[:, ci]
         res = boosted_hp(y; lambda=lambda, stopping=stop_sym, max_iter=max_iter, sig_p=sig_p)
         last_result = res
-        _maybe_plot(res; plot=plot, plot_save=isempty(plot_save) ? "" : _per_var_output_path(plot_save, vname))
+        ps = isempty(plot_save) ? "" : (length(col_idx) == 1 ? plot_save : _per_var_output_path(plot_save, vname))
+        _maybe_plot(res; plot=plot, plot_save=ps)
         t = trend(res)
         c = cycle(res)
         result_df[!, "$(vname)_trend"] = round.(t; digits=6)
@@ -529,8 +538,8 @@ function _filter_x13(; data::String,
             rethrow()
         end
 
-        _maybe_plot(res; plot=plot,
-                    plot_save=isempty(plot_save) ? "" : _per_var_output_path(plot_save, vname))
+        ps = isempty(plot_save) ? "" : (length(col_idx) == 1 ? plot_save : _per_var_output_path(plot_save, vname))
+        _maybe_plot(res; plot=plot, plot_save=ps)
 
         adj_df[!, vname] = round.(res.adjusted; digits=6)
         trend_df[!, vname] = round.(res.trend; digits=6)
@@ -557,13 +566,13 @@ function _filter_x13(; data::String,
     diag_df = DataFrame(diag_rows)
     output_result(adj_df; format=Symbol(format), output=output,
                   title="X-13 Seasonally Adjusted")
-    output_result(trend_df; format=Symbol(format), output=output,
+    output_result(trend_df; format=Symbol(format), output=_per_var_output_path(output, "trend"),
                   title="X-13 Trend")
-    output_result(seas_df; format=Symbol(format), output=output,
+    output_result(seas_df; format=Symbol(format), output=_per_var_output_path(output, "seasonal"),
                   title="X-13 Seasonal Factors")
-    output_result(irr_df; format=Symbol(format), output=output,
+    output_result(irr_df; format=Symbol(format), output=_per_var_output_path(output, "irregular"),
                   title="X-13 Irregular")
-    output_result(diag_df; format=Symbol(format), output=output,
+    output_result(diag_df; format=Symbol(format), output=_per_var_output_path(output, "diagnostics"),
                   title="X-13 Diagnostics")
     return last_result
 end

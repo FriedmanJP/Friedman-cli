@@ -51,7 +51,9 @@ All 12 built-in datasets can be passed directly to estimators via a leading colo
 | `:mroz` | Cross Section | `753 × 22` | Married women's labor supply for IV/2SLS, Probit/Logit, Tobit, and Heckman |
 | `:stackloss` | Cross Section | `21 × 4` | Ammonia plant loss data for robust M/MM regression and outlier diagnostics |
 
-When importing a raw CSV file via [`friedman data import`](@ref ref-data-import), declare the container kind (`--kind timeseries|panel|cross-section`) alongside `--frequency`, `--dates`, or `--id-col`/`--time-col`. Use [`friedman data export`](@ref ref-data-export) to drop metadata and write a flat CSV for external tools.
+When importing a raw CSV file via [`friedman data import`](@ref ref-data-import), declare the container kind (`--kind timeseries|panel|cross-section`) alongside `--frequency`, `--dates`, or `--id-col`/`--time-col`. Use [`friedman data export`](@ref ref-data-export) to serialize typed handles to flat CSV (dropping metadata) or write `.jld2`/`.jls`/`.fmod` targets with `-o`.
+
+Data transformation and cleaning utilities (`data load`, `fix`, `transform`, `balance`, `dropna`, `keeprows`, and `export`) never create unsolicited files in the current working directory: when `-o` is omitted they stream directly to stdout in the requested `--format`, and write output files (recorded in JSON `artifacts`) only when `-o` is explicitly passed. Pass `--vars` before `--transform` on [`friedman data load`](@ref ref-data-load) to subset columns cleanly prior to applying stored FRED transformation codes.
 
 ---
 
@@ -123,7 +125,7 @@ After running `data simulate`, use `sim_var` directly in [`friedman estimate mul
 ## Common Pitfalls
 
 1. **Passing `--kind` inconsistently on CSV import:** [`friedman data import`](@ref ref-data-import) requires `--kind panel` together with `--id-col` and `--time-col`; omitting them fails with exit `2` (`usage`), and `--kind cross-section` requires `--frequency other`.
-2. **Expecting frequency/tcodes in flat CSV exports:** [`friedman data export`](@ref ref-data-export) intentionally drops `:timeseries` frequency tags and FRED tcodes when serializing to CSV; keep a `.jld2` handle via `-o STEM` when passing series downstream.
+2. **Expecting frequency/tcodes in flat CSV exports:** [`friedman data export`](@ref ref-data-export) intentionally drops `:timeseries` frequency tags and FRED tcodes when serializing to CSV; keep a `.jld2` or `.jls` handle via `-o STEM.jld2` / `-o STEM.jls` (or omit `-o` to stream stdout) when preserving metadata downstream.
 3. **Mixing `data filter` and `filter`:** [`data filter`](@ref ref-data-filter) applies univariate trend-cycle decompositions (`hp`, `hamilton`, `bn`, `bk`, `bhp`) directly inside the `data` utility tree, whereas [`friedman filter`](@ref ref-filter) adds seasonal adjustment via [`filter x13`](@ref ref-filter-x13).
 4. **Using `--vars` on `:example` import vs `data load`:** Use [`friedman data load`](@ref ref-data-load) when subsetting a bundled dataset to CSV with `--vars` or applying stored FRED transforms (`-t`); import full typed handles cleanly with `data import :name -o STEM`.
 

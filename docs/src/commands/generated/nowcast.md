@@ -73,7 +73,7 @@ Nowcast via Dynamic Factor Model (EM algorithm)
 |--------|-------|------|---------|---------|-------------|
 | `--monthly-vars` | — | `Int64` | `0` | — | Number of monthly variables (first N columns) |
 | `--quarterly-vars` | — | `Int64` | `0` | — | Number of quarterly variables (remaining columns) |
-| `--factors` | `-r` | `Int64` | `2` | — | Number of factors |
+| `--factors` | — | `Int64` | `2` | — | Number of factors |
 | `--lags` | `-p` | `Int64` | `1` | — | Factor VAR lags |
 | `--idio` | — | `String` | `ar1` | — | Idiosyncratic component: ar1\|iid |
 | `--max-iter` | — | `Int64` | `100` | — | Maximum EM iterations |
@@ -103,7 +103,7 @@ Forecast from a nowcasting model
 | `--monthly-vars` | — | `Int64` | `0` | — | Number of monthly variables |
 | `--quarterly-vars` | — | `Int64` | `0` | — | Number of quarterly variables |
 | `--method` | — | `String` | `dfm` | `dfm`, `bvar`, `bridge` | dfm\|bvar\|bridge |
-| `--factors` | `-r` | `Int64` | `2` | — | Number of factors (DFM only; ignored by bvar/bridge) |
+| `--factors` | — | `Int64` | `2` | — | Number of factors (DFM only; ignored by bvar/bridge) |
 | `--lags` | `-p` | `Int64` | `1` | — | VAR lags: DFM factor dynamics or BVAR order (ignored by bridge) |
 | `--horizons` | — | `Int64` | `4` | — | Forecast horizon |
 | `--target-var` | — | `Int64` | `0` | — | Target variable index (0=last) |
@@ -130,7 +130,7 @@ Nowcast news decomposition (Banbura & Modugno 2014)
 | `--monthly-vars` | — | `Int64` | `0` | — | Number of monthly variables |
 | `--quarterly-vars` | — | `Int64` | `0` | — | Number of quarterly variables |
 | `--method` | — | `String` | `dfm` | `dfm`, `bvar` | dfm\|bvar |
-| `--factors` | `-r` | `Int64` | `2` | — | Number of factors (DFM only; ignored by bvar) |
+| `--factors` | — | `Int64` | `2` | — | Number of factors (DFM only; ignored by bvar) |
 | `--lags` | `-p` | `Int64` | `1` | — | VAR lags: DFM factor dynamics or BVAR order |
 | `--target-period` | — | `Int64` | `0` | — | Target period (0=last) |
 | `--target-var` | — | `Int64` | `0` | — | Target variable index (0=last) |

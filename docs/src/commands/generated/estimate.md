@@ -28,7 +28,7 @@ Fit binary logit regression by IRLS
 | `--clusters` | — | `String` | `""` | — | Cluster variable column name |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--maxiter` | — | `Int64` | `100` | — | Maximum IRLS iterations |
+| `--max-iter` | — | `Int64` | `100` | — | Maximum IRLS iterations |
 | `--tol` | — | `Float64` | `1.0e-8` | — | Convergence tolerance |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
@@ -59,7 +59,7 @@ Fit multinomial logit regression over unordered categories
 
 ### [`friedman estimate choice nbreg`](@id ref-estimate-choice-nbreg)
 
-Fit negative-binomial (NB2) count regression with an overdispersion parameter
+Fit negative-binomial (NB2) count regression by MLE with Fisher-information SEs (no --cov-type/--clusters)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -70,7 +70,7 @@ Fit negative-binomial (NB2) count regression with an overdispersion parameter
 | `--dep` | — | `String` | `""` | — | Dependent count column (default: first numeric column) |
 | `--offset` | — | `String` | `""` | — | Offset column, already on the log scale (exclusive with --exposure) |
 | `--exposure` | — | `String` | `""` | — | Exposure column, strictly positive; enters as log(exposure) |
-| `--maxiter` | — | `Int64` | `1000` | — | Maximum iterations (≥ 1) |
+| `--max-iter` | — | `Int64` | `1000` | — | Maximum iterations (≥ 1) |
 | `--tol` | — | `Float64` | `1.0e-10` | — | Convergence tolerance (> 0) |
 | `--conf-level` | — | `Float64` | `0.95` | — | Confidence level for the incidence-rate-ratio CI (0 < level < 1) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
@@ -142,7 +142,7 @@ Fit Poisson count regression by pseudo-ML (QMLE sandwich by default)
 | `--exposure` | — | `String` | `""` | — | Exposure column, strictly positive; enters as log(exposure) |
 | `--cov-type` | — | `String` | `robust` | `robust`, `mle`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | robust (QMLE sandwich, default), mle, hc0-hc3, cluster |
 | `--clusters` | — | `String` | `""` | — | Cluster variable column name |
-| `--maxiter` | — | `Int64` | `100` | — | Maximum IRLS iterations (≥ 1) |
+| `--max-iter` | — | `Int64` | `100` | — | Maximum IRLS iterations (≥ 1) |
 | `--tol` | — | `Float64` | `1.0e-10` | — | Convergence tolerance (> 0) |
 | `--conf-level` | — | `Float64` | `0.95` | — | Confidence level for the incidence-rate-ratio CI (0 < level < 1) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
@@ -172,7 +172,7 @@ Fit binary probit regression by IRLS
 | `--clusters` | — | `String` | `""` | — | Cluster variable column name |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--maxiter` | — | `Int64` | `100` | — | Maximum IRLS iterations |
+| `--max-iter` | — | `Int64` | `100` | — | Maximum IRLS iterations |
 | `--tol` | — | `Float64` | `1.0e-8` | — | Convergence tolerance |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
 
@@ -198,8 +198,8 @@ Dynamic factor model (two-step/EM) with IC count selection
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--nfactors` | `-r` | `Int64` | — | — | Number of factors (default: auto via IC1) |
-| `--factor-lags` | `-p` | `Int64` | `1` | — | Factor VAR lag order |
+| `--nfactors` | — | `Int64` | — | — | Number of factors (default: auto via IC1) |
+| `--factor-lags` | — | `Int64` | `1` | — | Factor VAR lag order |
 | `--method` | — | `String` | `twostep` | `twostep`, `em` | twostep\|em |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -245,8 +245,8 @@ Generalized dynamic factor model (FHLR) with static/dynamic rank selection
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--nfactors` | `-r` | `Int64` | — | — | Number of static factors (default: auto) |
-| `--dynamic-rank` | `-q` | `Int64` | — | — | Dynamic rank (default: auto) |
+| `--nfactors` | — | `Int64` | — | — | Number of static factors (default: auto) |
+| `--dynamic-rank` | — | `Int64` | — | — | Dynamic rank (default: auto) |
 | `--spectral` | — | `String` | `lag-window` | `lag-window`, `smoothed-periodogram` | Spectrum: lag-window (FHLR)\|smoothed-periodogram |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -278,7 +278,7 @@ Structural DFM (FGLR or legacy GDFM-VAR) with q auto-selection
 | `--spectral` | — | `String` | `lag-window` | `lag-window`, `smoothed-periodogram` | GDFM spectrum: lag-window (FHLR)\|smoothed-periodogram |
 | `--instrument` | — | `String` | `""` | — | Proxy-instrument CSV column (only with --id proxy) |
 | `--var-lags` | — | `Int64` | `1` | — | Factor VAR lag order |
-| `--horizon` | — | `Int64` | `40` | — | Structural IRF horizon |
+| `--horizons` | — | `Int64` | `40` | — | Structural IRF horizon |
 | `--config` | — | `String` | `""` | — | TOML config for sign/narrative checks and --id lewis-tvv\|sv-em knobs |
 | `--bandwidth` | — | `Int64` | `0` | — | Spectral bandwidth (0=auto) |
 | `--kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `tukey` | bartlett\|parzen\|tukey |
@@ -308,7 +308,7 @@ Static PCA factor model with Bai-Ng count selection
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--nfactors` | `-r` | `Int64` | — | — | Number of factors (default: auto via IC) |
+| `--nfactors` | — | `Int64` | — | — | Number of factors (default: auto via IC) |
 | `--criterion` | — | `String` | `ic1` | `ic1`, `ic2`, `ic3` | ic1\|ic2\|ic3 for auto selection |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -372,7 +372,7 @@ Factor-augmented VAR (two-step or Bayesian)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--factors` | `-r` | `Int64` | — | — | Number of factors (default: auto via IC) |
+| `--factors` | — | `Int64` | — | — | Number of factors (default: auto via IC) |
 | `--lags` | `-p` | `Int64` | `2` | — | VAR lag order |
 | `--key-vars` | — | `String` | `""` | — | Key variable names or indices (comma-separated) |
 | `--method` | — | `String` | `two_step` | `two_step`, `bayesian` | two_step\|bayesian |
@@ -563,7 +563,6 @@ Frequentist VAR(p) by OLS with AIC lag auto-selection
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto via AIC) |
-| `--trend` | — | `String` | `constant` | — | Deterministic terms (accepted but has no effect: the VAR always includes an intercept) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
@@ -671,7 +670,7 @@ Fit a dynamic heterogeneous-panel ARDL (PMG/MG/DFE)
 | `--trend` | — | `String` | `constant` | `none`, `constant`, `trend` | Per-unit EC deterministics: none\|constant\|trend |
 | `--p` | — | `Int64` | `1` | — | Autoregressive order (≥ 1) |
 | `--q` | — | `Int64` | `1` | — | Distributed-lag order for all regressors (≥ 0) |
-| `--maxiter` | — | `Int64` | `100` | — | PMG outer-loop max iterations |
+| `--max-iter` | — | `Int64` | `100` | — | PMG outer-loop max iterations |
 | `--tol` | — | `Float64` | `1.0e-8` | — | PMG outer-loop convergence tolerance |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -835,7 +834,8 @@ Fit K-state Markov-switching regression, all coefficients switch
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--no-switching-variance` | — | Force common σ² across regimes (default: σ² switches) |
+| `--switching-variance` | — | Let σ² switch across regimes (default for ms: on) |
+| `--no-switching-variance` | — | Force common σ² across regimes |
 | `--plot` | — | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
@@ -863,7 +863,8 @@ Fit Hamilton mean-switching MS-AR with common AR block
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--switching-variance` | — | Let σ² switch across regimes (default: off, Hamilton form) |
+| `--switching-variance` | — | Let σ² switch across regimes (default for ms-ar: off) |
+| `--no-switching-variance` | — | Force common σ² across regimes |
 | `--plot` | — | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
@@ -884,8 +885,8 @@ Fit two-regime self-exciting SETAR with Hansen CI
 | `--p` | — | `Int64` | `1` | — | AR order (≥ 1) |
 | `--d` | — | `String` | `1` | — | Delay lag: an integer ≥ 1, or 'auto' (=1:p grid) |
 | `--trim` | — | `Float64` | `0.15` | — | Trimming fraction for the threshold grid (0 < trim < 0.5) |
-| `--reps` | — | `Int64` | `1000` | — | Bootstrap replications for the linearity test (>= 1) |
-| `--ci-level` | — | `Float64` | `0.95` | `0.90`, `0.95`, `0.99` | Threshold CI level: 0.90\|0.95\|0.99 |
+| `--draws` | — | `Int64` | `1000` | — | Bootstrap replications for the linearity test (>= 1) |
+| `--conf-level` | — | `Float64` | `0.95` | `0.90`, `0.95`, `0.99` | Threshold CI level: 0.90\|0.95\|0.99 |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
@@ -944,8 +945,8 @@ Fit threshold regression splitting the sample at gamma
 | `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
 | `--threshold-col` | — | `String` | `""` | — | Required: the variable that splits the sample (excluded from the regressors) |
 | `--trim` | — | `Float64` | `0.15` | — | Trimming fraction for the threshold grid (0 < trim < 0.5) |
-| `--reps` | — | `Int64` | `1000` | — | Bootstrap replications for the linearity test (≥ 1) |
-| `--ci-level` | — | `Float64` | `0.95` | `0.90`, `0.95`, `0.99` | Threshold CI level: 0.90\|0.95\|0.99 |
+| `--draws` | — | `Int64` | `1000` | — | Bootstrap replications for the linearity test (≥ 1) |
+| `--conf-level` | — | `Float64` | `0.95` | `0.90`, `0.95`, `0.99` | Threshold CI level: 0.90\|0.95\|0.99 |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
@@ -1245,7 +1246,7 @@ Non-Gaussian SVAR identification by ML over Student-t/mixture/PML/skew-normal sh
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto via AIC) |
-| `--distribution` | `-d` | `String` | `student_t` | `student_t`, `mixture_normal`, `pml`, `skew_normal` | student_t\|mixture_normal\|pml\|skew_normal |
+| `--distribution` | — | `String` | `student_t` | `student_t`, `mixture_normal`, `pml`, `skew_normal` | student_t\|mixture_normal\|pml\|skew_normal |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
@@ -1295,7 +1296,7 @@ Regression discontinuity (Calonico-Cattaneo-Titiunik)
 | `--bias-bandwidth` | — | `Float64` | `0.0` | — | Bias bandwidth b (0 = CCT auto-selection) |
 | `--kernel` | — | `String` | `triangular` | `triangular`, `epanechnikov`, `uniform` | triangular\|epanechnikov\|uniform |
 | `--order` | — | `Int64` | `1` | — | Local polynomial order (>= 1) |
-| `--level` | — | `Float64` | `0.95` | — | Confidence level in (0,1) |
+| `--conf-level` | — | `Float64` | `0.95` | — | Confidence level in (0,1) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
@@ -1628,7 +1629,7 @@ Fit MIDAS mixed-frequency regression of LF target on HF lags
 | `--weights` | — | `String` | `expalmon` | `expalmon`, `beta2`, `beta3`, `almon`, `umidas` | Weight scheme: expalmon\|beta2\|beta3\|almon\|umidas |
 | `--p-ar` | — | `Int64` | `0` | — | Autoregressive lags of the target (ADL-MIDAS, ≥ 0) |
 | `--poly-degree` | — | `Int64` | `2` | — | Polynomial degree for --weights almon |
-| `--horizon` | — | `Int64` | `1` | — | Direct forecast horizon h stored in the model (1 = nowcast) |
+| `--horizons` | — | `Int64` | `1` | — | Direct forecast horizon h stored in the model (1 = nowcast) |
 | `--max-iter` | — | `Int64` | `500` | — | Optimizer iteration cap (forwarded as max_iter) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -1656,9 +1657,9 @@ Fit asymmetric NARDL with theta+/theta- and dynamic multipliers
 | `--max-q` | — | `Int64` | `4` | — | Max DL order for auto IC selection |
 | `--ic` | — | `String` | `aic` | `aic`, `bic` | Selection criterion: aic\|bic |
 | `--case` | — | `Int64` | `3` | — | Pesaran-Shin-Smith deterministic case (1..5) |
-| `--horizon` | — | `Int64` | `12` | — | Max cumulative-multiplier horizon H (≥ 0) |
+| `--horizons` | — | `Int64` | `12` | — | Max cumulative-multiplier horizon H (≥ 0) |
 | `--nreps` | — | `Int64` | `500` | — | Bootstrap replications for multiplier bands (0 = no bands) |
-| `--level` | — | `Float64` | `0.95` | — | Bootstrap band coverage level |
+| `--conf-level` | — | `Float64` | `0.95` | — | Bootstrap band coverage level |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |

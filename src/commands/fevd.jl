@@ -25,7 +25,7 @@ function fevd_specs()::Vector{CommandSpec}
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto)"),
                 OptionSpec(name="horizons", type=Int, default=20, description="Forecast horizon"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|arias|uhlig|proxy|max-share|gmm-moments|narrative-adrr|lewis-tvv|sv-em|fastica|jade|sobi|dcov|hsic|student_t|mixture_normal|pml|skew_normal|markov_switching|garch_id"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|arias|uhlig|proxy|max-share|gmm-moments|narrative-adrr|lewis-tvv|sv-em|fastica|jade|sobi|dcov|hsic|student-t|mixture-normal|pml|skew-normal|markov-switching|garch-id"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
                 OptionSpec(name="instrument", type=String, default="", description="Proxy-instrument CSV column (only with --id proxy)"),
                 OptionSpec(name="target-var", type=String, default="", description="Max-share target: column name or 1-based index (only with --id max-share)"),
@@ -51,7 +51,7 @@ function fevd_specs()::Vector{CommandSpec}
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="Lag order"),
                 OptionSpec(name="horizons", type=Int, default=20, description="Forecast horizon"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|fastica|jade|sobi|dcov|hsic|student_t|mixture_normal|pml|skew_normal|markov_switching|garch_id|uhlig|lewis-tvv|sv-em"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|fastica|jade|sobi|dcov|hsic|student-t|mixture-normal|pml|skew-normal|markov-switching|garch-id|uhlig|lewis-tvv|sv-em"),
                 OptionSpec(name="draws", short="n", type=Int, default=2000, description="Posterior draws"),
                 OptionSpec(name="sampler", type=String, default="direct", description="direct|gibbs"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification/prior"),
@@ -74,7 +74,7 @@ function fevd_specs()::Vector{CommandSpec}
                 OptionSpec(name="horizons", type=Int, default=20, description="Forecast horizon"),
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="LP control lags"),
                 OptionSpec(name="var-lags", type=Int, default=nothing, description="VAR lag order for identification (default: same as --lags)"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|fastica|jade|sobi|dcov|hsic|student_t|mixture_normal|pml|skew_normal|markov_switching|garch_id|uhlig|lewis-tvv|sv-em"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|fastica|jade|sobi|dcov|hsic|student-t|mixture-normal|pml|skew-normal|markov-switching|garch-id|uhlig|lewis-tvv|sv-em"),
                 OptionSpec(name="vcov", type=String, default="newey_west", description="newey_west|white|driscoll_kraay"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -97,7 +97,7 @@ function fevd_specs()::Vector{CommandSpec}
                 OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
                 OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
                 OptionSpec(name="horizons", type=Int, default=20, description="Forecast horizon"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|fastica|jade|sobi|dcov|hsic|student_t|mixture_normal|pml|skew_normal|markov_switching|garch_id|uhlig|lewis-tvv|sv-em|svec (uhlig: generic path)"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|fastica|jade|sobi|dcov|hsic|student-t|mixture-normal|pml|skew-normal|markov-switching|garch-id|uhlig|lewis-tvv|sv-em|svec (uhlig: generic path)"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -135,7 +135,7 @@ function fevd_specs()::Vector{CommandSpec}
             summary="FAVAR forecast error variance decomposition",
             args=[ArgSpec(name="data", description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
-                OptionSpec(name="factors", short="r", type=Int, default=nothing, description="Number of factors"),
+                OptionSpec(name="factors", type=Int, default=nothing, description="Number of factors"),
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="VAR lag order"),
                 OptionSpec(name="key-vars", type=String, default="", description="Key variable names or indices"),
                 OptionSpec(name="horizons", type=Int, default=20, description="FEVD horizon"),
@@ -251,9 +251,17 @@ function _fevd_var(; data::String="", result=nothing, model=nothing, lags=nothin
             isempty(get(get(cfg2, "identification", Dict()), "narrative_contributions", [])) &&
                 throw(CliError("usage/missing",
                     "fevd var: --id narrative-adrr requires [identification.narrative_contributions] in --config (ADRR Type A/B)"))
-            arias_result = identify_narrative(model, restrictions, horizons; _fwd_seed()...)
+            arias_result = try
+                identify_narrative(model, restrictions, horizons; _fwd_seed()...)
+            catch e
+                throw(_domain_or_data_error(e, "Narrative-ADRR FEVD"))
+            end
         else
-            arias_result = identify_arias(model, restrictions, horizons; _fwd_seed()...)
+            arias_result = try
+                identify_arias(model, restrictions, horizons; _fwd_seed()...)
+            catch e
+                throw(_domain_or_data_error(e, "Arias FEVD"))
+            end
         end
         irf_vals = irf_mean(arias_result)  # H x n x n
         n_h = size(irf_vals, 1)
@@ -285,11 +293,15 @@ function _fevd_var(; data::String="", result=nothing, model=nothing, lags=nothin
         cfg, restrictions = _load_svar_restrictions(config, n, "Uhlig")
         uhlig_params = get_uhlig_params(cfg)
         scale = _validate_uhlig_scale(uhlig_params["scale"], n, "fevd var")
-        uhlig_result = identify_uhlig(model, restrictions, horizons;
-            n_starts=uhlig_params["n_starts"], n_refine=uhlig_params["n_refine"],
-            max_iter_coarse=uhlig_params["max_iter_coarse"], max_iter_fine=uhlig_params["max_iter_fine"],
-            tol_coarse=uhlig_params["tol_coarse"], tol_fine=uhlig_params["tol_fine"],
-            scale=scale, _fwd_seed()...)
+        uhlig_result = try
+            identify_uhlig(model, restrictions, horizons;
+                n_starts=uhlig_params["n_starts"], n_refine=uhlig_params["n_refine"],
+                max_iter_coarse=uhlig_params["max_iter_coarse"], max_iter_fine=uhlig_params["max_iter_fine"],
+                tol_coarse=uhlig_params["tol_coarse"], tol_fine=uhlig_params["tol_fine"],
+                scale=scale, _fwd_seed()...)
+        catch e
+            throw(_domain_or_data_error(e, "Uhlig FEVD"))
+        end
         irf_vals = uhlig_result.irf  # H x n x n
         n_h = size(irf_vals, 1)
         # Compute FEVD proportions from structural IRFs
@@ -324,7 +336,11 @@ function _fevd_var(; data::String="", result=nothing, model=nothing, lags=nothin
             _status("--config ignored: generalized FEVD imposes no identification")
         id == "cholesky" || _status("--id $id ignored: generalized FEVD imposes no " *
                                     "identification")
-        fevd_result = generalized_fevd(model, horizons; normalize=normalize)
+        fevd_result = try
+            generalized_fevd(model, horizons; normalize=normalize)
+        catch e
+            throw(_domain_or_data_error(e, "Generalized FEVD"))
+        end
         _status_report(() -> report(fevd_result))
         _maybe_plot(fevd_result; plot=plot, plot_save=plot_save)
         # THE shares do NOT sum to 1 across shocks unless --normalize is given: the
@@ -343,7 +359,11 @@ function _fevd_var(; data::String="", result=nothing, model=nothing, lags=nothin
     kwargs = _build_identification_kwargs(id, config; methods=_ID_METHODS_VAR,
                                               nvars=length(varnames), leaf="fevd var")
     _inject_svar_id_kwargs!(kwargs, id, "fevd var", data, varnames, instrument, target_var)
-    fevd_result = fevd(model, horizons; kwargs...)
+    fevd_result = try
+        fevd(model, horizons; kwargs...)
+    catch e
+        throw(_domain_or_data_error(e, "VAR FEVD"))
+    end
 
     _status_report(() -> report(fevd_result))
 
@@ -389,8 +409,16 @@ function _fevd_bvar(; data::String="", result=nothing, lags::Int=4, horizons::In
     # against the base map and thread like the irf/hd bvar siblings.
     method = _identification_method(id, ID_METHOD_MAP, "fevd bvar")
     bfevd_kwargs = _id_knob_kwargs(id, config, n, "fevd bvar")
-    bfevd = fevd(post, horizons;
-        method=method, quantiles=[0.16, 0.5, 0.84], bfevd_kwargs...)
+    check_func, narrative_check = _build_check_func(config; nvars=n)
+    _check_sign_narrative_config_match(id, config, check_func, narrative_check, "fevd bvar")
+    !isnothing(check_func) && (bfevd_kwargs[:check_func] = check_func)
+    !isnothing(narrative_check) && (bfevd_kwargs[:narrative_check] = narrative_check)
+    bfevd = try
+        fevd(post, horizons;
+            method=method, quantiles=[0.16, 0.5, 0.84], bfevd_kwargs...)
+    catch e
+        throw(_domain_or_data_error(e, "BVAR FEVD"))
+    end
 
     _status_report(() -> report(bfevd))
 
@@ -428,7 +456,11 @@ function _fevd_lp(; data::String="", result=nothing, horizons::Int=20, lags::Int
     _status("Computing LP FEVD: horizons=$horizons, id=$id")
     _status()
 
-    fevd_result = lp_fevd(slp, horizons)
+    fevd_result = try
+        lp_fevd(slp, horizons)
+    catch e
+        throw(_domain_or_data_error(e, "LP FEVD"))
+    end
 
     _maybe_plot(fevd_result; plot=plot, plot_save=plot_save)
 
@@ -493,7 +525,11 @@ function _fevd_vecm(; data::String="", result=nothing, lags::Int=2, rank::String
     else
         kwargs = _build_identification_kwargs(id, config; methods=_ID_METHODS_VECM,
                                                   nvars=n, leaf="fevd vecm")
-        fevd_result = fevd(var_model, horizons; kwargs...)
+        fevd_result = try
+            fevd(var_model, horizons; kwargs...)
+        catch e
+            throw(_domain_or_data_error(e, "VECM FEVD"))
+        end
     end
 
     _status_report(() -> report(fevd_result))
@@ -530,7 +566,11 @@ function _fevd_pvar(; data::String="", result=nothing, id_col::String="", time_c
     # MEMs 0.7.0 (C054): pvar_fevd now returns a raw (H+1)×n×n array indexed
     # [horizon, variable, shock] (was a struct with `.proportions`). Permute to
     # [variable, shock, horizon] and drop horizon 0 to keep the 1..H tables.
-    fevd_arr = pvar_fevd(model, horizons)
+    fevd_arr = try
+        pvar_fevd(model, horizons)
+    catch e
+        throw(_domain_or_data_error(e, "Panel VAR FEVD"))
+    end
 
     _maybe_plot(fevd_arr; plot=plot, plot_save=plot_save)
 
@@ -565,7 +605,11 @@ function _fevd_favar(; data::String="", result=nothing, factors=nothing, lags::I
     _status("FAVAR FEVD: horizon=$horizons, id=$id")
     _status()
 
-    result = fevd(favar, horizons; id_kwargs...)
+    result = try
+        fevd(favar, horizons; id_kwargs...)
+    catch e
+        throw(_domain_or_data_error(e, "FAVAR FEVD"))
+    end
     _maybe_plot(result; plot=plot, plot_save=plot_save)
 
     # C051: tidy long_table (horizon|variable|shock|value); fevd(favar,...) delegates to
@@ -602,7 +646,11 @@ function _fevd_sdfm(; data::String="", result=nothing, factors=nothing, id::Stri
     _status("SDFM FEVD: id=$id, method=$method, horizon=$horizons")
     _status()
 
-    result = fevd(sdfm, horizons)
+    result = try
+        fevd(sdfm, horizons)
+    catch e
+        throw(_domain_or_data_error(e, "SDFM FEVD"))
+    end
     _maybe_plot(result; plot=plot, plot_save=plot_save)
 
     # C051: tidy long_table (horizon|variable|shock|value); fevd(sdfm,...) delegates to

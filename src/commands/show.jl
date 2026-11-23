@@ -5,7 +5,26 @@ function _show_handle(; path::String="", data::String="",
                        plot::Bool=false, plot_save::String="")
     p = !isempty(path) ? path : data
     isempty(p) && throw(CliError("usage/missing-arg", "show requires a handle stem"))
-    obj = load_model_dispatch(resolve_stem(p; slot=:result))
+    if startswith(p, ":") || endswith(lowercase(_expanduser(p)), ".csv")
+        df = load_data(p)
+        output_result(df; format=Symbol(format), output=output,
+                      title="Data Preview ($(nrow(df))×$(ncol(df)))", key="show_payload")
+        _maybe_plot(df; plot=plot, plot_save=plot_save)
+        return df
+    end
+    resolved = try
+        resolve_stem(p; slot=:result)
+    catch e
+        if e isa CliError && e.code == "data/file-not-found" && isfile(_expanduser(p) * ".csv")
+            df = load_data(_expanduser(p) * ".csv")
+            output_result(df; format=Symbol(format), output=output,
+                          title="Data Preview ($(nrow(df))×$(ncol(df)))", key="show_payload")
+            _maybe_plot(df; plot=plot, plot_save=plot_save)
+            return df
+        end
+        rethrow()
+    end
+    obj = load_model_dispatch(resolved)
     if obj isa AbstractDict
         keys_ = sort!(collect(keys(obj)))
         types = [string(nameof(typeof(obj[k]))) for k in keys_]
@@ -32,6 +51,11 @@ function _show_handle(; path::String="", data::String="",
                 max=summary.max, skewness=summary.skewness, kurtosis=summary.kurtosis,
             ); format=Symbol(format), output=output, title="Descriptive Statistics",
                key="show_payload")
+        elseif k === :tabular
+            tbl = _coerce_tabular_dataframe(obj, resolved)
+            output_result(tbl; format=Symbol(format), output=output,
+                          title="Data Preview ($(nrow(tbl))×$(ncol(tbl)))",
+                          key="show_payload")
         else
             tbl = try
                 long_table(obj)

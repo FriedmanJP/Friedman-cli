@@ -19,7 +19,7 @@ Bewley-bank MIT IRF (variable names from the ImpulseResponse)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizon` | — | `Int64` | `20` | — | IRF horizon (≥ 2) |
+| `--horizons` | — | `Int64` | `20` | — | IRF horizon (≥ 2) |
 | `--shock-size` | — | `Float64` | `0.01` | — | TFP impulse size |
 | `--persist` | — | `Float64` | `0.5` | — | AR(1) persistence decay |
 | `--n-n` | — | `Int64` | `25` | — | Net-worth grid points (≥ 3) |
@@ -120,7 +120,7 @@ FEVD from the CT MIT impulse (single TFP shock)
 | `--sigma` | — | `Float64` | `2.0` | — | CRRA risk aversion |
 | `--delta` | — | `Float64` | `0.05` | — | Depreciation |
 | `--z` | — | `Float64` | `1.0` | — | TFP level |
-| `--horizon` | — | `Int64` | `40` | — | FEVD horizon (≥ 2) |
+| `--horizons` | — | `Int64` | `40` | — | FEVD horizon (≥ 2) |
 | `--shock-size` | — | `Float64` | `0.01` | — | TFP impulse size |
 | `--persist` | — | `Float64` | `0.0` | — | AR(1) decay of the TFP impulse |
 | `--dt` | — | `Float64` | `0.25` | — | Time step |
@@ -147,7 +147,7 @@ MIT impulse response of CT Aiyagari or two-asset GE
 | `--sigma` | — | `Float64` | `2.0` | — | CRRA risk aversion |
 | `--delta` | — | `Float64` | `0.05` | — | Depreciation |
 | `--z` | — | `Float64` | `1.0` | — | TFP level |
-| `--horizon` | — | `Int64` | `40` | — | IRF horizon (≥ 2) |
+| `--horizons` | — | `Int64` | `40` | — | IRF horizon (≥ 2) |
 | `--shock-size` | — | `Float64` | `0.01` | — | TFP impulse size |
 | `--persist` | — | `Float64` | `0.0` | — | AR(1) decay of the TFP impulse |
 | `--dt` | — | `Float64` | `0.25` | — | Time step |
@@ -245,7 +245,7 @@ FEVD of a DCEGM equilibrium (single TFP shock)
 | `--alpha` | — | `Float64` | `0.36` | — | Firm capital share |
 | `--delta` | — | `Float64` | `0.08` | — | Firm depreciation |
 | `--z` | — | `Float64` | `1.0` | — | Firm TFP |
-| `--horizon` | — | `Int64` | `40` | — | FEVD horizon (≥ 2) |
+| `--horizons` | — | `Int64` | `40` | — | FEVD horizon (≥ 2) |
 | `--shock-size` | — | `Float64` | `0.01` | — | TFP impulse size |
 | `--persist` | — | `Float64` | `0.0` | — | AR(1) decay of the TFP impulse |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
@@ -276,7 +276,7 @@ MIT IRF of a DCEGM equilibrium (needs GE, not DCEGMSolution)
 | `--alpha` | — | `Float64` | `0.36` | — | Firm capital share |
 | `--delta` | — | `Float64` | `0.08` | — | Firm depreciation |
 | `--z` | — | `Float64` | `1.0` | — | Firm TFP |
-| `--horizon` | — | `Int64` | `40` | — | IRF horizon (≥ 2) |
+| `--horizons` | — | `Int64` | `40` | — | IRF horizon (≥ 2) |
 | `--shock-size` | — | `Float64` | `0.01` | — | TFP impulse size |
 | `--persist` | — | `Float64` | `0.0` | — | AR(1) decay of the TFP impulse |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
@@ -370,6 +370,7 @@ DCEGM capital-market equilibrium (dcegm_steady_state)
 | `--disutility` | — | `Float64` | `1.0` | — | Work disutility |
 | `--sigma` | — | `Float64` | `0.0` | — | Income-shock s.d. |
 | `--n-shocks` | — | `Int64` | `1` | — | Income quadrature nodes (≥ 1) |
+| `--taste-shock-scale` | — | `Float64` | `0.1` | — | Taste-shock scale for smooth discrete-choice probabilities (≥ 0) |
 | `--a-max` | — | `Float64` | `50.0` | — | Asset grid upper bound |
 | `--n-a` | — | `Int64` | `200` | — | Asset grid points |
 | `--pension` | — | `Float64` | `0.0` | — | Retirement income |
@@ -433,7 +434,7 @@ Khan–Thomas MIT IRF of Y, I, K, N, C, Z
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizon` | — | `Int64` | `20` | — | IRF horizon (≥ 2) |
+| `--horizons` | — | `Int64` | `20` | — | IRF horizon (≥ 2) |
 | `--shock-size` | — | `Float64` | `0.01` | — | TFP impulse size |
 | `--persist` | — | `Float64` | `NaN` | — | AR(1) decay (NaN = firm.rho_z) |
 | `--prices` | — | `String` | `ss` | `ss`, `ge` | Hold (w,p) at SS or iterate GE wages |
@@ -512,7 +513,7 @@ FEVD of a life-cycle OLG steady state
 | `--j-retire` | — | `Int64` | `30` | — | Retirement age |
 | `--n-a` | — | `Int64` | `40` | — | Asset grid points |
 | `--income-states` | — | `Int64` | `3` | — | Income states |
-| `--horizon` | — | `Int64` | `20` | — | FEVD horizon (≥ 2) |
+| `--horizons` | — | `Int64` | `20` | — | FEVD horizon (≥ 2) |
 | `--shock-size` | — | `Float64` | `0.01` | — | TFP impulse size |
 | `--persist` | — | `Float64` | `0.0` | — | AR(1) decay of the TFP impulse |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
@@ -535,7 +536,7 @@ MIT IRF of a life-cycle OLG steady state
 | `--j-retire` | — | `Int64` | `30` | — | Retirement age |
 | `--n-a` | — | `Int64` | `40` | — | Asset grid points |
 | `--income-states` | — | `Int64` | `3` | — | Income states |
-| `--horizon` | — | `Int64` | `20` | — | IRF horizon (≥ 2) |
+| `--horizons` | — | `Int64` | `20` | — | IRF horizon (≥ 2) |
 | `--shock-size` | — | `Float64` | `0.01` | — | TFP impulse size |
 | `--persist` | — | `Float64` | `0.0` | — | AR(1) decay of the TFP impulse |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
@@ -627,7 +628,7 @@ Life-cycle OLG perfect-foresight transition (--k0 XOR --z-path)
 | `--config` | — | `String` | `""` | — | TOML with [lifecycle] survival/earnings vectors |
 | `--k0` | — | `Float64` | `NaN` | — | Initial capital (XOR --z-path) |
 | `--z-path` | — | `String` | `""` | — | CSV of TFP path (length ≥ 3; XOR --k0) |
-| `--horizon` | — | `Int64` | `80` | — | Transition horizon H (ignored when --z-path is set) |
+| `--horizons` | — | `Int64` | `80` | — | Transition horizon H (ignored when --z-path is set) |
 | `--tol` | — | `Float64` | `1.0e-5` | — | Shooting tolerance |
 | `--max-iter` | — | `Int64` | `80` | — | Shooting iterations |
 | `--relax` | — | `Float64` | `0.5` | — | Damping on the capital update |
@@ -658,7 +659,7 @@ Blanchard OLG FEVD via to_spec (TFP; NK adds monetary)
 | `--debt` | — | `Float64` | `0.0` | — | Government debt b |
 | `--rho-z` | — | `Float64` | `0.0` | — | TFP persistence |
 | `--sigma-z` | — | `Float64` | `0.0` | — | TFP shock scale |
-| `--horizon` | — | `Int64` | `40` | — | FEVD horizon |
+| `--horizons` | — | `Int64` | `40` | — | FEVD horizon |
 | `--kappa` | — | `Float64` | `0.1` | — | NK Phillips slope (--nk) |
 | `--phi-pi` | — | `Float64` | `1.5` | — | NK Taylor φπ (--nk) |
 | `--phi-y` | — | `Float64` | `0.125` | — | NK Taylor φy (--nk) |
@@ -690,7 +691,7 @@ Blanchard OLG IRF via to_spec (TFP; NK adds monetary)
 | `--debt` | — | `Float64` | `0.0` | — | Government debt b |
 | `--rho-z` | — | `Float64` | `0.0` | — | TFP persistence |
 | `--sigma-z` | — | `Float64` | `0.0` | — | TFP shock scale |
-| `--horizon` | — | `Int64` | `40` | — | IRF horizon |
+| `--horizons` | — | `Int64` | `40` | — | IRF horizon |
 | `--shock-size` | — | `Float64` | `1.0` | — | Shock size (std devs) |
 | `--kappa` | — | `Float64` | `0.1` | — | NK Phillips slope (--nk) |
 | `--phi-pi` | — | `Float64` | `1.5` | — | NK Taylor φπ (--nk) |
@@ -722,7 +723,7 @@ Blanchard OLG transitional dynamics from k0 along the saddle path
 | `--z` | — | `Float64` | `1.0` | — | Total factor productivity (TFP) level |
 | `--debt` | — | `Float64` | `0.0` | — | Government debt b |
 | `--k0` | — | `Float64` | `0.0` | — | Initial capital (0 = 80% of steady-state k) |
-| `--horizon` | — | `Int64` | `50` | — | Transition periods H |
+| `--horizons` | — | `Int64` | `50` | — | Transition periods H |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
@@ -773,7 +774,7 @@ Estimate two DSGE models with Bayesian sampling and compare log marginal likelih
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
-| `--n-draws` | — | `Int64` | `10000` | — | Total posterior draws |
+| `--draws` | — | `Int64` | `10000` | — | Total posterior draws |
 | `--burnin` | — | `Int64` | `5000` | — | Burn-in draws |
 | `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
@@ -814,7 +815,7 @@ Estimate a DSGE model with Bayesian sampling and report the posterior
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
-| `--n-draws` | — | `Int64` | `10000` | — | Total posterior draws |
+| `--draws` | — | `Int64` | `10000` | — | Total posterior draws |
 | `--burnin` | — | `Int64` | `5000` | — | Burn-in draws |
 | `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
@@ -853,7 +854,7 @@ Estimate a DSGE model with Bayesian sampling and report posterior-mean FEVD
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
-| `--n-draws` | — | `Int64` | `10000` | — | Total posterior draws |
+| `--draws` | — | `Int64` | `10000` | — | Total posterior draws |
 | `--burnin` | — | `Int64` | `5000` | — | Burn-in draws |
 | `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
@@ -865,7 +866,7 @@ Estimate a DSGE model with Bayesian sampling and report posterior-mean FEVD
 | `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--horizon` | — | `Int64` | `40` | — | FEVD horizon |
+| `--horizons` | — | `Int64` | `40` | — | FEVD horizon |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 
 | Flag | Short | Description |
@@ -894,7 +895,7 @@ Estimate a DSGE model with Bayesian sampling and report the posterior-mean histo
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
-| `--n-draws` | — | `Int64` | `10000` | — | Total posterior draws |
+| `--draws` | — | `Int64` | `10000` | — | Total posterior draws |
 | `--burnin` | — | `Int64` | `5000` | — | Burn-in draws |
 | `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
 | `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
@@ -908,7 +909,7 @@ Estimate a DSGE model with Bayesian sampling and report the posterior-mean histo
 | `--observables` | — | `String` | `""` | — | Observable variable names, comma-separated (required — no default) |
 | `--n-hd-draws` | — | `Int64` | `200` | — | Number of posterior draws for HD |
 | `--quantiles` | — | `String` | `0.16,0.5,0.84` | — | Quantile levels |
-| `--horizon` | — | `Int64` | `40` | — | Horizon (accepted but not used: historical decomposition has no horizon setting) |
+| `--horizons` | — | `Int64` | `40` | — | Horizon (accepted but not used: historical decomposition has no horizon setting) |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 
 | Flag | Short | Description |
@@ -958,7 +959,7 @@ Estimate a DSGE model with Bayesian sampling and report posterior-mean IRFs
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
-| `--n-draws` | — | `Int64` | `10000` | — | Total posterior draws |
+| `--draws` | — | `Int64` | `10000` | — | Total posterior draws |
 | `--burnin` | — | `Int64` | `5000` | — | Burn-in draws |
 | `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
@@ -970,7 +971,7 @@ Estimate a DSGE model with Bayesian sampling and report posterior-mean IRFs
 | `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--horizon` | — | `Int64` | `40` | — | IRF horizon |
+| `--horizons` | — | `Int64` | `40` | — | IRF horizon |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
 
 | Flag | Short | Description |
@@ -999,7 +1000,7 @@ Estimate a DSGE model with Bayesian sampling and run the Koop-Pesaran-Smith lear
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
-| `--n-draws` | — | `Int64` | `10000` | — | Total posterior draws |
+| `--draws` | — | `Int64` | `10000` | — | Total posterior draws |
 | `--burnin` | — | `Int64` | `5000` | — | Burn-in draws |
 | `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
@@ -1040,7 +1041,7 @@ Estimate a DSGE model with Bayesian sampling and report bridge-sampling and SMC 
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
-| `--n-draws` | — | `Int64` | `10000` | — | Total posterior draws |
+| `--draws` | — | `Int64` | `10000` | — | Total posterior draws |
 | `--burnin` | — | `Int64` | `5000` | — | Burn-in draws |
 | `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
@@ -1080,7 +1081,7 @@ Estimate a DSGE model with Bayesian sampling and report MCMC convergence diagnos
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
-| `--n-draws` | — | `Int64` | `10000` | — | Total posterior draws |
+| `--draws` | — | `Int64` | `10000` | — | Total posterior draws |
 | `--burnin` | — | `Int64` | `5000` | — | Burn-in draws |
 | `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
@@ -1118,7 +1119,7 @@ Estimate a DSGE model with Bayesian sampling and report prior-posterior overlap 
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
-| `--n-draws` | — | `Int64` | `10000` | — | Total posterior draws |
+| `--draws` | — | `Int64` | `10000` | — | Total posterior draws |
 | `--burnin` | — | `Int64` | `5000` | — | Burn-in draws |
 | `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
@@ -1185,7 +1186,7 @@ Estimate a DSGE model with Bayesian sampling and report the posterior predictive
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
-| `--n-draws` | — | `Int64` | `10000` | — | Total posterior draws |
+| `--draws` | — | `Int64` | `10000` | — | Total posterior draws |
 | `--burnin` | — | `Int64` | `5000` | — | Burn-in draws |
 | `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
@@ -1227,7 +1228,7 @@ Draw from the DSGE prior and report the prior predictive distribution without da
 | `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
-| `--n-draws` | — | `Int64` | `500` | — | Total posterior draws |
+| `--draws` | — | `Int64` | `500` | — | Total posterior draws |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--periods` | — | `Int64` | `200` | — | Periods to simulate per draw (≥ 1) |
@@ -1251,7 +1252,7 @@ Estimate a DSGE model with Bayesian sampling and report posterior-mean simulated
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
-| `--n-draws` | — | `Int64` | `10000` | — | Total posterior draws |
+| `--draws` | — | `Int64` | `10000` | — | Total posterior draws |
 | `--burnin` | — | `Int64` | `5000` | — | Burn-in draws |
 | `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
@@ -1292,7 +1293,7 @@ Estimate a DSGE model with Bayesian sampling and report the posterior summary wi
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
 | `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
-| `--n-draws` | — | `Int64` | `10000` | — | Total posterior draws |
+| `--draws` | — | `Int64` | `10000` | — | Total posterior draws |
 | `--burnin` | — | `Int64` | `5000` | — | Burn-in draws |
 | `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
@@ -1391,7 +1392,7 @@ Decompose the DSGE forecast-error variance by shock
 | `--max-iter` | — | `Int64` | `0` | — | VFI/PFI max iterations (0 = default 500) |
 | `--damping` | — | `Float64` | `0.0` | — | VFI/PFI mixing factor (0 = default 1.0) |
 | `--anderson-m` | — | `Int64` | `0` | — | PFI Anderson acceleration memory (PFI only) |
-| `--horizon` | — | `Int64` | `40` | — | FEVD horizon |
+| `--horizons` | — | `Int64` | `40` | — | FEVD horizon |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
@@ -1472,7 +1473,7 @@ Compute DSGE impulse responses to each structural shock
 | `--max-iter` | — | `Int64` | `0` | — | VFI/PFI max iterations (0 = default 500) |
 | `--damping` | — | `Float64` | `0.0` | — | VFI/PFI mixing factor (0 = default 1.0) |
 | `--anderson-m` | — | `Int64` | `0` | — | PFI Anderson acceleration memory (PFI only) |
-| `--horizon` | — | `Int64` | `40` | — | IRF horizon |
+| `--horizons` | — | `Int64` | `40` | — | IRF horizon |
 | `--shock-size` | — | `Float64` | `1.0` | — | Shock size (std devs; perturbation/projection only; ignored for linear solutions) |
 | `--n-sim` | — | `Int64` | `0` | — | Simulated-path replications for projection solutions (0 = analytical; ignored for linear/perturbation solutions) |
 | `--constraints` | — | `String` | `""` | — | Path to OccBin constraints TOML (applied to shock 1 only) |
@@ -1572,7 +1573,7 @@ Simulate a DSGE model and report the simulated paths
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--antithetic` | — | Use antithetic sampling for variance reduction (ignored for projection/pfi/vfi simulations) |
+| `--antithetic` | — | Use antithetic sampling for variance reduction (perturbation solutions order >= 2 only) |
 | `--plot` | — | Open interactive plot in browser |
 
 **Handles:** model types: `DSGESolution`, `PerturbationSolution`, `ProjectionSolution`

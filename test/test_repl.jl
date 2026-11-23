@@ -1,9 +1,9 @@
 using Test
-using CSV, DataFrames
+using CSV, DataFrames, JSON3
 
 # Set up minimal Friedman context for testing repl.jl
 module Friedman
-    using CSV, DataFrames
+    using CSV, DataFrames, JSON3
 
     # Minimal stubs matching io.jl functions
     struct CliError <: Exception
@@ -1000,6 +1000,77 @@ end
             term3 = _ReplFakeTerminal(IOBuffer("data use :pwt\r\e[A\r\x04"), IOBuffer(), IOBuffer())
             Base.invokelatest(Friedman._run_lineedit_repl, app, s3, idx; term=term3, histfile=dir)
             @test s3.data_path == ":pwt"
+        end
+    end
+end
+
+@testset "v1.0.6 REPL quoting, built-ins, completions & history fallback (#279)" begin
+    app = Friedman.build_app()
+
+    @testset "_split_repl_line single quotes & UTF-8" begin
+        @test Friedman._split_repl_line("data use 'my dir/data file.csv'") == ["data", "use", "my dir/data file.csv"]
+        @test Friedman._split_repl_line("data use \"régime μ/café.csv\" --json") == ["data", "use", "régime μ/café.csv", "--json"]
+        @test Friedman._split_repl_line("data use 'it\"s ok'") == ["data", "use", "it\"s ok"]
+    end
+
+    @testset "bare data use / --help / --json / --quiet built-ins" begin
+        s = Friedman.Session()
+        out = IOBuffer()
+        err = IOBuffer()
+        # Bare `data use` throws usage/missing-arg (or emits error envelope under --json) without mutating session;
+        # `data use --help` prints usage text cleanly.
+        Friedman.session_load_builtin!(s, :denmark)
+        @test_throws Friedman.CliError Friedman.repl_dispatch(s, app, ["data", "use"]; output=out, err=err)
+        @test s.data_path == ":denmark"
+
+        out_bare_json = IOBuffer()
+        Friedman.repl_dispatch(s, app, ["data", "use", "--json"]; output=out_bare_json, err=err)
+        dbj = JSON3.read(String(take!(out_bare_json)))
+        @test String(dbj.status) == "error" && String(dbj.error.code) == "usage/missing-arg"
+        @test s.data_path == ":denmark"
+
+        out_h = IOBuffer()
+        Friedman.repl_dispatch(s, app, ["data", "use", "--help"]; output=out_h, err=err)
+        @test occursin("usage: data use", String(take!(out_h)))
+        @test s.data_path == ":denmark"
+
+        # --json & --quiet on data use / current / clear
+        out_u = IOBuffer(); err_u = IOBuffer()
+        Friedman.repl_dispatch(s, app, ["data", "use", ":fred_md", "--json", "--quiet"]; output=out_u, err=err_u)
+        @test isempty(String(take!(err_u)))
+        du = JSON3.read(String(take!(out_u)))
+        @test String(du.status) == "ok" && String(du.command) == "friedman data use"
+
+        out_c = IOBuffer(); err_c = IOBuffer()
+        Friedman.repl_dispatch(s, app, ["data", "current", "--json"]; output=out_c, err=err_c)
+        dc = JSON3.read(String(take!(out_c)))
+        @test String(dc.command) == "friedman data current" && String(dc.status) == "ok"
+
+        out_cl = IOBuffer(); err_cl = IOBuffer()
+        Friedman.repl_dispatch(s, app, ["data", "clear", "--json"]; output=out_cl, err=err_cl)
+        dcl = JSON3.read(String(take!(out_cl)))
+        @test String(dcl.command) == "friedman data clear" && !Friedman.session_has_data(s)
+    end
+
+    @testset "REPL completions (exit/quit/data/:datasets/paths) & FRIEDMAN_HISTORY_FILE" begin
+        top = Friedman.complete_command(app, "")
+        @test "exit" in top && "quit" in top
+        data_kids = Friedman.complete_command(app, "data ")
+        @test "use" in data_kids && "current" in data_kids && "clear" in data_kids
+        ds = Friedman.complete_command(app, "data use :fr")
+        @test ":fred_md" in ds && ":fred_qd" in ds
+        @test "--lags" in Friedman.complete_command(app, "estimate multivariate var ")
+
+        mktempdir() do dir
+            write(joinpath(dir, "macro_demo.csv"), "a,b\n1,2\n")
+            cd(dir) do
+                cands = Friedman.complete_command(app, "data use mac")
+                @test "macro_demo.csv" in cands
+            end
+        end
+
+        withenv("FRIEDMAN_HISTFILE" => nothing, "FRIEDMAN_HISTORY_FILE" => "/tmp/custom_hist_279") do
+            @test Friedman._resolve_histfile() == "/tmp/custom_hist_279"
         end
     end
 end

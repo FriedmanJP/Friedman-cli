@@ -164,8 +164,12 @@ exactly one versioned JSON envelope with stable, registry-declared table keys;
 exit codes are `0 ok · 2 usage · 3 data · 4 config · 5 model · 6 env · 1 internal`,
 and every JSON failure carries a matching `error.code`/`error.exit_code`.
 `friedman schema <path…>` returns a draft-07 input schema plus result-table keys
-for any command; `serve --mcp` exposes every command as a Model Context Protocol
-tool over stdio. Start at the [Agent Guide](https://friedmanjp.github.io/Friedman-cli/dev/agent-guide/).
+for any command; `serve --mcp` exposes every leaf command as a Model Context Protocol
+tool over stdio (supporting `--families`, `--tools`, and `--compact` scoping).
+For multi-command pipelines and heavy DSGE / Bayesian / volatility workflows, keep a
+persistent `friedman serve --mcp` (or `friedman repl`) session open to amortize Julia/JIT
+startup and share `model://` handles in memory. Start at the
+[Agent Guide](https://friedmanjp.github.io/Friedman-cli/dev/agent-guide/).
 
 Full command reference:
 [docs](https://friedmanjp.github.io/Friedman-cli/dev/).

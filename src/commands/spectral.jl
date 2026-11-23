@@ -108,12 +108,12 @@ function spectral_specs()::Vector{CommandSpec}
             args=ArgSpec[],
             options=[
                 OptionSpec(name="filter", type=String, default="hp",
-                           choices=["hp", "bk", "hamilton", "ideal"],
-                           description="hp|bk|hamilton|ideal"),
+                           choices=["hp", "bk", "hamilton"],
+                           description="hp|bk|hamilton"),
                 OptionSpec(name="lambda", type=Float64, default=1600.0,
                            description="Filter parameter (e.g. HP lambda)"),
-                OptionSpec(name="nobs", type=Int, default=200,
-                           description="Number of observations (for frequency grid)"),
+                OptionSpec(name="n-freq", aliases=["nobs"], kwarg=:n_freq, type=Int, default=256,
+                           description="Number of frequency grid points (≥ 2)"),
                 plot_opts...,
             ],
             flags=plot_flags,
@@ -169,8 +169,9 @@ function _spectral_acf(; data::String, column::Int=1,
             CCF = round.(ccf_result.ccf; digits=6),
         )
         _status()
-        output_result(ccf_df; format=Symbol(format), output="",
-            title="CCF: $(vnames[column]) x $(vnames[ccf_with])", key="cross_correlation")
+        output_result(ccf_df; format=Symbol(format),
+                      output=_per_var_output_path(output, "ccf"),
+                      title="CCF: $(vnames[column]) x $(vnames[ccf_with])", key="cross_correlation")
     end
 
     _maybe_plot(result; plot=plot, plot_save=plot_save)
@@ -256,12 +257,17 @@ function _spectral_cross(; data::String, var1::Int=1, var2::Int=2,
 end
 
 function _spectral_transfer(; filter::String="hp", lambda::Float64=1600.0,
-                             nobs::Int=200,
+                             n_freq::Int=256,
                              output::String="", format::String="table",
                              plot::Bool=false, plot_save::String="")
-    result = transfer_function(Symbol(filter); lambda=lambda, nobs=nobs)
+    n_freq >= 2 || throw(CliError("usage/invalid", "--n-freq must be ≥ 2 (got $n_freq)"))
+    result = try
+        transfer_function(Symbol(filter); lambda=lambda, n_freq=n_freq)
+    catch e
+        throw(_domain_or_data_error(e, "spectral transfer"))
+    end
 
-    _status("Transfer Function: $(filter) filter  (lambda = $lambda, T = $nobs)")
+    _status("Transfer Function: $(filter) filter  (lambda = $lambda, n_freq = $n_freq)")
     _status()
 
     tf_df = DataFrame(

@@ -27,7 +27,7 @@ Staggered-adoption DiD estimation (twfe|cs|sa|bjs|dcdh) with event-time and over
 | `--id-col` | — | `String` | `""` | — | Panel unit ID column (default: first column) |
 | `--time-col` | — | `String` | `""` | — | Time column (default: second column) |
 | `--leads` | — | `Int64` | `0` | — | Pre-treatment periods |
-| `--horizon` | — | `Int64` | `5` | — | Post-treatment periods |
+| `--horizons` | — | `Int64` | `5` | — | Post-treatment periods |
 | `--covariates` | — | `String` | `""` | — | Comma-separated covariate column names |
 | `--control-group` | — | `String` | `never_treated` | `never_treated`, `not_yet_treated` | never_treated\|not_yet_treated |
 | `--cluster` | — | `String` | `unit` | `unit`, `time`, `twoway` | unit\|time\|twoway |
@@ -61,7 +61,7 @@ Local-projection event-study DiD with pre-trend leads and post-treatment horizon
 | `--id-col` | — | `String` | `""` | — | Panel unit ID column (default: first column) |
 | `--time-col` | — | `String` | `""` | — | Time column (default: second column) |
 | `--leads` | — | `Int64` | `3` | — | Pre-treatment leads |
-| `--horizon` | — | `Int64` | `5` | — | Post-treatment horizon |
+| `--horizons` | — | `Int64` | `5` | — | Post-treatment horizon |
 | `--lags` | `-p` | `Int64` | `4` | — | Control lags |
 | `--covariates` | — | `String` | `""` | — | Comma-separated covariate column names |
 | `--cluster` | — | `String` | `unit` | — | unit\|time\|twoway |
@@ -92,7 +92,7 @@ LP-DiD estimation (Dube et al. 2023) with pre/post windows and clean-control opt
 | `--treatment` | — | `String` | `""` | — | Treatment indicator column name (required) |
 | `--id-col` | — | `String` | `""` | — | Panel unit ID column (default: first column) |
 | `--time-col` | — | `String` | `""` | — | Time column (default: second column) |
-| `--horizon` | — | `Int64` | `5` | — | Post-treatment horizon |
+| `--horizons` | — | `Int64` | `5` | — | Post-treatment horizon |
 | `--pre-window` | — | `Int64` | `3` | — | Pre-treatment window |
 | `--post-window` | — | `Int64` | `0` | — | Post-treatment window (0 = use horizon) |
 | `--ylags` | — | `Int64` | `0` | — | Outcome lags |

@@ -92,7 +92,7 @@ function _did_estimate(; data::String, outcome::String, treatment::String,
         gt = result.group_time_att
         gt_df = DataFrame(gt, ["period_$(t)" for t in 1:size(gt, 2)])
         insertcols!(gt_df, 1, :Cohort => result.cohorts)
-        output_result(gt_df; format=fmt, output="",
+        output_result(gt_df; format=fmt, output=_per_var_output_path(output, "group_time"),
             title="Group-Time ATT (Callaway-Sant'Anna)")
     end
 
@@ -173,23 +173,37 @@ function _did_lp_did(; data::String, outcome::String, treatment::String,
     elseif pmd in ("ccs", "ipw")
         Symbol(pmd)
     else
-        parse(Int, pmd)
+        v = tryparse(Int, strip(pmd))
+        v === nothing && throw(CliError("usage/invalid",
+            "estimate panel lp-did: --pmd must be 'ccs', 'ipw', or an integer (got '$pmd')"))
+        v
     end
 
     # Parse nonabsorbing: empty→nothing, else→parse Int
-    nonabs_val = isempty(nonabsorbing) ? nothing : parse(Int, nonabsorbing)
+    nonabs_val = if isempty(nonabsorbing)
+        nothing
+    else
+        v = tryparse(Int, strip(nonabsorbing))
+        v === nothing && throw(CliError("usage/invalid",
+            "estimate panel lp-did: --nonabsorbing must be an integer (got '$nonabsorbing')"))
+        v
+    end
 
     pw = post_window == 0 ? horizon : post_window
 
-    result = estimate_lp_did(pd, outcome, treatment, horizon;
-        pre_window=pre_window, post_window=pw,
-        ylags=ylags, dylags=dylags,
-        covariates=covs, nonabsorbing=nonabs_val,
-        notyet=notyet, nevertreated=nevertreated,
-        firsttreat=firsttreat, oneoff=oneoff,
-        pmd=pmd_val, reweight=reweight, nocomp=nocomp,
-        cluster=Symbol(cluster), conf_level=conf_level,
-        only_pooled=only_pooled, only_event=only_event)
+    result = try
+        estimate_lp_did(pd, outcome, treatment, horizon;
+            pre_window=pre_window, post_window=pw,
+            ylags=ylags, dylags=dylags,
+            covariates=covs, nonabsorbing=nonabs_val,
+            notyet=notyet, nevertreated=nevertreated,
+            firsttreat=firsttreat, oneoff=oneoff,
+            pmd=pmd_val, reweight=reweight, nocomp=nocomp,
+            cluster=Symbol(cluster), conf_level=conf_level,
+            only_pooled=only_pooled, only_event=only_event)
+    catch e
+        throw(_domain_or_data_error(e, "LP-DiD estimation"))
+    end
 
     coef_df = DataFrame(
         Event_Time = result.event_times,
@@ -320,7 +334,7 @@ function _did_test_negweight(; data::String, treatment::String,
             Weight = round.(result.weights; digits=6)
         )
         _status()
-        output_result(wt_df; format=fmt, output="",
+        output_result(wt_df; format=fmt, output=_per_var_output_path(output, "weights"),
             title="Weight Details")
     end
 end
@@ -386,7 +400,7 @@ function did_specs()::Vector{CommandSpec}
                 OptionSpec(name="method", type=String, default="twfe", choices=["twfe", "cs", "sa", "bjs", "dcdh"], description="twfe|cs|sa|bjs|dcdh"),
                 _DID_PANEL_OPTIONS...,
                 OptionSpec(name="leads", type=Int, default=0, description="Pre-treatment periods"),
-                OptionSpec(name="horizon", type=Int, default=5, description="Post-treatment periods"),
+                OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=5, description="Post-treatment periods"),
                 OptionSpec(name="covariates", type=String, default="", description="Comma-separated covariate column names"),
                 OptionSpec(name="control-group", type=String, default="never_treated", description="never_treated|not_yet_treated", choices=["never_treated","not_yet_treated"]),
                 OptionSpec(name="cluster", type=String, default="unit", description="unit|time|twoway", choices=["unit","time","twoway"]),
@@ -418,7 +432,7 @@ function did_specs()::Vector{CommandSpec}
                 OptionSpec(name="treatment", type=String, default="", description="Treatment indicator column name (required)"),
                 _DID_PANEL_OPTIONS...,
                 OptionSpec(name="leads", type=Int, default=3, description="Pre-treatment leads"),
-                OptionSpec(name="horizon", type=Int, default=5, description="Post-treatment horizon"),
+                OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=5, description="Post-treatment horizon"),
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="Control lags"),
                 OptionSpec(name="covariates", type=String, default="", description="Comma-separated covariate column names"),
                 OptionSpec(name="cluster", type=String, default="unit", description="unit|time|twoway"),
@@ -443,7 +457,7 @@ function did_specs()::Vector{CommandSpec}
                 OptionSpec(name="outcome", type=String, default="", description="Outcome variable column name (required)"),
                 OptionSpec(name="treatment", type=String, default="", description="Treatment indicator column name (required)"),
                 _DID_PANEL_OPTIONS...,
-                OptionSpec(name="horizon", type=Int, default=5, description="Post-treatment horizon"),
+                OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=5, description="Post-treatment horizon"),
                 OptionSpec(name="pre-window", type=Int, default=3, description="Pre-treatment window"),
                 OptionSpec(name="post-window", type=Int, default=0, description="Post-treatment window (0 = use horizon)"),
                 OptionSpec(name="ylags", type=Int, default=0, description="Outcome lags"),
@@ -502,7 +516,7 @@ function did_specs()::Vector{CommandSpec}
                 OptionSpec(name="treatment", type=String, default="", description="Treatment indicator column name (required)"),
                 _DID_PANEL_OPTIONS...,
                 OptionSpec(name="leads", type=Int, default=3, description="Pre-treatment leads"),
-                OptionSpec(name="horizon", type=Int, default=5, description="Post-treatment horizon"),
+                OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=5, description="Post-treatment horizon"),
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="Control lags (event-study only)"),
                 OptionSpec(name="cluster", type=String, default="unit", description="unit|time|twoway"),
                 OptionSpec(name="conf-level", type=Float64, default=0.95, description="Confidence level"),
@@ -547,7 +561,7 @@ function did_specs()::Vector{CommandSpec}
                 _DID_PANEL_OPTIONS...,
                 OptionSpec(name="mbar", type=Float64, default=1.0, description="Violation bound M̄"),
                 OptionSpec(name="leads", type=Int, default=3, description="Pre-treatment leads"),
-                OptionSpec(name="horizon", type=Int, default=5, description="Post-treatment horizon"),
+                OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=5, description="Post-treatment horizon"),
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="Control lags (event-study only)"),
                 OptionSpec(name="cluster", type=String, default="unit", description="unit|time|twoway"),
                 OptionSpec(name="conf-level", type=Float64, default=0.95, description="Confidence level"),

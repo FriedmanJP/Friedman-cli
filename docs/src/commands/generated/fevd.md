@@ -23,7 +23,7 @@ Compute Bayesian forecast error variance decomposition
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | `4` | — | Lag order |
 | `--horizons` | — | `Int64` | `20` | — | Forecast horizon |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|fastica\|jade\|sobi\|dcov\|hsic\|student_t\|mixture_normal\|pml\|skew_normal\|markov_switching\|garch_id\|uhlig\|lewis-tvv\|sv-em |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|fastica\|jade\|sobi\|dcov\|hsic\|student-t\|mixture-normal\|pml\|skew-normal\|markov-switching\|garch-id\|uhlig\|lewis-tvv\|sv-em |
 | `--draws` | `-n` | `Int64` | `2000` | — | Posterior draws |
 | `--sampler` | — | `String` | `direct` | — | direct\|gibbs |
 | `--config` | — | `String` | `""` | — | TOML config for identification/prior |
@@ -55,7 +55,7 @@ FAVAR forecast error variance decomposition
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--factors` | `-r` | `Int64` | — | — | Number of factors |
+| `--factors` | — | `Int64` | — | — | Number of factors |
 | `--lags` | `-p` | `Int64` | `2` | — | VAR lag order |
 | `--key-vars` | — | `String` | `""` | — | Key variable names or indices |
 | `--horizons` | — | `Int64` | `20` | — | FEVD horizon |
@@ -92,7 +92,7 @@ Compute forecast error variance decomposition via structural LP
 | `--horizons` | — | `Int64` | `20` | — | Forecast horizon |
 | `--lags` | `-p` | `Int64` | `4` | — | LP control lags |
 | `--var-lags` | — | `Int64` | — | — | VAR lag order for identification (default: same as --lags) |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|fastica\|jade\|sobi\|dcov\|hsic\|student_t\|mixture_normal\|pml\|skew_normal\|markov_switching\|garch_id\|uhlig\|lewis-tvv\|sv-em |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|fastica\|jade\|sobi\|dcov\|hsic\|student-t\|mixture-normal\|pml\|skew-normal\|markov-switching\|garch-id\|uhlig\|lewis-tvv\|sv-em |
 | `--vcov` | — | `String` | `newey_west` | — | newey_west\|white\|driscoll_kraay |
 | `--config` | — | `String` | `""` | — | TOML config for identification |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
@@ -189,7 +189,7 @@ Compute forecast error variance decomposition
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto) |
 | `--horizons` | — | `Int64` | `20` | — | Forecast horizon |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|arias\|uhlig\|proxy\|max-share\|gmm-moments\|narrative-adrr\|lewis-tvv\|sv-em\|fastica\|jade\|sobi\|dcov\|hsic\|student_t\|mixture_normal\|pml\|skew_normal\|markov_switching\|garch_id |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|arias\|uhlig\|proxy\|max-share\|gmm-moments\|narrative-adrr\|lewis-tvv\|sv-em\|fastica\|jade\|sobi\|dcov\|hsic\|student-t\|mixture-normal\|pml\|skew-normal\|markov-switching\|garch-id |
 | `--config` | — | `String` | `""` | — | TOML config for identification |
 | `--instrument` | — | `String` | `""` | — | Proxy-instrument CSV column (only with --id proxy) |
 | `--target-var` | — | `String` | `""` | — | Max-share target: column name or 1-based index (only with --id max-share) |
@@ -227,7 +227,7 @@ Compute FEVD via VECM → VAR representation (direct VECM under --id svec)
 | `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto\|1\|2\|...) |
 | `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
 | `--horizons` | — | `Int64` | `20` | — | Forecast horizon |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|fastica\|jade\|sobi\|dcov\|hsic\|student_t\|mixture_normal\|pml\|skew_normal\|markov_switching\|garch_id\|uhlig\|lewis-tvv\|sv-em\|svec (uhlig: generic path) |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|fastica\|jade\|sobi\|dcov\|hsic\|student-t\|mixture-normal\|pml\|skew-normal\|markov-switching\|garch-id\|uhlig\|lewis-tvv\|sv-em\|svec (uhlig: generic path) |
 | `--config` | — | `String` | `""` | — | TOML config for identification |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |

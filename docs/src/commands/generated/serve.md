@@ -15,7 +15,13 @@ Generated command reference for `friedman serve` (`1` leaf). Back to [CLI Refere
 
 Serve every other command as a Model Context Protocol tool over stdio (--mcp)
 
+| Option | Short | Type | Default | Choices | Description |
+|--------|-------|------|---------|---------|-------------|
+| `--families` | — | `String` | `""` | — | Comma-separated command groups/families to expose in MCP tools/list |
+| `--tools` | — | `String` | `""` | — | Comma-separated tool names or prefixes* to expose in MCP tools/list |
+
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--mcp` | — | MCP server: JSON-RPC 2.0 on stdio; tools/list mirrors the commands, tools/call returns each command's plain output (JSON for commands that produce JSON) |
+| `--compact` | — | Omit x-cli/x-handle annotations and shorten descriptions in tools/list schemas |
 

@@ -36,30 +36,83 @@ function _mcp_path_matches(path::Vector{String}, family::String, prefix::Abstrac
     return false
 end
 
-function _mcp_tools(; prefix::AbstractString="")
-    tools = Vector{Tuple{String,LeafCommand,Vector{String}}}()
+function _mcp_matches_filters(tname::String, p::Vector{String}, family::String,
+                              fam_pats::Vector{String}, tool_pats::Vector{String})::Bool
+    if !isempty(fam_pats)
+        p1 = isempty(p) ? "" : lowercase(p[1])
+        p12 = length(p) >= 2 ? lowercase("$(p[1]) $(p[2])") : ""
+        fl = lowercase(family)
+        pf = isempty(fl) ? p1 : "$p1 $fl"
+        any(f -> f == p1 || f == fl || f == pf || f == p12, fam_pats) || return false
+    end
+    if !isempty(tool_pats)
+        tl = lowercase(tname)
+        matched = any(tool_pats) do pat
+            endswith(pat, "*") ? startswith(tl, pat[1:end-1]) : tl == pat
+        end
+        matched || return false
+    end
+    return true
+end
+
+function _mcp_tools(; prefix::AbstractString="", families::AbstractString="",
+                    tools::AbstractString="")
+    out = Vector{Tuple{String,LeafCommand,Vector{String}}}()
+    fam_pats = String[lowercase(strip(s)) for s in split(String(families), ",") if !isempty(strip(s))]
+    tool_pats = String[lowercase(strip(s)) for s in split(String(tools), ",") if !isempty(strip(s))]
     function walk(node::NodeCommand, path::Vector{String})
         for name in sort!(collect(keys(node.subcmds)))
             sub = node.subcmds[name]
-            isempty(path) && name == "serve" && continue
+            # Exclude serve (stdio loop) and schema (raw meta-doc, matches agent_guide.md:216)
+            isempty(path) && (name == "serve" || name == "schema") && continue
             p = vcat(path, [name])
             if sub isa LeafCommand
+                tname = join(p, "_")
                 _mcp_path_matches(p, sub.family, prefix) || continue
-                push!(tools, (join(p, "_"), sub, p))
+                _mcp_matches_filters(tname, p, sub.family, fam_pats, tool_pats) || continue
+                push!(out, (tname, sub, p))
             else
                 walk(sub, p)
             end
         end
     end
     walk(APP.root, String[])
-    return tools
+    return out
 end
 
-function _mcp_tool_description(leaf::LeafCommand)
+function _mcp_tool_description(leaf::LeafCommand; compact::Bool=false)
     desc = leaf.description
-    isempty(leaf.family) && return desc
-    startswith(desc, leaf.family) && return desc
-    return leaf.family * " — " * desc
+    full = isempty(leaf.family) || startswith(desc, leaf.family) ? desc : leaf.family * " — " * desc
+    if compact && length(full) > 120
+        return first(full, 117) * "..."
+    end
+    return full
+end
+
+function _mcp_input_schema(leaf::LeafCommand, path::Vector{String}; compact::Bool=false)
+    s = _input_schema(leaf, path)
+    props = s["properties"]
+    haskey(props, "seed") || (props["seed"] = Dict{String,Any}(
+        "type" => "integer",
+        "description" => "RNG seed scoped to this call",
+    ))
+    haskey(props, "quiet") || (props["quiet"] = Dict{String,Any}(
+        "type" => "boolean",
+        "default" => false,
+        "description" => "Suppress stderr status output",
+    ))
+    if compact
+        for pv in values(props)
+            pv isa AbstractDict || continue
+            delete!(pv, "x-cli")
+            delete!(pv, "x-handle")
+            if haskey(pv, "description")
+                d = String(pv["description"])
+                length(d) > 100 && (pv["description"] = first(d, 97) * "...")
+            end
+        end
+    end
+    return s
 end
 
 function _mcp_list_prefix(params)::String
@@ -81,11 +134,24 @@ json` is forced last (when the leaf declares `--format`) so every result — and
 every failure — is exactly one envelope.
 """
 function _mcp_argv(leaf::LeafCommand, path::Vector{String}, arguments)
-    argv = copy(path)
+    prefix_globals = String[]
     consumed = Set{Symbol}()
+    has_seed_opt = any(o -> o.name == "seed", leaf.options)
+    has_quiet_flag = any(f -> f.name == "quiet", leaf.flags)
+    if !has_seed_opt && haskey(arguments, :seed)
+        sv = arguments[:seed]
+        sv === nothing || append!(prefix_globals, String["--seed", string(sv)])
+        push!(consumed, :seed)
+    end
+    if !has_quiet_flag && haskey(arguments, :quiet)
+        arguments[:quiet] === true && push!(prefix_globals, "--quiet")
+        push!(consumed, :quiet)
+    end
+
+    argv = vcat(prefix_globals, path)
     for a in leaf.args
         k = Symbol(a.name)
-        haskey(arguments, k) || break
+        (!haskey(arguments, k) || arguments[k] === nothing) && break
         push!(argv, string(arguments[k]))
         push!(consumed, k)
     end
@@ -94,14 +160,16 @@ function _mcp_argv(leaf::LeafCommand, path::Vector{String}, arguments)
         o.name == "format" && (has_format = true)
         k = Symbol(o.name)
         (k in consumed || !haskey(arguments, k)) && continue
+        v = arguments[k]
+        push!(consumed, k)
+        v === nothing && continue
         if o.repeatable && o.name in _CARD_REPEATABLE
-            for v in (arguments[k] isa AbstractVector ? arguments[k] : Any[arguments[k]])
-                push!(argv, "--" * o.name, string(v))
+            for item in (v isa AbstractVector ? v : Any[v])
+                item === nothing || push!(argv, "--" * o.name, string(item))
             end
         else
-            o.name == "format" || push!(argv, "--" * o.name, string(arguments[k]))
+            o.name == "format" || push!(argv, "--" * o.name, string(v))
         end
-        push!(consumed, k)
     end
     for f in leaf.flags
         k = Symbol(f.name)
@@ -112,6 +180,7 @@ function _mcp_argv(leaf::LeafCommand, path::Vector{String}, arguments)
     # Unknown keys → let the strict parser reject them with a suggestion
     for (k, v) in pairs(arguments)
         k in consumed && continue
+        v === nothing && continue
         v === true ? push!(argv, "--" * string(k)) :
                      push!(argv, "--" * string(k), string(v))
     end
@@ -120,16 +189,20 @@ function _mcp_argv(leaf::LeafCommand, path::Vector{String}, arguments)
 end
 
 """Run one tool call through the full CLI pipeline (`run_cli`) with global
-stdout redirected to a tempfile — the envelope (or raw JSON for `schema`) comes
-back verbatim as the text content; a nonzero exit class sets `isError`."""
+stdout redirected to a tempfile — the envelope comes back verbatim as the text
+content; a nonzero exit class sets `isError`."""
 function _mcp_call(leaf::LeafCommand, path::Vector{String}, arguments)
     argv = _mcp_argv(leaf, path, arguments)
+    prev_seed = _SEED[]
+    prev_quiet = _QUIET[]
     out_path, out_io = mktemp()
     code = try
         redirect_stdout(out_io) do
             run_cli(argv)
         end
     finally
+        _SEED[] = prev_seed
+        _QUIET[] = prev_quiet
         try; close(out_io); catch; end
     end
     text = try
@@ -156,11 +229,13 @@ Line-delimited JSON-RPC 2.0 loop. `output` is captured up front, so the
 per-call global-stdout redirection can never swallow a response. The session
 `model://` store lives exactly as long as the loop (`_SERVE_MODEL_STORE`).
 """
-function _serve_loop(input::IO, output::IO)
+function _serve_loop(input::IO, output::IO; families::AbstractString="",
+                     tools::AbstractString="", compact::Bool=false)
     _SERVE_MODEL_STORE[] = Dict{String,Any}()
-    tools = _mcp_tools()
+    isdefined(@__MODULE__, :_SERVE_SOURCE_MODELS) && (_SERVE_SOURCE_MODELS[] = Dict{String,Any}())
+    scoped_tools = _mcp_tools(; families=families, tools=tools)
     by_name = Dict{String,Tuple{LeafCommand,Vector{String}}}(
-        n => (l, p) for (n, l, p) in tools)
+        n => (l, p) for (n, l, p) in scoped_tools)
     try
         for line in eachline(input)
             s = strip(line)
@@ -185,14 +260,35 @@ function _serve_loop(input::IO, output::IO)
                 _rpc_send(output, _rpc_result(id, Dict{String,Any}()))
             elseif method == "tools/list"
                 params = get(req, :params, nothing)
-                listed = _mcp_tools(; prefix=_mcp_list_prefix(params))
-                _rpc_send(output, _rpc_result(id, Dict{String,Any}(
-                    "tools" => [Dict{String,Any}(
-                                    "name" => n,
-                                    "description" => _mcp_tool_description(l),
-                                    "family" => l.family,
-                                    "inputSchema" => _input_schema(l, p))
-                                for (n, l, p) in listed])))
+                p_fam = params === nothing ? families :
+                    let pf = get(params, :families, nothing)
+                        pf === nothing ? families : strip(string(pf))
+                    end
+                p_tools = params === nothing ? tools :
+                    let pt = get(params, :tools, nothing)
+                        pt === nothing ? tools : strip(string(pt))
+                    end
+                listed = _mcp_tools(; prefix=_mcp_list_prefix(params), families=p_fam, tools=p_tools)
+                cursor_raw = params === nothing ? nothing : get(params, :cursor, nothing)
+                limit_raw = params === nothing ? nothing : get(params, :limit, nothing)
+                res_dict = Dict{String,Any}()
+                page = if cursor_raw !== nothing || limit_raw !== nothing
+                    off = cursor_raw === nothing ? 0 : something(tryparse(Int, strip(string(cursor_raw))), 0)
+                    off = max(0, off)
+                    lim = limit_raw === nothing ? 50 : max(1, Int(limit_raw))
+                    hi = min(length(listed), off + lim)
+                    hi < length(listed) && (res_dict["nextCursor"] = string(hi))
+                    off >= length(listed) ? listed[1:0] : listed[(off + 1):hi]
+                else
+                    listed
+                end
+                res_dict["tools"] = [Dict{String,Any}(
+                    "name" => n,
+                    "description" => _mcp_tool_description(l; compact=compact),
+                    "family" => l.family,
+                    "inputSchema" => _mcp_input_schema(l, p; compact=compact))
+                    for (n, l, p) in page]
+                _rpc_send(output, _rpc_result(id, res_dict))
             elseif method == "tools/call"
                 params = get(req, :params, nothing)
                 name = params === nothing ? "" : String(get(params, :name, ""))
@@ -211,17 +307,19 @@ function _serve_loop(input::IO, output::IO)
         end
     finally
         _SERVE_MODEL_STORE[] = nothing
+        isdefined(@__MODULE__, :_SERVE_SOURCE_MODELS) && (_SERVE_SOURCE_MODELS[] = nothing)
     end
     return nothing
 end
 
-function _serve(; mcp::Bool=false, format::String="table", output::String="", kwargs...)
+function _serve(; mcp::Bool=false, families::String="", tools::String="", compact::Bool=false,
+                format::String="table", output::String="", kwargs...)
     mcp || throw(CliError("usage/missing",
         "serve requires --mcp (the only supported mode)";
         hint="friedman serve --mcp speaks JSON-RPC 2.0 / Model Context Protocol on stdio"))
     _status("friedman MCP server on stdio (JSON-RPC 2.0, protocol $_MCP_PROTOCOL_VERSION); " *
             "one line per message; Ctrl-D to stop")
-    _serve_loop(stdin, stdout)
+    _serve_loop(stdin, stdout; families=families, tools=tools, compact=compact)
     return nothing
 end
 
@@ -231,9 +329,18 @@ function serve_specs()::Vector{CommandSpec}
             path=["serve"],
             summary="Serve every other command as a Model Context Protocol tool over stdio (--mcp)",
             args=ArgSpec[],
-            options=OptionSpec[],
-            flags=[FlagSpec(name="mcp",
-                            description="MCP server: JSON-RPC 2.0 on stdio; tools/list mirrors the commands, tools/call returns each command's plain output (JSON for commands that produce JSON)")],
+            options=[
+                OptionSpec(name="families", type=String, default="",
+                           description="Comma-separated command groups/families to expose in MCP tools/list"),
+                OptionSpec(name="tools", type=String, default="",
+                           description="Comma-separated tool names or prefixes* to expose in MCP tools/list"),
+            ],
+            flags=[
+                FlagSpec(name="mcp",
+                         description="MCP server: JSON-RPC 2.0 on stdio; tools/list mirrors the commands, tools/call returns each command's plain output (JSON for commands that produce JSON)"),
+                FlagSpec(name="compact",
+                         description="Omit x-cli/x-handle annotations and shorten descriptions in tools/list schemas"),
+            ],
             # No envelope tables: stdout is the JSON-RPC channel (gate-exempt).
             tables=TableSpec[],
             category="serve",

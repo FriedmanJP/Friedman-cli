@@ -144,6 +144,7 @@ function Logging.handle_message(l::_MemsCliLogger, level::LogLevel, message, _mo
     if level >= Warn
         printstyled(l.stream, "Warning: "; bold=true, color=:yellow)
         println(l.stream, msg)
+        envelope_active() && _add_warning_once!(_ENVELOPE[], "mems/warning", String(msg))
     else
         println(l.stream, msg)
     end
@@ -251,7 +252,9 @@ function run_cli(args::Vector{String})::Cint
         end
         return Cint(0)
     catch e
-        if e isa CliError
+        if e isa Base.IOError && e.code == Base.UV_EPIPE
+            return Cint(0)
+        elseif e isa CliError
             _status_styled("Error: "; bold=true, color=:red)
             println(stderr, sprint(showerror, e))
             _emit_error_net(args, e, t0, wants_json)
@@ -279,6 +282,8 @@ function run_cli(args::Vector{String})::Cint
         end
     finally
         _QUIET[] = false
+        _COMPACT[] = false
+        _FORCE_JSON[] = false
     end
 end
 

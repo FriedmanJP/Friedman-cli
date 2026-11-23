@@ -69,7 +69,7 @@ Model residuals (negative-binomial)
 | `--dep` | — | `String` | `""` | — | Dependent count column (default: first numeric column) |
 | `--offset` | — | `String` | `""` | — | Offset column, already on the log scale (exclusive with --exposure) |
 | `--exposure` | — | `String` | `""` | — | Exposure column, strictly positive; enters as log(exposure) |
-| `--maxiter` | — | `Int64` | `1000` | — | Maximum iterations (≥ 1) |
+| `--max-iter` | — | `Int64` | `1000` | — | Maximum iterations (≥ 1) |
 | `--tol` | — | `Float64` | `1.0e-10` | — | Convergence tolerance (> 0) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
@@ -146,7 +146,7 @@ Model residuals (poisson)
 | `--exposure` | — | `String` | `""` | — | Exposure column, strictly positive; enters as log(exposure) |
 | `--cov-type` | — | `String` | `robust` | `robust`, `mle`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | robust (QMLE sandwich, default), mle, hc0-hc3, cluster |
 | `--clusters` | — | `String` | `""` | — | Cluster variable column name |
-| `--maxiter` | — | `Int64` | `100` | — | Maximum IRLS iterations (≥ 1) |
+| `--max-iter` | — | `Int64` | `100` | — | Maximum IRLS iterations (≥ 1) |
 | `--tol` | — | `Float64` | `1.0e-10` | — | Convergence tolerance (> 0) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
@@ -195,8 +195,8 @@ Model residuals (dynamic)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--nfactors` | `-r` | `Int64` | — | — | Number of factors (default: auto via IC) |
-| `--factor-lags` | `-p` | `Int64` | `1` | — | Factor VAR lag order |
+| `--nfactors` | — | `Int64` | — | — | Number of factors (default: auto via IC) |
+| `--factor-lags` | — | `Int64` | `1` | — | Factor VAR lag order |
 | `--method` | — | `String` | `twostep` | — | twostep\|qml estimation method |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
@@ -217,7 +217,7 @@ Model residuals (gdfm)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--nfactors` | — | `Int64` | — | — | Number of static factors (accepted but has no effect: the number of factors is chosen automatically) |
-| `--dynamic-rank` | `-q` | `Int64` | — | — | Dynamic rank (default: auto) |
+| `--dynamic-rank` | — | `Int64` | — | — | Dynamic rank (default: auto) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
@@ -236,7 +236,7 @@ Model residuals (static)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--nfactors` | `-r` | `Int64` | — | — | Number of factors (default: auto via IC) |
+| `--nfactors` | — | `Int64` | — | — | Number of factors (default: auto via IC) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
@@ -291,7 +291,7 @@ Model residuals (favar)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--factors` | `-r` | `Int64` | — | — | Number of factors |
+| `--factors` | — | `Int64` | — | — | Number of factors |
 | `--lags` | `-p` | `Int64` | `2` | — | VAR lags |
 | `--key-vars` | — | `String` | `""` | — | Key variables |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
@@ -476,7 +476,8 @@ Model residuals (ms, smoothed-probability weighted)
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--no-switching-variance` | — | Force common σ² across regimes (default: σ² switches) |
+| `--switching-variance` | — | Let σ² switch across regimes (default for ms: on) |
+| `--no-switching-variance` | — | Force common σ² across regimes |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `MSRegModel`
 
@@ -502,7 +503,8 @@ Model residuals (ms-ar, smoothed-probability weighted)
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--switching-variance` | — | Let σ² switch across regimes (default: off, Hamilton form) |
+| `--switching-variance` | — | Let σ² switch across regimes (default for ms-ar: off) |
+| `--no-switching-variance` | — | Force common σ² across regimes |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `MSRegModel`
 

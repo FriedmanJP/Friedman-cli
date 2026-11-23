@@ -24,7 +24,7 @@ Compute Bayesian impulse response functions with credible intervals
 | `--lags` | `-p` | `Int64` | `4` | — | Lag order |
 | `--shock` | — | `Int64` | `1` | — | Shock variable index (1-based) |
 | `--horizons` | — | `Int64` | `20` | — | IRF horizon |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|fastica\|jade\|sobi\|dcov\|hsic\|student_t\|mixture_normal\|pml\|skew_normal\|markov_switching\|garch_id\|uhlig\|lewis-tvv\|sv-em\|robust-bayes |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|fastica\|jade\|sobi\|dcov\|hsic\|student-t\|mixture-normal\|pml\|skew-normal\|markov-switching\|garch-id\|uhlig\|lewis-tvv\|sv-em\|robust-bayes |
 | `--draws` | `-n` | `Int64` | `2000` | — | Posterior draws |
 | `--sampler` | — | `String` | `direct` | — | direct\|gibbs |
 | `--config` | — | `String` | `""` | — | TOML config for identification/prior |
@@ -57,7 +57,7 @@ FAVAR impulse response functions
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--factors` | `-r` | `Int64` | — | — | Number of factors (default: auto) |
+| `--factors` | — | `Int64` | — | — | Number of factors (default: auto) |
 | `--lags` | `-p` | `Int64` | `2` | — | VAR lag order |
 | `--key-vars` | — | `String` | `""` | — | Key variable names or indices (comma-separated) |
 | `--horizons` | — | `Int64` | `20` | — | IRF horizon |
@@ -97,9 +97,9 @@ Compute structural LP impulse response functions
 | `--horizons` | — | `Int64` | `20` | — | IRF horizon |
 | `--lags` | `-p` | `Int64` | `4` | — | LP control lags |
 | `--var-lags` | — | `Int64` | — | — | VAR lag order for identification (default: same as --lags) |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|fastica\|jade\|sobi\|dcov\|hsic\|student_t\|mixture_normal\|pml\|skew_normal\|markov_switching\|garch_id\|uhlig\|lewis-tvv\|sv-em |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|fastica\|jade\|sobi\|dcov\|hsic\|student-t\|mixture-normal\|pml\|skew-normal\|markov-switching\|garch-id\|uhlig\|lewis-tvv\|sv-em |
 | `--ci` | — | `String` | `none` | — | none\|bootstrap |
-| `--replications` | — | `Int64` | `200` | — | Bootstrap replications |
+| `--draws` | — | `Int64` | `200` | — | Bootstrap replications |
 | `--conf-level` | — | `Float64` | `0.95` | — | Confidence level |
 | `--vcov` | — | `String` | `newey_west` | — | newey_west\|white\|driscoll_kraay |
 | `--config` | — | `String` | `""` | — | TOML config for sign/narrative restrictions |
@@ -137,8 +137,8 @@ Compute Panel VAR impulse response functions (OIRF/GIRF)
 | `--lags` | `-p` | `Int64` | `1` | — | Lag order |
 | `--horizons` | — | `Int64` | `10` | — | IRF horizon |
 | `--irf-type` | — | `String` | `oirf` | — | oirf\|girf |
-| `--boot-draws` | — | `Int64` | `500` | — | Bootstrap draws for CIs |
-| `--confidence` | — | `Float64` | `0.95` | — | Confidence level |
+| `--draws` | — | `Int64` | `500` | — | Bootstrap draws for CIs |
+| `--conf-level` | — | `Float64` | `0.95` | — | Confidence level |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
@@ -172,7 +172,7 @@ Structural DFM impulse response functions (panel-wide)
 | `--horizons` | — | `Int64` | `40` | — | IRF horizon |
 | `--config` | — | `String` | `""` | — | TOML config for sign restrictions |
 | `--ci` | — | `String` | `none` | `none`, `bootstrap` | Bands: none\|bootstrap (residual bootstrap) |
-| `--reps` | — | `Int64` | `200` | — | Bootstrap replications (with --ci bootstrap) |
+| `--draws` | — | `Int64` | `200` | — | Bootstrap replications (with --ci bootstrap) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
@@ -242,9 +242,9 @@ Compute frequentist impulse response functions
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto) |
 | `--shock` | — | `Int64` | `1` | — | Shock variable index (1-based) |
 | `--horizons` | — | `Int64` | `20` | — | IRF horizon |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|arias\|uhlig\|fastica\|jade\|sobi\|dcov\|hsic\|student_t\|mixture_normal\|pml\|skew_normal\|markov_switching\|garch_id\|proxy\|max-share\|gmm-moments\|narrative-adrr\|lewis-tvv\|sv-em |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|arias\|uhlig\|fastica\|jade\|sobi\|dcov\|hsic\|student-t\|mixture-normal\|pml\|skew-normal\|markov-switching\|garch-id\|proxy\|max-share\|gmm-moments\|narrative-adrr\|lewis-tvv\|sv-em |
 | `--ci` | — | `String` | `bootstrap` | — | none\|bootstrap\|theoretical (ignored with --id arias\|uhlig\|narrative-adrr and --identified-set) |
-| `--replications` | — | `Int64` | `1000` | — | Bootstrap replications (also the sign-draw cap with --identified-set; ignored with --id arias\|uhlig) |
+| `--draws` | — | `Int64` | `1000` | — | Bootstrap replications (also the sign-draw cap with --identified-set; ignored with --id arias\|uhlig) |
 | `--instrument` | — | `String` | `""` | — | Proxy-instrument CSV column (only with --id proxy) |
 | `--target-var` | — | `String` | `""` | — | Max-share target: column name or 1-based index (only with --id max-share) |
 | `--bootstrap` | — | `String` | `iid` | `iid`, `wild`, `block` | Bootstrap scheme (--ci bootstrap): iid\|wild\|block (ignored with --id arias\|uhlig\|narrative-adrr and --identified-set) |
@@ -269,6 +269,7 @@ Compute frequentist impulse response functions
 | `--identified-set` | — | Return full identified set for sign restrictions |
 | `--stationary-only` | — | Filter non-stationary bootstrap draws (bootstrap path only; ignored with --id arias\|uhlig\|narrative-adrr and --identified-set) |
 | `--bias-correct` | — | Kilian (1998) bias-corrected bootstrap bands (ignored with --id arias\|uhlig\|narrative-adrr and --identified-set) |
+| `--bootstrap-across-rotations` | — | Bootstrap across rotations for --id sign\|narrative (requires --ci bootstrap) |
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `VARModel`, `SVARModel`; result types: `ImpulseResponse`, `AriasSVARResult`, `UhligSVARResult`, `SignIdentifiedSet`
@@ -290,9 +291,9 @@ Compute impulse response functions via VECM → VAR representation (direct VECM 
 | `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
 | `--shock` | — | `Int64` | `1` | — | Shock variable index (1-based) |
 | `--horizons` | — | `Int64` | `20` | — | IRF horizon |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|fastica\|jade\|sobi\|dcov\|hsic\|student_t\|mixture_normal\|pml\|skew_normal\|markov_switching\|garch_id\|uhlig\|lewis-tvv\|sv-em\|svec (uhlig: generic path) |
+| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|fastica\|jade\|sobi\|dcov\|hsic\|student-t\|mixture-normal\|pml\|skew-normal\|markov-switching\|garch-id\|uhlig\|lewis-tvv\|sv-em\|svec (uhlig: generic path) |
 | `--ci` | — | `String` | `bootstrap` | — | none\|bootstrap\|theoretical |
-| `--replications` | — | `Int64` | `1000` | — | Bootstrap replications |
+| `--draws` | — | `Int64` | `1000` | — | Bootstrap replications |
 | `--config` | — | `String` | `""` | — | TOML config for identification |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -306,6 +307,7 @@ Compute impulse response functions via VECM → VAR representation (direct VECM 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
+| `--bootstrap-across-rotations` | — | Bootstrap across rotations for --id sign\|narrative (requires --ci bootstrap) |
 | `--strict` | — | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `VECMModel`, `SVECResult`; result types: `ImpulseResponse`

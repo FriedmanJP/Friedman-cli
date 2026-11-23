@@ -338,7 +338,7 @@ function io_specs()::Vector{CommandSpec}
                            description="Inner price solver: newton | fixedpoint"),
                 OptionSpec(name="tol", type=Float64, default=1e-10,
                            description="Solver tolerance"),
-                OptionSpec(name="maxiter", type=Int, default=500,
+                OptionSpec(name="max-iter", aliases=["maxiter"], kwarg=:maxiter, type=Int, default=500,
                            description="Maximum solver iterations"),
                 OptionSpec(name="damping", type=Float64, default=0.5,
                            description="Quasi-Newton damping in (0, 1]"),
@@ -520,7 +520,7 @@ function io_specs()::Vector{CommandSpec}
                            description="ras (non-negative Z) | gras (sign-preserving)"),
                 OptionSpec(name="tol", type=Float64, default=1e-10,
                            description="Biproportional convergence tolerance"),
-                OptionSpec(name="maxiter", type=Int, default=1000,
+                OptionSpec(name="max-iter", aliases=["maxiter"], kwarg=:maxiter, type=Int, default=1000,
                            description="Maximum RAS/GRAS iterations"),
                 OUTPUT_OPTIONS...],
             tables=[TableSpec(name=:io_table_summary,
@@ -778,7 +778,8 @@ function _io_download(; source::String="", storage::String="", source_version::S
     if !isempty(meta.files)
         df = DataFrame(url=String[first(p) for p in meta.files],
                        filename=String[last(p) for p in meta.files])
-        output_result(df; format=Symbol(format), output=output, title="Download Log")
+        output_result(df; format=Symbol(format), output=_per_var_output_path(output, "files"),
+                      title="Download Log")
     else
         for h in meta.history
             _status("  ", h)
@@ -824,7 +825,7 @@ function _io_load(; data::String="", n_sectors::Int=0, n_fd::Int=1, sectors::Str
         "source" => isempty(io.source) ? "—" : io.source,
         "extensions" => isempty(io.extensions) ? "—" : join(sort(collect(keys(io.extensions))), ", "),
         "total_output" => string(round(sum(io.x); digits=4)),
-    ]; format=Symbol(format), output=output, title="IO Table Summary")
+    ]; format=Symbol(format), output=_per_var_output_path(output, "summary"), title="IO Table Summary")
 
     fd_tot = vec(sum(io.Y, dims=2))
     va_tot = vec(sum(io.va, dims=1))
@@ -847,7 +848,9 @@ function _io_leontief(; data::String="", n_sectors::Int=0, n_fd::Int=1, sectors:
     end
     if matrix in ("L", "both")
         output_result(_io_matrix_df(m.L, io.sectors);
-                      format=Symbol(format), output=output, title="Leontief Inverse (L)")
+                      format=Symbol(format),
+                      output=(matrix == "both" ? _per_var_output_path(output, "L") : output),
+                      title="Leontief Inverse (L)")
     end
     return m
 end
@@ -862,7 +865,9 @@ function _io_ghosh(; data::String="", n_sectors::Int=0, n_fd::Int=1, sectors::St
     end
     if matrix in ("G", "both")
         output_result(_io_matrix_df(m.G, io.sectors);
-                      format=Symbol(format), output=output, title="Ghosh Inverse (G)")
+                      format=Symbol(format),
+                      output=(matrix == "both" ? _per_var_output_path(output, "G") : output),
+                      title="Ghosh Inverse (G)")
     end
     return m
 end
@@ -1079,15 +1084,18 @@ function _io_footprint(; data::String="", n_sectors::Int=0, n_fd::Int=1, sectors
                   format=Symbol(format), output=output, title="Footprint ($name)", key="footprint")
     # Per-sector contribution: sector × stressor(s).
     output_result(_io_matrix_df(permutedims(fp.by_sector), io.sectors, fp.stressors);
-                  format=Symbol(format), output=output, title="Footprint by Sector ($name)",
+                  format=Symbol(format), output=_per_var_output_path(output, "by_sector"),
+                  title="Footprint by Sector ($name)",
                   key="footprint_by_sector")
 
     if detail
         output_result(_io_matrix_df(permutedims(intensities(io, name)), io.sectors, fp.stressors);
-                      format=Symbol(format), output=output, title="Intensities S ($name)",
+                      format=Symbol(format), output=_per_var_output_path(output, "intensities"),
+                      title="Intensities S ($name)",
                       key="intensities_s")
         output_result(_io_matrix_df(permutedims(emission_multipliers(io, name)), io.sectors, fp.stressors);
-                      format=Symbol(format), output=output, title="Emission Multipliers M=SL ($name)",
+                      format=Symbol(format), output=_per_var_output_path(output, "multipliers"),
+                      title="Emission Multipliers M=SL ($name)",
                       key="emission_multipliers")
     end
     return fp
@@ -1107,7 +1115,8 @@ function _io_baqaee_farhi(; data::String="", n_sectors::Int=0, n_fd::Int=1, sect
                   title="Baqaee & Farhi (2019) decomposition")
     if second_order
         output_result(_io_matrix_df(bf.second_order, io.sectors);
-                      format=Symbol(format), output=output, title="Second-order Hessian (beyond Hulten)")
+                      format=Symbol(format), output=_per_var_output_path(output, "hessian"),
+                      title="Second-order Hessian (beyond Hulten)")
     end
     return bf
 end
@@ -1265,7 +1274,7 @@ function _io_emit_iodata(io; format::String="table", output::String="")
         "source" => isempty(io.source) ? "—" : io.source,
         "extensions" => isempty(io.extensions) ? "—" : join(sort(collect(keys(io.extensions))), ", "),
         "total_output" => string(round(sum(io.x); digits=4)),
-    ]; format=Symbol(format), output=output, title="IO Table Summary")
+    ]; format=Symbol(format), output=_per_var_output_path(output, "summary"), title="IO Table Summary")
     fd_tot = vec(sum(io.Y, dims=2))
     va_tot = vec(sum(io.va, dims=1))
     df = DataFrame(sector=io.sectors,
@@ -1276,8 +1285,6 @@ function _io_emit_iodata(io; format::String="table", output::String="")
     output_result(df; format=Symbol(format), output=output, title="Sectors")
     return io
 end
-
-# ── W3/#154 handlers ─────────────────────────────────────────
 
 function _io_bf_network(; data::String="", n_sectors::Int=0, n_fd::Int=1, sectors::String="",
                         parser::String="csv",
@@ -1295,7 +1302,7 @@ function _io_bf_network(; data::String="", n_sectors::Int=0, n_fd::Int=1, sector
         "M" => string(net.M),
         "F" => string(net.F),
         "nests" => string(net.nests),
-    ]; format=Symbol(format), output=output, title="Production Network Summary")
+    ]; format=Symbol(format), output=_per_var_output_path(output, "summary"), title="Production Network Summary")
     λ = [net.lambda[g] for g in net.outer_nodes]
     λr = [net.lambda_rev[g] for g in net.outer_nodes]
     μ = [net.mu[g - 1] for g in net.outer_nodes]
@@ -1348,7 +1355,7 @@ function _io_bf_equilibrium(; data::String="", n_sectors::Int=0, n_fd::Int=1, se
         "converged" => string(eq.converged),
         "iterations" => eq.iterations,
         "residual" => round(eq.residual; digits=8),
-    ]; format=Symbol(format), output=output, title="BF Equilibrium Summary")
+    ]; format=Symbol(format), output=_per_var_output_path(output, "summary"), title="BF Equilibrium Summary")
     df = DataFrame(sector=eq.sectors,
                    dlog_x=round.(eq.dlog_x; digits=6),
                    dlog_p=round.(eq.dlog_p; digits=6))
@@ -1380,7 +1387,7 @@ function _io_bf_local(; data::String="", n_sectors::Int=0, n_fd::Int=1, sectors:
                   title="BF Local Hulten", key="bf_local_hulten")
     if !isempty(loc.second_order)
         output_result(_io_matrix_df(loc.second_order, loc.sectors);
-                      format=Symbol(format), output=output,
+                      format=Symbol(format), output=_per_var_output_path(output, "hessian"),
                       title="BF Local Hessian", key="bf_local_hessian")
     end
     _maybe_plot(loc; plot=plot, plot_save=plot_save)
@@ -1408,7 +1415,7 @@ function _io_bf_elasticities(; data::String="", n_sectors::Int=0, n_fd::Int=1, s
                   title="Price Incidence ∂log p / ∂log A", key="price_incidence")
     if !isempty(el.dlogw_dlogA)
         output_result(_io_matrix_df(el.dlogw_dlogA, el.factor_names, el.sectors);
-                      format=Symbol(format), output=output,
+                      format=Symbol(format), output=_per_var_output_path(output, "factor_incidence"),
                       title="Factor Price Incidence ∂log w / ∂log A",
                       key="factor_price_incidence")
     end
@@ -1485,7 +1492,7 @@ function _io_bf_wedges(; data::String="", n_sectors::Int=0, n_fd::Int=1, sectors
         "allocative_mu" => round(w.allocative_mu; digits=6),
         "allocative_factor" => round(w.allocative_factor; digits=6),
         "factor_supply" => round(w.factor_supply; digits=6),
-    ]; format=Symbol(format), output=output, title="BF Wedge Decomp")
+    ]; format=Symbol(format), output=_per_var_output_path(output, "summary"), title="BF Wedge Decomp")
     df = DataFrame(sector=w.sectors,
                    lambda_cost=round.(w.lambda_cost; digits=6),
                    lambda_rev=round.(w.lambda_rev; digits=6),
@@ -1518,7 +1525,7 @@ function _io_bf_misallocation(; data::String="", n_sectors::Int=0, n_fd::Int=1, 
         "first_order" => round(m.first_order; digits=6),
         "second_order" => round(m.second_order; digits=6),
         "point" => string(m.point),
-    ]; format=Symbol(format), output=output, title="BF Misallocation Summary")
+    ]; format=Symbol(format), output=_per_var_output_path(output, "summary"), title="BF Misallocation Summary")
     df = DataFrame(sector=m.sectors,
                    delta_logmu=round.(m.delta_logmu; digits=6),
                    lambda=round.(m.lambda; digits=6),
@@ -1571,7 +1578,7 @@ function _io_impact(; data::String="", n_sectors::Int=0, n_fd::Int=1, sectors::S
         "total" => round(r.total; digits=6),
         "kind" => string(r.kind),
         "type" => string(r.type),
-    ]; format=Symbol(format), output=output, title="Impact Summary")
+    ]; format=Symbol(format), output=_per_var_output_path(output, "summary"), title="Impact Summary")
     df = DataFrame(sector=r.sectors, impact=round.(r.by_sector; digits=6))
     output_result(df; format=Symbol(format), output=output,
                   title="Impact by Sector", key="impact_by_sector")
@@ -1592,7 +1599,7 @@ function _io_network_stats(; data::String="", n_sectors::Int=0, n_fd::Int=1, sec
     output_kv([
         "herfindahl" => round(r.herfindahl; digits=6),
         "multiplier_dispersion" => round(r.multiplier_dispersion; digits=6),
-    ]; format=Symbol(format), output=output, title="Network Stats Summary")
+    ]; format=Symbol(format), output=_per_var_output_path(output, "summary"), title="Network Stats Summary")
     df = DataFrame(sector=r.sectors,
                    domar=round.(r.domar; digits=6),
                    multiplier=round.(r.multipliers; digits=6),
@@ -1665,7 +1672,7 @@ function _io_vertical_specialization(; data::String="", n_sectors::Int=0, n_fd::
         "dc_share" => round(vs.dc_share; digits=6),
         "gross_exports" => round(vs.gross_exports; digits=6),
         "region" => vs.region,
-    ]; format=Symbol(format), output=output, title="Vertical Specialization")
+    ]; format=Symbol(format), output=_per_var_output_path(output, "summary"), title="Vertical Specialization")
     # by_sector is length nsectors (one region's industries), not full n.
     ns = length(vs.by_sector)
     labs = if ns == length(io.sectors)
@@ -1719,7 +1726,7 @@ function _io_export_decomposition(; data::String="", n_sectors::Int=0, n_fd::Int
                     rdv=round.(ed.by_sector[:, 2]; digits=6),
                     fva=round.(ed.by_sector[:, 3]; digits=6),
                     pdc=round.(ed.by_sector[:, 4]; digits=6))
-    output_result(sdf; format=Symbol(format), output=output,
+    output_result(sdf; format=Symbol(format), output=_per_var_output_path(output, "sectors"),
                   title="KWW Export by Sector", key="kww_export_by_sector")
     _maybe_plot(ed; plot=plot, plot_save=plot_save)
     return ed
@@ -1749,7 +1756,7 @@ function _io_bilateral_trade(; data::String="", n_sectors::Int=0, n_fd::Int=1,
         "exporter" => string(ex),
         "importer" => string(im),
         "kind" => kind,
-    ]; format=Symbol(format), output=output, title="Bilateral Trade Summary")
+    ]; format=Symbol(format), output=_per_var_output_path(output, "summary"), title="Bilateral Trade Summary")
     ns = length(bt.by_sector)
     labs = try
         idxs = collect(region_indices(io, ex))

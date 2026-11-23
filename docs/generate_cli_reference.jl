@@ -392,60 +392,14 @@ end
 
 # ── Shell completions ─────────────────────────────────────────
 
-function _bash_completion(specs::Vector{Friedman.CommandSpec})::String
-    groups = _group_by_top(specs)
-    tops = sort(collect(keys(groups)))
-    io = IOBuffer()
-    println(io, "# Friedman-cli bash completion (generated)")
-    println(io, "_friedman() {")
-    println(io, "  local cur prev words cword")
-    println(io, "  _init_completion || return")
-    println(io, "  if [[ \$cword -eq 1 ]]; then")
-    println(io, "    COMPREPLY=( \$(compgen -W \"$(join(tops, " ")) repl\" -- \"\$cur\") )")
-    println(io, "    return")
-    println(io, "  fi")
-    println(io, "  case \"\${words[1]}\" in")
-    for top in tops
-        leaves = sort(unique([s.path[2] for s in groups[top] if length(s.path) >= 2]))
-        println(io, "    $top) COMPREPLY=( \$(compgen -W \"$(join(leaves, " "))\" -- \"\$cur\") ) ;;")
-    end
-    println(io, "  esac")
-    println(io, "}")
-    println(io, "complete -F _friedman friedman")
-    return String(take!(io))
-end
+_bash_completion(specs::Vector{Friedman.CommandSpec})::String =
+    Friedman.generate_bash_completion(Friedman.APP)
 
-function _zsh_completion(specs::Vector{Friedman.CommandSpec})::String
-    groups = _group_by_top(specs)
-    tops = sort(collect(keys(groups)))
-    io = IOBuffer()
-    println(io, "#compdef friedman")
-    println(io, "# Friedman-cli zsh completion (generated)")
-    println(io, "_friedman() {")
-    println(io, "  local -a commands")
-    println(io, "  commands=(")
-    for top in tops
-        println(io, "    '$top'")
-    end
-    println(io, "    'repl'")
-    println(io, "  )")
-    println(io, "  _describe 'command' commands")
-    println(io, "}")
-    println(io, "_friedman \"\$@\"")
-    return String(take!(io))
-end
+_zsh_completion(specs::Vector{Friedman.CommandSpec})::String =
+    Friedman.generate_zsh_completion(Friedman.APP)
 
-function _fish_completion(specs::Vector{Friedman.CommandSpec})::String
-    groups = _group_by_top(specs)
-    tops = sort(collect(keys(groups)))
-    io = IOBuffer()
-    println(io, "# Friedman-cli fish completion (generated)")
-    for top in tops
-        println(io, "complete -c friedman -n \"__fish_use_subcommand\" -a $top")
-    end
-    println(io, "complete -c friedman -n \"__fish_use_subcommand\" -a repl")
-    return String(take!(io))
-end
+_fish_completion(specs::Vector{Friedman.CommandSpec})::String =
+    Friedman.generate_fish_completion(Friedman.APP)
 
 # ── Write / check ─────────────────────────────────────────────
 

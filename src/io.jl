@@ -24,6 +24,9 @@ const _QUIET = Ref(false)
 const _COLOR = Ref(true)
 const _SEED = Ref{Union{Nothing,Int}}(nothing)
 const _LAST_ARGV = Ref{Vector{String}}(String[])
+const _COMPACT = Ref(false)
+const _FORCE_JSON = Ref(false)
+const _ENVELOPE_JSON_TO_FILE = Ref(false)
 
 _status(parts...) = _QUIET[] || println(stderr, parts...)
 function _status_styled(args...; kwargs...)
@@ -50,6 +53,7 @@ missing summary, not a failed run.
 """
 function _status_report(f::Function)
     _QUIET[] && return nothing
+    isdefined(@__MODULE__, :_IN_DISPATCH) && _IN_DISPATCH[] && return nothing
     try
         redirect_stdout(f, stderr)
     catch e
@@ -80,37 +84,122 @@ function _status_stdout(f::Function)
     end
 end
 
-"""
-    _extract_global_flags!(args) → (remaining, force_json)
+function _probe_target_command(args::Vector{String}, stop_idx::Int)
+    isdefined(@__MODULE__, :APP) || return (nothing, String[], stop_idx + 1)
+    node = APP.root
+    path = String[]
+    first_cmd_idx = stop_idx + 1
+    i = 1
+    while i <= stop_idx
+        tok = args[i]
+        if tok == "--quiet" || tok == "--no-color" || tok == "--json" || tok == "--compact" ||
+           startswith(tok, "--seed=") || (tok == "-q" && isempty(path))
+            i += 1
+        elseif tok == "--seed"
+            i += 2
+        elseif startswith(tok, "-")
+            i += 1
+        elseif isdefined(@__MODULE__, :NodeCommand) && node isa NodeCommand
+            if isempty(path) && tok == "schema"
+                first_cmd_idx == stop_idx + 1 && (first_cmd_idx = i)
+                push!(path, "schema")
+                return (nothing, path, first_cmd_idx)
+            end
+            sub = get(node.subcmds, tok, nothing)
+            if sub === nothing
+                break
+            end
+            first_cmd_idx == stop_idx + 1 && (first_cmd_idx = i)
+            push!(path, tok)
+            if isdefined(@__MODULE__, :LeafCommand) && sub isa LeafCommand
+                return (sub, path, first_cmd_idx)
+            end
+            node = sub
+            i += 1
+        else
+            break
+        end
+    end
+    return (nothing, path, first_cmd_idx)
+end
 
-Scan argv left-to-right until the first non-flag token (P1-6). Mutates quiet/color/seed
-state and strips global flags from the returned vector.
+function _explicit_format_in(args::Vector{String}, stop_idx::Int)
+    fmt_val = nothing
+    for i in 1:stop_idx
+        tok = args[i]
+        if startswith(tok, "--format=")
+            fmt_val = tok[10:end]
+        elseif startswith(tok, "-f=")
+            fmt_val = tok[4:end]
+        elseif (tok == "--format" || tok == "-f") && i + 1 <= stop_idx
+            fmt_val = args[i + 1]
+        end
+    end
+    return fmt_val
+end
+
+"""
+    _extract_global_flags!(args) → remaining
+
+Scan argv before `--` for global flags (`--quiet`/`-q`, `--no-color`, `--json`,
+`--compact`, `--seed`). Mutates global state and strips hoisted globals from the
+returned vector while preserving leaf-owned mid-argv `--seed`/`-q`/`--compact`.
 """
 function _extract_global_flags!(args::Vector{String})
     _QUIET[] = false
     _COLOR[] = !haskey(ENV, "NO_COLOR")
     _SEED[] = nothing
+    _COMPACT[] = false
+    _FORCE_JSON[] = false
+
+    dd = findfirst(==("--"), args)
+    stop_idx = dd === nothing ? length(args) : dd - 1
+
+    leaf, cmd_path, first_cmd_idx = _probe_target_command(args, stop_idx)
+    leaf_owns_seed = leaf !== nothing && any(o -> o.name == "seed", leaf.options)
+    leaf_owns_q = leaf !== nothing && (
+        any(o -> o.short == "q", leaf.options) || any(f -> f.short == "q", leaf.flags)
+    )
+    leaf_owns_compact = leaf !== nothing && (
+        any(o -> o.name == "compact", leaf.options) || any(f -> f.name == "compact", leaf.flags)
+    )
+    leaf_has_format = leaf === nothing ? true : any(o -> o.name == "format", leaf.options)
+    leaf_is_serve = cmd_path == ["serve"]
+    leaf_is_completions = !isempty(cmd_path) && cmd_path[1] == "completions"
+    leaf_is_schema = !isempty(cmd_path) && cmd_path[1] == "schema"
+
+    remaining = String[]
+    sizehint!(remaining, length(args))
     force_json = false
     i = 1
-    n = length(args)
-    # Only leading globals (until first non-global token) — F61
-    while i <= n
+    while i <= stop_idx
         tok = args[i]
-        if tok == "--quiet" || tok == "-q"
+        is_leading = i < first_cmd_idx
+        if tok == "--quiet"
+            _QUIET[] = true
+            i += 1
+        elseif tok == "-q" && (is_leading || !leaf_owns_q)
             _QUIET[] = true
             i += 1
         elseif tok == "--no-color"
             _COLOR[] = false
             i += 1
+        elseif tok == "--compact" && (is_leading || !leaf_owns_compact)
+            _COMPACT[] = true
+            i += 1
         elseif tok == "--json"
             force_json = true
             i += 1
         elseif tok == "--seed"
-            i + 1 <= n || throw(CliError("usage/bad-seed", "--seed requires an integer argument"))
+            i + 1 <= stop_idx || throw(CliError("usage/bad-seed", "--seed requires an integer argument"))
             s = tryparse(Int, args[i + 1])
             s === nothing && throw(CliError("usage/bad-seed", "invalid --seed value '$(args[i + 1])'"))
             _SEED[] = s
             Random.seed!(s)
+            if !is_leading && leaf_owns_seed
+                push!(remaining, tok)
+                push!(remaining, args[i + 1])
+            end
             i += 2
         elseif startswith(tok, "--seed=")
             raw = tok[8:end]
@@ -118,16 +207,42 @@ function _extract_global_flags!(args::Vector{String})
             s === nothing && throw(CliError("usage/bad-seed", "invalid --seed value '$raw'"))
             _SEED[] = s
             Random.seed!(s)
+            if !is_leading && leaf_owns_seed
+                push!(remaining, tok)
+            end
             i += 1
         else
-            break
+            push!(remaining, tok)
+            i += 1
         end
     end
-    remaining = args[i:end]
+    if dd !== nothing
+        append!(remaining, @view args[dd:end])
+    end
+
+    _FORCE_JSON[] = force_json
     if force_json
-        has_fmt = any(t -> startswith(t, "--format") || t == "-f", remaining)
-        if !has_fmt
-            remaining = vcat(remaining, String["--format", "json"])
+        rem_stop = dd === nothing ? length(remaining) : findfirst(==("--"), remaining) - 1
+        explicit_fmt = _explicit_format_in(remaining, rem_stop)
+        if explicit_fmt !== nothing
+            if lowercase(explicit_fmt) != "json"
+                throw(CliError("usage/invalid",
+                    "conflicting output flags: --json cannot be combined with --format $explicit_fmt";
+                    hint="pass either --json or --format $explicit_fmt, not both"))
+            end
+        elseif leaf_is_serve
+            throw(CliError("usage/invalid",
+                "--json cannot be used with `friedman serve` (stdout is reserved for JSON-RPC)"))
+        elseif leaf_is_completions || leaf_is_schema
+            # Handled natively by completions envelope wrapper or schema's raw JSON output
+        elseif leaf_has_format
+            # Insert before `--` if present so it's parsed as an option
+            if dd === nothing
+                push!(remaining, "--format", "json")
+            else
+                pos_dd = findfirst(==("--"), remaining)
+                splice!(remaining, pos_dd:pos_dd-1, String["--format", "json"])
+            end
         end
     end
     return remaining
@@ -136,35 +251,17 @@ end
 """
     _argv_wants_json(args) → Bool
 
-True when the RAW argv asks for JSON output: an exact `--format json` /
-`--format=json` / `-f json` / `-f=json` token (pair) anywhere, or a `--json`
-global in the LEADING global region (the same region `_extract_global_flags!`
-consumes). Exact-token matching only (W2/#137): a false negative degrades to
-today's stderr-only usage error, while a false positive would wrongly print
-JSON — so no fuzzy matching. Used by `run_cli`'s error net, which must decide
-BEFORE tokenize/bind_args run (they are exactly what throws on a usage error)
-and even before `_extract_global_flags!` (a bad `--seed` throws inside it).
+True when the RAW argv (before `--`) asks for JSON output: an exact `--format json` /
+`--format=json` / `-f json` / `-f=json` / `--json` token (pair) anywhere before `--`.
+Used by `run_cli`'s error net, which must decide BEFORE tokenize/bind_args run.
 """
 function _argv_wants_json(args::Vector{String})
-    n = length(args)
-    for (i, tok) in enumerate(args)
-        (tok == "--format=json" || tok == "-f=json") && return true
-        (tok == "--format" || tok == "-f") && i + 1 <= n && args[i+1] == "json" && return true
-    end
-    i = 1
-    while i <= n
+    dd = findfirst(==("--"), args)
+    stop_idx = dd === nothing ? length(args) : dd - 1
+    for i in 1:stop_idx
         tok = args[i]
-        if tok == "--quiet" || tok == "-q" || tok == "--no-color"
-            i += 1
-        elseif tok == "--json"
-            return true
-        elseif tok == "--seed"
-            i += 2
-        elseif startswith(tok, "--seed=")
-            i += 1
-        else
-            break
-        end
+        (tok == "--format=json" || tok == "-f=json" || tok == "--json") && return true
+        (tok == "--format" || tok == "-f") && i + 1 <= stop_idx && args[i+1] == "json" && return true
     end
     return false
 end
@@ -255,7 +352,17 @@ _validate_input_path(path::String) = _validate_path(path, "input")
 
 Validate an output file path. See [`_validate_path`](@ref).
 """
-_validate_output_path(path::String) = _validate_path(path, "output")
+function _validate_output_path(path::String)
+    _validate_path(path, "output")
+    isempty(path) && return path
+    parent = dirname(abspath(_expanduser(path)))
+    if !isempty(parent) && !isdir(parent)
+        throw(CliError("data/file-not-found",
+            "output directory does not exist: $parent";
+            hint="create the directory first (e.g. mkdir -p $parent)"))
+    end
+    return path
+end
 
 # ── Example datasets ─────────────────────────────────────
 
@@ -539,17 +646,14 @@ function output_result(df::DataFrame; format::Union{String,Symbol}=:table, outpu
     _validate_output_path(output)
     # Accumulate into active JSON envelope instead of printing (C010 / F17)
     if envelope_active() && fmt == :json
-        if isempty(output)
-            # W3/#138: `key` is the stable, registry-declared envelope address;
-            # when empty, fall back to the title slug (legal only when the title
-            # is a run-invariant literal — check_table_keys.jl enforces this).
-            add_table!(_ENVELOPE[], Symbol(isempty(key) ? _slug(title) : String(key)), df)
-            return
-        else
-            _write_json(df, output)
-            add_artifact!(_ENVELOPE[], "file", output)
-            return
-        end
+        add_table!(_ENVELOPE[], Symbol(isempty(key) ? _slug(title) : String(key)), df)
+        isempty(output) || (_ENVELOPE_JSON_TO_FILE[] = true)
+        return
+    end
+    # Accumulate into active CSV envelope on stdout so multi-table commands emit one RFC 4180 table (F-18)
+    if envelope_active() && fmt == :csv && isempty(output)
+        add_table!(_ENVELOPE[], Symbol(isempty(key) ? _slug(title) : String(key)), df)
+        return
     end
     if fmt == :csv
         _write_csv(df, output)
@@ -571,14 +675,14 @@ function output_kv(pairs::Vector{<:Pair{String}}; format::Union{String,Symbol}="
     _validate_output_path(output)
     if envelope_active() && fmt == :json
         df = DataFrame(; metric=first.(pairs), value=last.(pairs))
-        if isempty(output)
-            add_table!(_ENVELOPE[], Symbol(isempty(key) ? _slug(title) : String(key)), df)
-            return
-        else
-            _write_json(df, output)
-            add_artifact!(_ENVELOPE[], "file", output)
-            return
-        end
+        add_table!(_ENVELOPE[], Symbol(isempty(key) ? _slug(title) : String(key)), df)
+        isempty(output) || (_ENVELOPE_JSON_TO_FILE[] = true)
+        return
+    end
+    if envelope_active() && fmt == :csv && isempty(output)
+        df = DataFrame(; metric=first.(pairs), value=last.(pairs))
+        add_table!(_ENVELOPE[], Symbol(isempty(key) ? _slug(title) : String(key)), df)
+        return
     end
     if fmt == :json
         d = Dict(pairs)
@@ -595,14 +699,24 @@ end
 # Internal helpers
 
 function _write_table(df::DataFrame, output::String, title::String)
+    disp = _COMPACT[] ? begin
+        out_df = DataFrame()
+        for name in names(df)
+            col = df[!, name]
+            out_df[!, name] = [v isa AbstractFloat && isfinite(v) ? round(Float64(v); sigdigits=4) : v for v in col]
+        end
+        out_df
+    end : df
+    is_tty = isempty(output) && (stdout isa Base.TTY)
+    fit_tty = _COMPACT[] && is_tty
     io = isempty(output) ? stdout : open(output, "w")
     try
-        pretty_table(io, df;
+        pretty_table(io, disp;
             title=title,
             alignment=:c,
-            column_labels=names(df),
-            fit_table_in_display_horizontally=false,
-            fit_table_in_display_vertically=false)
+            column_labels=names(disp),
+            fit_table_in_display_horizontally=fit_tty,
+            fit_table_in_display_vertically=fit_tty)
     finally
         isempty(output) || close(io)
     end

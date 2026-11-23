@@ -1,5 +1,16 @@
 # Envelope renderers: :json | :table | :csv (P1-1; F17, F20, F66)
 
+_json_cell_safe(x) = string(x)
+_json_cell_safe(x::Nothing) = nothing
+_json_cell_safe(x::Missing) = nothing
+_json_cell_safe(x::Bool) = x
+_json_cell_safe(x::Integer) = x
+_json_cell_safe(x::AbstractFloat) = _json_safe(x)
+_json_cell_safe(x::AbstractString) = x
+_json_cell_safe(x::Symbol) = string(x)
+_json_cell_safe(x::Tuple) = join(string.(x), ", ")
+_json_cell_safe(x::AbstractVector) = join(string.(x), ", ")
+
 function _table_payload(df::DataFrame)
     col_syms = names(df)
     ncols = length(col_syms)
@@ -14,11 +25,21 @@ function _table_payload(df::DataFrame)
     @inbounds for i in 1:nrows
         row = Vector{Any}(undef, ncols)
         for j in 1:ncols
-            row[j] = _json_safe(col_vecs[j][i])
+            row[j] = _json_cell_safe(col_vecs[j][i])
         end
         rows[i] = row
     end
     return Dict{String,Any}("columns" => cols, "rows" => rows)
+end
+
+function _compact_df(df::DataFrame)
+    (_COMPACT[]) || return df
+    out = DataFrame()
+    for name in names(df)
+        col = df[!, name]
+        out[!, name] = [v isa AbstractFloat && isfinite(v) ? round(Float64(v); sigdigits=4) : v for v in col]
+    end
+    return out
 end
 
 function _envelope_to_dict(env::Envelope)
@@ -72,13 +93,16 @@ function render(env::Envelope, fmt::Symbol, out::IO)
         end
         CSV.write(out, env.tables[1].second)
     else  # :table
+        is_tty = out isa Base.TTY
+        fit_tty = isdefined(@__MODULE__, :_COMPACT) && _COMPACT[] && is_tty
         for (name, df) in env.tables
-            pretty_table(out, df;
+            disp = isdefined(@__MODULE__, :_COMPACT) ? _compact_df(df) : df
+            pretty_table(out, disp;
                 title=string(name),
                 alignment=:c,
-                column_labels=names(df),
-                fit_table_in_display_horizontally=false,
-                fit_table_in_display_vertically=false)
+                column_labels=names(disp),
+                fit_table_in_display_horizontally=fit_tty,
+                fit_table_in_display_vertically=fit_tty)
         end
     end
     return nothing
