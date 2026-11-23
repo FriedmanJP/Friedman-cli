@@ -32,7 +32,7 @@ function hd_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto)"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|proxy|max-share|gmm-moments|lewis-tvv|sv-em|fastica|jade|sobi|dcov|hsic|student_t|mixture_normal|pml|skew_normal|markov_switching|garch_id"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|proxy|max-share|gmm-moments|lewis-tvv|sv-em|fastica|jade|sobi|dcov|hsic|student-t|mixture-normal|pml|skew-normal|markov-switching|garch-id"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
                 OptionSpec(name="instrument", type=String, default="", description="Proxy-instrument CSV column (only with --id proxy)"),
                 OptionSpec(name="target-var", type=String, default="", description="Max-share target: column name or 1-based index (only with --id max-share)"),
@@ -53,7 +53,7 @@ function hd_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="Lag order"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|fastica|jade|sobi|dcov|hsic|student_t|mixture_normal|pml|skew_normal|markov_switching|garch_id|uhlig|lewis-tvv|sv-em"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|fastica|jade|sobi|dcov|hsic|student-t|mixture-normal|pml|skew-normal|markov-switching|garch-id|uhlig|lewis-tvv|sv-em"),
                 OptionSpec(name="draws", short="n", type=Int, default=2000, description="Posterior draws"),
                 OptionSpec(name="sampler", type=String, default="direct", description="direct|gibbs"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification/prior"),
@@ -75,7 +75,7 @@ function hd_specs()::Vector{CommandSpec}
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="LP control lags"),
                 OptionSpec(name="var-lags", type=Int, default=nothing, description="VAR lag order for identification (default: same as --lags)"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|fastica|jade|sobi|dcov|hsic|student_t|mixture_normal|pml|skew_normal|markov_switching|garch_id|uhlig|lewis-tvv|sv-em"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|fastica|jade|sobi|dcov|hsic|student-t|mixture-normal|pml|skew-normal|markov-switching|garch-id|uhlig|lewis-tvv|sv-em"),
                 OptionSpec(name="vcov", type=String, default="newey_west", description="newey_west|white|driscoll_kraay"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -97,7 +97,7 @@ function hd_specs()::Vector{CommandSpec}
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels)"),
                 OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
                 OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|fastica|jade|sobi|dcov|hsic|student_t|mixture_normal|pml|skew_normal|markov_switching|garch_id|uhlig|lewis-tvv|sv-em|svec (uhlig: generic path)"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|fastica|jade|sobi|dcov|hsic|student-t|mixture-normal|pml|skew-normal|markov-switching|garch-id|uhlig|lewis-tvv|sv-em|svec (uhlig: generic path)"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -115,7 +115,7 @@ function hd_specs()::Vector{CommandSpec}
             summary="FAVAR historical decomposition",
             args=[ArgSpec(name="data", description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
-                OptionSpec(name="factors", short="r", type=Int, default=nothing, description="Number of factors (default: auto)"),
+                OptionSpec(name="factors", type=Int, default=nothing, description="Number of factors (default: auto)"),
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="VAR lag order"),
                 OptionSpec(name="key-vars", type=String, default="", description="Key variable names or indices (comma-separated)"),
                 OptionSpec(name="horizons", type=Int, default=20, description="HD horizon"),
@@ -240,22 +240,24 @@ function _hd_var(; data::String="", result=nothing, model=nothing, lags=nothing,
             isempty(get(get(cfg2, "identification", Dict()), "narrative_contributions", [])) &&
                 throw(CliError("usage/missing",
                     "hd var: --id narrative-adrr requires [identification.narrative_contributions] in --config (ADRR Type A/B)"))
-            arias_result = identify_narrative(model, restrictions, size(Y, 1) - p; _fwd_seed()...)
-        else
-            arias_result = identify_arias(model, restrictions, size(Y, 1) - p; _fwd_seed()...)
         end
-        # Use Cholesky HD as base, labelled with Arias id
-        hd_result = historical_decomposition(model, size(Y, 1) - p; method=:cholesky)
+        hd_result = try
+            historical_decomposition(model, size(Y, 1) - p;
+                                     method=:arias, restrictions=restrictions, _fwd_seed()...)
+        catch e
+            throw(_domain_or_data_error(e, id == "narrative-adrr" ? "Narrative-ADRR historical decomposition" : "Arias historical decomposition"))
+        end
         _status_report(() -> report(hd_result))
+        _maybe_plot(hd_result; plot=plot, plot_save=plot_save)
         is_valid = verify_decomposition(hd_result)
         if is_valid
             _status_styled("Decomposition verified (contributions sum to actual values)\n"; color=:green)
         else
-            _status_styled("Decomposition verification failed\n"; color=:yellow)
+            _cli_warn!("model/hd-verification", "Decomposition verification failed (contributions do not sum to actual within tolerance)"; always_stderr=true)
         end
         _status()
         _output_hd_tables((vi, si) -> contribution(hd_result, vi, si), varnames, hd_result.T_eff;
-                          id="arias", title_prefix="Historical Decomposition",
+                          id=id, title_prefix="Historical Decomposition",
                           format=format, output=output,
                           actual=hd_result.actual, initial=hd_result.initial_conditions,
                           key_prefix="historical_decomposition")
@@ -267,19 +269,27 @@ function _hd_var(; data::String="", result=nothing, model=nothing, lags=nothing,
         cfg, restrictions = _load_svar_restrictions(config, n, "Uhlig")
         uhlig_params = get_uhlig_params(cfg)
         scale = _validate_uhlig_scale(uhlig_params["scale"], n, "hd var")
-        uhlig_result = identify_uhlig(model, restrictions, size(Y, 1) - p;
-            n_starts=uhlig_params["n_starts"], n_refine=uhlig_params["n_refine"],
-            max_iter_coarse=uhlig_params["max_iter_coarse"], max_iter_fine=uhlig_params["max_iter_fine"],
-            tol_coarse=uhlig_params["tol_coarse"], tol_fine=uhlig_params["tol_fine"],
-            scale=scale, _fwd_seed()...)
-        # Use Cholesky HD as base, labelled with Uhlig id
-        hd_result = historical_decomposition(model, size(Y, 1) - p; method=:cholesky)
+        uhlig_result = try
+            identify_uhlig(model, restrictions, size(Y, 1) - p;
+                n_starts=uhlig_params["n_starts"], n_refine=uhlig_params["n_refine"],
+                max_iter_coarse=uhlig_params["max_iter_coarse"], max_iter_fine=uhlig_params["max_iter_fine"],
+                tol_coarse=uhlig_params["tol_coarse"], tol_fine=uhlig_params["tol_fine"],
+                scale=scale, _fwd_seed()...)
+        catch e
+            throw(_domain_or_data_error(e, "Uhlig identification"))
+        end
+        hd_result = try
+            historical_decomposition(model, uhlig_result, size(Y, 1) - p)
+        catch e
+            throw(_domain_or_data_error(e, "Uhlig historical decomposition"))
+        end
         _status_report(() -> report(hd_result))
+        _maybe_plot(hd_result; plot=plot, plot_save=plot_save)
         is_valid = verify_decomposition(hd_result)
         if is_valid
             _status_styled("Decomposition verified (contributions sum to actual values)\n"; color=:green)
         else
-            _status_styled("Decomposition verification failed\n"; color=:yellow)
+            _cli_warn!("model/hd-verification", "Decomposition verification failed (contributions do not sum to actual within tolerance)"; always_stderr=true)
         end
         _status()
         _output_hd_tables((vi, si) -> contribution(hd_result, vi, si), varnames, hd_result.T_eff;
@@ -295,7 +305,11 @@ function _hd_var(; data::String="", result=nothing, model=nothing, lags=nothing,
     kwargs = _build_identification_kwargs(id, config; methods=_ID_METHODS_VAR,
                                               nvars=length(varnames), leaf="hd var")
     _inject_svar_id_kwargs!(kwargs, id, "hd var", data, varnames, instrument, target_var)
-    hd_result = historical_decomposition(model, size(Y, 1) - p; kwargs...)
+    hd_result = try
+        historical_decomposition(model, size(Y, 1) - p; kwargs...)
+    catch e
+        throw(_domain_or_data_error(e, "VAR historical decomposition"))
+    end
 
     _status_report(() -> report(hd_result))
     _maybe_plot(hd_result; plot=plot, plot_save=plot_save)
@@ -304,7 +318,7 @@ function _hd_var(; data::String="", result=nothing, model=nothing, lags=nothing,
     if is_valid
         _status_styled("Decomposition verified (contributions sum to actual values)\n"; color=:green)
     else
-        _status_styled("Decomposition verification failed\n"; color=:yellow)
+        _cli_warn!("model/hd-verification", "Decomposition verification failed (contributions do not sum to actual within tolerance)"; always_stderr=true)
     end
     _status()
 
@@ -354,8 +368,16 @@ function _hd_bvar(; data::String="", result=nothing, lags::Int=4, id::String="ch
     horizon = size(Y, 1) - p
 
     bhd_kwargs = _id_knob_kwargs(id, config, n, "hd bvar")
-    bhd = historical_decomposition(post, horizon;
-        method=method, quantiles=[0.16, 0.5, 0.84], bhd_kwargs..., _fwd_seed()...)
+    check_func, narrative_check = _build_check_func(config; nvars=n)
+    _check_sign_narrative_config_match(id, config, check_func, narrative_check, "hd bvar")
+    !isnothing(check_func) && (bhd_kwargs[:check_func] = check_func)
+    !isnothing(narrative_check) && (bhd_kwargs[:narrative_check] = narrative_check)
+    bhd = try
+        historical_decomposition(post, horizon;
+            method=method, quantiles=[0.16, 0.5, 0.84], bhd_kwargs..., _fwd_seed()...)
+    catch e
+        throw(_domain_or_data_error(e, "BVAR historical decomposition"))
+    end
 
     _status_report(() -> report(bhd))
     _maybe_plot(bhd; plot=plot, plot_save=plot_save)
@@ -395,10 +417,12 @@ function _hd_lp(; data::String="", result=nothing, lags::Int=4, var_lags=nothing
         hd_horizon = T_obs - vp
         # structural_lp needs enough observations: cap LP horizon to avoid assertion error
         lp_horizon = min(hd_horizon, T_obs ÷ 2 - lags - 1)
-        lp_horizon < 1 && error("Not enough observations for LP historical decomposition (T=$T_obs, lags=$lags)")
+        lp_horizon < 1 && throw(CliError("data/too-short",
+            "Not enough observations for LP historical decomposition (T=$T_obs, lags=$lags)"))
 
         method = _identification_method(id, ID_METHOD_MAP, "hd lp")
-        check_func, narrative_check = _build_check_func(config)
+        check_func, narrative_check = _build_check_func(config; nvars=n)
+        _check_sign_narrative_config_match(id, config, check_func, narrative_check, "hd lp")
         kwargs = Dict{Symbol,Any}(
             :method => method, :lags => lags, :var_lags => vp,
             :cov_type => Symbol(vcov),
@@ -407,7 +431,11 @@ function _hd_lp(; data::String="", result=nothing, lags::Int=4, var_lags=nothing
         if !isnothing(narrative_check);  kwargs[:narrative_check] = narrative_check; end
         _SEED[] !== nothing && (kwargs[:seed] = _SEED[])
 
-        slp = structural_lp(Y, lp_horizon; kwargs...)
+        slp = try
+            structural_lp(Y, lp_horizon; kwargs...)
+        catch e
+            throw(_domain_or_data_error(e, "LP historical decomposition"))
+        end
     else
         slp = model
         varnames = slp.varnames
@@ -418,14 +446,18 @@ function _hd_lp(; data::String="", result=nothing, lags::Int=4, var_lags=nothing
     _status("Computing LP Historical Decomposition: id=$id")
     _status()
 
-    hd_result = historical_decomposition(slp, hd_horizon)
+    hd_result = try
+        historical_decomposition(slp, hd_horizon)
+    catch e
+        throw(_domain_or_data_error(e, "LP historical decomposition"))
+    end
     _maybe_plot(hd_result; plot=plot, plot_save=plot_save)
 
     is_valid = verify_decomposition(hd_result)
     if is_valid
         _status_styled("Decomposition verified (contributions sum to actual values)\n"; color=:green)
     else
-        _status_styled("Decomposition verification failed\n"; color=:yellow)
+        _cli_warn!("model/hd-verification", "Decomposition verification failed (contributions do not sum to actual within tolerance)"; always_stderr=true)
     end
     _status()
 
@@ -505,7 +537,11 @@ function _hd_vecm(; data::String="", result=nothing, lags::Int=2, rank::String="
     else
         kwargs = _build_identification_kwargs(id, config; methods=_ID_METHODS_VECM,
                                                   nvars=length(varnames), leaf="hd vecm")
-        hd_result = historical_decomposition(var_model, T_eff; kwargs...)
+        hd_result = try
+            historical_decomposition(var_model, T_eff; kwargs...)
+        catch e
+            throw(_domain_or_data_error(e, "VECM historical decomposition"))
+        end
     end
 
     _status_report(() -> report(hd_result))
@@ -515,7 +551,7 @@ function _hd_vecm(; data::String="", result=nothing, lags::Int=2, rank::String="
     if is_valid
         _status_styled("Decomposition verified (contributions sum to actual values)\n"; color=:green)
     else
-        _status_styled("Decomposition verification failed\n"; color=:yellow)
+        _cli_warn!("model/hd-verification", "Decomposition verification failed (contributions do not sum to actual within tolerance)"; always_stderr=true)
     end
     _status()
 
@@ -558,7 +594,11 @@ function _hd_favar(; data::String="", result=nothing, factors=nothing, lags::Int
     _status("FAVAR Historical Decomposition: horizon=$horizons, id=$id")
     _status()
 
-    hd_result = historical_decomposition(favar, horizons; kwargs...)
+    hd_result = try
+        historical_decomposition(favar, horizons; kwargs...)
+    catch e
+        throw(_domain_or_data_error(e, "FAVAR historical decomposition"))
+    end
 
     _status_report(() -> report(hd_result))
     _maybe_plot(hd_result; plot=plot, plot_save=plot_save)
@@ -567,7 +607,7 @@ function _hd_favar(; data::String="", result=nothing, factors=nothing, lags::Int
     if is_valid
         _status_styled("Decomposition verified (contributions sum to actual values)\n"; color=:green)
     else
-        _status_styled("Decomposition verification failed\n"; color=:yellow)
+        _cli_warn!("model/hd-verification", "Decomposition verification failed (contributions do not sum to actual within tolerance)"; always_stderr=true)
     end
     _status()
 
@@ -642,7 +682,7 @@ function _hd_sdfm(; data::String="", result=nothing, factors=nothing, id::String
     if is_valid
         _status_styled("Decomposition verified (contributions sum to actual values)\n"; color=:green)
     else
-        _status_styled("Decomposition verification failed\n"; color=:yellow)
+        _cli_warn!("model/hd-verification", "Decomposition verification failed (contributions do not sum to actual within tolerance)"; always_stderr=true)
     end
     _status()
 

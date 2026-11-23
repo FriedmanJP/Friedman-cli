@@ -25,6 +25,33 @@ add_table!(env::Envelope, name::Symbol, df::DataFrame) = (push!(env.tables, name
 add_warning!(env::Envelope, code::String, msg::String) =
     (push!(env.warnings, Dict("code" => code, "message" => msg)); env)
 
+function _add_warning_once!(env::Envelope, code::String, msg::String)
+    for w in env.warnings
+        get(w, "code", "") == code && get(w, "message", "") == msg && return env
+    end
+    return add_warning!(env, code, msg)
+end
+
+"""
+    _cli_warn!(code, msg; color=:yellow, always_stderr=false)
+
+Emit a structured runtime warning: prints to stderr (respecting `--quiet` unless
+`always_stderr=true`) and attaches `(code, msg)` to `envelope.warnings` whenever an
+envelope is active (deduplicated).
+"""
+function _cli_warn!(code::String, msg::String; color::Symbol=:yellow, always_stderr::Bool=false)
+    if always_stderr || !_QUIET[]
+        if _COLOR[]
+            printstyled(stderr, "Warning: "; bold=true, color=color)
+        else
+            print(stderr, "Warning: ")
+        end
+        println(stderr, msg)
+    end
+    envelope_active() && _add_warning_once!(_ENVELOPE[], code, msg)
+    return nothing
+end
+
 """
     validity_warning!(code, msg)
 
@@ -50,7 +77,7 @@ function validity_warning!(code::String, msg::String)
     else
         println(stderr, "warning: ", code, ": ", msg)
     end
-    envelope_active() && add_warning!(_ENVELOPE[], code, msg)
+    envelope_active() && _add_warning_once!(_ENVELOPE[], code, msg)
     return nothing
 end
 add_artifact!(env::Envelope, kind::String, path::String) =

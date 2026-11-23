@@ -379,7 +379,7 @@ function lower_priors(stanzas, path::AbstractString)
         m === nothing &&
             throw(_card_error(path, lineno, "expected 'name ~ dist(a, b)' in a priors stanza"))
         name = String(m.captures[1])
-        dist = String(m.captures[2])
+        dist = lowercase(String(m.captures[2]))
         dist = get(_CARD_DIST_ALIASES, dist, dist)
         dist in _CARD_DISTS ||
             throw(_card_error(path, lineno, "unknown prior distribution '$(dist)'"))
@@ -438,11 +438,20 @@ function lower_constraints(stanzas, path::AbstractString)
                 throw(_card_error(path, lineno,
                     "the $(side) bound of '$(var)' is not a numeric literal"))
             d[side] = v
-        else                                   # lo <= var[t] <= hi
-            lo = _card_bounds_expr(String(m.captures[1]))
-            hi = _card_bounds_expr(String(m.captures[5]))
-            (lo === nothing || hi === nothing) &&
+        else                                   # two-sided: lo <= var[t] <= hi OR hi >= var[t] >= lo
+            op1 = String(m.captures[2])
+            op2 = String(m.captures[4])
+            op1 == op2 ||
+                throw(_card_error(path, lineno,
+                    "'$(var)' uses a mixed ordering ('$op1' and '$op2'); expected 'lo <= var[t] <= hi'"))
+            v_left = _card_bounds_expr(String(m.captures[1]))
+            v_right = _card_bounds_expr(String(m.captures[5]))
+            (v_left === nothing || v_right === nothing) &&
                 throw(_card_error(path, lineno, "both bounds of '$(var)' must be numeric literals"))
+            lo, hi = op1 == "<=" ? (v_left, v_right) : (v_right, v_left)
+            lo <= hi ||
+                throw(_card_error(path, lineno,
+                    "lower bound ($lo) exceeds upper bound ($hi) for '$(var)'"))
             d["lower"] = lo
             d["upper"] = hi
         end
@@ -590,17 +599,34 @@ function lower_smm(stanzas, path::AbstractString)
         "sim_ratio" => 5,
         "burn"      => 100,
     )
+    st = _card_stanza(stanzas, "smm", path)
+    isempty(st.lines) &&
+        throw(_card_error(path, st.lineno, "smm stanza is empty"))
     seen = Set{String}()
-    for (lineno, raw) in _card_stanza(stanzas, "smm", path).lines
+    for (lineno, raw) in st.lines
         key, val, ln = _card_kv(raw, path, lineno)
         key in _CARD_SMM_KEYS ||
             throw(_card_error(path, ln, "unknown 'smm' key '$(key)'"))
         key in seen && throw(_card_error(path, ln, "duplicate key '$(key)'"))
         push!(seen, key)
         if key == "model"
-            d["model"] = isempty(val) ? nothing : val
+            mval = String(strip(val))
+            if !isempty(mval) && isdefined(@__MODULE__, :CONFIG_ENUMS) && haskey(CONFIG_ENUMS, "smm.model")
+                allowed = CONFIG_ENUMS["smm.model"]
+                mval in allowed || throw(_card_error(path, ln,
+                    "invalid smm.model '$mval' (expected one of $(join(allowed, ", ")))"))
+            end
+            d["model"] = isempty(mval) ? nothing : mval
         elseif key == "weighting"
-            d["weighting"] = val
+            wval = String(strip(val))
+            isempty(wval) && throw(_card_error(path, ln, "'weighting' cannot be empty"))
+            if isdefined(@__MODULE__, :CONFIG_ENUMS) && haskey(CONFIG_ENUMS, "smm.weighting")
+                allowed = CONFIG_ENUMS["smm.weighting"]
+                norm_w = replace(wval, "-" => "_")
+                (wval in allowed || norm_w in allowed) || throw(_card_error(path, ln,
+                    "invalid smm.weighting '$wval' (expected one of $(join(allowed, ", ")))"))
+            end
+            d["weighting"] = wval
         elseif key == "theta0" || key == "lower" || key == "upper"
             d[key] = _card_floatvec(val, key, path, ln)
         else                                   # lags / p / sim_ratio / burn

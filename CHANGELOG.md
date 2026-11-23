@@ -4,6 +4,88 @@ All notable changes to Friedman-cli are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to
 Semantic Versioning. Releases before v0.6.0 are recorded in the git tag history.
 
+## [1.0.6] — 2026-11-23 — Audit hardening, zero unsolicited CWD writes, output/handle/MCP/REPL fixes & registry normalization (#284)
+
+Post-v1.0.5 comprehensive bugfix and surface-hardening release on
+MacroEconometricModels `=1.0.3` (resolving `#265`–`#283` across audit findings
+`F-01`–`F-43`). 477 registry leaves + top-level `schema` / `repl` unchanged.
+
+### P0 Fixes & Command Handler Bugs (#265–#269)
+
+- **DSGE simulate & Bayes field fixes (#265):** Fixed `dsge simulate` crash and
+  order/antithetic dispatch against real MEMs, fixed `posterior_summary` /
+  `prior_posterior_table` field mismatches (`q05`/`q95`) in `dsge bayes summary`
+  and `estimate`, and suppressed `model_types` conflict in Bayesian DSGE paths.
+- **Residuals panel choice & Spectral transfer fixes (#266, #267):** Fixed
+  `residuals panel plogit` / `pprobit` signature/dispatch and `spectral transfer`
+  keyword forwarding and gain/phase table output.
+- **Diagnostic test handler fixes (#268, #269):** Fixed `test brant`,
+  `test hausman-iia`, `test regression vif`, `test factor-break`,
+  `CrossSectionData` compatibility across cross-section/regression tests,
+  `test panel f-fe`, and `test panel wooldridge-ar`.
+
+### Parser, Globals & Output / Plot / Warning Contracts (#270–#275, #280, #281)
+
+- **Flexible globals & `-f=json` / `--json` (`src/io.jl`, `src/cli/parser.jl`, #270, #271):**
+  Added `--json`, `--compact`, and `-f=json` support; allowed leading or mid-argv
+  global flags (`--seed`, `--quiet`/`-q`, `--no-color`, `--json`, `--compact`) anywhere
+  before `--` while respecting leaf-owned `--seed`/`-q`/`--compact` and rejecting
+  conflicting `--json` + `--format csv|table`. Normalized error codes (`internal/error`,
+  typed usage/model classes) and fixed `irf var --id sign` handling (`#272`).
+- **Multi-table `-o`, single-table CSV stdout, plots & warnings (`src/io.jl`, `src/cli/dispatch.jl`, `src/output/`, #273, #274):**
+  Fixed `--format json -o <file>` to emit one complete `envelope-v1.json` document to
+  `<file>`, routed `--format csv` without `-o` to emit a single RFC 4180 primary table
+  on stdout (with stderr note for omitted secondary tables), passed `_per_var_output_path`
+  in multi-table `-o` CSV/table handlers (`output_model_criteria`, `johansen`, `dsge hd`),
+  preserved exact filenames on single-variable `filter --plot-save`, recorded plot/file
+  outputs in JSON `artifacts`, and introduced `_cli_warn!` to attach deduplicated runtime
+  warnings to `envelope.warnings`.
+- **DSGE DCEGM, config parsing & compact tables (`src/commands/dsge.jl`, `src/config.jl`, `src/output/render.jl`, #275, #280, #281):**
+  Fixed `dsge dcegm` steady-state/solve and non-convergence warnings, deduplicated
+  `config/unknown-key` errors and empty `smm:` model-card errors, and implemented
+  `--compact` 4-sig-digit / TTY-fitted table rendering.
+
+### Handles, Zero Unsolicited CWD Writes, MCP & REPL (#276–#279)
+
+- **Model handles, reproduce, show & manifest (`src/model_handle.jl`, `src/registry/adapter.jl`, `src/commands/model.jl`, `src/commands/show.jl`, #276):**
+  Added bare-stem resolution and `.jls` support to `model info` / `model reproduce`,
+  seeded `ImpulseResponse` reproduction via cached source model or `--model`,
+  `"deterministic (no RNG)"` labeling for unseeded `VARModel`, `show` support for
+  `:example`, `.csv`, and `<stem>.csv`, and baked CLI/dependency provenance in
+  `meta.manifest` + `_friedman_cli_version`.
+- **Zero unsolicited CWD writes & data utilities (`src/commands/data.jl`, `src/commands/shared.jl`, #277):**
+  Stopped `data load`/`fix`/`transform`/`balance`/`dropna`/`keeprows`/`export` from
+  writing files to CWD when `-o` is omitted (streaming to stdout instead, writing files
+  only with explicit `-o`), fixed `data load --vars --transform` order (`F-35`), used
+  `_parse_tcodes` in `data transform`, accepted `gjr-garch` alongside `gjr_garch` in
+  `data validate`, fixed `.jls`/`.jld2`/`.fmod` support in `data export`, and fixed
+  `--id proxy` hint (`<data>`) and `vecm beta --rank 0`.
+- **Schema Draft-07 `anyOf` & MCP server enhancements (`src/commands/schema.jl`, `src/commands/serve.jl`, #278):**
+  Omitted non-finite float defaults and emitted `anyOf` when `--model`/`--result`
+  alternatives exist; excluded `schema` from MCP tools; added `--families`,
+  `--tools`, `--compact` server scoping, `cursor`/`nextCursor` pagination, JSON
+  `null` skipping, per-call optional `seed`/`quiet` arguments, and session cleanup.
+- **REPL quoting, built-ins, completions & history (`src/repl.jl`, #279):**
+  Added UTF-8-safe single/double-quoted token splitting, bare `data use` / `--help`
+  and `--json`/`--quiet` envelope support on REPL data built-ins, `exit`/`quit`/built-in/`:datasets`/path Tab completions, and `FRIEDMAN_HISTORY_FILE` fallback.
+
+### Registry Normalization, Dynamic Completions & Precompile (#282, #283)
+
+- **Cross-command registry normalization (`src/registry/`, `src/commands/*.jl`, `src/config.jl`, #282):**
+  Standardized canonical option names (`--horizons`, `--draws`, `--conf-level`,
+  `--max-iter`) while keeping backward-compatible aliases (`horizon`, `n-draws`,
+  `replications`, `reps`, `mc-reps`, `boot-draws`, `ci-level`, `confidence`, `level`,
+  `maxiter`), eliminated all 7 cross-leaf short-flag collisions, added kebab-case
+  `--id` aliases (`student-t`, `mixture-normal`, `skew-normal`, `markov-switching`,
+  `garch-id`), allowed 1-based column indices or names across `--dep`/`--asymmetric`/`--low-freq`,
+  removed dead VAR `--trend` (`usage/invalid` if `!= "constant"`), and unified
+  `--switching-variance` / `--no-switching-variance` across `ms` and `ms-ar`.
+- **Dynamic completions & precompile workloads (`src/commands/completions.jl`, `docs/generate_cli_reference.jl`, `build_release.jl`, #283):**
+  Replaced shallow templates with `APP`-driven bash/zsh/fish completion scripts
+  covering depth 1–3 commands, options/flags, choices, `:datasets`, and file paths
+  (including `schema`, `serve`, `show`, `repl`), and added precompile workloads for
+  APARCH, `regime ms`, `test serial heteroskedasticity`, and `hadsge`.
+
 ## [1.0.5] — 2026-11-20 — BVAR/FAVAR fixes, REPL & handle contract hardening, help/exit hygiene & uncropped table rendering (#258)
 
 Post-v1.0.4 bugfix release on MacroEconometricModels `=1.0.3` (`#249`–`#258`): aligned

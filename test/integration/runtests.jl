@@ -42,7 +42,8 @@ function run_json(args::Vector{String}; quiet::Bool=true)
     argv = String[]
     quiet && push!(argv, "--quiet")
     append!(argv, args)
-    any(a -> startswith(a, "--format"), argv) || push!(argv, "--format", "json")
+    any(a -> startswith(a, "--format") || a == "-f" || startswith(a, "-f=") || a == "--json", argv) ||
+        push!(argv, "--format", "json")
 
     out_path = tempname()
     err_path = tempname()
@@ -96,7 +97,8 @@ function run_cli_capture(args::Vector{String}; quiet::Bool=false)
     argv = String[]
     quiet && push!(argv, "--quiet")
     append!(argv, args)
-    any(a -> startswith(a, "--format"), argv) || push!(argv, "--format", "json")
+    any(a -> startswith(a, "--format") || a == "-f" || startswith(a, "-f=") || a == "--json", argv) ||
+        push!(argv, "--format", "json")
 
     out_path = tempname()
     err_path = tempname()
@@ -3216,18 +3218,25 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             expected = 1.0 + 2.0 * (sum(xhf[end - K + 1:end]) / K)
             @test abs(f - expected) < 1.0
 
-            # Direct horizon h=3 is honored by long_table(::MidasForecast)
+            # Direct horizon h=3 is honored by long_table(::MidasForecast) via canonical --horizons and alias --horizon
             rh3 = run_json([
                 "forecast", "univariate", "midas", lf,
-                "--hf-data", hf, "--m", "3", "--k", "6", "--horizon", "3",
+                "--hf-data", hf, "--m", "3", "--k", "6", "--horizons", "3",
             ])
-            assert_envelope_ok(rh3; label="forecast univariate midas h=3")
+            assert_envelope_ok(rh3; label="forecast univariate midas h=3 (--horizons)")
             th3 = first_table(rh3.doc)[2]
             @test Int(collect(first(table_rows(th3)))[col_index(th3, "horizon")]) == 3
 
-            # there is deliberately NO --horizons: the horizon is fixed at estimation
+            rh3_alias = run_json([
+                "forecast", "univariate", "midas", lf,
+                "--hf-data", hf, "--m", "3", "--k", "6", "--horizon", "3",
+            ])
+            assert_envelope_ok(rh3_alias; label="forecast univariate midas h=3 (--horizon alias)")
+            th3_alias = first_table(rh3_alias.doc)[2]
+            @test Int(collect(first(table_rows(th3_alias)))[col_index(th3_alias, "horizon")]) == 3
+
             @test run_json(["forecast", "univariate", "midas", lf, "--hf-data", hf, "--m", "3",
-                            "--k", "6", "--horizons", "4"]).code == 2
+                            "--k", "6", "--bogus-horizon", "4"]).code == 2
             @test run_json(["forecast", "univariate", "midas", lf, "--hf-data", hf, "--m", "3",
                             "--k", "6", "--level", "1.5"]).code == 2
             @test run_json(["forecast", "univariate", "midas", lf, "--hf-data", hf, "--m", "3",
@@ -6880,16 +6889,25 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                                  "--measurement-error", "0.1,x"])
             @test rgarbage.code == 2
 
-            # #146: multi-table --output — the per-shock HD loop used to write every
-            # shock to the SAME file (last one wins). Each shock now gets its own
-            # suffixed path; the bare path is never written by the loop. This is
-            # also the first T3 coverage `dsge hd` has ever had.
+            # #146 + #273 (F-17): multi-table --output
+            # - `--format csv`: per-shock suffixed CSV (`hd_out_e.csv`), bare path untouched
+            # - `--format json`: single complete envelope-v1 JSON document written to `-o`
             hdout = joinpath(dir, "hd_out.csv")
-            rhd = run_json(["dsge", "hd", model_jl, "--data", dat4,
-                            "--observables", "Y", "--output", hdout])
-            @test rhd.code == 0
+            rhd_csv = run_json(["dsge", "hd", model_jl, "--data", dat4,
+                                "--observables", "Y", "--format", "csv", "--output", hdout])
+            @test rhd_csv.code == 0
             @test isfile(joinpath(dir, "hd_out_e.csv"))   # per-shock (shock `e`) file
             @test !isfile(hdout)                          # bare path not clobbered
+
+            hdjson = joinpath(dir, "hd_out.json")
+            rhd_json = run_json(["dsge", "hd", model_jl, "--data", dat4,
+                                 "--observables", "Y", "--format", "json", "--output", hdjson])
+            @test rhd_json.code == 0
+            @test isempty(strip(rhd_json.raw))
+            @test isfile(hdjson)
+            hddoc = JSON3.read(read(hdjson, String))
+            @test String(hddoc.status) == "ok"
+            @test haskey(hddoc.data, :dsge_historical_decomposition_e)
 
             # DSGESolveError: y = y² + 2 has no real steady state, so the residual
             # gate in compute_steady_state throws. Per-BRANCH coverage: both leaves
@@ -7422,13 +7440,22 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test r.code == 0
         end
 
-        @testset "default output paths never contain the ':' marker" begin
+        @testset "data fix zero unsolicited CWD writes (#277) and clean explicit -o paths" begin
             mktempdir() do dir
                 cd(dir) do
-                    # Regression: produced a file literally named ':fred-md_clean.csv'
-                    @test run_json(["data", "fix", ":denmark"]).code == 0
-                    @test isfile(joinpath(dir, "denmark_clean.csv"))
+                    # #277: omitting -o streams fixed data without creating CWD files
+                    r0 = run_json(["data", "fix", ":denmark"])
+                    @test r0.code == 0
+                    @test isempty(readdir(dir))
+                    @test !isfile(joinpath(dir, "denmark_clean.csv"))
                     @test !isfile(joinpath(dir, ":denmark_clean.csv"))
+
+                    # Explicit -o writes the requested CSV and records it in artifacts
+                    out_clean = joinpath(dir, "clean.csv")
+                    r1 = run_json(["data", "fix", ":denmark", "-o", out_clean])
+                    @test r1.code == 0
+                    @test isfile(out_clean)
+                    @test any(a -> String(a.path) == out_clean, r1.doc.artifacts)
                 end
             end
         end
@@ -10542,6 +10569,185 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             assert_envelope_ok(run_json(["forecast", "univariate", "midas", "--model", md_stem]); label="fc midas --model")
             assert_envelope_ok(run_json(["forecast", "univariate", "midas", "--model", md_stem, "--hf-data", hf_csv]); label="fc midas --model --hf-data")
             rm(vol_csv; force=true)
+        end
+    end
+
+    @testset "v1.0.6 real-MEMs regressions (#265-#283)" begin
+        mktempdir() do dir
+            rng = MersenneTwister(2026)
+
+            # 1. #265: dsge simulate (linear & nonlinear order 2 / antithetic)
+            lin_toml = joinpath(dir, "dsge_lin.toml")
+            write(lin_toml, """
+            [model]
+            parameters = { rho = 0.85, sigma = 0.01 }
+            endogenous = ["Y", "C"]
+            exogenous = ["e"]
+            linear = true
+            [[model.equations]]
+            expr = "Y[t] = rho * Y[t-1] + sigma * e[t]"
+            [[model.equations]]
+            expr = "C[t] = Y[t]"
+            """)
+            rsim1 = run_json(["--seed", "11", "dsge", "simulate", lin_toml, "--periods", "30", "--burn", "5"])
+            assert_envelope_ok(rsim1; label="dsge simulate linear")
+            @test length(table_rows(named_table(rsim1.doc, :dsge_simulation))) == 30
+
+            rsim2 = run_json(["--seed", "12", "dsge", "simulate", lin_toml,
+                              "--method", "perturbation", "--order", "2",
+                              "--antithetic", "--periods", "25", "--burn", "5"])
+            assert_envelope_ok(rsim2; label="dsge simulate order=2 antithetic")
+
+            # 2. #266: residuals panel plogit & pprobit
+            p_rows = [(id=g, time=t,
+                       x1=randn(rng), x2=randn(rng),
+                       y=Int(rand(rng) < 0.5))
+                      for g in 1:8 for t in 1:12]
+            pl_csv = joinpath(dir, "pbin.csv")
+            CSV.write(pl_csv, DataFrame(p_rows))
+            assert_envelope_ok(run_json(["residuals", "panel", "plogit", pl_csv,
+                                         "--dep", "y", "--indep", "x1,x2",
+                                         "--id-col", "id", "--time-col", "time"]);
+                               label="residuals panel plogit")
+            assert_envelope_ok(run_json(["residuals", "panel", "pprobit", pl_csv,
+                                         "--dep", "y", "--indep", "x1,x2",
+                                         "--id-col", "id", "--time-col", "time"]);
+                               label="residuals panel pprobit")
+
+            # 3. #267: spectral transfer
+            r_spec = run_json(["spectral", "transfer", "--filter", "hp", "--lambda", "1600"])
+            assert_envelope_ok(r_spec; label="spectral transfer")
+            @test named_table(r_spec.doc, :filter_transfer_function) !== nothing
+
+            # 4. #268, #269: test vif, brant, hausman-iia, factor-break, CrossSectionData, panel f-fe, panel wooldridge-ar
+            cs_df = DataFrame(
+                y_ord = repeat([1, 2, 3, 4], 30),
+                x1 = randn(rng, 120) .+ repeat([0.0, 0.5, 1.0, 1.5], 30),
+                x2 = randn(rng, 120) .+ repeat([0.0, -0.4, 0.4, 0.8], 30),
+            )
+            cs_csv = joinpath(dir, "cs_ord.csv")
+            CSV.write(cs_csv, cs_df)
+            assert_envelope_ok(run_json(["test", "vif", cs_csv, "--dep", "y_ord"]); label="test vif")
+            assert_envelope_ok(run_json(["test", "brant", cs_csv, "--dep", "y_ord"]); label="test brant")
+            assert_envelope_ok(run_json(["test", "hausman-iia", cs_csv, "--dep", "y_ord", "--omit-category", "4"]); label="test hausman-iia")
+            assert_envelope_ok(run_json(["test", "stability", "factor-break", ":denmark", "--factors", "1"]); label="test factor-break")
+
+            cs_jld = joinpath(dir, "cs_ord.jld2")
+            assert_envelope_ok(run_json(["data", "import", cs_csv, "--kind", "cross-section", "--frequency", "other", "-o", cs_jld]); label="import cs")
+            assert_envelope_ok(run_json(["test", "vif", cs_jld, "--dep", "1"]); label="test vif CrossSectionData --dep 1")
+
+            assert_envelope_ok(run_json(["test", "panel", "f-fe", ":grunfeld", "--dep", "invest", "--indep", "value,capital", "--id-col", "group", "--time-col", "time"]); label="test panel f-fe")
+            assert_envelope_ok(run_json(["test", "panel", "wooldridge-ar", ":grunfeld", "--dep", "invest", "--indep", "value,capital", "--id-col", "group", "--time-col", "time"]); label="test panel wooldridge-ar")
+
+            # 5. #270-#274, #281: globals anywhere before `--`, -f=json, --compact, multi-table -o & CSV stdout, single-var plot-save
+            r_glob = run_cli_capture(["estimate", "multivariate", "var", ":denmark", "--lags", "1", "--quiet", "--seed", "7", "-f=json"])
+            @test r_glob.code == 0 && isempty(strip(r_glob.err))
+            @test String(JSON3.read(r_glob.out).status) == "ok"
+
+            r_json_flag = run_cli_capture(["data", "list", "--json", "--quiet"])
+            @test r_json_flag.code == 0
+            @test String(JSON3.read(r_json_flag.out).status) == "ok"
+
+            r_json_conflict = run_cli_capture(["--json", "data", "list", "--format", "csv"])
+            @test r_json_conflict.code == 2
+
+            r_compact = run_cli_capture(["estimate", "multivariate", "var", ":denmark", "--lags", "1", "--compact"])
+            @test r_compact.code == 0 && occursin("LRM", r_compact.out)
+
+            # Multi-table --output: JSON writes one complete envelope, CSV writes primary + companion files, CSV stdout emits single table
+            var_json = joinpath(dir, "m_var.json")
+            r_vj = run_cli_capture(["--quiet", "estimate", "multivariate", "var", ":denmark", "--lags", "1", "--format", "json", "-o", var_json])
+            @test r_vj.code == 0 && isempty(strip(r_vj.out)) && isfile(var_json)
+            vj_doc = JSON3.read(read(var_json, String))
+            @test haskey(vj_doc.data, :var_coefficients) && haskey(vj_doc.data, :information_criteria)
+
+            var_csv = joinpath(dir, "m_var.csv")
+            r_vc = run_cli_capture(["--quiet", "estimate", "multivariate", "var", ":denmark", "--lags", "1", "--format", "csv", "-o", var_csv])
+            @test r_vc.code == 0 && isempty(strip(r_vc.out)) && isfile(var_csv) && isfile(joinpath(dir, "m_var_criteria.csv"))
+
+            r_csv_out = run_cli_capture(["estimate", "multivariate", "var", ":denmark", "--lags", "1", "--format", "csv"])
+            @test r_csv_out.code == 0 && occursin("equation,term", r_csv_out.out) && !occursin("metric,value", r_csv_out.out)
+
+            joh_csv = joinpath(dir, "joh.csv")
+            r_jc = run_cli_capture(["--quiet", "test", "coint", "johansen", ":denmark", "--lags", "2", "--format", "csv", "-o", joh_csv])
+            @test r_jc.code == 0 && isfile(joh_csv) && isfile(joinpath(dir, "joh_trace.csv"))
+
+            hp_plot = joinpath(dir, "nile_hp.html")
+            r_hp = run_json(["filter", "hp", ":nile", "--columns", "1", "--plot-save", hp_plot])
+            assert_envelope_ok(r_hp; label="single-var filter plot-save")
+            @test isfile(hp_plot) && any(a -> String(a.path) == hp_plot, r_hp.doc.artifacts)
+
+            # 6. #276-#277: stems, .jls, ImpulseResponse reproduce via --model/saved result, deterministic VARModel, show :example/csv, fred_md transform, export .jls, zero CWD writes
+            vmod_jls = joinpath(dir, "denmark_var.jls")
+            assert_envelope_ok(run_json(["estimate", "multivariate", "var", ":denmark", "--lags", "1", "--save-model", vmod_jls]); label="save var jls")
+            ri_jls = run_json(["model", "info", vmod_jls])
+            assert_envelope_ok(ri_jls; label="model info jls")
+            @test any(r -> String(r[1]) == "model_type" && String(r[2]) == "VARModel",
+                      ri_jls.doc.data.model_handle_info.rows)
+
+            rr_det = run_json(["model", "reproduce", vmod_jls])
+            assert_envelope_ok(rr_det; label="reproduce deterministic VARModel")
+            @test any(r -> String(r[1]) == "matched" && String(r[2]) == "deterministic (no RNG)",
+                      rr_det.doc.data.model_reproduce_summary.rows)
+
+            irf_stem = joinpath(dir, "irf_saved")
+            vmod_stem = joinpath(dir, "denmark_var_native")
+            assert_envelope_ok(run_json(["estimate", "multivariate", "var", ":denmark", "--lags", "1", "--save-model", vmod_stem]); label="save var jld2")
+            assert_envelope_ok(run_json(["--seed", "19", "irf", "var", "--model", vmod_stem, "--horizons", "4", "--ci", "bootstrap", "--replications", "20", "--save-result", irf_stem]); label="save irf result")
+            rr_irf = run_json(["model", "reproduce", irf_stem, "--model", vmod_stem])
+            assert_envelope_ok(rr_irf; label="reproduce seeded ImpulseResponse --model")
+            @test any(r -> String(r[1]) == "matched" && String(r[2]) == "true",
+                      rr_irf.doc.data.model_reproduce_summary.rows)
+
+            assert_envelope_ok(run_json(["show", ":denmark"]); label="show :denmark")
+            assert_envelope_ok(run_json(["show", cs_csv]); label="show csv")
+            man_doc = ri_jls.doc.meta.manifest
+            @test !(String(man_doc.package_version) in ("", "unknown"))
+
+            # F-35 + #277 data utilities
+            assert_envelope_ok(run_json(["data", "load", ":fred_md", "--vars", "INDPRO,CPIAUCSL,FEDFUNDS", "--transform"]); label="data load :fred_md --vars --transform")
+            tcsv = joinpath(dir, "t_in.csv")
+            CSV.write(tcsv, DataFrame(a=collect(1.0:10.0), b=collect(10.0:2.0:28.0)))
+            assert_envelope_ok(run_json(["data", "transform", tcsv, "--tcodes", "1,2"]); label="data transform json")
+            den_jld = joinpath(dir, "den_src.jld2")
+            assert_envelope_ok(run_json(["data", "import", ":denmark", "-o", den_jld]); label="import denmark for export")
+            ex_jls = joinpath(dir, "den_exp.jls")
+            r_ex = run_json(["data", "export", den_jld, "-o", ex_jls])
+            assert_envelope_ok(r_ex; label="data export jls")
+            @test isfile(ex_jls)
+            assert_envelope_ok(run_json(["data", "validate", ":denmark", "--model", "gjr-garch"]); label="data validate gjr-garch")
+
+            cwd_sub = joinpath(dir, "zero_cwd")
+            mkpath(cwd_sub)
+            cd(cwd_sub) do
+                for cmd in (
+                    ["data", "load", ":denmark"],
+                    ["data", "transform", tcsv, "--tcodes", "1,2"],
+                    ["data", "keeprows", tcsv, "--rows", "1:5"],
+                    ["data", "export", den_jld],
+                )
+                    @test run_json(cmd).code == 0
+                end
+                @test isempty(readdir(cwd_sub))
+            end
+
+            # 7. #282: aliases, kebab --id, ms-ar polarity, VAR --trend error
+            assert_envelope_ok(run_json(["irf", "var", ":denmark", "--lags", "1", "--id", "student-t", "--horizons", "4", "--replications", "20"]); label="kebab --id & --replications alias")
+            assert_envelope_ok(run_json(["estimate", "regime", "ms-ar", ":gnp_hamilton", "--p", "1", "--k-regimes", "2", "--no-switching-variance"]); label="ms-ar --no-switching-variance")
+            @test run_json(["estimate", "multivariate", "var", ":denmark", "--trend", "none"]).code == 2
+
+            # 8. #278: end-to-end MCP tools/call with null skipping + per-call seed/quiet restoration
+            prev_q, prev_s = Friedman._QUIET[], Friedman._SEED[]
+            Friedman._QUIET[] = false; Friedman._SEED[] = nothing
+            mcp_in = IOBuffer("""{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"data_list","arguments":{"seed":42,"quiet":true,"extra_null":null}}}\n""")
+            mcp_out = IOBuffer()
+            redirect_stderr(devnull) do
+                Friedman._serve_loop(mcp_in, mcp_out)
+            end
+            mcp_resp = JSON3.read(strip(String(take!(mcp_out))))
+            @test !mcp_resp.result.isError
+            @test Friedman._QUIET[] === false && Friedman._SEED[] === nothing
+            Friedman._QUIET[] = prev_q; Friedman._SEED[] = prev_s
         end
     end
 

@@ -36,6 +36,7 @@ Verify a saved handle by re-running its estimator from the recorded seed (report
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
+| `--model` | — | `String` | `""` | — | Optional source VARModel handle for two-argument reproduce (e.g. bootstrap ImpulseResponse) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 

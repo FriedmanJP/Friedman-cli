@@ -34,10 +34,10 @@ function data_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["data", "load"],
-            summary="Load a bundled example dataset or CSV file and write it to CSV",
+            summary="Load a bundled example dataset or CSV file (stream to stdout, or write to -o)",
             args=[ArgSpec(name="name", type=String, required=false, default="", description="Example dataset name")],
             options=[
-                OptionSpec(name="output", short="o", type=String, default="", description="Output CSV file path"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Output file path (.csv, .jld2, .jls, .fmod)"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="vars", type=String, default="", description="Comma-separated variable subset (bundled datasets only; ignored with --path)"),
                 OptionSpec(name="country", type=String, default="", description="Country label in status line only (no filtering) (bundled datasets only; ignored with --path)"),
@@ -45,8 +45,8 @@ function data_specs()::Vector{CommandSpec}
                 OptionSpec(name="path", type=String, default="", description="Path to data file (.csv, .jld2, .jls; alternative to named dataset)")
             ],
             flags=[FlagSpec(name="transform", short="t", description="Apply stored FRED tcodes (timeseries only) (bundled datasets only; ignored with --path)")],
-            # Emits no envelope table — writes CSV directly; gate-exempt, see check_table_keys.jl
-            tables=TableSpec[],
+            tables=[TableSpec(name=:loaded_data,
+                              description="Loaded dataset rows (streamed to stdout or included in JSON envelope)")],
             category="data",
             handler=wrap_legacy(_data_load),
         ),
@@ -84,12 +84,12 @@ function data_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Handle stem or CSV path")],
             options=[
                 OptionSpec(name="method", short="m", type=String, default="listwise", description="listwise|interpolate|mean", choices=["listwise","interpolate","mean"]),
-                OptionSpec(name="output", short="o", type=String, default="", description="Output stem or CSV path"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Output stem or CSV/handle path"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            # Emits no envelope table — writes CSV directly; gate-exempt, see check_table_keys.jl
-            tables=TableSpec[],
+            tables=[TableSpec(name=:fixed_data,
+                              description="Repaired data rows after missing/non-finite handling")],
             category="data",
             handler=wrap_legacy(_data_fix),
         ),
@@ -99,12 +99,12 @@ function data_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Handle stem or CSV path")],
             options=[
                 OptionSpec(name="tcodes", type=String, default="", description="Required comma-separated FRED tcodes, one per variable (1-7)"),
-                OptionSpec(name="output", short="o", type=String, default="", description="Output stem or CSV path"),
+                OptionSpec(name="output", short="o", type=String, default="", description="Output stem or CSV/handle path"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            # Emits no envelope table — writes CSV directly; gate-exempt, see check_table_keys.jl
-            tables=TableSpec[],
+            tables=[TableSpec(name=:transformed_data,
+                              description="Transformed series after applying FRED tcodes")],
             category="data",
             handler=wrap_legacy(_data_transform),
         ),
@@ -116,9 +116,9 @@ function data_specs()::Vector{CommandSpec}
                 OptionSpec(name="method", short="m", type=String, default="hp", description="hp|hamilton|bn|bk|bhp", choices=["hp","hamilton","bn","bk","bhp"]),
                 OptionSpec(name="component", type=String, default="cycle", description="cycle|trend", choices=["cycle","trend"]),
                 OptionSpec(name="lambda", short="l", type=Float64, default=1600.0, description="Smoothing parameter (HP/BHP)"),
-                OptionSpec(name="horizon", type=Int, default=8, description="Forecast horizon (Hamilton)"),
+                OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=8, description="Forecast horizon (Hamilton)"),
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="Number of lags (Hamilton only)"),
-                OptionSpec(name="columns", short="c", type=String, default="", description="Column indices, comma-separated (default: all)"),
+                OptionSpec(name="columns", type=String, default="", description="Column indices, comma-separated (default: all)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -130,16 +130,16 @@ function data_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["data", "validate"],
-            summary="Check data suitability for an estimator family (stderr report)",
+            summary="Check data suitability for an estimator family",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Handle stem or CSV path")],
             options=[
-                OptionSpec(name="model", type=String, default="", description="Model type (required; var|bvar|vecm|arima|garch|sv|lp|gmm|factor|arch|egarch|gjr_garch|static|dynamic|gdfm)", choices=["var","bvar","vecm","arima","garch","sv","lp","gmm","factor","arch","egarch","gjr_garch","static","dynamic","gdfm"]),
+                OptionSpec(name="model", type=String, default="", description="Model type (required; var|bvar|vecm|arima|garch|sv|lp|gmm|factor|arch|egarch|gjr-garch|static|dynamic|gdfm)", choices=["var","bvar","vecm","arima","garch","sv","lp","gmm","factor","arch","egarch","gjr-garch","gjr_garch","static","dynamic","gdfm"]),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
-            # Emits no envelope table — stderr report only; gate-exempt, see check_table_keys.jl
-            tables=TableSpec[],
+            tables=[TableSpec(name=:data_validation,
+                              description="Validation status, dimensions, and diagnostics for the target model family")],
             category="data",
             handler=wrap_legacy(_data_validate),
         ),
@@ -149,7 +149,7 @@ function data_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Handle stem or CSV path")],
             options=[
                 OptionSpec(name="method", type=String, default="dfm", description="Missing-value balancing method (dfm = dynamic factor EM)", choices=["dfm"]),
-                OptionSpec(name="factors", short="r", type=Int, default=3, description="Number of factors"),
+                OptionSpec(name="factors", type=Int, default=3, description="Number of factors"),
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="Factor VAR lags"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
@@ -228,18 +228,18 @@ function data_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["data", "export"],
-            summary="Export a typed handle to CSV (frequency/tcode/dates dropped)",
+            summary="Export a typed handle to CSV/JLS/JLD2 (or stream to stdout without -o)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing,
                           description="Handle stem/path, or :example dataset")],
             options=[
                 OptionSpec(name="output", short="o", type=String, default="",
-                           description="Output CSV path (default: <stem>.csv)"),
+                           description="Output file path (.csv, .jld2, .jls, .fmod; streams to stdout if omitted)"),
                 OptionSpec(name="format", short="f", type=String, default="table",
                            description="table|csv|json", choices=["table", "csv", "json"]),
             ],
             flags=FlagSpec[],
-            # Emits no envelope table — writes CSV directly; gate-exempt, see check_table_keys.jl
-            tables=TableSpec[],
+            tables=[TableSpec(name=:exported_data,
+                              description="Exported dataset rows (streamed to stdout or included in JSON envelope)")],
             category="data",
             data_kinds=[:timeseries, :panel, :cross_section],
             handler=wrap_legacy(_data_export),
@@ -337,17 +337,26 @@ function _data_load(; name::String="", output::String="", format::String="table"
             end
         end
 
-        out_path = isempty(output) ? "$(dataset_stem(path))_loaded.csv" : output
-        _validate_output_path(out_path)
-        if endswith(lowercase(out_path), ".jld2") || endswith(lowercase(out_path), ".jls")
-            save_model_dispatch(out_path, ts)
+        out_df = DataFrame(Y, vn)
+        if isempty(output)
+            _status("Loaded $(basename(path)): $n_obs × $n_vars")
+            output_result(out_df; format=Symbol(format), output="",
+                          title="Loaded Data ($(basename(path)))", key="loaded_data")
         else
-            out_df = DataFrame(Y, vn)
-            CSV.write(out_path, out_df)
+            _validate_output_path(output)
+            lc_out = lowercase(output)
+            if endswith(lc_out, ".jld2") || endswith(lc_out, ".jls") || endswith(lc_out, ".fmod")
+                save_model_dispatch(output, ts)
+            else
+                CSV.write(output, out_df)
+            end
+            envelope_active() && add_artifact!(_ENVELOPE[], "file", output)
+            envelope_active() && output_result(out_df; format=Symbol(format), output="",
+                                               title="Loaded Data ($(basename(path)))", key="loaded_data")
+            _status("Loaded $(basename(path)): $n_obs × $n_vars")
+            _status("Written to $output")
         end
-        _status("Loaded $(basename(path)): $n_obs × $n_vars")
-        _status("Written to $out_path")
-        return
+        return nothing
     end
 
     name_sym = parse_dataset_name(name)
@@ -362,8 +371,6 @@ function _data_load(; name::String="", output::String="", format::String="table"
             _status("Loading $name: filtering for country=$country")
         end
 
-        out_path = isempty(output) ? "$name.csv" : output
-        _validate_output_path(out_path)
         n_obs, n_vars = size(data_mat)
         df = DataFrame(data_mat, vn)
         # Add group/time columns for panel data
@@ -381,37 +388,40 @@ function _data_load(; name::String="", output::String="", format::String="table"
             df = df[!, keep_cols]
         end
 
-        if endswith(lowercase(out_path), ".jld2") || endswith(lowercase(out_path), ".jls")
-            out_pd = if isempty(vars)
-                dataset
-            elseif hasproperty(dataset, :frequency)
-                xtset(df, :group, :time; frequency=dataset.frequency)
-            else
-                xtset(df, :group, :time)
-            end
-            save_model_dispatch(out_path, out_pd)
-        else
-            CSV.write(out_path, df)
-        end
         _status("Loaded $name: $n_obs observations × $n_vars variables (Panel, $(dataset.n_groups) groups)")
-        _status("Written to $out_path")
+        if isempty(output)
+            output_result(df; format=Symbol(format), output="",
+                          title="Loaded Data ($name)", key="loaded_data")
+        else
+            _validate_output_path(output)
+            lc_out = lowercase(output)
+            if endswith(lc_out, ".jld2") || endswith(lc_out, ".jls") || endswith(lc_out, ".fmod")
+                out_pd = if isempty(vars)
+                    dataset
+                elseif hasproperty(dataset, :frequency)
+                    xtset(df, :group, :time; frequency=dataset.frequency)
+                else
+                    xtset(df, :group, :time)
+                end
+                save_model_dispatch(output, out_pd)
+            else
+                CSV.write(output, df)
+            end
+            envelope_active() && add_artifact!(_ENVELOPE[], "file", output)
+            envelope_active() && output_result(df; format=Symbol(format), output="",
+                                               title="Loaded Data ($name)", key="loaded_data")
+            _status("Written to $output")
+        end
     else
         # TimeSeriesData, or a CrossSectionData set with no time dimension
         is_ts = dataset isa TimeSeriesData
         data_mat = to_matrix(dataset)
         vn = varnames(dataset)
 
-        if transform
-            is_ts || throw(CliError("usage/invalid",
-                "--transform applies FRED transformation codes, which $name (cross section) does not have"))
-            dataset = apply_tcode(dataset, dataset.tcode)
-            data_mat = to_matrix(dataset)
-            _status("Applied FRED transformation codes")
-        end
-
-        col_idx = Int[]
+        # Subset --vars BEFORE apply_tcode so excluded columns do not emit spurious tcode warnings (F-35).
         if !isempty(vars)
             var_list = [strip(s) for s in split(vars, ",") if !isempty(strip(s))]
+            col_idx = Int[]
             for v in var_list
                 idx = findfirst(==(v), vn)
                 isnothing(idx) && throw(CliError("data/column-range",
@@ -421,6 +431,26 @@ function _data_load(; name::String="", output::String="", format::String="table"
             end
             data_mat = data_mat[:, col_idx]
             vn = vn[col_idx]
+            dataset = if is_ts
+                tc = (hasproperty(dataset, :tcode) && length(dataset.tcode) >= maximum(col_idx)) ?
+                     dataset.tcode[col_idx] : fill(1, length(vn))
+                freq_kw = hasproperty(dataset, :frequency) ? (; frequency=dataset.frequency) : NamedTuple()
+                ti_kw = hasproperty(dataset, :time_index) ? (; time_index=dataset.time_index) :
+                        (; time_index=collect(1:size(data_mat, 1)))
+                TimeSeriesData(Matrix{Float64}(data_mat);
+                               varnames=String[String(v) for v in vn],
+                               tcode=tc, freq_kw..., ti_kw...)
+            else
+                CrossSectionData(Matrix{Float64}(data_mat); varnames=String[String(v) for v in vn])
+            end
+        end
+
+        if transform
+            is_ts || throw(CliError("usage/invalid",
+                "--transform applies FRED transformation codes, which $name (cross section) does not have"))
+            dataset = apply_tcode(dataset, dataset.tcode)
+            data_mat = to_matrix(dataset)
+            _status("Applied FRED transformation codes")
         end
 
         if !isempty(dates) && is_ts
@@ -434,37 +464,26 @@ function _data_load(; name::String="", output::String="", format::String="table"
             end
         end
 
-        out_path = isempty(output) ? "$name.csv" : output
-        _validate_output_path(out_path)
         n_obs, n_vars = size(data_mat)
-        if endswith(lowercase(out_path), ".jld2") || endswith(lowercase(out_path), ".jls")
-            out_obj = if isempty(vars)
-                dataset
-            elseif is_ts
-                tc = (hasproperty(dataset, :tcode) && length(dataset.tcode) >= maximum(col_idx)) ?
-                     dataset.tcode[col_idx] : fill(1, length(vn))
-                freq_kw = hasproperty(dataset, :frequency) ? (; frequency=dataset.frequency) : NamedTuple()
-                ti_kw = hasproperty(dataset, :time_index) ? (; time_index=dataset.time_index) :
-                        (; time_index=collect(1:n_obs))
-                sub_ts = TimeSeriesData(Matrix{Float64}(data_mat);
-                                        varnames=String[String(v) for v in vn],
-                                        tcode=tc, freq_kw..., ti_kw...)
-                if !isempty(dates) && dates in vn
-                    set_dates!(sub_ts, string.(data_mat[:, findfirst(==(dates), vn)]))
-                end
-                sub_ts
-            else
-                CrossSectionData(Matrix{Float64}(data_mat); varnames=String[String(v) for v in vn])
-            end
-            save_model_dispatch(out_path, out_obj)
-        else
-            df = DataFrame(data_mat, vn)
-            CSV.write(out_path, df)
-        end
-        # `frequency` is only defined for time-series/panel sets, not cross sections.
+        out_df = DataFrame(data_mat, vn)
         kind = is_ts ? string(frequency(dataset)) : "Cross Section"
         _status("Loaded $name: $n_obs × $n_vars ($kind)")
-        _status("Written to $out_path")
+        if isempty(output)
+            output_result(out_df; format=Symbol(format), output="",
+                          title="Loaded Data ($name)", key="loaded_data")
+        else
+            _validate_output_path(output)
+            lc_out = lowercase(output)
+            if endswith(lc_out, ".jld2") || endswith(lc_out, ".jls") || endswith(lc_out, ".fmod")
+                save_model_dispatch(output, dataset)
+            else
+                CSV.write(output, out_df)
+            end
+            envelope_active() && add_artifact!(_ENVELOPE[], "file", output)
+            envelope_active() && output_result(out_df; format=Symbol(format), output="",
+                                               title="Loaded Data ($name)", key="loaded_data")
+            _status("Written to $output")
+        end
     end
 end
 
@@ -546,9 +565,11 @@ end
 _as_macro_data(data::String) = _as_macro_data(resolve_data(data))
 
 function _persist_edit(obj, data::String, output::String, suffix::String)
-    out_default = _default_edit_output(data, suffix)
-    return _write_macro_data(obj, isempty(output) ? out_default : output;
-                             input_path=data, default_stem=dataset_stem(data) * suffix)
+    isempty(output) && return nothing
+    written = _write_macro_data(obj, output;
+                                input_path=data, default_stem=dataset_stem(data) * suffix)
+    envelope_active() && add_artifact!(_ENVELOPE[], "file", written)
+    return written
 end
 
 function _data_fix(; data::String, method::String="listwise", output::String="", format::String="table")
@@ -558,6 +579,9 @@ function _data_fix(; data::String, method::String="listwise", output::String="",
     n_obs, n_vars = size(to_matrix(fixed))
     _status("Fixed data ($method): $n_obs observations × $n_vars variables")
     _persist_edit(fixed, data, output, "_clean")
+    out_df = _coerce_tabular_dataframe(fixed, data)
+    output_result(out_df; format=Symbol(format), output="",
+                  title="Fixed Data ($method)", key="fixed_data")
     return fixed
 end
 
@@ -572,10 +596,7 @@ function _data_transform(; data::String, tcodes::String="", output::String="", f
         "--tcodes is required";
         hint="comma-separated FRED transformation codes, e.g. --tcodes 5,5,1,6"))
 
-    codes = [parse(Int, strip(s)) for s in split(tcodes, ",") if !isempty(strip(s))]
-    length(codes) == n_vars || throw(CliError("usage/invalid",
-        "number of tcodes ($(length(codes))) must match number of variables ($n_vars)"))
-
+    codes = _parse_tcodes(tcodes, n_vars)
     transformed = apply_tcode(tsd, codes)
     tcode_names = Dict(1=>"level", 2=>"Δ", 3=>"Δ²", 4=>"log", 5=>"Δlog", 6=>"Δ²log", 7=>"Δ%")
 
@@ -586,6 +607,9 @@ function _data_transform(; data::String, tcodes::String="", output::String="", f
         _status("  $vname: tcode=$code ($label)")
     end
     _persist_edit(transformed, data, output, "_transformed")
+    out_df = _coerce_tabular_dataframe(transformed, data)
+    output_result(out_df; format=Symbol(format), output="",
+                  title="Transformed Data", key="transformed_data")
     return transformed
 end
 
@@ -656,22 +680,34 @@ end
 
 function _data_validate(; data::String, model::String="", format::String="table", output::String="")
     isempty(model) && throw(CliError("usage/missing-option",
-        "--model is required (var|bvar|vecm|arima|garch|sv|lp|gmm|factor|arch|egarch|gjr_garch|static|dynamic|gdfm)"))
+        "--model is required (var|bvar|vecm|arima|garch|sv|lp|gmm|factor|arch|egarch|gjr-garch|static|dynamic|gdfm)"))
 
     allowed_models = ["var", "bvar", "vecm", "arima", "garch", "sv", "lp", "gmm", "factor",
-                       "arch", "egarch", "gjr_garch", "static", "dynamic", "gdfm"]
+                       "arch", "egarch", "gjr-garch", "gjr_garch", "static", "dynamic", "gdfm"]
     validate_method(model, allowed_models, "model type")
 
     tsd = _as_macro_data(data)
     n_obs, n_vars = size(to_matrix(tsd))
+    m_sym = model == "gjr-garch" ? :gjr_garch : Symbol(model)
 
+    valid = true
+    detail = "Data is valid for $model estimation ($n_vars variable(s), $n_obs observations)"
     try
-        validate_for_model(tsd, Symbol(model))
-        _status_styled("Data is valid for $model estimation ($n_vars variable(s), $n_obs observations)\n"; color=:green)
+        validate_for_model(tsd, m_sym)
+        _status_styled(detail * "\n"; color=:green)
     catch e
+        valid = false
+        detail = sprint(showerror, e)
         _status_styled("Data validation failed for $model:\n"; color=:red)
-        _status("  ", e.msg)
+        _status("  ", detail)
     end
+    output_kv(Pair{String,Any}[
+        "model"  => model,
+        "valid"  => valid,
+        "n_obs"  => n_obs,
+        "n_vars" => n_vars,
+        "detail" => detail,
+    ]; format=format, output=output, title="Data Validation ($model)", key="data_validation")
     return tsd
 end
 
@@ -975,20 +1011,28 @@ function _data_export(; data::String, output::String="", format::String="table")
     k in (:timeseries, :panel, :cross_section) || throw(CliError("data/wrong-kind",
         "$data is not a data container (got $(typeof(obj)))";
         hint="pass a TimeSeriesData/PanelData/CrossSectionData handle"))
-    out = if isempty(output)
-        resolved = try
-            resolve_stem(data; slot=:data)
-        catch
-            data
-        end
-        dir = startswith(resolved, ":") ? "" : dirname(resolved)
-        base = dataset_stem(data) * ".csv"
-        (isempty(dir) || dir == ".") ? base : joinpath(dir, base)
-    else
-        output
+    out_df = _coerce_tabular_dataframe(obj, data)
+    if isempty(output)
+        output_result(out_df; format=Symbol(format), output="",
+                      title="Exported Data", key="exported_data")
+        return obj
     end
-    endswith(lowercase(out), ".csv") || (out = out * ".csv")
-    _write_macro_data(obj, out; input_path=data, default_stem=dataset_stem(data),
-                      warn_metadata=true)
+    ext = lowercase(splitext(output)[2])
+    out = isempty(ext) ? output * ".csv" : output
+    ext_eff = isempty(ext) ? ".csv" : ext
+    if ext_eff == ".csv"
+        _write_macro_data(obj, out; input_path=data, default_stem=dataset_stem(data),
+                          warn_metadata=true)
+    elseif ext_eff in (".jld2", ".jls", ".fmod")
+        _validate_output_path(out)
+        save_model_dispatch(out, obj)
+    else
+        throw(CliError("usage/invalid",
+            "unsupported export file extension '$ext_eff' for '$output'";
+            hint="use .csv, .jld2, .jls, or .fmod"))
+    end
+    envelope_active() && add_artifact!(_ENVELOPE[], "file", out)
+    envelope_active() && output_result(out_df; format=Symbol(format), output="",
+                                       title="Exported Data", key="exported_data")
     return obj
 end

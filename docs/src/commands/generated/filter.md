@@ -25,7 +25,7 @@ Boosted HP filter (Phillips & Shi 2021)
 | `--stopping` | — | `String` | `BIC` | `BIC`, `ADF`, `fixed` | BIC\|ADF\|fixed |
 | `--max-iter` | — | `Int64` | `100` | — | Maximum boosting iterations |
 | `--sig-p` | — | `Float64` | `0.05` | — | ADF significance level |
-| `--columns` | `-c` | `String` | `""` | — | Column indices, comma-separated (default: all numeric) |
+| `--columns` | — | `String` | `""` | — | Column indices, comma-separated (default: all numeric) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
@@ -53,7 +53,7 @@ Baxter-King band-pass filter
 | `--pl` | — | `Int64` | `6` | — | Minimum period of oscillation |
 | `--pu` | — | `Int64` | `32` | — | Maximum period of oscillation |
 | `--K` | — | `Int64` | `12` | — | Truncation length (leads/lags) |
-| `--columns` | `-c` | `String` | `""` | — | Column indices, comma-separated (default: all numeric) |
+| `--columns` | — | `String` | `""` | — | Column indices, comma-separated (default: all numeric) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
@@ -81,7 +81,7 @@ Beveridge-Nelson decomposition
 | `--method` | — | `String` | `arima` | `arima`, `statespace` | arima\|statespace |
 | `--p` | — | `Int64` | — | — | AR order (default: auto; arima method only, ignored with statespace) |
 | `--q` | — | `Int64` | — | — | MA order (default: auto; arima method only, ignored with statespace) |
-| `--columns` | `-c` | `String` | `""` | — | Column indices, comma-separated (default: all numeric) |
+| `--columns` | — | `String` | `""` | — | Column indices, comma-separated (default: all numeric) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
@@ -106,9 +106,9 @@ Hamilton (2018) regression filter
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizon` | — | `Int64` | `8` | — | Forecast horizon |
+| `--horizons` | — | `Int64` | `8` | — | Forecast horizon |
 | `--lags` | `-p` | `Int64` | `4` | — | Number of lags in regression |
-| `--columns` | `-c` | `String` | `""` | — | Column indices, comma-separated (default: all numeric) |
+| `--columns` | — | `String` | `""` | — | Column indices, comma-separated (default: all numeric) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
@@ -134,7 +134,7 @@ Hodrick-Prescott filter
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--lambda` | `-l` | `Float64` | `1600.0` | — | Smoothing parameter (6.25 annual, 1600 quarterly, 129600 monthly) |
-| `--columns` | `-c` | `String` | `""` | — | Column indices, comma-separated (default: all numeric) |
+| `--columns` | — | `String` | `""` | — | Column indices, comma-separated (default: all numeric) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
@@ -164,7 +164,7 @@ X-13ARIMA-SEATS seasonal adjustment (X-11 / SEATS)
 | `--transform` | — | `String` | `auto` | `auto`, `log`, `none` | Pre-transformation |
 | `--critical-value` | — | `Float64` | `0.0` | — | Outlier critical value (0 = automatic) |
 | `--outliers` | — | `String` | `true` | `true`, `false` | Detect AO/LS/TC outliers |
-| `--columns` | `-c` | `String` | `""` | — | Column indices, comma-separated (default: all numeric) |
+| `--columns` | — | `String` | `""` | — | Column indices, comma-separated (default: all numeric) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |

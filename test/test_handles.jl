@@ -2341,3 +2341,144 @@ end
         @test occursin("midas_forecast", out_midas_hf)
     end
 end
+
+@testset "v1.0.6 handles, model info/reproduce, show & zero CWD writes (#276, #277)" begin
+    mktempdir() do dir
+        # #276: model info & model reproduce accept suffix-less stems and .jls handles
+        Y = randn(60, 2)
+        m_var = estimate_var(Y, 2; varnames=["y1", "y2"])
+        var_stem = joinpath(dir, "var_plain")
+        save_model_dispatch(var_stem * ".jld2", m_var)
+
+        out_info_stem = _capture() do
+            _dispatch_via_app(["model", "info", var_stem, "--format", "json"])
+        end
+        d_info_stem = JSON3.read(out_info_stem)
+        @test String(d_info_stem.status) == "ok"
+        t_info = d_info_stem.data.model_handle_info
+        @test any(r -> String(r[1]) == "model_type" && String(r[2]) == "VARModel", t_info.rows)
+        @test any(r -> String(r[1]) == "cli_version" && String(r[2]) == string(FRIEDMAN_VERSION), t_info.rows)
+
+        # Unseeded deterministic VARModel reports "deterministic (no RNG)"
+        out_rep_var = _capture() do
+            _dispatch_via_app(["model", "reproduce", var_stem, "--format", "json"])
+        end
+        d_rep_var = JSON3.read(out_rep_var)
+        @test any(r -> String(r[1]) == "matched" && String(r[2]) == "deterministic (no RNG)",
+                  d_rep_var.data.model_reproduce_summary.rows)
+
+        # .jls handle in model info
+        var_jls = joinpath(dir, "var_only.jls")
+        open(io -> Serialization.serialize(io, m_var), var_jls, "w")
+        out_info_jls = _capture() do
+            _dispatch_via_app(["model", "info", var_jls, "--format", "json"])
+        end
+        d_info_jls = JSON3.read(out_info_jls)
+        @test any(r -> String(r[1]) == "model_type" && String(r[2]) == "VARModel",
+                  d_info_jls.data.model_handle_info.rows)
+
+        # Corrupt serialized stream throws typed env/model-corrupt (model_handle_info) / data/serialization (_jls_model_info)
+        bad_jls = joinpath(dir, "corrupt.jls")
+        write(bad_jls, UInt8[0x37, 0x4a, 0x4c, 0x0b])
+        err_fmod = try
+            model_handle_info(bad_jls)
+            nothing
+        catch e; e; end
+        @test err_fmod isa CliError && err_fmod.code == "env/model-corrupt"
+        err_jls = try
+            _jls_model_info(bad_jls)
+            nothing
+        catch e; e; end
+        @test err_jls isa CliError && err_jls.code == "data/serialization"
+
+        # Seeded ImpulseResponse saved alongside VARModel via --save-result + --model reproduce
+        ir = irf(m_var, 4; seed=17)
+        ir_path = joinpath(dir, "irf_res.jld2")
+        save_model_dispatch(ir_path, ir)
+        out_rep_ir = _capture() do
+            _dispatch_via_app(["model", "reproduce", ir_path, "--model", var_stem * ".jld2", "--format", "json"])
+        end
+        d_rep_ir = JSON3.read(out_rep_ir)
+        @test any(r -> String(r[1]) == "matched" && String(r[2]) == "true",
+                  d_rep_ir.data.model_reproduce_summary.rows)
+
+        # Manifest provenance never falls back to "unknown" for package_version
+        man = _envelope_manifest()
+        @test man isa AbstractDict
+        @test !(String(get(man, "package_version", "unknown")) in ("", "unknown"))
+        @test get(man, "dependency_versions", nothing) isa AbstractDict
+
+        # #276: show accepts .csv, <stem>.csv fallback, and :example
+        csv_stem = joinpath(dir, "showtab")
+        CSV.write(csv_stem * ".csv", DataFrame(a=[1.0, 2.0, 3.0], b=[4.0, 5.0, 6.0]))
+        out_show_csv = _capture() do
+            _dispatch_via_app(["show", csv_stem * ".csv", "--format", "json"])
+        end
+        @test haskey(JSON3.read(out_show_csv).data, :show_payload)
+        out_show_stem = _capture() do
+            _dispatch_via_app(["show", csv_stem, "--format", "json"])
+        end
+        @test haskey(JSON3.read(out_show_stem).data, :show_payload)
+        out_show_ex = _capture() do
+            _dispatch_via_app(["show", ":denmark", "--format", "json"])
+        end
+        @test haskey(JSON3.read(out_show_ex).data, :show_payload)
+
+        # #277: zero unsolicited CWD writes when -o is omitted across data utilities
+        cwd_dir = joinpath(dir, "clean_cwd")
+        mkpath(cwd_dir)
+        in_csv = joinpath(dir, "in_series.csv")
+        CSV.write(in_csv, DataFrame(x=[1.0, 2.0, 3.0, 4.0, 5.0], y=[2.0, 4.0, 6.0, 8.0, 10.0]))
+        in_na = joinpath(dir, "in_na.csv")
+        CSV.write(in_na, DataFrame(x=[1.0, NaN, 3.0, 4.0], y=[2.0, 4.0, 6.0, 8.0]))
+        ts_src = joinpath(dir, "ts_src.jld2")
+        save_model_dispatch(ts_src, TimeSeriesData(df_to_matrix(CSV.read(in_csv, DataFrame)); varnames=["x", "y"]))
+        cd(cwd_dir) do
+            for argv in (
+                ["data", "load", ":denmark", "--format", "csv"],
+                ["data", "fix", in_na, "--format", "csv"],
+                ["data", "transform", in_csv, "--tcodes", "1,2", "--format", "json"],
+                ["data", "dropna", in_na, "--format", "csv"],
+                ["data", "keeprows", in_csv, "--rows", "1:3", "--format", "csv"],
+                ["data", "export", ts_src, "--format", "csv"],
+            )
+                _capture() do
+                    _dispatch_via_app(argv)
+                end
+            end
+            @test isempty(readdir(cwd_dir))
+        end
+
+        # #277: explicit -o writes requested target & records artifact; data export supports .jls/.fmod & rejects unknown ext
+        exp_jls = joinpath(dir, "exp.jls")
+        out_exp = _capture_all() do
+            _dispatch_via_app(["data", "export", ts_src, "-o", exp_jls, "--format", "json"])
+        end.out
+        d_exp = JSON3.read(out_exp)
+        @test isfile(exp_jls)
+        @test any(a -> String(a.path) == exp_jls, d_exp.artifacts)
+        err_exp = try
+            _data_export(; data=ts_src, output=joinpath(dir, "bad.parquet"), format="csv")
+            nothing
+        catch e; e; end
+        @test err_exp isa CliError && err_exp.code == "usage/invalid"
+
+        # #277: data load --vars before --transform
+        out_tr = _capture_all() do
+            _dispatch_via_app(["data", "load", ":fred_md", "--vars", "INDPRO,CPIAUCSL,FEDFUNDS", "--transform", "--format", "json"])
+        end.out
+        @test String(JSON3.read(out_tr).status) == "ok"
+
+        # #277: gjr-garch accepted in data validate & --id proxy error names <data>
+        out_val = _capture_all() do
+            _dispatch_via_app(["data", "validate", in_csv, "--model", "gjr-garch", "--format", "json"])
+        end.out
+        @test haskey(JSON3.read(out_val).data, :data_validation)
+
+        err_proxy = try
+            _irf_var(; model=m_var, data="", id="proxy", instrument="x", horizons=3, format="json")
+            nothing
+        catch e; e; end
+        @test err_proxy isa CliError && occursin("<data>", err_proxy.message) && !occursin("--data", err_proxy.message)
+    end
+end

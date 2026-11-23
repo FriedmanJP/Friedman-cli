@@ -111,7 +111,7 @@ function test_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test"),
-                OptionSpec(name="bandwidth", short="m", type=Int, default=nothing, description="Number of Fourier frequencies (default: floor(sqrt(T)))"),
+                OptionSpec(name="bandwidth", type=Int, default=nothing, description="Number of Fourier frequencies (default: floor(sqrt(T)))"),
                 OptionSpec(name="trim", type=Int, default=0, description="Trim the first N frequencies"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
@@ -128,7 +128,7 @@ function test_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test"),
-                OptionSpec(name="bandwidth", short="m", type=Int, default=nothing, description="Number of Fourier frequencies (default: floor(sqrt(T)))"),
+                OptionSpec(name="bandwidth", type=Int, default=nothing, description="Number of Fourier frequencies (default: floor(sqrt(T)))"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
@@ -179,7 +179,7 @@ function test_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
-                OptionSpec(name="test", short="t", type=String, default="all", description="strength|gaussianity|independence|overidentification|lambda-distinct|gaussian-count|label-stability|all (the last three are opt-in only)"),
+                OptionSpec(name="test", type=String, default="all", description="strength|gaussianity|independence|overidentification|lambda-distinct|gaussian-count|label-stability|all (the last three are opt-in only)"),
                 OptionSpec(name="method", type=String, default="fastica", description="fastica|jade|sobi|dcov|hsic (for gaussianity/independence/overidentification tests; label-stability bootstraps the chosen estimator)"),
                 OptionSpec(name="contrast", type=String, default="logcosh", description="logcosh|exp|kurtosis (for FastICA)"),
                 OptionSpec(name="n-bootstrap", type=Int, default=999, description="Bootstrap replications (for label-stability)"),
@@ -372,7 +372,7 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
                 OptionSpec(name="r0", type=String, default="auto", description="Minimum window fraction: auto or a number in (0,1)"),
                 OptionSpec(name="adflag", type=Int, default=0, description="ADF augmentation lags (≥ 0)"),
-                OptionSpec(name="mc-reps", type=Int, default=999, description="Monte-Carlo replications for critical values (≥ 1)"),
+                OptionSpec(name="draws", aliases=["mc-reps"], kwarg=:mc_reps, type=Int, default=999, description="Monte-Carlo replications for critical values (≥ 1)"),
                 OptionSpec(name="cv", type=String, default="asymptotic", description="Critical-value method", choices=["asymptotic","wildboot"]),
                 OptionSpec(name="seed", type=Int, default=20240716, description="RNG seed for the critical-value simulation"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -396,7 +396,7 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
                 OptionSpec(name="r0", type=String, default="auto", description="Minimum window fraction: auto or a number in (0,1)"),
                 OptionSpec(name="adflag", type=Int, default=0, description="ADF augmentation lags (≥ 0)"),
-                OptionSpec(name="mc-reps", type=Int, default=999, description="Monte-Carlo replications for critical values (≥ 1)"),
+                OptionSpec(name="draws", aliases=["mc-reps"], kwarg=:mc_reps, type=Int, default=999, description="Monte-Carlo replications for critical values (≥ 1)"),
                 OptionSpec(name="cv", type=String, default="asymptotic", description="Critical-value method", choices=["asymptotic","wildboot"]),
                 OptionSpec(name="seed", type=Int, default=20240716, description="RNG seed for the critical-value simulation"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -785,7 +785,7 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="p", type=Int, default=1, description="AR order for the SETAR design (≥ 1)"),
                 OptionSpec(name="d", type=Int, default=1, description="Delay lag for the threshold variable q=y[t-d] (≥ 1)"),
                 OptionSpec(name="trim", type=Float64, default=0.15, description="Trimming fraction for the threshold grid (0 < trim < 0.5)"),
-                OptionSpec(name="reps", type=Int, default=1000, description="Fixed-regressor bootstrap replications (≥ 1)"),
+                OptionSpec(name="draws", aliases=["reps"], kwarg=:reps, type=Int, default=1000, description="Fixed-regressor bootstrap replications (≥ 1)"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
@@ -940,7 +940,7 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="clusters", type=String, default="", description="Cluster column name (required for --cov-type cluster)"),
                 OptionSpec(name="beta0", type=String, default="",
                            description="Hypothesized coefficient value(s) on the endogenous regressors, comma-separated (default: 0 for each)"),
-                OptionSpec(name="level", type=Float64, default=0.95, description="Nominal coverage of the confidence set"),
+                OptionSpec(name="conf-level", aliases=["level"], kwarg=:level, type=Float64, default=0.95, description="Nominal coverage of the confidence set"),
                 OptionSpec(name="n-grid", type=Int, default=1001, description="Grid points used to invert the AR test"),
                 OptionSpec(name="span", type=Float64, default=20.0, description="Search half-width around the 2SLS estimate, in standard errors"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -975,7 +975,7 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="boot-reps", type=Int, default=999, description="Bootstrap replications (ignored when the 2^G sign space is enumerated)"),
                 OptionSpec(name="boot-weights", type=String, default="rademacher", choices=["rademacher","webb"],
                            description="Bootstrap weights; webb (6-point) is preferred when the cluster count is very small"),
-                OptionSpec(name="level", type=Float64, default=0.95, description="Coverage of the inverted-test confidence interval"),
+                OptionSpec(name="conf-level", aliases=["level"], kwarg=:level, type=Float64, default=0.95, description="Coverage of the inverted-test confidence interval"),
                 OptionSpec(name="ci-gridpoints", type=Int, default=25, description="Grid used to bracket the CI crossings"),
                 OptionSpec(name="enumerate-signs", type=String, default="auto", choices=["auto","yes","no"],
                            description="Exact enumeration of the 2^G Rademacher sign vectors: auto enumerates whenever possible"),
@@ -1066,7 +1066,7 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="trend", type=String, default="constant", description="Per-unit EC deterministics: none|constant|trend", choices=["none","constant","trend"]),
                 OptionSpec(name="p", type=Int, default=1, description="Autoregressive order (≥ 1)"),
                 OptionSpec(name="q", type=Int, default=1, description="Distributed-lag order for all regressors (≥ 0)"),
-                OptionSpec(name="maxiter", type=Int, default=100, description="PMG outer-loop max iterations"),
+                OptionSpec(name="max-iter", aliases=["maxiter"], kwarg=:maxiter, type=Int, default=100, description="PMG outer-loop max iterations"),
                 OptionSpec(name="tol", type=Float64, default=1e-8, description="PMG outer-loop convergence tolerance"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
@@ -1584,7 +1584,7 @@ function test_specs()::Vector{CommandSpec}
                            choices=["robust", "mle", "hc0", "hc1", "hc2", "hc3", "cluster"],
                            description="Covariance estimator for the auxiliary Poisson fit"),
                 OptionSpec(name="clusters", type=String, default="", description="Cluster variable column name"),
-                OptionSpec(name="maxiter", type=Int, default=100, description="Maximum IRLS iterations (≥ 1)"),
+                OptionSpec(name="max-iter", aliases=["maxiter"], kwarg=:maxiter, type=Int, default=100, description="Maximum IRLS iterations (≥ 1)"),
                 OptionSpec(name="tol", type=Float64, default=1e-10, description="Convergence tolerance (> 0)"),
                 OptionSpec(name="alpha", type=Float64, default=0.05, description="Significance level for the decision column (0 < alpha < 1)"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -1778,11 +1778,16 @@ function test_specs()::Vector{CommandSpec}
     ]
 end
 
-const _TEST_PANEL = Set(["cips", "breitung", "fisher", "hadri", "ips", "llc",
+const _TEST_PANEL = Set(["cips", "breitung", "hadri", "ips", "llc",
     "moon-perron", "panic", "pedroni", "kao", "westerlund", "pesaran-cd",
-    "factor-break", "fisher-johansen",
+    "fisher-johansen",
     "dh-causality", "pmg-hausman", "hausman", "breusch-pagan", "f-fe",
     "wooldridge-ar", "modified-wald"])
+
+const _TEST_CROSS_SECTION = Set(["white", "glejser", "harvey", "chow",
+    "cusum", "cusumsq", "recursive-residuals", "influence", "vif",
+    "weak-instrument", "anderson-rubin", "wild-cluster", "dispersion",
+    "brant", "hausman-iia", "edf"])
 
 const _TEST_RESULT_TYPES = Dict{String,Vector{Symbol}}(
     "adf" => [:ADFResult], "kpss" => [:KPSSResult], "pp" => [:PPResult],
@@ -1829,8 +1834,8 @@ const _TEST_RESULT_TYPES = Dict{String,Vector{Symbol}}(
     "wooldridge-ar" => [:PanelTestResult], "modified-wald" => [:PanelTestResult],
     "fisher" => [:FisherPanelResult, :FisherTestResult],
     "bartlett-wn" => [:BartlettWhiteNoiseResult], "box-pierce" => [:BoxPierceResult],
-    "durbin-watson" => [:DurbinWatsonResult], "brant" => [:PanelTestResult],
-    "hausman-iia" => [:PanelTestResult],
+    "durbin-watson" => [:DurbinWatsonResult], "brant" => Symbol[],
+    "hausman-iia" => Symbol[],
 )
 
 const _SERIAL_RESIDUAL_MODELS = [
@@ -1878,8 +1883,12 @@ function register_test_commands!()
             [:panel, :csv]
         elseif length(s.path) >= 2 && s.path[2] == "multivariate"
             [:timeseries, :csv]
+        elseif s.path[end] == "factor-break"
+            [:timeseries, :panel, :csv]
         elseif s.path[end] in _TEST_PANEL
             [:panel, :csv]
+        elseif s.path[end] in _TEST_CROSS_SECTION
+            [:cross_section, :timeseries, :csv]
         else
             [:timeseries, :csv]
         end
@@ -1919,7 +1928,11 @@ function _test_adf(; data::String, column::Int=1, max_lags=nothing,
     _status("ADF Test: variable=$vname, observations=$(length(y)), trend=$trend")
     _status()
 
-    result = adf_test(y; lags=lags_arg, regression=regression)
+    result = try
+        adf_test(y; lags=lags_arg, regression=regression)
+    catch e
+        throw(_domain_or_data_error(e, "ADF test"))
+    end
 
     pairs = Pair{String,Any}[
         "Test statistic" => round(result.statistic; digits=4),
@@ -1945,7 +1958,11 @@ function _test_kpss(; data::String, column::Int=1, trend::String="constant",
     _status("KPSS Test: variable=$vname, observations=$(length(y)), trend=$trend")
     _status()
 
-    result = kpss_test(y; regression=regression)
+    result = try
+        kpss_test(y; regression=regression)
+    catch e
+        throw(_domain_or_data_error(e, "KPSS test"))
+    end
 
     pairs = Pair{String,Any}[
         "Test statistic" => round(result.statistic; digits=4),
@@ -1973,7 +1990,11 @@ function _test_pp(; data::String, column::Int=1, trend::String="constant",
     _status("Phillips-Perron Test: variable=$vname, observations=$(length(y)), trend=$trend")
     _status()
 
-    result = pp_test(y; regression=regression)
+    result = try
+        pp_test(y; regression=regression)
+    catch e
+        throw(_domain_or_data_error(e, "Phillips-Perron test"))
+    end
 
     pairs = Pair{String,Any}[
         "Test statistic" => round(result.statistic; digits=4),
@@ -1997,7 +2018,11 @@ function _test_za(; data::String, column::Int=1, trend::String="both",
     _status("Zivot-Andrews Test: variable=$vname, observations=$(length(y)), model=$trend")
     _status()
 
-    result = za_test(y; regression=regression, trim=trim)
+    result = try
+        za_test(y; regression=regression, trim=trim)
+    catch e
+        throw(_domain_or_data_error(e, "Zivot-Andrews test"))
+    end
 
     pairs = Pair{String,Any}[
         "Test statistic" => round(result.statistic; digits=4),
@@ -2020,7 +2045,11 @@ function _test_np(; data::String, column::Int=1, trend::String="constant",
     _status("Ng-Perron Test: variable=$vname, observations=$(length(y)), trend=$trend")
     _status()
 
-    result = ngperron_test(y; regression=regression)
+    result = try
+        ngperron_test(y; regression=regression)
+    catch e
+        throw(_domain_or_data_error(e, "Ng-Perron test"))
+    end
 
     pairs = Pair{String,Any}[
         "MZa statistic" => round(result.MZa; digits=4),
@@ -2122,7 +2151,9 @@ function _test_johansen(; data::String, lags::Int=2, trend::String="constant",
         p_value=round.(result.trace_pvalues; digits=4),
         reject=[p < 0.05 ? "yes" : "no" for p in result.trace_pvalues]
     )
-    output_result(trace_df; format=Symbol(format), title="Johansen Trace Test")
+    output_result(trace_df; format=Symbol(format),
+                  output=_per_var_output_path(output, "trace"),
+                  title="Johansen Trace Test")
     _status()
 
     maxeig_df = DataFrame(
@@ -2519,7 +2550,8 @@ function _test_nyblom(; data::String, column::Int=1, model::String="garch",
         "cv_joint_5pct" => round(Float64(result.cv_joint); digits=4),
         "n_params" => result.k,
         "reject_joint_5pct" => reject_joint,
-    ]; format=format, title="Nyblom Joint Stability: $vname ($model)",
+    ]; format=format, output=_per_var_output_path(output, "joint"),
+       title="Nyblom Joint Stability: $vname ($model)",
        key="nyblom_joint_stability")
     # nyblom_test is a critical-value test (no p-value); synthesize a decision-consistent
     # pseudo p-value so the standard interpretation line prints (stdout stays data-only).
@@ -2802,7 +2834,7 @@ function _test_wild_cluster(; data::String, dep::String="", clusters::String="",
     # NOT named `enumerate`: a kwarg of that name shadows `Base.enumerate` for the whole
     # function body, which is a trap waiting for the next edit.
     enum_flag = enumerate_signs == "auto" ? nothing : (enumerate_signs == "yes")
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    dep_name = _resolve_dep_name(data, dep)
     _status("Wild Cluster Bootstrap: $dep_name ~ $(join(xcols, " + "))")
     _status("  H0: $coefname = $null; clusters: $G (column '$clusters'); weights: $boot_weights")
     _status("  Variant: $(no_impose_null ? "WCU (null not imposed)" : "WCR (null imposed)")")
@@ -3100,7 +3132,7 @@ function _test_variance_ratio(; data::String, column::Int=1, horizons::String="2
         "Chow-Denning p-value" => round(Float64(res.cd_star_pvalue); digits=4),
         "robust" => res.robust,
         "observations" => res.nobs];
-        format=format, title="Joint Random-Walk Test")
+        format=format, output=_per_var_output_path(output, "summary"), title="Joint Random-Walk Test")
     interpret_test_result(Float64(res.cd_star_pvalue),
         "Reject H0 (random walk) at 5% -- variance ratios differ from 1 (mean reversion / momentum)",
         "Cannot reject H0 (random walk) at 5%")
@@ -3223,7 +3255,7 @@ function _test_hegy(; data::String, column::Int=1, frequency::Int=4,
         "deterministic" => String(res.deterministic),
         "lags" => res.lags,
         "observations" => res.nobs];
-        format=format, title="HEGY Summary")
+        format=format, output=_per_var_output_path(output, "summary"), title="HEGY Summary")
     _status_styled("H0 at each frequency is a unit root; 'reject' means no unit root there.\n";
                    color=:cyan)
     return res
@@ -3307,7 +3339,8 @@ function _bubble_leaf(fn, label::String; key::String, data::String, column::Int,
         "observations" => res.nobs,
     ]
     append!(pairs, _cv_pairs(res.critical_values))
-    output_kv(pairs; format=format, title="$(uppercase(label)) Summary")
+    output_kv(pairs; format=format, output=_per_var_output_path(output, "summary"),
+              title="$(uppercase(label)) Summary")
     interpret_test_result(Float64(res.pvalue),
         "Reject H0 (unit root) at 5% -- explosive/bubble behaviour detected",
         "Cannot reject H0 (unit root) at 5% -- no evidence of explosive behaviour")
@@ -3391,7 +3424,7 @@ function _test_engle_granger(; data::String, dep::String="", trend::String="cons
         v
     end
     y, X, xcols = _load_reg_data(data, dep)
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    dep_name = _resolve_dep_name(data, dep)
     _status("Engle-Granger Cointegration Test: $dep_name ~ $(join(xcols, " + ")), n=$(length(y))"); _status()
     res = try
         engle_granger_test(y, X; trend=Symbol(trend), lags=lg, max_lags=ml)
@@ -3421,7 +3454,7 @@ function _test_phillips_ouliaris(; data::String, dep::String="", trend::String="
         format::String="table", output::String="")
     bw = _parse_hac_bandwidth(bandwidth)
     y, X, xcols = _load_reg_data(data, dep)
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    dep_name = _resolve_dep_name(data, dep)
     _status("Phillips-Ouliaris Cointegration Test: $dep_name ~ $(join(xcols, " + ")), n=$(length(y))"); _status()
     res = try
         phillips_ouliaris_test(y, X; trend=Symbol(trend),
@@ -3442,7 +3475,7 @@ function _test_phillips_ouliaris(; data::String, dep::String="", trend::String="
         "regressors (k)" => res.k,
         "I(1) series (N)" => res.N,
         "observations" => res.nobs];
-        format=format, title="Phillips-Ouliaris Summary")
+        format=format, output=_per_var_output_path(output, "summary"), title="Phillips-Ouliaris Summary")
     interpret_test_result(Float64(res.pvalue),
         "Reject H0 (no cointegration) at 5% -- the series are cointegrated",
         "Cannot reject H0 (no cointegration) at 5%")
@@ -3477,7 +3510,7 @@ function _test_hansen_instability(; data::String, dep::String="", method::String
         leads::String="auto", lags::String="auto", format::String="table", output::String="")
     model, xcols = _cointreg_for_test(data, dep, method, trend, kernel, bandwidth,
                                       leads, lags, "hansen-instability")
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    dep_name = _resolve_dep_name(data, dep)
     _status("Hansen (1992) Instability Test: $dep_name ~ $(join(xcols, " + ")), method=$method"); _status()
     res = try
         hansen_instability_test(model)
@@ -3511,7 +3544,7 @@ function _test_park_added(; data::String, dep::String="", method::String="fmols"
     hac_bw = _parse_hac_bandwidth(hac_bandwidth)
     model, xcols = _cointreg_for_test(data, dep, method, trend, kernel, bandwidth,
                                       leads, lags, "park-added")
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    dep_name = _resolve_dep_name(data, dep)
     _status("Park (1990) Added-Variables Test: $dep_name ~ $(join(xcols, " + ")), q_add=$q_add"); _status()
     res = try
         park_added_test(model; q_add=q_add,
@@ -3599,7 +3632,7 @@ end
 function _test_white(; data::String, dep::String="", cov_type::String="hc1",
         no_cross_terms::Bool=false, format::String="table", output::String="")
     model, xcols = _reg_for_diagnostic(data, dep, cov_type, "white")
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    dep_name = _resolve_dep_name(data, dep)
     _status("White Heteroskedasticity Test: $dep_name ~ $(join(xcols, " + "))"); _status()
     res = try
         white_test(model; cross_terms=!no_cross_terms)
@@ -3616,7 +3649,7 @@ end
 function _test_glejser(; data::String, dep::String="", cov_type::String="hc1",
         format::String="table", output::String="")
     model, xcols = _reg_for_diagnostic(data, dep, cov_type, "glejser")
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    dep_name = _resolve_dep_name(data, dep)
     _status("Glejser Heteroskedasticity Test: $dep_name ~ $(join(xcols, " + "))"); _status()
     res = try
         glejser_test(model)
@@ -3633,7 +3666,7 @@ end
 function _test_harvey(; data::String, dep::String="", cov_type::String="hc1",
         format::String="table", output::String="")
     model, xcols = _reg_for_diagnostic(data, dep, cov_type, "harvey")
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    dep_name = _resolve_dep_name(data, dep)
     _status("Harvey Heteroskedasticity Test: $dep_name ~ $(join(xcols, " + "))"); _status()
     res = try
         harvey_test(model)
@@ -3664,7 +3697,7 @@ function _test_chow(; data::String, dep::String="", cov_type::String="hc1",
     (0.0 < level < 1.0) || throw(CliError("usage/invalid",
         "test stability chow: --level must be in (0, 1) (got $level)"))
     model, xcols = _reg_for_diagnostic(data, dep, cov_type, "chow")
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    dep_name = _resolve_dep_name(data, dep)
     _status("Chow Structural-Break Test: $dep_name ~ $(join(xcols, " + ")), breaks=$(join(breaks, ","))"); _status()
     res = try
         chow_test(model, breaks; type=Symbol(type), level=level)
@@ -3688,7 +3721,7 @@ function _cusum_leaf(fn, label::String, statcol::String; key::String, data::Stri
     (0.0 < level < 1.0) || throw(CliError("usage/invalid",
         "test $label: --level must be in (0, 1) (got $level)"))
     model, xcols = _reg_for_diagnostic(data, dep, cov_type, label)
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    dep_name = _resolve_dep_name(data, dep)
     _status("$(uppercase(label)) Stability Test: $dep_name ~ $(join(xcols, " + "))"); _status()
     res = try
         fn(model; level=level)
@@ -3712,7 +3745,7 @@ function _cusum_leaf(fn, label::String, statcol::String; key::String, data::Stri
         "level" => res.level,
         "observations" => res.n,
         "regressors (k)" => res.k];
-        format=format, title="$(uppercase(label)) Summary")
+        format=format, output=_per_var_output_path(output, "summary"), title="$(uppercase(label)) Summary")
     # H0 is parameter stability; there is no p-value, so the band crossing IS the verdict.
     if res.crossed
         _status_styled("-> Path leaves the $(round(Int, 100*(1-res.level)))% band at observation $(res.first_crossing) -- parameter instability\n"; color=:yellow)
@@ -3739,7 +3772,7 @@ end
 function _test_recursive_residuals(; data::String, dep::String="", cov_type::String="hc1",
         format::String="table", output::String="")
     model, xcols = _reg_for_diagnostic(data, dep, cov_type, "recursive-residuals")
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    dep_name = _resolve_dep_name(data, dep)
     _status("Recursive Residuals: $dep_name ~ $(join(xcols, " + "))"); _status()
     w = try
         recursive_residuals(model)
@@ -3757,7 +3790,7 @@ function _test_recursive_residuals(; data::String, dep::String="", cov_type::Str
         "count" => length(wv),
         "mean" => _finite_or_str(isempty(wv) ? NaN : sum(wv) / length(wv)),
         "regressors (k)" => k];
-        format=format, title="Recursive Residuals Summary")
+        format=format, output=_per_var_output_path(output, "summary"), title="Recursive Residuals Summary")
     return w
 end
 
@@ -3767,7 +3800,7 @@ end
 function _test_influence(; data::String, dep::String="", cov_type::String="hc1",
         format::String="table", output::String="")
     model, xcols = _reg_for_diagnostic(data, dep, cov_type, "influence")
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    dep_name = _resolve_dep_name(data, dep)
     _status("Influence Diagnostics: $dep_name ~ $(join(xcols, " + "))"); _status()
     res = try
         influence_stats(model)
@@ -3791,7 +3824,7 @@ function _test_influence(; data::String, dep::String="", cov_type::String="hc1",
         "influential obs" => isempty(res.influential) ? "none" : join(res.influential, ", "),
         "observations" => res.n,
         "regressors (k)" => res.k];
-        format=format, title="Influence Summary")
+        format=format, output=_per_var_output_path(output, "summary"), title="Influence Summary")
     return res
 end
 
@@ -3981,7 +4014,7 @@ function _test_ips(; data::String, deterministic::String="constant", lags::Strin
         "deterministic" => String(res.deterministic),
         "n_units" => res.n_units,
         "observations" => res.nobs];
-        format=format, title="Im-Pesaran-Shin Test")
+        format=format, output=_per_var_output_path(output, "summary"), title="Im-Pesaran-Shin Test")
     interpret_test_result(Float64(res.pvalue),
         "Reject H0 (all units have a unit root) at 5% -- some units are stationary",
         "Cannot reject H0 (all units have a unit root) at 5%")
@@ -4044,7 +4077,7 @@ function _test_fisher_johansen(; data::String, id_col::String="", time_col::Stri
         "deterministic" => String(res.deterministic),
         "lags" => res.lags,
         "n_units" => res.n_units];
-        format=format, title="Fisher-Johansen Summary")
+        format=format, output=_per_var_output_path(output, "summary"), title="Fisher-Johansen Summary")
     _status_styled("H0 at each row is rank <= r; the selected rank is the first not rejected.\n"; color=:cyan)
     return res
 end
@@ -4152,7 +4185,7 @@ function _panel_coint_output(res, label, depc, indeps; key, format, output)
         "n_units" => res.n_units,
         "n_regressors" => res.n_regressors,
         "observations" => res.nobs];
-        format=format, title="$label Summary")
+        format=format, output=_per_var_output_path(output, "summary"), title="$label Summary")
     interpret_test_result(minimum(Float64.(res.pvalues)),
         "Reject H0 (no cointegration) at 5% -- evidence of panel cointegration",
         "Cannot reject H0 (no cointegration) at 5%")
@@ -4229,7 +4262,7 @@ function _test_ardl_bounds(; data::String, dep::String="", p::String="auto", q::
     cv_source == "pss" || throw(CliError("usage/invalid",
         "test coint ardl-bounds: --cv-source must be pss (narayan finite-sample bounds are not bundled), got '$cv_source'"))
     y, X, xcols = _load_reg_data(data, dep)
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    dep_name = _resolve_dep_name(data, dep)
     _status("ARDL bounds test (PSS 2001, case $case, level $level): $dep_name ~ $(join(xcols, " + ")), n=$(length(y))"); _status()
     m = _fit_ardl(y, X, xcols, dep_name; p=p, q=q, max_p=max_p, max_q=max_q,
                   ic=ic, case=case, trend=trend, label="test coint ardl-bounds")
@@ -4259,7 +4292,7 @@ function _test_ardl_bounds(; data::String, dep::String="", p::String="auto", q::
         "f_decision" => String(res.f_decision),
         "t_decision" => String(res.t_decision),
         "nobs"       => res.n,
-    ]; format=format, title="ARDL Bounds Test Summary")
+    ]; format=format, output=_per_var_output_path(output, "summary"), title="ARDL Bounds Test Summary")
     # Decision text keyed off the SYMBOLS (not a p-value): F-bound is the primary conclusion.
     _status()
     fmsg = res.f_decision === :cointegrated ?
@@ -4291,7 +4324,7 @@ function _test_nardl_symmetry(; data::String, dep::String="", asymmetric::String
         p::String="auto", q::String="auto", max_p::Int=4, max_q::Int=4, ic::String="aic",
         case::Int=3, format::String="table", output::String="")
     y, X, xcols = _load_reg_data(data, dep)
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    dep_name = _resolve_dep_name(data, dep)
     _status("NARDL symmetry Wald tests: $dep_name ~ $(join(xcols, " + ")) (asym=$asymmetric, case=$case), n=$(length(y))"); _status()
     m = _fit_nardl(y, X, xcols, dep_name; asymmetric=asymmetric, p=p, q=q,
                    max_p=max_p, max_q=max_q, ic=ic, case=case, label="test nardl-symmetry")
@@ -4306,7 +4339,7 @@ function _test_nardl_symmetry(; data::String, dep::String="", asymmetric::String
         "df"        => res.df,
         "dof_resid" => res.dof_resid,
         "n_asym"    => length(res.reg_names),
-    ]; format=format, title="NARDL Symmetry Test Summary")
+    ]; format=format, output=_per_var_output_path(output, "summary"), title="NARDL Symmetry Test Summary")
     # χ²(1) p-values ARE available — interpret the long-run test on the first regressor.
     isempty(res.reg_names) || interpret_test_result(Float64(res.lr_p_chi2[1]),
         "Reject H0 (long-run symmetry) at 5% for $(res.reg_names[1]) -- asymmetric adjustment",
@@ -4322,6 +4355,10 @@ end
 # (PMG) long-run vector. Result is a standard `PanelTestResult` (HAS a p-value) → the usual
 # test kv + `interpret_test_result`, exactly the pedroni/kao/westerlund pattern. Every MEMs
 # call is wrapped → typed CliError (single-unit panel etc. → data/invalid, never exit-1).
+_df_kv_pairs(df) = df isa Tuple ?
+    Pair{String,Any}["df_num" => df[1], "df_den" => df[2]] :
+    Pair{String,Any}["df" => df]
+
 function _test_pmg_hausman(; data::String, id_col::String="", time_col::String="",
         dep::String="", indep::String="", trend::String="constant", p::Int=1, q::Int=1,
         maxiter::Int=100, tol::Float64=1e-8, efficient::String="pmg",
@@ -4347,13 +4384,14 @@ function _test_pmg_hausman(; data::String, id_col::String="", time_col::String="
     catch e
         throw(_teststat_error(e, "PMG Hausman test"))
     end
-    output_kv(Pair{String,Any}[
+    kv_pairs = Pair{String,Any}[
         "test_name"   => res.test_name,
         "statistic"   => round(Float64(res.statistic); digits=4),
         "pvalue"      => round(Float64(res.pvalue); digits=4),
-        "df"          => res.df,
-        "description" => res.description,
-    ]; format=format, output=output, title="PMG Hausman Specification Test")
+    ]
+    append!(kv_pairs, _df_kv_pairs(res.df))
+    push!(kv_pairs, "description" => res.description)
+    output_kv(kv_pairs; format=format, output=output, title="PMG Hausman Specification Test")
     interpret_test_result(Float64(res.pvalue),
         "Reject H0 (long-run homogeneity) -- PMG inconsistent, prefer MG",
         "Cannot reject H0 -- PMG long-run homogeneity supported")
@@ -4398,7 +4436,7 @@ function _test_var_lagselect(; data::String, max_lags::Int=12, criterion::String
 
     if format == "json"
         output_kv(Pair{String,Any}["optimal_lag" => optimal, "criterion" => criterion];
-                  format=format, title="Optimal Lag")
+                  format=format, output=_per_var_output_path(output, "optimal"), title="Optimal Lag")
     end
 end
 
@@ -4688,14 +4726,19 @@ function _test_lr(; data1::String, data2::String, lags1=nothing, lags2=nothing,
     m2, _, _, p2 = _load_and_estimate_var(data2, lags2)
 
     if p1 == p2 && data1 == data2
-        _status_styled("  Warning: Both models have the same specification (p=$p1) on the same data.\n"; color=:yellow)
-        _status_styled("  Use --lags1 and --lags2 to specify different restricted/unrestricted models.\n"; color=:yellow)
+        throw(CliError("usage/invalid",
+            "LR test requires two nested models with different lag orders (--lags1 != --lags2); both have p=$p1 on the same data";
+            hint="pass e.g. --lags1 1 --lags2 2"))
     end
 
     _status("Likelihood Ratio Test: restricted (p=$p1) vs unrestricted (p=$p2)")
     _status()
 
-    result = lr_test(m1, m2)
+    result = try
+        lr_test(m1, m2)
+    catch e
+        throw(_domain_or_data_error(e, "LR test"))
+    end
 
     pairs = Pair{String,Any}[
         "LR statistic" => round(result.statistic; digits=4),
@@ -4720,14 +4763,19 @@ function _test_lm(; data1::String, data2::String, lags1=nothing, lags2=nothing,
     m2, _, _, p2 = _load_and_estimate_var(data2, lags2)
 
     if p1 == p2 && data1 == data2
-        _status_styled("  Warning: Both models have the same specification (p=$p1) on the same data.\n"; color=:yellow)
-        _status_styled("  Use --lags1 and --lags2 to specify different restricted/unrestricted models.\n"; color=:yellow)
+        throw(CliError("usage/invalid",
+            "LM test requires two nested models with different lag orders (--lags1 != --lags2); both have p=$p1 on the same data";
+            hint="pass e.g. --lags1 1 --lags2 2"))
     end
 
     _status("Lagrange Multiplier Test: restricted (p=$p1) vs unrestricted (p=$p2)")
     _status()
 
-    result = lm_test(m1, m2)
+    result = try
+        lm_test(m1, m2)
+    catch e
+        throw(_domain_or_data_error(e, "LM test"))
+    end
 
     pairs = Pair{String,Any}[
         "LM statistic" => round(result.statistic; digits=4),
@@ -4817,17 +4865,32 @@ end
 
 # ── Panel Unit Root Tests ─────────────────────────────
 
+function _parse_int_or_sym(raw::String, flag::String, allowed_syms::Tuple{Vararg{String}}; min_val::Int=0)
+    s = lowercase(strip(raw))
+    if s in allowed_syms
+        return Symbol(s)
+    end
+    v = tryparse(Int, s)
+    (v === nothing || v < min_val) && throw(CliError("usage/invalid",
+        "$flag must be $(join(allowed_syms, "|")) or an integer ≥ $min_val (got '$raw')"))
+    return v
+end
+
 function _test_panic(; data::String, factors::String="auto",
                       method::String="pooled", id_col::String="", time_col::String="",
                       format::String="table", output::String="")
     dat, is_panel = _load_panel_or_matrix(data; id_col=id_col, time_col=time_col)
 
-    r_arg = factors == "auto" ? :auto : parse(Int, factors)
+    r_arg = _parse_int_or_sym(factors, "--factors", ("auto",); min_val=1)
 
     _status("PANIC Panel Unit Root Test: factors=$(factors), method=$method")
     _status()
 
-    result = panic_test(dat; r=r_arg, method=Symbol(method))
+    result = try
+        panic_test(dat; r=r_arg, method=Symbol(method))
+    catch e
+        throw(_domain_or_data_error(e, "PANIC test"))
+    end
 
     pairs = Pair{String,Any}[
         "Pooled statistic" => round(result.pooled_statistic; digits=4),
@@ -4850,12 +4913,16 @@ function _test_cips(; data::String, lags::String="auto",
                      format::String="table", output::String="")
     dat, is_panel = _load_panel_or_matrix(data; id_col=id_col, time_col=time_col)
 
-    lags_arg = lags == "auto" ? :auto : parse(Int, lags)
+    lags_arg = _parse_int_or_sym(lags, "--lags", ("auto",); min_val=0)
 
     _status("Pesaran CIPS Panel Unit Root Test: lags=$lags, deterministic=$deterministic")
     _status()
 
-    result = pesaran_cips_test(dat; lags=lags_arg, deterministic=Symbol(deterministic))
+    result = try
+        pesaran_cips_test(dat; lags=lags_arg, deterministic=Symbol(deterministic))
+    catch e
+        throw(_domain_or_data_error(e, "Pesaran CIPS test"))
+    end
 
     pairs = Pair{String,Any}[
         "CIPS statistic" => round(result.cips_statistic; digits=4),
@@ -4878,12 +4945,16 @@ function _test_moon_perron(; data::String, factors::String="auto",
                             format::String="table", output::String="")
     dat, is_panel = _load_panel_or_matrix(data; id_col=id_col, time_col=time_col)
 
-    r_arg = factors == "auto" ? :auto : parse(Int, factors)
+    r_arg = _parse_int_or_sym(factors, "--factors", ("auto",); min_val=1)
 
     _status("Moon-Perron Panel Unit Root Test: factors=$factors")
     _status()
 
-    result = moon_perron_test(dat; r=r_arg)
+    result = try
+        moon_perron_test(dat; r=r_arg)
+    catch e
+        throw(_domain_or_data_error(e, "Moon-Perron test"))
+    end
 
     pairs = Pair{String,Any}[
         "t_a* statistic" => round(result.t_a_statistic; digits=4),
@@ -4910,7 +4981,11 @@ function _test_factor_break(; data::String, factors::Int=2,
     _status("Factor Break Test: factors=$factors, method=$method")
     _status()
 
-    result = factor_break_test(dat, factors; method=Symbol(method))
+    result = try
+        factor_break_test(dat isa PanelData ? _panel_to_wide_matrix(dat) : dat, factors; method=Symbol(method))
+    catch e
+        throw(_domain_or_data_error(e, "test structural factor-break"))
+    end
 
     pairs = Pair{String,Any}[
         "Statistic" => round(result.statistic; digits=4),
@@ -4954,7 +5029,7 @@ function _test_fourier_adf(; data::String, column::Int=1,
                              format::String="table", output::String="")
     y, vname = load_univariate_series(data, column)
 
-    lags_arg = tryparse(Int, lags) !== nothing ? parse(Int, lags) : Symbol(lags)
+    lags_arg = _parse_int_or_sym(lags, "--lags", ("aic", "bic", "hqic"); min_val=0)
     reg_sym = Symbol(regression)
 
     _status("Fourier ADF Test: variable=$vname, observations=$(length(y)), regression=$regression, fmax=$fmax")
@@ -4962,7 +5037,11 @@ function _test_fourier_adf(; data::String, column::Int=1,
 
     kw = Dict{Symbol,Any}(:regression => reg_sym, :fmax => fmax, :trim => trim)
     !isnothing(max_lags) && (kw[:max_lags] = max_lags)
-    result = fourier_adf_test(y; lags=lags_arg, kw...)
+    result = try
+        fourier_adf_test(y; lags=lags_arg, kw...)
+    catch e
+        throw(_domain_or_data_error(e, "Fourier ADF test"))
+    end
 
     pairs = Pair{String,Any}[
         "Test statistic" => round(result.statistic; digits=4),
@@ -5003,7 +5082,11 @@ function _test_fourier_kpss(; data::String, column::Int=1,
 
     kw = Dict{Symbol,Any}(:regression => reg_sym, :fmax => fmax)
     !isnothing(bandwidth) && (kw[:bandwidth] = bandwidth)
-    result = fourier_kpss_test(y; kw...)
+    result = try
+        fourier_kpss_test(y; kw...)
+    catch e
+        throw(_domain_or_data_error(e, "Fourier KPSS test"))
+    end
 
     pairs = Pair{String,Any}[
         "Test statistic" => round(result.statistic; digits=4),
@@ -5036,7 +5119,7 @@ function _test_dfgls(; data::String, column::Int=1,
                       format::String="table", output::String="")
     y, vname = load_univariate_series(data, column)
 
-    lags_arg = tryparse(Int, lags) !== nothing ? parse(Int, lags) : Symbol(lags)
+    lags_arg = _parse_int_or_sym(lags, "--lags", ("aic", "bic", "hqic"); min_val=0)
     reg_sym = Symbol(regression)
 
     _status("DF-GLS Test: variable=$vname, observations=$(length(y)), regression=$regression")
@@ -5044,7 +5127,11 @@ function _test_dfgls(; data::String, column::Int=1,
 
     kw = Dict{Symbol,Any}(:regression => reg_sym)
     !isnothing(max_lags) && (kw[:max_lags] = max_lags)
-    result = dfgls_test(y; lags=lags_arg, kw...)
+    result = try
+        dfgls_test(y; lags=lags_arg, kw...)
+    catch e
+        throw(_domain_or_data_error(e, "DF-GLS test"))
+    end
 
     pairs = Pair{String,Any}[
         "DF-GLS tau statistic" => round(result.statistic; digits=4),
@@ -5077,7 +5164,7 @@ function _test_lm_unitroot(; data::String, column::Int=1,
                              format::String="table", output::String="")
     y, vname = load_univariate_series(data, column)
 
-    lags_arg = tryparse(Int, lags) !== nothing ? parse(Int, lags) : Symbol(lags)
+    lags_arg = _parse_int_or_sym(lags, "--lags", ("aic", "bic", "hqic"); min_val=0)
     reg_sym = Symbol(regression)
 
     _status("LM Unit Root Test: variable=$vname, observations=$(length(y)), breaks=$breaks, regression=$regression")
@@ -5085,7 +5172,11 @@ function _test_lm_unitroot(; data::String, column::Int=1,
 
     kw = Dict{Symbol,Any}(:breaks => breaks, :regression => reg_sym, :trim => trim)
     !isnothing(max_lags) && (kw[:max_lags] = max_lags)
-    result = lm_unitroot_test(y; lags=lags_arg, kw...)
+    result = try
+        lm_unitroot_test(y; lags=lags_arg, kw...)
+    catch e
+        throw(_domain_or_data_error(e, "LM unit-root test"))
+    end
 
     pairs = Pair{String,Any}[
         "LM statistic" => round(result.statistic; digits=4),
@@ -5118,7 +5209,7 @@ function _test_adf_2break(; data::String, column::Int=1,
                             format::String="table", output::String="")
     y, vname = load_univariate_series(data, column)
 
-    lags_arg = tryparse(Int, lags) !== nothing ? parse(Int, lags) : Symbol(lags)
+    lags_arg = _parse_int_or_sym(lags, "--lags", ("aic", "bic", "hqic"); min_val=0)
     model_sym = Symbol(model)
 
     _status("ADF 2-Break Test: variable=$vname, observations=$(length(y)), model=$model")
@@ -5126,7 +5217,11 @@ function _test_adf_2break(; data::String, column::Int=1,
 
     kw = Dict{Symbol,Any}(:model => model_sym, :trim => trim)
     !isnothing(max_lags) && (kw[:max_lags] = max_lags)
-    result = adf_2break_test(y; lags=lags_arg, kw...)
+    result = try
+        adf_2break_test(y; lags=lags_arg, kw...)
+    catch e
+        throw(_domain_or_data_error(e, "ADF 2-Break test"))
+    end
 
     pairs = Pair{String,Any}[
         "Test statistic" => round(result.statistic; digits=4),
@@ -5159,7 +5254,7 @@ function _test_gregory_hansen(; data::String, model::String="C",
                                 format::String="table", output::String="")
     Y, varnames = load_multivariate_data(data)
 
-    lags_arg = tryparse(Int, lags) !== nothing ? parse(Int, lags) : Symbol(lags)
+    lags_arg = _parse_int_or_sym(lags, "--lags", ("aic", "bic", "hqic"); min_val=0)
     model_sym = Symbol(model)
 
     _status("Gregory-Hansen Test: $(length(varnames)) variables, model=$model")
@@ -5172,10 +5267,10 @@ function _test_gregory_hansen(; data::String, model::String="C",
     result = try
         gregory_hansen_test(Y; lags=lags_arg, kw...)
     catch e
-        e isa ArgumentError && throw(CliError("data/shape",
+        e isa ArgumentError && occursin("2", _err_message(e)) && throw(CliError("data/shape",
             "gregory-hansen needs at least 2 columns (dependent + regressor)";
             hint="got $(length(varnames)): $(join(varnames, ", "))"))
-        rethrow()
+        throw(_domain_or_data_error(e, "Gregory-Hansen test"))
     end
 
     pairs = Pair{String,Any}[
@@ -5219,10 +5314,19 @@ function _test_vif(; data::String="", model=nothing, dep::String="",
         _status("Variance Inflation Factors: $(length(xcols)) regressors (loaded RegModel)")
         _status()
     end
-    vif_vals = vif(model)
+    vif_vals = try
+        vif(model)
+    catch e
+        throw(_domain_or_data_error(e, "test regression vif"))
+    end
+    is_const = Bool[all(view(model.X, :, j) .== model.X[1, j]) for j in 1:size(model.X, 2)]
+    non_const = findall(.!is_const)
+    var_labels = length(non_const) == length(vif_vals) ?
+        String[j <= length(xcols) ? String(xcols[j]) : "x$j" for j in non_const] :
+        String[j <= length(xcols) ? String(xcols[j]) : "x$j" for j in eachindex(vif_vals)]
 
     vif_df = DataFrame(
-        Variable = xcols,
+        Variable = var_labels,
         VIF = round.(vif_vals; digits=4),
         Tolerance = round.(1.0 ./ vif_vals; digits=4),
     )
@@ -5250,11 +5354,24 @@ function _test_hausman(; data::String, dep::String="", indep::String="",
     isempty(dep) && throw(CliError("usage/missing", "--dep is required";
         hint="name the dependent variable column, e.g. --dep y"))
     pd = _load_panel_for_preg(data, id_col, time_col)
+    dep = _resolve_panel_dep(pd, dep)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
-    fe_model = estimate_xtreg(pd, Symbol(dep), indep_syms; model=:fe)
-    re_model = estimate_xtreg(pd, Symbol(dep), indep_syms; model=:re)
-    result = hausman_test(fe_model, re_model)
+    fe_model = try
+        estimate_xtreg(pd, Symbol(dep), indep_syms; model=:fe)
+    catch e
+        throw(_domain_or_data_error(e, "test panel hausman (FE)"))
+    end
+    re_model = try
+        estimate_xtreg(pd, Symbol(dep), indep_syms; model=:re)
+    catch e
+        throw(_domain_or_data_error(e, "test panel hausman (RE)"))
+    end
+    result = try
+        hausman_test(fe_model, re_model)
+    catch e
+        throw(_domain_or_data_error(e, "test panel hausman"))
+    end
 
     _status("Hausman Test: FE vs RE")
     _status()
@@ -5262,9 +5379,9 @@ function _test_hausman(; data::String, dep::String="", indep::String="",
         "Test" => result.test_name,
         "χ² statistic" => round(result.statistic; digits=4),
         "p-value" => round(result.pvalue; digits=4),
-        "df" => result.df,
-        "Decision" => result.pvalue < 0.05 ? "Reject H0 (use FE)" : "Fail to reject H0 (RE consistent)",
     ]
+    append!(pairs, _df_kv_pairs(result.df))
+    push!(pairs, "Decision" => result.pvalue < 0.05 ? "Reject H0 (use FE)" : "Fail to reject H0 (RE consistent)")
     output_kv(pairs; format=format, output=output, title="Hausman Specification Test")
     return result
 end
@@ -5275,10 +5392,19 @@ function _test_breusch_pagan(; data::String, dep::String="", indep::String="",
     isempty(dep) && throw(CliError("usage/missing", "--dep is required";
         hint="name the dependent variable column, e.g. --dep y"))
     pd = _load_panel_for_preg(data, id_col, time_col)
+    dep = _resolve_panel_dep(pd, dep)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
-    model = estimate_xtreg(pd, Symbol(dep), indep_syms; model=:re)
-    result = breusch_pagan_test(model)
+    model = try
+        estimate_xtreg(pd, Symbol(dep), indep_syms; model=:re)
+    catch e
+        throw(_domain_or_data_error(e, "test panel breusch-pagan"))
+    end
+    result = try
+        breusch_pagan_test(model)
+    catch e
+        throw(_domain_or_data_error(e, "test panel breusch-pagan"))
+    end
 
     _status("Breusch-Pagan LM Test for Random Effects")
     _status()
@@ -5286,9 +5412,9 @@ function _test_breusch_pagan(; data::String, dep::String="", indep::String="",
         "Test" => result.test_name,
         "LM statistic" => round(result.statistic; digits=4),
         "p-value" => round(result.pvalue; digits=4),
-        "df" => result.df,
-        "Decision" => result.pvalue < 0.05 ? "Reject H0 (RE preferred over pooled OLS)" : "Fail to reject H0 (pooled OLS adequate)",
     ]
+    append!(pairs, _df_kv_pairs(result.df))
+    push!(pairs, "Decision" => result.pvalue < 0.05 ? "Reject H0 (RE preferred over pooled OLS)" : "Fail to reject H0 (pooled OLS adequate)")
     output_kv(pairs; format=format, output=output, title="Breusch-Pagan LM Test")
     return result
 end
@@ -5299,10 +5425,19 @@ function _test_f_fe(; data::String, dep::String="", indep::String="",
     isempty(dep) && throw(CliError("usage/missing", "--dep is required";
         hint="name the dependent variable column, e.g. --dep y"))
     pd = _load_panel_for_preg(data, id_col, time_col)
+    dep = _resolve_panel_dep(pd, dep)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
-    model = estimate_xtreg(pd, Symbol(dep), indep_syms; model=:fe)
-    result = f_test_fe(model)
+    model = try
+        estimate_xtreg(pd, Symbol(dep), indep_syms; model=:fe)
+    catch e
+        throw(_domain_or_data_error(e, "test panel f-fe"))
+    end
+    result = try
+        f_test_fe(model)
+    catch e
+        throw(_domain_or_data_error(e, "test panel f-fe"))
+    end
 
     _status("F-Test for Individual Fixed Effects")
     _status()
@@ -5310,9 +5445,9 @@ function _test_f_fe(; data::String, dep::String="", indep::String="",
         "Test" => result.test_name,
         "F statistic" => round(result.statistic; digits=4),
         "p-value" => round(result.pvalue; digits=4),
-        "df" => result.df,
-        "Decision" => result.pvalue < 0.05 ? "Reject H0 (individual effects significant)" : "Fail to reject H0 (pooled OLS adequate)",
     ]
+    append!(pairs, _df_kv_pairs(result.df))
+    push!(pairs, "Decision" => result.pvalue < 0.05 ? "Reject H0 (individual effects significant)" : "Fail to reject H0 (pooled OLS adequate)")
     output_kv(pairs; format=format, output=output, title="F-Test for Fixed Effects")
     return result
 end
@@ -5323,6 +5458,7 @@ function _test_pesaran_cd(; data::String, dep::String="", indep::String="",
     isempty(dep) && throw(CliError("usage/missing", "--dep is required";
         hint="name the dependent variable column, e.g. --dep y"))
     pd = _load_panel_for_preg(data, id_col, time_col)
+    dep = _resolve_panel_dep(pd, dep)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
     model = estimate_xtreg(pd, Symbol(dep), indep_syms; model=:fe)
@@ -5346,10 +5482,19 @@ function _test_wooldridge_ar(; data::String, dep::String="", indep::String="",
     isempty(dep) && throw(CliError("usage/missing", "--dep is required";
         hint="name the dependent variable column, e.g. --dep y"))
     pd = _load_panel_for_preg(data, id_col, time_col)
+    dep = _resolve_panel_dep(pd, dep)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
-    model = estimate_xtreg(pd, Symbol(dep), indep_syms; model=:fe)
-    result = wooldridge_ar_test(model)
+    model = try
+        estimate_xtreg(pd, Symbol(dep), indep_syms; model=:fe)
+    catch e
+        throw(_domain_or_data_error(e, "test panel wooldridge-ar"))
+    end
+    result = try
+        wooldridge_ar_test(model)
+    catch e
+        throw(_domain_or_data_error(e, "test panel wooldridge-ar"))
+    end
 
     _status("Wooldridge Test for Serial Correlation in Panel Data")
     _status()
@@ -5357,9 +5502,9 @@ function _test_wooldridge_ar(; data::String, dep::String="", indep::String="",
         "Test" => result.test_name,
         "F statistic" => round(result.statistic; digits=4),
         "p-value" => round(result.pvalue; digits=4),
-        "df" => result.df,
-        "Decision" => result.pvalue < 0.05 ? "Reject H0 (serial correlation detected)" : "Fail to reject H0 (no serial correlation)",
     ]
+    append!(pairs, _df_kv_pairs(result.df))
+    push!(pairs, "Decision" => result.pvalue < 0.05 ? "Reject H0 (serial correlation detected)" : "Fail to reject H0 (no serial correlation)")
     output_kv(pairs; format=format, output=output, title="Wooldridge AR Test")
     return result
 end
@@ -5370,10 +5515,19 @@ function _test_modified_wald(; data::String, dep::String="", indep::String="",
     isempty(dep) && throw(CliError("usage/missing", "--dep is required";
         hint="name the dependent variable column, e.g. --dep y"))
     pd = _load_panel_for_preg(data, id_col, time_col)
+    dep = _resolve_panel_dep(pd, dep)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
-    model = estimate_xtreg(pd, Symbol(dep), indep_syms; model=:fe)
-    result = modified_wald_test(model)
+    model = try
+        estimate_xtreg(pd, Symbol(dep), indep_syms; model=:fe)
+    catch e
+        throw(_domain_or_data_error(e, "test panel modified-wald"))
+    end
+    result = try
+        modified_wald_test(model)
+    catch e
+        throw(_domain_or_data_error(e, "test panel modified-wald"))
+    end
 
     _status("Modified Wald Test for Groupwise Heteroskedasticity")
     _status()
@@ -5381,9 +5535,9 @@ function _test_modified_wald(; data::String, dep::String="", indep::String="",
         "Test" => result.test_name,
         "χ² statistic" => round(result.statistic; digits=4),
         "p-value" => round(result.pvalue; digits=4),
-        "df" => result.df,
-        "Decision" => result.pvalue < 0.05 ? "Reject H0 (groupwise heteroskedasticity detected)" : "Fail to reject H0 (homoskedastic)",
     ]
+    append!(pairs, _df_kv_pairs(result.df))
+    push!(pairs, "Decision" => result.pvalue < 0.05 ? "Reject H0 (groupwise heteroskedasticity detected)" : "Fail to reject H0 (homoskedastic)")
     output_kv(pairs; format=format, output=output, title="Modified Wald Test")
     return result
 end
@@ -5490,17 +5644,25 @@ end
 function _test_brant(; data::String, dep::String="", cov_type::String="hc1",
                       format::String="table", output::String="")
     y, X, xcols = _load_reg_data(data, dep)
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    dep_name = _resolve_dep_name(data, dep)
 
-    model = estimate_ologit(y, X; cov_type=Symbol(cov_type), varnames=xcols)
+    model = try
+        estimate_ologit(y, X; cov_type=Symbol(cov_type), varnames=xcols)
+    catch e
+        throw(_domain_or_data_error(e, "test ordered brant"))
+    end
 
     _status("Brant Test for Parallel Regression: $dep_name")
     _status()
 
-    result = brant_test(model)
+    result = try
+        brant_test(model)
+    catch e
+        throw(_domain_or_data_error(e, "test ordered brant"))
+    end
 
     pairs = Pair{String,Any}[
-        "Test" => result.test_name,
+        "Test" => "Brant Test of Parallel Regression",
         "χ² statistic" => round(result.statistic; digits=4),
         "p-value" => round(result.pvalue; digits=4),
         "df" => result.df,
@@ -5513,20 +5675,28 @@ end
 function _test_hausman_iia(; data::String, dep::String="", omit_category=nothing,
                             format::String="table", output::String="")
     y, X, xcols = _load_reg_data(data, dep)
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    dep_name = _resolve_dep_name(data, dep)
 
     isnothing(omit_category) && throw(CliError("usage/missing", "--omit-category is required";
         hint="name the alternative to drop, e.g. --omit-category 2"))
 
-    model = estimate_mlogit(y, X; cov_type=:ols, varnames=xcols)
+    model = try
+        estimate_mlogit(y, X; cov_type=:ols, varnames=xcols)
+    catch e
+        throw(_domain_or_data_error(e, "test ordered hausman-iia"))
+    end
 
     _status("Hausman-McFadden IIA Test: $dep_name, omit category=$omit_category")
     _status()
 
-    result = hausman_iia(model; omit_category=omit_category)
+    result = try
+        hausman_iia(model; omit_category=omit_category)
+    catch e
+        throw(_domain_or_data_error(e, "test ordered hausman-iia"))
+    end
 
     pairs = Pair{String,Any}[
-        "Test" => result.test_name,
+        "Test" => "Hausman-McFadden IIA Test",
         "χ² statistic" => round(result.statistic; digits=4),
         "p-value" => round(result.pvalue; digits=4),
         "df" => result.df,

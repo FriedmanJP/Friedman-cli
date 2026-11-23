@@ -45,7 +45,7 @@ Repair intermediate flows so row and column accounts close (RAS/GRAS)
 | `--parser` | — | `String` | `csv` | `csv`, `icio` | Input parser: csv (parse_io) \| icio (OECD ICIO text) |
 | `--method` | — | `String` | `ras` | `ras`, `gras` | ras (non-negative Z) \| gras (sign-preserving) |
 | `--tol` | — | `Float64` | `1.0e-10` | — | Biproportional convergence tolerance |
-| `--maxiter` | — | `Int64` | `1000` | — | Maximum RAS/GRAS iterations |
+| `--max-iter` | — | `Int64` | `1000` | — | Maximum RAS/GRAS iterations |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
@@ -511,7 +511,7 @@ Exact nested-CES counterfactual equilibrium (Baqaee–Farhi 2019/2020)
 | `--dlog-mu` | — | `String` | `""` | — | Markup shocks (scalar or comma list; default 0) |
 | `--method` | — | `String` | `newton` | `newton`, `fixedpoint` | Inner price solver: newton \| fixedpoint |
 | `--tol` | — | `Float64` | `1.0e-10` | — | Solver tolerance |
-| `--maxiter` | — | `Int64` | `500` | — | Maximum solver iterations |
+| `--max-iter` | — | `Int64` | `500` | — | Maximum solver iterations |
 | `--damping` | — | `Float64` | `0.5` | — | Quasi-Newton damping in (0, 1] |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |

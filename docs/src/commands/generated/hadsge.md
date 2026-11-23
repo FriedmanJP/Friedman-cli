@@ -56,7 +56,7 @@ Wealth distribution IRF after an aggregate shock (Reiter only)
 | `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (not with krusell-smith) |
 | `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
 | `--method` | — | `String` | `reiter` | `reiter` | Must be reiter (SSJ has no distribution basis) |
-| `--horizon` | — | `Int64` | `40` | — | IRF horizon |
+| `--horizons` | — | `Int64` | `40` | — | IRF horizon |
 | `--shock-index` | — | `Int64` | `1` | — | Aggregate shock index (1-based) |
 | `--shock-size` | — | `Float64` | `1.0` | — | Shock size (std devs) |
 | `--n-reduced` | — | `Int64` | `30` | — | Reduced states |
@@ -85,7 +85,7 @@ Bayesian estimation of HA-DSGE parameters (MH/SMC)
 | `--observables` | — | `String` | `""` | — | Comma-separated observed aggregates (e.g. K,Y); default: first aggregates |
 | `--method` | — | `String` | `ssj` | `ssj`, `reiter` | HA solution method re-solved each draw: ssj\|reiter |
 | `--sampler` | — | `String` | `mh` | `mh`, `smc` | Posterior sampler: mh (RWMH) or smc |
-| `--n-draws` | — | `Int64` | `2000` | — | Total RWMH draws (including burn-in) |
+| `--draws` | — | `Int64` | `2000` | — | Total RWMH draws (including burn-in) |
 | `--burnin` | — | `Int64` | `500` | — | Burn-in draws to discard |
 | `--n-smc` | — | `Int64` | `500` | — | SMC particles (HA sampler) |
 | `--n-mh-steps` | — | `Int64` | `1` | — | MH mutation steps per SMC stage |
@@ -117,7 +117,7 @@ Aggregate FEVD from linearized HA-DSGE solution
 | `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (not with krusell-smith) |
 | `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
 | `--method` | — | `String` | `reiter` | `ssj`, `reiter` | HA solution method: ssj\|reiter |
-| `--horizon` | — | `Int64` | `40` | — | FEVD horizon |
+| `--horizons` | — | `Int64` | `40` | — | FEVD horizon |
 | `--n-reduced` | — | `Int64` | `30` | — | Reduced states |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -174,7 +174,7 @@ Gini and wealth-percentile IRFs after an aggregate shock
 | `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (not with krusell-smith) |
 | `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
 | `--method` | — | `String` | `reiter` | `reiter` | Must be reiter for dynamic inequality IRF |
-| `--horizon` | — | `Int64` | `40` | — | IRF horizon |
+| `--horizons` | — | `Int64` | `40` | — | IRF horizon |
 | `--shock-index` | — | `Int64` | `1` | — | Aggregate shock index (1-based) |
 | `--shock-size` | — | `Float64` | `1.0` | — | Shock size (std devs) |
 | `--n-reduced` | — | `Int64` | `30` | — | Reduced states |
@@ -203,7 +203,7 @@ Aggregate IRFs from linearized HA-DSGE solution
 | `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (not with krusell-smith) |
 | `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
 | `--method` | — | `String` | `reiter` | `ssj`, `reiter` | HA solution method: ssj\|reiter (krusell-smith has no linear IRF) |
-| `--horizon` | — | `Int64` | `40` | — | IRF horizon |
+| `--horizons` | — | `Int64` | `40` | — | IRF horizon |
 | `--n-reduced` | — | `Int64` | `30` | — | Reduced states |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |

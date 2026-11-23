@@ -188,6 +188,20 @@ expr = "pi[t] = 0.99 * pi[t+1] + kappa * y[t]"
             Friedman.dispatch(app, ["io", "leontief", "--format", "json"])
             Friedman.dispatch(app, ["data", "simulate", "var", "--periods", "30", "--seed", "7", "--save-data", joinpath(outdir, "sim.jls")])
             Friedman.dispatch(app, ["dsge", "solve", rbc_toml, "--format", "json"])
+
+            # Slow first-call JIT hotspots (F-43 / #283): APARCH, regime MS,
+            # test serial heteroskedasticity, and HA-DSGE steady-state/solve
+            aparch_m = joinpath(outdir, "aparch_m.jld2")
+            Friedman.dispatch(app, ["estimate", "volatility", "aparch", fixture, "--save-model", aparch_m])
+            Friedman.dispatch(app, ["forecast", "volatility", "aparch", "--model", aparch_m, "--horizons", "4"])
+            Friedman.dispatch(app, ["predict", "volatility", "aparch", "--model", aparch_m])
+            Friedman.dispatch(app, ["residuals", "volatility", "aparch", "--model", aparch_m])
+            ms_m = joinpath(outdir, "ms_m.jld2")
+            Friedman.dispatch(app, ["estimate", "regime", "ms", fixture, "--max-iter", "15", "--save-model", ms_m])
+            Friedman.dispatch(app, ["predict", "regime", "ms", "--model", ms_m])
+            Friedman.dispatch(app, ["test", "serial", "heteroskedasticity", fixture])
+            Friedman.dispatch(app, ["hadsge", "steady-state", "huggett", "--format", "json"])
+            Friedman.dispatch(app, ["hadsge", "solve", "huggett", "--format", "json"])
         end
     end
     """)

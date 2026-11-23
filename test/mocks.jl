@@ -248,10 +248,13 @@ struct ImpulseResponse{T}
     # reps × horizon × variable × shock; nothing on deterministic paths. The CF
     # adapters (policy_causal_effects / baseline_path, W4/#126) read it directly.
     _draws::Union{Nothing,Array{T,4}}
+    manifest::Union{Nothing,ReproManifest}
 end
-# 7-arg form mirrors real's backward-compatible constructor (draws default nothing)
+# Backward-compatible 8-arg and 7-arg constructors
+ImpulseResponse{T}(v::Array{T,3}, cl, cu, h::Int, vars, shocks, ci::Symbol, drw) where T =
+    ImpulseResponse{T}(v, cl, cu, h, vars, shocks, ci, drw, nothing)
 ImpulseResponse(v::Array{T,3}, cl, cu, h::Int, vars, shocks, ci::Symbol) where T =
-    ImpulseResponse{T}(v, cl, cu, h, vars, shocks, ci, nothing)
+    ImpulseResponse{T}(v, cl, cu, h, vars, shocks, ci, nothing, nothing)
 # Convenience 3-arg constructor for backward compat with existing handler tests
 ImpulseResponse(v::Array{T,3}, cl, cu) where T = ImpulseResponse(v, cl, cu, size(v,1),
     ["var$i" for i in 1:size(v,2)], ["shock$i" for i in 1:size(v,3)], :cholesky)
@@ -998,6 +1001,16 @@ end
 # model/unsupported, on real MEMs. Placed AFTER the typed methods above so
 # they win dispatch; the handler's MethodError catch stays as defense-in-depth
 # against a future upstream fallback removal.
+function reproduce(ir::ImpulseResponse, model::VARModel)
+    m = ir.manifest
+    if m === nothing || m.seed === nothing
+        return ReproReport(missing, ReproFieldDiff[], nothing, 1, 1,
+                           "no recorded seed: irf with seed=N")
+    end
+    diffs = [ReproFieldDiff("values", true, 0.0)]
+    return ReproReport(true, diffs, m.seed, 1, Threads.nthreads(), "matched bit-for-bit.")
+end
+
 function reproduce(x)
     return ReproReport(missing, ReproFieldDiff[], nothing, 0, Threads.nthreads(),
         "reproduce() is not implemented for $(typeof(x)); supported: BVARPosterior, " *
@@ -1130,6 +1143,7 @@ function irf(model::VARModel, horizon::Int; method=:cholesky, check_func=nothing
              stationary_only=false, seed=nothing,
              bootstrap::Symbol=:iid, block_length::Int=0, wild_dist::Symbol=:rademacher,
              bias_correct::Bool=false, bias_reps::Int=0,
+             set_inference::Symbol=:none,
              instruments=nothing, target=nothing, restrictions=nothing,
              pattern=nothing, weighting=nothing, hetero=nothing,
              maxiter=nothing, gibbs_burn=nothing, gibbs_draws=nothing,
@@ -1138,6 +1152,9 @@ function irf(model::VARModel, horizon::Int; method=:cholesky, check_func=nothing
         "bootstrap must be :iid, :wild, or :block; got :$bootstrap"))
     wild_dist in (:rademacher, :mammen) || throw(ArgumentError(
         "wild_dist must be :rademacher or :mammen; got :$wild_dist"))
+    if method in (:sign, :narrative, :arias) && ci_type === :bootstrap && set_inference !== :bootstrap_x_rotations
+        throw(ArgumentError("ci_type=:bootstrap with method=:$method mixes rotations; pass set_inference=:bootstrap_x_rotations to opt in"))
+    end
     n = size(model.Y, 2)
     vals = ones(horizon + 1, n, n) * 0.1
     ci_lo = ci_type == :none ? nothing : vals .- 0.5
@@ -1148,7 +1165,8 @@ function irf(model::VARModel, horizon::Int; method=:cholesky, check_func=nothing
         reshape(vals, 1, horizon + 1, n, n) .+ 0.05 .* randn(reps, horizon + 1, n, n) :
         nothing
     ImpulseResponse{Float64}(vals, ci_lo, ci_hi, horizon, copy(model.varnames),
-                             copy(model.varnames), :cholesky, drw)
+                             copy(model.varnames), :cholesky, drw,
+                             seed === nothing ? nothing : capture_manifest(; seed=seed))
 end
 function irf(chain::MockChains, p::Int, n::Int, horizon::Int;
              method=:cholesky, data=nothing, quantiles=[0.16, 0.5, 0.84],
@@ -1160,6 +1178,7 @@ end
 function irf(post::BVARPosterior, horizon::Int;
              method=:cholesky, quantiles=[0.16, 0.5, 0.84],
              check_func=nothing, narrative_check=nothing,
+             seed=nothing,
              weighting=nothing, hetero=nothing, maxiter=nothing,
              gibbs_burn=nothing, gibbs_draws=nothing, init=nothing)
     n = post.n
@@ -1223,6 +1242,7 @@ function fevd(chain::MockChains, p::Int, n::Int, horizon::Int;
 end
 function fevd(post::BVARPosterior, horizon::Int;
               method=:cholesky, quantiles=[0.16, 0.5, 0.84],
+              check_func=nothing, narrative_check=nothing,
               weighting=nothing, hetero=nothing, maxiter=nothing,
               gibbs_burn=nothing, gibbs_draws=nothing, init=nothing)
     n = post.n
@@ -1236,6 +1256,7 @@ function historical_decomposition(model::VARModel, horizon::Int; method=:cholesk
                                    check_func=nothing, narrative_check=nothing,
                                    instruments=nothing, target=nothing,
                                    restrictions=nothing, pattern=nothing,
+                                   seed=nothing,
                                    weighting=nothing, hetero=nothing,
                                    maxiter=nothing, gibbs_burn=nothing,
                                    gibbs_draws=nothing, init=nothing)
@@ -1246,6 +1267,10 @@ function historical_decomposition(model::VARModel, horizon::Int; method=:cholesk
     initial = ones(T_eff, n) * 0.01
     shocks_mat = ones(T_eff, n)
     HistoricalDecomposition(contribs, initial, actual, shocks_mat, T_eff)
+end
+function historical_decomposition(model::VARModel, r::UhligSVARResult, horizon::Int=size(model.Y, 1) - model.p;
+                                   shock_names=nothing)
+    historical_decomposition(model, horizon; method=:uhlig)
 end
 # Real (vecm/analysis.jl): method=:svec/:long_run go through identify_svec on the
 # VECM itself (KPSW default); everything else converts to the levels VAR first.
@@ -1275,6 +1300,7 @@ function historical_decomposition(chain::MockChains, p::Int, n::Int, horizon::In
 end
 function historical_decomposition(post::BVARPosterior, horizon::Int;
                                    method=:cholesky, quantiles=[0.16, 0.5, 0.84],
+                                   check_func=nothing, narrative_check=nothing,
                                    seed=nothing, weighting=nothing, hetero=nothing,
                                    maxiter=nothing, gibbs_burn=nothing,
                                    gibbs_draws=nothing, init=nothing)
@@ -1346,9 +1372,9 @@ end
 _mock_parse_sign(s::Symbol) =
     s === :positive ? s : s === :negative ? s :
         throw(ArgumentError("sign must be :positive or :negative"))
-_mock_check_range(hs, what) =
-    (all(h -> h isa Integer && h >= 1, hs) ||
-        throw(ArgumentError("$what horizons must be ≥ 1"))) &&
+_mock_check_range(hs, what; min_h::Int=0) =
+    (all(h -> h isa Integer && h >= min_h, hs) ||
+        throw(ArgumentError("$what horizons must be ≥ $min_h"))) &&
     UnitRange{Int}(minimum(hs), maximum(hs))
 
 function zero_restriction(variable, shock; horizon=0)
@@ -1393,7 +1419,7 @@ end
 function narrative_contribution_restriction(variable, shock, window; kind=:most_important)
     kind in (:most_important, :overwhelming, :least_important) || throw(ArgumentError(
         "kind must be :most_important (Type A), :overwhelming (Type B), or :least_important"))
-    w = _mock_check_range(window, "narrative contribution")
+    w = _mock_check_range(window, "narrative contribution"; min_h=1)
     NarrativeContributionRestriction(variable, shock, w, kind)
 end
 
@@ -3546,7 +3572,7 @@ function variable_bound(var::Symbol; lower::Union{Real,Nothing}=nothing,
     VariableBound{Float64}(var, lo, hi)
 end
 
-function estimate_dsge(spec::ModelSpec{T}, data, param_names; method=:irf_matching, kwargs...) where T
+function estimate_dsge(spec::ModelSpec{T}, data, param_names::Vector{Symbol}; method=:irf_matching, kwargs...) where T
     np = length(param_names)
     theta = ones(T, np) * T(0.5)
     vcov_mat = Matrix{T}(I(np)) * T(0.01)
@@ -3554,10 +3580,14 @@ function estimate_dsge(spec::ModelSpec{T}, data, param_names; method=:irf_matchi
                       T(2.5), T(0.65), true, spec)
 end
 
-function simulate(sol::DSGESolution{T}, T_periods::Int; kwargs...) where T
+function simulate(sol::DSGESolution{T}, T_periods::Int;
+                  shock_draws=nothing, seed=nothing,
+                  rng=Random.default_rng()) where T
     randn(T, T_periods, sol.spec.n_endog)
 end
-function simulate(sol::PerturbationSolution{T}, T_periods::Int; kwargs...) where T
+function simulate(sol::PerturbationSolution{T}, T_periods::Int;
+                  shock_draws=nothing, seed=nothing,
+                  rng=Random.default_rng(), antithetic::Bool=false) where T
     randn(T, T_periods, sol.spec.n_endog)
 end
 # Real (projection.jl:996): rescale Chebyshev [-1,1] nodes to state levels.
@@ -6467,10 +6497,6 @@ function factor_break_test(X::AbstractMatrix{T}, r::Int; method=:breitung_eickme
         FactorBreakResult{T}(T(8.5), T(0.03), div(n_obs, 2), method, r, n_obs, n_units)
     end
 end
-function factor_break_test(pd::PanelData{T}, r::Int; method=:breitung_eickmeier) where T
-    X = hcat([pd.data[:, i] for i in 1:pd.n_vars]...)
-    factor_break_test(X, r; method=method)
-end
 
 function panel_unit_root_summary(X; tests=[:panic, :cips, :moon_perron])
     println("Panel unit root summary ($(length(tests)) tests)")
@@ -7278,14 +7304,20 @@ export PoissonModel, NegBinModel, DispersionTest
 export estimate_poisson, estimate_nbreg, dispersion_test, incidence_rate_ratio
 
 function vif(m::RegModel{T}) where T
-    k = length(m.beta)
+    X = m.X
+    k = size(X, 2)
+    is_intercept = Bool[all(view(X, :, j) .== X[1, j]) for j in 1:k]
+    non_intercept = findall(.!is_intercept)
+    length(non_intercept) >= 1 ||
+        throw(ArgumentError("VIF requires at least one non-intercept regressor"))
+    nk = length(non_intercept)
     # Return escalating VIF values so tests can trigger different warning branches
     # k=2: [2.5, 2.5], k=3: [2.5, 2.5, 7.0], k>=4: [2.5, 2.5, 7.0, 12.0, ...]
-    vals = fill(T(2.5), k)
-    if k >= 3
+    vals = fill(T(2.5), nk)
+    if nk >= 3
         vals[3] = T(7.0)  # moderate multicollinearity
     end
-    if k >= 4
+    if nk >= 4
         vals[4] = T(12.0)  # severe multicollinearity
     end
     vals
@@ -7692,7 +7724,7 @@ end
 
 function posterior_summary(result::BayesianDSGE{T}) where T
     Dict(p => Dict(:mean => T(0.5), :median => T(0.49), :std => T(0.1),
-        :q05 => T(0.3), :q95 => T(0.7)) for p in result.param_names)
+        :ci_lower => T(0.3), :ci_upper => T(0.7)) for p in result.param_names)
 end
 
 function bayes_factor(r1::BayesianDSGE, r2::BayesianDSGE)
@@ -7702,7 +7734,7 @@ end
 
 function prior_posterior_table(result::BayesianDSGE{T}) where T
     [(param=p, prior_mean=T(0.5), prior_std=T(0.2),
-      post_mean=T(0.5), post_std=T(0.1), post_q05=T(0.3), post_q95=T(0.7))
+      post_mean=T(0.5), post_std=T(0.1), ci_lower=T(0.3), ci_upper=T(0.7))
      for p in result.param_names]
 end
 
@@ -7956,13 +7988,13 @@ function transfer_function(input::AbstractVector{T}, output::AbstractVector{T};
     TransferFunctionResult{T}(freqs, gain, phase, :empirical)
 end
 
-function transfer_function(filter_name::Symbol; lambda::Real=1600.0, nobs::Int=200,
-                           kwargs...)
-    n = nobs
-    freqs = [Float64(k) / n for k in 1:div(n, 2)]
-    nf = length(freqs)
-    gain = abs.(randn(nf)) .+ 0.5
-    phase = randn(nf)
+function transfer_function(filter_name::Symbol; lambda::Real=1600.0, K::Int=12, h::Int=8, n_freq::Int=256)
+    filter_name in (:hp, :bk, :hamilton) ||
+        throw(ArgumentError("Unknown filter: $filter_name. Expected :hp, :bk, or :hamilton"))
+    n_freq >= 2 || throw(ArgumentError("n_freq must be >= 2, got $n_freq"))
+    freqs = [Float64(k) * pi / n_freq for k in 1:n_freq]
+    gain = abs.(randn(n_freq)) .+ 0.5
+    phase = randn(n_freq)
     TransferFunctionResult{Float64}(freqs, gain, phase, filter_name)
 end
 
@@ -8129,8 +8161,6 @@ vcov(m::PanelLogitModel) = m.vcov_mat
 vcov(m::PanelProbitModel) = m.vcov_mat
 residuals(m::PanelRegModel) = m.residuals
 residuals(m::PanelIVModel) = m.residuals
-residuals(m::PanelLogitModel) = m.y .- m.fitted
-residuals(m::PanelProbitModel) = m.y .- m.fitted
 predict(m::PanelRegModel) = m.fitted
 predict(m::PanelIVModel) = m.fitted
 predict(m::PanelLogitModel) = m.fitted
@@ -8318,7 +8348,8 @@ function pesaran_cd_test(model::Union{PanelRegModel{T},PanelLogitModel{T},PanelP
 end
 
 function wooldridge_ar_test(model::PanelRegModel{T}) where T
-    PanelTestResult{T}("Wooldridge AR(1)", T(5.2), T(0.02), 1, "serial correlation in panel")
+    PanelTestResult{T}("Wooldridge AR(1)", T(5.2), T(0.02), (1, max(1, model.n_groups - 1)),
+                       "serial correlation in panel")
 end
 
 function modified_wald_test(model::PanelRegModel{T}) where T
@@ -8598,13 +8629,13 @@ end
 function brant_test(m::Union{OrderedLogitModel{T},OrderedProbitModel{T}}) where T
     k = length(m.beta)
     nc = length(m.categories)
-    PanelTestResult{T}("Brant", T(5.0), T(0.25), k * (nc - 2),
-        "proportional odds test")
+    (statistic=T(5.0), pvalue=T(0.25), df=k * (nc - 2),
+     per_variable=fill(T(0.25), k), binary_coefs=zeros(T, k, max(1, nc - 1)))
 end
 
 function hausman_iia(m::MultinomialLogitModel{T}; omit_category::Int=2) where T
     k = size(m.beta, 1)
-    PanelTestResult{T}("Hausman IIA", T(3.5), T(0.48), k, "IIA test")
+    (statistic=T(3.5), pvalue=T(0.48), df=k, omitted_category=omit_category)
 end
 
 # Real dropna/keeprows semantics replicated exactly. The old no-op versions

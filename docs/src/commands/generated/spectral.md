@@ -116,9 +116,9 @@ Filter transfer function (theoretical frequency response)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--filter` | — | `String` | `hp` | `hp`, `bk`, `hamilton`, `ideal` | hp\|bk\|hamilton\|ideal |
+| `--filter` | — | `String` | `hp` | `hp`, `bk`, `hamilton` | hp\|bk\|hamilton |
 | `--lambda` | — | `Float64` | `1600.0` | — | Filter parameter (e.g. HP lambda) |
-| `--nobs` | — | `Int64` | `200` | — | Number of observations (for frequency grid) |
+| `--n-freq` | — | `Int64` | `256` | — | Number of frequency grid points (≥ 2) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |

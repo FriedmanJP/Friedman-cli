@@ -119,7 +119,8 @@ function _input_schema(leaf::LeafCommand, path::Vector{String})
             "x-cli" => Dict{String,Any}("kind" => "argument", "position" => i),
         )
         isempty(a.description) || (p["description"] = a.description)
-        a.default === nothing || (p["default"] = _default_json(a.default))
+        (a.default === nothing || (a.default isa AbstractFloat && !isfinite(a.default))) ||
+            (p["default"] = _default_json(a.default))
         if spec !== nothing
             xh = _x_handle_dict(spec, a.name; is_arg=true)
             xh !== nothing && (p["x-handle"] = xh)
@@ -132,7 +133,8 @@ function _input_schema(leaf::LeafCommand, path::Vector{String})
         isempty(o.short) || (xcli["short"] = "-" * o.short)
         p = Dict{String,Any}("type" => _json_type(o.type), "x-cli" => xcli)
         isempty(o.description) || (p["description"] = o.description)
-        o.default === nothing || (p["default"] = _default_json(o.default))
+        (o.default === nothing || (o.default isa AbstractFloat && !isfinite(o.default))) ||
+            (p["default"] = _default_json(o.default))
         if o.repeatable && o.name in _CARD_REPEATABLE
             # draft-07: `enum` constrains the whole value, so for an array it
             # belongs on the element schema, not beside the array.
@@ -157,7 +159,25 @@ function _input_schema(leaf::LeafCommand, path::Vector{String})
         isempty(f.description) || (p["description"] = f.description)
         props[f.name] = p
     end
-    return Dict{String,Any}(
+    # F-25: when <data> or <model> is mutually exclusive with --model / --result,
+    # omit it from flat `required` and emit Draft-07 `anyOf` alternatives instead.
+    any_of = nothing
+    if spec !== nothing
+        if "data" in required
+            alts = String["data"]
+            haskey(props, "model") && !isempty(spec.model_types) && push!(alts, "model")
+            haskey(props, "result") && !isempty(spec.result_types) && push!(alts, "result")
+            if length(alts) > 1
+                filter!(!=("data"), required)
+                any_of = [Dict{String,Any}("required" => [a]) for a in alts]
+            end
+        elseif "model" in required && haskey(props, "result") && !isempty(spec.result_types)
+            alts = String["model", "result"]
+            filter!(!=("model"), required)
+            any_of = [Dict{String,Any}("required" => [a]) for a in alts]
+        end
+    end
+    schema = Dict{String,Any}(
         "\$schema" => "http://json-schema.org/draft-07/schema#",
         "title" => join(vcat(["friedman"], path), " "),
         "type" => "object",
@@ -165,6 +185,8 @@ function _input_schema(leaf::LeafCommand, path::Vector{String})
         "required" => required,
         "additionalProperties" => false,
     )
+    any_of === nothing || (schema["anyOf"] = any_of)
+    return schema
 end
 
 # ── Registry-declared result tables (W3/#138 keys) ────────────

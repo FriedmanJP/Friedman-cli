@@ -117,8 +117,7 @@ for (path, spec) in sort!(collect(SPECS); by=first)
         # emits a summary.) An explicitly empty declaration on these means
         # "emits nothing", not "forgot".
         startswith(path, "completions") && continue
-        path in ("data load", "data export", "data fix", "data transform",
-                 "data validate", "serve") && continue
+        path == "serve" && continue
         push!(violations, "$path: declares NO tables (every envelope-emitting leaf must declare its tables)")
         continue
     end

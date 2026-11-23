@@ -16,7 +16,11 @@ function _model_info(; path::String="", data::String="",
          runtime_cli=_cli_version_string(), runtime_mems=_mems_version_string(),
          dimensions=_model_dims(obj))
     else
-        endswith(lowercase(p), ".jld2") ? _native_model_info(p) : model_handle_info(p)
+        p = resolve_stem(p; slot=:model)
+        lc = lowercase(p)
+        endswith(lc, ".jld2") ? _native_model_info(p) :
+        endswith(lc, ".jls")  ? _jls_model_info(p) :
+                                model_handle_info(p)
     end
     fields = ["path", "magic", "model_type", "cli_version", "mems_version",
               "runtime_cli", "runtime_mems", "dimensions"]
@@ -53,7 +57,7 @@ fallback instead of throwing) is an honest "cannot verify", not a pass.
 Exit is 0 in all these cases; only an unloadable handle errors.
 Works on any loadable handle — `.jld2`, `.fmod`, or a `model://` session handle.
 """
-function _model_reproduce(; path::String="", data::String="",
+function _model_reproduce(; path::String="", data::String="", source_model::String="",
                             output::String="", format::String="table")
     # NB: the positional is `path`, not `model` — wrap_legacy reserves the
     # `model=` kwarg for its --model handle injection (a `.jld2` value there
@@ -61,10 +65,27 @@ function _model_reproduce(; path::String="", data::String="",
     p = !isempty(path) ? path : data
     isempty(p) && throw(CliError("usage/missing-arg",
         "model reproduce requires a handle path (.jld2, .jls, .fmod, or model://)"))
+    p = startswith(p, "model://") ? p : resolve_stem(p; slot=:model)
     obj = load_model_dispatch(p)
     rep = try
-        MacroEconometricModels.reproduce(obj)
+        if obj isa ImpulseResponse
+            src = if !isempty(source_model)
+                sp = startswith(source_model, "model://") ? source_model :
+                     resolve_stem(source_model; slot=:model)
+                m_obj = load_model_dispatch(sp)
+                m_obj isa VARModel || throw(CliError("model/wrong-kind",
+                    "source model must be a VARModel for ImpulseResponse reproduction (got $(nameof(typeof(m_obj))))"))
+                m_obj
+            else
+                load_source_model(p)
+            end
+            src isa VARModel ? MacroEconometricModels.reproduce(obj, src) :
+                              MacroEconometricModels.reproduce(obj)
+        else
+            MacroEconometricModels.reproduce(obj)
+        end
     catch e
+        e isa CliError && rethrow()
         # Defense-in-depth only: MEMs 0.9.3's universal reproduce(x) fallback
         # means this branch is unreachable there (unsupported types report a
         # missing verdict above). It guards a future upstream fallback removal.
@@ -75,7 +96,11 @@ function _model_reproduce(; path::String="", data::String="",
                  "that reproduce can re-run — re-estimate with --seed"))
         rethrow()
     end
-    verdict = rep.matched === missing ? "unverifiable (no recorded seed)" : string(rep.matched)
+    verdict = if rep.matched === missing
+        obj isa VARModel ? "deterministic (no RNG)" : "unverifiable (no recorded seed)"
+    else
+        string(rep.matched)
+    end
     summary = DataFrame(
         field=["handle", "model_type", "matched", "seed", "threads", "note"],
         value=[
@@ -96,7 +121,8 @@ function _model_reproduce(; path::String="", data::String="",
             matched=[d.matched for d in rep.fields],
             max_abs_diff=[d.max_abs_diff for d in rep.fields],
         )
-        output_result(diffs; format=Symbol(format), output=output,
+        output_result(diffs; format=Symbol(format),
+                      output=_per_var_output_path(output, "fields"),
                       title="Reproduce Field Comparison",
                       key="model_reproduce_fields")
     end
@@ -128,6 +154,8 @@ function model_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="path", type=String, required=true, default=nothing,
                           description="Handle path (.jld2, .jls, .fmod, or model:// session handle)")],
             options=[
+                OptionSpec(name="model", type=String, default="", kwarg=:source_model,
+                           description="Optional source VARModel handle for two-argument reproduce (e.g. bootstrap ImpulseResponse)"),
                 OptionSpec(name="output", short="o", type=String, default="",
                            description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table",

@@ -26,7 +26,7 @@ Clark-West (2007) adjusted-MSPE test for nested models (exactly 2 forecasts: sma
 | `--actual` | — | `String` | `""` | — | Realized-values column name (required) |
 | `--forecasts` | — | `String` | `""` | — | Two forecast columns: small (restricted), big (unrestricted) |
 | `--result` | — | `String` | `""` | — | Comma-separated forecast-result handle stems (alternative to --forecasts columns) |
-| `--horizon` | — | `Int64` | `1` | — | Forecast horizon (sets truncation lag h-1) |
+| `--horizons` | — | `Int64` | `1` | — | Forecast horizon (sets truncation lag h-1) |
 | `--alternative` | — | `String` | `greater` | `two-sided`, `less`, `greater` | Alternative hypothesis |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
@@ -74,7 +74,7 @@ Diebold-Mariano (1995) equal-predictive-accuracy test (exactly 2 forecasts)
 | `--forecasts` | — | `String` | `""` | — | Two forecast column names, comma-separated (required) |
 | `--result` | — | `String` | `""` | — | Comma-separated forecast-result handle stems (alternative to --forecasts columns) |
 | `--loss` | — | `String` | `se` | `se`, `ad` | Loss: se (squared) \| ad (absolute) |
-| `--horizon` | — | `Int64` | `1` | — | Forecast horizon (sets truncation lag h-1) |
+| `--horizons` | — | `Int64` | `1` | — | Forecast horizon (sets truncation lag h-1) |
 | `--alternative` | — | `String` | `two-sided` | `two-sided`, `less`, `greater` | Alternative hypothesis |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
@@ -175,9 +175,9 @@ Dynamic-factor observable forecast reconstructed from factors
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--nfactors` | `-r` | `Int64` | — | — | Number of factors (default: auto) |
+| `--nfactors` | — | `Int64` | — | — | Number of factors (default: auto) |
 | `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
-| `--factor-lags` | `-p` | `Int64` | `1` | — | Factor VAR lag order |
+| `--factor-lags` | — | `Int64` | `1` | — | Factor VAR lag order |
 | `--method` | — | `String` | `twostep` | — | twostep\|em |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -204,8 +204,8 @@ GDFM observable forecast reconstructed from factors
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--nfactors` | `-r` | `Int64` | — | — | Number of static factors (default: auto) |
-| `--dynamic-rank` | `-q` | `Int64` | — | — | Dynamic rank (default: auto) |
+| `--nfactors` | — | `Int64` | — | — | Number of static factors (default: auto) |
+| `--dynamic-rank` | — | `Int64` | — | — | Dynamic rank (default: auto) |
 | `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
 | `--method` | — | `String` | `ar` | `ar`, `one-sided`, `spectral` | Factor projection: ar (two-sided)\|one-sided\|spectral (FHLR 2005) |
 | `--spectral` | — | `String` | `lag-window` | `lag-window`, `smoothed-periodogram` | GDFM spectrum: lag-window (FHLR)\|smoothed-periodogram |
@@ -244,7 +244,7 @@ SDFM observable forecast reconstructed from factors
 | `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
 | `--config` | — | `String` | `""` | — | TOML config for sign restrictions |
 | `--ci` | — | `String` | `none` | `none`, `bootstrap` | Interval method: none\|bootstrap |
-| `--reps` | — | `Int64` | `200` | — | Bootstrap replications (with --ci bootstrap) |
+| `--draws` | — | `Int64` | `200` | — | Bootstrap replications (with --ci bootstrap) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
@@ -273,7 +273,7 @@ Static-factor observable forecast reconstructed from factors
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--nfactors` | `-r` | `Int64` | — | — | Number of factors (default: auto via IC) |
+| `--nfactors` | — | `Int64` | — | — | Number of factors (default: auto via IC) |
 | `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
 | `--ci-method` | — | `String` | `none` | — | none\|bootstrap\|parametric |
 | `--conf-level` | — | `Float64` | `0.95` | — | Confidence level for intervals |
@@ -343,7 +343,7 @@ FAVAR factor-level (or --panel-forecast panel-wide) forecast
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--factors` | `-r` | `Int64` | — | — | Number of factors (default: auto) |
+| `--factors` | — | `Int64` | — | — | Number of factors (default: auto) |
 | `--lags` | `-p` | `Int64` | `2` | — | VAR lag order |
 | `--key-vars` | — | `String` | `""` | — | Key variable names or indices (comma-separated) |
 | `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
@@ -411,7 +411,7 @@ Waggoner-Zha conditional (scenario) forecast
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto for var, 4 for bvar) |
 | `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
 | `--replications` | — | `Int64` | `1000` | — | Draws used for the conditional bands |
-| `--confidence` | — | `Float64` | `0.95` | — | Confidence level in (0, 1) |
+| `--conf-level` | — | `Float64` | `0.95` | — | Confidence level in (0, 1) |
 | `--draws` | `-n` | `Int64` | `2000` | — | MCMC draws (--method bvar) |
 | `--sampler` | — | `String` | `direct` | — | direct\|gibbs (--method bvar) |
 | `--config` | — | `String` | `""` | — | TOML config for the BVAR prior (--method bvar; ignored with --method var) |
@@ -445,7 +445,7 @@ Unconditional VAR forecast with analytical or bootstrap intervals
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto) |
 | `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
-| `--confidence` | — | `Float64` | `0.95` | — | Confidence level for intervals |
+| `--conf-level` | — | `Float64` | `0.95` | — | Confidence level for intervals |
 | `--ci-method` | — | `String` | `analytical` | `analytical`, `bootstrap`, `none` | Interval method: analytical\|bootstrap\|none (none = point forecast) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -477,8 +477,8 @@ Level VECM forecast with optional bootstrap/parametric intervals
 | `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
 | `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
 | `--ci-method` | — | `String` | `none` | — | none\|bootstrap\|parametric |
-| `--replications` | — | `Int64` | `500` | — | Bootstrap replications |
-| `--confidence` | — | `Float64` | `0.95` | — | Confidence level for intervals |
+| `--draws` | — | `Int64` | `500` | — | Bootstrap replications |
+| `--conf-level` | — | `Float64` | `0.95` | — | Confidence level for intervals |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
@@ -518,8 +518,8 @@ Switching-regression forecast over future regressors (or intercept-only horizons
 | `--tol` | — | `Float64` | `1.0e-8` | — | EM convergence tolerance (> 0) |
 | `--horizons` | — | `Int64` | `12` | — | Forecast horizon (intercept-only models; else use --x-future) |
 | `--x-future` | — | `String` | `""` | — | CSV of future regressors: h rows x k columns (required unless intercept-only) |
-| `--reps` | — | `Int64` | `1000` | — | Simulated regime paths for the bands (≥ 1) |
-| `--ci-level` | — | `Float64` | `0.9` | — | Band coverage, 0 < level < 1 |
+| `--draws` | — | `Int64` | `1000` | — | Simulated regime paths for the bands (≥ 1) |
+| `--conf-level` | — | `Float64` | `0.9` | — | Band coverage, 0 < level < 1 |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
@@ -528,7 +528,8 @@ Switching-regression forecast over future regressors (or intercept-only horizons
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--no-switching-variance` | — | Force common σ² across regimes (default: σ² switches) |
+| `--switching-variance` | — | Let σ² switch across regimes (default for ms: on) |
+| `--no-switching-variance` | — | Force common σ² across regimes |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `MSRegModel`; result types: `MSForecast`
 
@@ -549,8 +550,8 @@ Regime-averaged MS-AR forecast over simulated regime paths
 | `--k-regimes` | — | `Int64` | `2` | — | Number of regimes (≥ 2) |
 | `--max-iter` | — | `Int64` | `1000` | — | Max EM iterations (≥ 1) |
 | `--horizons` | — | `Int64` | `12` | — | Forecast horizon (≥ 1) |
-| `--reps` | — | `Int64` | `1000` | — | Simulated regime paths for the bands (≥ 1) |
-| `--ci-level` | — | `Float64` | `0.9` | — | Band coverage, 0 < level < 1 |
+| `--draws` | — | `Int64` | `1000` | — | Simulated regime paths for the bands (≥ 1) |
+| `--conf-level` | — | `Float64` | `0.9` | — | Band coverage, 0 < level < 1 |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
@@ -559,7 +560,8 @@ Regime-averaged MS-AR forecast over simulated regime paths
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--switching-variance` | — | Let σ² switch across regimes (default: off, Hamilton form) |
+| `--switching-variance` | — | Let σ² switch across regimes (default for ms-ar: off) |
+| `--no-switching-variance` | — | Force common σ² across regimes |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `MSRegModel`; result types: `MSForecast`
 
@@ -579,8 +581,8 @@ Bootstrap-simulation threshold forecast for self-exciting models
 | `--p` | — | `Int64` | `1` | — | AR order (≥ 1) |
 | `--d` | — | `String` | `1` | — | Delay lag: an integer ≥ 1, or 'auto' (=1:p grid) |
 | `--horizons` | — | `Int64` | `12` | — | Forecast horizon (≥ 1) |
-| `--reps` | — | `Int64` | `1000` | — | Bootstrap simulation paths (≥ 1) |
-| `--ci-level` | — | `Float64` | `0.95` | `0.90`, `0.95`, `0.99` | Band coverage: 0.90\|0.95\|0.99 |
+| `--draws` | — | `Int64` | `1000` | — | Bootstrap simulation paths (≥ 1) |
+| `--conf-level` | — | `Float64` | `0.95` | `0.90`, `0.95`, `0.99` | Band coverage: 0.90\|0.95\|0.99 |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
@@ -606,8 +608,8 @@ Bootstrap-simulation STAR forecast for self-exciting models
 | `--d` | — | `Int64` | `1` | — | Delay lag for the self-exciting transition var (≥ 1) |
 | `--type` | — | `String` | `auto` | `lstr1`, `lstr2`, `estr`, `auto` | Transition shape: lstr1\|lstr2\|estr\|auto |
 | `--horizons` | — | `Int64` | `12` | — | Forecast horizon (≥ 1) |
-| `--reps` | — | `Int64` | `1000` | — | Bootstrap simulation paths (≥ 1) |
-| `--ci-level` | — | `Float64` | `0.95` | `0.90`, `0.95`, `0.99` | Band coverage: 0.90\|0.95\|0.99 |
+| `--draws` | — | `Int64` | `1000` | — | Bootstrap simulation paths (≥ 1) |
+| `--conf-level` | — | `Float64` | `0.95` | `0.90`, `0.95`, `0.99` | Band coverage: 0.90\|0.95\|0.99 |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
@@ -643,7 +645,7 @@ ARFIMA forecast with fractional-filter truncation and interval bands
 | `--d0` | — | `Float64` | — | — | Starting value for d (default: GPH pre-estimate) |
 | `--max-iter` | — | `Int64` | `500` | — | Maximum optimizer iterations |
 | `--horizons` | `-H` | `Int64` | `12` | — | Forecast horizons (≥ 1) |
-| `--confidence` | — | `Float64` | `0.95` | — | Interval level in (0,1) |
+| `--conf-level` | — | `Float64` | `0.95` | — | Interval level in (0,1) |
 | `--trunc-lag` | — | `Int64` | `200` | — | AR(inf) truncation lag for the fractional filter (≥ 1) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -679,7 +681,7 @@ ARIMA point forecast with interval bands (auto or fixed order)
 | `--max-q` | — | `Int64` | `5` | — | Max MA order for auto selection |
 | `--criterion` | — | `String` | `bic` | — | aic\|bic |
 | `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
-| `--confidence` | — | `Float64` | `0.95` | — | Confidence level |
+| `--conf-level` | — | `Float64` | `0.95` | — | Confidence level |
 | `--method` | `-m` | `String` | `css_mle` | — | ols\|css\|mle\|css_mle |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -714,9 +716,9 @@ Direct h-step ADL-MIDAS forecast from a high-frequency indicator block (horizon 
 | `--weights` | — | `String` | `expalmon` | `expalmon`, `beta2`, `beta3`, `almon`, `umidas` | MIDAS weight family |
 | `--p-ar` | — | `Int64` | `0` | — | Autoregressive lags of the target (ADL-MIDAS) |
 | `--poly-degree` | — | `Int64` | `2` | — | Almon polynomial degree (≥ 0) |
-| `--horizon` | — | `Int64` | `1` | — | Direct forecast horizon, fixed at estimation |
+| `--horizons` | — | `Int64` | `1` | — | Direct forecast horizon, fixed at estimation |
 | `--max-iter` | — | `Int64` | `500` | — | Maximum optimizer iterations |
-| `--level` | — | `Float64` | `0.95` | — | Prediction-interval level in (0,1) |
+| `--conf-level` | — | `Float64` | `0.95` | — | Prediction-interval level in (0,1) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
@@ -753,7 +755,7 @@ SARIMA point forecast with interval bands (auto or fixed order)
 | `--method` | — | `String` | `css_mle` | `css_mle`, `mle`, `css` | Estimation method |
 | `--max-iter` | — | `Int64` | `500` | — | Maximum optimiser iterations |
 | `--horizons` | — | `Int64` | `12` | — | Forecast horizon (>= 1) |
-| `--ci-level` | — | `Float64` | `0.95` | — | Band coverage, 0 < level < 1 |
+| `--conf-level` | — | `Float64` | `0.95` | — | Band coverage, 0 < level < 1 |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |

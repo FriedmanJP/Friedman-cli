@@ -29,7 +29,7 @@ function nowcast_specs()::Vector{CommandSpec}
             options=[
                 OptionSpec(name="monthly-vars", type=Int, default=0, description="Number of monthly variables (first N columns)"),
                 OptionSpec(name="quarterly-vars", type=Int, default=0, description="Number of quarterly variables (remaining columns)"),
-                OptionSpec(name="factors", short="r", type=Int, default=2, description="Number of factors"),
+                OptionSpec(name="factors", type=Int, default=2, description="Number of factors"),
                 OptionSpec(name="lags", short="p", type=Int, default=1, description="Factor VAR lags"),
                 OptionSpec(name="idio", type=String, default="ar1", description="Idiosyncratic component: ar1|iid"),
                 OptionSpec(name="max-iter", type=Int, default=100, description="Maximum EM iterations"),
@@ -101,7 +101,7 @@ function nowcast_specs()::Vector{CommandSpec}
                     choices=["dfm", "bvar"], description="dfm|bvar",
                 ),
                 OptionSpec(
-                    name="factors", short="r", type=Int, default=2,
+                    name="factors", type=Int, default=2,
                     description="Number of factors (DFM only; ignored by bvar)",
                 ),
                 OptionSpec(
@@ -127,7 +127,7 @@ function nowcast_specs()::Vector{CommandSpec}
                 OptionSpec(name="monthly-vars", type=Int, default=0, description="Number of monthly variables"),
                 OptionSpec(name="quarterly-vars", type=Int, default=0, description="Number of quarterly variables"),
                 OptionSpec(name="method", type=String, default="dfm", choices=["dfm", "bvar", "bridge"], description="dfm|bvar|bridge"),
-                OptionSpec(name="factors", short="r", type=Int, default=2, description="Number of factors (DFM only; ignored by bvar/bridge)"),
+                OptionSpec(name="factors", type=Int, default=2, description="Number of factors (DFM only; ignored by bvar/bridge)"),
                 OptionSpec(name="lags", short="p", type=Int, default=1, description="VAR lags: DFM factor dynamics or BVAR order (ignored by bridge)"),
                 OptionSpec(name="horizons", type=Int, default=4, description="Forecast horizon"),
                 OptionSpec(name="target-var", type=Int, default=0, description="Target variable index (0=last)"),

@@ -18,12 +18,16 @@ Base.@kwdef struct OptionSpec
     since::VersionNumber = v"0.5.0"
     handle::Bool = false
     repeatable::Bool = false
+    aliases::Vector{String} = String[]
+    kwarg::Symbol = Symbol("")
 end
 
 Base.@kwdef struct FlagSpec
     name::String
     short::String = ""
     description::String = ""
+    aliases::Vector{String} = String[]
+    kwarg::Symbol = Symbol("")
 end
 
 Base.@kwdef struct TableSpec
@@ -309,7 +313,7 @@ const BAYES_OPTIONS = [
                description="smc|smc2|mh"),
     OptionSpec(name="n-smc", type=Int, default=5000, description="SMC particles"),
     OptionSpec(name="n-particles", type=Int, default=500, description="Particle filter particles (smc2)"),
-    OptionSpec(name="n-draws", type=Int, default=10000, description="Total posterior draws"),
+    OptionSpec(name="draws", aliases=["n-draws"], kwarg=:n_draws, type=Int, default=10000, description="Total posterior draws"),
     OptionSpec(name="burnin", type=Int, default=5000, description="Burn-in draws"),
     OptionSpec(name="ess-target", type=Float64, default=0.5, description="ESS target for resampling"),
     OptionSpec(name="observables", type=String, default="", description="Observable variable names (comma-separated)"),
@@ -346,7 +350,8 @@ function with_default(group::Vector{OptionSpec}, name::String, default)
             push!(out, OptionSpec(name=o.name, short=o.short, type=o.type,
                                   default=default, choices=o.choices,
                                   description=o.description, since=o.since,
-                                  handle=o.handle, repeatable=o.repeatable))
+                                  handle=o.handle, repeatable=o.repeatable,
+                                  aliases=o.aliases, kwarg=o.kwarg))
             found = true
         else
             push!(out, o)

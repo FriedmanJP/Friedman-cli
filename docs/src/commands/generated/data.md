@@ -22,7 +22,7 @@ Balance an unbalanced panel via the DFM method
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--method` | — | `String` | `dfm` | `dfm` | Missing-value balancing method (dfm = dynamic factor EM) |
-| `--factors` | `-r` | `Int64` | `3` | — | Number of factors |
+| `--factors` | — | `Int64` | `3` | — | Number of factors |
 | `--lags` | `-p` | `Int64` | `2` | — | Factor VAR lags |
 | `--output` | `-o` | `String` | `""` | — | Export file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -85,7 +85,7 @@ Drop rows containing NaN/Inf, optionally restricted to --vars
 
 ### [`friedman data export`](@id ref-data-export)
 
-Export a typed handle to CSV (frequency/tcode/dates dropped)
+Export a typed handle to CSV/JLS/JLD2 (or stream to stdout without -o)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -93,10 +93,12 @@ Export a typed handle to CSV (frequency/tcode/dates dropped)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--output` | `-o` | `String` | `""` | — | Output CSV path (default: <stem>.csv) |
+| `--output` | `-o` | `String` | `""` | — | Output file path (.csv, .jld2, .jls, .fmod; streams to stdout if omitted) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
 **Handles:** data kinds: `:timeseries`, `:panel`, `:cross_section`
+
+**Output tables:** `exported_data` (Exported dataset rows (streamed to stdout or included in JSON envelope))
 
 ### [`friedman data filter`](@id ref-data-filter)
 
@@ -111,9 +113,9 @@ Extract the cycle or trend component with a time-series filter
 | `--method` | `-m` | `String` | `hp` | `hp`, `hamilton`, `bn`, `bk`, `bhp` | hp\|hamilton\|bn\|bk\|bhp |
 | `--component` | — | `String` | `cycle` | `cycle`, `trend` | cycle\|trend |
 | `--lambda` | `-l` | `Float64` | `1600.0` | — | Smoothing parameter (HP/BHP) |
-| `--horizon` | — | `Int64` | `8` | — | Forecast horizon (Hamilton) |
+| `--horizons` | — | `Int64` | `8` | — | Forecast horizon (Hamilton) |
 | `--lags` | `-p` | `Int64` | `4` | — | Number of lags (Hamilton only) |
-| `--columns` | `-c` | `String` | `""` | — | Column indices, comma-separated (default: all) |
+| `--columns` | — | `String` | `""` | — | Column indices, comma-separated (default: all) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
@@ -132,10 +134,12 @@ Repair missing/non-finite cells (listwise, interpolate, or mean)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--method` | `-m` | `String` | `listwise` | `listwise`, `interpolate`, `mean` | listwise\|interpolate\|mean |
-| `--output` | `-o` | `String` | `""` | — | Output stem or CSV path |
+| `--output` | `-o` | `String` | `""` | — | Output stem or CSV/handle path |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
 **Handles:** data kinds: `:timeseries`, `:panel`, `:cross_section`, `:csv`
+
+**Output tables:** `fixed_data` (Repaired data rows after missing/non-finite handling)
 
 ### [`friedman data import`](@id ref-data-import)
 
@@ -193,7 +197,7 @@ List bundled example datasets with type, dimensions and description
 
 ### [`friedman data load`](@id ref-data-load)
 
-Load a bundled example dataset or CSV file and write it to CSV
+Load a bundled example dataset or CSV file (stream to stdout, or write to -o)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -201,7 +205,7 @@ Load a bundled example dataset or CSV file and write it to CSV
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--output` | `-o` | `String` | `""` | — | Output CSV file path |
+| `--output` | `-o` | `String` | `""` | — | Output file path (.csv, .jld2, .jls, .fmod) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--vars` | — | `String` | `""` | — | Comma-separated variable subset (bundled datasets only; ignored with --path) |
 | `--country` | — | `String` | `""` | — | Country label in status line only (no filtering) (bundled datasets only; ignored with --path) |
@@ -214,6 +218,8 @@ Load a bundled example dataset or CSV file and write it to CSV
 
 **Handles:** data kinds: `:csv`
 
+**Output tables:** `loaded_data` (Loaded dataset rows (streamed to stdout or included in JSON envelope))
+
 ### [`friedman data transform`](@id ref-data-transform)
 
 Apply per-variable FRED transformation codes
@@ -225,14 +231,16 @@ Apply per-variable FRED transformation codes
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--tcodes` | — | `String` | `""` | — | Required comma-separated FRED tcodes, one per variable (1-7) |
-| `--output` | `-o` | `String` | `""` | — | Output stem or CSV path |
+| `--output` | `-o` | `String` | `""` | — | Output stem or CSV/handle path |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
 **Handles:** data kinds: `:timeseries`, `:panel`, `:cross_section`, `:csv`
 
+**Output tables:** `transformed_data` (Transformed series after applying FRED tcodes)
+
 ### [`friedman data validate`](@id ref-data-validate)
 
-Check data suitability for an estimator family (stderr report)
+Check data suitability for an estimator family
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -240,11 +248,13 @@ Check data suitability for an estimator family (stderr report)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--model` | — | `String` | `""` | `var`, `bvar`, `vecm`, `arima`, `garch`, `sv`, `lp`, `gmm`, `factor`, `arch`, `egarch`, `gjr_garch`, `static`, `dynamic`, `gdfm` | Model type (required; var\|bvar\|vecm\|arima\|garch\|sv\|lp\|gmm\|factor\|arch\|egarch\|gjr_garch\|static\|dynamic\|gdfm) |
+| `--model` | — | `String` | `""` | `var`, `bvar`, `vecm`, `arima`, `garch`, `sv`, `lp`, `gmm`, `factor`, `arch`, `egarch`, `gjr-garch`, `gjr_garch`, `static`, `dynamic`, `gdfm` | Model type (required; var\|bvar\|vecm\|arima\|garch\|sv\|lp\|gmm\|factor\|arch\|egarch\|gjr-garch\|static\|dynamic\|gdfm) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
 **Handles:** data kinds: `:timeseries`, `:panel`, `:cross_section`, `:csv`
+
+**Output tables:** `data_validation` (Validation status, dimensions, and diagnostics for the target model family)
 
 ---
 

@@ -2774,8 +2774,9 @@ end
     @test _argv_wants_json(["--quiet", "--seed", "42", "--json", "estimate", "multivariate", "var"])
     @test !_argv_wants_json(["estimate", "multivariate", "var", "d.csv"])
     @test !_argv_wants_json(["estimate", "multivariate", "var", "--format", "csv"])
-    # --json is a LEADING global; mid-argv it belongs to the leaf parser (#117)
-    @test !_argv_wants_json(["estimate", "multivariate", "var", "--json"])
+    # --json is hoisted anywhere before `--` (F-14)
+    @test _argv_wants_json(["estimate", "multivariate", "var", "--json"])
+    @test !_argv_wants_json(["estimate", "multivariate", "var", "--", "--json"])
     @test !_argv_wants_json(["estimate", "multivariate", "var", "-f", "table"])
     @test !_argv_wants_json(["--seed=42", "estimate", "multivariate", "var"])
 end
@@ -4200,7 +4201,7 @@ include(joinpath(@__DIR__, "test_repl.jl"))
     @test "sampler" in opt_names
     @test "n-smc" in opt_names
     @test "n-particles" in opt_names
-    @test "n-draws" in opt_names
+    @test "draws" in opt_names
     @test "burnin" in opt_names
     @test "ess-target" in opt_names
     @test "observables" in opt_names
@@ -4209,10 +4210,10 @@ include(joinpath(@__DIR__, "test_repl.jl"))
     flag_names = [f.name for f in bayes_est.flags]
     @test "delayed-acceptance" in flag_names
 
-    # bayes irf has horizon + plot options
+    # bayes irf has horizons + plot options
     bayes_irf = bayes_node.subcmds["irf"]
     opt_names = [o.name for o in bayes_irf.options]
-    @test "horizon" in opt_names
+    @test "horizons" in opt_names
     @test "data" in opt_names
     flag_names = [f.name for f in bayes_irf.flags]
     @test "plot" in flag_names
@@ -4230,10 +4231,10 @@ include(joinpath(@__DIR__, "test_repl.jl"))
     @test "n-sim" in opt_names
     @test "periods" in opt_names
 
-    # irf has horizon and shock-size
+    # irf has horizons and shock-size
     irf_cmd = dsge_node.subcmds["irf"]
     opt_names = [o.name for o in irf_cmd.options]
-    @test "horizon" in opt_names
+    @test "horizons" in opt_names
     @test "shock-size" in opt_names
     @test "constraints" in opt_names
 
@@ -4365,7 +4366,7 @@ end
     @test "outcome" in opt_names
     @test "treatment" in opt_names
     @test "leads" in opt_names
-    @test "horizon" in opt_names
+    @test "horizons" in opt_names
     @test "lags" in opt_names
 
     lp_cmd = did_node.subcmds["lp-did"]
@@ -4921,7 +4922,7 @@ end
     # 4. Missing-option / invalid-choice checks throw typed CliError (exit_class == 2) (#256)
     err_dv = try; _data_validate(; data="x.csv", model=""); nothing; catch e; e; end
     @test err_dv isa CliError && exit_class(err_dv) == 2
-    @test occursin("gjr_garch", err_dv.message) && occursin("gdfm", err_dv.message)
+    @test occursin("gjr-garch", err_dv.message) && occursin("gdfm", err_dv.message)
 
     err_did = try; _did_estimate(; data="x.csv", outcome="", treatment="d"); nothing; catch e; e; end
     @test err_did isa CliError && exit_class(err_did) == 2

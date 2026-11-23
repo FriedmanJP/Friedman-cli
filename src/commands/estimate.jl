@@ -129,7 +129,6 @@ function estimate_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
-                OptionSpec(name="trend", type=String, default="constant", description="Deterministic terms (accepted but has no effect: the VAR always includes an intercept)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -202,7 +201,7 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="bias-bandwidth", type=Float64, default=0.0, description="Bias bandwidth b (0 = CCT auto-selection)"),
                 OptionSpec(name="kernel", type=String, default="triangular", description="triangular|epanechnikov|uniform", choices=["triangular","epanechnikov","uniform"]),
                 OptionSpec(name="order", type=Int, default=1, description="Local polynomial order (>= 1)"),
-                OptionSpec(name="level", type=Float64, default=0.95, description="Confidence level in (0,1)"),
+                OptionSpec(name="conf-level", aliases=["level"], kwarg=:level, type=Float64, default=0.95, description="Confidence level in (0,1)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -386,7 +385,7 @@ function estimate_specs()::Vector{CommandSpec}
             summary="Static PCA factor model with Bai-Ng count selection",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
-                OptionSpec(name="nfactors", short="r", type=Int, default=nothing, description="Number of factors (default: auto via IC)"),
+                OptionSpec(name="nfactors", type=Int, default=nothing, description="Number of factors (default: auto via IC)"),
                 OptionSpec(name="criterion", type=String, default="ic1", description="ic1|ic2|ic3 for auto selection", choices=["ic1", "ic2", "ic3"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -407,8 +406,8 @@ function estimate_specs()::Vector{CommandSpec}
             summary="Dynamic factor model (two-step/EM) with IC count selection",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
-                OptionSpec(name="nfactors", short="r", type=Int, default=nothing, description="Number of factors (default: auto via IC1)"),
-                OptionSpec(name="factor-lags", short="p", type=Int, default=1, description="Factor VAR lag order"),
+                OptionSpec(name="nfactors", type=Int, default=nothing, description="Number of factors (default: auto via IC1)"),
+                OptionSpec(name="factor-lags", type=Int, default=1, description="Factor VAR lag order"),
                 OptionSpec(name="method", type=String, default="twostep", description="twostep|em", choices=["twostep", "em"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -427,8 +426,8 @@ function estimate_specs()::Vector{CommandSpec}
             summary="Generalized dynamic factor model (FHLR) with static/dynamic rank selection",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
-                OptionSpec(name="nfactors", short="r", type=Int, default=nothing, description="Number of static factors (default: auto)"),
-                OptionSpec(name="dynamic-rank", short="q", type=Int, default=nothing, description="Dynamic rank (default: auto)"),
+                OptionSpec(name="nfactors", type=Int, default=nothing, description="Number of static factors (default: auto)"),
+                OptionSpec(name="dynamic-rank", type=Int, default=nothing, description="Dynamic rank (default: auto)"),
                 OptionSpec(name="spectral", type=String, default="lag-window", description="Spectrum: lag-window (FHLR)|smoothed-periodogram", choices=["lag-window","smoothed-periodogram"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -998,9 +997,9 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="max-q", type=Int, default=4, description="Max DL order for auto IC selection"),
                 OptionSpec(name="ic", type=String, default="aic", description="Selection criterion: aic|bic", choices=["aic","bic"]),
                 OptionSpec(name="case", type=Int, default=3, description="Pesaran-Shin-Smith deterministic case (1..5)"),
-                OptionSpec(name="horizon", type=Int, default=12, description="Max cumulative-multiplier horizon H (≥ 0)"),
+                OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=12, description="Max cumulative-multiplier horizon H (≥ 0)"),
                 OptionSpec(name="nreps", type=Int, default=500, description="Bootstrap replications for multiplier bands (0 = no bands)"),
-                OptionSpec(name="level", type=Float64, default=0.95, description="Bootstrap band coverage level"),
+                OptionSpec(name="conf-level", aliases=["level"], kwarg=:level, type=Float64, default=0.95, description="Bootstrap band coverage level"),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
@@ -1039,7 +1038,7 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="trend", type=String, default="constant", description="Per-unit EC deterministics: none|constant|trend", choices=["none","constant","trend"]),
                 OptionSpec(name="p", type=Int, default=1, description="Autoregressive order (≥ 1)"),
                 OptionSpec(name="q", type=Int, default=1, description="Distributed-lag order for all regressors (≥ 0)"),
-                OptionSpec(name="maxiter", type=Int, default=100, description="PMG outer-loop max iterations"),
+                OptionSpec(name="max-iter", aliases=["maxiter"], kwarg=:maxiter, type=Int, default=100, description="PMG outer-loop max iterations"),
                 OptionSpec(name="tol", type=Float64, default=1e-8, description="PMG outer-loop convergence tolerance"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
@@ -1077,7 +1076,7 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="weights", type=String, default="expalmon", description="Weight scheme: expalmon|beta2|beta3|almon|umidas", choices=["expalmon","beta2","beta3","almon","umidas"]),
                 OptionSpec(name="p-ar", type=Int, default=0, description="Autoregressive lags of the target (ADL-MIDAS, ≥ 0)"),
                 OptionSpec(name="poly-degree", type=Int, default=2, description="Polynomial degree for --weights almon"),
-                OptionSpec(name="horizon", type=Int, default=1, description="Direct forecast horizon h stored in the model (1 = nowcast)"),
+                OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=1, description="Direct forecast horizon h stored in the model (1 = nowcast)"),
                 OptionSpec(name="max-iter", type=Int, default=500, description="Optimizer iteration cap (forwarded as max_iter)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
@@ -1105,10 +1104,10 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column (default: first numeric)"),
                 OptionSpec(name="threshold-col", type=String, default="", description="Required: the variable that splits the sample (excluded from the regressors)"),
                 OptionSpec(name="trim", type=Float64, default=0.15, description="Trimming fraction for the threshold grid (0 < trim < 0.5)"),
-                OptionSpec(name="reps", type=Int, default=1000, description="Bootstrap replications for the linearity test (≥ 1)"),
+                OptionSpec(name="draws", aliases=["reps"], kwarg=:reps, type=Int, default=1000, description="Bootstrap replications for the linearity test (≥ 1)"),
                 # Hansen (2000) CVs are tabulated only at 0.90/0.95/0.99. `choices` is
                 # Vector{String} even for a Float64 option — same as `estimate setar`.
-                OptionSpec(name="ci-level", type=Float64, default=0.95, description="Threshold CI level: 0.90|0.95|0.99", choices=["0.90", "0.95", "0.99"]),
+                OptionSpec(name="conf-level", aliases=["ci-level"], kwarg=:ci_level, type=Float64, default=0.95, description="Threshold CI level: 0.90|0.95|0.99", choices=["0.90", "0.95", "0.99"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save interactive plot to HTML file")
@@ -1132,8 +1131,8 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="p", type=Int, default=1, description="AR order (≥ 1)"),
                 OptionSpec(name="d", type=String, default="1", description="Delay lag: an integer ≥ 1, or 'auto' (=1:p grid)"),
                 OptionSpec(name="trim", type=Float64, default=0.15, description="Trimming fraction for the threshold grid (0 < trim < 0.5)"),
-                OptionSpec(name="reps", type=Int, default=1000, description="Bootstrap replications for the linearity test (>= 1)"),
-                OptionSpec(name="ci-level", type=Float64, default=0.95, description="Threshold CI level: 0.90|0.95|0.99", choices=["0.90", "0.95", "0.99"]),
+                OptionSpec(name="draws", aliases=["reps"], kwarg=:reps, type=Int, default=1000, description="Bootstrap replications for the linearity test (>= 1)"),
+                OptionSpec(name="conf-level", aliases=["ci-level"], kwarg=:ci_level, type=Float64, default=0.95, description="Threshold CI level: 0.90|0.95|0.99", choices=["0.90", "0.95", "0.99"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table", "csv", "json"]),
                 PLOT_OPTIONS...
@@ -1201,7 +1200,8 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table", "csv", "json"]),
                 PLOT_OPTIONS...
             ],
-            flags=[FlagSpec(name="switching-variance", description="Let σ² switch across regimes (default: off, Hamilton form)"), PLOT_FLAGS...],
+            flags=[FlagSpec(name="switching-variance", description="Let σ² switch across regimes (default for ms-ar: off)"),
+                   FlagSpec(name="no-switching-variance", description="Force common σ² across regimes"), PLOT_FLAGS...],
             tables=[TableSpec(name=:ms_ar_regime_coefficients,
                               description="Per-regime switching means plus the common AR block, with standard errors"),
                     TableSpec(name=:ms_ar_regime_variances,
@@ -1236,7 +1236,8 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table", "csv", "json"]),
                 PLOT_OPTIONS...
             ],
-            flags=[FlagSpec(name="no-switching-variance", description="Force common σ² across regimes (default: σ² switches)"), PLOT_FLAGS...],
+            flags=[FlagSpec(name="switching-variance", description="Let σ² switch across regimes (default for ms: on)"),
+                   FlagSpec(name="no-switching-variance", description="Force common σ² across regimes"), PLOT_FLAGS...],
             tables=[TableSpec(name=:ms_regression_regime_coefficients,
                               description="Per-regime switching regression coefficients with standard errors"),
                     TableSpec(name=:ms_regression_regime_variances,
@@ -1275,7 +1276,7 @@ function estimate_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
-                OptionSpec(name="distribution", short="d", type=String, default="student_t", description="student_t|mixture_normal|pml|skew_normal", choices=["student_t", "mixture_normal", "pml", "skew_normal"]),
+                OptionSpec(name="distribution", type=String, default="student_t", description="student_t|mixture_normal|pml|skew_normal", choices=["student_t", "mixture_normal", "pml", "skew_normal"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -1420,7 +1421,7 @@ function estimate_specs()::Vector{CommandSpec}
             summary="Factor-augmented VAR (two-step or Bayesian)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
-                OptionSpec(name="factors", short="r", type=Int, default=nothing, description="Number of factors (default: auto via IC)"),
+                OptionSpec(name="factors", type=Int, default=nothing, description="Number of factors (default: auto via IC)"),
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="VAR lag order"),
                 OptionSpec(name="key-vars", type=String, default="", description="Key variable names or indices (comma-separated)"),
                 OptionSpec(name="method", type=String, default="two_step", description="two_step|bayesian", choices=["two_step", "bayesian"]),
@@ -1451,7 +1452,7 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="spectral", type=String, default="lag-window", description="GDFM spectrum: lag-window (FHLR)|smoothed-periodogram", choices=["lag-window","smoothed-periodogram"]),
                 OptionSpec(name="instrument", type=String, default="", description="Proxy-instrument CSV column (only with --id proxy)"),
                 OptionSpec(name="var-lags", type=Int, default=1, description="Factor VAR lag order"),
-                OptionSpec(name="horizon", type=Int, default=40, description="Structural IRF horizon"),
+                OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=40, description="Structural IRF horizon"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for sign/narrative checks and --id lewis-tvv|sv-em knobs"),
                 OptionSpec(name="bandwidth", type=Int, default=0, description="Spectral bandwidth (0=auto)"),
                 OptionSpec(name="kernel", type=String, default="bartlett", description="bartlett|parzen|tukey", choices=["bartlett", "parzen", "tukey"]),
@@ -1632,7 +1633,7 @@ function estimate_specs()::Vector{CommandSpec}
                            choices=["robust", "mle", "hc0", "hc1", "hc2", "hc3", "cluster"],
                            description="robust (QMLE sandwich, default), mle, hc0-hc3, cluster"),
                 OptionSpec(name="clusters", type=String, default="", description="Cluster variable column name"),
-                OptionSpec(name="maxiter", type=Int, default=100, description="Maximum IRLS iterations (≥ 1)"),
+                OptionSpec(name="max-iter", aliases=["maxiter"], kwarg=:maxiter, type=Int, default=100, description="Maximum IRLS iterations (≥ 1)"),
                 OptionSpec(name="tol", type=Float64, default=1e-10, description="Convergence tolerance (> 0)"),
                 COUNT_IRR_OPTIONS...],
             flags=[COUNT_IRR_FLAG],
@@ -1649,10 +1650,10 @@ function estimate_specs()::Vector{CommandSpec}
             # NO --cov-type/--clusters: estimate_nbreg accepts neither (its vcov is the
             # joint (beta, log alpha) information matrix).
             path=["estimate", "nbreg"],
-            summary="Fit negative-binomial (NB2) count regression with an overdispersion parameter",
+            summary="Fit negative-binomial (NB2) count regression by MLE with Fisher-information SEs (no --cov-type/--clusters)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[COUNT_COMMON_OPTIONS...,
-                OptionSpec(name="maxiter", type=Int, default=1000, description="Maximum iterations (≥ 1)"),
+                OptionSpec(name="max-iter", aliases=["maxiter"], kwarg=:maxiter, type=Int, default=1000, description="Maximum iterations (≥ 1)"),
                 OptionSpec(name="tol", type=Float64, default=1e-10, description="Convergence tolerance (> 0)"),
                 COUNT_IRR_OPTIONS...],
             flags=[COUNT_IRR_FLAG],
@@ -1673,7 +1674,7 @@ function estimate_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 REG_OPTIONS...,
-                OptionSpec(name="maxiter", type=Int, default=100, description="Maximum IRLS iterations"),
+                OptionSpec(name="max-iter", aliases=["maxiter"], kwarg=:maxiter, type=Int, default=100, description="Maximum IRLS iterations"),
                 OptionSpec(name="tol", type=Float64, default=1e-8, description="Convergence tolerance")
             ],
             flags=FlagSpec[],
@@ -1690,7 +1691,7 @@ function estimate_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 REG_OPTIONS...,
-                OptionSpec(name="maxiter", type=Int, default=100, description="Maximum IRLS iterations"),
+                OptionSpec(name="max-iter", aliases=["maxiter"], kwarg=:maxiter, type=Int, default=100, description="Maximum IRLS iterations"),
                 OptionSpec(name="tol", type=Float64, default=1e-8, description="Convergence tolerance")
             ],
             flags=FlagSpec[],
@@ -1907,13 +1908,22 @@ end
 
 function _estimate_var(; data::String, lags=nothing, trend::String="constant",
                         output::String="", format::String="table")
+    trend == "constant" || throw(CliError("usage/invalid",
+        "estimate multivariate var: --trend '$trend' is not supported (VAR always includes a constant intercept)";
+        hint="omit --trend (only constant intercept is supported by estimate_var)"))
+    lags === nothing || lags >= 1 || throw(CliError("usage/invalid",
+        "estimate multivariate var: --lags must be ≥ 1 (got $lags)"))
     Y, varnames = load_multivariate_data(data)
     n = size(Y, 2)
 
-    p = if isnothing(lags)
-        select_lag_order(Y, min(12, size(Y,1) ÷ (3*n)); criterion=:aic)
-    else
-        lags
+    p = try
+        if isnothing(lags)
+            select_lag_order(Y, min(12, size(Y,1) ÷ (3*n)); criterion=:aic)
+        else
+            lags
+        end
+    catch e
+        throw(_domain_or_data_error(e, "VAR lag selection"))
     end
 
     _status("Estimating VAR($p) with $n variables: $(join(varnames, ", "))")
@@ -1922,7 +1932,11 @@ function _estimate_var(; data::String, lags=nothing, trend::String="constant",
 
     # Forward the CSV column names (#119, same as _load_and_estimate_var): without
     # this DataFrame(model) renders positional y1..yn equations/terms.
-    model = estimate_var(Y, p; varnames=varnames)
+    model = try
+        estimate_var(Y, p; varnames=varnames)
+    catch e
+        throw(_domain_or_data_error(e, "VAR estimation"))
+    end
     _status_report(() -> report(model))
 
     # C051: MEMs renders coefficient-bearing models as a tidy coef table via Tables.jl
@@ -1931,7 +1945,7 @@ function _estimate_var(; data::String, lags=nothing, trend::String="constant",
                   key="var_coefficients")
 
     _status()
-    output_model_criteria(model; format=format, title="Information Criteria")
+    output_model_criteria(model; format=format, output=output, title="Information Criteria")
     return model
 end
 
@@ -1957,8 +1971,9 @@ function _bvar_select_hyper(Y::AbstractMatrix, p::Int, hyperopt::String)
         # at_bound matters more than converged: a hyperparameter pinned to its bound means
         # the optimum is outside the admissible region, so the "optimized" value is an
         # artefact of the box rather than a maximum.
-        r.at_bound && _status("  warning: a hyperparameter is AT ITS BOUND — the optimum " *
-                              "lies outside the search box, so treat these values with care")
+        r.at_bound && _cli_warn!("model/bound",
+            "a Minnesota hyperparameter is AT ITS BOUND — the optimum lies outside the search box, so treat these values with care";
+            always_stderr=true)
         tbl = DataFrame(
             parameter = ["tau", "decay", "lambda", "mu", "omega",
                          "log_ml", "log_ml_default", "log_posterior",
@@ -1984,6 +1999,8 @@ function _estimate_bvar(; data::String, lags::Int=4, prior::String="minnesota",
                          draws::Int=2000, sampler::String="direct", method::String="mean",
                          hyperopt::String="glp",
                          config::String="", output::String="", format::String="table")
+    lags >= 1 || throw(CliError("usage/invalid", "estimate multivariate bvar: --lags must be ≥ 1 (got $lags)"))
+    draws >= 1 || throw(CliError("usage/invalid", "estimate multivariate bvar: --draws must be ≥ 1 (got $draws)"))
     hopt = lowercase(strip(hyperopt))
     hopt in ("glp", "grid") || throw(CliError("usage/invalid-option",
         "invalid --hyperopt '$hyperopt'; must be glp or grid"))
@@ -2005,16 +2022,24 @@ function _estimate_bvar(; data::String, lags::Int=4, prior::String="minnesota",
         hopt == "glp" || _status("--hyperopt=$hopt ignored: [prior] in the config pins " *
                                  "the hyperparameters")
     elseif prior_sym === :minnesota
-        prior_obj, hyper_tbl = _bvar_select_hyper(Y, p, hopt)
+        prior_obj, hyper_tbl = try
+            _bvar_select_hyper(Y, p, hopt)
+        catch e
+            throw(_domain_or_data_error(e, "BVAR hyperparameter optimization"))
+        end
     else
         # :normal/:diffuse never consult Minnesota hyperparameters at all.
         hopt == "glp" || _status("--hyperopt=$hopt ignored: it applies to the minnesota " *
                                  "prior, not --prior $prior")
     end
 
-    post = estimate_bvar(Y, p;
-        sampler=Symbol(sampler), n_draws=draws,
-        prior=prior_sym, hyper=prior_obj, varnames=varnames, seed=_SEED[])
+    post = try
+        estimate_bvar(Y, p;
+            sampler=Symbol(sampler), n_draws=draws,
+            prior=prior_sym, hyper=prior_obj, varnames=varnames, seed=_SEED[])
+    catch e
+        throw(_domain_or_data_error(e, "BVAR estimation"))
+    end
 
     model = if method == "median"
         posterior_median_model(post; data=Y)
@@ -2037,7 +2062,7 @@ function _estimate_bvar(; data::String, lags::Int=4, prior::String="minnesota",
     end
 
     _status()
-    output_model_criteria(model; format=format, title="Information Criteria (Posterior $(titlecase(method)))")
+    output_model_criteria(model; format=format, output=output, title="Information Criteria (Posterior $(titlecase(method)))")
     return post
 end
 
@@ -2053,6 +2078,8 @@ function _estimate_lp(; data::String, method::String="standard", shock::Int=1,
                        ar_span::Float64=20.0,
                        output::String="", format::String="table")
     validate_method(method, ["standard", "iv", "smooth", "state", "propensity", "robust"], "LP method")
+    horizons >= 1 || throw(CliError("usage/invalid", "estimate multivariate lp: --horizons must be ≥ 1 (got $horizons)"))
+    control_lags >= 0 || throw(CliError("usage/invalid", "estimate multivariate lp: --lags must be ≥ 0 (got $control_lags)"))
     # W10/#112: the weak-IV riders only exist on the LP-IV path. Silently ignoring them under
     # another --method would let an agent believe it got robust bands it never received.
     if method != "iv"
@@ -2121,7 +2148,11 @@ function _estimate_lp_standard(data, shock, horizons, control_lags, vcov, output
     _status("  Variables: $(join(varnames, ", "))")
     _status()
 
-    model = estimate_lp(Y, shock, horizons; lags=control_lags, cov_type=Symbol(vcov))
+    model = try
+        estimate_lp(Y, shock, horizons; lags=control_lags, cov_type=Symbol(vcov))
+    catch e
+        throw(_domain_or_data_error(e, "LP estimation"))
+    end
     irf_result = lp_irf(model)
 
     _output_lp_coef_table(irf_result, varnames, horizons;
@@ -2140,7 +2171,8 @@ function _estimate_lp_standard(data, shock, horizons, control_lags, vcov, output
         "Covariance estimator" => vcov,
         "Horizons" => horizons,
         "Control lags" => control_lags,
-    ]; format=format, title="Estimation Summary", key="lp_estimation_summary")
+    ]; format=format, output=_per_var_output_path(output, "summary"),
+       title="Estimation Summary", key="lp_estimation_summary")
     return model
 end
 
@@ -2199,8 +2231,9 @@ function _estimate_lp_iv(data, shock, horizons, control_lags, vcov, instruments,
     _status("First-stage diagnostics:")
     _status("  F-statistic: min $(round(min_f; digits=2)) over $(length(f_stats)) horizon(s)")
     if !wi.passes_threshold
-        _status_styled("  Warning: Weak instruments (F < 10) at horizon(s) " *
-            "$(join(wi.weak_horizons .- 1, ", "))\n"; color=:yellow)
+        _cli_warn!("model/weak-instrument",
+            "Weak instruments (F < 10) at horizon(s) $(join(wi.weak_horizons .- 1, ", "))";
+            always_stderr=true)
     else
         _status_styled("  Instruments appear strong (F >= 10 at every horizon)\n"; color=:green)
     end
@@ -2224,7 +2257,8 @@ function _estimate_lp_iv(data, shock, horizons, control_lags, vcov, instruments,
         "First-stage F (h=0)" => round(first(f_stats); digits=2),
         "Weak horizons" => length(wi.weak_horizons),
         "Instruments" => size(Z, 2),
-    ]; format=format, title="LP-IV Estimation Summary", key="lp_estimation_summary")
+    ]; format=format, output=_per_var_output_path(output, "summary"),
+       title="LP-IV Estimation Summary", key="lp_estimation_summary")
 
     # ── W10/#112: weak-instrument-robust LP-IV diagnostics ──────────────────
     if mop_f
@@ -2242,7 +2276,8 @@ function _estimate_lp_iv(data, shock, horizons, control_lags, vcov, instruments,
             "n_instruments"   => mop.n_instruments,
             "bandwidth"       => mop.bandwidth,
             "f_naive"         => round(Float64(mop.f_naive); digits=4),
-        ]; format=format, title="Montiel Olea-Pflueger Effective F")
+        ]; format=format, output=_per_var_output_path(output, "mop_f"),
+           title="Montiel Olea-Pflueger Effective F")
         mop.weak && _status_styled(
             "  Effective F $(round(Float64(mop.f_effective); digits=2)) < MOP critical value " *
             "$(round(Float64(mop.critical_value); digits=2)): the 2SLS bands above are unreliable — " *
@@ -2315,7 +2350,11 @@ function _estimate_lp_smooth(data, shock, horizons, knots, lambda, output, forma
     _status("Estimating Smooth LP: shock=$shock_name, horizons=$horizons, knots=$knots, λ=$(round(lam; digits=4))")
     _status()
 
-    model = estimate_smooth_lp(Y, shock, horizons; n_knots=knots, lambda=lam)
+    model = try
+        estimate_smooth_lp(Y, shock, horizons; n_knots=knots, lambda=lam)
+    catch e
+        throw(_domain_or_data_error(e, "Smooth LP estimation"))
+    end
     irf_result = smooth_lp_irf(model)
 
     _output_lp_coef_table(irf_result, varnames, horizons;
@@ -2327,7 +2366,8 @@ function _estimate_lp_smooth(data, shock, horizons, knots, lambda, output, forma
         "Smoothing parameter (λ)" => round(lam; digits=6),
         "B-spline knots" => knots,
         "Horizons" => horizons,
-    ]; format=format, title="Smooth LP Estimation Summary", key="lp_estimation_summary")
+    ]; format=format, output=_per_var_output_path(output, "summary"),
+       title="Smooth LP Estimation Summary", key="lp_estimation_summary")
     return model
 end
 
@@ -2343,7 +2383,11 @@ function _estimate_lp_state(data, shock, horizons, state_var, gamma, transition,
     _status()
 
     state_vec = Y[:, state_var]
-    model = estimate_state_lp(Y, shock, state_vec, horizons; gamma=gamma)
+    model = try
+        estimate_state_lp(Y, shock, state_vec, horizons; gamma=gamma)
+    catch e
+        throw(_domain_or_data_error(e, "State-dependent LP estimation"))
+    end
     results = state_irf(model)
 
     for (regime, label) in [(:expansion, "Expansion"), (:recession, "Recession")]
@@ -2381,8 +2425,12 @@ function _estimate_lp_propensity(data, treatment, horizons, score_method, output
     treatment_bool = Bool.(Y[:, treatment] .> median(Y[:, treatment]))
     covariates = Y[:, setdiff(1:size(Y,2), [treatment])]
 
-    model = estimate_propensity_lp(Y, treatment_bool, covariates, horizons;
-        ps_method=Symbol(score_method))
+    model = try
+        estimate_propensity_lp(Y, treatment_bool, covariates, horizons;
+            ps_method=Symbol(score_method))
+    catch e
+        throw(_domain_or_data_error(e, "Propensity LP estimation"))
+    end
 
     # Propensity score diagnostics
     diag = propensity_diagnostics(model)
@@ -2412,8 +2460,12 @@ function _estimate_lp_robust(data, treatment, horizons, score_method, output, fo
     treatment_bool = Bool.(Y[:, treatment] .> median(Y[:, treatment]))
     covariates = Y[:, setdiff(1:size(Y,2), [treatment])]
 
-    model = doubly_robust_lp(Y, treatment_bool, covariates, horizons;
-        ps_method=Symbol(score_method))
+    model = try
+        doubly_robust_lp(Y, treatment_bool, covariates, horizons;
+            ps_method=Symbol(score_method))
+    catch e
+        throw(_domain_or_data_error(e, "Doubly robust LP estimation"))
+    end
 
     # Diagnostics
     diag = propensity_diagnostics(model)
@@ -2438,25 +2490,35 @@ function _estimate_arima(; data::String, column::Int=1, p=nothing, d::Int=0, q::
                           max_p::Int=5, max_d::Int=2, max_q::Int=5,
                           criterion::String="bic", method::String="css_mle",
                           format::String="table", output::String="")
+    max_p >= 1 || throw(CliError("usage/invalid", "estimate univariate arima: --max-p must be ≥ 1 (got $max_p)"))
+    max_d >= 0 || throw(CliError("usage/invalid", "estimate univariate arima: --max-d must be ≥ 0 (got $max_d)"))
+    max_q >= 0 || throw(CliError("usage/invalid", "estimate univariate arima: --max-q must be ≥ 0 (got $max_q)"))
+    isnothing(p) || p >= 0 || throw(CliError("usage/invalid", "estimate univariate arima: --p must be ≥ 0 (got $p)"))
+    d >= 0 || throw(CliError("usage/invalid", "estimate univariate arima: --d must be ≥ 0 (got $d)"))
+    q >= 0 || throw(CliError("usage/invalid", "estimate univariate arima: --q must be ≥ 0 (got $q)"))
     y, vname = load_univariate_series(data, column)
     method_sym = Symbol(method)
     safe_method = method_sym == :css_mle ? :mle : method_sym
 
-    model = if isnothing(p)
-        crit_sym = Symbol(lowercase(criterion))
-        _status("Auto ARIMA: variable=$vname, observations=$(length(y))")
-        _status("  Search: p=0:$max_p, d=0:$max_d, q=0:$max_q, criterion=$criterion, method=$method")
-        _status()
-        m = auto_arima(y; max_p=max_p, max_q=max_q, max_d=max_d, criterion=crit_sym, method=safe_method)
-        label = _model_label(ar_order(m), diff_order(m), ma_order(m))
-        _status_styled("Selected model: $label\n"; bold=true)
-        _status()
-        m
-    else
-        label = _model_label(p, d, q)
-        _status("Estimating $label: variable=$vname, observations=$(length(y)), method=$method")
-        _status()
-        _estimate_arima_model(y, p, d, q; method=method_sym)
+    model = try
+        if isnothing(p)
+            crit_sym = Symbol(lowercase(criterion))
+            _status("Auto ARIMA: variable=$vname, observations=$(length(y))")
+            _status("  Search: p=0:$max_p, d=0:$max_d, q=0:$max_q, criterion=$criterion, method=$method")
+            _status()
+            m = auto_arima(y; max_p=max_p, max_q=max_q, max_d=max_d, criterion=crit_sym, method=safe_method)
+            label = _model_label(ar_order(m), diff_order(m), ma_order(m))
+            _status_styled("Selected model: $label\n"; bold=true)
+            _status()
+            m
+        else
+            label = _model_label(p, d, q)
+            _status("Estimating $label: variable=$vname, observations=$(length(y)), method=$method")
+            _status()
+            _estimate_arima_model(y, p, d, q; method=method_sym)
+        end
+    catch e
+        throw(_domain_or_data_error(e, "ARIMA estimation"))
     end
 
     p_sel = ar_order(model)
@@ -2472,7 +2534,7 @@ function _estimate_arima(; data::String, column::Int=1, p=nothing, d::Int=0, q::
         "AIC" => round(aic(model); digits=4),
         "BIC" => round(bic(model); digits=4),
         "Log-likelihood" => round(loglikelihood(model); digits=4),
-    ]; format=format, title="Information Criteria")
+    ]; format=format, output=_per_var_output_path(output, "criteria"), title="Information Criteria")
     return model
 end
 
@@ -2496,7 +2558,8 @@ function _sarima_fit(data::String, column::Int, p, d::Int, q::Int, P::Int, D::In
         v >= 0 || throw(CliError("usage/invalid", "$leaf: --$nm must be ≥ 0 (got $v)"))
     end
     isnothing(p) || p >= 0 || throw(CliError("usage/invalid", "$leaf: --p must be ≥ 0 (got $p)"))
-    for (nm, v) in (("max-p", max_p), ("max-q", max_q), ("max-P", max_P), ("max-Q", max_Q))
+    max_p >= 1 || throw(CliError("usage/invalid", "$leaf: --max-p must be ≥ 1 (got $max_p)"))
+    for (nm, v) in (("max-q", max_q), ("max-P", max_P), ("max-Q", max_Q))
         v >= 0 || throw(CliError("usage/invalid", "$leaf: --$nm must be ≥ 0 (got $v)"))
     end
     crit = lowercase(criterion)
@@ -2556,7 +2619,7 @@ function _estimate_sarima(; data::String, column::Int=1, p=nothing, d::Int=0, q:
         "Log-likelihood" => round(Float64(loglikelihood(model)); digits=4),
         "n_obs"          => length(model.y),
         "n_effective"    => length(model.residuals),
-    ]; format=format, title="Information Criteria")
+    ]; format=format, output=_per_var_output_path(output, "criteria"), title="Information Criteria")
     _maybe_plot(model; plot=plot, plot_save=plot_save)
     return model
 end
@@ -2805,7 +2868,8 @@ function _estimate_arfima(; data::String, column::Int=1, p::Int=0, q::Int=0,
         "AIC"              => round(model.aic; digits=4),
         "BIC"              => round(model.bic; digits=4),
         "Converged"        => model.converged,
-    ]; format=format, title="ARFIMA Diagnostics ($vname)", key="arfima_diagnostics")
+    ]; format=format, output=_per_var_output_path(output, "diagnostics"),
+       title="ARFIMA Diagnostics ($vname)", key="arfima_diagnostics")
     return model
 end
 
@@ -3052,7 +3116,9 @@ function _estimate_static(; data::String, nfactors=nothing, criterion::String="i
     scree = scree_plot_data(model)
     scree_df = DataFrame(component=scree.factors, eigenvalue=scree.explained_variance,
                          cumulative=scree.cumulative_variance)
-    output_result(scree_df; format=Symbol(format), title="Scree Data (Eigenvalues & Variance Shares)")
+    output_result(scree_df; format=Symbol(format),
+                  output=_per_var_output_path(output, "scree"),
+                  title="Scree Data (Eigenvalues & Variance Shares)")
     _status()
 
     loadings = model.loadings
@@ -3186,7 +3252,9 @@ function _estimate_fastica(; data::String, lags=nothing, method::String="fastica
 
     b0_df = DataFrame(result.B0, varnames)
     insertcols!(b0_df, 1, :equation => varnames)
-    output_result(b0_df; format=Symbol(format), title="Structural Impact Matrix (B0)")
+    output_result(b0_df; format=Symbol(format),
+                  output=_per_var_output_path(output, "b0"),
+                  title="Structural Impact Matrix (B0)")
     _status()
 
     shocks = result.shocks
@@ -3222,7 +3290,8 @@ function _estimate_ml(; data::String, lags=nothing, distribution::String="studen
 
     b0_df = DataFrame(result.B0, varnames)
     insertcols!(b0_df, 1, :equation => varnames)
-    output_result(b0_df; format=Symbol(format), title="Structural Impact Matrix (B0)")
+    output_result(b0_df; format=Symbol(format), output=output,
+                  title="Structural Impact Matrix (B0)")
     _status()
 
     output_kv(Pair{String,Any}[
@@ -3231,7 +3300,7 @@ function _estimate_ml(; data::String, lags=nothing, distribution::String="studen
         "AIC" => round(result.aic; digits=4),
         "BIC" => round(result.bic; digits=4),
         "Distribution" => string(result.distribution),
-    ]; format=format, title="Model Fit")
+    ]; format=format, output=_per_var_output_path(output, "fit"), title="Model Fit")
 
     if !isempty(result.dist_params)
         _status()
@@ -3252,7 +3321,8 @@ function _estimate_ml(; data::String, lags=nothing, distribution::String="studen
             estimate=vec(result.B0),
             std_error=result.se[1:min(length(result.se), n*n)]
         )
-        output_result(se_df; format=Symbol(format), output=output,
+        output_result(se_df; format=Symbol(format),
+                      output=_per_var_output_path(output, "se"),
                       title="Parameter Estimates with Standard Errors")
     end
     return result
@@ -3284,7 +3354,9 @@ function _estimate_vecm(; data::String, lags::Int=2, rank::String="auto",
     # Adjustment coefficients (alpha)
     alpha_df = DataFrame(vecm.alpha, ["CV$i" for i in 1:r])
     insertcols!(alpha_df, 1, :equation => varnames)
-    output_result(alpha_df; format=Symbol(format), output=output, title="Adjustment Coefficients (alpha)")
+    output_result(alpha_df; format=Symbol(format),
+                  output=_per_var_output_path(output, "alpha"),
+                  title="Adjustment Coefficients (alpha)")
     _status()
 
     output_kv(Pair{String,Any}[
@@ -3292,7 +3364,7 @@ function _estimate_vecm(; data::String, lags::Int=2, rank::String="auto",
         "BIC" => round(vecm.bic; digits=4),
         "HQC" => round(vecm.hqic; digits=4),
         "Log-likelihood" => round(loglikelihood(vecm); digits=4),
-    ]; format=format, title="Information Criteria")
+    ]; format=format, output=_per_var_output_path(output, "criteria"), title="Information Criteria")
     return vecm
 end
 
@@ -3446,7 +3518,7 @@ function _estimate_pvar(; data::String, id_col::String="", time_col::String="",
         "Instruments" => model.n_instruments,
         "Method" => string(model.method),
         "Transformation" => string(model.transformation),
-    ]; format=format, title="Panel Summary")
+    ]; format=format, output=_per_var_output_path(output, "summary"), title="Panel Summary")
     return model
 end
 
@@ -3793,7 +3865,7 @@ function _estimate_reg(; data::String, dep::String="", cov_type::String="hc1",
             "estimate regression reg --cov-type cluster requires --clusters <column>"))
     end
 
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    dep_name = _resolve_dep_name(data, dep)
     wls_tag = isnothing(w) ? "OLS" : "WLS"
     _status("$wls_tag Regression: $dep_name ~ $(join(xcols, " + "))")
     _status("  Observations: $(length(y)), Regressors: $(length(xcols)), Cov type: $cov_type")
@@ -3835,7 +3907,7 @@ function _estimate_reg(; data::String, dep::String="", cov_type::String="hc1",
         "AIC"             => round(aic(model); digits=4),
         "BIC"             => round(bic(model); digits=4),
     ]
-    output_kv(pairs; format=format, title="Fit Statistics")
+    output_kv(pairs; format=format, output=_per_var_output_path(output, "fit"), title="Fit Statistics")
 
     # Emitted ONLY under --cov-type conley, so the existing `estimate reg` envelope stays
     # byte-identical when the new options are not used. The settings belong in the data
@@ -3854,7 +3926,8 @@ function _estimate_reg(; data::String, dep::String="", cov_type::String="hc1",
             push!(cpairs, "time_column" => time_col)
             push!(cpairs, "time_cutoff" => time_cutoff)
         end
-        output_kv(cpairs; format=format, title="Conley Spatial HAC Settings")
+        output_kv(cpairs; format=format, output=_per_var_output_path(output, "conley"),
+                  title="Conley Spatial HAC Settings")
     end
     return model
 end
@@ -3894,7 +3967,7 @@ function _estimate_select(; data::String, dep::String="", method::String="bidire
             push!(keep_idx, i)
         end
     end
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    dep_name = _resolve_dep_name(data, dep)
     _status("Variable Selection ($method/$criterion): $dep_name ~ $(join(xcols, " + "))"); _status()
     res = try
         select_variables(y, X; method=Symbol(replace(method, '-' => '_')),
@@ -3928,7 +4001,8 @@ function _estimate_select(; data::String, dep::String="", method::String="bidire
     ]
     res.encompassing_f === nothing || push!(pairs, "encompassing F" => _finite_or_str_reg(Float64(res.encompassing_f)))
     res.encompassing_pval === nothing || push!(pairs, "encompassing p-value" => _finite_or_str_reg(Float64(res.encompassing_pval)))
-    output_kv(pairs; format=format, title="Selection Summary")
+    output_kv(pairs; format=format, output=_per_var_output_path(output, "summary"),
+              title="Selection Summary")
     return res
 end
 
@@ -3999,7 +4073,8 @@ function _estimate_iv(; data::String, dep::String="", endogenous::String="",
         push!(pairs, "Sargan statistic" => round(model.sargan_stat; digits=4))
         push!(pairs, "Sargan p-value"   => round(model.sargan_pval; digits=4))
     end
-    output_kv(pairs; format=format, title="IV Diagnostics")
+    output_kv(pairs; format=format, output=_per_var_output_path(output, "diagnostics"),
+              title="IV Diagnostics")
     return model
 end
 
@@ -4203,7 +4278,7 @@ function _estimate_sur(; data::String, config::String="", iterate::Bool=false,
         "mcelroy_r2" => round(model.mcelroy_r2; digits=6),
         "loglik"     => round(model.loglik; digits=4),
         "iterations" => model.iterations,
-    ]; format=format, title="SUR System Statistics")
+    ]; format=format, output=_per_var_output_path(output, "stats"), title="SUR System Statistics")
     return model
 end
 
@@ -4249,7 +4324,7 @@ function _estimate_3sls(; data::String, config::String="", instruments::String="
         "det_sigma"          => round(model.det_sigma; digits=6),
         "mcelroy_r2"         => round(model.mcelroy_r2; digits=6),
         "instruments_per_eq" => join(model.n_instruments, ", "),
-    ]; format=format, title="3SLS System Statistics")
+    ]; format=format, output=_per_var_output_path(output, "stats"), title="3SLS System Statistics")
     return model
 end
 
@@ -4261,7 +4336,7 @@ function _estimate_logit(; data::String, dep::String="", cov_type::String="hc1",
     y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
     cl = _load_clusters(data, clusters)
 
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    dep_name = _resolve_dep_name(data, dep)
     _status("Logit Regression: $dep_name ~ $(join(xcols, " + "))")
     _status("  Observations: $(length(y)), Regressors: $(length(xcols)), Cov type: $cov_type")
     _status()
@@ -4284,7 +4359,7 @@ function _estimate_logit(; data::String, dep::String="", cov_type::String="hc1",
         "Converged"       => model.converged,
         "Iterations"      => model.iterations,
     ]
-    output_kv(pairs; format=format, title="Fit Statistics")
+    output_kv(pairs; format=format, output=_per_var_output_path(output, "fit"), title="Fit Statistics")
     return model
 end
 
@@ -4296,7 +4371,7 @@ function _estimate_probit(; data::String, dep::String="", cov_type::String="hc1"
     y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
     cl = _load_clusters(data, clusters)
 
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    dep_name = _resolve_dep_name(data, dep)
     _status("Probit Regression: $dep_name ~ $(join(xcols, " + "))")
     _status("  Observations: $(length(y)), Regressors: $(length(xcols)), Cov type: $cov_type")
     _status()
@@ -4319,7 +4394,7 @@ function _estimate_probit(; data::String, dep::String="", cov_type::String="hc1"
         "Converged"       => model.converged,
         "Iterations"      => model.iterations,
     ]
-    output_kv(pairs; format=format, title="Fit Statistics")
+    output_kv(pairs; format=format, output=_per_var_output_path(output, "fit"), title="Fit Statistics")
     return model
 end
 
@@ -4380,6 +4455,7 @@ function _estimate_preg(; data::String, dep::String="", indep::String="",
     end
 
     pd = _load_panel_for_preg(data, id_col, time_col)
+    dep = _resolve_panel_dep(pd, dep)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
     model_sym = _to_sym(method)
@@ -4423,7 +4499,8 @@ function _estimate_preg(; data::String, dep::String="", indep::String="",
         "N obs"        => model.n_obs,
         "N groups"     => model.n_groups,
     ]
-    output_kv(pairs; format=format, title="Model Statistics")
+    output_kv(pairs; format=format, output=_per_var_output_path(output, "stats"),
+              title="Model Statistics")
 
     # Emitted ONLY for --method ab|bb (dynamic_diagnostics is nothing elsewhere),
     # so no other preg envelope changes. n_instruments is the headline: it is what
@@ -4443,7 +4520,8 @@ function _estimate_preg(; data::String, dep::String="", indep::String="",
             "collapse"        => collapse,
             "instrument lag window" => "$min_lag_endo:$max_lag_endo",
         ]
-        output_kv(dpairs; format=format, title="Dynamic Panel Diagnostics")
+        output_kv(dpairs; format=format, output=_per_var_output_path(output, "dynamic"),
+                  title="Dynamic Panel Diagnostics")
     end
 
     # Emitted ONLY under --absorb, so a plain `estimate preg` envelope is unchanged. The
@@ -4462,7 +4540,8 @@ function _estimate_preg(; data::String, dep::String="", indep::String="",
             "final_change"    => hd.change,
             "tol"             => hd.tol,
         ]
-        output_kv(hpairs; format=format, title="HDFE Absorption")
+        output_kv(hpairs; format=format, output=_per_var_output_path(output, "hdfe"),
+                  title="HDFE Absorption")
         hd.converged || _status_styled(
             "  Warning: HDFE absorption did NOT converge in $(hd.iterations) iterations " *
             "(change $(hd.change) > tol $(hd.tol)); raise --hdfe-maxiter or --hdfe-tol\n";
@@ -4482,6 +4561,7 @@ function _estimate_piv(; data::String, dep::String="", exog::String="",
     isempty(endog) && throw(CliError("usage/missing", "--endog is required";
         hint="name the endogenous regressor(s), e.g. --endog investment"))
     pd = _load_panel_for_preg(data, id_col, time_col)
+    dep = _resolve_panel_dep(pd, dep)
 
     exog_syms = isempty(exog) ? Symbol[] : Symbol[Symbol(strip(s)) for s in split(exog, ",")]
     endog_syms = Symbol[Symbol(strip(s)) for s in split(endog, ",")]
@@ -4513,7 +4593,8 @@ function _estimate_piv(; data::String, dep::String="", exog::String="",
         "Sargan statistic"               => fmt_d(model.sargan_stat),
         "Sargan p-value"                 => fmt_d(model.sargan_pval),
     ]
-    output_kv(dpairs; format=format, title="Weak-Instrument Diagnostics")
+    output_kv(dpairs; format=format, output=_per_var_output_path(output, "weak_iv"),
+              title="Weak-Instrument Diagnostics")
     # Upstream computes KP with HC1 even under --cov-type cluster (a
     # cluster-robust rk statistic is not implemented) — flag it, or the number
     # reads as cluster-robust when it is not.
@@ -4529,6 +4610,7 @@ function _estimate_plogit(; data::String, dep::String="", indep::String="",
                            output::String="", format::String="table")
     isempty(dep) && throw(CliError("usage/missing-option", "--dep is required"))
     pd = _load_panel_for_preg(data, id_col, time_col)
+    dep = _resolve_panel_dep(pd, dep)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
     _status("Panel Logit ($method): $dep ~ $(join(indep_syms, " + "))")
@@ -4551,7 +4633,7 @@ function _estimate_plogit(; data::String, dep::String="", indep::String="",
         "N obs"           => model.n_obs,
         "N groups"        => model.n_groups,
     ]
-    output_kv(pairs; format=format, title="Model Statistics")
+    output_kv(pairs; format=format, output=_per_var_output_path(output, "stats"), title="Model Statistics")
     return model
 end
 
@@ -4561,6 +4643,7 @@ function _estimate_pprobit(; data::String, dep::String="", indep::String="",
                             output::String="", format::String="table")
     isempty(dep) && throw(CliError("usage/missing-option", "--dep is required"))
     pd = _load_panel_for_preg(data, id_col, time_col)
+    dep = _resolve_panel_dep(pd, dep)
     indep_syms = _parse_indep_vars(pd, dep, indep)
 
     _status("Panel Probit ($method): $dep ~ $(join(indep_syms, " + "))")
@@ -4583,7 +4666,7 @@ function _estimate_pprobit(; data::String, dep::String="", indep::String="",
         "N obs"           => model.n_obs,
         "N groups"        => model.n_groups,
     ]
-    output_kv(pairs; format=format, title="Model Statistics")
+    output_kv(pairs; format=format, output=_per_var_output_path(output, "stats"), title="Model Statistics")
     return model
 end
 
@@ -4594,7 +4677,7 @@ function _estimate_ologit(; data::String, dep::String="", cov_type::String="ols"
                            output::String="", format::String="table")
     y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
     cl = _load_clusters(data, clusters)
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    dep_name = _resolve_dep_name(data, dep)
 
     _status("Ordered Logit: $dep_name ~ $(join(xcols, " + "))")
     _status()
@@ -4606,7 +4689,9 @@ function _estimate_ologit(; data::String, dep::String="", cov_type::String="ols"
         Cutpoint = ["cut$i" for i in 1:J],
         Value = round.(model.cutpoints; digits=6),
     )
-    output_result(cut_df; format=Symbol(format), output="", title="Cutpoints")
+    output_result(cut_df; format=Symbol(format),
+                  output=_per_var_output_path(output, "cutpoints"),
+                  title="Cutpoints")
 
     _status()
     # C051: MEMs tidy coef table (term|estimate|std_error|stat|p_value|ci_lower|ci_upper).
@@ -4620,7 +4705,7 @@ function _estimate_ologit(; data::String, dep::String="", cov_type::String="ols"
         "BIC"             => round(model.bic; digits=4),
         "Categories"      => length(model.categories),
     ]
-    output_kv(pairs; format=format, title="Fit Statistics")
+    output_kv(pairs; format=format, output=_per_var_output_path(output, "fit"), title="Fit Statistics")
     return model
 end
 
@@ -4631,7 +4716,7 @@ function _estimate_oprobit(; data::String, dep::String="", cov_type::String="ols
                             output::String="", format::String="table")
     y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
     cl = _load_clusters(data, clusters)
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    dep_name = _resolve_dep_name(data, dep)
 
     _status("Ordered Probit: $dep_name ~ $(join(xcols, " + "))")
     _status()
@@ -4640,7 +4725,9 @@ function _estimate_oprobit(; data::String, dep::String="", cov_type::String="ols
 
     J = length(model.cutpoints)
     cut_df = DataFrame(Cutpoint = ["cut$i" for i in 1:J], Value = round.(model.cutpoints; digits=6))
-    output_result(cut_df; format=Symbol(format), output="", title="Cutpoints")
+    output_result(cut_df; format=Symbol(format),
+                  output=_per_var_output_path(output, "cutpoints"),
+                  title="Cutpoints")
 
     _status()
     # C051: MEMs tidy coef table (term|estimate|std_error|stat|p_value|ci_lower|ci_upper).
@@ -4652,7 +4739,7 @@ function _estimate_oprobit(; data::String, dep::String="", cov_type::String="ols
         "Log-likelihood" => round(model.loglik; digits=4),
         "AIC" => round(model.aic; digits=4), "BIC" => round(model.bic; digits=4),
         "Categories" => length(model.categories)]
-    output_kv(pairs; format=format, title="Fit Statistics")
+    output_kv(pairs; format=format, output=_per_var_output_path(output, "fit"), title="Fit Statistics")
     return model
 end
 
@@ -4663,7 +4750,7 @@ function _estimate_mlogit(; data::String, dep::String="", cov_type::String="ols"
                            output::String="", format::String="table")
     y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
     cl = _load_clusters(data, clusters)
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    dep_name = _resolve_dep_name(data, dep)
 
     _status("Multinomial Logit: $dep_name ~ $(join(xcols, " + "))")
     _status()
@@ -4682,7 +4769,7 @@ function _estimate_mlogit(; data::String, dep::String="", cov_type::String="ols"
         "Log-likelihood" => round(model.loglik; digits=4),
         "AIC" => round(model.aic; digits=4), "BIC" => round(model.bic; digits=4),
         "Categories" => size(model.fitted, 2)]
-    output_kv(pairs; format=format, title="Fit Statistics")
+    output_kv(pairs; format=format, output=_per_var_output_path(output, "fit"), title="Fit Statistics")
     return model
 end
 
@@ -4849,7 +4936,7 @@ function _estimate_poisson(; data::String, dep::String="", offset::String="",
                             output::String="", format::String="table")
     _count_guards(maxiter, tol, conf_level, "estimate choice poisson")
     model, xcols = _fit_poisson(data, dep, offset, exposure, cov_type, clusters, maxiter, tol)
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    dep_name = _resolve_dep_name(data, dep)
     _status("Poisson Regression: $dep_name ~ $(join(xcols, " + "))")
     _status("  Observations: $(length(model.y)), Regressors: $(length(xcols)), Cov type: $cov_type")
     _status()
@@ -4862,7 +4949,8 @@ function _estimate_poisson(; data::String, dep::String="", offset::String="",
                       key="incidence_rate_ratios")
     end
     _status()
-    output_kv(_count_fit_pairs(model); format=format, title="Fit Statistics")
+    output_kv(_count_fit_pairs(model); format=format, output=_per_var_output_path(output, "fit"),
+              title="Fit Statistics")
     return model
 end
 
@@ -4872,7 +4960,7 @@ function _estimate_nbreg(; data::String, dep::String="", offset::String="",
                           output::String="", format::String="table")
     _count_guards(maxiter, tol, conf_level, "estimate choice nbreg")
     model, xcols = _fit_nbreg(data, dep, offset, exposure, maxiter, tol)
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    dep_name = _resolve_dep_name(data, dep)
     _status("Negative Binomial (NB2) Regression: $dep_name ~ $(join(xcols, " + "))")
     _status("  Observations: $(length(model.y)), Regressors: $(length(xcols))")
     _status()
@@ -4895,7 +4983,8 @@ function _estimate_nbreg(; data::String, dep::String="", offset::String="",
                       key="incidence_rate_ratios")
     end
     _status()
-    output_kv(_count_fit_pairs(model); format=format, title="Fit Statistics")
+    output_kv(_count_fit_pairs(model); format=format, output=_per_var_output_path(output, "fit"),
+              title="Fit Statistics")
     return model
 end
 
@@ -5008,7 +5097,7 @@ function _test_dispersion(; data::String="", model=nothing, dep::String="", offs
         "alpha_level"     => alpha,
         "nb2_alpha"       => round(a2; digits=6),
         "preferred_model" => preferred,
-    ]; format=format, title="Dispersion Summary")
+    ]; format=format, output=_per_var_output_path(output, "summary"), title="Dispersion Summary")
     return dt
 end
 
@@ -5549,7 +5638,9 @@ function _estimate_igarch(; data::String, column::Int=1, p::Int=1, q::Int=1,
     output_result(_garch_variant_coef_table(model, names); format=Symbol(format),
                   output=output, title="IGARCH($p,$q) Coefficients ($vname)",
                   key="igarch_coefficients")
-    output_kv(_garch_variant_diag(model); format=format, title="IGARCH($p,$q) Diagnostics",
+    output_kv(_garch_variant_diag(model); format=format,
+              output=_per_var_output_path(output, "diagnostics"),
+              title="IGARCH($p,$q) Diagnostics",
               key="igarch_diagnostics")
     return model
 end
@@ -5571,7 +5662,8 @@ function _estimate_cgarch(; data::String, column::Int=1,
     output_kv(_garch_variant_diag(model; extra=Pair{String,Any}[
         "transitory_persistence" => round(Float64(model.alpha + model.beta); digits=6),
         "unconditional_variance" => round(Float64(unconditional_variance(model)); digits=6),
-    ]); format=format, title="Component-GARCH Diagnostics", key="cgarch_diagnostics")
+    ]); format=format, output=_per_var_output_path(output, "diagnostics"),
+       title="Component-GARCH Diagnostics", key="cgarch_diagnostics")
     return model
 end
 
@@ -5596,7 +5688,8 @@ function _estimate_aparch(; data::String, column::Int=1, p::Int=1, q::Int=1,
     output_kv(_garch_variant_diag(model; extra=Pair{String,Any}[
         "delta" => round(Float64(model.delta); digits=6),
         "n_params" => model.n_params,
-    ]); format=format, title="APARCH Diagnostics", key="aparch_diagnostics")
+    ]); format=format, output=_per_var_output_path(output, "diagnostics"),
+       title="APARCH Diagnostics", key="aparch_diagnostics")
     return model
 end
 
@@ -5619,7 +5712,8 @@ function _estimate_figarch(; data::String, column::Int=1, p::Int=1, q::Int=1,
         "d" => round(Float64(model.d); digits=6),
         "truncation" => model.truncation,
         "n_neg_lambda" => model.n_neg_lambda,
-    ]); format=format, title="FIGARCH Diagnostics", key="figarch_diagnostics")
+    ]); format=format, output=_per_var_output_path(output, "diagnostics"),
+       title="FIGARCH Diagnostics", key="figarch_diagnostics")
     return model
 end
 
@@ -5641,7 +5735,8 @@ function _estimate_fiegarch(; data::String, column::Int=1, p::Int=1, q::Int=1,
     output_kv(_garch_variant_diag(model; extra=Pair{String,Any}[
         "d" => round(Float64(model.d); digits=6),
         "truncation" => model.truncation,
-    ]); format=format, title="FIEGARCH Diagnostics", key="fiegarch_diagnostics")
+    ]); format=format, output=_per_var_output_path(output, "diagnostics"),
+       title="FIEGARCH Diagnostics", key="fiegarch_diagnostics")
     return model
 end
 
@@ -5675,7 +5770,8 @@ function _estimate_garch_midas(; data::String, column::Int=1, m_freq::Int=0, k::
         "variance_ratio" => round(Float64(model.variance_ratio); digits=6),
         "K" => model.K, "m_freq" => model.m_freq, "n_blocks" => model.n_blocks,
         "rv" => String(model.rv), "span" => String(model.span),
-    ]); format=format, title="GARCH-MIDAS Diagnostics", key="garch_midas_diagnostics")
+    ]); format=format, output=_per_var_output_path(output, "diagnostics"),
+       title="GARCH-MIDAS Diagnostics", key="garch_midas_diagnostics")
     return model
 end
 
@@ -5710,7 +5806,9 @@ function _mgarch_output(model, varnames::Vector{String}, label::String;
                   key="$(key_prefix)_conditional_correlation")
     if !isempty(coef(model))
         output_result(_garch_variant_coef_table(model, model.param_names);
-                      format=Symbol(format), title="$label Dynamics Parameters",
+                      format=Symbol(format),
+                      output=_per_var_output_path(output, "dynamics"),
+                      title="$label Dynamics Parameters",
                       key="$(key_prefix)_dynamics_parameters")
     end
     pairs = Pair{String,Any}[
@@ -5728,7 +5826,8 @@ function _mgarch_output(model, varnames::Vector{String}, label::String;
     elseif model.kind === :bekk
         push!(pairs, "bekk_kind" => string(model.bekk_kind))
     end
-    output_kv(pairs; format=format, title="$label Diagnostics", key="$(key_prefix)_diagnostics")
+    output_kv(pairs; format=format, output=_per_var_output_path(output, "diagnostics"),
+              title="$label Diagnostics", key="$(key_prefix)_diagnostics")
     return nothing
 end
 
@@ -5832,7 +5931,7 @@ function _estimate_lasso(; data::String, dep::String="", lambda::String="auto",
                           select::String="cv", output::String="", format::String="table")
     y, X, xcols = _load_reg_data(data, dep)
     lam = _parse_penalty_lambda(lambda)
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    dep_name = _resolve_dep_name(data, dep)
     _status("LASSO (L1) regression: $dep_name ~ $(join(xcols, " + ")), n=$(length(y)), lambda=$lambda")
     _status()
     model = try
@@ -5842,7 +5941,9 @@ function _estimate_lasso(; data::String, dep::String="", lambda::String="auto",
     end
     output_result(_penalized_coef_table(model, xcols); format=Symbol(format), output=output,
                   title="LASSO Coefficients")
-    output_kv(_penalized_diag(model); format=format, title="LASSO Diagnostics")
+    output_kv(_penalized_diag(model); format=format,
+              output=_per_var_output_path(output, "diagnostics"),
+              title="LASSO Diagnostics")
     return model
 end
 
@@ -5850,7 +5951,7 @@ function _estimate_ridge(; data::String, dep::String="", lambda::String="auto",
                           select::String="cv", output::String="", format::String="table")
     y, X, xcols = _load_reg_data(data, dep)
     lam = _parse_penalty_lambda(lambda)
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    dep_name = _resolve_dep_name(data, dep)
     _status("Ridge (L2) regression: $dep_name ~ $(join(xcols, " + ")), n=$(length(y)), lambda=$lambda")
     _status()
     model = try
@@ -5860,7 +5961,9 @@ function _estimate_ridge(; data::String, dep::String="", lambda::String="auto",
     end
     output_result(_penalized_coef_table(model, xcols); format=Symbol(format), output=output,
                   title="Ridge Coefficients")
-    output_kv(_penalized_diag(model); format=format, title="Ridge Diagnostics")
+    output_kv(_penalized_diag(model); format=format,
+              output=_per_var_output_path(output, "diagnostics"),
+              title="Ridge Diagnostics")
     return model
 end
 
@@ -5871,7 +5974,7 @@ function _estimate_elastic_net(; data::String, dep::String="", alpha::Float64=0.
         "estimate regression elastic-net: --alpha must be in [0,1], got $alpha"))
     y, X, xcols = _load_reg_data(data, dep)
     lam = _parse_penalty_lambda(lambda)
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    dep_name = _resolve_dep_name(data, dep)
     _status("Elastic-Net regression (alpha=$alpha): $dep_name ~ $(join(xcols, " + ")), n=$(length(y)), lambda=$lambda")
     _status()
     model = try
@@ -5881,14 +5984,16 @@ function _estimate_elastic_net(; data::String, dep::String="", alpha::Float64=0.
     end
     output_result(_penalized_coef_table(model, xcols); format=Symbol(format), output=output,
                   title="Elastic-Net Coefficients")
-    output_kv(_penalized_diag(model); format=format, title="Elastic-Net Diagnostics")
+    output_kv(_penalized_diag(model); format=format,
+              output=_per_var_output_path(output, "diagnostics"),
+              title="Elastic-Net Diagnostics")
     return model
 end
 
 function _estimate_robust(; data::String, dep::String="", psi::String="huber",
                            method::String="m", output::String="", format::String="table")
     y, X, xcols = _load_reg_data(data, dep)
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    dep_name = _resolve_dep_name(data, dep)
     _status("Robust regression ($psi $method-estimator): $dep_name ~ $(join(xcols, " + ")), n=$(length(y))")
     _status()
     model = try
@@ -5906,7 +6011,8 @@ function _estimate_robust(; data::String, dep::String="", psi::String="huber",
         "tuning"     => round(Float64(model.tuning); digits=6),
         "converged"  => model.converged,
         "iterations" => model.iterations,
-    ]; format=format, title="Robust Regression Diagnostics")
+    ]; format=format, output=_per_var_output_path(output, "diagnostics"),
+       title="Robust Regression Diagnostics")
     return model
 end
 
@@ -5915,7 +6021,7 @@ function _estimate_tobit(; data::String, dep::String="", lower::Float64=0.0,
     lower < upper || throw(CliError("usage/invalid",
         "estimate regression tobit: --lower ($lower) must be < --upper ($upper)"))
     y, X, xcols = _load_reg_data(data, dep)
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    dep_name = _resolve_dep_name(data, dep)
     _status("Tobit regression (lower=$lower, upper=$upper): $dep_name ~ $(join(xcols, " + ")), n=$(length(y))")
     _status()
     model = try
@@ -5938,7 +6044,8 @@ function _estimate_tobit(; data::String, dep::String="", lower::Float64=0.0,
         "n_censored_left"  => model.n_censored_left,
         "n_censored_right" => model.n_censored_right,
         "converged"        => model.converged,
-    ]; format=format, title="Tobit Diagnostics")
+    ]; format=format, output=_per_var_output_path(output, "diagnostics"),
+       title="Tobit Diagnostics")
     return model
 end
 
@@ -5952,7 +6059,7 @@ function _estimate_truncreg(; data::String, dep::String="", lower::Float64=0.0,
     lower < upper || throw(CliError("usage/invalid",
         "estimate regression truncreg: --lower ($lower) must be < --upper ($upper)"))
     y, X, xcols = _load_reg_data(data, dep)
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    dep_name = _resolve_dep_name(data, dep)
     _status("Truncated regression (lower=$lower, upper=$upper): $dep_name ~ $(join(xcols, " + ")), n=$(length(y))")
     _status()
     model = try
@@ -5973,7 +6080,8 @@ function _estimate_truncreg(; data::String, dep::String="", lower::Float64=0.0,
         "upper"        => isfinite(model.upper) ? Float64(model.upper) : string(model.upper),
         "n_truncated"  => model.n_truncated,
         "converged"    => model.converged,
-    ]; format=format, title="Truncated Regression Diagnostics")
+    ]; format=format, output=_per_var_output_path(output, "diagnostics"),
+       title="Truncated Regression Diagnostics")
     return model
 end
 
@@ -6014,9 +6122,7 @@ function _estimate_heckman(; data::String, dep::String="", select::String="",
 
     df = load_data(data)
     numcols = variable_names(df)
-    dep_col = isempty(dep) ? numcols[1] : dep
-    !isempty(dep) && !(dep_col in numcols) && throw(CliError("data/column-range",
-        "outcome variable '$dep_col' not found in numeric columns: $(join(numcols, ", "))"))
+    dep_col = isempty(strip(dep)) ? numcols[1] : _resolve_col_ref(dep, numcols; label="outcome variable")
     select in numcols || throw(CliError("data/column-range",
         "selection indicator '$select' not found in numeric columns: $(join(numcols, ", "))"))
 
@@ -6087,7 +6193,8 @@ function _estimate_heckman(; data::String, dep::String="", select::String="",
         "n_selected"  => model.n_selected,
         "n_total"     => model.n_total,
         "converged"   => model.converged,
-    ]; format=format, title="Heckman Diagnostics")
+    ]; format=format, output=_per_var_output_path(output, "diagnostics"),
+       title="Heckman Diagnostics")
     return model
 end
 
@@ -6261,7 +6368,8 @@ function _estimate_statespace(; data::String, column::Int=1, model::String="loca
             # :filter, not :mle — a fixed-matrix system is filtered and log-likelihood
             # evaluated, never optimized, so there is nothing to converge.
             "method"    => string(fitted_ss.method),
-        ]; format=format, title="State-Space Diagnostics")
+        ]; format=format, output=_per_var_output_path(output, "diagnostics"),
+           title="State-Space Diagnostics")
         return fitted_ss
     end
 
@@ -6292,7 +6400,8 @@ function _estimate_statespace(; data::String, column::Int=1, model::String="loca
         "n_state"   => ssm.n_state,
         "n_obs"     => ssm.T_obs,   # T_obs = number of time observations (the user-facing "n_obs")
         "method"    => string(ssm.method),
-    ]; format=format, title="State-Space Diagnostics")
+    ]; format=format, output=_per_var_output_path(output, "diagnostics"),
+       title="State-Space Diagnostics")
     return ssm
 end
 
@@ -6305,7 +6414,7 @@ function _estimate_tvp(; data::String, dep::String="", init_mode::String="kappa"
     y, X, xcols = _load_reg_data(data, dep)   # X = numeric cols except --dep; estimate_tvp_reg adds its own intercept
     intercept = !no_intercept
     coefnames = intercept ? vcat(["intercept"], xcols) : xcols
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    dep_name = _resolve_dep_name(data, dep)
     _status("Time-varying-parameter regression: $dep_name ~ $(join(xcols, " + "))" *
             (intercept ? " (+ intercept)" : "") * ", n=$(length(y)), init_mode=$init_mode")
     _status()
@@ -6324,7 +6433,8 @@ function _estimate_tvp(; data::String, dep::String="", init_mode::String="kappa"
         "n_coef"    => ssm.n_state,
         "intercept" => intercept,
         "method"    => string(ssm.method),
-    ]; format=format, title="TVP Diagnostics")
+    ]; format=format, output=_per_var_output_path(output, "diagnostics"),
+       title="TVP Diagnostics")
     return ssm
 end
 
@@ -6355,7 +6465,8 @@ function _estimate_kde(; data::String, column::Int=1, kernel::String="gaussian",
         "bw_method" => string(kd.bw_method),
         "bandwidth" => round(Float64(kd.bandwidth); digits=6),
         "nobs"      => kd.nobs,
-    ]; format=format, title="Kernel Density Diagnostics")
+    ]; format=format, output=_per_var_output_path(output, "diagnostics"),
+       title="Kernel Density Diagnostics")
     return kd
 end
 
@@ -6391,7 +6502,8 @@ function _estimate_kernel_reg(; data::String, dep::String="", indep::String="",
         "bw_method" => string(kr.bw_method),
         "bandwidth" => round(Float64(kr.bandwidth); digits=6),
         "nobs"      => kr.nobs,
-    ]; format=format, title="Kernel Regression Diagnostics")
+    ]; format=format, output=_per_var_output_path(output, "diagnostics"),
+       title="Kernel Regression Diagnostics")
     return kr
 end
 
@@ -6420,7 +6532,8 @@ function _estimate_lowess(; data::String, dep::String="", indep::String="",
         "frac" => round(Float64(lf.span); digits=6),
         "iter" => lf.iter,
         "nobs" => lf.nobs,
-    ]; format=format, title="LOWESS Diagnostics")
+    ]; format=format, output=_per_var_output_path(output, "diagnostics"),
+       title="LOWESS Diagnostics")
     return lf
 end
 
@@ -6496,7 +6609,7 @@ function _estimate_cointreg(; data::String, dep::String="", method::String="fmol
                              lags::String="auto", ic::String="aic", dols_se::String="lrv",
                              output::String="", format::String="table")
     y, X, xcols = _load_reg_data(data, dep)
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    dep_name = _resolve_dep_name(data, dep)
     bw = _parse_cointreg_bandwidth(bandwidth)
     ld = _parse_cointreg_leadlag(leads, "--leads")
     lg = _parse_cointreg_leadlag(lags, "--lags")
@@ -6526,7 +6639,8 @@ function _estimate_cointreg(; data::String, dep::String="", method::String="fmol
         push!(pairs, "leads" => model.leads)
         push!(pairs, "lags"  => model.lags)
     end
-    output_kv(pairs; format=format, title="Cointegrating Regression Diagnostics")
+    output_kv(pairs; format=format, output=_per_var_output_path(output, "diagnostics"),
+              title="Cointegrating Regression Diagnostics")
     return model
 end
 
@@ -6569,7 +6683,8 @@ function _estimate_xtcointreg(; data::String, id_col::String="", time_col::Strin
         "balanced" => model.balanced,
         "k"        => model.k,
         "d"        => model.d,
-    ]; format=format, title="Panel Cointegrating Regression Diagnostics")
+    ]; format=format, output=_per_var_output_path(output, "diagnostics"),
+       title="Panel Cointegrating Regression Diagnostics")
     return model
 end
 
@@ -6643,7 +6758,7 @@ function _fit_nardl(y, X, xcols, dep_name; asymmetric::String, p::String, q::Str
     max_p >= 1 || throw(CliError("usage/invalid", "$label: --max-p must be ≥ 1, got $max_p"))
     max_q >= 0 || throw(CliError("usage/invalid", "$label: --max-q must be ≥ 0, got $max_q"))
     k0 = length(xcols)
-    asym = _parse_asym_spec(asymmetric)
+    asym = _parse_asym_spec(asymmetric, xcols)
     (asym isa Vector{Int} && !all(j -> 1 <= j <= k0, asym)) && throw(CliError("usage/invalid",
         "$label: --asymmetric indices must be in 1:$k0, got $asym"))
     pp = _parse_lag_spec(p, "--p"; min=1)
@@ -6671,7 +6786,7 @@ function _estimate_ardl(; data::String, dep::String="", p::String="auto", q::Str
                          max_p::Int=4, max_q::Int=4, ic::String="aic", case::Int=3,
                          trend::String="none", output::String="", format::String="table")
     y, X, xcols = _load_reg_data(data, dep)
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    dep_name = _resolve_dep_name(data, dep)
     _status("ARDL: $dep_name ~ $(join(xcols, " + ")) (p=$p, q=$q, case=$case, ic=$ic), n=$(length(y))"); _status()
     m = _fit_ardl(y, X, xcols, dep_name; p=p, q=q, max_p=max_p, max_q=max_q,
                   ic=ic, case=case, trend=trend, label="ARDL")
@@ -6700,7 +6815,8 @@ function _estimate_ardl(; data::String, dep::String="", p::String="auto", q::Str
         "alpha_se"      => _ardl_kv(ecm.alpha_se),
         "alpha_t"       => _ardl_kv(ecm.alpha_t; digits=4),
         "longrun_denom" => _ardl_kv(lr.denom),            # 1 − Σφ̂ = −alpha
-    ]; format=format, title="ARDL Diagnostics")
+    ]; format=format, output=_per_var_output_path(output, "diagnostics"),
+       title="ARDL Diagnostics")
     return m
 end
 
@@ -6711,7 +6827,7 @@ function _estimate_nardl(; data::String, dep::String="", asymmetric::String="all
                           plot::Bool=false, plot_save::String="",
                           output::String="", format::String="table")
     y, X, xcols = _load_reg_data(data, dep)
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    dep_name = _resolve_dep_name(data, dep)
     _status("NARDL: $dep_name ~ $(join(xcols, " + ")) (asym=$asymmetric, p=$p, q=$q, case=$case), n=$(length(y))"); _status()
     m = _fit_nardl(y, X, xcols, dep_name; asymmetric=asymmetric, p=p, q=q,
                    max_p=max_p, max_q=max_q, ic=ic, case=case, label="NARDL")
@@ -6832,7 +6948,8 @@ function _estimate_pmg(; data::String, id_col::String="", time_col::String="",
         "converged" => m.converged,
         "iters"     => m.iters,
         "n_nonconv" => m.n_nonconv,
-    ]; format=format, title="Panel ARDL Diagnostics")
+    ]; format=format, output=_per_var_output_path(output, "diagnostics"),
+       title="Panel ARDL Diagnostics")
     return m
 end
 
@@ -6977,7 +7094,8 @@ function _forecast_midas(; data::String="", result=nothing, column::Int=1, hf_da
         "p_ar" => mdl.p_ar,
         "weights" => String(mdl.weights_kind),
         "level" => fc.conf_level];
-        format=format, title="MIDAS Forecast Summary")
+        format=format, output=_per_var_output_path(output, "summary"),
+        title="MIDAS Forecast Summary")
     return (; model=mdl, result=fc)
 end
 
@@ -7034,7 +7152,8 @@ function _estimate_midas(; data::String, column::Int=1, hf_data::String="", hf_c
         "bic"          => _ardl_kv(model.bic; digits=4),
         "loglik"       => _ardl_kv(model.loglik; digits=4),
         "converged"    => model.converged,
-    ]; format=format, title="MIDAS Diagnostics")
+    ]; format=format, output=_per_var_output_path(output, "diagnostics"),
+       title="MIDAS Diagnostics")
     return model
 end
 
@@ -7144,7 +7263,8 @@ function _estimate_threshold(; data::String, dep::String="", threshold_col::Stri
             "gamma_sup"   => round(Float64(lt.gamma_sup); digits=6),
         ])
     end
-    output_kv(diag; format=format, title="Threshold Regression Diagnostics")
+    output_kv(diag; format=format, output=_per_var_output_path(output, "diagnostics"),
+              title="Threshold Regression Diagnostics")
     return model
 end
 
@@ -7204,7 +7324,8 @@ function _estimate_setar(; data::String, column::Int=1, p::Int=1, d::String="1",
             "gamma_sup"   => round(Float64(lt.gamma_sup); digits=6),
         ])
     end
-    output_kv(diag; format=format, title="SETAR(2;$p,$p) Diagnostics", key="setar_diagnostics")
+    output_kv(diag; format=format, output=_per_var_output_path(output, "diagnostics"),
+              title="SETAR(2;$p,$p) Diagnostics", key="setar_diagnostics")
     _maybe_plot(model; plot=plot, plot_save=plot_save)
     return model
 end
@@ -7295,7 +7416,8 @@ function _estimate_star(; data::String, column::Int=1, p::Int=1, d::Int=1,
             "sel_H02" => round(Float64(sp[3]); digits=4),
         ])
     end
-    output_kv(diag; format=format, title="STAR($p) Diagnostics", key="star_diagnostics")
+    output_kv(diag; format=format, output=_per_var_output_path(output, "diagnostics"),
+              title="STAR($p) Diagnostics", key="star_diagnostics")
     _maybe_plot(model; plot=plot, plot_save=plot_save)
     return model
 end
@@ -7423,7 +7545,8 @@ function _ms_render(model, format::String, output::String)
         "converged"     => model.converged,
         "iterations"    => model.iterations,
     ])
-    output_kv(diag; format=format, title="$label Diagnostics", key="$(kp)_diagnostics")
+    output_kv(diag; format=format, output=_per_var_output_path(output, "diagnostics"),
+              title="$label Diagnostics", key="$(kp)_diagnostics")
     return model
 end
 
@@ -7432,7 +7555,8 @@ end
 # try-wrapped → typed CliError via the shared `_nonlinear_error` (never uncaught exit-1).
 # `switching_variance` default FALSE (Hamilton) — the `--switching-variance` flag turns it on.
 function _estimate_ms_ar(; data::String, column::Int=1, p::Int=1, k_regimes::Int=2,
-                          switching_variance::Bool=false, max_iter::Int=1000,
+                          switching_variance::Bool=false, no_switching_variance::Bool=false,
+                          max_iter::Int=1000,
                           plot::Bool=false, plot_save::String="",
                           output::String="", format::String="table")
     p >= 1 || throw(CliError("usage/invalid", "estimate regime ms-ar: --p must be ≥ 1 (got $p)"))
@@ -7440,11 +7564,13 @@ function _estimate_ms_ar(; data::String, column::Int=1, p::Int=1, k_regimes::Int
         "estimate regime ms-ar: --k-regimes must be ≥ 2 (got $k_regimes)"))
     max_iter >= 1 || throw(CliError("usage/invalid",
         "estimate regime ms-ar: --max-iter must be ≥ 1 (got $max_iter)"))
+    sv = _resolve_switching_variance(switching_variance, no_switching_variance;
+                                     default=false, leaf="estimate regime ms-ar")
     y, vname = load_univariate_series(data, column)
     _status("Estimating MS-AR($p) [$k_regimes regimes]: variable=$vname, obs=$(length(y))" *
-            (switching_variance ? ", switching variance" : ", common variance")); _status()
+            (sv ? ", switching variance" : ", common variance")); _status()
     model = try
-        estimate_ms_ar(y, p; k_regimes=k_regimes, switching_variance=switching_variance,
+        estimate_ms_ar(y, p; k_regimes=k_regimes, switching_variance=sv,
                        max_iter=max_iter, yname=vname)
     catch e
         throw(_nonlinear_error(e, "MS-AR"))
@@ -7477,7 +7603,7 @@ function _ms_load_data(data::String, dep::String)
             occursin("no regressor columns", e.message)) || rethrow(e)
         df = load_data(data)
         numcols = variable_names(df)
-        dep_col = isempty(dep) ? numcols[1] : dep
+        dep_col = isempty(strip(dep)) ? numcols[1] : _resolve_col_ref(dep, numcols; label="dependent variable")
         idx = findfirst(==(dep_col), numcols)
         idx === nothing && rethrow(e)
         y, _ = load_univariate_series(data, idx)
@@ -7486,7 +7612,8 @@ function _ms_load_data(data::String, dep::String)
 end
 
 function _estimate_ms(; data::String, dep::String="", k_regimes::Int=2,
-                       no_switching_variance::Bool=false, max_iter::Int=500,
+                       switching_variance::Bool=false, no_switching_variance::Bool=false,
+                       max_iter::Int=500,
                        tol::Float64=1e-8, plot::Bool=false, plot_save::String="",
                        output::String="", format::String="table")
     k_regimes >= 2 || throw(CliError("usage/invalid",
@@ -7494,7 +7621,8 @@ function _estimate_ms(; data::String, dep::String="", k_regimes::Int=2,
     max_iter >= 1 || throw(CliError("usage/invalid",
         "estimate regime ms: --max-iter must be ≥ 1 (got $max_iter)"))
     tol > 0 || throw(CliError("usage/invalid", "estimate regime ms: --tol must be > 0 (got $tol)"))
-    sv = !no_switching_variance
+    sv = _resolve_switching_variance(switching_variance, no_switching_variance;
+                                     default=true, leaf="estimate regime ms")
     y, X, xcols, intercept_only = _ms_load_data(data, dep)
     _status("Estimating MS regression [$k_regimes regimes]: obs=$(length(y)), " *
             (intercept_only ? "intercept-only" : "regressors=$(length(xcols))") *
@@ -7624,10 +7752,12 @@ function _ms_ar_refit(data::String, column::Int, p::Int, k_regimes::Int,
 end
 
 function _residuals_ms_ar(; data::String="", column::Int=1, p::Int=1, k_regimes::Int=2,
-        switching_variance::Bool=false, max_iter::Int=1000,
+        switching_variance::Bool=false, no_switching_variance::Bool=false, max_iter::Int=1000,
         output::String="", format::String="table", model=nothing)
+    sv = _resolve_switching_variance(switching_variance, no_switching_variance;
+                                     default=false, leaf="residuals regime ms-ar")
     m, vname = model === nothing ?
-        _ms_ar_refit(data, column, p, k_regimes, switching_variance, max_iter) : (model, "model")
+        _ms_ar_refit(data, column, p, k_regimes, sv, max_iter) : (model, "model")
     _status("MS-AR($p) [$k_regimes regimes] residuals: variable=$vname, effective obs=$(length(m.residuals))"); _status()
     return _nonlinear_resid_output(residuals(m), "MS-AR($p)", vname, format, output;
                                    key="ms_ar_residuals")
@@ -7659,10 +7789,12 @@ function _ms_refit(data::String, dep::String, k_regimes::Int, sv::Bool,
 end
 
 function _residuals_ms(; data::String="", dep::String="", k_regimes::Int=2,
-        no_switching_variance::Bool=false, max_iter::Int=500, tol::Float64=1e-8,
+        switching_variance::Bool=false, no_switching_variance::Bool=false, max_iter::Int=500, tol::Float64=1e-8,
         output::String="", format::String="table", model=nothing)
+    sv = _resolve_switching_variance(switching_variance, no_switching_variance;
+                                     default=true, leaf="residuals regime ms")
     m = model === nothing ?
-        first(_ms_refit(data, dep, k_regimes, !no_switching_variance, max_iter, tol)) : model
+        first(_ms_refit(data, dep, k_regimes, sv, max_iter, tol)) : model
     vname = model === nothing ? String(m.yname) : "model"
     _status("MS regression [$k_regimes regimes] residuals: obs=$(length(m.residuals))"); _status()
     return _nonlinear_resid_output(residuals(m), "MS Regression", vname, format, output;
@@ -7717,20 +7849,24 @@ function _ms_forecast_output(fc, label::String, vname::String, horizons::Int,
 end
 
 function _predict_ms_ar(; data::String="", column::Int=1, p::Int=1, k_regimes::Int=2,
-        switching_variance::Bool=false, max_iter::Int=1000, probs::String="smoothed",
+        switching_variance::Bool=false, no_switching_variance::Bool=false, max_iter::Int=1000, probs::String="smoothed",
         output::String="", format::String="table", model=nothing)
+    sv = _resolve_switching_variance(switching_variance, no_switching_variance;
+                                     default=false, leaf="predict regime ms-ar")
     m, vname = model === nothing ?
-        _ms_ar_refit(data, column, p, k_regimes, switching_variance, max_iter) : (model, "model")
+        _ms_ar_refit(data, column, p, k_regimes, sv, max_iter) : (model, "model")
     _status("MS-AR($p) [$k_regimes regimes] fitted ($probs): variable=$vname"); _status()
     return _ms_predict_output(m, probs, "MS-AR($p)", vname, format, output;
                               key_prefix="ms_ar")
 end
 
 function _predict_ms(; data::String="", dep::String="", k_regimes::Int=2,
-        no_switching_variance::Bool=false, max_iter::Int=500, tol::Float64=1e-8,
+        switching_variance::Bool=false, no_switching_variance::Bool=false, max_iter::Int=500, tol::Float64=1e-8,
         probs::String="smoothed", output::String="", format::String="table", model=nothing)
+    sv = _resolve_switching_variance(switching_variance, no_switching_variance;
+                                     default=true, leaf="predict regime ms")
     m = model === nothing ?
-        first(_ms_refit(data, dep, k_regimes, !no_switching_variance, max_iter, tol)) : model
+        first(_ms_refit(data, dep, k_regimes, sv, max_iter, tol)) : model
     vname = model === nothing ? String(m.yname) : "model"
     _status("MS regression [$k_regimes regimes] fitted ($probs)"); _status()
     return _ms_predict_output(m, probs, "MS Regression", vname, format, output;
@@ -7738,7 +7874,7 @@ function _predict_ms(; data::String="", dep::String="", k_regimes::Int=2,
 end
 
 function _forecast_ms_ar(; data::String="", result=nothing, column::Int=1, p::Int=1, k_regimes::Int=2,
-        switching_variance::Bool=false, max_iter::Int=1000, horizons::Int=12,
+        switching_variance::Bool=false, no_switching_variance::Bool=false, max_iter::Int=1000, horizons::Int=12,
         reps::Int=1000, ci_level::Float64=0.90,
         output::String="", format::String="table", model=nothing)
     loaded = _loaded_result(result; data, model, leaf="forecast regime ms-ar")
@@ -7749,8 +7885,10 @@ function _forecast_ms_ar(; data::String="", result=nothing, column::Int=1, p::In
     reps >= 1 || throw(CliError("usage/invalid", "forecast regime ms-ar: --reps must be ≥ 1 (got $reps)"))
     (0 < ci_level < 1) || throw(CliError("usage/invalid",
         "forecast regime ms-ar: --ci-level must satisfy 0 < level < 1 (got $ci_level)"))
+    sv = _resolve_switching_variance(switching_variance, no_switching_variance;
+                                     default=false, leaf="forecast regime ms-ar")
     m, vname = model === nothing ?
-        _ms_ar_refit(data, column, p, k_regimes, switching_variance, max_iter) : (model, "model")
+        _ms_ar_refit(data, column, p, k_regimes, sv, max_iter) : (model, "model")
     _status("MS-AR($p) forecast (h=$horizons): variable=$vname, ci=$ci_level"); _status()
     fc = try
         forecast(m, horizons; reps=reps, level=ci_level, _fwd_seed()...)
@@ -7763,7 +7901,7 @@ function _forecast_ms_ar(; data::String="", result=nothing, column::Int=1, p::In
 end
 
 function _forecast_ms(; data::String="", result=nothing, dep::String="", k_regimes::Int=2,
-        no_switching_variance::Bool=false, max_iter::Int=500, tol::Float64=1e-8,
+        switching_variance::Bool=false, no_switching_variance::Bool=false, max_iter::Int=500, tol::Float64=1e-8,
         horizons::Int=12, x_future::String="", reps::Int=1000, ci_level::Float64=0.90,
         output::String="", format::String="table", model=nothing)
     loaded = _loaded_result(result; data, model, leaf="forecast regime ms")
@@ -7774,8 +7912,10 @@ function _forecast_ms(; data::String="", result=nothing, dep::String="", k_regim
     reps >= 1 || throw(CliError("usage/invalid", "forecast regime ms: --reps must be ≥ 1 (got $reps)"))
     (0 < ci_level < 1) || throw(CliError("usage/invalid",
         "forecast regime ms: --ci-level must satisfy 0 < level < 1 (got $ci_level)"))
+    sv = _resolve_switching_variance(switching_variance, no_switching_variance;
+                                     default=true, leaf="forecast regime ms")
     m, intercept_only = if model === nothing
-        _ms_refit(data, dep, k_regimes, !no_switching_variance, max_iter, tol)
+        _ms_refit(data, dep, k_regimes, sv, max_iter, tol)
     else
         # From a saved handle there is no CSV to re-inspect. `_ms_load_data` labels the
         # intercept-only design "const" while the regressor path passes the real column
@@ -7926,7 +8066,8 @@ function _estimate_tvpvar(; data::String, lags::Int=2, draws::Int=2000, burnin::
         "draws"     => size(post.B_draws, 1),
         "tvp"       => post.tvp,
         "sv"        => post.sv,
-    ]; format=format, title="TVP-VAR Specification")
+    ]; format=format, output=_per_var_output_path(output, "specification"),
+       title="TVP-VAR Specification")
     return post
 end
 
@@ -8050,8 +8191,12 @@ function _estimate_mfvar(; data::String, lags::Int=2, low_freq::String="",
             s = strip(tok)
             isempty(s) && continue
             v = tryparse(Int, s)
-            v === nothing && throw(CliError("usage/invalid",
-                "--low-freq must be comma-separated column indices, got '$low_freq'"))
+            if v === nothing
+                pos = findfirst(==(s), varnames)
+                pos === nothing && throw(CliError("usage/invalid",
+                    "--low-freq '$s' must be a column name in [$(join(varnames, ", "))] or 1-based index 1:$n"))
+                v = pos
+            end
             push!(idx, v)
         end
         isempty(idx) && throw(CliError("usage/invalid", "--low-freq is empty"))
@@ -8103,7 +8248,8 @@ function _estimate_mfvar(; data::String, lags::Int=2, low_freq::String="",
         "freq_ratio"  => post.freq_ratio,
         "aggregation" => join(String.(post.aggregation), ","),
         "draws"       => size(post.B_draws, 1),
-    ]; format=format, title="MF-VAR Specification")
+    ]; format=format, output=_per_var_output_path(output, "specification"),
+       title="MF-VAR Specification")
     return post
 end
 
@@ -8148,7 +8294,7 @@ function _estimate_qreg(; data::String, dep::String="", tau::String="0.5",
         "--alpha must lie in (0, 1) (got $alpha)"))
 
     y, X, xcols = _load_reg_data(data, dep)
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+    dep_name = _resolve_dep_name(data, dep)
     _status("Quantile Regression: $dep_name ~ $(join(xcols, " + "))")
     _status("  Observations: $(length(y)), τ: $(join(taus, ", ")), SE: $se_l")
     _status()
@@ -8305,7 +8451,8 @@ function _estimate_rdd(; data::String, outcome::String="", running::String="",
     ]
     res.first_stage === nothing ||
         push!(settings, "first_stage" => round(Float64(res.first_stage); digits=6))
-    output_kv(settings; format=format, title="RDD Settings & Diagnostics")
+    output_kv(settings; format=format, output=_per_var_output_path(output, "settings"),
+              title="RDD Settings & Diagnostics")
 
     # n_left/n_right are the EFFECTIVE counts inside the bandwidth, not the whole sample.
     # A handful of effective observations makes the estimate unreliable however tight the

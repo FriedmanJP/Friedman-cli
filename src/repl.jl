@@ -283,19 +283,85 @@ function _repl_extract_globals!(args::Vector{String})
     return remaining
 end
 
+function _repl_wants_json(args::Vector{String})::Bool
+    (@isdefined(_FORCE_JSON) && _FORCE_JSON[]) && return true
+    i = 1
+    n = length(args)
+    while i <= n
+        t = args[i]
+        t == "--json" && return true
+        (t == "--format=json" || t == "-f=json") && return true
+        if (t == "--format" || t == "-f") && i + 1 <= n
+            args[i + 1] == "json" && return true
+            i += 2
+            continue
+        end
+        i += 1
+    end
+    return false
+end
+
+function _repl_positional_args(args::Vector{String}, start_idx::Int)::Vector{String}
+    out = String[]
+    i = start_idx
+    n = length(args)
+    while i <= n
+        t = args[i]
+        if t == "--format" || t == "-f" || t == "--output" || t == "-o" || t == "--seed"
+            i += 2
+            continue
+        elseif startswith(t, "--format=") || startswith(t, "-f=") ||
+               startswith(t, "--output=") || startswith(t, "-o=") ||
+               startswith(t, "--seed=") ||
+               t == "--json" || t == "--quiet" || t == "-q" ||
+               t == "--no-color" || t == "--compact" ||
+               t == "--help" || t == "-h"
+            i += 1
+            continue
+        end
+        push!(out, t)
+        i += 1
+    end
+    return out
+end
+
+function _repl_emit_json_envelope(output::IO, cmd::String, key::String,
+                                  cols::Vector{String}, rows::Vector{Vector{Any}})
+    meta = Dict{String,Any}(
+        "cli_version" => @isdefined(FRIEDMAN_VERSION) ? string(FRIEDMAN_VERSION) : "",
+        "julia"       => string(VERSION),
+        "seed"        => @isdefined(_SEED) ? _SEED[] : nothing,
+    )
+    doc = Dict{String,Any}(
+        "schema_version" => 1,
+        "status"         => "ok",
+        "command"        => cmd,
+        "data"           => Dict{String,Any}(
+            key => Dict{String,Any}("columns" => cols, "rows" => rows),
+        ),
+        "warnings"       => Any[],
+        "artifacts"      => Any[],
+        "meta"           => meta,
+    )
+    println(output, JSON3.write(doc))
+    return nothing
+end
+
 """
-    repl_dispatch(session, app, args; err=stderr)
+    repl_dispatch(session, app, args; output=stdout, err=stderr)
 
 Dispatch a command within the REPL. Handles REPL-specific commands
 (data use/current/clear, exit/quit), per-command leading global flags,
 session data injection, and cached estimation results. Never calls exit().
 """
-function repl_dispatch(s::Session, app::Entry, args::Vector{String}; err::IO=stderr)
+function repl_dispatch(s::Session, app::Entry, args::Vector{String};
+                       output::IO=stdout, err::IO=stderr)
     isempty(args) && return
 
     prev_quiet = @isdefined(_QUIET) ? _QUIET[] : false
     prev_color = @isdefined(_COLOR) ? _COLOR[] : true
     prev_seed  = @isdefined(_SEED)  ? _SEED[]  : nothing
+    prev_fjson = @isdefined(_FORCE_JSON) ? _FORCE_JSON[] : false
     raw_args = copy(args)
     try
         args = _repl_extract_globals!(args)
@@ -308,32 +374,95 @@ function repl_dispatch(s::Session, app::Entry, args::Vector{String}; err::IO=std
         end
 
         # data use / data current / data clear
-        if length(args) >= 2 && args[1] == "data"
-            if args[2] == "use" && length(args) >= 3
-                source = args[3]
+        if length(args) >= 2 && args[1] == "data" && args[2] in ("use", "current", "clear")
+            wants_json = _repl_wants_json(args)
+            quiet = (@isdefined(_QUIET) && _QUIET[]) || ("--quiet" in args) || ("-q" in args)
+            wants_help = any(t -> t == "--help" || t == "-h", args)
+            if args[2] == "use"
+                if wants_help
+                    println(output, "usage: data use <path|:dataset>")
+                    return
+                end
+                pos = _repl_positional_args(args, 3)
+                if isempty(pos)
+                    if wants_json
+                        doc = Dict{String,Any}(
+                            "schema_version" => 1,
+                            "status"         => "error",
+                            "command"        => "friedman data use",
+                            "data"           => Dict{String,Any}(),
+                            "warnings"       => Any[],
+                            "artifacts"      => Any[],
+                            "error"          => Dict{String,Any}(
+                                "code"      => "usage/missing-arg",
+                                "exit_code" => 2,
+                                "message"   => "usage: data use <path|:dataset>",
+                                "hint"      => "run 'data list' to see bundled datasets",
+                            ),
+                        )
+                        println(output, JSON3.write(doc))
+                        return
+                    end
+                    throw(CliError("usage/missing-arg", "usage: data use <path|:dataset>";
+                                   hint="run 'data list' to see bundled datasets"))
+                end
+                source = pos[1]
                 kind, val = parse_data_source(source)
                 if kind == :builtin
                     session_load_builtin!(s, val)
                 else
                     session_load_data!(s, val)
                 end
-                printstyled("✓ "; color=:green)
-                println("Loaded $(s.data_path) ($(size(s.Y, 1))×$(size(s.Y, 2)), vars: $(join(s.varnames, ", ")))")
+                if wants_json
+                    _repl_emit_json_envelope(
+                        output, "friedman data use", "data_use",
+                        String["data_path", "rows", "cols", "varnames"],
+                        Vector{Any}[Any[s.data_path, size(s.Y, 1), size(s.Y, 2), join(s.varnames, ", ")]],
+                    )
+                elseif !quiet
+                    printstyled(output, "✓ "; color=:green)
+                    println(output, "Loaded $(s.data_path) ($(size(s.Y, 1))×$(size(s.Y, 2)), vars: $(join(s.varnames, ", ")))")
+                end
                 return
             elseif args[2] == "current"
-                if session_has_data(s)
-                    println("$(s.data_path) ($(size(s.Y, 1))×$(size(s.Y, 2)))")
+                if wants_help
+                    println(output, "usage: data current")
+                    return
+                end
+                if wants_json
+                    cached_str = isempty(s.results) ? "" : join(sort!(String[string(k) for k in keys(s.results)]), ", ")
+                    _repl_emit_json_envelope(
+                        output, "friedman data current", "data_current",
+                        String["loaded", "data_path", "rows", "cols", "cached_results"],
+                        Vector{Any}[Any[session_has_data(s), s.data_path,
+                                        session_has_data(s) ? size(s.Y, 1) : 0,
+                                        session_has_data(s) ? size(s.Y, 2) : 0,
+                                        cached_str]],
+                    )
+                elseif session_has_data(s)
+                    println(output, "$(s.data_path) ($(size(s.Y, 1))×$(size(s.Y, 2)))")
                     if !isempty(s.results)
-                        println("Cached results: $(join(keys(s.results), ", "))")
+                        println(output, "Cached results: $(join(keys(s.results), ", "))")
                     end
                 else
-                    println("No data loaded")
+                    println(output, "No data loaded")
                 end
                 return
             elseif args[2] == "clear"
+                if wants_help
+                    println(output, "usage: data clear")
+                    return
+                end
                 session_clear!(s)
-                printstyled("✓ "; color=:green)
-                println("Data and results cleared")
+                if wants_json
+                    _repl_emit_json_envelope(
+                        output, "friedman data clear", "data_clear",
+                        String["cleared"], Vector{Any}[Any[true]],
+                    )
+                elseif !quiet
+                    printstyled(output, "✓ "; color=:green)
+                    println(output, "Data and results cleared")
+                end
                 return
             end
         end
@@ -374,6 +503,7 @@ function repl_dispatch(s::Session, app::Entry, args::Vector{String}; err::IO=std
         @isdefined(_QUIET) && (_QUIET[] = prev_quiet)
         @isdefined(_COLOR) && (_COLOR[] = prev_color)
         @isdefined(_SEED)  && (_SEED[] = prev_seed)
+        @isdefined(_FORCE_JSON) && (_FORCE_JSON[] = prev_fjson)
     end
 end
 
@@ -403,7 +533,7 @@ function _exec_repl_line!(
 
     args = _split_repl_line(line)
     try
-        repl_dispatch(s, app, args; err=err)
+        repl_dispatch(s, app, args; output=output, err=err)
     catch e
         if e isa InterruptException
             println(output, "Goodbye!")
@@ -427,7 +557,7 @@ override via `FRIEDMAN_HISTFILE`. Setting `FRIEDMAN_HISTFILE` to `""`, `"none"`,
 `"off"`, `"false"`, or `"0"` disables disk persistence for the session.
 """
 function _resolve_histfile()::String
-    raw = get(ENV, "FRIEDMAN_HISTFILE", nothing)
+    raw = get(ENV, "FRIEDMAN_HISTFILE", get(ENV, "FRIEDMAN_HISTORY_FILE", nothing))
     if raw === nothing
         return joinpath(_expanduser("~"), ".friedman_history")
     end
@@ -511,31 +641,38 @@ Split a REPL input line into tokens, respecting quoted strings.
 """
 function _split_repl_line(line::String)
     tokens = String[]
-    i = 1
-    while i <= length(line)
-        while i <= length(line) && isspace(line[i])
-            i += 1
-        end
-        i > length(line) && break
+    buf = IOBuffer()
+    in_token = false
+    quote_char::Union{Nothing,Char} = nothing
+    escaped = false
 
-        if line[i] == '"'
-            j = findnext('"', line, i + 1)
-            if isnothing(j)
-                push!(tokens, line[(i + 1):end])
-                break
+    for ch in line
+        if escaped
+            write(buf, ch)
+            escaped = false
+            in_token = true
+        elseif quote_char !== nothing
+            if ch == quote_char
+                quote_char = nothing
+            elseif ch == '\\' && quote_char == '"'
+                escaped = true
+            else
+                write(buf, ch)
             end
-            push!(tokens, line[(i + 1):(j - 1)])
-            i = j + 1
+        elseif isspace(ch)
+            if in_token
+                push!(tokens, String(take!(buf)))
+                in_token = false
+            end
+        elseif ch == '"' || ch == '\''
+            quote_char = ch
+            in_token = true
         else
-            j = findnext(isspace, line, i)
-            if isnothing(j)
-                push!(tokens, line[i:end])
-                break
-            end
-            push!(tokens, line[i:(j - 1)])
-            i = j
+            write(buf, ch)
+            in_token = true
         end
     end
+    in_token && push!(tokens, String(take!(buf)))
     return tokens
 end
 
@@ -569,6 +706,19 @@ function build_completion_index(app::Entry)::CompletionIndex
         end
     end
     walk(app.root, String[])
+    # Add REPL-only built-ins to the completion tree
+    top = get!(children, String[], String[])
+    for b in ("exit", "quit")
+        b in top || push!(top, b)
+    end
+    sort!(top)
+    if haskey(children, ["data"])
+        dk = children[["data"]]
+        for b in ("use", "current", "clear")
+            b in dk || push!(dk, b)
+        end
+        sort!(dk)
+    end
     return CompletionIndex(children, leaf_opts)
 end
 
@@ -587,6 +737,36 @@ end
 function _reset_completion_index!(app::Entry)
     _COMPLETION_INDEX[] = build_completion_index(app)
     return _COMPLETION_INDEX[]
+end
+
+function _complete_datasets(prefix::String)::Vector{String}
+    @isdefined(EXAMPLE_DATASETS) || return String[]
+    cands = sort!(String[":" * string(k) for k in EXAMPLE_DATASETS])
+    return _filter_prefix(cands, prefix)
+end
+
+function _complete_paths(prefix::String)::Vector{String}
+    exp = isempty(prefix) ? "." : _expanduser(prefix)
+    trailing_sep = !isempty(prefix) && endswith(prefix, "/")
+    dir_part, base_part = trailing_sep ? (exp, "") : splitdir(exp)
+    search_dir = isempty(dir_part) ? "." : dir_part
+    isdir(search_dir) || return String[]
+    raw_dir = trailing_sep ? prefix :
+              (occursin("/", prefix) ? prefix[1:findlast('/', prefix)] : "")
+    entries = try
+        sort!(readdir(search_dir))
+    catch
+        return String[]
+    end
+    out = String[]
+    for name in entries
+        (!startswith(base_part, ".") && startswith(name, ".")) && continue
+        startswith(name, base_part) || continue
+        full = joinpath(search_dir, name)
+        cand = raw_dir * name * (isdir(full) ? "/" : "")
+        push!(out, cand)
+    end
+    return out
 end
 
 """
@@ -610,7 +790,7 @@ function complete_command(
 
     path = String[]
     for tok in consumed
-        if haskey(idx.leaf_opts, path)
+        if path == ["data", "use"] || haskey(idx.leaf_opts, path)
             continue
         end
         startswith(tok, "-") && return String[]
@@ -621,8 +801,26 @@ function complete_command(
         end
     end
 
+    if path == ["data", "use"]
+        if startswith(prefix, ":")
+            return _complete_datasets(prefix)
+        elseif isempty(prefix)
+            return vcat(_complete_datasets(":"), _complete_paths(""))
+        else
+            return _complete_paths(prefix)
+        end
+    end
+
     if haskey(idx.leaf_opts, path)
-        return _filter_prefix(idx.leaf_opts[path], prefix)
+        if isempty(prefix)
+            return idx.leaf_opts[path]
+        elseif startswith(prefix, "-")
+            return _filter_prefix(idx.leaf_opts[path], prefix)
+        elseif startswith(prefix, ":")
+            return _complete_datasets(prefix)
+        else
+            return _complete_paths(prefix)
+        end
     end
     startswith(prefix, "-") && return String[]
     kids = get(idx.children, path, String[])

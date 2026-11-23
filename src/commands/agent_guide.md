@@ -225,20 +225,26 @@ the top-level help and from this guide.
 friedman serve --mcp    # JSON-RPC 2.0 / Model Context Protocol on stdio
 ```
 
-`serve` requires `--mcp` (the only supported mode). Every other command becomes
-an MCP **tool** — one process, no per-call spawn:
+`serve` requires `--mcp` (the only supported mode). Every command except `serve` and
+`schema` becomes an MCP **tool** — one persistent process, no per-call startup cost
+(recommended alongside `repl` for multi-step or heavy DSGE/Bayesian/volatility
+pipelines). Server startup flags `--families <csv>`, `--tools <csv>`, and `--compact`
+narrow the exposed catalog or omit verbose parameter descriptions:
 
-- **`tools/list`** mirrors the registry: tool name = command path joined with
-  `_` (`estimate_multivariate_var`, `estimate_volatility_garch`, `dsge_bayes_estimate`).
-  Each tool has a `family` field, and its description starts with that family.
-  `inputSchema` is the same draft-07 schema `friedman schema` reports.
-  Pass `params.prefix` to keep one slice (`"estimate volatility"` returns only
-  that family's estimate leaves; `"hadsge"` returns the household leaves).
+- **`tools/list`** mirrors the registry (or the `--families`/`--tools` subset): tool name
+  = command path joined with `_` (`estimate_multivariate_var`, `estimate_volatility_garch`,
+  `dsge_bayes_estimate`). Each tool carries a `family` field and family-prefixed
+  description, and `inputSchema` matches the draft-07 schema `friedman schema` reports
+  (using `anyOf` when `--model`/`--result` substitute for `<data>`, plus optional `seed`
+  and `quiet` per-call parameters). Pass `params.prefix` to keep one slice
+  (`"estimate volatility"` returns only that family's estimate leaves; `"hadsge"` returns
+  the household leaves), and pass `params.cursor` / `limit` to paginate via `nextCursor`.
   An unknown prefix returns `"tools": []` and a successful RPC result, not a
-  JSON-RPC error. Omit `prefix`, or pass `""`, to list every leaf except `serve`.
-- **`tools/call`** reconstructs the exact argv from your arguments object and
-  returns the **envelope verbatim** as text content — same bytes as the CLI,
-  same stable `data` keys, same typed `error.code`/`exit_code` on failure
+  JSON-RPC error. Omit `prefix`, or pass `""`, to list the full configured catalog.
+- **`tools/call`** reconstructs the exact argv from your arguments object (skipping JSON
+  `null` values and forwarding optional per-call `seed`/`quiet` with clean state
+  restoration) and returns the **envelope verbatim** as text content — same bytes as the
+  CLI, same stable `data` keys, same typed `error.code`/`exit_code` on failure
   (`isError` mirrors a nonzero exit class). `--format json` is appended when
   the leaf declares `--format`, so results and failures are exactly one
   envelope. Unknown argument keys are forwarded so the strict parser answers
@@ -261,17 +267,20 @@ an MCP **tool** — one process, no per-call spawn:
 friedman --seed 42 estimate multivariate var data.csv --format json
 ```
 
-`--seed` is a leading global: it seeds the process RNG (`Random.seed!`) on
-every invocation, and `meta.seed` echoes it. On leaves whose estimator accepts
-its own `seed=` keyword, the CLI additionally forwards `--seed` as that
-keyword, so the estimator's recorded reproducibility manifest carries it and
-the draws reproduce bit-for-bit; estimators that expose only an `rng` keyword
-stay reproducible through the global seed alone. Every JSON envelope also
-carries `meta.manifest` — the MacroEconometricModels.jl reproducibility
-manifest (seed, threads, OS, Julia + package + dependency versions, git,
-timestamp) — for provenance. `friedman model reproduce HANDLE` re-runs the
-recorded estimator and reports a match verdict plus per-field diffs
-(`unverifiable` when no seed was recorded — not a pass).
+`--seed` is accepted anywhere before `--` (unless shadowed by a leaf-owned `--seed`
+option): it seeds the process RNG (`Random.seed!`) on every invocation, and
+`meta.seed` echoes it. On leaves whose estimator accepts its own `seed=` keyword,
+the CLI additionally forwards `--seed` as that keyword, so the estimator's recorded
+reproducibility manifest carries it and the draws reproduce bit-for-bit; estimators that
+expose only an `rng` keyword stay reproducible through the global seed alone. Every JSON
+envelope also carries `meta.manifest` — the MacroEconometricModels.jl reproducibility
+manifest (seed, threads, OS, Julia + baked package/dependency versions, git SHAs,
+timestamp) — for provenance. `friedman model reproduce HANDLE` accepts suffix-less
+stems as well as `.jld2`/`.jls`/`.fmod` paths (and `--model SOURCE` for downstream
+results such as `ImpulseResponse`), re-runs the recorded computation, and reports a
+match verdict plus per-field diffs (`"deterministic (no RNG)"` for unseeded
+deterministic models like `VARModel`, or `"unverifiable (no recorded seed)"` when no
+RNG seed was recorded).
 
 ---
 
@@ -279,10 +288,10 @@ recorded estimator and reports a match verdict plus per-field diffs
 
 Three object kinds, each with its own slot. `--result` / `--save-result` skip
 compute and re-render a saved result; `friedman show STEM` renders any loadable
-handle (data, model, result, or a keys-only bundle listing). Tabular data and
-saved models also accept Julia `Serialization` handles (`.jls`) and plain
-`.jld2` tabular payloads (`DataFrame`, `NamedTuple`, `Dict`, `Matrix`) alongside
-native MEMs `.jld2` handles.
+handle (data, model, result, `:example` dataset, `.csv` file, `<stem>.csv` fallback,
+or a keys-only bundle listing). Tabular data and saved models also accept Julia
+`Serialization` handles (`.jls`) and plain `.jld2` tabular payloads (`DataFrame`,
+`NamedTuple`, `Dict`, `Matrix`) alongside native MEMs `.jld2` handles.
 
 | Kind | Argv slot | Native persist |
 |------|-----------|----------------|
@@ -295,7 +304,8 @@ native MEMs `.jld2` handles.
 `model_types`), `--result`, and `friedman show` accept suffix-less stems
 (`macro`, `--save-model var` → `var.jld2`, `--model var` loads `var.jld2`).
 Data load prefers `path.jld2` over `path.csv` and `path.jls` when multiple exist;
-`--model` / `--result` / `show` have no CSV fallback. Downstream leaves that
+`--model` and `--result` have no CSV fallback, while `friedman show` falls back to
+`<stem>.csv` and accepts `:example` / `.csv` directly. Downstream leaves that
 declare `model_types` (`irf`, `fevd`, `hd`, `forecast`, `predict`, `residuals`,
 `policy`, `dsge`, `hadsge`, and post-estimation `test` leaves) also accept a
 saved model/solution handle positionally (`friedman irf var var.jld2`),
@@ -454,17 +464,22 @@ the docs site.
 
 ---
 
-## Leading globals
+## Global flags
 
 | Global | Effect |
 |------|--------|
 | `--seed <int>` / `--seed=<int>` | seed the process RNG; forwarded as the estimator's own `seed=` where supported; echoed in `meta.seed` |
-| `--quiet` / `-q` | suppress CLI status on stderr |
+| `--quiet` / `-q` | suppress CLI status on stderr (runtime warnings emitted via `always_stderr=true` still surface and populate `warnings`) |
 | `--no-color` | disable ANSI (also honors `NO_COLOR`) |
-| `--json` | alias that appends `--format json` when the leaf declares `--format` and no explicit format was given |
+| `--json` | alias that sets `--format json` when no explicit `--format` was given (conflicts with explicit `--format csv` or `table` → exit `2`) |
+| `--compact` | format floats cleanly (4 significant digits) and fit tables to TTY width in table output |
 
-Leading globals only (before the first subcommand token). A mid-argv `--quiet`,
-`--seed`, or `--json` belongs to the leaf parser, not to the global pre-pass.
+All five globals are accepted anywhere before `--` while preserving leaf-owned mid-argv
+`--seed`, `-q`, or `--compact`. With `--format json -o <file>`, the complete multi-table
+`envelope-v1.json` document is written to `<file>` cleanly; with `--format csv` to stdout,
+the single primary RFC 4180 table is emitted (with a stderr note when secondary tables exist,
+or pass `-o <file.csv>` to write per-table CSV files). `-o` data outputs and saved plots
+(`--plot-save`) are recorded in `artifacts`.
 
 ---
 

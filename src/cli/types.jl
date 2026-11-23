@@ -48,19 +48,24 @@ struct Option
     description::String
     choices::Union{Nothing,Vector{String}}
     repeatable::Bool
+    aliases::Vector{String}
+    kwarg::Symbol
 end
 
 Option(name::String; short::String="", type::Type=String, default=nothing,
        description::String="", choices::Union{Nothing,Vector{String}}=nothing,
-       repeatable::Bool=false) =
-    Option(name, short, type, default, description, choices, repeatable)
+       repeatable::Bool=false, aliases::Vector{String}=String[], kwarg::Symbol=Symbol("")) =
+    Option(name, short, type, default, description, choices, repeatable, aliases, kwarg)
 
 # Backward-compatible positional forms (pre-`repeatable` call sites).
 Option(name::String, short::String, type::Type, default, description::String) =
-    Option(name, short, type, default, description, nothing, false)
+    Option(name, short, type, default, description, nothing, false, String[], Symbol(""))
+Option(name::String, short::String, type::Type, default, description::String,
+       choices::Union{Nothing,Vector{String}}, repeatable::Bool) =
+    Option(name, short, type, default, description, choices, repeatable, String[], Symbol(""))
 
 """
-    Flag(name, short, description)
+    Flag(name, short, description, aliases, kwarg)
 
 A boolean command-line flag (e.g. `--verbose` or `-v`).
 """
@@ -68,10 +73,15 @@ struct Flag
     name::String
     short::String
     description::String
+    aliases::Vector{String}
+    kwarg::Symbol
 end
 
-Flag(name::String; short::String="", description::String="") =
-    Flag(name, short, description)
+Flag(name::String; short::String="", description::String="",
+     aliases::Vector{String}=String[], kwarg::Symbol=Symbol("")) =
+    Flag(name, short, description, aliases, kwarg)
+Flag(name::String, short::String, description::String) =
+    Flag(name, short, description, String[], Symbol(""))
 
 """
     LeafCommand(name, handler, args, options, flags, description)
@@ -87,6 +97,7 @@ struct LeafCommand
     description::String
     family::String
     known_opts::Set{String}
+    known_flags::Set{String}
     arg_syms::Vector{Symbol}
     opt_syms::Vector{Symbol}
     flag_syms::Vector{Symbol}
@@ -94,33 +105,46 @@ end
 
 function _leaf_lookup_tables(args::Vector{Argument}, options::Vector{Option}, flags::Vector{Flag})
     known = Set{String}()
+    known_flags = Set{String}()
     sizehint!(known, 2 * (length(options) + length(flags)) + 2)
     push!(known, "help", "h")
+    push!(known_flags, "help", "h")
     opt_syms = Vector{Symbol}(undef, length(options))
     for i in eachindex(options)
         o = options[i]
         push!(known, o.name)
         isempty(o.short) || push!(known, o.short)
-        opt_syms[i] = Symbol(replace(o.name, "-" => "_"))
+        for a in o.aliases
+            push!(known, a)
+        end
+        opt_syms[i] = o.kwarg === Symbol("") ? Symbol(replace(o.name, "-" => "_")) : o.kwarg
     end
     flag_syms = Vector{Symbol}(undef, length(flags))
     for i in eachindex(flags)
         f = flags[i]
         push!(known, f.name)
-        isempty(f.short) || push!(known, f.short)
-        flag_syms[i] = Symbol(replace(f.name, "-" => "_"))
+        push!(known_flags, f.name)
+        if !isempty(f.short)
+            push!(known, f.short)
+            push!(known_flags, f.short)
+        end
+        for a in f.aliases
+            push!(known, a)
+            push!(known_flags, a)
+        end
+        flag_syms[i] = f.kwarg === Symbol("") ? Symbol(replace(f.name, "-" => "_")) : f.kwarg
     end
     arg_syms = Symbol[Symbol(a.name) for a in args]
-    return known, arg_syms, opt_syms, flag_syms
+    return known, known_flags, arg_syms, opt_syms, flag_syms
 end
 
 function LeafCommand(name::String, handler::Function,
                      args::Vector{Argument}, options::Vector{Option},
                      flags::Vector{Flag}, description::String,
                      family::String="")
-    known, arg_syms, opt_syms, flag_syms = _leaf_lookup_tables(args, options, flags)
+    known, known_flags, arg_syms, opt_syms, flag_syms = _leaf_lookup_tables(args, options, flags)
     return LeafCommand(name, handler, args, options, flags, description, family,
-                       known, arg_syms, opt_syms, flag_syms)
+                       known, known_flags, arg_syms, opt_syms, flag_syms)
 end
 
 LeafCommand(name::String, handler::Function;

@@ -61,9 +61,14 @@ const CONFIG_ENUMS = Dict{String,Vector{String}}(
     "identification.method" => ["cholesky", "sign", "narrative", "longrun", "arias", "uhlig",
                                 "narrative-adrr", "proxy", "max-share", "gmm-moments",
                                 "svec", "svar",
-                                "fastica", "jade", "sobi", "dcov", "hsic", "student_t",
-                                "mixture_normal", "pml", "skew_normal", "markov_switching",
-                                "garch_id", "lewis-tvv", "sv-em"],
+                                "fastica", "jade", "sobi", "dcov", "hsic",
+                                "student_t", "student-t",
+                                "mixture_normal", "mixture-normal",
+                                "pml",
+                                "skew_normal", "skew-normal",
+                                "markov_switching", "markov-switching",
+                                "garch_id", "garch-id",
+                                "lewis-tvv", "sv-em"],
     "gmm.weighting" => ["identity", "optimal", "twostep", "iterated", "two_step"],
     "smm.weighting" => ["identity", "optimal", "two_step", "iterated", "twostep"],
     "smm.model" => ["ar1", "arp", "var1", "iid_normal"],
@@ -76,6 +81,8 @@ const CONFIG_ENUMS = Dict{String,Vector{String}}(
 
 # Thread/task-local strict flag set by wrap_legacy from --strict
 const _CONFIG_STRICT = Ref(false)
+# Merged temp config paths created by write_merged_config_toml (already validated & unconfined)
+const _MERGED_CONFIG_PATHS = Set{String}()
 
 """
     load_config(path) → Dict
@@ -83,7 +90,8 @@ const _CONFIG_STRICT = Ref(false)
 Load and validate a TOML configuration file.
 """
 function load_config(path::String)
-    _validate_input_path(path)
+    is_merged = path in _MERGED_CONFIG_PATHS
+    is_merged || _validate_input_path(path)
     resolved = _expanduser(path)
     isfile(resolved) ||
         throw(CliError("config/file-not-found", "config file not found: $path"))
@@ -91,11 +99,35 @@ function load_config(path::String)
         TOML.parsefile(resolved)
     catch e
         e isa CliError && rethrow()
+        if !is_merged && isdefined(@__MODULE__, :_text_looks_like_card) &&
+           isdefined(@__MODULE__, :_slurp_ignoring) &&
+           _text_looks_like_card(_slurp_ignoring(resolved))
+            throw(CliError("config/malformed-toml",
+                           "failed to parse config file '$path': $(sprint(showerror, e))";
+                           hint="'$(basename(path))' is written as a model card; rename it to .card, or write the config as TOML"))
+        end
         throw(CliError("config/malformed-toml",
                        "failed to parse config file '$path': $(sprint(showerror, e))"))
     end
-    validate_config_schema!(cfg; strict=_CONFIG_STRICT[])
+    is_merged || validate_config_schema!(cfg; strict=_CONFIG_STRICT[])
     return cfg
+end
+
+function _check_no_toml_null(x, keypath::String="")
+    if x === nothing
+        throw(CliError("config/malformed-json",
+            "null value at '$(isempty(keypath) ? "<root>" : keypath)' is not supported in TOML config";
+            hint="omit the null key or pass a concrete value"))
+    elseif x isa AbstractDict
+        for (k, v) in x
+            ks = string(k)
+            _check_no_toml_null(v, isempty(keypath) ? ks : "$keypath.$ks")
+        end
+    elseif x isa AbstractVector
+        for (idx, v) in enumerate(x)
+            _check_no_toml_null(v, "$keypath[$idx]")
+        end
+    end
 end
 
 """
@@ -117,6 +149,13 @@ function merge_config(path::String=""; config_json::String="",
             TOML.parsefile(resolved)
         catch e
             e isa CliError && rethrow()
+            if isdefined(@__MODULE__, :_text_looks_like_card) &&
+               isdefined(@__MODULE__, :_slurp_ignoring) &&
+               _text_looks_like_card(_slurp_ignoring(resolved))
+                throw(CliError("config/malformed-toml",
+                               "failed to parse config file '$path': $(sprint(showerror, e))";
+                               hint="'$(basename(path))' is written as a model card; rename it to .card, or write the config as TOML"))
+            end
             throw(CliError("config/malformed-toml",
                            "failed to parse config file '$path': $(sprint(showerror, e))"))
         end
@@ -129,7 +168,11 @@ function merge_config(path::String=""; config_json::String="",
             throw(CliError("config/malformed-json",
                            "failed to parse --config-json: $(sprint(showerror, e))"))
         end
-        deep_merge!(cfg, _json_to_dict(j))
+        j isa AbstractDict || throw(CliError("config/malformed-json",
+            "--config-json must be a JSON object, got $(typeof(j))"))
+        jdict = _json_to_dict(j)
+        _check_no_toml_null(jdict)
+        deep_merge!(cfg, jdict)
     end
     for assignment in set
         apply_set!(cfg, assignment)
@@ -140,10 +183,13 @@ end
 
 """Write a merged config Dict to a temp TOML path (for handlers that call load_config)."""
 function write_merged_config_toml(cfg::AbstractDict)::String
+    _check_no_toml_null(cfg)
     path = tempname() * ".toml"
     open(path, "w") do io
         TOML.print(io, cfg)
     end
+    length(_MERGED_CONFIG_PATHS) > 128 && empty!(_MERGED_CONFIG_PATHS)
+    push!(_MERGED_CONFIG_PATHS, path)
     return path
 end
 
@@ -220,10 +266,16 @@ function _config_unknown!(code::String, msg::String; strict::Bool)
     if strict
         throw(CliError(code, msg, hint="fix the key or drop --strict"))
     end
-    _status_styled("Warning: "; bold=true, color=:yellow)
-    println(stderr, code, ": ", msg)
+    if _QUIET[]
+        # Stay silent under --quiet for non-strict stderr, still attach to envelope
+    else
+        _status_styled("Warning: "; bold=true, color=:yellow)
+        println(stderr, code, ": ", msg)
+    end
     if envelope_active()
-        add_warning!(_ENVELOPE[], code, msg)
+        isdefined(@__MODULE__, :_add_warning_once!) ?
+            _add_warning_once!(_ENVELOPE[], code, msg) :
+            add_warning!(_ENVELOPE[], code, msg)
     end
     return nothing
 end
@@ -291,13 +343,21 @@ function get_identification(config::Dict)
     method = get(id_cfg, "method", "cholesky")
     result = Dict{String,Any}("method" => method)
 
-    if method == "sign"
+    if method == "sign" || haskey(id_cfg, "sign_matrix")
         sm = get(id_cfg, "sign_matrix", Dict())
-        if haskey(sm, "matrix")
-            result["sign_matrix"] = _parse_matrix(sm["matrix"])
-        end
-        if haskey(sm, "horizons")
-            result["horizons"] = Int.(sm["horizons"])
+        if sm isa AbstractDict
+            if haskey(sm, "matrix")
+                result["sign_matrix"] = _parse_matrix(sm["matrix"])
+            end
+            if haskey(sm, "horizons")
+                hs = sm["horizons"]
+                hs isa AbstractVector && all(x -> x isa Integer, hs) || throw(CliError(
+                    "config/invalid", "identification.sign_matrix.horizons must be an array of integers"))
+                result["horizons"] = Int.(hs)
+            end
+        elseif !isnothing(sm)
+            throw(CliError("config/invalid",
+                "identification.sign_matrix must be a table with matrix/horizons"))
         end
     end
 
@@ -831,14 +891,23 @@ end
 function _parse_matrix(rows::Vector)
     n = length(rows)
     n == 0 && return Matrix{Float64}(undef, 0, 0)
+    rows[1] isa AbstractVector || throw(CliError("config/invalid",
+        "matrix must be an array of rows (arrays), got $(typeof(rows[1])) in row 1"))
     m = length(rows[1])
+    m == 0 && throw(CliError("config/invalid", "matrix rows must be non-empty"))
     for i in 2:n
-        length(rows[i]) == m || error("matrix row $i has $(length(rows[i])) elements, expected $m")
+        rows[i] isa AbstractVector || throw(CliError("config/invalid",
+            "matrix row $i must be an array, got $(typeof(rows[i]))"))
+        length(rows[i]) == m || throw(CliError("config/invalid",
+            "matrix row $i has $(length(rows[i])) elements, expected $m"))
     end
     mat = Matrix{Float64}(undef, n, m)
     for i in 1:n
         for j in 1:m
-            mat[i, j] = Float64(rows[i][j])
+            v = rows[i][j]
+            v isa Real || throw(CliError("config/invalid",
+                "matrix cell [$i,$j] must be a number, got $(repr(v))"))
+            mat[i, j] = Float64(v)
         end
     end
     return mat

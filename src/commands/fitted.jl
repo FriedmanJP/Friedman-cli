@@ -317,7 +317,7 @@ function _predict_reg(; data::String="", dep::String="", cov_type::String="hc1",
         w = _load_weights(data, weights)
         cl = _load_clusters(data, clusters)
         model = estimate_reg(y, X; cov_type=Symbol(cov_type), weights=w, varnames=xcols, clusters=cl)
-        dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+        dep_name = _resolve_dep_name(data, dep)
         wls_tag = isnothing(w) ? "OLS" : "WLS"
     else
         xcols = model.varnames
@@ -345,7 +345,7 @@ function _predict_logit(; data::String="", dep::String="", cov_type::String="hc1
         y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
         cl = _load_clusters(data, clusters)
         model = estimate_logit(y, X; cov_type=Symbol(cov_type), varnames=xcols, clusters=cl)
-        dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+        dep_name = _resolve_dep_name(data, dep)
     else
         dep_name = "y"
     end
@@ -412,7 +412,7 @@ function _predict_probit(; data::String="", dep::String="", cov_type::String="hc
         y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
         cl = _load_clusters(data, clusters)
         model = estimate_probit(y, X; cov_type=Symbol(cov_type), varnames=xcols, clusters=cl)
-        dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+        dep_name = _resolve_dep_name(data, dep)
     else
         dep_name = "y"
     end
@@ -463,19 +463,29 @@ end
 
 # ── Panel Regression Predict ────────────────────────────
 
-function _predict_preg(; data::String, dep::String="", indep::String="",
+function _predict_preg(; data::String="", dep::String="", indep::String="",
                         method::String="fe", cov_type::String="cluster",
                         id_col::String="", time_col::String="",
-                        output::String="", format::String="table")
-    isempty(dep) && throw(CliError("usage/missing", "--dep is required";
-        hint="name the dependent variable column, e.g. --dep y"))
-    pd = _load_panel_for_preg(data, id_col, time_col)
-    indep_syms = _parse_indep_vars(pd, dep, indep)
+                        output::String="", format::String="table",
+                        model=nothing)
+    if isnothing(model)
+        isempty(dep) && throw(CliError("usage/missing", "--dep is required";
+            hint="name the dependent variable column, e.g. --dep y"))
+        pd = _load_panel_for_preg(data, id_col, time_col)
+        dep = _resolve_panel_dep(pd, dep)
+        indep_syms = _parse_indep_vars(pd, dep, indep)
+        model = try
+            estimate_xtreg(pd, Symbol(dep), indep_syms;
+                model=_to_sym(method), cov_type=_to_sym(cov_type))
+        catch e
+            throw(_domain_or_data_error(e, "predict preg"))
+        end
+        label_str = "$dep ($method)"
+    else
+        label_str = "model"
+    end
 
-    model = estimate_xtreg(pd, Symbol(dep), indep_syms;
-        model=_to_sym(method), cov_type=_to_sym(cov_type))
-
-    _status("Panel Regression Fitted Values ($method): $dep")
+    _status("Panel Regression Fitted Values: $label_str")
     _status()
 
     fitted = predict(model)
@@ -485,25 +495,36 @@ function _predict_preg(; data::String, dep::String="", indep::String="",
                   key="panel_regression_fitted_values")
 end
 
-function _predict_piv(; data::String, dep::String="", exog::String="",
-                       endog::String="", instruments::String="",
-                       method::String="fe", cov_type::String="cluster",
-                       id_col::String="", time_col::String="",
-                       output::String="", format::String="table")
-    isempty(dep) && throw(CliError("usage/missing", "--dep is required";
-        hint="name the dependent variable column, e.g. --dep y"))
-    isempty(endog) && throw(CliError("usage/missing", "--endog is required";
-        hint="name the endogenous regressor(s), e.g. --endog investment"))
-    pd = _load_panel_for_preg(data, id_col, time_col)
+function _predict_piv(; data::String="", dep::String="", exog::String="",
+                        endog::String="", instruments::String="",
+                        method::String="fe", cov_type::String="cluster",
+                        id_col::String="", time_col::String="",
+                        output::String="", format::String="table",
+                        model=nothing)
+    if isnothing(model)
+        isempty(dep) && throw(CliError("usage/missing", "--dep is required";
+            hint="name the dependent variable column, e.g. --dep y"))
+        isempty(endog) && throw(CliError("usage/missing", "--endog is required";
+            hint="name the endogenous regressor(s), e.g. --endog investment"))
+        pd = _load_panel_for_preg(data, id_col, time_col)
+        dep = _resolve_panel_dep(pd, dep)
 
-    exog_syms = isempty(exog) ? Symbol[] : Symbol[Symbol(strip(s)) for s in split(exog, ",")]
-    endog_syms = Symbol[Symbol(strip(s)) for s in split(endog, ",")]
-    inst_syms = isempty(instruments) ? Symbol[] : Symbol[Symbol(strip(s)) for s in split(instruments, ",")]
+        exog_syms = isempty(exog) ? Symbol[] : Symbol[Symbol(strip(s)) for s in split(exog, ",")]
+        endog_syms = Symbol[Symbol(strip(s)) for s in split(endog, ",")]
+        inst_syms = isempty(instruments) ? Symbol[] : Symbol[Symbol(strip(s)) for s in split(instruments, ",")]
 
-    model = estimate_xtiv(pd, Symbol(dep), exog_syms, endog_syms;
-        instruments=inst_syms, model=_to_sym(method), cov_type=_to_sym(cov_type))
+        model = try
+            estimate_xtiv(pd, Symbol(dep), exog_syms, endog_syms;
+                instruments=inst_syms, model=_to_sym(method), cov_type=_to_sym(cov_type))
+        catch e
+            throw(_domain_or_data_error(e, "predict piv"))
+        end
+        label_str = "$dep ($method)"
+    else
+        label_str = "model"
+    end
 
-    _status("Panel IV Fitted Values ($method): $dep")
+    _status("Panel IV Fitted Values: $label_str")
     _status()
 
     fitted = predict(model)
@@ -513,19 +534,30 @@ function _predict_piv(; data::String, dep::String="", exog::String="",
                   key="panel_iv_fitted_values")
 end
 
-function _predict_plogit(; data::String, dep::String="", indep::String="",
-                          method::String="pooled", cov_type::String="cluster",
-                          id_col::String="", time_col::String="",
-                          output::String="", format::String="table")
-    isempty(dep) && throw(CliError("usage/missing", "--dep is required";
-        hint="name the dependent variable column, e.g. --dep y"))
-    pd = _load_panel_for_preg(data, id_col, time_col)
-    indep_syms = _parse_indep_vars(pd, dep, indep)
+function _predict_plogit(; data::String="", dep::String="", indep::String="",
+                           method::String="pooled", cov_type::String="cluster",
+                           id_col::String="", time_col::String="",
+                           output::String="", format::String="table",
+                           model=nothing)
+    if isnothing(model)
+        isempty(dep) && throw(CliError("usage/missing", "--dep is required";
+            hint="name the dependent variable column, e.g. --dep y"))
+        pd = _load_panel_for_preg(data, id_col, time_col)
+        dep = _resolve_panel_dep(pd, dep)
+        indep_syms = _parse_indep_vars(pd, dep, indep)
 
-    model = estimate_xtlogit(pd, Symbol(dep), indep_syms;
-        model=_to_sym(method), cov_type=_to_sym(cov_type))
+        model = try
+            estimate_xtlogit(pd, Symbol(dep), indep_syms;
+                model=_to_sym(method), cov_type=_to_sym(cov_type))
+        catch e
+            throw(_domain_or_data_error(e, "predict plogit"))
+        end
+        label_str = "$dep ($method)"
+    else
+        label_str = "model"
+    end
 
-    _status("Panel Logit Fitted Probabilities ($method): $dep")
+    _status("Panel Logit Fitted Probabilities: $label_str")
     _status()
 
     fitted = predict(model)
@@ -535,19 +567,30 @@ function _predict_plogit(; data::String, dep::String="", indep::String="",
                   key="panel_logit_fitted_probabilities")
 end
 
-function _predict_pprobit(; data::String, dep::String="", indep::String="",
-                           method::String="pooled", cov_type::String="cluster",
-                           id_col::String="", time_col::String="",
-                           output::String="", format::String="table")
-    isempty(dep) && throw(CliError("usage/missing", "--dep is required";
-        hint="name the dependent variable column, e.g. --dep y"))
-    pd = _load_panel_for_preg(data, id_col, time_col)
-    indep_syms = _parse_indep_vars(pd, dep, indep)
+function _predict_pprobit(; data::String="", dep::String="", indep::String="",
+                            method::String="pooled", cov_type::String="cluster",
+                            id_col::String="", time_col::String="",
+                            output::String="", format::String="table",
+                            model=nothing)
+    if isnothing(model)
+        isempty(dep) && throw(CliError("usage/missing", "--dep is required";
+            hint="name the dependent variable column, e.g. --dep y"))
+        pd = _load_panel_for_preg(data, id_col, time_col)
+        dep = _resolve_panel_dep(pd, dep)
+        indep_syms = _parse_indep_vars(pd, dep, indep)
 
-    model = estimate_xtprobit(pd, Symbol(dep), indep_syms;
-        model=_to_sym(method), cov_type=_to_sym(cov_type))
+        model = try
+            estimate_xtprobit(pd, Symbol(dep), indep_syms;
+                model=_to_sym(method), cov_type=_to_sym(cov_type))
+        catch e
+            throw(_domain_or_data_error(e, "predict pprobit"))
+        end
+        label_str = "$dep ($method)"
+    else
+        label_str = "model"
+    end
 
-    _status("Panel Probit Fitted Probabilities ($method): $dep")
+    _status("Panel Probit Fitted Probabilities: $label_str")
     _status()
 
     fitted = predict(model)
@@ -625,12 +668,21 @@ end
 
 function _predict_ologit(; data::String="", dep::String="", cov_type::String="hc1",
                           clusters::String="", marginal_effects::Bool=false,
-                          output::String="", format::String="table")
-    y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
-    cl = _load_clusters(data, clusters)
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+                          output::String="", format::String="table",
+                          model=nothing)
+    if isnothing(model)
+        y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
+        cl = _load_clusters(data, clusters)
+        dep_name = _resolve_dep_name(data, dep)
 
-    model = estimate_ologit(y, X; cov_type=Symbol(cov_type), varnames=xcols, clusters=cl)
+        model = try
+            estimate_ologit(y, X; cov_type=Symbol(cov_type), varnames=xcols, clusters=cl)
+        catch e
+            throw(_domain_or_data_error(e, "predict ologit"))
+        end
+    else
+        dep_name = "model"
+    end
 
     _status("Ordered Logit Predicted Probabilities: $dep_name")
     _status()
@@ -645,12 +697,21 @@ end
 
 function _predict_oprobit(; data::String="", dep::String="", cov_type::String="hc1",
                            clusters::String="", marginal_effects::Bool=false,
-                           output::String="", format::String="table")
-    y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
-    cl = _load_clusters(data, clusters)
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+                           output::String="", format::String="table",
+                           model=nothing)
+    if isnothing(model)
+        y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
+        cl = _load_clusters(data, clusters)
+        dep_name = _resolve_dep_name(data, dep)
 
-    model = estimate_oprobit(y, X; cov_type=Symbol(cov_type), varnames=xcols, clusters=cl)
+        model = try
+            estimate_oprobit(y, X; cov_type=Symbol(cov_type), varnames=xcols, clusters=cl)
+        catch e
+            throw(_domain_or_data_error(e, "predict oprobit"))
+        end
+    else
+        dep_name = "model"
+    end
 
     _status("Ordered Probit Predicted Probabilities: $dep_name")
     _status()
@@ -665,12 +726,21 @@ end
 
 function _predict_mlogit(; data::String="", dep::String="", cov_type::String="ols",
                           clusters::String="", marginal_effects::Bool=false,
-                          output::String="", format::String="table")
-    y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
-    cl = _load_clusters(data, clusters)
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+                          output::String="", format::String="table",
+                          model=nothing)
+    if isnothing(model)
+        y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
+        cl = _load_clusters(data, clusters)
+        dep_name = _resolve_dep_name(data, dep)
 
-    model = estimate_mlogit(y, X; cov_type=Symbol(cov_type), varnames=xcols, clusters=cl)
+        model = try
+            estimate_mlogit(y, X; cov_type=Symbol(cov_type), varnames=xcols, clusters=cl)
+        catch e
+            throw(_domain_or_data_error(e, "predict mlogit"))
+        end
+    else
+        dep_name = "model"
+    end
 
     _status("Multinomial Logit Predicted Probabilities: $dep_name")
     _status()
@@ -990,7 +1060,7 @@ function _residuals_reg(; data::String="", dep::String="", cov_type::String="hc1
         w = _load_weights(data, weights)
         cl = _load_clusters(data, clusters)
         model = estimate_reg(y, X; cov_type=Symbol(cov_type), weights=w, varnames=xcols, clusters=cl)
-        dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+        dep_name = _resolve_dep_name(data, dep)
         wls_tag = isnothing(w) ? "OLS" : "WLS"
     else
         xcols = model.varnames
@@ -1016,7 +1086,7 @@ function _residuals_logit(; data::String="", dep::String="", cov_type::String="h
         y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
         cl = _load_clusters(data, clusters)
         model = estimate_logit(y, X; cov_type=Symbol(cov_type), varnames=xcols, clusters=cl)
-        dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+        dep_name = _resolve_dep_name(data, dep)
     else
         xcols = model.varnames
         dep_name = "y"
@@ -1039,7 +1109,7 @@ function _residuals_probit(; data::String="", dep::String="", cov_type::String="
         y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
         cl = _load_clusters(data, clusters)
         model = estimate_probit(y, X; cov_type=Symbol(cov_type), varnames=xcols, clusters=cl)
-        dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+        dep_name = _resolve_dep_name(data, dep)
     else
         xcols = model.varnames
         dep_name = "y"
@@ -1057,16 +1127,27 @@ end
 function _residuals_preg(; data::String="", dep::String="", indep::String="",
                           method::String="fe", cov_type::String="cluster",
                           id_col::String="", time_col::String="",
-                          output::String="", format::String="table")
-    isempty(dep) && throw(CliError("usage/missing", "--dep is required";
-        hint="name the dependent variable column, e.g. --dep y"))
-    pd = _load_panel_for_preg(data, id_col, time_col)
-    indep_syms = _parse_indep_vars(pd, dep, indep)
+                          output::String="", format::String="table",
+                          model=nothing)
+    if isnothing(model)
+        isempty(dep) && throw(CliError("usage/missing", "--dep is required";
+            hint="name the dependent variable column, e.g. --dep y"))
+        pd = _load_panel_for_preg(data, id_col, time_col)
+        dep = _resolve_panel_dep(pd, dep)
+        indep_syms = _parse_indep_vars(pd, dep, indep)
 
-    model = estimate_xtreg(pd, Symbol(dep), indep_syms;
-        model=_to_sym(method), cov_type=_to_sym(cov_type))
+        model = try
+            estimate_xtreg(pd, Symbol(dep), indep_syms;
+                model=_to_sym(method), cov_type=_to_sym(cov_type))
+        catch e
+            throw(_domain_or_data_error(e, "residuals preg"))
+        end
+        label_str = "$dep ($method)"
+    else
+        label_str = "model"
+    end
 
-    _status("Panel Regression Residuals ($method): $dep")
+    _status("Panel Regression Residuals: $label_str")
     _status()
 
     resid = residuals(model)
@@ -1080,21 +1161,32 @@ function _residuals_piv(; data::String="", dep::String="", exog::String="",
                          endog::String="", instruments::String="",
                          method::String="fe", cov_type::String="cluster",
                          id_col::String="", time_col::String="",
-                         output::String="", format::String="table")
-    isempty(dep) && throw(CliError("usage/missing", "--dep is required";
-        hint="name the dependent variable column, e.g. --dep y"))
-    isempty(endog) && throw(CliError("usage/missing", "--endog is required";
-        hint="name the endogenous regressor(s), e.g. --endog investment"))
-    pd = _load_panel_for_preg(data, id_col, time_col)
+                         output::String="", format::String="table",
+                         model=nothing)
+    if isnothing(model)
+        isempty(dep) && throw(CliError("usage/missing", "--dep is required";
+            hint="name the dependent variable column, e.g. --dep y"))
+        isempty(endog) && throw(CliError("usage/missing", "--endog is required";
+            hint="name the endogenous regressor(s), e.g. --endog investment"))
+        pd = _load_panel_for_preg(data, id_col, time_col)
+        dep = _resolve_panel_dep(pd, dep)
 
-    exog_syms = isempty(exog) ? Symbol[] : Symbol[Symbol(strip(s)) for s in split(exog, ",")]
-    endog_syms = Symbol[Symbol(strip(s)) for s in split(endog, ",")]
-    inst_syms = isempty(instruments) ? Symbol[] : Symbol[Symbol(strip(s)) for s in split(instruments, ",")]
+        exog_syms = isempty(exog) ? Symbol[] : Symbol[Symbol(strip(s)) for s in split(exog, ",")]
+        endog_syms = Symbol[Symbol(strip(s)) for s in split(endog, ",")]
+        inst_syms = isempty(instruments) ? Symbol[] : Symbol[Symbol(strip(s)) for s in split(instruments, ",")]
 
-    model = estimate_xtiv(pd, Symbol(dep), exog_syms, endog_syms;
-        instruments=inst_syms, model=_to_sym(method), cov_type=_to_sym(cov_type))
+        model = try
+            estimate_xtiv(pd, Symbol(dep), exog_syms, endog_syms;
+                instruments=inst_syms, model=_to_sym(method), cov_type=_to_sym(cov_type))
+        catch e
+            throw(_domain_or_data_error(e, "residuals piv"))
+        end
+        label_str = "$dep ($method)"
+    else
+        label_str = "model"
+    end
 
-    _status("Panel IV Residuals ($method): $dep")
+    _status("Panel IV Residuals: $label_str")
     _status()
 
     resid = residuals(model)
@@ -1107,19 +1199,30 @@ end
 function _residuals_plogit(; data::String="", dep::String="", indep::String="",
                             method::String="pooled", cov_type::String="cluster",
                             id_col::String="", time_col::String="",
-                            output::String="", format::String="table")
-    isempty(dep) && throw(CliError("usage/missing", "--dep is required";
-        hint="name the dependent variable column, e.g. --dep y"))
-    pd = _load_panel_for_preg(data, id_col, time_col)
-    indep_syms = _parse_indep_vars(pd, dep, indep)
+                            output::String="", format::String="table",
+                            model=nothing)
+    if isnothing(model)
+        isempty(dep) && throw(CliError("usage/missing", "--dep is required";
+            hint="name the dependent variable column, e.g. --dep y"))
+        pd = _load_panel_for_preg(data, id_col, time_col)
+        dep = _resolve_panel_dep(pd, dep)
+        indep_syms = _parse_indep_vars(pd, dep, indep)
 
-    model = estimate_xtlogit(pd, Symbol(dep), indep_syms;
-        model=_to_sym(method), cov_type=_to_sym(cov_type))
+        model = try
+            estimate_xtlogit(pd, Symbol(dep), indep_syms;
+                model=_to_sym(method), cov_type=_to_sym(cov_type))
+        catch e
+            throw(_domain_or_data_error(e, "residuals plogit"))
+        end
+        label_str = "$dep ($method)"
+    else
+        label_str = "model"
+    end
 
-    _status("Panel Logit Residuals ($method): $dep")
+    _status("Panel Logit Residuals: $label_str")
     _status()
 
-    resid = residuals(model)
+    resid = Float64.(model.y) .- Float64.(predict(model))
     res_df = DataFrame(observation=1:length(resid), residual=round.(resid; digits=6))
     output_result(res_df; format=Symbol(format), output=output,
                   title="Panel Logit Residuals ($method)",
@@ -1129,19 +1232,30 @@ end
 function _residuals_pprobit(; data::String="", dep::String="", indep::String="",
                              method::String="pooled", cov_type::String="cluster",
                              id_col::String="", time_col::String="",
-                             output::String="", format::String="table")
-    isempty(dep) && throw(CliError("usage/missing", "--dep is required";
-        hint="name the dependent variable column, e.g. --dep y"))
-    pd = _load_panel_for_preg(data, id_col, time_col)
-    indep_syms = _parse_indep_vars(pd, dep, indep)
+                             output::String="", format::String="table",
+                             model=nothing)
+    if isnothing(model)
+        isempty(dep) && throw(CliError("usage/missing", "--dep is required";
+            hint="name the dependent variable column, e.g. --dep y"))
+        pd = _load_panel_for_preg(data, id_col, time_col)
+        dep = _resolve_panel_dep(pd, dep)
+        indep_syms = _parse_indep_vars(pd, dep, indep)
 
-    model = estimate_xtprobit(pd, Symbol(dep), indep_syms;
-        model=_to_sym(method), cov_type=_to_sym(cov_type))
+        model = try
+            estimate_xtprobit(pd, Symbol(dep), indep_syms;
+                model=_to_sym(method), cov_type=_to_sym(cov_type))
+        catch e
+            throw(_domain_or_data_error(e, "residuals pprobit"))
+        end
+        label_str = "$dep ($method)"
+    else
+        label_str = "model"
+    end
 
-    _status("Panel Probit Residuals ($method): $dep")
+    _status("Panel Probit Residuals: $label_str")
     _status()
 
-    resid = residuals(model)
+    resid = Float64.(model.y) .- Float64.(predict(model))
     res_df = DataFrame(observation=1:length(resid), residual=round.(resid; digits=6))
     output_result(res_df; format=Symbol(format), output=output,
                   title="Panel Probit Residuals ($method)",
@@ -1216,12 +1330,21 @@ end
 function _residuals_ologit(; data::String="", dep::String="", cov_type::String="hc1",
                             clusters::String="", kind::String="response",
                             generalized::Bool=false,
-                            output::String="", format::String="table")
-    y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
-    cl = _load_clusters(data, clusters)
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+                            output::String="", format::String="table",
+                            model=nothing)
+    if isnothing(model)
+        y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
+        cl = _load_clusters(data, clusters)
+        dep_name = _resolve_dep_name(data, dep)
 
-    model = estimate_ologit(y, X; cov_type=Symbol(cov_type), varnames=xcols, clusters=cl)
+        model = try
+            estimate_ologit(y, X; cov_type=Symbol(cov_type), varnames=xcols, clusters=cl)
+        catch e
+            throw(_domain_or_data_error(e, "residuals ologit"))
+        end
+    else
+        dep_name = "model"
+    end
 
     _status("Ordered Logit Residuals: $dep_name")
     _status()
@@ -1233,12 +1356,21 @@ end
 function _residuals_oprobit(; data::String="", dep::String="", cov_type::String="hc1",
                              clusters::String="", kind::String="response",
                              generalized::Bool=false,
-                             output::String="", format::String="table")
-    y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
-    cl = _load_clusters(data, clusters)
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+                             output::String="", format::String="table",
+                             model=nothing)
+    if isnothing(model)
+        y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
+        cl = _load_clusters(data, clusters)
+        dep_name = _resolve_dep_name(data, dep)
 
-    model = estimate_oprobit(y, X; cov_type=Symbol(cov_type), varnames=xcols, clusters=cl)
+        model = try
+            estimate_oprobit(y, X; cov_type=Symbol(cov_type), varnames=xcols, clusters=cl)
+        catch e
+            throw(_domain_or_data_error(e, "residuals oprobit"))
+        end
+    else
+        dep_name = "model"
+    end
 
     _status("Ordered Probit Residuals: $dep_name")
     _status()
@@ -1249,12 +1381,21 @@ end
 
 function _residuals_mlogit(; data::String="", dep::String="", cov_type::String="ols",
                             clusters::String="", kind::String="response",
-                            output::String="", format::String="table")
-    y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
-    cl = _load_clusters(data, clusters)
-    dep_name = isempty(dep) ? variable_names(load_data(data))[1] : dep
+                            output::String="", format::String="table",
+                            model=nothing)
+    if isnothing(model)
+        y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
+        cl = _load_clusters(data, clusters)
+        dep_name = _resolve_dep_name(data, dep)
 
-    model = estimate_mlogit(y, X; cov_type=Symbol(cov_type), varnames=xcols, clusters=cl)
+        model = try
+            estimate_mlogit(y, X; cov_type=Symbol(cov_type), varnames=xcols, clusters=cl)
+        catch e
+            throw(_domain_or_data_error(e, "residuals mlogit"))
+        end
+    else
+        dep_name = "model"
+    end
 
     _status("Multinomial Logit Residuals: $dep_name")
     _status()
@@ -1632,15 +1773,15 @@ function _opts_for_kind(kind::Symbol, verb::Symbol)
         # default made every predict|residuals static|dynamic|gdfm invocation a
         # MethodError (exit 1), hidden by zero coverage on the whole sub-family.
         return [
-            OptionSpec(name="nfactors", short="r", type=Int, default=nothing,
+            OptionSpec(name="nfactors", type=Int, default=nothing,
                        description="Number of factors (default: auto via IC)"),
             OUTPUT_OPTIONS...,
         ]
     elseif kind === :factor_dynamic
         return [
-            OptionSpec(name="nfactors", short="r", type=Int, default=nothing,
+            OptionSpec(name="nfactors", type=Int, default=nothing,
                        description="Number of factors (default: auto via IC)"),
-            OptionSpec(name="factor-lags", short="p", type=Int, default=1,
+            OptionSpec(name="factor-lags", type=Int, default=1,
                        description="Factor VAR lag order"),
             OptionSpec(name="method", type=String, default="twostep",
                        description="twostep|qml estimation method"),
@@ -1650,7 +1791,7 @@ function _opts_for_kind(kind::Symbol, verb::Symbol)
         return [
             OptionSpec(name="nfactors", type=Int, default=nothing,
                        description="Number of static factors (accepted but has no effect: the number of factors is chosen automatically)"),
-            OptionSpec(name="dynamic-rank", short="q", type=Int, default=nothing,
+            OptionSpec(name="dynamic-rank", type=Int, default=nothing,
                        description="Dynamic rank (default: auto)"),
             OUTPUT_OPTIONS...,
         ]
@@ -1672,7 +1813,7 @@ function _opts_for_kind(kind::Symbol, verb::Symbol)
         ]
     elseif kind === :favar
         return [
-            OptionSpec(name="factors", short="r", type=Int, default=nothing, description="Number of factors"),
+            OptionSpec(name="factors", type=Int, default=nothing, description="Number of factors"),
             OptionSpec(name="lags", short="p", type=Int, default=2, description="VAR lags"),
             OptionSpec(name="key-vars", type=String, default="", description="Key variables"),
             OUTPUT_OPTIONS...,
@@ -1741,7 +1882,7 @@ function predict_specs()::Vector{CommandSpec}
                            choices=["robust", "mle", "hc0", "hc1", "hc2", "hc3", "cluster"],
                            description="robust (QMLE sandwich, default), mle, hc0-hc3, cluster"),
                 OptionSpec(name="clusters", type=String, default="", description="Cluster variable column name"),
-                OptionSpec(name="maxiter", type=Int, default=100, description="Maximum IRLS iterations (≥ 1)"),
+                OptionSpec(name="max-iter", aliases=["maxiter"], kwarg=:maxiter, type=Int, default=100, description="Maximum IRLS iterations (≥ 1)"),
                 OptionSpec(name="tol", type=Float64, default=1e-10, description="Convergence tolerance (> 0)"),
                 OUTPUT_OPTIONS...],
             flags=FlagSpec[],
@@ -1754,7 +1895,7 @@ function predict_specs()::Vector{CommandSpec}
             summary="Fitted negative-binomial conditional means exp(x'b + offset)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[COUNT_COMMON_OPTIONS...,
-                OptionSpec(name="maxiter", type=Int, default=1000, description="Maximum iterations (≥ 1)"),
+                OptionSpec(name="max-iter", aliases=["maxiter"], kwarg=:maxiter, type=Int, default=1000, description="Maximum iterations (≥ 1)"),
                 OptionSpec(name="tol", type=Float64, default=1e-10, description="Convergence tolerance (> 0)"),
                 OUTPUT_OPTIONS...],
             flags=FlagSpec[],
@@ -1780,7 +1921,8 @@ function predict_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
-            flags=[FlagSpec(name="switching-variance", description="Let σ² switch across regimes (default: off, Hamilton form)")],
+            flags=[FlagSpec(name="switching-variance", description="Let σ² switch across regimes (default for ms-ar: off)"),
+                   FlagSpec(name="no-switching-variance", description="Force common σ² across regimes")],
             tables=_fitted_tables(:predict, "ms-ar"),
             category="predict",
             handler=_predict_ms_ar,
@@ -1798,7 +1940,8 @@ function predict_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
-            flags=[FlagSpec(name="no-switching-variance", description="Force common σ² across regimes (default: σ² switches)")],
+            flags=[FlagSpec(name="switching-variance", description="Let σ² switch across regimes (default for ms: on)"),
+                   FlagSpec(name="no-switching-variance", description="Force common σ² across regimes")],
             tables=_fitted_tables(:predict, "ms"),
             category="predict",
             handler=_predict_ms,
@@ -2049,7 +2192,8 @@ function residuals_specs()::Vector{CommandSpec}
             ],
             # NOTE the OPPOSITE default from `residuals ms` below — ms-ar's switching_variance
             # is FALSE upstream (Hamilton form), ms regression's is TRUE. Do not unify them.
-            flags=[FlagSpec(name="switching-variance", description="Let σ² switch across regimes (default: off, Hamilton form)")],
+            flags=[FlagSpec(name="switching-variance", description="Let σ² switch across regimes (default for ms-ar: off)"),
+                   FlagSpec(name="no-switching-variance", description="Force common σ² across regimes")],
             tables=_fitted_tables(:residuals, "ms-ar"),
             category="residuals",
             handler=_residuals_ms_ar,
@@ -2066,7 +2210,8 @@ function residuals_specs()::Vector{CommandSpec}
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
-            flags=[FlagSpec(name="no-switching-variance", description="Force common σ² across regimes (default: σ² switches)")],
+            flags=[FlagSpec(name="switching-variance", description="Let σ² switch across regimes (default for ms: on)"),
+                   FlagSpec(name="no-switching-variance", description="Force common σ² across regimes")],
             tables=_fitted_tables(:residuals, "ms"),
             category="residuals",
             handler=_residuals_ms,
@@ -2095,7 +2240,7 @@ function residuals_specs()::Vector{CommandSpec}
                            choices=["robust", "mle", "hc0", "hc1", "hc2", "hc3", "cluster"],
                            description="robust (QMLE sandwich, default), mle, hc0-hc3, cluster"),
                 OptionSpec(name="clusters", type=String, default="", description="Cluster variable column name"),
-                OptionSpec(name="maxiter", type=Int, default=100, description="Maximum IRLS iterations (≥ 1)"),
+                OptionSpec(name="max-iter", aliases=["maxiter"], kwarg=:maxiter, type=Int, default=100, description="Maximum IRLS iterations (≥ 1)"),
                 OptionSpec(name="tol", type=Float64, default=1e-10, description="Convergence tolerance (> 0)"),
                 OUTPUT_OPTIONS...],
             flags=FlagSpec[],
@@ -2108,7 +2253,7 @@ function residuals_specs()::Vector{CommandSpec}
             summary="Model residuals (negative-binomial)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[COUNT_COMMON_OPTIONS...,
-                OptionSpec(name="maxiter", type=Int, default=1000, description="Maximum iterations (≥ 1)"),
+                OptionSpec(name="max-iter", aliases=["maxiter"], kwarg=:maxiter, type=Int, default=1000, description="Maximum iterations (≥ 1)"),
                 OptionSpec(name="tol", type=Float64, default=1e-10, description="Convergence tolerance (> 0)"),
                 OUTPUT_OPTIONS...],
             flags=FlagSpec[],

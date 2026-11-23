@@ -19,6 +19,8 @@ Print bash completion script
 |--------|-------|------|---------|---------|-------------|
 | `--output` | `-o` | `String` | `""` | — | Write script to file instead of stdout |
 
+**Output tables:** `completion_script` (Generated shell completion script (under --json))
+
 ### [`friedman completions fish`](@id ref-completions-fish)
 
 Print fish completion script
@@ -27,6 +29,8 @@ Print fish completion script
 |--------|-------|------|---------|---------|-------------|
 | `--output` | `-o` | `String` | `""` | — | Write script to file instead of stdout |
 
+**Output tables:** `completion_script` (Generated shell completion script (under --json))
+
 ### [`friedman completions zsh`](@id ref-completions-zsh)
 
 Print zsh completion script
@@ -34,4 +38,6 @@ Print zsh completion script
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--output` | `-o` | `String` | `""` | — | Write script to file instead of stdout |
+
+**Output tables:** `completion_script` (Generated shell completion script (under --json))
 

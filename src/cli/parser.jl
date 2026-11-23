@@ -48,18 +48,20 @@ function _looks_like_value(t::AbstractString)
 end
 
 """
-    tokenize(tokens) → ParsedArgs
+    tokenize(tokens, [cmd]) → ParsedArgs
 
 Parse raw CLI tokens into positional args, options, and flags.
-Handles: `--option=value`, `--option value`, `-o value`, `--flag`, `-f`, positional args.
+Handles: `--option=value`, `--option value`, `-o=value`, `-o value`, `--flag`, `-f`, positional args.
+When `cmd` is provided, known boolean flags never consume the next positional token.
 `--` stops option parsing (everything after is positional).
 Negative numeric values (`-0.5`, `-3`) bind as option values (F2).
 """
-function tokenize(tokens::Vector{String})
+function tokenize(tokens::Vector{String}, cmd::Union{Nothing,LeafCommand}=nothing)
     positional = String[]
     options = Dict{String,String}()
     flags = Set{String}()
     multi = Dict{String,Vector{String}}()
+    is_flag(k::AbstractString) = cmd !== nothing && (String(k) in cmd.known_flags)
     i = 1
     stop_parsing = false
     while i <= length(tokens)
@@ -76,6 +78,8 @@ function tokenize(tokens::Vector{String})
                 k, v = split(body, '='; limit=2)
                 options[k] = v
                 push!(get!(multi, k, String[]), v)
+            elseif is_flag(body)
+                push!(flags, body)
             elseif i + 1 <= length(tokens) && _looks_like_value(tokens[i+1])
                 options[body] = tokens[i+1]
                 push!(get!(multi, body, String[]), tokens[i+1])
@@ -87,9 +91,17 @@ function tokenize(tokens::Vector{String})
             i += 1
         elseif startswith(tok, "-") && length(tok) > 1
             short = tok[2:end]
-            if length(short) == 1
-                # Single short option
-                if i + 1 <= length(tokens) && _looks_like_value(tokens[i+1])
+            if length(short) >= 2 && short[2] == '='
+                # Short option with '=': -f=json
+                k = string(short[1])
+                v = short[3:end]
+                options[k] = v
+                push!(get!(multi, k, String[]), v)
+            elseif length(short) == 1
+                # Single short option / flag
+                if is_flag(short)
+                    push!(flags, short)
+                elseif i + 1 <= length(tokens) && _looks_like_value(tokens[i+1])
                     options[short] = tokens[i+1]
                     push!(get!(multi, short, String[]), tokens[i+1])
                     i += 1
@@ -111,19 +123,46 @@ function tokenize(tokens::Vector{String})
     return ParsedArgs(positional, options, flags, multi)
 end
 
+_fmt_opt_name(k::AbstractString) = ncodeunits(k) == 1 ? "-$k" : "--$k"
+
+function _choice_match(raw::String, choices::Vector{String})
+    raw in choices && return raw
+    norm_raw = replace(raw, "_" => "-")
+    for c in choices
+        replace(c, "_" => "-") == norm_raw && return c
+    end
+    return nothing
+end
+
 """
     resolve_option(parsed, opt) → value or default
 
-Look up an Option by its long name or short alias and convert to the target type.
+Look up an Option by its long name, short alias, or long aliases and convert to the target type.
 """
 function resolve_option(parsed::ParsedArgs, opt::Option)
-    raw = get(parsed.options, opt.name, nothing)
-    if isnothing(raw) && !isempty(opt.short)
-        raw = get(parsed.options, opt.short, nothing)
+    spellings = String[opt.name]
+    isempty(opt.short) || push!(spellings, opt.short)
+    append!(spellings, opt.aliases)
+
+    found_keys = String[]
+    found_vals = String[]
+    for sp in spellings
+        if haskey(parsed.options, sp)
+            push!(found_keys, sp)
+            push!(found_vals, parsed.options[sp])
+        end
     end
-    isnothing(raw) && return opt.default
-    if opt.choices !== nothing && !(raw in opt.choices)
-        throw(ParseError("option --$(opt.name) must be one of $(join(opt.choices, "|")), got '$raw'"))
+    if length(found_keys) > 1
+        throw(ParseError("conflicting options: specify only one of $(join(_fmt_opt_name.(found_keys), ", "))"))
+    end
+    isempty(found_vals) && return opt.default
+    raw = found_vals[1]
+    if opt.choices !== nothing
+        matched = _choice_match(raw, opt.choices)
+        if matched === nothing
+            throw(ParseError("option --$(opt.name) must be one of $(join(opt.choices, "|")), got '$raw'"))
+        end
+        raw = matched
     end
     return convert_value(opt.type, raw, opt.name)
 end
@@ -131,11 +170,14 @@ end
 """
     resolve_flag(parsed, flag) → Bool
 
-Check if a Flag was set (by long name or short alias).
+Check if a Flag was set (by long name, short alias, or long aliases).
 """
 function resolve_flag(parsed::ParsedArgs, flag::Flag)
     flag.name in parsed.flags && return true
     !isempty(flag.short) && flag.short in parsed.flags && return true
+    for a in flag.aliases
+        a in parsed.flags && return true
+    end
     return false
 end
 
@@ -227,23 +269,23 @@ function bind_args(parsed::ParsedArgs, cmd::LeafCommand; has_extra_model::Bool=f
     for k in keys(parsed.options)
         if !(k in known)
             sugg = _nearest(k, known)
-            hint = sugg === nothing ? "" : " — did you mean --$sugg?"
-            throw(ParseError("unknown option --$k$hint"))
+            hint = sugg === nothing ? "" : " — did you mean $(_fmt_opt_name(sugg))?"
+            throw(ParseError("unknown option $(_fmt_opt_name(k))$hint"))
         end
     end
     for k in parsed.flags
         if !(k in known)
             sugg = _nearest(k, known)
-            hint = sugg === nothing ? "" : " — did you mean --$sugg?"
-            throw(ParseError("unknown option --$k$hint"))
+            hint = sugg === nothing ? "" : " — did you mean $(_fmt_opt_name(sugg))?"
+            throw(ParseError("unknown option $(_fmt_opt_name(k))$hint"))
         end
     end
     if !isempty(parsed.multi)
         for k in keys(parsed.multi)
             if !(k in known)
                 sugg = _nearest(k, known)
-                hint = sugg === nothing ? "" : " — did you mean --$sugg?"
-                throw(ParseError("unknown option --$k$hint"))
+                hint = sugg === nothing ? "" : " — did you mean $(_fmt_opt_name(sugg))?"
+                throw(ParseError("unknown option $(_fmt_opt_name(k))$hint"))
             end
         end
     end
@@ -286,9 +328,9 @@ function bind_args(parsed::ParsedArgs, cmd::LeafCommand; has_extra_model::Bool=f
     for (idx, opt) in enumerate(cmd.options)
         key = cmd.opt_syms[idx]
         if opt.repeatable
-            vals = get(parsed.multi, opt.name, String[])
-            if isempty(vals) && !isempty(opt.short)
-                vals = get(parsed.multi, opt.short, String[])
+            vals = String[]
+            for sp in vcat([opt.name], isempty(opt.short) ? String[] : [opt.short], opt.aliases)
+                append!(vals, get(parsed.multi, sp, String[]))
             end
             bound[key] = vals
         else

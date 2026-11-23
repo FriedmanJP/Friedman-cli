@@ -96,7 +96,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="degree", type=Int, default=5, description="Polynomial degree (projection/pfi/vfi)"),
                 OptionSpec(name="grid", type=String, default="auto", description="Grid type: auto|chebyshev|smolyak (vfi: auto|tensor|smolyak; auto routes nx≥4 to Smolyak)"),
                 RA_SOLVER_KNOB_OPTIONS...,
-                OptionSpec(name="horizon", type=Int, default=40, description="IRF horizon"),
+                OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=40, description="IRF horizon"),
                 OptionSpec(name="shock-size", type=Float64, default=1.0, description="Shock size (std devs; perturbation/projection only; ignored for linear solutions)"),
                 OptionSpec(name="n-sim", type=Int, default=0, description="Simulated-path replications for projection solutions (0 = analytical; ignored for linear/perturbation solutions)"),
                 OptionSpec(name="constraints", type=String, default="", description="Path to OccBin constraints TOML (applied to shock 1 only)"),
@@ -125,7 +125,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="degree", type=Int, default=5, description="Polynomial degree (projection/pfi/vfi)"),
                 OptionSpec(name="grid", type=String, default="auto", description="Grid type: auto|chebyshev|smolyak (vfi: auto|tensor|smolyak; auto routes nx≥4 to Smolyak)"),
                 RA_SOLVER_KNOB_OPTIONS...,
-                OptionSpec(name="horizon", type=Int, default=40, description="FEVD horizon"),
+                OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=40, description="FEVD horizon"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
@@ -156,7 +156,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
             ],
             flags=[
-                FlagSpec(name="antithetic", description="Use antithetic sampling for variance reduction (ignored for projection/pfi/vfi simulations)"),
+                FlagSpec(name="antithetic", description="Use antithetic sampling for variance reduction (perturbation solutions order >= 2 only)"),
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
             tables=[TableSpec(name=:dsge_simulation, description="Simulated path of every endogenous variable, burn-in dropped")],
@@ -328,7 +328,7 @@ function dsge_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="Path to DSGE model file (.toml or .jl)")],
             options=[
                 BAYES_OPTIONS...,
-                OptionSpec(name="horizon", type=Int, default=40, description="IRF horizon"),
+                OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=40, description="IRF horizon"),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
             ],
             flags=[
@@ -345,7 +345,7 @@ function dsge_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="Path to DSGE model file (.toml or .jl)")],
             options=[
                 BAYES_OPTIONS...,
-                OptionSpec(name="horizon", type=Int, default=40, description="FEVD horizon"),
+                OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=40, description="FEVD horizon"),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
             ],
             flags=[
@@ -434,7 +434,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="observables", type=String, default="", description="Observable variable names, comma-separated (required — no default)"),
                 OptionSpec(name="n-hd-draws", type=Int, default=200, description="Number of posterior draws for HD"),
                 OptionSpec(name="quantiles", type=String, default="0.16,0.5,0.84", description="Quantile levels"),
-                OptionSpec(name="horizon", type=Int, default=40, description="Horizon (accepted but not used: historical decomposition has no horizon setting)"),
+                OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=40, description="Horizon (accepted but not used: historical decomposition has no horizon setting)"),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
             ],
             flags=[
@@ -569,7 +569,7 @@ function dsge_specs()::Vector{CommandSpec}
             options=[
                 # no --data: prior_predictive draws from the PRIOR and needs none
                 with_default(select_options(BAYES_OPTIONS, "params", "priors", "prior", "observables", "solver",
-                               "order", "constraint-solver", "n-draws", "output", "format"), "n-draws", 500)...,
+                               "order", "constraint-solver", "draws", "output", "format"), "draws", 500)...,
                 OptionSpec(name="periods", type=Int, default=200, description="Periods to simulate per draw (≥ 1)"),
             ],
             flags=FlagSpec[],
@@ -683,7 +683,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="method", type=String, default="reiter",
                            description="HA solution method: ssj|reiter (krusell-smith has no linear IRF)",
                            choices=["ssj", "reiter"]),
-                OptionSpec(name="horizon", type=Int, default=40, description="IRF horizon"),
+                OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=40, description="IRF horizon"),
                 OptionSpec(name="n-reduced", type=Int, default=30, description="Reduced states"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table",
@@ -705,7 +705,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="method", type=String, default="reiter",
                            description="HA solution method: ssj|reiter",
                            choices=["ssj", "reiter"]),
-                OptionSpec(name="horizon", type=Int, default=40, description="FEVD horizon"),
+                OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=40, description="FEVD horizon"),
                 OptionSpec(name="n-reduced", type=Int, default=30, description="Reduced states"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table",
@@ -750,7 +750,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="method", type=String, default="reiter",
                            description="Must be reiter (SSJ has no distribution basis)",
                            choices=["reiter"]),
-                OptionSpec(name="horizon", type=Int, default=40, description="IRF horizon"),
+                OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=40, description="IRF horizon"),
                 OptionSpec(name="shock-index", type=Int, default=1, description="Aggregate shock index (1-based)"),
                 OptionSpec(name="shock-size", type=Float64, default=1.0, description="Shock size (std devs)"),
                 OptionSpec(name="n-reduced", type=Int, default=30, description="Reduced states"),
@@ -773,7 +773,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="method", type=String, default="reiter",
                            description="Must be reiter for dynamic inequality IRF",
                            choices=["reiter"]),
-                OptionSpec(name="horizon", type=Int, default=40, description="IRF horizon"),
+                OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=40, description="IRF horizon"),
                 OptionSpec(name="shock-index", type=Int, default=1, description="Aggregate shock index (1-based)"),
                 OptionSpec(name="shock-size", type=Float64, default=1.0, description="Shock size (std devs)"),
                 OptionSpec(name="n-reduced", type=Int, default=30, description="Reduced states"),
@@ -824,7 +824,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="sampler", type=String, default="mh",
                            description="Posterior sampler: mh (RWMH) or smc",
                            choices=["mh", "smc"]),
-                OptionSpec(name="n-draws", type=Int, default=2000, description="Total RWMH draws (including burn-in)"),
+                OptionSpec(name="draws", aliases=["n-draws"], kwarg=:n_draws, type=Int, default=2000, description="Total RWMH draws (including burn-in)"),
                 OptionSpec(name="burnin", type=Int, default=500, description="Burn-in draws to discard"),
                 OptionSpec(name="n-smc", type=Int, default=500, description="SMC particles (HA sampler)"),
                 OptionSpec(name="n-mh-steps", type=Int, default=1, description="MH mutation steps per SMC stage"),
@@ -952,7 +952,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="sigma", type=Float64, default=2.0, description="CRRA risk aversion"),
                 OptionSpec(name="delta", type=Float64, default=0.05, description="Depreciation"),
                 OptionSpec(name="z", type=Float64, default=1.0, description="TFP level"),
-                OptionSpec(name="horizon", type=Int, default=40, description="IRF horizon (≥ 2)"),
+                OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=40, description="IRF horizon (≥ 2)"),
                 OptionSpec(name="shock-size", type=Float64, default=0.01, description="TFP impulse size"),
                 OptionSpec(name="persist", type=Float64, default=0.0, description="AR(1) decay of the TFP impulse"),
                 OptionSpec(name="dt", type=Float64, default=0.25, description="Time step"),
@@ -980,7 +980,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="sigma", type=Float64, default=2.0, description="CRRA risk aversion"),
                 OptionSpec(name="delta", type=Float64, default=0.05, description="Depreciation"),
                 OptionSpec(name="z", type=Float64, default=1.0, description="TFP level"),
-                OptionSpec(name="horizon", type=Int, default=40, description="FEVD horizon (≥ 2)"),
+                OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=40, description="FEVD horizon (≥ 2)"),
                 OptionSpec(name="shock-size", type=Float64, default=0.01, description="TFP impulse size"),
                 OptionSpec(name="persist", type=Float64, default=0.0, description="AR(1) decay of the TFP impulse"),
                 OptionSpec(name="dt", type=Float64, default=0.25, description="Time step"),
@@ -1035,7 +1035,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="debt", type=Float64, default=0.0, description="Government debt b"),
                 OptionSpec(name="k0", type=Float64, default=0.0,
                            description="Initial capital (0 = 80% of steady-state k)"),
-                OptionSpec(name="horizon", type=Int, default=50, description="Transition periods H"),
+                OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=50, description="Transition periods H"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table",
                            description="table|csv|json", choices=["table","csv","json"]),
@@ -1059,7 +1059,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="debt", type=Float64, default=0.0, description="Government debt b"),
                 OptionSpec(name="rho-z", type=Float64, default=0.0, description="TFP persistence"),
                 OptionSpec(name="sigma-z", type=Float64, default=0.0, description="TFP shock scale"),
-                OptionSpec(name="horizon", type=Int, default=40, description="IRF horizon"),
+                OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=40, description="IRF horizon"),
                 OptionSpec(name="shock-size", type=Float64, default=1.0, description="Shock size (std devs)"),
                 OptionSpec(name="kappa", type=Float64, default=0.1, description="NK Phillips slope (--nk)"),
                 OptionSpec(name="phi-pi", type=Float64, default=1.5, description="NK Taylor φπ (--nk)"),
@@ -1093,7 +1093,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="debt", type=Float64, default=0.0, description="Government debt b"),
                 OptionSpec(name="rho-z", type=Float64, default=0.0, description="TFP persistence"),
                 OptionSpec(name="sigma-z", type=Float64, default=0.0, description="TFP shock scale"),
-                OptionSpec(name="horizon", type=Int, default=40, description="FEVD horizon"),
+                OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=40, description="FEVD horizon"),
                 OptionSpec(name="kappa", type=Float64, default=0.1, description="NK Phillips slope (--nk)"),
                 OptionSpec(name="phi-pi", type=Float64, default=1.5, description="NK Taylor φπ (--nk)"),
                 OptionSpec(name="phi-y", type=Float64, default=0.125, description="NK Taylor φy (--nk)"),
@@ -1166,6 +1166,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="disutility", type=Float64, default=1.0, description="Work disutility"),
                 OptionSpec(name="sigma", type=Float64, default=0.0, description="Income-shock s.d."),
                 OptionSpec(name="n-shocks", type=Int, default=1, description="Income quadrature nodes (≥ 1)"),
+                OptionSpec(name="taste-shock-scale", type=Float64, default=0.1, description="Taste-shock scale for smooth discrete-choice probabilities (≥ 0)"),
                 OptionSpec(name="a-max", type=Float64, default=50.0, description="Asset grid upper bound"),
                 OptionSpec(name="n-a", type=Int, default=200, description="Asset grid points"),
                 OptionSpec(name="pension", type=Float64, default=0.0, description="Retirement income"),
@@ -1206,7 +1207,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="alpha", type=Float64, default=0.36, description="Firm capital share"),
                 OptionSpec(name="delta", type=Float64, default=0.08, description="Firm depreciation"),
                 OptionSpec(name="z", type=Float64, default=1.0, description="Firm TFP"),
-                OptionSpec(name="horizon", type=Int, default=40, description="IRF horizon (≥ 2)"),
+                OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=40, description="IRF horizon (≥ 2)"),
                 OptionSpec(name="shock-size", type=Float64, default=0.01, description="TFP impulse size"),
                 OptionSpec(name="persist", type=Float64, default=0.0, description="AR(1) decay of the TFP impulse"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -1233,7 +1234,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="alpha", type=Float64, default=0.36, description="Firm capital share"),
                 OptionSpec(name="delta", type=Float64, default=0.08, description="Firm depreciation"),
                 OptionSpec(name="z", type=Float64, default=1.0, description="Firm TFP"),
-                OptionSpec(name="horizon", type=Int, default=40, description="FEVD horizon (≥ 2)"),
+                OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=40, description="FEVD horizon (≥ 2)"),
                 OptionSpec(name="shock-size", type=Float64, default=0.01, description="TFP impulse size"),
                 OptionSpec(name="persist", type=Float64, default=0.0, description="AR(1) decay of the TFP impulse"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -1364,7 +1365,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="config", type=String, default="", description="TOML with [lifecycle] survival/earnings vectors"),
                 OptionSpec(name="k0", type=Float64, default=NaN, description="Initial capital (XOR --z-path)"),
                 OptionSpec(name="z-path", type=String, default="", description="CSV of TFP path (length ≥ 3; XOR --k0)"),
-                OptionSpec(name="horizon", type=Int, default=80, description="Transition horizon H (ignored when --z-path is set)"),
+                OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=80, description="Transition horizon H (ignored when --z-path is set)"),
                 OptionSpec(name="tol", type=Float64, default=1e-5, description="Shooting tolerance"),
                 OptionSpec(name="max-iter", type=Int, default=80, description="Shooting iterations"),
                 OptionSpec(name="relax", type=Float64, default=0.5, description="Damping on the capital update"),
@@ -1389,7 +1390,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="j-retire", type=Int, default=30, description="Retirement age"),
                 OptionSpec(name="n-a", type=Int, default=40, description="Asset grid points"),
                 OptionSpec(name="income-states", type=Int, default=3, description="Income states"),
-                OptionSpec(name="horizon", type=Int, default=20, description="IRF horizon (≥ 2)"),
+                OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=20, description="IRF horizon (≥ 2)"),
                 OptionSpec(name="shock-size", type=Float64, default=0.01, description="TFP impulse size"),
                 OptionSpec(name="persist", type=Float64, default=0.0, description="AR(1) decay of the TFP impulse"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -1411,7 +1412,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="j-retire", type=Int, default=30, description="Retirement age"),
                 OptionSpec(name="n-a", type=Int, default=40, description="Asset grid points"),
                 OptionSpec(name="income-states", type=Int, default=3, description="Income states"),
-                OptionSpec(name="horizon", type=Int, default=20, description="FEVD horizon (≥ 2)"),
+                OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=20, description="FEVD horizon (≥ 2)"),
                 OptionSpec(name="shock-size", type=Float64, default=0.01, description="TFP impulse size"),
                 OptionSpec(name="persist", type=Float64, default=0.0, description="AR(1) decay of the TFP impulse"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -1508,7 +1509,7 @@ function dsge_specs()::Vector{CommandSpec}
             summary="Khan–Thomas MIT IRF of Y, I, K, N, C, Z",
             args=ArgSpec[],
             options=[
-                OptionSpec(name="horizon", type=Int, default=20, description="IRF horizon (≥ 2)"),
+                OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=20, description="IRF horizon (≥ 2)"),
                 OptionSpec(name="shock-size", type=Float64, default=0.01, description="TFP impulse size"),
                 OptionSpec(name="persist", type=Float64, default=NaN, description="AR(1) decay (NaN = firm.rho_z)"),
                 OptionSpec(name="prices", type=String, default="ss", choices=["ss", "ge"],
@@ -1616,7 +1617,7 @@ function dsge_specs()::Vector{CommandSpec}
             summary="Bewley-bank MIT IRF (variable names from the ImpulseResponse)",
             args=ArgSpec[],
             options=[
-                OptionSpec(name="horizon", type=Int, default=20, description="IRF horizon (≥ 2)"),
+                OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=20, description="IRF horizon (≥ 2)"),
                 OptionSpec(name="shock-size", type=Float64, default=0.01, description="TFP impulse size"),
                 OptionSpec(name="persist", type=Float64, default=0.5, description="AR(1) persistence decay"),
                 OptionSpec(name="n-n", type=Int, default=25, description="Net-worth grid points (≥ 3)"),
@@ -1819,6 +1820,9 @@ function _dsge_solve(; model::String, method::String="gensys", order::Int=1,
     elseif sol isa MacroEconometricModels.ProjectionSolution
         _status("\n  Grid type: $(sol.grid_type), Degree: $(sol.degree)")
         _status("  Converged: $(sol.converged), Iterations: $(sol.iterations)")
+        sol.converged || _cli_warn!("model/non-convergence",
+            "DSGE projection solver did not converge after $(sol.iterations) iteration(s) (residual_norm=$(sol.residual_norm))";
+            always_stderr=true)
         _status_styled("  Residual norm: $(round(sol.residual_norm; sigdigits=4))\n";
                     color = sol.residual_norm < 1e-6 ? :green : :yellow)
         # `smolyak_levels` is a struct field on real MEMs ≥ 0.9.0 (0×0 on
@@ -2191,20 +2195,32 @@ function _dsge_simulate(; model="", method::String="gensys", order::Int=1,
         method = string(sol.method)
     end
 
+    periods >= 1 || throw(CliError("usage/invalid", "--periods must be ≥ 1 (got $periods)"))
+    burn >= 0 || throw(CliError("usage/invalid", "--burn must be ≥ 0 (got $burn)"))
+    eff_seed = seed > 0 ? seed : (_SEED[] !== nothing ? Int(_SEED[]) : 0)
+
     _status("Simulating $(periods + burn) periods (burn-in=$burn)...")
 
-    if sol isa MacroEconometricModels.ProjectionSolution
-        # Nonlinear-policy simulations take seed/rng/shock_draws only
-        # (real simulate/simulation.jl:206) — no antithetic variates here.
-        antithetic && _status("note: --antithetic ignored for " *
-            "projection/pfi/vfi simulations (no antithetic draws on " *
-            "nonlinear policies)")
-        sim = seed > 0 ? simulate(sol, periods + burn; seed=seed) :
-            simulate(sol, periods + burn)
-    elseif seed > 0
-        sim = simulate(sol, periods + burn; antithetic=antithetic, rng=Random.MersenneTwister(seed))
+    if sol isa MacroEconometricModels.PerturbationSolution
+        sim = try
+            eff_seed > 0 ?
+                simulate(sol, periods + burn; antithetic=antithetic, rng=Random.MersenneTwister(eff_seed)) :
+                simulate(sol, periods + burn; antithetic=antithetic)
+        catch e
+            throw(_domain_or_data_error(e, "dsge simulate"))
+        end
     else
-        sim = simulate(sol, periods + burn; antithetic=antithetic)
+        # Real MEMs DSGESolution / ProjectionSolution simulate does not accept antithetic
+        antithetic && _cli_warn!("dsge/antithetic-ignored",
+            "--antithetic is only supported for perturbation solutions (order >= 2); ignored for $(typeof(sol).name.name)";
+            always_stderr=true)
+        sim = try
+            eff_seed > 0 ?
+                simulate(sol, periods + burn; rng=Random.MersenneTwister(eff_seed)) :
+                simulate(sol, periods + burn)
+        catch e
+            throw(_domain_or_data_error(e, "dsge simulate"))
+        end
     end
 
     # Drop burn-in
@@ -2388,7 +2404,7 @@ function _dsge_estimate(; model::String, data::String="", method::String="irf_ma
 
     spec = _load_dsge_model(model)
     Y, varnames = load_multivariate_data(data)
-    param_names = [strip(s) for s in split(params, ",") if !isempty(strip(s))]
+    param_names = Symbol[Symbol(strip(s)) for s in split(params, ",") if !isempty(strip(s))]
 
     isempty(param_names) && throw(CliError("usage/missing-option", "--params is required (comma-separated parameter names)"))
 
@@ -2426,6 +2442,9 @@ function _dsge_estimate(; model::String, data::String="", method::String="irf_ma
     _status_styled("  J p-value:   $(round(est.J_pvalue; digits=4))\n"; color=:cyan)
     _status_styled("  Converged:   $(est.converged)\n";
                 color = est.converged ? :green : :red)
+    est.converged || _cli_warn!("model/non-convergence",
+        "DSGE GMM/SMM estimation did not converge (J=$(round(est.J_stat; digits=4)))";
+        always_stderr=true)
     return est
 end
 
@@ -2500,6 +2519,7 @@ function _dsge_perfect_foresight(; model::String, shocks::String="",
         end
     end
 
+    pf.converged || _cli_warn!("model/non-convergence", "perfect-foresight solver did not converge"; always_stderr=true)
     output_result(path_df; format=Symbol(format), output=output,
                   title="Perfect Foresight Path (T=$n_periods, converged=$(pf.converged))",
                   key="perfect_foresight_path")
@@ -2888,15 +2908,25 @@ function _dsge_bayes_summary(; model="", data::String="", params::String="",
     summary = posterior_summary(result)
     pp_table = prior_posterior_table(result)
 
-    # Posterior summary table
+    # Posterior summary table (upstream MEMs v1.0.3 uses :ci_lower/:ci_upper; compute 5/95% from draws when available)
     pnames = result.param_names
+    has_draws = hasproperty(result, :theta_draws) && size(result.theta_draws, 2) == length(pnames) && size(result.theta_draws, 1) > 0
+    q05_vals = [has_draws ? quantile(view(result.theta_draws, :, i), 0.05) :
+                Float64(get(summary[pnames[i]], :q05, get(summary[pnames[i]], :ci_lower, NaN)))
+                for i in eachindex(pnames)]
+    q95_vals = [has_draws ? quantile(view(result.theta_draws, :, i), 0.95) :
+                Float64(get(summary[pnames[i]], :q95, get(summary[pnames[i]], :ci_upper, NaN)))
+                for i in eachindex(pnames)]
+    q05_map = Dict(pnames[i] => q05_vals[i] for i in eachindex(pnames))
+    q95_map = Dict(pnames[i] => q95_vals[i] for i in eachindex(pnames))
+
     sum_df = DataFrame(
         parameter = pnames,
         mean = [round(summary[p][:mean]; digits=6) for p in pnames],
         median = [round(summary[p][:median]; digits=6) for p in pnames],
         std = [round(summary[p][:std]; digits=6) for p in pnames],
-        q05 = [round(summary[p][:q05]; digits=6) for p in pnames],
-        q95 = [round(summary[p][:q95]; digits=6) for p in pnames],
+        q05 = [round(q05_vals[i]; digits=6) for i in eachindex(pnames)],
+        q95 = [round(q95_vals[i]; digits=6) for i in eachindex(pnames)],
     )
     output_result(sum_df; format=Symbol(format), output=output,
                   title="Bayesian DSGE Posterior Summary ($sampler)",
@@ -2909,12 +2939,17 @@ function _dsge_bayes_summary(; model="", data::String="", params::String="",
         prior_std = [round(r.prior_std; digits=6) for r in pp_table],
         post_mean = [round(r.post_mean; digits=6) for r in pp_table],
         post_std = [round(r.post_std; digits=6) for r in pp_table],
-        post_q05 = [round(r.post_q05; digits=6) for r in pp_table],
-        post_q95 = [round(r.post_q95; digits=6) for r in pp_table],
+        post_q05 = [round(get(q05_map, r.param,
+            hasproperty(r, :post_q05) ? r.post_q05 : (hasproperty(r, :ci_lower) ? r.ci_lower : NaN)); digits=6)
+            for r in pp_table],
+        post_q95 = [round(get(q95_map, r.param,
+            hasproperty(r, :post_q95) ? r.post_q95 : (hasproperty(r, :ci_upper) ? r.ci_upper : NaN)); digits=6)
+            for r in pp_table],
     )
     output_result(pp_df; format=Symbol(format),
                   output=_per_var_output_path(output, "prior_posterior"),
-                  title="Prior vs Posterior Comparison")
+                  title="Prior vs Posterior Comparison",
+                  key="prior_vs_posterior_comparison")
 
     _status()
     _status_styled("  Log marginal likelihood: $(round(result.log_marginal_likelihood; digits=4))\n"; color=:cyan)
@@ -3417,7 +3452,9 @@ function _dsge_bayes_posterior_mode(; model::String, data::String="", params::St
         "iterations" => res.n_iterations];
         format=format, output=_per_var_output_path(output, "diagnostics"),
         title="Posterior Mode Diagnostics")
-    res.converged || _status_styled("-> optimizer did NOT converge — treat the mode and its Laplace ML with caution\n"; color=:yellow)
+    res.converged || _cli_warn!("model/non-convergence",
+        "posterior mode optimizer did NOT converge after $(res.n_iterations) iteration(s) — treat the mode and its Laplace ML with caution";
+        always_stderr=true)
     return res
 end
 
@@ -3533,6 +3570,9 @@ function _ha_ss_tables(ss; format::String, output::String, title_prefix::String=
             Float64(ss.excess_demand),
         ],
     )
+    ss.converged || _cli_warn!("model/non-convergence",
+        "$title_prefix steady state did not converge after $(ss.iterations) iteration(s) (excess_demand=$(round(ss.excess_demand; digits=6)))";
+        always_stderr=true)
     # W3/#138: the envelope keys are fixed here rather than derived from the (prefixed)
     # titles — every caller passes title_prefix="HA", but a key must not be hostage to a
     # display string.
@@ -3731,6 +3771,9 @@ function _dsge_ha_solve(; model::String, method::String="ssj",
         _status_styled("  Krusell–Smith PLM R² $r2_note, " *
                        "converged=$(sol.converged), iterations=$(sol.iterations)\n";
                        color = sol.converged ? :green : :yellow)
+        sol.converged || _cli_warn!("model/non-convergence",
+            "Krusell–Smith solver did not converge after $(sol.iterations) iteration(s)";
+            always_stderr=true)
         plm = sol.plm_coefficients
         plm_rows = NamedTuple{(:aggregate, :coefficient, :value), Tuple{String,String,Float64}}[]
         for k in sort!(collect(keys(plm)))
@@ -4215,6 +4258,9 @@ function _dsge_ct_solve(; alpha::Float64=0.36, rho::Float64=0.05, sigma::Float64
         m = MacroEconometricModels.CTTwoAsset(; sigma=sigma, rho=rho, alpha=alpha,
                                                delta=delta, Z=z)
         ge0 = MacroEconometricModels.ct_two_asset_ge(m; max_iter=max_iter, tol=tol)
+        ge0.converged || _cli_warn!("model/non-convergence",
+            "CT two-asset GE did not converge after $(ge0.iterations) iteration(s)";
+            always_stderr=true)
         output_kv(Pair{String,Any}[
             "r_a" => ge0.r_a, "r_b" => ge0.r_b, "w" => ge0.w, "tau" => ge0.tau,
             "K" => ge0.K, "B" => ge0.B, "L" => ge0.L, "Y" => ge0.Y,
@@ -4234,6 +4280,9 @@ function _dsge_ct_solve(; alpha::Float64=0.36, rho::Float64=0.05, sigma::Float64
             throw(_domain_or_data_error(e, "dsge ct solve"))
         end
         # Summarize two-asset solution
+        sol.hjb_converged || _cli_warn!("model/non-convergence",
+            "CT two-asset HJB solver did not converge";
+            always_stderr=true)
         gsum = sum(sol.g)
         diag_df = DataFrame(
             metric = ["hjb_converged", "B_liquid", "A_illiquid", "mass"],
@@ -4258,6 +4307,9 @@ function _dsge_ct_solve(; alpha::Float64=0.36, rho::Float64=0.05, sigma::Float64
     end
     _status_styled("  Converged: $(ss.converged)  r=$(round(ss.r; digits=5))  K=$(round(ss.K; digits=4))\n";
                    color = ss.converged ? :green : :yellow)
+    ss.converged || _cli_warn!("model/non-convergence",
+        "CT Aiyagari steady state did not converge after $(ss.iterations) iteration(s)";
+        always_stderr=true)
     price_df = DataFrame(name=["r", "w"], value=[ss.r, ss.w])
     agg_df = DataFrame(name=["K", "L", "converged"],
                        value=[ss.K, ss.L, Float64(ss.converged ? 1.0 : 0.0)])
@@ -4283,6 +4335,9 @@ function _dsge_ct_transition(; alpha::Float64=0.36, rho::Float64=0.05, sigma::Fl
         m = MacroEconometricModels.CTTwoAsset(; sigma=sigma, rho=rho, alpha=alpha,
                                                delta=delta, Z=z)
         ge0 = MacroEconometricModels.ct_two_asset_ge(m; max_iter=max_iter, tol=tol)
+        ge0.converged || _cli_warn!("model/non-convergence",
+            "CT two-asset GE did not converge after $(ge0.iterations) iteration(s)";
+            always_stderr=true)
         tr = MacroEconometricModels.ct_two_asset_mit(m, ge0, Z; dt=dt, max_iter=max_iter, tol=tol)
         df = DataFrame(t=tr.t, Z=tr.Z, K=tr.K, r_a=tr.r_a, r_b=tr.r_b, w=tr.w, B=tr.B, C=tr.C)
         output_result(df; format=Symbol(format), output=output,
@@ -4319,6 +4374,9 @@ function _dsge_ct_transition(; alpha::Float64=0.36, rho::Float64=0.05, sigma::Fl
     )
     _status_styled("  Transition converged: $(tr.converged) (iters=$(tr.iterations))\n";
                    color = tr.converged ? :green : :yellow)
+    tr.converged || _cli_warn!("model/non-convergence",
+        "CT MIT-shock transition did not converge after $(tr.iterations) iteration(s)";
+        always_stderr=true)
     _maybe_plot(df; plot=plot, plot_save=plot_save)
     output_result(df; format=Symbol(format), output=output,
                   title="CT MIT-Shock Transition (impact=$(shock_size), T=$periods)",
@@ -4349,6 +4407,9 @@ function _dsge_olg_solve(; alpha::Float64=0.36, beta::Float64=0.96, delta::Float
     _status("Solving Blanchard OLG (γ=$gamma, b=$debt)...")
     sol = MacroEconometricModels.blanchard_solve(m)
     ss = sol.ss
+    ss.converged || _cli_warn!("model/non-convergence",
+        "Blanchard OLG steady state did not converge";
+        always_stderr=true)
     ss_df = DataFrame(
         variable = ["k", "C", "r", "w", "H", "mpc", "b", "converged"],
         value = [ss.k, ss.C, ss.r, ss.w, ss.H, ss.mpc, ss.b, Float64(ss.converged ? 1.0 : 0.0)],
@@ -4367,7 +4428,9 @@ function _dsge_olg_solve(; alpha::Float64=0.36, beta::Float64=0.96, delta::Float
     _status_styled("  Determinate: $(sol.determinate)  stable_eig=$(round(sol.stable_eig; digits=4))\n";
                    color = sol.determinate ? :green : :red)
     output_result(ss_df; format=Symbol(format), output=output, title="Blanchard OLG Steady State")
-    output_result(dyn_df; format=Symbol(format), output=output, title="Blanchard OLG Dynamics")
+    output_result(dyn_df; format=Symbol(format),
+                  output=_per_var_output_path(output, "dynamics"),
+                  title="Blanchard OLG Dynamics")
     return sol
 end
 
@@ -4614,6 +4677,9 @@ function _dsge_dcegm_solve(; model::String,
                               taste_shock_scale, a_max, n_a, pension, credit_limit, curvature)
     prob = _dcegm_as_problem(src)
     sol = _dsge_call(MacroEconometricModels.dcegm_solve, prob; max_iter=max_iter, tol=tol)
+    sol.converged || _cli_warn!("model/non-convergence",
+        "DCEGM solver did not converge after $(sol.iterations) iteration(s) (sup_diff=$(sol.sup_diff))";
+        always_stderr=true)
     n_t, n_d, n_e = size(sol.M)
     output_kv(Pair{String,Any}[
         "converged" => sol.converged,
@@ -4662,15 +4728,20 @@ function _dcegm_equilibrium(src; alpha, delta, z, l, r_lo, r_hi, labor, reprice_
     lab in (:exogenous, :measured) || throw(CliError("usage/invalid",
         "--labor must be exogenous|measured"))
     firm = MacroEconometricModels.DCEGMFirm(; alpha=alpha, delta=delta, Z=z, L=l)
-    return _dsge_call(MacroEconometricModels.dcegm_steady_state, src, firm;
-                      r_bounds=(r_lo, r_hi), labor=lab, reprice_wage=reprice_wage,
-                      work_option=Symbol(work_option), n_sim=n_sim, tol=tol, max_iter=max_iter)
+    eq = _dsge_call(MacroEconometricModels.dcegm_steady_state, src, firm;
+                    r_bounds=(r_lo, r_hi), labor=lab, reprice_wage=reprice_wage,
+                    work_option=Symbol(work_option), n_sim=n_sim, tol=tol, max_iter=max_iter)
+    eq.converged || _cli_warn!("model/non-convergence",
+        "DCEGM steady state did not converge after $(eq.iterations) iteration(s) (excess_demand=$(round(eq.excess_demand; digits=6)))";
+        always_stderr=true)
+    return eq
 end
 
 function _dsge_dcegm_steady_state(; model::String,
                                    n_periods::Int=20, beta::Float64=0.98, r::Float64=1.0,
                                    wage::Float64=20.0, disutility::Float64=1.0, sigma::Float64=0.0,
-                                   n_shocks::Int=1, a_max::Float64=50.0, n_a::Int=200,
+                                   n_shocks::Int=1, taste_shock_scale::Float64=0.1,
+                                   a_max::Float64=50.0, n_a::Int=200,
                                    pension::Float64=0.0, credit_limit::Float64=0.0,
                                    curvature::Float64=2.0,
                                    alpha::Float64=0.36, delta::Float64=0.08, z::Float64=1.0,
@@ -4680,6 +4751,7 @@ function _dsge_dcegm_steady_state(; model::String,
                                    reprice_wage::Bool=false,
                                    output::String="", format::String="table")
     src = _load_dcegm_source(model; n_periods, beta, r, wage, disutility, sigma, n_shocks,
+                              taste_shock_scale=taste_shock_scale,
                               a_max=a_max, n_a=n_a, pension=pension,
                               credit_limit=credit_limit, curvature=curvature)
     eq = _dcegm_equilibrium(src; alpha, delta, z, l, r_lo, r_hi, labor, reprice_wage,
@@ -4699,7 +4771,7 @@ function _dsge_dcegm_irf(; model::String, n_periods::Int=20, beta::Float64=0.98,
                           output::String="", format::String="table",
                           plot::Bool=false, plot_save::String="")
     horizon >= 2 || throw(CliError("usage/invalid", "--horizon must be ≥ 2"))
-    src = _load_dcegm_source(model; n_periods, beta, wage=wage, n_a=n_a, a_max=a_max)
+    src = _load_dcegm_source(model; n_periods, beta, wage=wage, n_a=n_a, a_max=a_max, taste_shock_scale=0.1)
     eq = _dcegm_equilibrium(src; alpha, delta, z, l=1.0, r_lo=0.001, r_hi=0.20,
                              labor="exogenous", reprice_wage=false, work_option="work",
                              n_sim=40, tol=1e-4, max_iter=40)
@@ -4716,7 +4788,7 @@ function _dsge_dcegm_fevd(; model::String, n_periods::Int=20, beta::Float64=0.98
                            output::String="", format::String="table",
                            plot::Bool=false, plot_save::String="")
     horizon >= 2 || throw(CliError("usage/invalid", "--horizon must be ≥ 2"))
-    src = _load_dcegm_source(model; n_periods, beta, wage=wage, n_a=n_a, a_max=a_max)
+    src = _load_dcegm_source(model; n_periods, beta, wage=wage, n_a=n_a, a_max=a_max, taste_shock_scale=0.1)
     eq = _dcegm_equilibrium(src; alpha, delta, z, l=1.0, r_lo=0.001, r_hi=0.20,
                              labor="exogenous", reprice_wage=false, work_option="work",
                              n_sim=40, tol=1e-4, max_iter=40)
@@ -4732,7 +4804,7 @@ function _dsge_dcegm_simulate(; model::String, n_periods::Int=20, beta::Float64=
                                periods::Int=40, shock_size::Float64=0.0, persist::Float64=0.0,
                                output::String="", format::String="table")
     periods >= 2 || throw(CliError("usage/invalid", "--periods must be ≥ 2"))
-    src = _load_dcegm_source(model; n_periods, beta, wage=wage, n_a=n_a, a_max=a_max)
+    src = _load_dcegm_source(model; n_periods, beta, wage=wage, n_a=n_a, a_max=a_max, taste_shock_scale=0.1)
     eq = _dcegm_equilibrium(src; alpha, delta, z, l=1.0, r_lo=0.001, r_hi=0.20,
                              labor="exogenous", reprice_wage=false, work_option="work",
                              n_sim=40, tol=1e-4, max_iter=40)
@@ -4752,11 +4824,14 @@ function _dsge_dcegm_transition(; model::String, z_path::String="",
     isempty(z_path) && throw(CliError("usage/missing-option",
         "dsge dcegm transition requires --z-path <csv>"))
     Z = _load_positive_path(z_path; min_length=2, name="Z_path")
-    src = _load_dcegm_source(model; n_periods, beta, wage=wage, n_a=n_a, a_max=a_max)
+    src = _load_dcegm_source(model; n_periods, beta, wage=wage, n_a=n_a, a_max=a_max, taste_shock_scale=0.1)
     eq = _dcegm_equilibrium(src; alpha, delta, z, l=1.0, r_lo=0.001, r_hi=0.20,
                              labor="exogenous", reprice_wage=false, work_option="work",
                              n_sim=40, tol=1e-4, max_iter=40)
     tr = MacroEconometricModels.dcegm_mit(eq, Z)
+    tr.converged || _cli_warn!("model/non-convergence",
+        "DCEGM transition did not converge";
+        always_stderr=true)
     df = DataFrame(t=1:length(tr.Z), Z=tr.Z, K=tr.K, r=tr.r, w=tr.w, A=tr.A, Y=tr.Y)
     output_result(df; format=Symbol(format), output=output,
                   title="DCEGM Transition", key="dcegm_transition_path")
@@ -4818,6 +4893,9 @@ function _dsge_lifecycle_steady_state(; j::Int=60, j_retire::Int=45, survival::F
     ss = MacroEconometricModels.lifecycle_steady_state(m; r_bounds=(r_lo, r_hi),
                                                         tol=tol, max_iter=max_iter,
                                                         bequest_iter=bequest_iter)
+    ss.converged || _cli_warn!("model/non-convergence",
+        "Life-cycle OLG steady state did not converge after $(ss.iterations) iteration(s) (excess_demand=$(round(ss.excess_demand; digits=6)))";
+        always_stderr=true)
     output_kv(Pair{String,Any}[
         "r" => ss.r, "w" => ss.w, "K" => ss.K, "L" => ss.L, "Y" => ss.Y,
         "tau" => ss.tau, "pension" => ss.pension, "transfer" => ss.transfer,
@@ -4858,6 +4936,9 @@ function _dsge_lifecycle_transition(; j::Int=60, j_retire::Int=45, survival::Flo
         MacroEconometricModels.lifecycle_transition(m, k0; H=horizon, tol=tol,
                                                      max_iter=max_iter, relax=relax)
     end
+    tr.converged || _cli_warn!("model/non-convergence",
+        "Life-cycle OLG transition did not converge after $(tr.iterations) iteration(s)";
+        always_stderr=true)
     n = length(tr.K)
     output_result(DataFrame(t=0:(n-1), K=tr.K, r=tr.r, w=tr.w, Y=tr.Y, C=tr.C,
                             Z=tr.Z, pension=tr.pension, transfer=tr.transfer);
@@ -4960,6 +5041,9 @@ function _dsge_firm_steady_state(; n_k::Int=16, n_eps::Int=3,
     fs = _khan_thomas_fs(; n_k, n_eps, alpha, nu, delta, beta, gamma, xi_bar, b, phi,
                           rho_z, sigma_z, rho_e, sigma_e, z)
     ss = MacroEconometricModels.khan_thomas_steady_state(fs; tol=tol, max_iter=max_iter)
+    ss.converged || _cli_warn!("model/non-convergence",
+        "Khan-Thomas steady state did not converge after $(ss.iterations) iteration(s)";
+        always_stderr=true)
     output_kv(Pair{String,Any}[
         "w" => ss.w, "p" => ss.p, "K" => ss.K, "N" => ss.N, "Y" => ss.Y,
         "I" => ss.I, "C" => ss.C, "inaction" => ss.inaction,
@@ -5002,6 +5086,9 @@ function _dsge_firm_transition(; z_path::String="", prices::String="ss",
     fs = _khan_thomas_fs(; n_k, n_eps, z=z)
     ss = MacroEconometricModels.khan_thomas_steady_state(fs)
     tr = MacroEconometricModels.khan_thomas_mit(ss, Z; prices=Symbol(pr))
+    tr.converged || _cli_warn!("model/non-convergence",
+        "Khan-Thomas transition did not converge";
+        always_stderr=true)
     n = length(tr.Z)
     output_result(DataFrame(t=1:n, Z=tr.Z, Y=tr.Y, I=tr.I, K=tr.K, N=tr.N, C=tr.C, w=tr.w);
                   format=Symbol(format), output=output,
@@ -5075,6 +5162,9 @@ function _dsge_bank_pe(; n_n::Int=25, n_xi::Int=3, n_min::Float64=0.05, n_max::F
     sys = _intermediary_sys(; n_n, n_xi, n_min, n_max, beta, sigma, lambda, zeta1, zeta2,
                              R=r, rk=rk, z=z, alpha=alpha)
     pe = MacroEconometricModels.intermediary_pe(sys; R=r, rk=rk, max_iter=max_iter, tol=tol)
+    pe.converged || _cli_warn!("model/non-convergence",
+        "Bewley banks PE did not converge after $(pe.iterations) iteration(s)";
+        always_stderr=true)
     output_kv(Pair{String,Any}[
         "R" => pe.prices[:R], "rk" => pe.prices[:rk],
         "converged" => pe.converged, "iterations" => pe.iterations,
@@ -5097,6 +5187,9 @@ function _dsge_bank_steady_state(; n_n::Int=25, n_xi::Int=3, n_min::Float64=0.05
         "--r-lo must be < --r-hi"))
     ss = MacroEconometricModels.intermediary_steady_state(sys; r_bounds=rb, tol=tol,
                                                            max_iter=max_iter)
+    ss.converged || _cli_warn!("model/non-convergence",
+        "Bewley banks steady state did not converge after $(ss.iterations) iteration(s) (excess_demand=$(round(ss.excess_demand; digits=6)))";
+        always_stderr=true)
     ag = ss.aggregates
     pr = ss.prices
     output_kv(Pair{String,Any}[
@@ -5122,6 +5215,9 @@ function _dsge_bank_transition(; z_path::String="", n_n::Int=25, n_xi::Int=3,
     sys = _intermediary_sys(; n_n, n_xi, z=z)
     ss = MacroEconometricModels.intermediary_steady_state(sys)
     tr = MacroEconometricModels.intermediary_mit(ss, Z)
+    tr.converged || _cli_warn!("model/non-convergence",
+        "Bewley banks transition did not converge";
+        always_stderr=true)
     n = length(tr.Z)
     output_result(DataFrame(t=1:n, Z=tr.Z, L=tr.L, Y=tr.Y, K=tr.K, rk=tr.rk);
                   format=Symbol(format), output=output,

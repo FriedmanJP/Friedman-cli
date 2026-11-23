@@ -321,6 +321,7 @@ function _policy_effects(route::String; data::String="", model=nothing, result=n
         output_result(_policy_effects_table(result); format=Symbol(format), output=output,
                       title="Policy Causal Effects Menu")
         output_kv(_policy_effects_summary(result, norm_sym); format=format,
+                  output=_per_var_output_path(output, "summary"),
                   title="Policy Causal Effects Summary")
         return result
     end
@@ -355,6 +356,7 @@ function _policy_effects(route::String; data::String="", model=nothing, result=n
     output_result(_policy_effects_table(ce); format=Symbol(format), output=output,
                   title="Policy Causal Effects Menu")
     output_kv(_policy_effects_summary(ce, norm_sym); format=format,
+              output=_per_var_output_path(output, "summary"),
               title="Policy Causal Effects Summary")
     return ce
 end
@@ -661,7 +663,8 @@ function _render_policy_moments(m; format::String="table", output::String="",
         "freq_band"   => m.freq_band === nothing ? "full spectrum" :
                          "$(round(Float64(m.freq_band[1]); digits=4)):$(round(Float64(m.freq_band[2]); digits=4))",
     ]
-    output_kv(pairs; format=format, title="Moments Summary")
+    output_kv(pairs; format=format, output=_per_var_output_path(output, "summary"),
+              title="Moments Summary")
 end
 
 function _render_policy_counterfactual(r; format::String="table", output::String="")
@@ -726,7 +729,8 @@ function _render_policy_counterfactual(r; format::String="table", output::String
     end
     r.spanned || push!(pairs, "note" =>
         "rule NOT enforceable within the span of the supplied policy shocks; the counterfactual is a least-squares approximation — read error_path")
-    output_kv(pairs; format=format, title="Counterfactual Summary")
+    output_kv(pairs; format=format, output=_per_var_output_path(output, "summary"),
+              title="Counterfactual Summary")
 end
 
 function _push_paths!(rows, syms, role, base, cf, bands, nq)
@@ -1015,7 +1019,8 @@ function _render_opp(r, nt; format::String="table", output::String="",
         nt.method_used === :projection && push!(pairs, "warning" =>
             "projection fallback: feasible but NOT the constrained optimum (upstream's own caveat)")
     end
-    output_kv(pairs; format=format, title="OPP Summary")
+    output_kv(pairs; format=format, output=_per_var_output_path(output, "summary"),
+              title="OPP Summary")
 end
 
 # ── policy opp-sequence (W6/#128) ───────────────────────────
@@ -1150,7 +1155,8 @@ function _render_opp_sequence(s; format::String="table", output::String="")
     ]
     s.bands !== nothing && push!(pairs, "band_polarity" =>
         "BM reversed polarity: bands at 60/75/90% — rejection at the LOWER level rejects more readily")
-    output_kv(pairs; format=format, title="OPP Sequence Summary")
+    output_kv(pairs; format=format, output=_per_var_output_path(output, "summary"),
+              title="OPP Sequence Summary")
 end
 
 # ── W7/#129: structural routes ──────────────────────────────
@@ -1200,6 +1206,7 @@ function _policy_news(route::String; model="", result=nothing, policy_shock::Str
         output_result(_policy_effects_table(result); format=Symbol(format), output=output,
                       title="Policy Causal Effects Menu")
         output_kv(_policy_effects_summary(result, :none); format=format,
+                  output=_per_var_output_path(output, "summary"),
                   title="Policy Causal Effects Summary")
         return result
     end
@@ -1268,7 +1275,8 @@ function _policy_news(route::String; model="", result=nothing, policy_shock::Str
         "m=$(isnan(behavioral_m) ? 1.0 : behavioral_m), theta=$(isnan(behavioral_theta) ? 0.0 : behavioral_theta) (approximation on a GE-closed menu — CMW apply per block before closure)")
     route == "ha" && t_horizon < horizon + 50 && push!(s, "truncation_warning" =>
         "T_horizon = $t_horizon < H + 50 — the sequence-space truncation may bite; grow --t-horizon")
-    output_kv(s; format=format, title="Policy Causal Effects Summary")
+    output_kv(s; format=format, output=_per_var_output_path(output, "summary"),
+              title="Policy Causal Effects Summary")
     return ce
 end
 
@@ -1332,7 +1340,7 @@ function _render_policy_history(hist, n_used::Int, n_failed::Int;
         "n_draws_used" => n_used,
         "n_draws_failed" => n_failed,
         "note" => "built from forecast revisions, never identified shocks (raw forecasts double-count); rests on forecast sufficiency — see policy sufficiency",
-    ]; format=format, title="History Summary")
+    ]; format=format, output=_per_var_output_path(output, "summary"), title="History Summary")
 end
 
 function _policy_history(route::String; data::String="", model=nothing, result=nothing,
@@ -1458,7 +1466,8 @@ function _render_policy_spanning(sp; format::String="table", output::String="")
         "loading_inside" => round(Float64(sp.loading_inside); digits=6),
         "rel_residual_emp" => round(Float64(sp.rel_residual_emp); digits=6),
         "interpretation" => "does the model choice matter for THIS counterfactual? spanned=true → the thin empirical menu already carries it",
-    ]; format=format, title="Spanning Verdict")
+    ]; format=format, output=_per_var_output_path(output, "verdict"),
+       title="Spanning Verdict")
 end
 
 function _policy_spanning(; data::String="", model="", result=nothing, lags=nothing,
@@ -1546,7 +1555,8 @@ function _render_policy_sufficiency(fs; format::String="table", output::String="
         "one_step_ratio" => join(round.(Float64.(fs.one_step_ratio); digits=6), ", "),
         "H" => fs.H,
         "note" => "fev_ratio ≥ 1 = Wold-info FEV over full-info FEV; invertibility is SUFFICIENT for forecast sufficiency, not necessary",
-    ]; format=format, title="Sufficiency Summary")
+    ]; format=format, output=_per_var_output_path(output, "summary"),
+       title="Sufficiency Summary")
 end
 
 function _policy_sufficiency(; model="", result=nothing, observables::String="",
@@ -1584,7 +1594,7 @@ end
 # ── Registry ────────────────────────────────────────────────
 
 const _POLICY_COMMON = [
-    OptionSpec(name="horizon", type=Int, default=20,
+    OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=20,
                description="Truncation horizon H (≥ 1; MW use H=100)"),
     OptionSpec(name="shocks", type=String, default="",
                description="Identified POLICY shock columns (indices or names, comma-separated; REQUIRED)"),
@@ -1605,13 +1615,13 @@ function _policy_route_options(route::String)
         OptionSpec(name="draws", short="n", type=Int, default=2000, description="Posterior draws"),
         OptionSpec(name="config", type=String, default="", description="TOML prior config")] :
       route == "lp" ? [
-        OptionSpec(name="n-draws", type=Int, default=500,
+        OptionSpec(name="draws", aliases=["n-draws"], kwarg=:n_draws, type=Int, default=500,
                    description="Independent-normal N(value, se) draws (pointwise approximation, NOT a joint posterior)"),
         OptionSpec(name="config", type=String, default="", description="TOML identification config")] :
       route == "sign" ? [
-        OptionSpec(name="replications", type=Int, default=1000, description="Candidate rotations"),
+        OptionSpec(name="draws", aliases=["replications"], kwarg=:replications, type=Int, default=1000, description="Candidate rotations"),
         OptionSpec(name="config", type=String, default="", description="TOML sign-restriction config (REQUIRED)")] :
-      [OptionSpec(name="replications", type=Int, default=0,
+      [OptionSpec(name="draws", aliases=["replications"], kwarg=:replications, type=Int, default=0,
                   description="Bootstrap draws for uncertainty bands (0 = point only)")]
     return vcat(opts, extra)
 end
@@ -1889,7 +1899,7 @@ function register_policy_commands!()
                             description="name=model_variable map (SYMBOLS; REQUIRED)");
                  OptionSpec(name="instruments", type=String, default="",
                             description="name=model_variable map");
-                 OptionSpec(name="horizon", type=Int, default=100,
+                 OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=100,
                             description="News horizon H (one QZ of dimension n+H−1 — MW use 100)");
                  OptionSpec(name="solver", type=String, default="gensys",
                             choices=["gensys", "klein", "blanchard-kahn"],
@@ -1914,7 +1924,7 @@ function register_policy_commands!()
                             description="name=model_variable map (SYMBOLS; REQUIRED)");
                  OptionSpec(name="instruments", type=String, default="",
                             description="name=model_variable map (default rate=r)");
-                 OptionSpec(name="horizon", type=Int, default=100,
+                 OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=100,
                             description="News horizon H");
                  OptionSpec(name="t-horizon", type=Int, default=300,
                             description="Sequence-space truncation (≥ H; < H+50 warns)");
@@ -1995,7 +2005,7 @@ function register_policy_commands!()
         options=[_POLICY_COMMON...;
                  OptionSpec(name="lags", short="p", type=Int, default=nothing,
                             description="VAR lag order (default AIC)");
-                 OptionSpec(name="replications", type=Int, default=0,
+                 OptionSpec(name="draws", aliases=["replications"], kwarg=:replications, type=Int, default=0,
                             description="Bootstrap draws on the empirical menu");
                  OptionSpec(name="nonpolicy-shock", type=String, default="",
                             description="Baseline non-policy shock (REQUIRED)");
@@ -2034,7 +2044,7 @@ function register_policy_commands!()
                       description="DSGE model file (TOML or .jl ModelSpec)")],
         options=[OptionSpec(name="observables", type=String, default="",
                             description="Comma-separated model variables the econometrician sees (REQUIRED)");
-                 OptionSpec(name="horizon", type=Int, default=40,
+                 OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=40,
                             description="FEV comparison horizon");
                  OptionSpec(name="method", type=String, default="gensys",
                             description="DSGE solve method");

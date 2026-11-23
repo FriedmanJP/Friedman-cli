@@ -278,7 +278,7 @@ HonestDiD sensitivity analysis (Rambachan-Roth 2023) with violation bound Mbar
 | `--time-col` | — | `String` | `""` | — | Time column (default: second column) |
 | `--mbar` | — | `Float64` | `1.0` | — | Violation bound M̄ |
 | `--leads` | — | `Int64` | `3` | — | Pre-treatment leads |
-| `--horizon` | — | `Int64` | `5` | — | Post-treatment horizon |
+| `--horizons` | — | `Int64` | `5` | — | Post-treatment horizon |
 | `--lags` | `-p` | `Int64` | `4` | — | Control lags (event-study only) |
 | `--cluster` | — | `String` | `unit` | — | unit\|time\|twoway |
 | `--conf-level` | — | `Float64` | `0.95` | — | Confidence level |
@@ -331,7 +331,7 @@ Joint pre-trend (parallel-trends) test from a DiD or event-study fit
 | `--id-col` | — | `String` | `""` | — | Panel unit ID column (default: first column) |
 | `--time-col` | — | `String` | `""` | — | Time column (default: second column) |
 | `--leads` | — | `Int64` | `3` | — | Pre-treatment leads |
-| `--horizon` | — | `Int64` | `5` | — | Post-treatment horizon |
+| `--horizons` | — | `Int64` | `5` | — | Post-treatment horizon |
 | `--lags` | `-p` | `Int64` | `4` | — | Control lags (event-study only) |
 | `--cluster` | — | `String` | `unit` | — | unit\|time\|twoway |
 | `--conf-level` | — | `Float64` | `0.95` | — | Confidence level |
@@ -368,7 +368,7 @@ Weak-instrument-robust Anderson-Rubin test + inverted confidence set
 | `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | Covariance weighting the AR statistic; cluster additionally needs --clusters |
 | `--clusters` | — | `String` | `""` | — | Cluster column name (required for --cov-type cluster) |
 | `--beta0` | — | `String` | `""` | — | Hypothesized coefficient value(s) on the endogenous regressors, comma-separated (default: 0 for each) |
-| `--level` | — | `Float64` | `0.95` | — | Nominal coverage of the confidence set |
+| `--conf-level` | — | `Float64` | `0.95` | — | Nominal coverage of the confidence set |
 | `--n-grid` | — | `Int64` | `1001` | — | Grid points used to invert the AR test |
 | `--span` | — | `Float64` | `20.0` | — | Search half-width around the 2SLS estimate, in standard errors |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -380,7 +380,7 @@ Weak-instrument-robust Anderson-Rubin test + inverted confidence set
 |------|-------|-------------|
 | `--no-ci` | — | Report only the AR test at --beta0, skipping the inverted confidence set |
 
-**Handles:** data kinds: `:timeseries`, `:csv`; result types: `AndersonRubinTest`, `AndersonRubinCI`
+**Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`; result types: `AndersonRubinTest`, `AndersonRubinCI`
 
 **Output tables:** `anderson_rubin_test` (AR statistic, p-value, df and the covariance estimators used); `anderson_rubin_confidence_set` (One row per connected component of the inverted AR set (absent under --no-ci or with several endogenous regressors)); `anderson_rubin_set_summary` (Shape of the AR set, its grid and critical value, and the 2SLS Wald interval for comparison)
 
@@ -404,7 +404,7 @@ Stock-Yogo weak-instrument diagnostics for 2SLS
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
 
-**Handles:** data kinds: `:timeseries`, `:csv`; result types: `MontielOleaPfluegerF`
+**Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`; result types: `MontielOleaPfluegerF`
 
 **Output tables:** `weak_instrument_diagnostics` (First-stage, Cragg-Donald and Kleibergen-Paap F against the Stock-Yogo critical value, with the weak verdict (or --threshold fallback))
 
@@ -424,7 +424,7 @@ Wild cluster bootstrap (WCR/WCU) inference for one coefficient
 | `--null` | — | `Float64` | `0.0` | — | Hypothesized value r in H0: beta_j = r |
 | `--boot-reps` | — | `Int64` | `999` | — | Bootstrap replications (ignored when the 2^G sign space is enumerated) |
 | `--boot-weights` | — | `String` | `rademacher` | `rademacher`, `webb` | Bootstrap weights; webb (6-point) is preferred when the cluster count is very small |
-| `--level` | — | `Float64` | `0.95` | — | Coverage of the inverted-test confidence interval |
+| `--conf-level` | — | `Float64` | `0.95` | — | Coverage of the inverted-test confidence interval |
 | `--ci-gridpoints` | — | `Int64` | `25` | — | Grid used to bracket the CI crossings |
 | `--enumerate-signs` | — | `String` | `auto` | `auto`, `yes`, `no` | Exact enumeration of the 2^G Rademacher sign vectors: auto enumerates whenever possible |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -437,7 +437,7 @@ Wild cluster bootstrap (WCR/WCU) inference for one coefficient
 | `--no-impose-null` | — | Use the unrestricted WCU variant instead of the default restricted WCR |
 | `--no-ci` | — | Skip the inverted-test confidence interval |
 
-**Handles:** data kinds: `:timeseries`, `:csv`; result types: `WildClusterBootstrap`
+**Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`; result types: `WildClusterBootstrap`
 
 **Output tables:** `wild_cluster_bootstrap` (Bootstrap and cluster-robust p-values for the tested coefficient, with the bootstrap settings)
 
@@ -730,7 +730,7 @@ Hausman long-run-homogeneity test (efficient PMG/DFE vs MG)
 | `--trend` | — | `String` | `constant` | `none`, `constant`, `trend` | Per-unit EC deterministics: none\|constant\|trend |
 | `--p` | — | `Int64` | `1` | — | Autoregressive order (≥ 1) |
 | `--q` | — | `Int64` | `1` | — | Distributed-lag order for all regressors (≥ 0) |
-| `--maxiter` | — | `Int64` | `100` | — | PMG outer-loop max iterations |
+| `--max-iter` | — | `Int64` | `100` | — | PMG outer-loop max iterations |
 | `--tol` | — | `Float64` | `1.0e-8` | — | PMG outer-loop convergence tolerance |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
@@ -1018,7 +1018,7 @@ Glejser heteroskedasticity test from an OLS fit
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
 
-**Handles:** data kinds: `:timeseries`, `:csv`; result types: `RegDiagnosticResult`
+**Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`; result types: `RegDiagnosticResult`
 
 **Output tables:** `glejser_test` (Glejser heteroskedasticity statistic, p-value, df and auxiliary R2)
 
@@ -1039,7 +1039,7 @@ Harvey multiplicative-heteroskedasticity test from an OLS fit
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
 
-**Handles:** data kinds: `:timeseries`, `:csv`; result types: `RegDiagnosticResult`
+**Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`; result types: `RegDiagnosticResult`
 
 **Output tables:** `harvey_test` (Harvey multiplicative-heteroskedasticity statistic, p-value, df and auxiliary R2)
 
@@ -1136,7 +1136,7 @@ White heteroskedasticity test from an OLS fit (optional cross terms)
 |------|-------|-------------|
 | `--no-cross-terms` | — | Omit the cross-product terms from the auxiliary regression |
 
-**Handles:** data kinds: `:timeseries`, `:csv`; result types: `RegDiagnosticResult`
+**Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`; result types: `RegDiagnosticResult`
 
 **Output tables:** `white_test` (White heteroskedasticity statistic, p-value, df and auxiliary R2)
 
@@ -1223,7 +1223,7 @@ Chow breakpoint/forecast break test at --break-at from an OLS fit
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
 
-**Handles:** data kinds: `:timeseries`, `:csv`; result types: `RegDiagnosticResult`
+**Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`; result types: `RegDiagnosticResult`
 
 **Output tables:** `chow_test` (Chow structural-break statistic, p-value and df at the requested break(s))
 
@@ -1245,7 +1245,7 @@ Brown-Durbin-Evans CUSUM stability path with significance band
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
 
-**Handles:** data kinds: `:timeseries`, `:csv`; result types: `StabilityResult`
+**Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`; result types: `StabilityResult`
 
 **Output tables:** `cusum_path` (Recursive CUSUM statistic with its lower and upper band by observation); `cusum_summary` (Whether the path leaves the band, the first crossing and the band level)
 
@@ -1267,7 +1267,7 @@ CUSUM-of-squares stability path with significance band
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
 
-**Handles:** data kinds: `:timeseries`, `:csv`; result types: `StabilityResult`
+**Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`; result types: `StabilityResult`
 
 **Output tables:** `cusumsq_path` (CUSUM-of-squares statistic with its lower and upper band by observation); `cusumsq_summary` (Whether the path leaves the band, the first crossing and the band level)
 
@@ -1290,7 +1290,7 @@ Test a panel factor structure for a break (--method)
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
 
-**Handles:** data kinds: `:panel`, `:csv`; result types: `FactorBreakResult`
+**Handles:** data kinds: `:timeseries`, `:panel`, `:csv`; result types: `FactorBreakResult`
 
 **Output tables:** `factor_break_test` (Break statistic, p-value and the estimated break index of the factor structure); `per_series_break_diagnostics` (Per-series sup statistic and maximizing date, ranked (pooled methods only))
 
@@ -1307,7 +1307,7 @@ GSADF explosive-bubble test with date-stamped episodes
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
 | `--r0` | — | `String` | `auto` | — | Minimum window fraction: auto or a number in (0,1) |
 | `--adflag` | — | `Int64` | `0` | — | ADF augmentation lags (≥ 0) |
-| `--mc-reps` | — | `Int64` | `999` | — | Monte-Carlo replications for critical values (≥ 1) |
+| `--draws` | — | `Int64` | `999` | — | Monte-Carlo replications for critical values (≥ 1) |
 | `--cv` | — | `String` | `asymptotic` | `asymptotic`, `wildboot` | Critical-value method |
 | `--seed` | — | `Int64` | `20240716` | — | RNG seed for the critical-value simulation |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -1381,7 +1381,7 @@ Brown-Durbin-Evans recursive residuals from an OLS fit
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
-**Handles:** data kinds: `:timeseries`, `:csv`
+**Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`
 
 **Output tables:** `recursive_residuals` (Brown-Durbin-Evans recursive residual by recursion step and observation); `recursive_residuals_summary` (Count and mean of the recursive residuals, and the number of regressors)
 
@@ -1398,7 +1398,7 @@ SADF explosive-bubble test with date-stamped episodes
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
 | `--r0` | — | `String` | `auto` | — | Minimum window fraction: auto or a number in (0,1) |
 | `--adflag` | — | `Int64` | `0` | — | ADF augmentation lags (≥ 0) |
-| `--mc-reps` | — | `Int64` | `999` | — | Monte-Carlo replications for critical values (≥ 1) |
+| `--draws` | — | `Int64` | `999` | — | Monte-Carlo replications for critical values (≥ 1) |
 | `--cv` | — | `String` | `asymptotic` | `asymptotic`, `wildboot` | Critical-value method |
 | `--seed` | — | `Int64` | `20240716` | — | RNG seed for the critical-value simulation |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -2018,10 +2018,8 @@ Brant parallel-regression test for ordered logit
 | `--cov-type` | — | `String` | `hc1` | — | Covariance type |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
 
-**Handles:** data kinds: `:timeseries`, `:csv`; result types: `PanelTestResult`
+**Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`
 
 **Output tables:** `brant_test` (Chi-square statistic, p-value, df and the parallel-regression decision)
 
@@ -2040,7 +2038,7 @@ Cameron-Trivedi overdispersion test on a Poisson fit (directional decision)
 | `--exposure` | — | `String` | `""` | — | Exposure column, strictly positive; enters as log(exposure) |
 | `--cov-type` | — | `String` | `robust` | `robust`, `mle`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | Covariance estimator for the auxiliary Poisson fit |
 | `--clusters` | — | `String` | `""` | — | Cluster variable column name |
-| `--maxiter` | — | `Int64` | `100` | — | Maximum IRLS iterations (≥ 1) |
+| `--max-iter` | — | `Int64` | `100` | — | Maximum IRLS iterations (≥ 1) |
 | `--tol` | — | `Float64` | `1.0e-10` | — | Convergence tolerance (> 0) |
 | `--alpha` | — | `Float64` | `0.05` | — | Significance level for the decision column (0 < alpha < 1) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -2049,7 +2047,7 @@ Cameron-Trivedi overdispersion test on a Poisson fit (directional decision)
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
 
-**Handles:** data kinds: `:timeseries`, `:csv`; model types: `PoissonModel`; result types: `DispersionTest`
+**Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`; model types: `PoissonModel`; result types: `DispersionTest`
 
 **Output tables:** `overdispersion_test_cameron_trivedi_1990` (NB1 and NB2 auxiliary-regression alpha with SE, t-statistic, p-value and a directional decision); `dispersion_summary` (Sample size, test level and the recommended count model)
 
@@ -2073,7 +2071,7 @@ EDF goodness-of-fit test for --dist
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
 
-**Handles:** data kinds: `:timeseries`, `:csv`; result types: `EDFTestResult`
+**Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`; result types: `EDFTestResult`
 
 **Output tables:** `edf_test` (EDF goodness-of-fit statistic, p-value, fitted parameters and critical values)
 
@@ -2093,7 +2091,7 @@ Fisher periodicity test for a hidden cycle
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
 
-**Handles:** data kinds: `:panel`, `:csv`; result types: `FisherPanelResult`, `FisherTestResult`
+**Handles:** data kinds: `:timeseries`, `:csv`; result types: `FisherPanelResult`, `FisherTestResult`
 
 **Output tables:** `fisher_s_test` (Fisher periodicity statistic, p-value and sample size)
 
@@ -2108,7 +2106,7 @@ GPH log-periodogram estimate of long-memory d
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test |
-| `--bandwidth` | `-m` | `Int64` | — | — | Number of Fourier frequencies (default: floor(sqrt(T))) |
+| `--bandwidth` | — | `Int64` | — | — | Number of Fourier frequencies (default: floor(sqrt(T))) |
 | `--trim` | — | `Int64` | `0` | — | Trim the first N frequencies |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
@@ -2133,7 +2131,7 @@ Hansen sup-LM/sup-Wald linearity test vs two-regime SETAR
 | `--p` | — | `Int64` | `1` | — | AR order for the SETAR design (≥ 1) |
 | `--d` | — | `Int64` | `1` | — | Delay lag for the threshold variable q=y[t-d] (≥ 1) |
 | `--trim` | — | `Float64` | `0.15` | — | Trimming fraction for the threshold grid (0 < trim < 0.5) |
-| `--reps` | — | `Int64` | `1000` | — | Fixed-regressor bootstrap replications (≥ 1) |
+| `--draws` | — | `Int64` | `1000` | — | Fixed-regressor bootstrap replications (≥ 1) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
@@ -2157,10 +2155,8 @@ Hausman-McFadden IIA test omitting one mlogit category
 | `--omit-category` | — | `Int64` | — | — | Category to omit for IIA test (required) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
 
-**Handles:** data kinds: `:timeseries`, `:csv`; result types: `PanelTestResult`
+**Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`
 
 **Output tables:** `hausman_mcfadden_iia_test` (Chi-square statistic, p-value, df and the IIA decision)
 
@@ -2175,7 +2171,7 @@ Non-Gaussian/SVAR identification diagnostics battery for a VAR
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto via AIC) |
-| `--test` | `-t` | `String` | `all` | — | strength\|gaussianity\|independence\|overidentification\|lambda-distinct\|gaussian-count\|label-stability\|all (the last three are opt-in only) |
+| `--test` | — | `String` | `all` | — | strength\|gaussianity\|independence\|overidentification\|lambda-distinct\|gaussian-count\|label-stability\|all (the last three are opt-in only) |
 | `--method` | — | `String` | `fastica` | — | fastica\|jade\|sobi\|dcov\|hsic (for gaussianity/independence/overidentification tests; label-stability bootstraps the chosen estimator) |
 | `--contrast` | — | `String` | `logcosh` | — | logcosh\|exp\|kurtosis (for FastICA) |
 | `--n-bootstrap` | — | `Int64` | `999` | — | Bootstrap replications (for label-stability) |
@@ -2203,7 +2199,7 @@ OLS influence diagnostics (leverage, studentized residuals, DFFITS, Cook D)
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
 
-**Handles:** data kinds: `:timeseries`, `:csv`; result types: `InfluenceStats`
+**Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`; result types: `InfluenceStats`
 
 **Output tables:** `influence_diagnostics` (Per-observation leverage, studentized residuals, DFFITS and Cook's D); `influence_summary` (Residual scale plus the flagged high-leverage and influential observations)
 
@@ -2218,7 +2214,7 @@ Local Whittle estimate of long-memory d
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test |
-| `--bandwidth` | `-m` | `Int64` | — | — | Number of Fourier frequencies (default: floor(sqrt(T))) |
+| `--bandwidth` | — | `Int64` | — | — | Number of Fourier frequencies (default: floor(sqrt(T))) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
@@ -2365,7 +2361,7 @@ Variance-inflation factors from an OLS fit
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
-**Handles:** data kinds: `:timeseries`, `:csv`; model types: `RegModel`
+**Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`; model types: `RegModel`
 
 **Output tables:** `variance_inflation_factors` (Variance inflation factor and tolerance for each regressor)
 

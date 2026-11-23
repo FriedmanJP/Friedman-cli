@@ -145,7 +145,8 @@ _var_name(varnames::Vector{String}, idx::Int) =
 function _per_var_output_path(output::String, suffix::String)
     isempty(output) && return ""
     _validate_output_path(output)
-    return replace(output, "." => "_$(suffix).")
+    base, ext = splitext(output)
+    return "$(base)_$(suffix)$(ext)"
 end
 
 # ── Output Helpers ─────────────────────────────────────────
@@ -199,7 +200,8 @@ function output_model_criteria(model; format::String="table", output::String="",
     end
     # W3/#138: one stable key across all callers — title variants ("… (posterior
     # mean)") stay human-facing only.
-    output_kv(pairs; format=format, title=title, key="information_criteria")
+    output_kv(pairs; format=format, output=_per_var_output_path(output, "criteria"),
+              title=title, key="information_criteria")
 end
 
 """Output per-variable FEVD tables.
@@ -715,11 +717,16 @@ const ID_METHOD_MAP = Dict(
     "dcov"              => :dcov,
     "hsic"              => :hsic,
     "student_t"         => :student_t,
+    "student-t"         => :student_t,
     "mixture_normal"    => :mixture_normal,
+    "mixture-normal"    => :mixture_normal,
     "pml"               => :pml,
     "skew_normal"       => :skew_normal,
+    "skew-normal"       => :skew_normal,
     "markov_switching"  => :markov_switching,
+    "markov-switching"  => :markov_switching,
     "garch_id"          => :garch,
+    "garch-id"          => :garch,
     "uhlig"             => :uhlig,
     "lewis-tvv"         => :lewis_tvv,
     "sv-em"             => :sv_em,
@@ -788,7 +795,7 @@ function _inject_svar_id_kwargs!(kwargs::Dict, id::String, leaf::String, data::S
             "$leaf: --id proxy requires --instrument <column>";
             hint="name a numeric, missing-free proxy column, e.g. --instrument mp_shock"))
         isempty(data) && throw(CliError("usage/missing",
-            "$leaf: --id proxy requires --data (the instrument column lives in the CSV)"))
+            "$leaf: --id proxy requires a positional <data> CSV path (the instrument column lives in the CSV)"))
         kwargs[:instruments] = _load_instrument(data, instrument_col)
     elseif !isempty(instrument_col)
         throw(CliError("usage/invalid",
@@ -812,18 +819,28 @@ end
 Load data from CSV, optionally auto-select lag order, and estimate a frequentist VAR.
 """
 function _load_and_estimate_var(data::String, lags)
+    lags === nothing || lags >= 1 || throw(CliError("usage/invalid",
+        "--lags must be ≥ 1 (got $lags)"))
     Y, varnames = load_multivariate_data(data)
     n = size(Y, 2)
 
-    p = if isnothing(lags)
-        select_lag_order(Y, min(12, size(Y,1) ÷ (3*n)); criterion=:aic)
-    else
-        lags
+    p = try
+        if isnothing(lags)
+            select_lag_order(Y, min(12, size(Y,1) ÷ (3*n)); criterion=:aic)
+        else
+            lags
+        end
+    catch e
+        throw(_domain_or_data_error(e, "VAR lag selection"))
     end
 
     # Forward the CSV column names (#119): without this the model renders y1..yn
     # and every downstream IRF/FEVD/forecast table loses the user's names.
-    model = estimate_var(Y, p; varnames=varnames)
+    model = try
+        estimate_var(Y, p; varnames=varnames)
+    catch e
+        throw(_domain_or_data_error(e, "VAR estimation"))
+    end
     return model, Y, varnames, p
 end
 
@@ -848,6 +865,8 @@ Returns a BVARPosterior (which carries p, n, data internally).
 function _load_and_estimate_bvar(data::String, lags::Int, config::String,
                                   draws::Int, sampler::String;
                                   hyperopt::String="glp")
+    lags >= 1 || throw(CliError("usage/invalid", "bvar: --lags must be ≥ 1 (got $lags)"))
+    draws >= 1 || throw(CliError("usage/invalid", "bvar: --draws must be ≥ 1 (got $draws)"))
     Y, varnames = load_multivariate_data(data)
     n = size(Y, 2)
     p = lags
@@ -869,10 +888,14 @@ function _load_and_estimate_bvar(data::String, lags::Int, config::String,
     # Forward --seed as the estimator's own seed (C052/#243): estimate_bvar seeds a
     # fresh Xoshiro(seed) and records it in the BVARPosterior ReproManifest,
     # so a saved posterior reproduces bit-for-bit. `nothing` → library default RNG.
-    post = estimate_bvar(Y, p;
-        sampler=Symbol(sampler), n_draws=draws,
-        prior=prior_sym, hyper=prior_obj, hyperopt=Symbol(hopt),
-        varnames=varnames, seed=_SEED[])
+    post = try
+        estimate_bvar(Y, p;
+            sampler=Symbol(sampler), n_draws=draws,
+            prior=prior_sym, hyper=prior_obj, hyperopt=Symbol(hopt),
+            varnames=varnames, seed=_SEED[])
+    catch e
+        throw(_domain_or_data_error(e, "BVAR estimation"))
+    end
 
     return post, Y, varnames, p, n
 end
@@ -931,12 +954,12 @@ function _require_rkeys(entry, keys::Vector{String}, listname::String)
     end
 end
 
-function _parse_horizon_range(raw, what::String)
-    (raw isa AbstractVector && length(raw) == 2) || throw(CliError("config/invalid",
-        "$what must be a 2-element [lo, hi] range (got $raw)"))
+function _parse_horizon_range(raw, what::String; min_lo::Int=0)
+    (raw isa AbstractVector && length(raw) == 2 && all(x -> x isa Integer, raw)) || throw(CliError("config/invalid",
+        "$what must be a 2-element integer [lo, hi] range (got $raw)"))
     lo, hi = Int(raw[1]), Int(raw[2])
-    (1 <= lo <= hi) || throw(CliError("config/invalid",
-        "$what range must satisfy 1 ≤ lo ≤ hi (got [$lo, $hi])"))
+    (min_lo <= lo <= hi) || throw(CliError("config/invalid",
+        "$what range must satisfy $min_lo ≤ lo ≤ hi (got [$lo, $hi])"))
     return lo:hi
 end
 
@@ -969,62 +992,79 @@ function _load_svar_restrictions(config_path::String, n::Int, label::String)
         "$label identification requires a --config file with restrictions"))
     cfg = load_config(config_path)
     id_cfg = get(cfg, "identification", Dict())
+    decl_keys = ("zero_restrictions", "sign_restrictions", "a0_zero_restrictions",
+                 "a0_sign_restrictions", "elasticity_bounds", "magnitude_bounds",
+                 "cumulative_restrictions", "narrative_shocks", "narrative_contributions")
+    has_decl = any(k -> !isempty(get(id_cfg, k, [])), decl_keys)
+    if !has_decl && haskey(id_cfg, "sign_matrix")
+        throw(CliError("config/invalid",
+            "$label identification uses declarative [[identification.sign_restrictions]] / [[identification.zero_restrictions]] tables, not [identification.sign_matrix]";
+            hint="replace [identification.sign_matrix] with [[identification.sign_restrictions]] entries ({var, shock, sign, horizon}), or use --id sign"))
+    end
     zero_restrs = Any[]
     sign_restrs = Any[]
-    for r in get(id_cfg, "zero_restrictions", [])
-        _require_rkeys(r, ["var", "shock"], "zero_restrictions")
-        h = get(r, "horizon", 0)
-        push!(zero_restrs, h == "long_run" ?
-            zero_restriction(r["var"], r["shock"]; horizon=:long_run) :
-            zero_restriction(r["var"], r["shock"]; horizon=Int(h)))
-    end
-    for r in get(id_cfg, "sign_restrictions", [])
-        _require_rkeys(r, ["var", "shock", "sign"], "sign_restrictions")
-        if haskey(r, "horizons")
-            append!(sign_restrs, sign_restriction(r["var"], r["shock"], Symbol(r["sign"]);
-                                                 horizons=_parse_horizon_range(r["horizons"], "sign_restrictions.horizons")))
-        else
-            push!(sign_restrs, sign_restriction(r["var"], r["shock"], Symbol(r["sign"]);
-                                               horizon=Int(get(r, "horizon", 0))))
+    try
+        for r in get(id_cfg, "zero_restrictions", [])
+            _require_rkeys(r, ["var", "shock"], "zero_restrictions")
+            h = get(r, "horizon", 0)
+            push!(zero_restrs, h == "long_run" ?
+                zero_restriction(r["var"], r["shock"]; horizon=:long_run) :
+                zero_restriction(r["var"], r["shock"]; horizon=Int(h)))
         end
+        for r in get(id_cfg, "sign_restrictions", [])
+            _require_rkeys(r, ["var", "shock", "sign"], "sign_restrictions")
+            if haskey(r, "horizons")
+                append!(sign_restrs, sign_restriction(r["var"], r["shock"], Symbol(r["sign"]);
+                                                      horizons=_parse_horizon_range(r["horizons"], "sign_restrictions.horizons"; min_lo=0)))
+            else
+                push!(sign_restrs, sign_restriction(r["var"], r["shock"], Symbol(r["sign"]);
+                                                    horizon=Int(get(r, "horizon", 0))))
+            end
+        end
+        for r in get(id_cfg, "a0_zero_restrictions", [])
+            _require_rkeys(r, ["equation", "shock"], "a0_zero_restrictions")
+            push!(zero_restrs, a0_zero_restriction(r["equation"], r["shock"]))
+        end
+        for r in get(id_cfg, "a0_sign_restrictions", [])
+            _require_rkeys(r, ["equation", "shock", "sign"], "a0_sign_restrictions")
+            push!(sign_restrs, a0_sign_restriction(r["equation"], r["shock"], Symbol(r["sign"])))
+        end
+        for r in get(id_cfg, "elasticity_bounds", [])
+            _require_rkeys(r, ["numerator", "denominator", "shock"], "elasticity_bounds")
+            push!(sign_restrs, elasticity_bound(r["numerator"], r["denominator"], r["shock"];
+                                                horizon=Int(get(r, "horizon", 0)),
+                                                lower=Float64(get(r, "lower", -Inf)),
+                                                upper=Float64(get(r, "upper", Inf))))
+        end
+        for r in get(id_cfg, "magnitude_bounds", [])
+            _require_rkeys(r, ["variable", "shock", "lower", "upper"], "magnitude_bounds")
+            push!(sign_restrs, magnitude_bound(r["variable"], r["shock"];
+                                               horizon=Int(get(r, "horizon", 0)),
+                                               lower=Float64(r["lower"]), upper=Float64(r["upper"])))
+        end
+        for r in get(id_cfg, "cumulative_restrictions", [])
+            _require_rkeys(r, ["variable", "shock", "sign", "horizons"], "cumulative_restrictions")
+            push!(sign_restrs, cumulative_restriction(r["variable"], r["shock"], Symbol(r["sign"]);
+                                                      horizons=_parse_horizon_range(r["horizons"], "cumulative_restrictions.horizons"; min_lo=0)))
+        end
+        for r in get(id_cfg, "narrative_shocks", [])
+            _require_rkeys(r, ["shock", "dates", "sign"], "narrative_shocks")
+            push!(sign_restrs, narrative_shock_restriction(r["shock"], collect(Int, r["dates"]), Symbol(r["sign"])))
+        end
+        for r in get(id_cfg, "narrative_contributions", [])
+            _require_rkeys(r, ["variable", "shock", "window"], "narrative_contributions")
+            push!(sign_restrs, narrative_contribution_restriction(r["variable"], r["shock"],
+                                                                  _parse_horizon_range(r["window"], "narrative_contributions.window"; min_lo=1);
+                                                                  kind=Symbol(get(r, "kind", "most_important"))))
+        end
+        return cfg, SVARRestrictions(n; zeros=zero_restrs, signs=sign_restrs)
+    catch e
+        e isa CliError && rethrow()
+        if e isa ArgumentError || e isa InexactError || e isa MethodError
+            throw(CliError("config/invalid", "$label identification restrictions invalid: $(sprint(showerror, e))"))
+        end
+        rethrow()
     end
-    for r in get(id_cfg, "a0_zero_restrictions", [])
-        _require_rkeys(r, ["equation", "shock"], "a0_zero_restrictions")
-        push!(zero_restrs, a0_zero_restriction(r["equation"], r["shock"]))
-    end
-    for r in get(id_cfg, "a0_sign_restrictions", [])
-        _require_rkeys(r, ["equation", "shock", "sign"], "a0_sign_restrictions")
-        push!(sign_restrs, a0_sign_restriction(r["equation"], r["shock"], Symbol(r["sign"])))
-    end
-    for r in get(id_cfg, "elasticity_bounds", [])
-        _require_rkeys(r, ["numerator", "denominator", "shock"], "elasticity_bounds")
-        push!(sign_restrs, elasticity_bound(r["numerator"], r["denominator"], r["shock"];
-                                           horizon=Int(get(r, "horizon", 0)),
-                                           lower=Float64(get(r, "lower", -Inf)),
-                                           upper=Float64(get(r, "upper", Inf))))
-    end
-    for r in get(id_cfg, "magnitude_bounds", [])
-        _require_rkeys(r, ["variable", "shock", "lower", "upper"], "magnitude_bounds")
-        push!(sign_restrs, magnitude_bound(r["variable"], r["shock"];
-                                          horizon=Int(get(r, "horizon", 0)),
-                                          lower=Float64(r["lower"]), upper=Float64(r["upper"])))
-    end
-    for r in get(id_cfg, "cumulative_restrictions", [])
-        _require_rkeys(r, ["variable", "shock", "sign", "horizons"], "cumulative_restrictions")
-        push!(sign_restrs, cumulative_restriction(r["variable"], r["shock"], Symbol(r["sign"]);
-                                                 horizons=_parse_horizon_range(r["horizons"], "cumulative_restrictions.horizons")))
-    end
-    for r in get(id_cfg, "narrative_shocks", [])
-        _require_rkeys(r, ["shock", "dates", "sign"], "narrative_shocks")
-        push!(sign_restrs, narrative_shock_restriction(r["shock"], collect(Int, r["dates"]), Symbol(r["sign"])))
-    end
-    for r in get(id_cfg, "narrative_contributions", [])
-        _require_rkeys(r, ["variable", "shock", "window"], "narrative_contributions")
-        push!(sign_restrs, narrative_contribution_restriction(r["variable"], r["shock"],
-                                                             _parse_horizon_range(r["window"], "narrative_contributions.window");
-                                                             kind=Symbol(get(r, "kind", "most_important"))))
-    end
-    return cfg, SVARRestrictions(n; zeros=zero_restrs, signs=sign_restrs)
 end
 
 """
@@ -1111,7 +1151,23 @@ end
 Build sign restriction and narrative restriction check functions from TOML config.
 Returns `(nothing, nothing)` if no config or no restrictions.
 """
-function _build_check_func(config_path::String)
+function _check_sign_narrative_config_match(id::String, config_path::String,
+                                         check_func, narrative_check, leaf::String)
+    isempty(config_path) && return
+    id in ("sign", "narrative") || return
+    if id == "sign" && isnothing(check_func)
+        cfg = load_config(config_path)
+        id_sec = get(cfg, "identification", Dict())
+        if !isempty(get(id_sec, "sign_restrictions", [])) || !isempty(get(id_sec, "zero_restrictions", []))
+            throw(CliError("config/invalid",
+                "$leaf: --id sign uses [identification.sign_matrix], not declarative [[identification.sign_restrictions]]";
+                hint="use --id arias or --id uhlig for declarative restrictions, or define [identification.sign_matrix] for --id sign"))
+        end
+    end
+    return
+end
+
+function _build_check_func(config_path::String; nvars::Union{Int,Nothing}=nothing)
     if isempty(config_path)
         return nothing, nothing
     end
@@ -1123,7 +1179,19 @@ function _build_check_func(config_path::String)
 
     if haskey(id_cfg, "sign_matrix")
         sign_mat = id_cfg["sign_matrix"]
+        isempty(sign_mat) && throw(CliError("config/invalid",
+            "identification.sign_matrix.matrix must be non-empty"))
+        size(sign_mat, 1) == size(sign_mat, 2) || throw(CliError("config/invalid",
+            "identification.sign_matrix.matrix must be square (got $(size(sign_mat, 1))×$(size(sign_mat, 2)))"))
+        if nvars !== nothing && size(sign_mat, 1) != nvars
+            throw(CliError("config/invalid",
+                "identification.sign_matrix.matrix is $(size(sign_mat, 1))×$(size(sign_mat, 2)), expected $(nvars)×$(nvars) for this model"))
+        end
         horizons = get(id_cfg, "horizons", [0])
+        for hval in horizons
+            hval >= 0 || throw(CliError("config/invalid",
+                "identification.sign_matrix.horizons entries must be ≥ 0 (got $hval)"))
+        end
         check_func = function(irf_values)
             for h_idx in 1:length(horizons)
                 h = horizons[h_idx] + 1  # 1-based indexing
@@ -1185,7 +1253,8 @@ function _build_identification_kwargs(id::String, config::String;
     method = _identification_method(id, methods, "identification")
     kwargs = Dict{Symbol,Any}(:method => method)
 
-    check_func, narrative_check = _build_check_func(config)
+    check_func, narrative_check = _build_check_func(config; nvars=nvars)
+    _check_sign_narrative_config_match(id, config, check_func, narrative_check, leaf)
     if !isnothing(check_func)
         kwargs[:check_func] = check_func
     end
@@ -1251,12 +1320,16 @@ function _load_and_structural_lp(data::String, horizons::Int, lags::Int,
                                   config::String;
                                   ci_type::Symbol=:none, reps::Int=200,
                                   conf_level::Float64=0.95)
+    horizons >= 1 || throw(CliError("usage/invalid", "structural lp: --horizons must be ≥ 1 (got $horizons)"))
+    lags >= 0 || throw(CliError("usage/invalid", "structural lp: --lags must be ≥ 0 (got $lags)"))
+    vp = isnothing(var_lags) ? lags : var_lags
+    vp >= 1 || throw(CliError("usage/invalid", "structural lp: VAR lag order must be ≥ 1 (got $vp)"))
+
     Y, varnames = load_multivariate_data(data)
 
     method = _identification_method(id, ID_METHOD_MAP, "structural lp")
-    check_func, narrative_check = _build_check_func(config)
-
-    vp = isnothing(var_lags) ? lags : var_lags
+    check_func, narrative_check = _build_check_func(config; nvars=size(Y, 2))
+    _check_sign_narrative_config_match(id, config, check_func, narrative_check, "structural lp")
 
     kwargs = Dict{Symbol,Any}(
         :method => method,
@@ -1279,7 +1352,11 @@ function _load_and_structural_lp(data::String, horizons::Int, lags::Int,
     # own compute_Q allow-list (lp/core.jl:440-443), so lewis/sv knobs have
     # no channel on LP leaves (methods run on upstream defaults, same as
     # the pre-existing uhlig-knob behavior on LP).
-    slp = structural_lp(Y, horizons; kwargs...)
+    slp = try
+        structural_lp(Y, horizons; kwargs...)
+    catch e
+        throw(_domain_or_data_error(e, "structural LP estimation"))
+    end
     return slp, Y, varnames
 end
 
@@ -1292,17 +1369,29 @@ Load data from CSV and estimate a VECM. When rank=="auto", uses select_vecm_rank
 function _load_and_estimate_vecm(data::String, lags::Int, rank::String,
                                   deterministic::String, method::String,
                                   significance::Float64)
+    lags >= 1 || throw(CliError("usage/invalid", "vecm: --lags must be ≥ 1 (got $lags)"))
     Y, varnames = load_multivariate_data(data)
 
     r = if rank == "auto"
-        select_vecm_rank(Y, lags; significance=significance)
+        try
+            select_vecm_rank(Y, lags; significance=significance)
+        catch e
+            throw(_domain_or_data_error(e, "VECM rank selection"))
+        end
     else
-        parse(Int, rank)
+        v = tryparse(Int, strip(rank))
+        (v === nothing || v < 0) && throw(CliError("usage/invalid",
+            "vecm: --rank must be 'auto' or a non-negative integer (got '$rank')"))
+        v
     end
 
-    vecm = estimate_vecm(Y, lags; rank=r, deterministic=Symbol(deterministic),
-                         method=Symbol(method), significance=significance,
-                         varnames=varnames)
+    vecm = try
+        estimate_vecm(Y, lags; rank=r, deterministic=Symbol(deterministic),
+                      method=Symbol(method), significance=significance,
+                      varnames=varnames)
+    catch e
+        throw(_domain_or_data_error(e, "VECM estimation"))
+    end
     return vecm, Y, varnames, lags
 end
 
@@ -1389,16 +1478,26 @@ comma-separated list of 1-based regressor indices → `Vector{Int}` (non-empty, 
 An empty result → typed `usage/invalid` (a fully-symmetric model → use `estimate ardl`). The
 upper bound (`≤ k₀`) is checked by the caller, which knows the regressor count. (C062b)
 """
-function _parse_asym_spec(s::AbstractString)
+function _parse_asym_spec(s::AbstractString, xcols::Union{Nothing,Vector{String}}=nothing)
     s == "all" && return :all
     idxs = Int[]
     for t in split(s, ",")
         ts = strip(t)
         isempty(ts) && continue
         v = tryparse(Int, ts)
-        (v === nothing || v < 1) && throw(CliError("usage/invalid",
-            "--asymmetric: '$ts' must be a positive 1-based regressor index (or 'all')"))
-        push!(idxs, v)
+        if v !== nothing
+            v >= 1 || throw(CliError("usage/invalid",
+                "--asymmetric: '$ts' must be a positive 1-based regressor index (or 'all')"))
+            push!(idxs, v)
+        elseif xcols !== nothing
+            pos = findfirst(==(ts), xcols)
+            pos === nothing && throw(CliError("usage/invalid",
+                "--asymmetric: '$ts' must be a positive 1-based regressor index, column name in [$(join(xcols, ", "))], or 'all'"))
+            push!(idxs, pos)
+        else
+            throw(CliError("usage/invalid",
+                "--asymmetric: '$ts' must be a positive 1-based regressor index (or 'all')"))
+        end
     end
     isempty(idxs) && throw(CliError("usage/invalid",
         "--asymmetric resolved to no indices; pass 'all' or 1-based indices like '1,3' " *
@@ -1470,6 +1569,42 @@ variable, and `--indep` defaults to every other variable. Reuses the hardened
 validates every resolved name → `usage/invalid`, so bad input never reaches MEMs as an
 untyped exit-1.
 """
+function _resolve_col_ref(spec::AbstractString, cols::Vector{String};
+                          label::String="column", code::String="data/column-range")::String
+    s = strip(String(spec))
+    isempty(s) && return cols[1]
+    s in cols && return s
+    idx = tryparse(Int, s)
+    if idx !== nothing
+        (1 <= idx <= length(cols)) || throw(CliError(code,
+            "$label index $idx out of range 1:$(length(cols)) (available: $(join(cols, ", ")))"))
+        return cols[idx]
+    end
+    throw(CliError(code,
+        "$label '$s' not found in numeric columns: $(join(cols, ", "))"))
+end
+
+function _resolve_dep_name(data::String, dep::String)::String
+    cols = variable_names(load_data(data))
+    isempty(cols) && return dep
+    return isempty(strip(dep)) ? cols[1] : _resolve_col_ref(dep, cols; label="dependent variable")
+end
+
+function _resolve_panel_dep(pd, dep::String)::String
+    vars = pd.varnames
+    isempty(vars) && return dep
+    return isempty(strip(dep)) ? vars[1] : _resolve_col_ref(dep, vars; label="--dep")
+end
+
+function _resolve_switching_variance(switching_variance::Bool, no_switching_variance::Bool;
+                                     default::Bool, leaf::String)::Bool
+    (switching_variance && no_switching_variance) && throw(CliError("usage/invalid",
+        "$leaf: cannot combine --switching-variance and --no-switching-variance"))
+    switching_variance && return true
+    no_switching_variance && return false
+    return default
+end
+
 function _load_panel_reg(data::String, id_col::String, time_col::String,
                          dep::String, indep::String)
     df = load_data(data)
@@ -1480,7 +1615,7 @@ function _load_panel_reg(data::String, id_col::String, time_col::String,
     tc = isempty(time_col) ? cols[2] : time_col
     pd = load_panel_data(data, id, tc)          # typed: data/missing-column, data/invalid
     vars = pd.varnames                          # numeric cols minus id/time (non-empty — load_panel_data guards)
-    depc = isempty(dep) ? vars[1] : dep
+    depc = isempty(strip(dep)) ? vars[1] : _resolve_col_ref(dep, vars; label="--dep", code="usage/invalid")
     depc in vars || throw(CliError("usage/invalid",
         "--dep '$depc' is not a panel variable (have: $(join(vars, ", ")))"))
     indeps = isempty(indep) ? filter(!=(depc), vars) : _parse_varlist(indep)
@@ -1513,6 +1648,7 @@ function _load_and_estimate_pvar(data::String, id_col::String, time_col::String,
                                   system::Bool=false, collapse::Bool=false,
                                   dependent::String="", predet::String="", exog::String="",
                                   min_lag_endo::Int=2, max_lag_endo::Int=99)
+    lags >= 1 || throw(CliError("usage/invalid", "pvar: --lags must be ≥ 1 (got $lags)"))
     panel = load_panel_data(data, id_col, time_col)
 
     dep = _parse_varlist(dependent)
@@ -1522,18 +1658,22 @@ function _load_and_estimate_pvar(data::String, id_col::String, time_col::String,
     # MEMs 0.7.0 renamed the variable-role kwargs (C054): dependent→dependent_vars,
     # predetermined→predet_vars, exogenous→exog_vars, system→system_instruments.
     # predet_vars/exog_vars are now plain String vectors (empty = none).
-    model = if method == "feols"
-        estimate_pvar_feols(panel, lags;
-            dependent_vars=isempty(dep) ? nothing : dep,
-            exog_vars=exo)
-    else
-        estimate_pvar(panel, lags;
-            transformation=Symbol(transformation), steps=Symbol(steps),
-            system_instruments=system, collapse=collapse,
-            dependent_vars=isempty(dep) ? nothing : dep,
-            predet_vars=pre,
-            exog_vars=exo,
-            min_lag_endo=min_lag_endo, max_lag_endo=max_lag_endo)
+    model = try
+        if method == "feols"
+            estimate_pvar_feols(panel, lags;
+                dependent_vars=isempty(dep) ? nothing : dep,
+                exog_vars=exo)
+        else
+            estimate_pvar(panel, lags;
+                transformation=Symbol(transformation), steps=Symbol(steps),
+                system_instruments=system, collapse=collapse,
+                dependent_vars=isempty(dep) ? nothing : dep,
+                predet_vars=pre,
+                exog_vars=exo,
+                min_lag_endo=min_lag_endo, max_lag_endo=max_lag_endo)
+        end
+    catch e
+        throw(_domain_or_data_error(e, "Panel VAR estimation"))
     end
     return model, panel, panel.varnames
 end
@@ -1586,7 +1726,8 @@ function _load_and_estimate_favar(data::String, factors, lags::Int,
                 push!(key_indices, idx)
             else
                 found = findfirst(==(kv), varnames)
-                found === nothing && error("key variable '$kv' not found in data columns: $varnames")
+                found === nothing && throw(CliError("data/column-range",
+                    "key variable '$kv' not found in data columns: $(join(varnames, ", "))"))
                 push!(key_indices, found)
             end
         end
@@ -1594,6 +1735,7 @@ function _load_and_estimate_favar(data::String, factors, lags::Int,
     isempty(key_indices) && throw(CliError("usage/missing",
         "--key-vars is required for FAVAR";
         hint="comma-separated column names or indices, e.g. --key-vars y,x"))
+    lags >= 1 || throw(CliError("usage/invalid", "favar: --lags must be ≥ 1 (got $lags)"))
 
     # Auto-select factors if not specified
     r = if factors === nothing
@@ -1609,11 +1751,15 @@ function _load_and_estimate_favar(data::String, factors, lags::Int,
     # panel_varnames (W10/#131, MEMs#538): the key variables inside the augmented
     # VAR take their CSV column names, so irf/fevd/forecast favar label them
     # "infl"/"ffr" instead of the positional "X9"/"X10".
-    favar = estimate_favar(Y, key_indices, r, lags;
-                           method=Symbol(method),
-                           n_draws=draws,
-                           panel_varnames=varnames,
-                           _fwd_seed()...)
+    favar = try
+        estimate_favar(Y, key_indices, r, lags;
+                       method=Symbol(method),
+                       n_draws=draws,
+                       panel_varnames=varnames,
+                       _fwd_seed()...)
+    catch e
+        throw(_domain_or_data_error(e, "FAVAR estimation"))
+    end
     return favar, Y, varnames
 end
 
@@ -1781,7 +1927,20 @@ end
 Load data as PanelData if id_col/time_col are provided, else as Matrix.
 """
 function _load_panel_or_matrix(data::String; id_col::String="", time_col::String="")
-    if !isempty(id_col) && !isempty(time_col)
+    if _is_handle_path(data)
+        obj = load_model_dispatch(data)
+        if _data_kind_of(obj) === :panel
+            _status_styled("  Panel: $(obj.n_groups) units, $(div(obj.T_obs, obj.n_groups)) periods\n"; color=:cyan)
+            return obj, true
+        elseif _data_kind_of(obj) === :timeseries
+            Y = Float64.(obj.data)
+            _status("  Matrix: $(size(Y, 1)) obs × $(size(Y, 2)) units")
+            return Y, false
+        end
+        obj isa AbstractMatrix && return Float64.(obj), false
+        throw(CliError("data/wrong-kind",
+            "$data is a $(_data_kind_of(obj)) handle ($(nameof(typeof(obj)))); expected panel or timeseries/matrix data"))
+    elseif !isempty(id_col) && !isempty(time_col)
         pd = load_panel_data(data, id_col, time_col)
         _status_styled("  Panel: $(pd.n_groups) units, $(div(pd.T_obs, pd.n_groups)) periods\n"; color=:cyan)
         return pd, true
@@ -1790,6 +1949,30 @@ function _load_panel_or_matrix(data::String; id_col::String="", time_col::String
         _status("  Matrix: $(size(Y, 1)) obs × $(size(Y, 2)) units")
         return Y, false
     end
+end
+
+"""Pivot a PanelData container into a balanced T x M Float64 matrix (groups x variables)."""
+function _panel_to_wide_matrix(pd::PanelData)
+    gids = sort(unique(pd.group_id))
+    tids = sort(unique(pd.time_id))
+    idx_map = Dict{Tuple{Int,Int},Int}()
+    for r in 1:size(pd.data, 1)
+        idx_map[(pd.group_id[r], pd.time_id[r])] = r
+    end
+    common_t = Int[t for t in tids if all(haskey(idx_map, (g, t)) && all(isfinite, @view pd.data[idx_map[(g, t)], :]) for g in gids)]
+    n_t = length(common_t)
+    n_series = length(gids) * pd.n_vars
+    (n_t >= 4 && n_series >= 2) || throw(CliError("data/insufficient",
+        "factor-break on PanelData requires at least 4 common time periods and 2 cross-sectional series (got $(n_t)×$(n_series))"))
+    mat = Matrix{Float64}(undef, n_t, n_series)
+    col = 0
+    for g in gids, v in 1:pd.n_vars
+        col += 1
+        for (ti, t) in enumerate(common_t)
+            mat[ti, col] = Float64(pd.data[idx_map[(g, t)], v])
+        end
+    end
+    return mat
 end
 
 # ── Result-handle re-render ────────────────────────────────
@@ -1894,7 +2077,8 @@ function _rerender_arias_irf(result; format::String="table", output::String="",
         "n_draws"         => length(result.weights),
         "ess"             => round(ess; digits=4),
         "ess_fraction"    => round(ess_frac; digits=6),
-    ]; format=format, title="Arias Importance-Sampling Diagnostics")
+    ]; format=format, output=_per_var_output_path(output, "diagnostics"),
+       title="Arias Importance-Sampling Diagnostics")
     _maybe_plot(result; plot=plot, plot_save=plot_save)
     return result
 end
@@ -2180,7 +2364,18 @@ function _maybe_plot(result; plot::Bool=false, plot_save::String="", kwargs...)
         rethrow()
     end
     if !isempty(plot_save)
-        save_plot(p, plot_save)
+        try
+            save_plot(p, plot_save)
+        catch e
+            e isa CliError && rethrow()
+            if e isa Base.IOError || e isa SystemError
+                throw(CliError("data/file-not-found",
+                    "failed to save plot to '$plot_save': $(sprint(showerror, e))";
+                    hint="check that the parent directory exists and is writable"))
+            end
+            throw(_domain_or_data_error(e, "plot save"))
+        end
+        envelope_active() && add_artifact!(_ENVELOPE[], "plot", plot_save)
         _status_styled("  Plot saved: $plot_save\n"; color=:green)
     end
     if plot
@@ -3581,12 +3776,7 @@ function _load_reg_data(data::String, dep::String; weights_col::String="", clust
     # untyped exit-1). Mirrors the same fix in `_load_xy_data`/`_load_iv_data` (adversarial review).
     isempty(numcols) && throw(CliError("data/invalid", "no numeric columns found in the data"))
 
-    dep_col = isempty(dep) ? numcols[1] : dep
-    # C067a: typed errors, not bare `error()` — a bad `--dep` or a degenerate column set
-    # is user input (exit 3), not a CLI bug (exit 1). Benefits the whole cross-section reg
-    # family (reg/iv/logit/probit/ologit/oprobit/mlogit/predict/residuals) that shares this.
-    !isempty(dep) && !(dep_col in numcols) && throw(CliError("data/column-range",
-        "dependent variable '$dep_col' not found in numeric columns: $(join(numcols, ", "))"))
+    dep_col = isempty(strip(dep)) ? numcols[1] : _resolve_col_ref(dep, numcols; label="dependent variable")
 
     exclude = Set([dep_col])
     !isempty(weights_col) && push!(exclude, weights_col)
@@ -3647,9 +3837,7 @@ function _load_iv_data(data::String, dep::String, endogenous::String, instrument
     numcols = variable_names(df)
     isempty(numcols) && throw(CliError("data/invalid", "no numeric columns found in the data"))
 
-    dep_col = isempty(dep) ? numcols[1] : dep
-    !isempty(dep) && !(dep_col in numcols) && throw(CliError("data/column-range",
-        "dependent variable '$dep_col' not found in numeric columns: $(join(numcols, ", "))"))
+    dep_col = isempty(strip(dep)) ? numcols[1] : _resolve_col_ref(dep, numcols; label="dependent variable")
 
     endog_names = String[strip(s) for s in split(endogenous, ",") if !isempty(strip(s))]
     inst_names  = String[strip(s) for s in split(instruments, ",") if !isempty(strip(s))]
@@ -3742,9 +3930,7 @@ function _load_xy_data(data::String, dep::String, indep::String)
     numcols = variable_names(df)
     isempty(numcols) && throw(CliError("data/invalid",
         "no numeric columns found in the data"))
-    dep_col = isempty(dep) ? numcols[1] : dep
-    !isempty(dep) && !(dep_col in numcols) && throw(CliError("data/column-range",
-        "response variable '$dep_col' not found in numeric columns: $(join(numcols, ", "))"))
+    dep_col = isempty(strip(dep)) ? numcols[1] : _resolve_col_ref(dep, numcols; label="response variable")
     indep in numcols || throw(CliError("data/column-range",
         "predictor '$indep' not found in numeric columns: $(join(numcols, ", "))"))
     indep == dep_col && throw(CliError("data/column-range",

@@ -23,7 +23,7 @@ Rule counterfactual: enforce a PolicyRule on the menu with exact/ls projection
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizon` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--horizons` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
 | `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
 | `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
 | `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
@@ -65,14 +65,14 @@ Rule counterfactual: enforce a PolicyRule on the menu with exact/ls projection
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizon` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--horizons` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
 | `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
 | `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
 | `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
-| `--n-draws` | — | `Int64` | `500` | — | Independent-normal N(value, se) draws (pointwise approximation, NOT a joint posterior) |
+| `--draws` | — | `Int64` | `500` | — | Independent-normal N(value, se) draws (pointwise approximation, NOT a joint posterior) |
 | `--config` | — | `String` | `""` | — | TOML identification config |
 | `--nonpolicy-shock` | — | `String` | `""` | — | The ONE non-policy shock the rule responds to (index or name; REQUIRED) |
 | `--rule` | — | `String` | `""` | — | Builtin rule: rate-peg\|inflation-target\|output-gap\|ngdp\|taylor (taylor = TEXTBOOK rho/phi, not CMW — use --rule-config for that) |
@@ -107,14 +107,14 @@ Rule counterfactual: enforce a PolicyRule on the menu with exact/ls projection
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizon` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--horizons` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
 | `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
 | `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
 | `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
-| `--replications` | — | `Int64` | `0` | — | Bootstrap draws for uncertainty bands (0 = point only) |
+| `--draws` | — | `Int64` | `0` | — | Bootstrap draws for uncertainty bands (0 = point only) |
 | `--nonpolicy-shock` | — | `String` | `""` | — | The ONE non-policy shock the rule responds to (index or name; REQUIRED) |
 | `--rule` | — | `String` | `""` | — | Builtin rule: rate-peg\|inflation-target\|output-gap\|ngdp\|taylor (taylor = TEXTBOOK rho/phi, not CMW — use --rule-config for that) |
 | `--rule-config` | — | `String` | `""` | — | TOML [rule] section (rate-target paths, CMW taylor, custom pi_var/y_var) |
@@ -156,7 +156,7 @@ McKay-Wolf causal-effects menu (Theta_x/Theta_z) from an estimated IRF
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizon` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--horizons` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
 | `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
 | `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
 | `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
@@ -184,14 +184,14 @@ McKay-Wolf causal-effects menu (Theta_x/Theta_z) from an estimated IRF
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizon` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--horizons` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
 | `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
 | `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
 | `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
-| `--n-draws` | — | `Int64` | `500` | — | Independent-normal N(value, se) draws (pointwise approximation, NOT a joint posterior) |
+| `--draws` | — | `Int64` | `500` | — | Independent-normal N(value, se) draws (pointwise approximation, NOT a joint posterior) |
 | `--config` | — | `String` | `""` | — | TOML identification config |
 | `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none (the lp route keeps the estimator's scale; instrument-impact is var\|bvar\|sign only) |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
@@ -212,14 +212,14 @@ McKay-Wolf causal-effects menu (Theta_x/Theta_z) from an estimated IRF
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizon` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--horizons` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
 | `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
 | `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
 | `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
-| `--replications` | — | `Int64` | `1000` | — | Candidate rotations |
+| `--draws` | — | `Int64` | `1000` | — | Candidate rotations |
 | `--config` | — | `String` | `""` | — | TOML sign-restriction config (REQUIRED) |
 | `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact (rescale so the first instrument's impact is +1) |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
@@ -240,14 +240,14 @@ McKay-Wolf causal-effects menu (Theta_x/Theta_z) from an estimated IRF
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizon` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--horizons` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
 | `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
 | `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
 | `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
-| `--replications` | — | `Int64` | `0` | — | Bootstrap draws for uncertainty bands (0 = point only) |
+| `--draws` | — | `Int64` | `0` | — | Bootstrap draws for uncertainty bands (0 = point only) |
 | `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact (rescale so the first instrument's impact is +1) |
 | `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
@@ -275,7 +275,7 @@ Counterfactual history: re-run an observation window under the policy
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizon` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--horizons` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
 | `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
 | `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
 | `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
@@ -314,14 +314,14 @@ Counterfactual history: re-run an observation window under the policy
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizon` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--horizons` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
 | `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
 | `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
 | `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
-| `--replications` | — | `Int64` | `0` | — | Bootstrap draws for uncertainty bands (0 = point only) |
+| `--draws` | — | `Int64` | `0` | — | Bootstrap draws for uncertainty bands (0 = point only) |
 | `--t-range` | — | `String` | `""` | — | Observation window lo:hi to re-run under the rule or optimal policy (REQUIRED; length ≤ H−1) |
 | `--rule` | — | `String` | `""` | — | Builtin counterfactual rule |
 | `--rule-config` | — | `String` | `""` | — | TOML [rule] section |
@@ -389,7 +389,7 @@ Counterfactual second moments (sd/corr), rule XOR loss
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizon` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--horizons` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
 | `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
 | `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
 | `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
@@ -429,14 +429,14 @@ Counterfactual second moments (sd/corr), rule XOR loss
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizon` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--horizons` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
 | `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
 | `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
 | `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
-| `--replications` | — | `Int64` | `0` | — | Bootstrap draws for uncertainty bands (0 = point only) |
+| `--draws` | — | `Int64` | `0` | — | Bootstrap draws for uncertainty bands (0 = point only) |
 | `--rule` | — | `String` | `""` | — | Builtin counterfactual rule (see policy counterfactual) |
 | `--rule-config` | — | `String` | `""` | — | TOML [rule] section |
 | `--loss-config` | — | `String` | `""` | — | TOML [loss] section (rule XOR loss) |
@@ -479,7 +479,7 @@ Square DSGE news menu (policy_news_matrix) for one exogenous shock
 | `--policy-shock` | — | `String` | `""` | — | Exogenous shock the news menu perturbs (REQUIRED) |
 | `--outcomes` | — | `String` | `""` | — | name=model_variable map (SYMBOLS; REQUIRED) |
 | `--instruments` | — | `String` | `""` | — | name=model_variable map |
-| `--horizon` | — | `Int64` | `100` | — | News horizon H (one QZ of dimension n+H−1 — MW use 100) |
+| `--horizons` | — | `Int64` | `100` | — | News horizon H (one QZ of dimension n+H−1 — MW use 100) |
 | `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `blanchard-kahn` | Linear solver (nonlinear menus unsupported upstream) |
 | `--chunk` | — | `Int64` | `0` | — | Shock columns per solve (0 = all at once) |
 | `--behavioral-m` | — | `Float64` | `NaN` | — | Cognitive discounting m in [0,1] (behavioral operator; square menus only) |
@@ -505,7 +505,7 @@ Square HA sequence-space news menu under a rate-wedge closure
 |--------|-------|------|---------|---------|-------------|
 | `--outcomes` | — | `String` | `""` | — | name=model_variable map (SYMBOLS; REQUIRED) |
 | `--instruments` | — | `String` | `""` | — | name=model_variable map (default rate=r) |
-| `--horizon` | — | `Int64` | `100` | — | News horizon H |
+| `--horizons` | — | `Int64` | `100` | — | News horizon H |
 | `--t-horizon` | — | `Int64` | `300` | — | Sequence-space truncation (≥ H; < H+50 warns) |
 | `--rule-closure` | — | `String` | `administered` | `administered`, `market` | administered \| market (market: huggett-only; the wedge is exactly neutral there BY CONSTRUCTION) |
 | `--dx` | — | `Float64` | `0.0001` | — | Finite-difference step |
@@ -538,7 +538,7 @@ Barnichon-Mesters optimal policy perturbation (unconstrained or constrained)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizon` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--horizons` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
 | `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
 | `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
 | `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
@@ -587,14 +587,14 @@ Barnichon-Mesters optimal policy perturbation (unconstrained or constrained)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizon` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--horizons` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
 | `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
 | `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
 | `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
-| `--replications` | — | `Int64` | `0` | — | Bootstrap draws for uncertainty bands (0 = point only) |
+| `--draws` | — | `Int64` | `0` | — | Bootstrap draws for uncertainty bands (0 = point only) |
 | `--loss-config` | — | `String` | `""` | — | TOML [loss] section (REQUIRED) |
 | `--n-sim` | — | `Int64` | `2000` | — | Simulation draws for estimate_opp bands (0 = point only) |
 | `--levels` | — | `String` | `0.6,0.75,0.9` | — | Band levels — BM REVERSED polarity: rejection at the LOWER level is the conservative call |
@@ -643,7 +643,7 @@ OPP rerun over a sequence of dated gap forecasts with news/preference/aging spli
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizon` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--horizons` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
 | `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
 | `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
 | `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
@@ -684,14 +684,14 @@ OPP rerun over a sequence of dated gap forecasts with news/preference/aging spli
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizon` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--horizons` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
 | `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
 | `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
 | `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
-| `--replications` | — | `Int64` | `0` | — | Bootstrap draws for uncertainty bands (0 = point only) |
+| `--draws` | — | `Int64` | `0` | — | Bootstrap draws for uncertainty bands (0 = point only) |
 | `--loss-config` | — | `String` | `""` | — | TOML [loss] section (REQUIRED) |
 | `--forecasts-dir` | — | `String` | `""` | — | Directory of per-date GAP-path CSVs (sorted filenames = dates; REQUIRED) |
 | `--sd` | — | `String` | `""` | — | Per-outcome forecast sd shared across dates |
@@ -732,7 +732,7 @@ Optimal policy: minimize a quadratic PolicyLoss over the menu (spanned_tol fixed
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizon` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--horizons` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
 | `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
 | `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
 | `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
@@ -771,14 +771,14 @@ Optimal policy: minimize a quadratic PolicyLoss over the menu (spanned_tol fixed
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizon` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--horizons` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
 | `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
 | `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
 | `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
-| `--n-draws` | — | `Int64` | `500` | — | Independent-normal N(value, se) draws (pointwise approximation, NOT a joint posterior) |
+| `--draws` | — | `Int64` | `500` | — | Independent-normal N(value, se) draws (pointwise approximation, NOT a joint posterior) |
 | `--config` | — | `String` | `""` | — | TOML identification config |
 | `--nonpolicy-shock` | — | `String` | `""` | — | The ONE non-policy shock the optimal policy responds to (REQUIRED) |
 | `--loss-config` | — | `String` | `""` | — | TOML [loss] section (REQUIRED; lambda has no default upstream) |
@@ -810,14 +810,14 @@ Optimal policy: minimize a quadratic PolicyLoss over the menu (spanned_tol fixed
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizon` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--horizons` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
 | `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
 | `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
 | `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
-| `--replications` | — | `Int64` | `0` | — | Bootstrap draws for uncertainty bands (0 = point only) |
+| `--draws` | — | `Int64` | `0` | — | Bootstrap draws for uncertainty bands (0 = point only) |
 | `--nonpolicy-shock` | — | `String` | `""` | — | The ONE non-policy shock the optimal policy responds to (REQUIRED) |
 | `--loss-config` | — | `String` | `""` | — | TOML [loss] section (REQUIRED; lambda has no default upstream) |
 | `--use-draws` | — | `String` | `auto` | `auto`, `on`, `off` | Propagate menu draws into bands: auto\|on\|off |
@@ -857,14 +857,14 @@ Spanning diagnostic: thin empirical menu vs full DSGE news menu
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizon` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--horizons` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
 | `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
 | `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
 | `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--lags` | `-p` | `Int64` | — | — | VAR lag order (default AIC) |
-| `--replications` | — | `Int64` | `0` | — | Bootstrap draws on the empirical menu |
+| `--draws` | — | `Int64` | `0` | — | Bootstrap draws on the empirical menu |
 | `--nonpolicy-shock` | — | `String` | `""` | — | Baseline non-policy shock (REQUIRED) |
 | `--model-outcomes` | — | `String` | `""` | — | name=model_variable map for the news menu (SAME names as --outcomes) |
 | `--model-instruments` | — | `String` | `""` | — | name=model_variable map |
@@ -906,7 +906,7 @@ Forecast-sufficiency FEV ratios for an observable set (population laboratory, no
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--observables` | — | `String` | `""` | — | Comma-separated model variables the econometrician sees (REQUIRED) |
-| `--horizon` | — | `Int64` | `40` | — | FEV comparison horizon |
+| `--horizons` | — | `Int64` | `40` | — | FEV comparison horizon |
 | `--method` | — | `String` | `gensys` | — | DSGE solve method |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
