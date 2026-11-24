@@ -113,11 +113,15 @@ try {
     $ManifestOut = Join-Path $StageDir "AppxManifest.xml"
     [System.IO.File]::WriteAllText($ManifestOut, $ManifestText, [System.Text.UTF8Encoding]::new($false))
 
-    $OutDir = Split-Path -Parent (Join-Path (Get-Location) $OutputPath)
+    if ([System.IO.Path]::IsPathRooted($OutputPath)) {
+        $ResolvedOut = [System.IO.Path]::GetFullPath($OutputPath)
+    } else {
+        $ResolvedOut = [System.IO.Path]::GetFullPath((Join-Path (Get-Location).Path $OutputPath))
+    }
+    $OutDir = Split-Path -Parent $ResolvedOut
     if ($OutDir -and -not (Test-Path $OutDir)) {
         New-Item -ItemType Directory -Path $OutDir -Force | Out-Null
     }
-    $ResolvedOut = [System.IO.Path]::GetFullPath($OutputPath)
     if (Test-Path $ResolvedOut) {
         Remove-Item -Path $ResolvedOut -Force
     }
