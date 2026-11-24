@@ -1,39 +1,76 @@
 # [Installation & Quickstart](@id gs-installation)
 
-Install `Friedman-cli` via the standalone release binary for everyday terminal and pipeline use, or run directly from the Julia source repository for development and test verification.
+Install `Friedman-cli` as a self-contained, zero-Julia standalone package on Windows or Linux, or run and build from source with Julia 1.13+ on macOS and other architectures.
 
 ## Quick Installer (Recommended)
 
-### macOS & Linux
+### Windows (`x86_64`) — Microsoft Store & `winget`
 
-```bash
-curl -fsSL https://friedmanjp.github.io/Friedman-cli/install.sh | bash
+The recommended Windows installation is the Microsoft-signed MSIX package from Microsoft Store (`9NBBQSNP6W44`). It requires no Julia installation, receives automatic updates, and exposes `friedman` on `PATH` via `AppExecutionAlias`:
+
+```powershell
+winget install 9NBBQSNP6W44 --source msstore
+friedman --version
 ```
 
-The installer downloads the latest release archive for your architecture (`darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`), extracts it under `~/.friedman-cli/`, and links the `friedman` wrapper into `~/.local/bin/friedman`. Add `~/.local/bin` to your `PATH` if it is not already present:
+Alternatively, install the standalone `.zip` archive from GitHub Releases into `%USERPROFILE%\.friedman-cli` without Store access or administrator rights:
+
+```powershell
+irm https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.ps1 | iex
+```
+
+### Linux (`x86_64`)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.sh | bash
+```
+
+The installer downloads the standalone `linux-x86_64` tarball (which bundles a private Julia `1.14+opt` runtime and all JLL artifacts—no `julia` or `juliaup` required), extracts it to `~/.friedman-cli/`, and links `~/.local/bin/friedman`. Add `~/.local/bin` to your `PATH` if needed:
 
 ```bash
 export PATH="$HOME/.local/bin:$PATH"
 friedman --help
 ```
 
-### Windows (PowerShell)
+To uninstall on Linux:
 
-```powershell
-irm https://friedmanjp.github.io/Friedman-cli/install.ps1 | iex
+```bash
+curl -fsSL https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/uninstall.sh | bash
 ```
 
-The Windows installer places the bundle in `$Env:LOCALAPPDATA\Friedman-cli` and adds its `bin` directory to your user `Path`.
+### macOS
 
-### Manual Release Archives
+Pre-built macOS binaries are not published because macOS Gatekeeper requires paid Apple Developer code signing and notarization. Run or build locally from source with **Julia 1.13+** (see [Running & Building from Source](@ref gs-source)).
 
-Pre-built release archives are published on the [GitHub Releases](https://github.com/friedmanjp/Friedman-cli/releases) page:
+---
 
-- `friedman-cli-vX.Y.Z-darwin-arm64.tar.gz` — macOS Apple Silicon (M1–M4)
-- `friedman-cli-vX.Y.Z-darwin-x64.tar.gz` — macOS Intel
-- `friedman-cli-vX.Y.Z-linux-x64.tar.gz` — Linux x86_64
-- `friedman-cli-vX.Y.Z-linux-arm64.tar.gz` — Linux ARM64
-- `friedman-cli-vX.Y.Z-windows-x64.zip` — Windows x86_64
+## Manual Release Archives
+
+Pre-built standalone archives are published on the [GitHub Releases](https://github.com/FriedmanJP/Friedman-cli/releases) page:
+
+- `friedman-vX.Y.Z-linux-x86_64.tar.gz` — Linux `x86_64` standalone tarball (zero Julia required)
+- `friedman-vX.Y.Z-windows-x86_64.msix` — Windows `x86_64` unsigned sideload MSIX (`AppExecutionAlias`)
+- `friedman-vX.Y.Z-windows-x86_64.zip` — Windows `x86_64` standalone archive (`bin\friedman.exe`)
+
+### Windows MSIX Sideloading vs. Microsoft Store vs. `.zip`
+
+- **Microsoft Store (`winget install 9NBBQSNP6W44 --source msstore`):** Microsoft-signed, double-click/one-command install, zero SmartScreen warnings.
+- **GitHub `.msix` sideload:** Signed with Microsoft's unsigned-package publisher OID for testing and offline enterprise deployment. On Windows 11 with Developer Mode enabled, install from PowerShell:
+
+  ```powershell
+  Add-AppxPackage -Path .\friedman-vX.Y.Z-windows-x86_64.msix -AllowUnsigned
+  friedman --version
+  ```
+
+- **Standalone `.zip` / `install.ps1`:** Extract anywhere (or run `install.ps1` for `%USERPROFILE%\.friedman-cli\bin\friedman.exe`) with zero admin privileges or Developer Mode.
+
+### Linux Runtime Depot Notes
+
+Standalone builds bundle all required artifacts under `share/julia/artifacts/` and run completely offline without network access. On Linux/Windows standalone builds powered by Julia 1.14, Julia may write a local object cache under `$JULIA_DEPOT_PATH/cache/v1.14/objcache-lmdb1/` when a writable depot exists, degrades cleanly on read-only depots, and writes nothing at all when `JULIA_OBJCACHE=0` is set:
+
+```bash
+JULIA_OBJCACHE=0 friedman --version
+```
 
 ---
 
@@ -56,29 +93,36 @@ See [`friedman completions bash`](@ref ref-completions-bash), [`friedman complet
 
 ---
 
-## Running & Building from Source
+## [Running & Building from Source](@id gs-source)
 
 Running from source requires **Julia >= 1.13** (managed cleanly with `juliaup`):
 
 ```bash
-git clone https://github.com/friedmanjp/Friedman-cli.git
+git clone https://github.com/FriedmanJP/Friedman-cli.git
 cd Friedman-cli
 julia --project -e 'using Pkg; Pkg.instantiate()'
 julia --project bin/friedman --help
 ```
 
-To compile a standalone relocatable release tarball via PackageCompiler.jl:
+To compile a standalone relocatable app bundle locally (including macOS Apple Silicon or other architectures) via `PackageCompiler.create_app()`:
 
 ```bash
 julia --project build_release.jl
+./build/friedman/bin/friedman --version
 ```
 
 ---
 
 ## Optional Dependencies & Licensing
 
-- **MCP & Complementarity / NLP Solvers:** Equilibrium models built with JuMP/Ipopt or optional `PATHSolver` licenses must be installed/licensed in your environment when solving complementarity problems that target those backends; check solver license terms separately.
+- **MCP & Complementarity / NLP Solvers:** Equilibrium models built with JuMP/Ipopt ship bundled; optional `PATHSolver` licenses must be installed/licensed in your environment when solving complementarity problems that target that backend. Check solver license terms separately.
 - **License:** Friedman-cli is distributed under **GPL-3.0-or-later**. See `LICENSE` in the repository root.
+
+---
+
+## [Privacy Policy](@id privacy-policy)
+
+Friedman-cli executes 100% locally on your machine. It collects zero telemetry, analytics, crash reports, or usage metrics, stores no cloud account data, and makes no automatic network connections (all bundled datasets, solvers, and runtime artifacts are self-contained inside the application package).
 
 ---
 

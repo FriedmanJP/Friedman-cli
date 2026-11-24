@@ -176,23 +176,35 @@ Full command reference:
 
 ## Installation
 
-**macOS / Linux:**
+Pre-built standalone binaries are **zero-Julia** (no Julia installation or network artifact fetch required; JuMP + Ipopt ship bundled):
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.sh | bash
-```
+- **Windows (x86_64) — Microsoft Store (recommended):** Microsoft-signed MSIX with auto-updates and `friedman` on `PATH`:
 
-**Windows (PowerShell):**
+  ```powershell
+  winget install 9NBBQSNP6W44 --source msstore
+  ```
 
-```powershell
-irm https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.ps1 | iex
-```
+  Or via GitHub Releases (`.msix` sideload or standalone `.zip` into `%USERPROFILE%\.friedman-cli`):
 
-Installs to `~/.friedman-cli/` on macOS ARM64, Linux x86_64, and Windows x86_64
-(Julia managed via [juliaup](https://github.com/JuliaLang/juliaup);
-solvers JuMP+Ipopt ship bundled). From source:
-`git clone … && julia --project -e 'using Pkg; Pkg.instantiate()'`.
-Details: [Installation docs](https://friedmanjp.github.io/Friedman-cli/dev/getting-started/installation/).
+  ```powershell
+  irm https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.ps1 | iex
+  ```
+
+- **Linux (x86_64):** Standalone bundle (private Julia `1.14+opt` runtime included) installed to `~/.friedman-cli/` and symlinked at `~/.local/bin/friedman`:
+
+  ```bash
+  curl -fsSL https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.sh | bash
+  ```
+
+- **macOS:** Pre-built macOS binaries are not distributed (requires Apple Developer code signing/notarization). Run or build locally from source with Julia 1.13+:
+
+  ```bash
+  git clone https://github.com/FriedmanJP/Friedman-cli.git && cd Friedman-cli
+  julia --project -e 'using Pkg; Pkg.instantiate()'
+  julia --project bin/friedman --help
+  ```
+
+Details (manual `.tar.gz`/`.zip`/`.msix` archives, sideloading, local `build_release.jl` builds): [Installation docs](https://friedmanjp.github.io/Friedman-cli/dev/getting-started/installation/).
 
 ## License
 

@@ -1,9 +1,12 @@
-# Friedman-cli installer for Windows
+# Friedman-cli standalone installer for Windows (x86_64, zero Julia required)
+# Tip: For a Microsoft-signed, auto-updated Windows install, use Microsoft Store:
+#   winget install 9NBBQSNP6W44 --source msstore
+#
 # Usage:
 #   irm https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.ps1 | iex
 #
 # Specific version (set env var before piping):
-#   $env:FRIEDMAN_VERSION = "1.0.0"; irm https://...install.ps1 | iex
+#   $env:FRIEDMAN_VERSION = "1.0.7"; irm https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.ps1 | iex
 
 $ErrorActionPreference = "Stop"
 
@@ -20,7 +23,7 @@ if (-not $Version) {
         $Version = $Release.tag_name -replace '^v', ''
     } catch {
         Write-Host "Error: Failed to fetch latest release from GitHub API." -ForegroundColor Red
-        Write-Host 'You may be rate-limited. Try setting $env:FRIEDMAN_VERSION = "1.0.0" before running.' -ForegroundColor Yellow
+        Write-Host 'You may be rate-limited. Try setting $env:FRIEDMAN_VERSION = "1.0.7" before running.' -ForegroundColor Yellow
         exit 1
     }
 }
@@ -30,55 +33,11 @@ if (-not $Version) {
     exit 1
 }
 
-Write-Host "Installing Friedman-cli v$Version..."
+Write-Host "Installing standalone Friedman-cli v$Version (zero Julia required)..."
 
 # --- Construct download URL ---
 $ArchiveName = "friedman-v$Version-windows-x86_64.zip"
 $DownloadUrl = "https://github.com/$Repo/releases/download/v$Version/$ArchiveName"
-
-# --- Ensure Julia 1.13 is available ---
-function Ensure-Julia {
-    # Check if juliaup is available
-    if (Get-Command juliaup -ErrorAction SilentlyContinue) {
-        Write-Host "Found juliaup. Ensuring Julia 1.13 is installed..."
-        & juliaup add 1.13 2>$null
-        return
-    }
-
-    # Check if julia >= 1.13 is on PATH
-    if (Get-Command julia -ErrorAction SilentlyContinue) {
-        $JuliaVer = & julia --version 2>&1
-        if ($JuliaVer -match '(\d+)\.(\d+)') {
-            $Major = [int]$Matches[1]
-            $Minor = [int]$Matches[2]
-            if ($Major -ge 1 -and $Minor -ge 13) {
-                Write-Host "Found $JuliaVer"
-                return
-            }
-        }
-    }
-
-    # Install juliaup via winget
-    Write-Host "Julia 1.13+ not found. Installing juliaup..."
-    if (Get-Command winget -ErrorAction SilentlyContinue) {
-        & winget install --id Julialang.Juliaup --accept-source-agreements --accept-package-agreements
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "Error: Failed to install juliaup via winget." -ForegroundColor Red
-            Write-Host "Install Julia manually: https://julialang.org/downloads/" -ForegroundColor Yellow
-            exit 1
-        }
-        # Refresh PATH
-        $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH", "User") + ";" + [System.Environment]::GetEnvironmentVariable("PATH", "Machine")
-        Write-Host "Installing Julia 1.13..."
-        & juliaup add 1.13
-    } else {
-        Write-Host "Error: winget is not available." -ForegroundColor Red
-        Write-Host "Install juliaup manually: https://julialang.org/downloads/" -ForegroundColor Yellow
-        exit 1
-    }
-}
-
-Ensure-Julia
 
 # --- Download archive ---
 $TmpDir = Join-Path ([System.IO.Path]::GetTempPath()) "friedman-install-$(Get-Random)"
@@ -131,46 +90,29 @@ try {
     }
     Move-Item -Path $Extracted -Destination $InstallDir
 
-    # --- Instantiate runtime JLL artifacts ---
-    Write-Host "Ensuring runtime artifacts..."
-    $PrevPrecompile = $env:JULIA_PKG_PRECOMPILE_AUTO
-    $env:JULIA_PKG_PRECOMPILE_AUTO = "0"
-    try {
-        & julia +1.13 --version *> $null
-        if ($LASTEXITCODE -eq 0) {
-            & julia +1.13 --project="$InstallDir" --startup-file=no -e "using Pkg; Pkg.instantiate()"
-            Set-Content -Path (Join-Path $InstallDir ".julia_cmd") -Value "juliaup:+1.13" -Encoding ASCII
-        } else {
-            & julia --project="$InstallDir" --startup-file=no -e "using Pkg; Pkg.instantiate()"
-            Set-Content -Path (Join-Path $InstallDir ".julia_cmd") -Value "julia" -Encoding ASCII
-        }
-        if ($LASTEXITCODE -ne 0) {
-            throw "Failed to instantiate runtime artifacts."
-        }
-        New-Item -ItemType File -Path (Join-Path $InstallDir ".artifacts_ready") -Force | Out-Null
-    } finally {
-        $env:JULIA_PKG_PRECOMPILE_AUTO = $PrevPrecompile
-    }
-
     # --- Add to PATH ---
     $CurrentPath = [System.Environment]::GetEnvironmentVariable("PATH", "User")
     if ($CurrentPath -notlike "*$BinDir*") {
-        [System.Environment]::SetEnvironmentVariable("PATH", "$BinDir;$CurrentPath", "User")
+        $NewPath = if ($CurrentPath) { "$BinDir;$CurrentPath" } else { $BinDir }
+        [System.Environment]::SetEnvironmentVariable("PATH", $NewPath, "User")
         $env:PATH = "$BinDir;$env:PATH"
         Write-Host "Added $BinDir to user PATH."
     }
 
     # --- Verify ---
-    $FriedmanCmd = Join-Path $BinDir "friedman.cmd"
-    if (Test-Path $FriedmanCmd) {
+    $FriedmanExe = Join-Path $BinDir "friedman.exe"
+    if (Test-Path $FriedmanExe) {
         Write-Host ""
-        & $FriedmanCmd --version
+        & $FriedmanExe --version
         Write-Host "Friedman-cli installed successfully!" -ForegroundColor Green
     } else {
         Write-Host ""
         Write-Host "Friedman-cli installed to $InstallDir" -ForegroundColor Green
     }
 
+    Write-Host ""
+    Write-Host "Tip: For Microsoft-signed updates via Microsoft Store / winget, use:" -ForegroundColor Cyan
+    Write-Host "  winget install 9NBBQSNP6W44 --source msstore" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "To uninstall:"
     Write-Host "  Remove-Item -Recurse -Force '$InstallDir'"
@@ -182,6 +124,5 @@ try {
     Write-Host "  https://github.com/$Repo/releases" -ForegroundColor Yellow
     exit 1
 } finally {
-    # Clean up temp
     Remove-Item -Path $TmpDir -Recurse -Force -ErrorAction SilentlyContinue
 }

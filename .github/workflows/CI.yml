@@ -13,15 +13,10 @@ concurrency:
   cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
 
 jobs:
-  # T0/T1/T2 — engine + contract + golden (fast; every push; 3 OS)
+  # T0/T1/T2 — engine + contract + golden (fast; every push; 3 OS + Julia 1.14+opt)
   engine:
     name: Engine+contract (Julia ${{ matrix.version }} / ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    # 30 min stopped fitting: the surface reached 303 leaves and MEMs 0.7.0 made
-    # JuMP+Ipopt required deps (C060), so a cold-cache run precompiles a heavy tree
-    # before a single test runs. ubuntu-1.12 and windows hit exactly 30m00 while
-    # macOS finished in 23m38 and ubuntu-Julia-1 in 28m30 — every leg was at the
-    # edge and two tipped over. Budget for the slow legs, not the fastest one.
     timeout-minutes: 60
     permissions:
       actions: write
@@ -42,21 +37,26 @@ jobs:
             os: windows-latest
             arch: x64
             allow_failure: false
-          # Early warning for next Julia (TS-10)
-          - version: "1"
+          - version: "1.14+opt"
             os: ubuntu-latest
             arch: x64
-            allow_failure: true
+            allow_failure: false
+          - version: "1.14+opt"
+            os: windows-latest
+            arch: x64
+            allow_failure: false
     continue-on-error: ${{ matrix.allow_failure }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - uses: julia-actions/setup-julia@4c0cb0fce8556fdb04a90347310e5db8b1f98fb9 # v2
+        if: matrix.version != '1.14+opt'
         with:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
-          # TS-10 leg only: track latest tagged incl. prereleases so the
-          # allow-fail leg keeps giving early warning now that `1` == 1.13.
-          include-all-prereleases: ${{ matrix.version == '1' }}
+      - uses: julia-actions/install-juliaup@ac1bed66e8369307bff3d25a4fa3f6b85cdfcfe7 # v3.1.7
+        if: matrix.version == '1.14+opt'
+        with:
+          channel: '1.14+opt'
       - uses: julia-actions/cache@d10a6fd8f31b12404a54613ebad242900567f2b9 # v2
       - name: Install dependencies
         shell: bash
@@ -64,18 +64,12 @@ jobs:
       - name: Mock surface vs real MEMs (TS-3 / F32)
         if: matrix.os == 'ubuntu-latest' && matrix.version == '1.13'
         run: julia --project test/tools/check_mock_surface.jl
-      # W8/#143: plot-recipe drift vs the committed baseline (#95). Was a
-      # CLAUDE.md-listed gate that NO workflow ran — a baseline drift could
-      # ship silently. Read-only check; `--update` is a local, reviewed action.
       - name: Plot coverage drift (vs baseline)
         if: matrix.os == 'ubuntu-latest' && matrix.version == '1.13'
         run: julia --project test/tools/check_plot_coverage.jl
-      # W3/#138: envelope data keys must be registry-declared (goldens here;
-      # the T3 job re-runs it over the full envelope dump)
       - name: Table-key drift gate (goldens)
         if: matrix.os == 'ubuntu-latest' && matrix.version == '1.13'
         run: julia --project test/tools/check_table_keys.jl
-      # Typed-handles: every leaf with a data slot must declare nonempty data_kinds.
       - name: Handle-kind drift gate
         if: matrix.os == 'ubuntu-latest' && matrix.version == '1.13'
         run: julia --project test/tools/check_handle_kinds.jl
@@ -85,10 +79,6 @@ jobs:
           julia --project docs/generate_cli_reference.jl --check
           julia --project docs/lint_docs.jl
           julia --project docs/capture_examples.jl --check
-      # W1/#136: a CONFORMANT draft-07 validator, independent of the in-repo
-      # subset — metaschema-checks the schema document and validates every
-      # golden envelope. The in-repo validator once had a blind spot that let a
-      # broken schema pass every tier; a second implementation is the guard.
       - name: Conformant envelope validation (schema + goldens)
         if: matrix.os == 'ubuntu-latest' && matrix.version == '1.13'
         run: |
@@ -110,86 +100,83 @@ jobs:
           files: lcov.info
           fail_ci_if_error: true
 
-  # T3 core — real MEMs (ubuntu every push)
+  # T3 core — real MEMs (ubuntu every push, Julia 1.13 & 1.14+opt)
   integration-core:
-    name: Integration core (T3)
+    name: Integration core (T3 / Julia ${{ matrix.version }})
     runs-on: ubuntu-latest
-    # T3 grew 1280 -> 1498 cases as #85 closed the predict/residuals/nowcast/data
-    # coverage gaps; 13m53 on one PR and 15m17 (timeout) on the next. Same story.
-    # 26m40 at 3064 cases, and --code-coverage=user adds instrumentation overhead on
-    # top of that. v0.11.0 (3762 cases + HA/CT/DCEGM) cancelled at 60m on ubuntu
-    # coverage. Cold-cache precompilation + --code-coverage=user + post-run
-    # schema/table-key gates + v1.0.4 handle pipeline can exceed 90m; budget 150m.
     timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        version: ["1.13", "1.14+opt"]
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - uses: julia-actions/setup-julia@4c0cb0fce8556fdb04a90347310e5db8b1f98fb9 # v2
+        if: matrix.version != '1.14+opt'
         with:
-          version: "1.13"
+          version: ${{ matrix.version }}
+      - uses: julia-actions/install-juliaup@ac1bed66e8369307bff3d25a4fa3f6b85cdfcfe7 # v3.1.7
+        if: matrix.version == '1.14+opt'
+        with:
+          channel: '1.14+opt'
       - uses: julia-actions/cache@d10a6fd8f31b12404a54613ebad242900567f2b9 # v2
       - name: Instantiate integration project
         run: |
-          # Registry MacroEconometricModels@0.6.7 satisfies [compat]; develop Friedman then instantiate.
           julia --project=test/integration -e '
             using Pkg
             try Pkg.rm("Friedman") catch end
             Pkg.develop(path=".")
             Pkg.instantiate()
           '
-      # T3 is what actually exercises the handlers, so it has to be what reports their
-      # coverage. Until this step existed, coverage came from `test/runtests.jl` alone —
-      # T1/T2 on mocks — and every `src/commands/` path reachable only through real MEMs
-      # counted as a miss. That put the `commands` patch gate structurally at odds with
-      # this repo's own policy (codecov.yml: "T3 is the real gate"), and it under-reported
-      # hardest exactly where the tests are strongest. Codecov merges the two reports for
-      # the commit, so the engine job's upload is unaffected.
       - name: Run integration-core
         env:
-          # W1/#136: dump every captured envelope for post-run conformant validation
           FRIEDMAN_T3_DUMP_ENVELOPES: ${{ runner.temp }}/envelopes
         run: julia --code-coverage=user --project=test/integration test/integration/runtests.jl
       - name: Conformant envelope validation (T3 dump)
         run: |
           pip install --quiet jsonschema
           python3 test/tools/validate_envelopes.py --dump "${{ runner.temp }}/envelopes"
-      # W3/#138: every key in every T3-captured envelope must be declared by
-      # its leaf's TableSpec (or extend a family prefix). The gate script
-      # activates the ROOT project (it includes the mocks + src files), which
-      # this job otherwise never instantiates — do it here or the `using` at
-      # the top of the script fails to load.
       - name: Table-key drift gate (T3 dump)
         run: |
           julia --project -e 'using Pkg; Pkg.instantiate()'
           julia --project test/tools/check_table_keys.jl "${{ runner.temp }}/envelopes"
-      # W5/#140: every leaf's emitted input_schema must be a valid draft-07
-      # schema under a CONFORMANT validator (same division of labor as W1)
       - name: Input-schema metaschema check
         run: |
           julia --project=test/integration test/tools/dump_input_schemas.jl "${{ runner.temp }}/input_schemas"
           python3 test/tools/validate_envelopes.py --input-schemas "${{ runner.temp }}/input_schemas"
       - name: Process coverage
+        if: matrix.version == '1.13'
         uses: julia-actions/julia-processcoverage@03114f09f119417c3242a9fb6e0b722676aedf38 # v1
         with:
           directories: src
       - name: Upload coverage to Codecov
+        if: matrix.version == '1.13'
         uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: lcov.info
           fail_ci_if_error: true
 
-  # T4 E2E — subprocess battery on PRs (+ push)
+  # T4 E2E — subprocess battery on PRs (+ push) across Julia 1.13 & 1.14+opt
   e2e:
-    name: E2E subprocess (T4)
+    name: E2E subprocess (T4 / Julia ${{ matrix.version }})
     runs-on: ubuntu-latest
-    # Each E2E case pays a fresh process start; 12m19 vs a 15m budget, then 15m18.
     timeout-minutes: 40
     if: github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        version: ["1.13", "1.14+opt"]
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - uses: julia-actions/setup-julia@4c0cb0fce8556fdb04a90347310e5db8b1f98fb9 # v2
+        if: matrix.version != '1.14+opt'
         with:
-          version: "1.13"
+          version: ${{ matrix.version }}
+      - uses: julia-actions/install-juliaup@ac1bed66e8369307bff3d25a4fa3f6b85cdfcfe7 # v3.1.7
+        if: matrix.version == '1.14+opt'
+        with:
+          channel: '1.14+opt'
       - uses: julia-actions/cache@d10a6fd8f31b12404a54613ebad242900567f2b9 # v2
       - name: Install dependencies
         run: julia --project -e 'using Pkg; Pkg.instantiate()'

@@ -142,10 +142,9 @@ def main() -> int:
 
     _require_same_leaf()
 
-    # Windows ships friedman.cmd — CreateProcess cannot exec a .cmd directly,
-    # and cmd.exe does not resolve forward-slash paths (the CI step passes
-    # build/friedman/bin/friedman.cmd from bash) — normpath converts to
-    # backslashes on Windows and is a no-op elsewhere.
+    # On Windows, create_app() produces native build/friedman/bin/friedman.exe
+    # (normpath converts forward slashes passed from bash; .cmd/.bat handling
+    # stays only as an explicit fallback if a batch wrapper is ever passed).
     bin_path = os.path.normpath(args.bin)
     if not os.path.isfile(bin_path):
         sys.exit(f"FAIL: binary not found: {bin_path}")

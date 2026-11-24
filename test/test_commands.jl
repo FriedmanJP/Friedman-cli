@@ -3329,7 +3329,9 @@ end  # Shared utilities
 
     @testset "_estimate_reg — WLS with weights" begin
         mktempdir() do dir
-            csv = _make_csv(dir; T=100, n=4)
+            csv = joinpath(dir, "wls.csv")
+            CSV.write(csv, DataFrame(var1=randn(100) .+ 1.0, var2=randn(100) .+ 2.0,
+                                     var3=randn(100) .+ 3.0, var4=abs.(randn(100)) .+ 0.5))
             out = _capture() do
                 _estimate_reg(; data=csv, dep="var1", cov_type="ols",
                                weights="var4", clusters="", format="table", output="")
@@ -6590,7 +6592,9 @@ end  # VECM handlers
 
     @testset "_predict_reg — WLS" begin
         mktempdir() do dir
-            csv = _make_csv(dir; T=100, n=4)
+            csv = joinpath(dir, "wls.csv")
+            CSV.write(csv, DataFrame(var1=randn(100) .+ 1.0, var2=randn(100) .+ 2.0,
+                                     var3=randn(100) .+ 3.0, var4=abs.(randn(100)) .+ 0.5))
             out = _capture() do
                 _predict_reg(; data=csv, dep="var1", cov_type="ols",
                                weights="var4", clusters="", format="table", output="")
@@ -7468,7 +7472,9 @@ end
 
     @testset "_residuals_reg — WLS" begin
         mktempdir() do dir
-            csv = _make_csv(dir; T=100, n=4)
+            csv = joinpath(dir, "wls.csv")
+            CSV.write(csv, DataFrame(var1=randn(100) .+ 1.0, var2=randn(100) .+ 2.0,
+                                     var3=randn(100) .+ 3.0, var4=abs.(randn(100)) .+ 0.5))
             out = _capture() do
                 _residuals_reg(; data=csv, dep="var1", cov_type="ols",
                                  weights="var4", clusters="", format="table", output="")

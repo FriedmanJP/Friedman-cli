@@ -5,7 +5,7 @@ on:
     tags:
       - 'v*'
   # W6/#141 (C074/#79): dispatch runs build + smoke + latency bench WITHOUT
-  # releasing (the release job and archive/upload steps are tag-guarded).
+  # releasing (the release job and GitHub Release upload steps are tag-guarded).
   # The budget inputs exist for the documented failure-path demonstration —
   # never lower budgets to make a red run green.
   workflow_dispatch:
@@ -30,17 +30,12 @@ jobs:
   build:
     name: Build - ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    # 0.7.0 line bundles JuMP+Ipopt into the sysimage (C060), pushing the ubuntu
-    # build past the old 90/60 caps. Headroom for setup+deps+build+archive+upload.
+    # Standalone create_app() with JuMP+Ipopt. Headroom for setup+deps+build+smoke+archive.
     timeout-minutes: 150
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: macos-latest
-            arch: arm64
-            platform: darwin-arm64
-            archive_ext: tar.gz
           - os: ubuntu-latest
             arch: x64
             platform: linux-x86_64
@@ -53,10 +48,53 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - uses: julia-actions/setup-julia@4c0cb0fce8556fdb04a90347310e5db8b1f98fb9 # v2
+      - name: Get version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            VER=$(python3 -c 'import tomllib; print(tomllib.load(open("Project.toml","rb"))["version"])')
+            echo "version=$VER" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Pre-flight validate Windows MSIX packaging
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $Ver = "${{ steps.version.outputs.version }}"
+          $Tmp = Join-Path $env:TEMP ("friedman-msix-preflight-" + [System.Guid]::NewGuid().ToString("N"))
+          $DummyApp = Join-Path $Tmp "app"
+          $SideloadMsix = Join-Path $Tmp "sideload.msix"
+          $StoreMsix = Join-Path $Tmp "store.msix"
+          New-Item -ItemType Directory -Path (Join-Path $DummyApp "bin") -Force | Out-Null
+          try {
+            # Copy a small x64 PE binary as placeholder so MakeAppx + Add-AppxPackage validate in seconds
+            Copy-Item "$env:SystemRoot\System32\where.exe" (Join-Path $DummyApp "bin\friedman.exe")
+            & packaging/msix/pack_msix.ps1 -AppDir $DummyApp -Version "$Ver" -OutputPath $SideloadMsix -Mode "sideload"
+            & packaging/msix/pack_msix.ps1 -AppDir $DummyApp -Version "$Ver" -OutputPath $StoreMsix -Mode "store"
+            $DevKey = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock"
+            if (-not (Test-Path $DevKey)) { New-Item -Path $DevKey -Force | Out-Null }
+            Set-ItemProperty -Path $DevKey -Name "AllowDevelopmentWithoutDevLicense" -Value 1 -Type DWord
+            powershell.exe -NoProfile -Command "`$ErrorActionPreference = 'Stop'; Add-AppxPackage -Path '$SideloadMsix' -AllowUnsigned"
+            if ($LASTEXITCODE -ne 0) { throw "Pre-flight Add-AppxPackage -AllowUnsigned failed ($LASTEXITCODE)" }
+            $AliasExe = Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps\friedman.exe"
+            if (-not (Test-Path $AliasExe)) { throw "Pre-flight AppExecutionAlias not created at $AliasExe" }
+            Write-Host "Pre-flight MSIX packaging + Add-AppxPackage + AppExecutionAlias validation passed."
+          } finally {
+            powershell.exe -NoProfile -Command "Get-AppxPackage -Name 'FriedmanJP.Friedman-cli' -ErrorAction SilentlyContinue | Remove-AppxPackage -ErrorAction SilentlyContinue"
+            Remove-Item -Path $Tmp -Recurse -Force -ErrorAction SilentlyContinue
+          }
+
+      - uses: julia-actions/install-juliaup@ac1bed66e8369307bff3d25a4fa3f6b85cdfcfe7 # v3.1.7
         with:
-          version: '1.13'
-          arch: ${{ matrix.arch }}
+          channel: '1.14+opt'
+
+      - name: Print Julia version
+        shell: bash
+        run: julia --version
 
       - uses: julia-actions/cache@d10a6fd8f31b12404a54613ebad242900567f2b9 # v2
 
@@ -70,7 +108,7 @@ jobs:
           julia --project -e 'using Pkg; Pkg.instantiate()'
 
       # Swap + TMPDIR on /mnt are headroom on Linux (15 GiB RAM, ~14 GiB free on /).
-      # build_release.jl bounds peak RSS via single cpu_target ("generic"/"apple-m1"),
+      # build_release.jl bounds peak RSS via single cpu_target ("generic"),
       # -O1, include_transitive_dependencies=false, and JULIA_IMAGE_THREADS=1.
       - name: Add swap space and /mnt temp dir (Linux headroom)
         if: runner.os == 'Linux'
@@ -89,35 +127,94 @@ jobs:
           free -h
           df -h / /mnt
 
-      - name: Build sysimage
+      - name: Build standalone app
         env:
           JULIA_IMAGE_THREADS: "1"
+          FRIEDMAN_COMPRESS_SYSIMAGE: "true"
         run: julia build_release.jl
         timeout-minutes: 120
 
-      - name: Smoke-test binary (C034 hard JSON + schema + exit codes)
+      - name: Package Windows MSIX (sideload + Store)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $Ver = "${{ steps.version.outputs.version }}"
+          & packaging/msix/pack_msix.ps1 `
+            -AppDir "build\friedman" `
+            -Version "$Ver" `
+            -OutputPath "build\friedman-v$Ver-windows-x86_64.msix" `
+            -Mode "sideload"
+          & packaging/msix/pack_msix.ps1 `
+            -AppDir "build\friedman" `
+            -Version "$Ver" `
+            -OutputPath "build\friedman-v$Ver-windows-x86_64-store.msix" `
+            -Mode "store"
+
+      - name: Smoke-test standalone Linux binary (offline, zero-Julia)
+        if: runner.os == 'Linux'
         shell: bash
         run: |
           set -euo pipefail
-          BIN=build/friedman/bin/friedman
-          [ "$RUNNER_OS" = "Windows" ] && BIN=build/friedman/bin/friedman.cmd
+          BIN="$PWD/build/friedman/bin/friedman"
 
-          # --version / --help
-          "$BIN" --version
-          "$BIN" --help > /dev/null
+          # Verify zero MKL/oneTBB/IntelOpenMP lazy artifacts were bundled
+          if [ -d "$PWD/build/friedman/share/julia/artifacts" ]; then
+            if find "$PWD/build/friedman/share/julia/artifacts" -maxdepth 2 -iname '*mkl*' -o -iname '*onetbb*' -o -iname '*intelopenmp*' | grep -q .; then
+              echo "Unexpected lazy artifact bundled!" >&2
+              exit 1
+            fi
+          fi
 
-          # Fixture
+          # Fixtures
           printf 'y1,y2\n' > smoke.csv
           for t in $(seq 1 60); do printf '%s,%s\n' "$t.1" "$((t % 7)).3" >> smoke.csv; done
+          cat > smoke_rbc.toml <<'EOF'
+          [model]
+          endogenous = ["y", "pi"]
+          exogenous = ["e_a"]
+          linear = true
+          [model.parameters]
+          rho = 0.85
+          sigma = 0.02
+          kappa = 0.25
+          [[model.equations]]
+          expr = "y[t] = rho * y[t-1] + sigma * e_a[t]"
+          [[model.equations]]
+          expr = "pi[t] = 0.99 * pi[t+1] + kappa * y[t]"
+          EOF
+
+          EMPTY_HOME=$(mktemp -d)
+          EMPTY_DEPOT=$(mktemp -d)
+          RO_DEPOT=$(mktemp -d)
+          NOWRITE_DEPOT=$(mktemp -d)
+          trap 'chmod 755 "$RO_DEPOT" 2>/dev/null || true; rm -rf "$EMPTY_HOME" "$EMPTY_DEPOT" "$RO_DEPOT" "$NOWRITE_DEPOT"' EXIT
+
+          # Ensure julia is genuinely absent from the isolated PATH
+          if env -i PATH="/usr/bin:/bin" sh -c 'command -v julia >/dev/null 2>&1'; then
+            echo "Unexpected julia binary found on /usr/bin:/bin" >&2
+            exit 1
+          fi
+
+          run_isolated() {
+            env -i \
+              PATH="/usr/bin:/bin" \
+              HOME="$EMPTY_HOME" \
+              JULIA_DEPOT_PATH="$EMPTY_DEPOT" \
+              JULIA_PKG_OFFLINE="true" \
+              "$@"
+          }
+
+          # --version / --help
+          run_isolated "$BIN" --version
+          run_isolated "$BIN" --help > /dev/null
 
           # Hard gate: exactly one JSON document (no ::warning fallback)
-          "$BIN" --quiet estimate multivariate var smoke.csv --lags 1 --format json > smoke_out.json
+          run_isolated "$BIN" --quiet estimate multivariate var smoke.csv --lags 1 --format json > smoke_out.json
           python3 - <<'PY'
-          import json, sys
+          import json
           raw = open("smoke_out.json").read().strip()
           assert raw, "empty stdout"
-          json.loads(raw)  # raises if not valid JSON or trailing garbage with strict loads
-          # ensure single top-level value: re-parse and check no multi-doc
           decoder = json.JSONDecoder()
           obj, idx = decoder.raw_decode(raw)
           assert raw[idx:].strip() == "", f"trailing garbage after JSON: {raw[idx:]!r}"
@@ -125,62 +222,305 @@ jobs:
           print("json hard gate ok")
           PY
 
-          # schema command → valid JSON
-          "$BIN" schema estimate multivariate var > schema_out.json
+          # schema & completions
+          run_isolated "$BIN" schema estimate multivariate var > schema_out.json
           python3 -c "import json; json.load(open('schema_out.json')); print('schema json ok')"
+          run_isolated "$BIN" completions bash > comp_bash.sh
+          test -s comp_bash.sh
 
-          # Bundled example datasets (:denmark, :wiot) & non-"nothing" mems_version in sysimage
-          "$BIN" --quiet data describe :denmark --format json > denmark_out.json
+          # Bundled example datasets (:denmark, :wiot) & non-"nothing" mems_version
+          run_isolated "$BIN" --quiet data describe :denmark --format json > denmark_out.json
           python3 - <<'PY'
           import json
           d = json.load(open("denmark_out.json"))
           assert d.get("status") == "ok", d
           mv = d.get("meta", {}).get("mems_version", "")
-          assert mv and mv != "nothing" and mv != "unknown", f"bad mems_version in sysimage: {mv!r}"
+          assert mv and mv != "nothing" and mv != "unknown", f"bad mems_version: {mv!r}"
           print(f"bundled :denmark + mems_version ({mv}) ok")
           PY
-          "$BIN" --quiet data import :denmark -o smoke_denmark.jld2 --format json > /dev/null
-          "$BIN" --quiet io leontief --format json > wiot_out.json
+          run_isolated "$BIN" --quiet data import :denmark -o smoke_denmark.jld2 --format json > /dev/null
+          run_isolated "$BIN" --quiet io leontief --format json > wiot_out.json
           python3 -c "import json; d=json.load(open('wiot_out.json')); assert d.get('status')=='ok'; print('bundled :wiot ok')"
 
-          # exit codes: unknown command → 2, missing file → 3
+          # .jld2 save + irf --plot-save (D3 bundle) + dsge solve + piped repl
+          run_isolated "$BIN" --quiet estimate multivariate var smoke.csv --lags 1 --save-model smoke_var.jld2 --format json > /dev/null
+          run_isolated "$BIN" --quiet irf var --model smoke_var.jld2 --horizons 4 --plot-save smoke_irf.html --format json > irf_out.json
+          test -s smoke_irf.html
+          run_isolated "$BIN" --quiet dsge solve smoke_rbc.toml --format json > dsge_out.json
+          python3 -c "import json; d=json.load(open('dsge_out.json')); assert d.get('status')=='ok'; print('dsge solve ok')"
+          printf -- '--version\nexit\n' | run_isolated "$BIN" repl > repl_out.txt
+          echo "piped repl ok"
+
+          # Exit codes: unknown command -> 2, missing file -> 3
           set +e
-          "$BIN" nosuchcmd >/dev/null 2>&1
+          run_isolated "$BIN" nosuchcmd >/dev/null 2>&1
           ec=$?
           set -e
           test "$ec" -eq 2 || { echo "expected exit 2 for unknown command, got $ec"; exit 1; }
 
           set +e
-          "$BIN" estimate multivariate var /nope/missing.csv >/dev/null 2>&1
+          run_isolated "$BIN" estimate multivariate var /nope/missing.csv >/dev/null 2>&1
           ec=$?
           set -e
           test "$ec" -eq 3 || { echo "expected exit 3 for missing file, got $ec"; exit 1; }
           echo "exit-code checks ok"
 
-      # C074/#79 (W6/#141): latency budgets gate the release. Cold process
-      # start is the metric (min of 3 cold runs). Enforced on ubuntu; macOS
-      # and Windows report to the job summary only (runner variance). A real
-      # breach is fixed by expanding the build_release.jl precompile workload
-      # — budgets are never relaxed.
-      # The estimate case is `estimate multivariate var --lags 1` inside
-      # tools/bench_release.py (ESTIMATE_LEAF), the same leaf as the smoke
-      # step above. `estimate multivariate` alone is the family node.
-      - name: Latency budgets (C074/#79)
+          # Verify zero unintended depot/home mutations
+          test ! -e "$EMPTY_HOME/.julia" || { echo "Unexpected $EMPTY_HOME/.julia created!"; exit 1; }
+          for forbidden in artifacts packages compiled registries clones logs scratchspaces; do
+            if [ -e "$EMPTY_DEPOT/$forbidden" ]; then
+              echo "Unexpected depot subdir $forbidden created in offline mode!" >&2
+              exit 1
+            fi
+          done
+
+          # Read-only depot (chmod 555) must degrade cleanly with exit 0
+          chmod 555 "$RO_DEPOT"
+          env -i PATH="/usr/bin:/bin" HOME="$EMPTY_HOME" JULIA_DEPOT_PATH="$RO_DEPOT" JULIA_PKG_OFFLINE="true" "$BIN" --version
+          env -i PATH="/usr/bin:/bin" HOME="$EMPTY_HOME" JULIA_DEPOT_PATH="$RO_DEPOT" JULIA_PKG_OFFLINE="true" "$BIN" --quiet estimate multivariate var smoke.csv --lags 1 --format json > /dev/null
+          chmod 755 "$RO_DEPOT"
+          echo "read-only depot ok"
+
+          # JULIA_OBJCACHE=0 must write zero files into depot
+          env -i PATH="/usr/bin:/bin" HOME="$EMPTY_HOME" JULIA_DEPOT_PATH="$NOWRITE_DEPOT" JULIA_PKG_OFFLINE="true" JULIA_OBJCACHE="0" "$BIN" --version
+          env -i PATH="/usr/bin:/bin" HOME="$EMPTY_HOME" JULIA_DEPOT_PATH="$NOWRITE_DEPOT" JULIA_PKG_OFFLINE="true" JULIA_OBJCACHE="0" "$BIN" --quiet estimate multivariate var smoke.csv --lags 1 --format json > /dev/null
+          if [ -n "$(find "$NOWRITE_DEPOT" -mindepth 1 -print -quit)" ]; then
+            echo "JULIA_OBJCACHE=0 wrote files into depot:" >&2
+            find "$NOWRITE_DEPOT" -mindepth 1 >&2
+            exit 1
+          fi
+          echo "JULIA_OBJCACHE=0 zero-write check ok"
+
+      # C074/#79 (W6/#141): latency budgets gate the release on Linux (cold start, min of 3).
+      - name: Latency budgets (Linux, offline, enforced)
+        if: runner.os == 'Linux'
         shell: bash
         run: |
-          BIN=build/friedman/bin/friedman
-          [ "$RUNNER_OS" = "Windows" ] && BIN=build/friedman/bin/friedman.cmd
-          ENFORCE=""
-          [ "$RUNNER_OS" = "Linux" ] && ENFORCE="--enforce"
-          python3 tools/bench_release.py --bin "$BIN" --data smoke.csv \
-            --budget-version-ms "$BUDGET_VERSION_MS" \
-            --budget-estimate-ms "$BUDGET_ESTIMATE_MS" \
-            $ENFORCE
+          set -euo pipefail
+          BENCH_HOME=$(mktemp -d)
+          BENCH_DEPOT=$(mktemp -d)
+          trap 'rm -rf "$BENCH_HOME" "$BENCH_DEPOT"' EXIT
+          env -i \
+            PATH="/usr/bin:/bin" \
+            HOME="$BENCH_HOME" \
+            JULIA_DEPOT_PATH="$BENCH_DEPOT" \
+            JULIA_PKG_OFFLINE="true" \
+            GITHUB_STEP_SUMMARY="${GITHUB_STEP_SUMMARY:-}" \
+            python3 tools/bench_release.py \
+              --bin "$PWD/build/friedman/bin/friedman" \
+              --data "$PWD/smoke.csv" \
+              --budget-version-ms "$BUDGET_VERSION_MS" \
+              --budget-estimate-ms "$BUDGET_ESTIMATE_MS" \
+              --enforce
 
-      - name: Get version
-        id: version
-        shell: bash
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+      - name: Smoke-test Windows binary & MSIX AppExecutionAlias (offline, zero-Julia)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $Ver = "${{ steps.version.outputs.version }}"
+          $Root = (Get-Location).Path
+          $Exe = Join-Path $Root "build\friedman\bin\friedman.exe"
+          $MsixPath = Join-Path $Root "build\friedman-v$Ver-windows-x86_64.msix"
+
+          # Create fixtures
+          $SmokeCsv = Join-Path $Root "smoke.csv"
+          $lines = @("y1,y2")
+          for ($t = 1; $t -le 60; $t++) {
+            $lines += "$t.1,$($t % 7).3"
+          }
+          [System.IO.File]::WriteAllLines($SmokeCsv, $lines, [System.Text.UTF8Encoding]::new($false))
+
+          $SmokeToml = Join-Path $Root "smoke_rbc.toml"
+          $tomlLines = @(
+            '[model]',
+            'endogenous = ["y", "pi"]',
+            'exogenous = ["e_a"]',
+            'linear = true',
+            '[model.parameters]',
+            'rho = 0.85',
+            'sigma = 0.02',
+            'kappa = 0.25',
+            '[[model.equations]]',
+            'expr = "y[t] = rho * y[t-1] + sigma * e_a[t]"',
+            '[[model.equations]]',
+            'expr = "pi[t] = 0.99 * pi[t+1] + kappa * y[t]"'
+          )
+          [System.IO.File]::WriteAllLines($SmokeToml, $tomlLines, [System.Text.UTF8Encoding]::new($false))
+
+          # Minimal Windows core system PATH (zero julia/juliaup/chocolatey/WindowsApps)
+          $CleanPath = "$env:SystemRoot\System32;$env:SystemRoot;$env:SystemRoot\System32\Wbem;$env:SystemRoot\System32\WindowsPowerShell\v1.0"
+
+          $NoWriteDepot = Join-Path $env:TEMP ("friedman-nowrite-" + [System.Guid]::NewGuid().ToString("N"))
+          $CwdAliasDir = Join-Path $env:TEMP ("friedman-alias-cwd-" + [System.Guid]::NewGuid().ToString("N"))
+          New-Item -ItemType Directory -Path $NoWriteDepot, $CwdAliasDir -Force | Out-Null
+
+          $OrigPath = $env:PATH
+          $OrigDepot = $env:JULIA_DEPOT_PATH
+          $OrigOffline = $env:JULIA_PKG_OFFLINE
+          $OrigObjcache = $env:JULIA_OBJCACHE
+
+          try {
+            $env:PATH = $CleanPath
+            $env:JULIA_DEPOT_PATH = $NoWriteDepot
+            $env:JULIA_PKG_OFFLINE = "true"
+            $env:JULIA_OBJCACHE = "0"
+
+            $RemainingJulia = Get-Command julia -ErrorAction SilentlyContinue
+            if ($RemainingJulia) {
+              throw "julia is still on PATH after stripping: $($RemainingJulia.Source)"
+            }
+
+            # 1. Direct standalone binary checks
+            & $Exe --version
+            if ($LASTEXITCODE -ne 0) { throw "friedman.exe --version failed" }
+            & $Exe --help | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "friedman.exe --help failed" }
+
+            $VarJson = & $Exe --quiet estimate multivariate var $SmokeCsv --lags 1 --format json
+            if ($LASTEXITCODE -ne 0) { throw "VAR JSON failed" }
+            $VarObj = ($VarJson | Out-String) | ConvertFrom-Json
+            if ($VarObj.status -ne "ok") { throw "Unexpected VAR JSON status" }
+
+            $SchemaJson = & $Exe schema estimate multivariate var
+            if ($LASTEXITCODE -ne 0) { throw "schema failed" }
+            $null = ($SchemaJson | Out-String) | ConvertFrom-Json
+
+            $CompOut = & $Exe completions bash
+            if ($LASTEXITCODE -ne 0 -or -not $CompOut) { throw "completions bash failed" }
+
+            $DenmarkJson = & $Exe --quiet data describe :denmark --format json
+            if ($LASTEXITCODE -ne 0) { throw "data describe :denmark failed" }
+            $DenmarkObj = ($DenmarkJson | Out-String) | ConvertFrom-Json
+            if ($DenmarkObj.status -ne "ok" -or -not $DenmarkObj.meta.mems_version) {
+              throw "Invalid :denmark / mems_version response"
+            }
+
+            $WiotJson = & $Exe --quiet io leontief --format json
+            if ($LASTEXITCODE -ne 0) { throw "io leontief failed" }
+            if ((($WiotJson | Out-String) | ConvertFrom-Json).status -ne "ok") { throw "io leontief status not ok" }
+
+            $VarJld2 = Join-Path $CwdAliasDir "direct_var.jld2"
+            $IrfHtml = Join-Path $CwdAliasDir "direct_irf.html"
+            & $Exe --quiet estimate multivariate var $SmokeCsv --lags 1 --save-model $VarJld2 --format json | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "save-model .jld2 failed" }
+            & $Exe --quiet irf var --model $VarJld2 --horizons 4 --plot-save $IrfHtml --format json | Out-Null
+            if ($LASTEXITCODE -ne 0 -or -not (Test-Path $IrfHtml)) { throw "irf --plot-save failed" }
+
+            $DsgeJson = & $Exe --quiet dsge solve $SmokeToml --format json
+            if ($LASTEXITCODE -ne 0 -or (($DsgeJson | Out-String) | ConvertFrom-Json).status -ne "ok") { throw "dsge solve failed" }
+
+            "--version`nexit`n" | & $Exe repl | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "piped repl failed" }
+
+            & $Exe nosuchcmd *> $null
+            if ($LASTEXITCODE -ne 2) { throw "Expected exit 2, got $LASTEXITCODE" }
+            & $Exe estimate multivariate var C:\nope\missing.csv *> $null
+            if ($LASTEXITCODE -ne 3) { throw "Expected exit 3, got $LASTEXITCODE" }
+
+            $Written = Get-ChildItem -Path $NoWriteDepot -Recurse -Force -ErrorAction SilentlyContinue
+            if ($Written) { throw "JULIA_OBJCACHE=0 wrote files into depot!" }
+            Write-Host "Direct standalone Windows binary smoke tests passed."
+
+            # 2. Install sideload MSIX & verify AppExecutionAlias + uv_exepath + caller CWD
+            $DevKey = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock"
+            if (-not (Test-Path $DevKey)) { New-Item -Path $DevKey -Force | Out-Null }
+            Set-ItemProperty -Path $DevKey -Name "AllowDevelopmentWithoutDevLicense" -Value 1 -Type DWord
+            powershell.exe -NoProfile -Command "`$ErrorActionPreference = 'Stop'; Add-AppxPackage -Path '$MsixPath' -AllowUnsigned"
+            if ($LASTEXITCODE -ne 0) { throw "Add-AppxPackage -AllowUnsigned failed with exit code $LASTEXITCODE" }
+
+            $AliasExe = Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps\friedman.exe"
+            if (-not (Test-Path $AliasExe)) {
+              throw "AppExecutionAlias not created at $AliasExe"
+            }
+
+            # Run alias tests with empty JULIA_DEPOT_PATH and default objcache behavior
+            # to verify clean degradation against the read-only WindowsApps package root.
+            $env:JULIA_DEPOT_PATH = ""
+            Remove-Item Env:JULIA_OBJCACHE -ErrorAction SilentlyContinue
+
+            Copy-Item $SmokeCsv (Join-Path $CwdAliasDir "smoke.csv")
+            Copy-Item $SmokeToml (Join-Path $CwdAliasDir "smoke_rbc.toml")
+
+            Push-Location $CwdAliasDir
+            try {
+              & $AliasExe --version
+              if ($LASTEXITCODE -ne 0) { throw "Alias --version failed" }
+
+              & $AliasExe --quiet estimate multivariate var .\smoke.csv --lags 1 --format json --output .\alias_out.json --save-model .\alias_var.jld2
+              if ($LASTEXITCODE -ne 0) { throw "Alias VAR relative CWD failed" }
+              if (-not (Test-Path ".\alias_out.json") -or -not (Test-Path ".\alias_var.jld2")) {
+                throw "Alias relative output/save-model files not created in caller CWD!"
+              }
+
+              & $AliasExe --quiet irf var --model .\alias_var.jld2 --horizons 4 --plot-save .\alias_irf.html --format json | Out-Null
+              if ($LASTEXITCODE -ne 0 -or -not (Test-Path ".\alias_irf.html")) {
+                throw "Alias irf --plot-save failed"
+              }
+
+              $AliasDenmark = & $AliasExe --quiet data describe :denmark --format json
+              if ($LASTEXITCODE -ne 0 -or (($AliasDenmark | Out-String) | ConvertFrom-Json).status -ne "ok") {
+                throw "Alias :denmark failed"
+              }
+
+              $AliasDsge = & $AliasExe --quiet dsge solve .\smoke_rbc.toml --format json
+              if ($LASTEXITCODE -ne 0 -or (($AliasDsge | Out-String) | ConvertFrom-Json).status -ne "ok") {
+                throw "Alias dsge solve failed"
+              }
+
+              "--version`nexit`n" | & $AliasExe repl | Out-Null
+              if ($LASTEXITCODE -ne 0) { throw "Alias piped repl failed" }
+
+              & $AliasExe nosuchcmd *> $null
+              if ($LASTEXITCODE -ne 2) { throw "Alias expected exit 2, got $LASTEXITCODE" }
+              & $AliasExe estimate multivariate var .\missing.csv *> $null
+              if ($LASTEXITCODE -ne 3) { throw "Alias expected exit 3, got $LASTEXITCODE" }
+            } finally {
+              Pop-Location
+            }
+            Write-Host "MSIX AppExecutionAlias + CWD smoke tests passed."
+          } finally {
+            powershell.exe -NoProfile -Command "Get-AppxPackage -Name 'FriedmanJP.Friedman-cli' -ErrorAction SilentlyContinue | Remove-AppxPackage -ErrorAction SilentlyContinue"
+            $env:PATH = $OrigPath
+            $env:JULIA_DEPOT_PATH = $OrigDepot
+            $env:JULIA_PKG_OFFLINE = $OrigOffline
+            $env:JULIA_OBJCACHE = $OrigObjcache
+            Remove-Item -Path $NoWriteDepot, $CwdAliasDir -Recurse -Force -ErrorAction SilentlyContinue
+          }
+
+      - name: Latency report (Windows, offline, report-only)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $PyExe = (Get-Command python3, python -ErrorAction SilentlyContinue | Select-Object -First 1).Source
+          if (-not $PyExe) { throw "Python not found on PATH" }
+          $CleanPath = "$env:SystemRoot\System32;$env:SystemRoot;$env:SystemRoot\System32\Wbem;$env:SystemRoot\System32\WindowsPowerShell\v1.0"
+          $OrigPath = $env:PATH
+          $OrigDepot = $env:JULIA_DEPOT_PATH
+          $OrigOffline = $env:JULIA_PKG_OFFLINE
+          try {
+            $env:PATH = $CleanPath
+            $env:JULIA_DEPOT_PATH = ""
+            $env:JULIA_PKG_OFFLINE = "true"
+            & $PyExe tools/bench_release.py `
+              --bin "build/friedman/bin/friedman.exe" `
+              --data "smoke.csv" `
+              --budget-version-ms "$env:BUDGET_VERSION_MS" `
+              --budget-estimate-ms "$env:BUDGET_ESTIMATE_MS"
+            if ($LASTEXITCODE -ne 0) { throw "bench_release.py failed with exit code $LASTEXITCODE" }
+          } finally {
+            $env:PATH = $OrigPath
+            $env:JULIA_DEPOT_PATH = $OrigDepot
+            $env:JULIA_PKG_OFFLINE = $OrigOffline
+          }
+
+      - name: Upload Store MSIX workflow artifact
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: store-msix-windows-x86_64
+          path: build/friedman-v${{ steps.version.outputs.version }}-windows-x86_64-store.msix
 
       - name: Archive (tar.gz)
         if: startsWith(github.ref, 'refs/tags/') && matrix.archive_ext == 'tar.gz'
@@ -196,12 +536,21 @@ jobs:
           cd build
           Compress-Archive -Path friedman -DestinationPath "friedman-v${{ steps.version.outputs.version }}-${{ matrix.platform }}.zip"
 
-      - name: Upload artifact
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Upload Linux release artifact
+        if: startsWith(github.ref, 'refs/tags/') && runner.os == 'Linux'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: friedman-${{ matrix.platform }}
           path: build/friedman-v${{ steps.version.outputs.version }}-${{ matrix.platform }}.${{ matrix.archive_ext }}
+
+      - name: Upload Windows release artifacts
+        if: startsWith(github.ref, 'refs/tags/') && runner.os == 'Windows'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: friedman-${{ matrix.platform }}
+          path: |
+            build/friedman-v${{ steps.version.outputs.version }}-${{ matrix.platform }}.${{ matrix.archive_ext }}
+            build/friedman-v${{ steps.version.outputs.version }}-windows-x86_64.msix
 
   release:
     name: Create Release
@@ -211,9 +560,10 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - name: Download all artifacts
+      - name: Download release artifacts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
+          pattern: friedman-*
           path: artifacts
           merge-multiple: true
 

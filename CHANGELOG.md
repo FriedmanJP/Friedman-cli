@@ -4,6 +4,64 @@ All notable changes to Friedman-cli are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to
 Semantic Versioning. Releases before v0.6.0 are recorded in the git tag history.
 
+## [1.0.7] — 2026-11-24 — Standalone Julia-free releases, Linux/Windows Julia 1.14+opt, Windows MSIX & Microsoft Store prep (#259–#264)
+
+Distribution and packaging milestone on MacroEconometricModels `=1.0.3` (resolving
+`#259`–`#264`): converts release builds to true self-contained, zero-Julia
+applications via `PackageCompiler.create_app()`, adds Windows MSIX packaging with
+`AppExecutionAlias` for Microsoft Store (`9NBBQSNP6W44`) and GitHub Releases,
+moves Linux and Windows builds to Julia `1.14+opt`, and discontinues pre-built
+macOS binaries in favor of from-source / local `build_release.jl` builds.
+477 registry leaves + top-level `schema` / `repl` unchanged.
+
+### Standalone Build & Benchmark Tooling (#259)
+
+- **`PackageCompiler.create_app()` with compressed sysimage (`build_release.jl`):**
+  Replaced `create_sysimage()` + generated shell/`.cmd` launchers with
+  `PackageCompiler.create_app()` (`executables=["friedman" => "julia_main"]`,
+  `incremental=true`, `filter_stdlibs=false`, `include_lazy_artifacts=false`,
+  `include_transitive_dependencies=false`, `compress_sysimage=true` by default via
+  `FRIEDMAN_COMPRESS_SYSIMAGE`, `sysimage_build_args=`-O1 --strip-metadata``).
+  Produces native `bin/friedman` / `bin/friedman.exe`, private `libjulia`,
+  compressed `lib/julia/sys.*`, and 14 required JLL artifacts while excluding
+  unused `MKL_jll` / `oneTBB_jll` / `IntelOpenMP_jll`. Made `Manifest.toml` seeding
+  version-aware across Julia `1.13` and `1.14`.
+- **Benchmark scripts (`tools/bench_release.py`, `tools/bench_binary.sh`):**
+  Updated for native `bin/friedman.exe` (keeping `.cmd`/`.bat` fallback) and
+  `lib/julia/sys.*` path layout.
+
+### Linux & Windows Standalone CI, Installers & MSIX (#260, #261, #262)
+
+- **Release workflow (`.github/workflows/release.yml`):** Removed `macos-latest`
+  release binaries; switched both `ubuntu-latest` (`linux-x86_64`) and
+  `windows-latest` (`windows-x86_64`) release builds to Julia `1.14+opt` via
+  `julia-actions/install-juliaup`; added strict offline, zero-Julia smoke tests
+  (stripped `PATH`, read-only `chmod 555` depot, `JULIA_OBJCACHE=0` zero-write
+  assertion, `:denmark`, `:wiot`, `completions bash`, `.jld2` + `irf --plot-save`,
+  `dsge solve`, piped `repl`, exit codes `2`/`3`) and enforced Linux latency gate.
+- **Full Julia `1.14+opt` CI backing (`.github/workflows/CI.yml`):** Added
+  `1.14+opt` legs across `engine` (Linux + Windows), `integration-core` (T3), and
+  `e2e` (T4), while retaining `macos-latest` (`1.13`) for macOS from-source CI.
+- **Windows MSIX & Microsoft Store packaging (`packaging/msix/`):** Added
+  parameterized `AppxManifest.xml.in` (`AppExecutionAlias` `friedman.exe`,
+  `runFullTrust`), visual PNG tiles (`Assets/`, `store-assets/StoreListing300x300.png`),
+  `pack_msix.ps1`, and Partner Center runbook `STORE_SUBMISSION.md` for
+  `FriedmanJP.Friedman-cli` (`9NBBQSNP6W44`). CI produces both the unsigned Store
+  `.msix` artifact (`store-msix-windows-x86_64`) and a sideload `.msix` tested via
+  `Add-AppxPackage -AllowUnsigned` + `AppExecutionAlias` relative-CWD smoke checks.
+- **Zero-Julia installers (`install.sh`, `install.ps1`, `uninstall.sh`):**
+  Removed runtime `juliaup`/`Pkg.instantiate()` bootstrapping; added macOS
+  from-source notice in `install.sh`, `friedman.exe` + Microsoft Store tip in
+  `install.ps1`, and fixed `uninstall.sh` for `~/.friedman-cli`.
+
+### Documentation (#263)
+
+- **Updated `README.md` & `docs/src/getting-started/installation.md`:**
+  Documented Windows Microsoft Store (`winget install 9NBBQSNP6W44 --source msstore`),
+  GitHub `.msix` sideloading and `.zip` / `install.ps1`, Linux standalone
+  `install.sh` / `.tar.gz` (plus `JULIA_OBJCACHE=0` note), macOS from-source
+  quickstart, and added a local-only `[Privacy Policy](@id privacy-policy)` section.
+
 ## [1.0.6] — 2026-11-23 — Audit hardening, zero unsolicited CWD writes, output/handle/MCP/REPL fixes & registry normalization (#284)
 
 Post-v1.0.5 comprehensive bugfix and surface-hardening release on
