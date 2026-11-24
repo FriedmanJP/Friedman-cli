@@ -2,7 +2,8 @@
 # Usage: tools/bench_binary.sh <label>   — run after `julia build_release.jl`
 set -euo pipefail
 BIN=build/friedman/bin/friedman
-LIB=$(ls build/friedman/lib/friedman.*)
+[ -f build/friedman/bin/friedman.exe ] && BIN=build/friedman/bin/friedman.exe
+LIB=$(ls build/friedman/lib/julia/sys.*)
 FIX=$(mktemp -t bench_fixture).csv
 python3 - "$FIX" <<'EOF'
 import math, sys

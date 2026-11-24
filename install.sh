@@ -1,10 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
-# Friedman-cli installer for macOS and Linux
+# Friedman-cli standalone installer for Linux (x86_64)
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.sh | bash
-#   curl -fsSL https://...install.sh | bash -s -- --version 1.0.0
+#   curl -fsSL https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.sh | bash -s -- --version 1.0.7
 
 REPO="FriedmanJP/Friedman-cli"
 INSTALL_DIR="$HOME/.friedman-cli"
@@ -15,6 +15,10 @@ VERSION=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --version)
+            if [ $# -lt 2 ]; then
+                echo "Error: --version requires an argument" >&2
+                exit 1
+            fi
             VERSION="$2"
             shift 2
             ;;
@@ -30,21 +34,43 @@ OS="$(uname -s)"
 ARCH="$(uname -m)"
 
 case "$OS" in
-    Darwin) PLATFORM="darwin" ;;
-    Linux)  PLATFORM="linux" ;;
+    Darwin)
+        cat <<'EOF'
+Pre-built macOS binaries are not distributed because macOS Gatekeeper requires
+Apple Developer code signing and notarization.
+
+Run or build Friedman-cli from source on macOS (requires Julia 1.13+):
+  git clone https://github.com/FriedmanJP/Friedman-cli.git
+  cd Friedman-cli
+  julia --project -e 'using Pkg; Pkg.instantiate()'
+  julia --project bin/friedman --help
+
+Or compile a local standalone bundle (offline, zero-Julia once built):
+  julia build_release.jl
+  ./build/friedman/bin/friedman --version
+EOF
+        exit 0
+        ;;
+    Linux)
+        PLATFORM="linux"
+        ;;
     *)
         echo "Error: Unsupported OS: $OS" >&2
-        echo "Supported platforms: macOS (ARM), Linux (x86_64)" >&2
+        echo "Pre-built Linux binaries support Linux (x86_64). On Windows use install.ps1 or Microsoft Store." >&2
         exit 1
         ;;
 esac
 
 case "$ARCH" in
-    arm64|aarch64) ARCH_NAME="arm64" ;;
-    x86_64|amd64)  ARCH_NAME="x86_64" ;;
+    x86_64|amd64)
+        ARCH_NAME="x86_64"
+        ;;
     *)
-        echo "Error: Unsupported architecture: $ARCH" >&2
-        echo "Supported: arm64, x86_64" >&2
+        echo "Error: Pre-built Linux binaries are available only for x86_64 (detected: $ARCH)." >&2
+        echo "To run or build from source on $ARCH (requires Julia 1.13+):" >&2
+        echo "  git clone https://github.com/${REPO}.git && cd Friedman-cli" >&2
+        echo "  julia --project -e 'using Pkg; Pkg.instantiate()'" >&2
+        echo "  julia build_release.jl" >&2
         exit 1
         ;;
 esac
@@ -66,7 +92,7 @@ if [ -z "$VERSION" ]; then
     RELEASE_JSON=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null) || {
         echo "Error: Failed to fetch latest release from GitHub API." >&2
         echo "You may be rate-limited. Try specifying a version:" >&2
-        echo "  curl -fsSL https://raw.githubusercontent.com/${REPO}/master/install.sh | bash -s -- --version 1.0.0" >&2
+        echo "  curl -fsSL https://raw.githubusercontent.com/${REPO}/master/install.sh | bash -s -- --version 1.0.7" >&2
         exit 1
     }
     VERSION=$(echo "$RELEASE_JSON" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"v\{0,1\}\([^"]*\)".*/\1/')
@@ -76,48 +102,11 @@ if [ -z "$VERSION" ]; then
     fi
 fi
 
-echo "Installing Friedman-cli v${VERSION}..."
+echo "Installing standalone Friedman-cli v${VERSION} (zero Julia required)..."
 
 # --- Construct download URL ---
 ARCHIVE_NAME="friedman-v${VERSION}-${PLATFORM}-${ARCH_NAME}.tar.gz"
 DOWNLOAD_URL="https://github.com/${REPO}/releases/download/v${VERSION}/${ARCHIVE_NAME}"
-
-# --- Ensure Julia 1.13 is available ---
-ensure_julia() {
-    # Check if juliaup is available
-    if command -v juliaup >/dev/null 2>&1; then
-        echo "Found juliaup. Ensuring Julia 1.13 is installed..."
-        juliaup add 1.13 2>/dev/null || true
-        return 0
-    fi
-
-    # Check if julia >= 1.13 is on PATH
-    if command -v julia >/dev/null 2>&1; then
-        JULIA_VER=$(julia --version 2>&1 | grep -oE '[0-9]+\.[0-9]+' | head -1)
-        JULIA_MAJOR=$(echo "$JULIA_VER" | cut -d. -f1)
-        JULIA_MINOR=$(echo "$JULIA_VER" | cut -d. -f2)
-        if [ "$JULIA_MAJOR" -ge 1 ] && [ "$JULIA_MINOR" -ge 13 ]; then
-            echo "Found Julia $(julia --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
-            return 0
-        fi
-    fi
-
-    # Install juliaup
-    echo "Julia 1.13+ not found. Installing juliaup..."
-    curl -fsSL https://install.julialang.org | sh -s -- --yes || {
-        echo "Error: Failed to install juliaup." >&2
-        echo "Install Julia manually: https://julialang.org/downloads/" >&2
-        exit 1
-    }
-
-    # Source juliaup into current shell
-    export PATH="$HOME/.juliaup/bin:$PATH"
-
-    echo "Installing Julia 1.13..."
-    juliaup add 1.13
-}
-
-ensure_julia
 
 # --- Download archive ---
 TMPDIR=$(mktemp -d)
@@ -136,8 +125,7 @@ CHECKSUM_URL="https://github.com/${REPO}/releases/download/v${VERSION}/checksums
 echo "Verifying checksum..."
 if curl -fsSL "$CHECKSUM_URL" -o "$TMPDIR/checksums.sha256" 2>/dev/null; then
     cd "$TMPDIR"
-    # Extract only the line for our archive
-    grep "$ARCHIVE_NAME" checksums.sha256 > check.sha256
+    grep "$ARCHIVE_NAME" checksums.sha256 > check.sha256 || true
     if [ -s check.sha256 ]; then
         if command -v sha256sum >/dev/null 2>&1; then
             sha256sum -c check.sha256 || {
@@ -145,7 +133,6 @@ if curl -fsSL "$CHECKSUM_URL" -o "$TMPDIR/checksums.sha256" 2>/dev/null; then
                 exit 1
             }
         elif command -v shasum >/dev/null 2>&1; then
-            # macOS uses shasum instead of sha256sum
             shasum -a 256 -c check.sha256 || {
                 echo "Error: Checksum verification failed! The download may be corrupted." >&2
                 exit 1
@@ -166,36 +153,20 @@ echo "Installing to ${INSTALL_DIR}..."
 mkdir -p "$TMPDIR/extract"
 tar -xzf "$TMPDIR/$ARCHIVE_NAME" -C "$TMPDIR/extract"
 
-# The archive contains a top-level friedman/ directory
 if [ -d "$TMPDIR/extract/friedman" ]; then
     EXTRACTED="$TMPDIR/extract/friedman"
 else
     EXTRACTED="$TMPDIR/extract"
 fi
 
-# Safe replacement: only remove old install after new one is fully extracted
 rm -rf "$INSTALL_DIR"
 mv "$EXTRACTED" "$INSTALL_DIR"
-
-# --- Instantiate runtime JLL artifacts ---
-# The precompiled sysimage links JLL packages (XML2_jll, Ipopt_jll, FFTW_jll, etc.)
-# whose __init__() hooks look up artifact hashes in ~/.julia/artifacts/ at startup.
-# JULIA_PKG_PRECOMPILE_AUTO=0 fetches missing artifacts/packages without precompiling.
-echo "Ensuring runtime artifacts..."
-if julia +1.13 --version >/dev/null 2>&1; then
-    JULIA_PKG_PRECOMPILE_AUTO=0 julia +1.13 --project="$INSTALL_DIR" --startup-file=no -e 'using Pkg; Pkg.instantiate()'
-    printf '%s\n' 'juliaup:+1.13' > "$INSTALL_DIR/.julia_cmd"
-else
-    JULIA_PKG_PRECOMPILE_AUTO=0 julia --project="$INSTALL_DIR" --startup-file=no -e 'using Pkg; Pkg.instantiate()'
-    command -v julia > "$INSTALL_DIR/.julia_cmd" || true
-fi
-touch "$INSTALL_DIR/.artifacts_ready"
 
 # --- Create PATH shim ---
 mkdir -p "$BIN_DIR"
 ln -sf "$INSTALL_DIR/bin/friedman" "$BIN_DIR/friedman"
 
-# --- Verify (also warms up LazyArtifacts such as oneTBB_jll) ---
+# --- Verify ---
 echo ""
 "$INSTALL_DIR/bin/friedman" --version
 echo "Friedman-cli installed successfully!"
@@ -204,7 +175,7 @@ echo "Friedman-cli installed successfully!"
 if ! echo "$PATH" | tr ':' '\n' | grep -qx "$BIN_DIR"; then
     echo ""
     echo "Add ${BIN_DIR} to your PATH by adding this line to your shell profile:"
-    SHELL_NAME="$(basename "$SHELL")"
+    SHELL_NAME="$(basename "${SHELL:-sh}")"
     case "$SHELL_NAME" in
         zsh)  echo "  echo 'export PATH=\"${BIN_DIR}:\$PATH\"' >> ~/.zshrc" ;;
         bash) echo "  echo 'export PATH=\"${BIN_DIR}:\$PATH\"' >> ~/.bashrc" ;;

@@ -1,23 +1,22 @@
 #!/bin/bash
-# Uninstall Friedman-cli: removes symlink and wrapper
-set -e
+# Uninstall Friedman-cli: removes ~/.friedman-cli and ~/.local/bin/friedman symlink
+set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-WRAPPER="$SCRIPT_DIR/bin/friedman-wrapper"
+INSTALL_DIR="$HOME/.friedman-cli"
 LINK="$HOME/.local/bin/friedman"
 
-if [ -L "$LINK" ]; then
-    rm "$LINK"
+if [ -L "$LINK" ] || [ -f "$LINK" ]; then
+    rm -f "$LINK"
     echo "Removed symlink: $LINK"
 else
     echo "No symlink found at $LINK"
 fi
 
-if [ -f "$WRAPPER" ]; then
-    rm "$WRAPPER"
-    echo "Removed wrapper: $WRAPPER"
+if [ -d "$INSTALL_DIR" ]; then
+    rm -rf "$INSTALL_DIR"
+    echo "Removed directory: $INSTALL_DIR"
 else
-    echo "No wrapper found at $WRAPPER"
+    echo "No install directory found at $INSTALL_DIR"
 fi
 
 echo "Friedman-cli uninstalled."
