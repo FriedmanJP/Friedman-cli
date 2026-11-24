@@ -348,11 +348,8 @@ jobs:
           )
           [System.IO.File]::WriteAllLines($SmokeToml, $tomlLines, [System.Text.UTF8Encoding]::new($false))
 
-          # Strip julia / juliaup from PATH for strict zero-Julia verification
-          $CleanPathParts = ($env:PATH -split ';') | Where-Object {
-            $_ -and ($_ -notmatch '(?i)julia')
-          }
-          $CleanPath = $CleanPathParts -join ';'
+          # Minimal Windows core system PATH (zero julia/juliaup/chocolatey/WindowsApps)
+          $CleanPath = "$env:SystemRoot\System32;$env:SystemRoot;$env:SystemRoot\System32\Wbem;$env:SystemRoot\System32\WindowsPowerShell\v1.0"
 
           $NoWriteDepot = Join-Path $env:TEMP ("friedman-nowrite-" + [System.Guid]::NewGuid().ToString("N"))
           $CwdAliasDir = Join-Path $env:TEMP ("friedman-alias-cwd-" + [System.Guid]::NewGuid().ToString("N"))
@@ -369,8 +366,9 @@ jobs:
             $env:JULIA_PKG_OFFLINE = "true"
             $env:JULIA_OBJCACHE = "0"
 
-            if (Get-Command julia -ErrorAction SilentlyContinue) {
-              throw "julia is still on PATH after stripping!"
+            $RemainingJulia = Get-Command julia -ErrorAction SilentlyContinue
+            if ($RemainingJulia) {
+              throw "julia is still on PATH after stripping: $($RemainingJulia.Source)"
             }
 
             # 1. Direct standalone binary checks
@@ -436,6 +434,11 @@ jobs:
               throw "AppExecutionAlias not created at $AliasExe"
             }
 
+            # Run alias tests with empty JULIA_DEPOT_PATH and default objcache behavior
+            # to verify clean degradation against the read-only WindowsApps package root.
+            $env:JULIA_DEPOT_PATH = ""
+            Remove-Item Env:JULIA_OBJCACHE -ErrorAction SilentlyContinue
+
             Copy-Item $SmokeCsv (Join-Path $CwdAliasDir "smoke.csv")
             Copy-Item $SmokeToml (Join-Path $CwdAliasDir "smoke_rbc.toml")
 
@@ -490,7 +493,9 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $CleanPath = (($env:PATH -split ';') | Where-Object { $_ -and ($_ -notmatch '(?i)julia') }) -join ';'
+          $PyExe = (Get-Command python3, python -ErrorAction SilentlyContinue | Select-Object -First 1).Source
+          if (-not $PyExe) { throw "Python not found on PATH" }
+          $CleanPath = "$env:SystemRoot\System32;$env:SystemRoot;$env:SystemRoot\System32\Wbem;$env:SystemRoot\System32\WindowsPowerShell\v1.0"
           $OrigPath = $env:PATH
           $OrigDepot = $env:JULIA_DEPOT_PATH
           $OrigOffline = $env:JULIA_PKG_OFFLINE
@@ -498,8 +503,7 @@ jobs:
             $env:PATH = $CleanPath
             $env:JULIA_DEPOT_PATH = ""
             $env:JULIA_PKG_OFFLINE = "true"
-            $PyCmd = if (Get-Command python3 -ErrorAction SilentlyContinue) { "python3" } else { "python" }
-            & $PyCmd tools/bench_release.py `
+            & $PyExe tools/bench_release.py `
               --bin "build/friedman/bin/friedman.exe" `
               --data "smoke.csv" `
               --budget-version-ms "$env:BUDGET_VERSION_MS" `
