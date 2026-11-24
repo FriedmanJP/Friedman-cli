@@ -48,6 +48,46 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
+      - name: Get version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            VER=$(python3 -c 'import tomllib; print(tomllib.load(open("Project.toml","rb"))["version"])')
+            echo "version=$VER" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Pre-flight validate Windows MSIX packaging
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $Ver = "${{ steps.version.outputs.version }}"
+          $Tmp = Join-Path $env:TEMP ("friedman-msix-preflight-" + [System.Guid]::NewGuid().ToString("N"))
+          $DummyApp = Join-Path $Tmp "app"
+          $SideloadMsix = Join-Path $Tmp "sideload.msix"
+          $StoreMsix = Join-Path $Tmp "store.msix"
+          New-Item -ItemType Directory -Path (Join-Path $DummyApp "bin") -Force | Out-Null
+          try {
+            # Copy a small x64 PE binary as placeholder so MakeAppx + Add-AppxPackage validate in seconds
+            Copy-Item "$env:SystemRoot\System32\where.exe" (Join-Path $DummyApp "bin\friedman.exe")
+            & packaging/msix/pack_msix.ps1 -AppDir $DummyApp -Version "$Ver" -OutputPath $SideloadMsix -Mode "sideload"
+            & packaging/msix/pack_msix.ps1 -AppDir $DummyApp -Version "$Ver" -OutputPath $StoreMsix -Mode "store"
+            $DevKey = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock"
+            if (-not (Test-Path $DevKey)) { New-Item -Path $DevKey -Force | Out-Null }
+            Set-ItemProperty -Path $DevKey -Name "AllowDevelopmentWithoutDevLicense" -Value 1 -Type DWord
+            powershell.exe -NoProfile -Command "`$ErrorActionPreference = 'Stop'; Add-AppxPackage -Path '$SideloadMsix' -AllowUnsigned"
+            if ($LASTEXITCODE -ne 0) { throw "Pre-flight Add-AppxPackage -AllowUnsigned failed ($LASTEXITCODE)" }
+            $AliasExe = Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps\friedman.exe"
+            if (-not (Test-Path $AliasExe)) { throw "Pre-flight AppExecutionAlias not created at $AliasExe" }
+            Write-Host "Pre-flight MSIX packaging + Add-AppxPackage + AppExecutionAlias validation passed."
+          } finally {
+            powershell.exe -NoProfile -Command "Get-AppxPackage -Name 'FriedmanJP.Friedman-cli' -ErrorAction SilentlyContinue | Remove-AppxPackage -ErrorAction SilentlyContinue"
+            Remove-Item -Path $Tmp -Recurse -Force -ErrorAction SilentlyContinue
+          }
+
       - uses: julia-actions/install-juliaup@ac1bed66e8369307bff3d25a4fa3f6b85cdfcfe7 # v3.1.7
         with:
           channel: '1.14+opt'
@@ -93,17 +133,6 @@ jobs:
           FRIEDMAN_COMPRESS_SYSIMAGE: "true"
         run: julia build_release.jl
         timeout-minutes: 120
-
-      - name: Get version
-        id: version
-        shell: bash
-        run: |
-          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
-          else
-            VER=$(python3 -c 'import tomllib; print(tomllib.load(open("Project.toml","rb"))["version"])')
-            echo "version=$VER" >> "$GITHUB_OUTPUT"
-          fi
 
       - name: Package Windows MSIX (sideload + Store)
         if: runner.os == 'Windows'
@@ -286,7 +315,7 @@ jobs:
 
       - name: Smoke-test Windows binary & MSIX AppExecutionAlias (offline, zero-Julia)
         if: runner.os == 'Windows'
-        shell: powershell
+        shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
           $Ver = "${{ steps.version.outputs.version }}"
@@ -399,7 +428,8 @@ jobs:
             $DevKey = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock"
             if (-not (Test-Path $DevKey)) { New-Item -Path $DevKey -Force | Out-Null }
             Set-ItemProperty -Path $DevKey -Name "AllowDevelopmentWithoutDevLicense" -Value 1 -Type DWord
-            Add-AppxPackage -Path $MsixPath -AllowUnsigned
+            powershell.exe -NoProfile -Command "`$ErrorActionPreference = 'Stop'; Add-AppxPackage -Path '$MsixPath' -AllowUnsigned"
+            if ($LASTEXITCODE -ne 0) { throw "Add-AppxPackage -AllowUnsigned failed with exit code $LASTEXITCODE" }
 
             $AliasExe = Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps\friedman.exe"
             if (-not (Test-Path $AliasExe)) {
@@ -447,7 +477,7 @@ jobs:
             }
             Write-Host "MSIX AppExecutionAlias + CWD smoke tests passed."
           } finally {
-            Get-AppxPackage -Name "FriedmanJP.Friedman-cli" -ErrorAction SilentlyContinue | Remove-AppxPackage -ErrorAction SilentlyContinue
+            powershell.exe -NoProfile -Command "Get-AppxPackage -Name 'FriedmanJP.Friedman-cli' -ErrorAction SilentlyContinue | Remove-AppxPackage -ErrorAction SilentlyContinue"
             $env:PATH = $OrigPath
             $env:JULIA_DEPOT_PATH = $OrigDepot
             $env:JULIA_PKG_OFFLINE = $OrigOffline
@@ -468,11 +498,13 @@ jobs:
             $env:PATH = $CleanPath
             $env:JULIA_DEPOT_PATH = ""
             $env:JULIA_PKG_OFFLINE = "true"
-            python3 tools/bench_release.py `
+            $PyCmd = if (Get-Command python3 -ErrorAction SilentlyContinue) { "python3" } else { "python" }
+            & $PyCmd tools/bench_release.py `
               --bin "build/friedman/bin/friedman.exe" `
               --data "smoke.csv" `
               --budget-version-ms "$env:BUDGET_VERSION_MS" `
               --budget-estimate-ms "$env:BUDGET_ESTIMATE_MS"
+            if ($LASTEXITCODE -ne 0) { throw "bench_release.py failed with exit code $LASTEXITCODE" }
           } finally {
             $env:PATH = $OrigPath
             $env:JULIA_DEPOT_PATH = $OrigDepot

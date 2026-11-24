@@ -39,7 +39,7 @@ if (-not $Publisher) {
         $Publisher = "CN=B2EE8C32-50BC-46BC-B4B2-3BA1AB9A6ECB"
     } else {
         # Microsoft unsigned MSIX sideload publisher OID (installable via Add-AppxPackage -AllowUnsigned)
-        $Publisher = "OID.2.25.311729368913984317654407730594956997722=1"
+        $Publisher = "CN=FriedmanJP, OID.2.25.311729368913984317654407730594956997722=1"
     }
 }
 

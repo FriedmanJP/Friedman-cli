@@ -22,7 +22,7 @@ Store MSIX package for **Friedman-cli** to Microsoft Partner Center.
 >   uploaded **unsigned** (`friedman-vX.Y.Z-windows-x86_64-store.msix`) to Partner Center.
 >   Microsoft signs the package with the Microsoft Store certificate during ingestion at zero cost.
 > - **GitHub Releases sideload (`-Mode sideload`)** uses Microsoft's unsigned-package OID
->   (`OID.2.25.311729368913984317654407730594956997722=1`) so Windows 11 users and CI can
+>   (`CN=FriedmanJP, OID.2.25.311729368913984317654407730594956997722=1`) so Windows 11 users and CI can
 >   install it locally via `Add-AppxPackage -AllowUnsigned`.
 
 ---
