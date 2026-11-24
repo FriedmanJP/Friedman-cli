@@ -1242,8 +1242,11 @@ end
         @test names(df_nt) == ["a", "b"]
 
         # 4. Plain .jld2 user archives ("data" key and single-key archive)
+        # Note: JLD2 v0.6.7 cannot reconstruct raw serialized DataFrame structs on
+        # Julia 1.14+ (`UnionAll has hidden fields`), so test NamedTuple payloads on
+        # all Julia versions and keep raw DataFrame-in-JLD2 coverage on Julia < 1.14.
         raw_jld = joinpath(dir, "raw.jld2")
-        JLD2.jldsave(raw_jld; data=DataFrame(y1=[1.0, 2.0], y2=[3.0, 4.0]), meta="extra")
+        JLD2.jldsave(raw_jld; data=(y1=[1.0, 2.0], y2=[3.0, 4.0]), meta="extra")
         df_raw = load_data(raw_jld)
         @test names(df_raw) == ["y1", "y2"]
         Y_raw, vn_raw = load_multivariate_data(joinpath(dir, "raw"))
@@ -1251,14 +1254,23 @@ end
         @test vn_raw == ["y1", "y2"]
 
         single_jld = joinpath(dir, "single.jld2")
-        JLD2.jldsave(single_jld; df=DataFrame(y=[5.0, 6.0]))
+        JLD2.jldsave(single_jld; nt=(y=[5.0, 6.0],))
         df_single = resolve_data(single_jld)
         @test df_single isa DataFrame
         @test names(df_single) == ["y"]
 
-        # 5. Review Focus #3: missing values in serialized DataFrame -> data/missing-values
+        if VERSION < v"1.14.0-DEV"
+            raw_df_jld = joinpath(dir, "raw_df.jld2")
+            JLD2.jldsave(raw_df_jld; data=DataFrame(y1=[1.0, 2.0], y2=[3.0, 4.0]), meta="extra")
+            @test names(load_data(raw_df_jld)) == ["y1", "y2"]
+            single_df_jld = joinpath(dir, "single_df.jld2")
+            JLD2.jldsave(single_df_jld; df=DataFrame(y=[5.0, 6.0]))
+            @test names(resolve_data(single_df_jld)) == ["y"]
+        end
+
+        # 5. Review Focus #3: missing values in serialized tabular payload -> data/missing-values
         miss_jld = joinpath(dir, "miss.jld2")
-        JLD2.jldsave(miss_jld; data=DataFrame(y=[1.0, missing, 3.0], x=[2.0, 4.0, 6.0]))
+        JLD2.jldsave(miss_jld; data=(y=Union{Float64,Missing}[1.0, missing, 3.0], x=[2.0, 4.0, 6.0]))
         err_miss = try
             load_multivariate_data(miss_jld)
             nothing
@@ -1369,7 +1381,7 @@ end
         @test load_model_dispatch(imp_stem * ".jld2") isa TimeSeriesData
 
         plain_jld = joinpath(dir, "plain_tab.jld2")
-        JLD2.jldsave(plain_jld; data=DataFrame(y1=[1.0, 2.0, 3.0], y2=[4.0, 5.0, 6.0]))
+        JLD2.jldsave(plain_jld; data=(y1=[1.0, 2.0, 3.0], y2=[4.0, 5.0, 6.0]))
         imp_plain = joinpath(dir, "imported_plain")
         _capture() do
             _data_import(; data=plain_jld, kind="timeseries", output=imp_plain, format="json")

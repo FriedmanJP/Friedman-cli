@@ -109,13 +109,14 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
           $Ver = "${{ steps.version.outputs.version }}"
-          pwsh -File packaging/msix/pack_msix.ps1 `
+          & packaging/msix/pack_msix.ps1 `
             -AppDir "build\friedman" `
             -Version "$Ver" `
             -OutputPath "build\friedman-v$Ver-windows-x86_64.msix" `
             -Mode "sideload"
-          pwsh -File packaging/msix/pack_msix.ps1 `
+          & packaging/msix/pack_msix.ps1 `
             -AppDir "build\friedman" `
             -Version "$Ver" `
             -OutputPath "build\friedman-v$Ver-windows-x86_64-store.msix" `
@@ -285,7 +286,7 @@ jobs:
 
       - name: Smoke-test Windows binary & MSIX AppExecutionAlias (offline, zero-Julia)
         if: runner.os == 'Windows'
-        shell: pwsh
+        shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
           $Ver = "${{ steps.version.outputs.version }}"
@@ -302,21 +303,21 @@ jobs:
           [System.IO.File]::WriteAllLines($SmokeCsv, $lines, [System.Text.UTF8Encoding]::new($false))
 
           $SmokeToml = Join-Path $Root "smoke_rbc.toml"
-          $tomlBody = @"
-          [model]
-          endogenous = ["y", "pi"]
-          exogenous = ["e_a"]
-          linear = true
-          [model.parameters]
-          rho = 0.85
-          sigma = 0.02
-          kappa = 0.25
-          [[model.equations]]
-          expr = "y[t] = rho * y[t-1] + sigma * e_a[t]"
-          [[model.equations]]
-          expr = "pi[t] = 0.99 * pi[t+1] + kappa * y[t]"
-          "@
-          [System.IO.File]::WriteAllText($SmokeToml, $tomlBody, [System.Text.UTF8Encoding]::new($false))
+          $tomlLines = @(
+            '[model]',
+            'endogenous = ["y", "pi"]',
+            'exogenous = ["e_a"]',
+            'linear = true',
+            '[model.parameters]',
+            'rho = 0.85',
+            'sigma = 0.02',
+            'kappa = 0.25',
+            '[[model.equations]]',
+            'expr = "y[t] = rho * y[t-1] + sigma * e_a[t]"',
+            '[[model.equations]]',
+            'expr = "pi[t] = 0.99 * pi[t+1] + kappa * y[t]"'
+          )
+          [System.IO.File]::WriteAllLines($SmokeToml, $tomlLines, [System.Text.UTF8Encoding]::new($false))
 
           # Strip julia / juliaup from PATH for strict zero-Julia verification
           $CleanPathParts = ($env:PATH -split ';') | Where-Object {
@@ -351,26 +352,26 @@ jobs:
 
             $VarJson = & $Exe --quiet estimate multivariate var $SmokeCsv --lags 1 --format json
             if ($LASTEXITCODE -ne 0) { throw "VAR JSON failed" }
-            $VarObj = $VarJson | ConvertFrom-Json
+            $VarObj = ($VarJson | Out-String) | ConvertFrom-Json
             if ($VarObj.status -ne "ok") { throw "Unexpected VAR JSON status" }
 
             $SchemaJson = & $Exe schema estimate multivariate var
             if ($LASTEXITCODE -ne 0) { throw "schema failed" }
-            $null = $SchemaJson | ConvertFrom-Json
+            $null = ($SchemaJson | Out-String) | ConvertFrom-Json
 
             $CompOut = & $Exe completions bash
             if ($LASTEXITCODE -ne 0 -or -not $CompOut) { throw "completions bash failed" }
 
             $DenmarkJson = & $Exe --quiet data describe :denmark --format json
             if ($LASTEXITCODE -ne 0) { throw "data describe :denmark failed" }
-            $DenmarkObj = $DenmarkJson | ConvertFrom-Json
+            $DenmarkObj = ($DenmarkJson | Out-String) | ConvertFrom-Json
             if ($DenmarkObj.status -ne "ok" -or -not $DenmarkObj.meta.mems_version) {
               throw "Invalid :denmark / mems_version response"
             }
 
             $WiotJson = & $Exe --quiet io leontief --format json
             if ($LASTEXITCODE -ne 0) { throw "io leontief failed" }
-            if (($WiotJson | ConvertFrom-Json).status -ne "ok") { throw "io leontief status not ok" }
+            if ((($WiotJson | Out-String) | ConvertFrom-Json).status -ne "ok") { throw "io leontief status not ok" }
 
             $VarJld2 = Join-Path $CwdAliasDir "direct_var.jld2"
             $IrfHtml = Join-Path $CwdAliasDir "direct_irf.html"
@@ -380,7 +381,7 @@ jobs:
             if ($LASTEXITCODE -ne 0 -or -not (Test-Path $IrfHtml)) { throw "irf --plot-save failed" }
 
             $DsgeJson = & $Exe --quiet dsge solve $SmokeToml --format json
-            if ($LASTEXITCODE -ne 0 -or ($DsgeJson | ConvertFrom-Json).status -ne "ok") { throw "dsge solve failed" }
+            if ($LASTEXITCODE -ne 0 -or (($DsgeJson | Out-String) | ConvertFrom-Json).status -ne "ok") { throw "dsge solve failed" }
 
             "--version`nexit`n" | & $Exe repl | Out-Null
             if ($LASTEXITCODE -ne 0) { throw "piped repl failed" }
@@ -425,12 +426,12 @@ jobs:
               }
 
               $AliasDenmark = & $AliasExe --quiet data describe :denmark --format json
-              if ($LASTEXITCODE -ne 0 -or ($AliasDenmark | ConvertFrom-Json).status -ne "ok") {
+              if ($LASTEXITCODE -ne 0 -or (($AliasDenmark | Out-String) | ConvertFrom-Json).status -ne "ok") {
                 throw "Alias :denmark failed"
               }
 
               $AliasDsge = & $AliasExe --quiet dsge solve .\smoke_rbc.toml --format json
-              if ($LASTEXITCODE -ne 0 -or ($AliasDsge | ConvertFrom-Json).status -ne "ok") {
+              if ($LASTEXITCODE -ne 0 -or (($AliasDsge | Out-String) | ConvertFrom-Json).status -ne "ok") {
                 throw "Alias dsge solve failed"
               }
 
@@ -499,8 +500,15 @@ jobs:
           cd build
           Compress-Archive -Path friedman -DestinationPath "friedman-v${{ steps.version.outputs.version }}-${{ matrix.platform }}.zip"
 
-      - name: Upload release artifacts
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Upload Linux release artifact
+        if: startsWith(github.ref, 'refs/tags/') && runner.os == 'Linux'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: friedman-${{ matrix.platform }}
+          path: build/friedman-v${{ steps.version.outputs.version }}-${{ matrix.platform }}.${{ matrix.archive_ext }}
+
+      - name: Upload Windows release artifacts
+        if: startsWith(github.ref, 'refs/tags/') && runner.os == 'Windows'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: friedman-${{ matrix.platform }}

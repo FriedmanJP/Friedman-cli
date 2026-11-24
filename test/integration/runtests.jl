@@ -10224,13 +10224,19 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                                y3=randn(MersenneTwister(242), 80))
             jls_data = joinpath(dir, "plain_df.jls")
             Friedman.Serialization.serialize(jls_data, df_raw)
-            jld2_data = joinpath(dir, "plain_df.jld2")
-            Friedman.JLD2.jldsave(jld2_data; data=df_raw)
+            jld2_nt = joinpath(dir, "plain_nt.jld2")
+            Friedman.JLD2.jldsave(jld2_nt; data=(y1=df_raw.y1, y2=df_raw.y2, y3=df_raw.y3))
 
             r_jls = run_json(["estimate", "multivariate", "var", jls_data, "--lags", "1"])
             assert_envelope_ok(r_jls; label="estimate var on plain .jls DataFrame")
-            r_jld2 = run_json(["data", "describe", jld2_data])
-            assert_envelope_ok(r_jld2; label="data describe on plain .jld2 DataFrame")
+            r_jld2 = run_json(["data", "describe", jld2_nt])
+            assert_envelope_ok(r_jld2; label="data describe on plain .jld2 NamedTuple")
+            if VERSION < v"1.14.0-DEV"
+                jld2_data = joinpath(dir, "plain_df.jld2")
+                Friedman.JLD2.jldsave(jld2_data; data=df_raw)
+                assert_envelope_ok(run_json(["data", "describe", jld2_data]);
+                                   label="data describe on plain .jld2 DataFrame")
+            end
 
             # 2. data simulate var --save-data → estimate svar --save-model → irf/fevd/hd var
             sim_data = joinpath(dir, "sim_var.jld2")
