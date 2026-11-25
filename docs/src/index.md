@@ -36,20 +36,20 @@ Install the CLI or run from source (see [Installation & Quickstart](@ref gs-inst
 
 ```bash
 # Import a bundled timeseries dataset with date metadata into a typed handle
-friedman data import :denmark --vars LRM,LRY,IBO -o macro
+frdc data import :denmark --vars LRM,LRY,IBO -o macro
 
 # Estimate a VAR(2) under a fixed seed and save the model handle
-friedman --seed 42 estimate multivariate var macro --lags 2 --save-model var_fit
+frdc --seed 42 estimate multivariate var macro --lags 2 --save-model var_fit
 
 # Compute Cholesky impulse responses without re-estimating the VAR
-friedman irf var --model var_fit.jld2 --horizons 8 --shock 1
+frdc irf var --model var_fit.jld2 --horizons 8 --shock 1
 
 # Verify reproducibility and inspect handle provenance
-friedman model info var_fit.jld2
-friedman model reproduce var_fit.jld2
+frdc model info var_fit.jld2
+frdc model reproduce var_fit.jld2
 ```
 
-For headless scripts, CI, or LLM tool integration over MCP stdio (`friedman serve --mcp`), see [Pipelines, Handles & Reproducibility](@ref gs-pipelines) and the [Agent Guide](agent-guide.md).
+For headless scripts, CI, or LLM tool integration over MCP stdio (`frdc serve --mcp`), see [Pipelines, Handles & Reproducibility](@ref gs-pipelines) and the [Agent Guide](agent-guide.md).
 
 ---
 

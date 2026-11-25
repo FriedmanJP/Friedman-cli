@@ -8,9 +8,9 @@ Simulate a 250-period GARCH(1,1) series with a fixed seed, estimate conditional 
 
 <!-- capture -->
 ```bash
-friedman --quiet data simulate garch --kind garch --periods 250 --seed 42 --save-data garch_sim
-friedman --quiet estimate volatility garch garch_sim --p 1 --q 1 --save-model garch_fit
-friedman forecast volatility garch --model garch_fit.jld2 --horizons 6
+frdc --quiet data simulate garch --kind garch --periods 250 --seed 42 --save-data garch_sim
+frdc --quiet estimate volatility garch garch_sim --p 1 --q 1 --save-model garch_fit
+frdc forecast volatility garch --model garch_fit.jld2 --horizons 6
 ```
 ```text
 GARCH(1,1) Volatility Forecast (series, h=6)
@@ -63,8 +63,8 @@ Volatility shocks often decay hyperbolically rather than exponentially, obey uni
 
 <!-- capture -->
 ```bash
-friedman --quiet --seed 42 data simulate sv --mu -0.5 --phi 0.95 --sigma-eta 0.2 --periods 150 --save-data sv_sim
-friedman --seed 42 estimate volatility sv sv_sim --draws 400
+frdc --quiet --seed 42 data simulate sv --mu -0.5 --phi 0.95 --sigma-eta 0.2 --periods 150 --save-data sv_sim
+frdc --seed 42 estimate volatility sv sv_sim --draws 400
 ```
 ```text
    SV Coefficients (y)
@@ -95,8 +95,8 @@ Q_t = (1 - a - b)\bar{Q} + a (\tilde{\varepsilon}_{t-1}\tilde{\varepsilon}_{t-1}
 
 <!-- capture -->
 ```bash
-friedman --quiet data simulate var --periods 300 --burn 50 --seed 2 --save-data mv_sim
-friedman estimate volatility dcc mv_sim --p 1 --q 1 --correction none
+frdc --quiet data simulate var --periods 300 --burn 50 --seed 2 --save-data mv_sim
+frdc estimate volatility dcc mv_sim --p 1 --q 1 --correction none
 ```
 ```text
      DCC-GARCH Conditional Correlation
@@ -148,4 +148,4 @@ The command emits `dcc_garch_conditional_correlation` (`(y1, y2) = 0.383801`, `(
 - Engle, R. (2002). Dynamic conditional correlation: A simple class of multivariate generalized autoregressive conditional heteroskedasticity models. *Journal of Business & Economic Statistics*, 20(3), 339–350.
 - Kim, S., Shephard, N., & Chib, S. (1998). Stochastic volatility: Likelihood inference and comparison with ARCH models. *Review of Economic Studies*, 65(3), 361–393.
 - Upstream manual: [MacroEconometricModels.jl — Volatility](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/volatility/)
-- CLI reference: [`friedman estimate volatility`](@ref ref-fam-estimate-volatility), [`friedman forecast volatility`](@ref ref-fam-forecast-volatility), [`friedman predict volatility`](@ref ref-fam-predict-volatility), [`friedman residuals volatility`](@ref ref-fam-residuals-volatility)
+- CLI reference: [`frdc estimate volatility`](@ref ref-fam-estimate-volatility), [`frdc forecast volatility`](@ref ref-fam-forecast-volatility), [`frdc predict volatility`](@ref ref-fam-predict-volatility), [`frdc residuals volatility`](@ref ref-fam-residuals-volatility)

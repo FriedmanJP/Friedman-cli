@@ -1,6 +1,6 @@
 # [Policy Counterfactuals & Optimal Policy](@id chap-policy)
 
-Forward-looking monetary/fiscal policy counterfactuals, structural-vs-sufficient causal effect menus, counterfactual history decompositions, sequence-space HA/DSGE news shocks, and quadratic-loss optimal policy projections (McKay & Wolf 2023; de Groot et al. 2021) span [`friedman policy`](@ref ref-policy). Configure `[rule]`, `[loss]`, `[loss.smoothing]`, and OPP floor/ZLB `[[constraint]]` blocks via [GMM, SMM, Systems, State-Space & Policy](@ref cfg-models-policy). See [MacroEconometricModels.jl — Policy Counterfactuals](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/policy/).
+Forward-looking monetary/fiscal policy counterfactuals, structural-vs-sufficient causal effect menus, counterfactual history decompositions, sequence-space HA/DSGE news shocks, and quadratic-loss optimal policy projections (McKay & Wolf 2023; de Groot et al. 2021) span [`frdc policy`](@ref ref-policy). Configure `[rule]`, `[loss]`, `[loss.smoothing]`, and OPP floor/ZLB `[[constraint]]` blocks via [GMM, SMM, Systems, State-Space & Policy](@ref cfg-models-policy). See [MacroEconometricModels.jl — Policy Counterfactuals](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/policy/).
 
 ## Quick Start
 
@@ -8,8 +8,8 @@ Simulate a 3-variable macro VAR (`--seed 7`), map causal policy effects over out
 
 <!-- capture -->
 ```bash
-friedman --quiet data simulate var --periods 150 --burn 50 --seed 7 --save-data pol_sim
-friedman policy counterfactual var pol_sim --shocks 3 --nonpolicy-shock 1 --outcomes y1=1,y2=2 --instruments y3=3 --horizon 6 --rule rate-peg
+frdc --quiet data simulate var --periods 150 --burn 50 --seed 7 --save-data pol_sim
+frdc policy counterfactual var pol_sim --shocks 3 --nonpolicy-shock 1 --outcomes y1=1,y2=2 --instruments y3=3 --horizon 6 --rule rate-peg
 ```
 ```text
                   Policy Counterfactual Paths
@@ -90,8 +90,8 @@ Because empirical policy shocks are only asymptotically equivalent to structural
 
 <!-- capture -->
 ```bash
-friedman --quiet data simulate var --periods 150 --burn 50 --seed 7 --save-data pol_sim2
-friedman policy effects var pol_sim2 --shocks 3 --outcomes y1=1,y2=2 --instruments y3=3 --horizon 6 --normalize instrument-impact
+frdc --quiet data simulate var --periods 150 --burn 50 --seed 7 --save-data pol_sim2
+frdc policy effects var pol_sim2 --shocks 3 --outcomes y1=1,y2=2 --instruments y3=3 --horizon 6 --normalize instrument-impact
 ```
 ```text
               Policy Causal Effects Menu
@@ -167,4 +167,4 @@ Connect empirical VAR/LP policy menus directly to structural equilibrium models:
 - de Groot, O., Mazelis, F., Motto, R., & Ristiniemi, A. (2021). A toolkit for computing constrained optimal policy projections (OPP). *ECB Working Paper* 2555.
 - Wolf, C. K. (2025). The missing intercept: Demand shocks in general equilibrium. *Review of Economic Studies* (spanning / sufficiency applications).
 - Upstream manual: [MacroEconometricModels.jl — Policy Counterfactuals](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/policy/)
-- CLI reference: [`friedman policy`](@ref ref-policy), [`friedman policy counterfactual`](@ref ref-fam-policy-counterfactual), [`friedman policy effects`](@ref ref-fam-policy-effects), [`friedman policy opp`](@ref ref-fam-policy-opp), [`friedman policy optimal`](@ref ref-fam-policy-optimal)
+- CLI reference: [`frdc policy`](@ref ref-policy), [`frdc policy counterfactual`](@ref ref-fam-policy-counterfactual), [`frdc policy effects`](@ref ref-fam-policy-effects), [`frdc policy opp`](@ref ref-fam-policy-opp), [`frdc policy optimal`](@ref ref-fam-policy-optimal)

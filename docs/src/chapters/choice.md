@@ -8,8 +8,8 @@ Simulate a binary cross-sectional dataset (`logit`), fit a binary logit model wi
 
 <!-- capture -->
 ```bash
-friedman --quiet data simulate cross-section --kind logit --n 200 --seed 11 --save-data bin_sim
-friedman predict choice logit bin_sim --dep y --cov-type hc1 --marginal-effects --classification-table
+frdc --quiet data simulate cross-section --kind logit --n 200 --seed 11 --save-data bin_sim
+frdc predict choice logit bin_sim --dep y --cov-type hc1 --marginal-effects --classification-table
 ```
 ```text
                       Average Marginal Effects (Logit)
@@ -37,8 +37,8 @@ P(y_i = j \mid x_i) = F(\alpha_j - x_i'\beta) - F(\alpha_{j-1} - x_i'\beta), \qq
 
 <!-- capture -->
 ```bash
-friedman --quiet data simulate cross-section --kind ordered --n 200 --seed 17 --save-data ord_sim
-friedman estimate choice ologit ord_sim --dep y --cov-type hc1
+frdc --quiet data simulate cross-section --kind ordered --n 200 --seed 17 --save-data ord_sim
+frdc estimate choice ologit ord_sim --dep y --cov-type hc1
 ```
 ```text
        Cutpoints
@@ -98,8 +98,8 @@ When sample observability depends on outcome thresholds or selection rules, line
 
 <!-- capture -->
 ```bash
-friedman --quiet data simulate cross-section --kind tobit --n 200 --seed 23 --save-data tob_sim
-friedman estimate regression tobit tob_sim --dep y --lower 0.0
+frdc --quiet data simulate cross-section --kind tobit --n 200 --seed 23 --save-data tob_sim
+frdc estimate regression tobit tob_sim --dep y --lower 0.0
 ```
 ```text
                    Tobit Coefficients
@@ -143,4 +143,4 @@ The `tobit_coefficients` (`x1 = 0.88883`, `x2 = 0.506189`) and `tobit_diagnostic
 - Cameron, A. C., & Trivedi, P. K. (1990). Regression-based tests for overdispersion in the Poisson model. *Journal of Econometrics*, 46(3), 347–364.
 - Heckman, J. J. (1979). Sample selection bias as a specification error. *Econometrica*, 47(1), 153–161.
 - Upstream manual: [MacroEconometricModels.jl — Discrete Choice & Selection](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/discrete/)
-- CLI reference: [`friedman estimate choice`](@ref ref-fam-estimate-choice), [`friedman predict choice`](@ref ref-fam-predict-choice), [`friedman residuals choice`](@ref ref-fam-residuals-choice), [`friedman test brant`](@ref ref-test-brant), [`friedman test dispersion`](@ref ref-test-dispersion)
+- CLI reference: [`frdc estimate choice`](@ref ref-fam-estimate-choice), [`frdc predict choice`](@ref ref-fam-predict-choice), [`frdc residuals choice`](@ref ref-fam-residuals-choice), [`frdc test brant`](@ref ref-test-brant), [`frdc test dispersion`](@ref ref-test-dispersion)

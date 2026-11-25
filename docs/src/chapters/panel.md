@@ -8,8 +8,8 @@ Estimate a panel regression on Grunfeld's firm investment dataset (`:grunfeld`) 
 
 <!-- capture -->
 ```bash
-friedman --quiet data simulate panel --kind linear --n 20 --periods 10 --seed 1 --save-data pan_sim
-friedman estimate panel preg pan_sim --dep y --indep x1,x2 --id-col id --time-col time --method fe --cov-type cluster
+frdc --quiet data simulate panel --kind linear --n 20 --periods 10 --seed 1 --save-data pan_sim
+frdc estimate panel preg pan_sim --dep y --indep x1,x2 --id-col id --time-col time --method fe --cov-type cluster
 ```
 ```text
                      Panel Regression Coefficients (fe)
@@ -63,8 +63,8 @@ Abrigo–Love GMM Panel VAR estimates a $K$-variable dynamic panel system after 
 
 <!-- capture -->
 ```bash
-friedman --quiet data simulate pvar --n 15 --periods 12 --seed 42 --save-data pvar_sim
-friedman estimate panel pvar pvar_sim --id-col id --time-col time --lags 1 --dependent y1,y2 --steps twostep
+frdc --quiet data simulate pvar --n 15 --periods 12 --seed 42 --save-data pvar_sim
+frdc estimate panel pvar pvar_sim --id-col id --time-col time --lags 1 --dependent y1,y2 --steps twostep
 ```
 ```text
                         Panel VAR(1) Coefficients (gmm)
@@ -102,8 +102,8 @@ where $C_{it}$ selects `never_treated` or `not_yet_treated` comparison units (`-
 
 <!-- capture -->
 ```bash
-friedman --quiet data simulate did --n 60 --periods 12 --seed 17 --save-data did_sim
-friedman did estimate did_sim --outcome y --treatment cohort --id-col id --time-col time --method cs --control-group never_treated
+frdc --quiet data simulate did --n 60 --periods 12 --seed 17 --save-data did_sim
+frdc did estimate did_sim --outcome y --treatment cohort --id-col id --time-col time --method cs --control-group never_treated
 ```
 ```text
                                      DID Estimation — CS
@@ -145,4 +145,4 @@ The command populates `did_estimation` (positive ATT rising from `0.763798` at `
 - Callaway, B., & Sant'Anna, P. H. (2021). Difference-in-differences with multiple time periods. *Journal of Econometrics*, 225(2), 200–230.
 - Dube, A., Girardi, D., Jordà, Ò., & Taylor, A. M. (2023). A local projections approach to difference-in-differences. *Journal of Applied Econometrics*, 40(1), 1–24.
 - Upstream manual: [MacroEconometricModels.jl — Panel & DiD](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/panel/)
-- CLI reference: [`friedman estimate panel`](@ref ref-fam-estimate-panel), [`friedman did`](@ref ref-did), [`friedman irf pvar`](@ref ref-irf-pvar), [`friedman test did`](@ref ref-fam-test-did), [`friedman test panel`](@ref ref-fam-test-panel)
+- CLI reference: [`frdc estimate panel`](@ref ref-fam-estimate-panel), [`frdc did`](@ref ref-did), [`frdc irf pvar`](@ref ref-irf-pvar), [`frdc test did`](@ref ref-fam-test-did), [`frdc test panel`](@ref ref-fam-test-panel)

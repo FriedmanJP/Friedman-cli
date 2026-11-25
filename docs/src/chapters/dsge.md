@@ -1,6 +1,6 @@
 # [Representative-Agent & Bayesian DSGE](@id chap-dsge)
 
-Representative-agent dynamic stochastic general equilibrium solving, deterministic transition paths, occasionally binding constraints (OccBin), parameter estimation, and full Bayesian SMC / Random-Walk Metropolis–Hastings inference live across the representative-agent leaves under [`friedman dsge`](@ref ref-dsge) (`ra` family, [`ref-fam-dsge-ra`](@ref ref-fam-dsge-ra)). Heterogeneous-agent, continuous-time, OLG, DCEGM, firm, and banking equilibrium models (`hadsge` and `dsge ct|olg|dcegm|lifecycle|firm|bank`) are covered separately in [Heterogeneous-Agent, CT & OLG Models](@ref chap-hadsge). See [MacroEconometricModels.jl — DSGE](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/dsge/).
+Representative-agent dynamic stochastic general equilibrium solving, deterministic transition paths, occasionally binding constraints (OccBin), parameter estimation, and full Bayesian SMC / Random-Walk Metropolis–Hastings inference live across the representative-agent leaves under [`frdc dsge`](@ref ref-dsge) (`ra` family, [`ref-fam-dsge-ra`](@ref ref-fam-dsge-ra)). Heterogeneous-agent, continuous-time, OLG, DCEGM, firm, and banking equilibrium models (`hadsge` and `dsge ct|olg|dcegm|lifecycle|firm|bank`) are covered separately in [Heterogeneous-Agent, CT & OLG Models](@ref chap-hadsge). See [MacroEconometricModels.jl — DSGE](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/dsge/).
 
 ## Quick Start
 
@@ -19,7 +19,7 @@ cat > rbc_lin.jl <<'EOF'
     pi[t] = 0.99 * pi[t+1] + kappa * y[t]
 end
 EOF
-friedman dsge solve rbc_lin.jl --method gensys --periods 6
+frdc dsge solve rbc_lin.jl --method gensys --periods 6
 ```
 ```text
                  Determinacy Verdict
@@ -76,7 +76,7 @@ cat > nk_occ.jl <<'EOF'
     c[t] = y[t]
 end
 EOF
-friedman dsge irf nk_occ.jl --method gensys --horizon 6 --constraint 'c[t] >= 0.0'
+frdc dsge irf nk_occ.jl --method gensys --horizon 6 --constraint 'c[t] >= 0.0'
 ```
 ```text
          OccBin IRF: y ← e
@@ -114,7 +114,7 @@ Friedman-cli estimates structural parameters $\theta$ by matching impulse respon
 - **Frequentist Structural Estimation ([`dsge estimate`](@ref ref-dsge-estimate)):** Choose `--method irf_matching|euler_gmm|smm|analytical_gmm` over observable `--data`, listing calibrated/estimated symbols in `--params` (`dsge_estimation`).
 - **Bayesian Workflow ([`dsge bayes`](@ref ref-fam-dsge-ra)):** Write priors in a `priors:` preamble above `@dsge`, repeat `--prior 'rho ~ beta(2, 2)'`, or supply a `[priors.*]` TOML file ([DSGE Specs, Priors & OccBin Constraints](@ref cfg-dsge)), choosing observational transforms (`--prefilter none|demean|first-difference|linear-detrend|hp`) and measurement noise (`--measurement-error`).
 
-| Estimation Stage | Subcommands under `friedman dsge bayes` | Key Purpose & Output Tables |
+| Estimation Stage | Subcommands under `frdc dsge bayes` | Key Purpose & Output Tables |
 |---|---|---|
 | Pre-estimation & Mode | `prior-predictive`, `identification`, `posterior-mode` | Check synthetic prior plausibility (`prior_predictive_summary`), local Iskrev/Komunjer–Ng identification rank (`identification_diagnostics`), and MAP mode (`posterior_mode`) |
 | Posterior Sampling | `estimate`, `summary`, `mcmc-diag`, `overlap`, `learning-rate` | SMC/MH sampling (`bayesian_dsge_posterior`), Geweke/ESS/R-hat convergence (`mcmc_convergence_diagnostics`), prior-posterior overlap, and subsample stability |
@@ -132,7 +132,7 @@ cat > ar_id.jl <<'EOF'
     y[t] = rho * y[t-1] + sigma * e[t]
 end
 EOF
-friedman dsge bayes identification ar_id.jl --params rho,sigma --observables y
+frdc dsge bayes identification ar_id.jl --params rho,sigma --observables y
 ```
 ```text
 Identification Diagnostics
@@ -173,4 +173,4 @@ Running [`dsge bayes identification`](@ref ref-dsge-bayes-identification) evalua
 - Guerrieri, L., & Iacoviello, M. (2015). OccBin: A toolkit for solving dynamic models with occasionally binding constraints. *Journal of Monetary Economics*, 70, 22–38.
 - Herbst, E. P., & Schorfheide, F. (2015). *Bayesian Estimation of DSGE Models*. Princeton University Press.
 - Upstream manual: [MacroEconometricModels.jl — DSGE](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/dsge/)
-- CLI reference: [`friedman dsge`](@ref ref-dsge), [`friedman dsge solve`](@ref ref-dsge-solve), [`friedman dsge bayes estimate`](@ref ref-dsge-bayes-estimate), [`friedman dsge determinacy-map`](@ref ref-dsge-determinacy-map)
+- CLI reference: [`frdc dsge`](@ref ref-dsge), [`frdc dsge solve`](@ref ref-dsge-solve), [`frdc dsge bayes estimate`](@ref ref-dsge-bayes-estimate), [`frdc dsge determinacy-map`](@ref ref-dsge-determinacy-map)

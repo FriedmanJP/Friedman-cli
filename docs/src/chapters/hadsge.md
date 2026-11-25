@@ -1,6 +1,6 @@
 # [Heterogeneous-Agent, CT & OLG Models](@id chap-hadsge)
 
-Models with uninsured idiosyncratic income risk, borrowing constraints, wealth distributions, finite lifetimes, and firm/bank heterogeneity live across [`friedman hadsge`](@ref ref-hadsge) (`HouseholdSystem` general sequence-space and Reiter/Krusell–Smith models) and the six specialized heterogeneous/overlapping/corporate/banking families under `dsge`: `ct` (continuous-time Huggett/Aiyagari/two-asset HANK), `olg` (Blanchard perpetual-youth OLG), `dcegm` (discrete-continuous EGM), `lifecycle` (finite-horizon incomplete-markets life cycle), `firm` (Khan–Thomas non-convex investment), and `bank` (heterogeneous banks). See [MacroEconometricModels.jl — Heterogeneous Agents](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/ha/).
+Models with uninsured idiosyncratic income risk, borrowing constraints, wealth distributions, finite lifetimes, and firm/bank heterogeneity live across [`frdc hadsge`](@ref ref-hadsge) (`HouseholdSystem` general sequence-space and Reiter/Krusell–Smith models) and the six specialized heterogeneous/overlapping/corporate/banking families under `dsge`: `ct` (continuous-time Huggett/Aiyagari/two-asset HANK), `olg` (Blanchard perpetual-youth OLG), `dcegm` (discrete-continuous EGM), `lifecycle` (finite-horizon incomplete-markets life cycle), `firm` (Khan–Thomas non-convex investment), and `bank` (heterogeneous banks). See [MacroEconometricModels.jl — Heterogeneous Agents](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/ha/).
 
 ## Quick Start
 
@@ -11,7 +11,7 @@ Load a `HouseholdSystem` example via `MacroEconometricModels.load_ha_example(:hu
 cat > ha_huggett.jl <<'EOF'
 MacroEconometricModels.load_ha_example(:huggett)
 EOF
-friedman hadsge solve ha_huggett.jl --method ssj --n-reduced 10 --t-horizon 100
+frdc hadsge solve ha_huggett.jl --method ssj --n-reduced 10 --t-horizon 100
 ```
 ```text
 HA-DSGE Solve Diagnostics (method=ssj)
@@ -89,7 +89,7 @@ Cross-check sequence-space fiscal and monetary transmission directly with `polic
 
 ## Continuous-Time HA, OLG, Life-Cycle, Firm & Bank Models (`dsge ct|olg|...`)
 
-Six built-in structural families under [`friedman dsge`](@ref ref-dsge) require minimal or zero external model files, parameterizing grids and preferences directly via flags:
+Six built-in structural families under [`frdc dsge`](@ref ref-dsge) require minimal or zero external model files, parameterizing grids and preferences directly via flags:
 
 ```math
 \rho V(a, z) = u(c^*) + \partial_a V(a, z)(r a + w z - c^*) + \sum_{z'\neq z}\lambda_{z z'}\left[V(a, z') - V(a, z)\right].
@@ -102,8 +102,8 @@ Six built-in structural families under [`friedman dsge`](@ref ref-dsge) require 
 
 <!-- capture -->
 ```bash
-friedman dsge olg solve --alpha 0.36 --beta 0.96 --delta 0.08 --gamma 0.98 --debt 0.2
-friedman dsge ct solve --grid-size 25 --max-iter 40 --a-max 20.0
+frdc dsge olg solve --alpha 0.36 --beta 0.96 --delta 0.08 --gamma 0.98 --debt 0.2
+frdc dsge ct solve --grid-size 25 --max-iter 40 --a-max 20.0
 ```
 ```text
  CT Aiyagari Prices
@@ -141,4 +141,4 @@ The continuous-time solver iterates the upwind HJB–KFE fixed point to print `c
 - Achdou, Y., Han, J., Lasry, J.-M., Lions, P.-L., & Moll, B. (2022). Income and wealth distribution in macroeconomics: A continuous-time approach. *Review of Economic Studies*, 89(1), 45–86.
 - Khan, A., & Thomas, J. K. (2008). Idiosyncratic shocks and the role of nonconvexities in plant and aggregate investment dynamics. *Econometrica*, 76(2), 395–436.
 - Upstream manual: [MacroEconometricModels.jl — Heterogeneous Agents](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/ha/)
-- CLI reference: [`friedman hadsge`](@ref ref-hadsge), [`friedman dsge ct`](@ref ref-fam-dsge-ct), [`friedman dsge olg`](@ref ref-fam-dsge-olg), [`friedman dsge dcegm`](@ref ref-fam-dsge-dcegm), [`friedman dsge lifecycle`](@ref ref-fam-dsge-lifecycle), [`friedman dsge firm`](@ref ref-fam-dsge-firm), [`friedman dsge bank`](@ref ref-fam-dsge-bank)
+- CLI reference: [`frdc hadsge`](@ref ref-hadsge), [`frdc dsge ct`](@ref ref-fam-dsge-ct), [`frdc dsge olg`](@ref ref-fam-dsge-olg), [`frdc dsge dcegm`](@ref ref-fam-dsge-dcegm), [`frdc dsge lifecycle`](@ref ref-fam-dsge-lifecycle), [`frdc dsge firm`](@ref ref-fam-dsge-firm), [`frdc dsge bank`](@ref ref-fam-dsge-bank)

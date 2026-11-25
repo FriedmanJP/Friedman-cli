@@ -9,12 +9,12 @@ Functionality present in `MacroEconometricModels.jl` (pinned in `Project.toml`) 
 | Upstream Item | Disposition | Rationale / Trigger |
 |---|---|---|
 | `combine_blocks` / `HetBlock` / `MitBlock` / `SimpleBlock` | **Defer** | Programmatic DAG composition over closures (`dsge/heterogeneous/blocks.jl`); CLI HA solvers compose blocks internally. Revisit if a declarative TOML block-DAG syntax is designed. |
-| `DCEGMProblem` 4-closure constructor | **Defer as CLI flags** | Arbitrary closures require Julia evaluation (covered by `.jl` spec loading); built-in lifecycle specs are exposed directly under [`friedman dsge dcegm`](@ref ref-fam-dsge-dcegm). |
+| `DCEGMProblem` 4-closure constructor | **Defer as CLI flags** | Arbitrary closures require Julia evaluation (covered by `.jl` spec loading); built-in lifecycle specs are exposed directly under [`frdc dsge dcegm`](@ref ref-fam-dsge-dcegm). |
 | HA OccBin | **Defer** | Upstream restricts HA OccBin constraints to aggregate equations carrying a nominal policy rate, which built-in HA benchmarks omit; add once user specs with nominal rates are supported. |
 | `parse_wiod` and `.zip` ICIO archives | **Refuse until bundled** | `ZipFile` / `XLSX` remain optional weak dependencies excluded from sysimage bundles; calling them surfaces typed `env/missing-extension` (exit `6`). |
 | Bayesian/frequentist estimation on DCEGM/OLG/CT/firm/bank | **Refuse** | Upstream `_require_estimable_spec` restricts DSGE estimation to perturbation-estimable specifications (`usage/wrong-command`). |
 | Legacy `E[t](...)` expectation syntax | **Refuse** | Upstream DSGE parser removed `E[t](...)` call syntax in favor of explicit leads `x[t+1]`. |
-| Generic matrix `ras` / `gras` operators | **Defer** | Operates on bare matrices rather than typed `IOData`; use [`friedman io balance`](@ref ref-io-balance) for structured IO table balancing. |
+| Generic matrix `ras` / `gras` operators | **Defer** | Operates on bare matrices rather than typed `IOData`; use [`frdc io balance`](@ref ref-io-balance) for structured IO table balancing. |
 | Multi-population HA `solve` | **Defer** | Multi-population heterogeneous-agent aggregation relies on functional closures upstream; CLI loaders reject non-singleton household populations with `model/unsupported`. |
 | Two-asset steady-state closer kwargs & `FirmSystem` `solve(to_spec)` | **Do not wrap** | Solver bracket/iteration controls (`k_lo`, `k_hi`, `k_atol`) remain auto-tuned upstream to keep the CLI free of solver-implementation churn. |
 | `label_shocks` | **Defer** | Relabels result objects in memory without emitting a tabular artifact; revisit when non-Gaussian structural identification gains standalone result-relabelling leaves. |
@@ -23,7 +23,7 @@ Functionality present in `MacroEconometricModels.jl` (pinned in `Project.toml`) 
 | RWZ rank/order checker | **Enforced internally** | Upstream `_assert_rwz_identified` executes automatically inside SVAR estimation/identification and maps violations to `model/identification` (exit `5`). |
 | `varindex` | **Do not wrap** | Programmatic string-to-column lookup helper; CLI users pass variable names directly on options. |
 | Interactive `refs()` & terminal `report()` pretty-printers | **Stderr only** | Human `report()` summaries route to stderr alongside structured stdout data; `refs()` citations belong in reference docs rather than machine JSON payloads. |
-| Raw `TimeSeriesData`-dispatch shortcuts | **Internal** | CLI pipelines serialize `TimeSeriesData`, `PanelData`, and `CrossSectionData` cleanly through `.jld2` handles ([`friedman data import`](@ref ref-data-import)), while low-level in-memory library wrappers stay internal. |
+| Raw `TimeSeriesData`-dispatch shortcuts | **Internal** | CLI pipelines serialize `TimeSeriesData`, `PanelData`, and `CrossSectionData` cleanly through `.jld2` handles ([`frdc data import`](@ref ref-data-import)), while low-level in-memory library wrappers stay internal. |
 | Save bundles (`note=`, `compress=`) | **Declined** | CLI handles serialize single uncompressed objects per stem (`.jld2`, `.jls`, or `.fmod`) for predictable reproducibility. |
 | SV-SVAR `smoother` choice | **Not exposed** | Only `:ksc` is valid upstream; exposing a singleton switch adds no value. |
 | TVV/SV identification knobs on LP leaves | **Not exposed** | Upstream `structural_lp` enforces a fixed internal Q allow-list; `[identification.lewis_tvv]` and `[identification.sv_svar]` apply to VAR/VECM/BVAR/FAVAR/SDFM paths. |
@@ -40,7 +40,7 @@ Several formerly deferred capabilities have already been promoted into first-cla
 
 - **Synthetic Data Generation (`data simulate`):** Covered across the `data simulate` family emitting simulated datasets, population truth tables, and simulation metadata; documented in [Data Management & Simulation](@ref chap-data).
 - **SDFM Statistical Identification (`--id lewis-tvv|sv-em|gmm-moments`):** Integrated across structural factor estimation, IRFs, FEVDs, and historical decompositions under [Structural ID, LP & Innovation Accounting](@ref chap-structural).
-- **Smolyak Grids, Physical VFI Nodes & GMM Weak-IV F:** Exposed natively across [`friedman dsge`](@ref ref-dsge), [`friedman hadsge`](@ref ref-hadsge), and [`friedman estimate regression gmm`](@ref ref-estimate-regression-gmm).
+- **Smolyak Grids, Physical VFI Nodes & GMM Weak-IV F:** Exposed natively across [`frdc dsge`](@ref ref-dsge), [`frdc hadsge`](@ref ref-hadsge), and [`frdc estimate regression gmm`](@ref ref-estimate-regression-gmm).
 - **Single-Object `.jld2` & `.jls` Typed Handles:** Unified data/model/result persistence documented in [Automated Pipelines & JSON Envelopes](@ref gs-pipelines).
 
 ---

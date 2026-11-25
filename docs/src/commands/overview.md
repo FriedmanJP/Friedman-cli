@@ -7,7 +7,7 @@ Friedman-cli uses an **action-first** command hierarchy (`verb [family] model`).
 ## Command Tree
 
 ```text
-friedman
+frdc
 ├── completions     bash | fish | zsh
 ├── data     balance | describe | diagnose | dropna | export | filter | fix | import | keeprows | list | load | simulate ardl | simulate arima | simulate cointreg | simulate cross-section | simulate ct | simulate did | simulate dsge | simulate factors | simulate garch | simulate gmm | simulate ha | simulate heteroskedastic-var | simulate lp-iv | simulate olg | simulate panel | simulate pvar | simulate regime | simulate sv | simulate svar | simulate var | simulate vecm | transform | validate
 ├── did     estimate | event-study | lp-did
@@ -33,7 +33,7 @@ friedman
 Total: 21 top-level commands, 477 leaves (from registry).
 ```
 
-Additionally, `friedman repl` launches an interactive REPL session ([Interactive REPL](@ref gs-repl)).
+Additionally, `frdc repl` launches an interactive REPL session ([Interactive REPL](@ref gs-repl)).
 
 ---
 
@@ -75,8 +75,8 @@ Leading agent globals go **before** the command: `--seed N`, `--quiet`/`-q`, `--
 
 ## Help & Machine Schema
 
-Every node and leaf accepts `--help` (`-h`). Machine-readable draft-07 input schemas and declared table keys come from `friedman schema`:
+Every node and leaf accepts `--help` (`-h`). Machine-readable draft-07 input schemas and declared table keys come from `frdc schema`:
 
 ```bash
-friedman schema estimate multivariate var
+frdc schema estimate multivariate var
 ```

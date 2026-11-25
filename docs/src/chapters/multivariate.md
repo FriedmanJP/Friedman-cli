@@ -8,9 +8,9 @@ Import the five-series Danish money demand panel (`:denmark`), fit a reduced-for
 
 <!-- capture -->
 ```bash
-friedman --quiet data import :denmark -o macro
-friedman --seed 42 --quiet estimate multivariate var macro --lags 2 --save-model var_fit
-friedman forecast multivariate var --model var_fit.jld2 --horizons 4 --ci-method analytical
+frdc --quiet data import :denmark -o macro
+frdc --seed 42 --quiet estimate multivariate var macro --lags 2 --save-model var_fit
+frdc forecast multivariate var --model var_fit.jld2 --horizons 4 --ci-method analytical
 ```
 ```text
               VAR(2) Forecast (h=4, 95% CI)
@@ -60,7 +60,7 @@ y_t = c + A_1 y_{t-1} + \dots + A_p y_{t-p} + u_t, \qquad u_t \sim (0, \Sigma).
 
 <!-- capture -->
 ```bash
-friedman --seed 42 estimate multivariate bvar :denmark --lags 2 --draws 300 --sampler direct
+frdc --seed 42 estimate multivariate bvar :denmark --lags 2 --draws 300 --sampler direct
 ```
 ```text
                                                             BVAR(2) Posterior Mean Coefficients
@@ -118,7 +118,7 @@ where $\beta$ ($N \times r$) holds cointegrating vectors and $\alpha$ ($N \times
 
 <!-- capture -->
 ```bash
-friedman estimate multivariate vecm :denmark --lags 2 --deterministic constant
+frdc estimate multivariate vecm :denmark --lags 2 --deterministic constant
 ```
 ```text
       Cointegrating Vectors (beta)
@@ -176,8 +176,8 @@ All three PCA/spectral factor models support common-component fitted values via 
 
 <!-- capture -->
 ```bash
-friedman --quiet data simulate factors --series 10 --periods 80 --burn 20 --seed 9 --save-data fac_sim
-friedman estimate factor static fac_sim --nfactors 2
+frdc --quiet data simulate factors --series 10 --periods 80 --burn 20 --seed 9 --save-data fac_sim
+frdc estimate factor static fac_sim --nfactors 2
 ```
 ```text
 Scree Data (Eigenvalues & Variance Shares)
@@ -230,4 +230,4 @@ Extracting two static factors (`--nfactors 2`; omit `--nfactors` to select rank 
 - Giannone, D., Lenza, M., & Primiceri, G. E. (2015). Prior selection for vector autoregressions. *Review of Economics and Statistics*, 97(2), 436–451.
 - Bernanke, B. S., Boivin, J., & Eliasz, P. (2005). Measuring the effects of monetary policy: A factor-augmented vector autoregressive (FAVAR) approach. *QJE*, 120(1), 387–422.
 - Upstream manuals: [MacroEconometricModels.jl — VAR & VECM](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/var/), [Factor Models](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/factors/)
-- CLI reference: [`friedman estimate multivariate`](@ref ref-fam-estimate-multivariate), [`friedman estimate factor`](@ref ref-fam-estimate-factor), [`friedman forecast multivariate`](@ref ref-fam-forecast-multivariate)
+- CLI reference: [`frdc estimate multivariate`](@ref ref-fam-estimate-multivariate), [`frdc estimate factor`](@ref ref-fam-estimate-factor), [`frdc forecast multivariate`](@ref ref-fam-forecast-multivariate)

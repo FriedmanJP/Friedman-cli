@@ -6,14 +6,14 @@ Install `Friedman-cli` as a self-contained, zero-Julia standalone package on Win
 
 ### Windows (`x86_64`) — Microsoft Store & `winget`
 
-The recommended Windows installation is the Microsoft-signed MSIX package from Microsoft Store (`9NBBQSNP6W44`). It requires no Julia installation, receives automatic updates, and exposes `friedman` on `PATH` via `AppExecutionAlias`:
+The recommended Windows installation is the Microsoft-signed MSIX package from Microsoft Store (`9NBBQSNP6W44`). It requires no Julia installation, receives automatic updates, and exposes `frdc` on `PATH` via `AppExecutionAlias`:
 
 ```powershell
 winget install 9NBBQSNP6W44 --source msstore
-friedman --version
+frdc --version
 ```
 
-Alternatively, install the standalone `.zip` archive from GitHub Releases into `%USERPROFILE%\.friedman-cli` without Store access or administrator rights:
+Alternatively, install the standalone `.zip` archive from GitHub Releases into `%USERPROFILE%\.frdc` without Store access or administrator rights:
 
 ```powershell
 irm https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.ps1 | iex
@@ -25,11 +25,11 @@ irm https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.ps1
 curl -fsSL https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.sh | bash
 ```
 
-The installer downloads the standalone `linux-x86_64` tarball (which bundles a private Julia `1.14+opt` runtime and all JLL artifacts—no `julia` or `juliaup` required), extracts it to `~/.friedman-cli/`, and links `~/.local/bin/friedman`. Add `~/.local/bin` to your `PATH` if needed:
+The installer downloads the standalone `linux-x86_64` tarball (which bundles a private Julia `1.14+opt` runtime and all JLL artifacts—no `julia` or `juliaup` required), extracts it to `~/.frdc/`, and links `~/.local/bin/frdc`. Add `~/.local/bin` to your `PATH` if needed:
 
 ```bash
 export PATH="$HOME/.local/bin:$PATH"
-friedman --help
+frdc --help
 ```
 
 To uninstall on Linux:
@@ -48,9 +48,9 @@ Pre-built macOS binaries are not published because macOS Gatekeeper requires pai
 
 Pre-built standalone archives are published on the [GitHub Releases](https://github.com/FriedmanJP/Friedman-cli/releases) page:
 
-- `friedman-vX.Y.Z-linux-x86_64.tar.gz` — Linux `x86_64` standalone tarball (zero Julia required)
-- `friedman-vX.Y.Z-windows-x86_64.msix` — Windows `x86_64` unsigned sideload MSIX (`AppExecutionAlias`)
-- `friedman-vX.Y.Z-windows-x86_64.zip` — Windows `x86_64` standalone archive (`bin\friedman.exe`)
+- `frdc-vX.Y.Z-linux-x86_64.tar.gz` — Linux `x86_64` standalone tarball (zero Julia required)
+- `frdc-vX.Y.Z-windows-x86_64.msix` — Windows `x86_64` unsigned sideload MSIX (`AppExecutionAlias`)
+- `frdc-vX.Y.Z-windows-x86_64.zip` — Windows `x86_64` standalone archive (`bin\frdc.exe`)
 
 ### Windows MSIX Sideloading vs. Microsoft Store vs. `.zip`
 
@@ -58,18 +58,18 @@ Pre-built standalone archives are published on the [GitHub Releases](https://git
 - **GitHub `.msix` sideload:** Signed with Microsoft's unsigned-package publisher OID for testing and offline enterprise deployment. On Windows 11 with Developer Mode enabled, install from PowerShell:
 
   ```powershell
-  Add-AppxPackage -Path .\friedman-vX.Y.Z-windows-x86_64.msix -AllowUnsigned
-  friedman --version
+  Add-AppxPackage -Path .\frdc-vX.Y.Z-windows-x86_64.msix -AllowUnsigned
+  frdc --version
   ```
 
-- **Standalone `.zip` / `install.ps1`:** Extract anywhere (or run `install.ps1` for `%USERPROFILE%\.friedman-cli\bin\friedman.exe`) with zero admin privileges or Developer Mode.
+- **Standalone `.zip` / `install.ps1`:** Extract anywhere (or run `install.ps1` for `%USERPROFILE%\.frdc\bin\frdc.exe`) with zero admin privileges or Developer Mode.
 
 ### Runtime Depot & Offline Notes
 
 Standalone builds bundle all required artifacts under `share/julia/artifacts/` and run completely offline without network access. On Linux/Windows standalone builds powered by Julia 1.14, the native entry point defaults `JULIA_OBJCACHE=0` so read-only install directories (Windows `WindowsApps` MSIX, `/opt`, `chmod 555` depots) never emit `objcache error` messages or write cache files into user depots. Set `JULIA_OBJCACHE=1` if you want to opt into Julia's on-disk JIT object cache under a writable depot:
 
 ```bash
-JULIA_OBJCACHE=1 friedman --version
+JULIA_OBJCACHE=1 frdc --version
 ```
 
 ---
@@ -80,16 +80,19 @@ Generate tab completion scripts for interactive shell use ([`completions`](@ref 
 
 ```bash
 # Bash
-friedman completions bash -o ~/.local/share/bash-completion/completions/friedman
+frdc completions bash -o ~/.local/share/bash-completion/completions/frdc
 
 # Zsh (ensure the directory is in $fpath before compinit)
-friedman completions zsh -o ~/.zsh/completions/_friedman
+frdc completions zsh -o ~/.zsh/completions/_frdc
 
 # Fish
-friedman completions fish -o ~/.config/fish/completions/friedman.fish
+frdc completions fish -o ~/.config/fish/completions/frdc.fish
 ```
 
-See [`friedman completions bash`](@ref ref-completions-bash), [`friedman completions zsh`](@ref ref-completions-zsh), and [`friedman completions fish`](@ref ref-completions-fish) for leaf options.
+See [`frdc completions bash`](@ref ref-completions-bash), [`frdc completions zsh`](@ref ref-completions-zsh), and [`frdc completions fish`](@ref ref-completions-fish) for leaf options.
+
+!!! note "Migrating from `friedman` to `frdc`"
+    Starting with v1.1.0, the CLI binary, shell completions, REPL prompt (`frdc>` / `~/.frdc_history`), and environment variables (`FRDC_DATA_ROOT`, `FRDC_HISTFILE`, `FRDC_OFFLINE`) use the 4-letter command `frdc`. Legacy `FRIEDMAN_*` environment variables continue to work as silent fallbacks during the transition.
 
 ---
 
@@ -101,14 +104,14 @@ Running from source requires **Julia >= 1.13** (managed cleanly with `juliaup`):
 git clone https://github.com/FriedmanJP/Friedman-cli.git
 cd Friedman-cli
 julia --project -e 'using Pkg; Pkg.instantiate()'
-julia --project bin/friedman --help
+julia --project bin/frdc --help
 ```
 
 To compile a standalone relocatable app bundle locally (including macOS Apple Silicon or other architectures) via `PackageCompiler.create_app()`:
 
 ```bash
 julia --project build_release.jl
-./build/friedman/bin/friedman --version
+./build/frdc/bin/frdc --version
 ```
 
 ---
@@ -134,4 +137,4 @@ To run the unit and CLI integration test suite from source:
 julia --project test/runtests.jl
 ```
 
-To jump straight into interactive exploration, run `friedman repl` ([Interactive REPL](@ref gs-repl)), or read [Pipelines, Handles & Reproducibility](@ref gs-pipelines) to learn `.jld2` pipeline chaining and JSON envelopes.
+To jump straight into interactive exploration, run `frdc repl` ([Interactive REPL](@ref gs-repl)), or read [Pipelines, Handles & Reproducibility](@ref gs-pipelines) to learn `.jld2` pipeline chaining and JSON envelopes.

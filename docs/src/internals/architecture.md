@@ -7,7 +7,7 @@ Friedman-cli is a Julia CLI application built around a custom declarative comman
 ## Execution Flow
 
 ```text
-bin/friedman ARGS
+bin/frdc ARGS
   → Pkg.activate(project_dir) (+ instantiate when the Manifest is absent)
   → Friedman.main(ARGS) → run_cli(ARGS)
     → Friedman.APP                         # Entry built once (const APP = build_app())
@@ -23,7 +23,7 @@ See [Automated Pipelines & JSON Envelopes](@ref gs-pipelines) for exit codes and
 
 ## Data Flow & Handle Resolution
 
-CSV is the **import** format, not the working format. Commands accept a **stem**: `.jld2` stores native typed models and datasets (`MacroEconometricModels.save_model` / `load_model` plus plain `.jld2` tabular payloads), `.jls` supports Julia `Serialization` handles, `.fmod` serves compiled closure-bearing DSGE/HA solution objects excluded from native serialization, and `model://name` targets the in-memory session store under [`friedman serve`](@ref ref-serve). Result handles (`--result` / `--save-result`) and [`friedman show`](@ref ref-show) follow the same stem rules.
+CSV is the **import** format, not the working format. Commands accept a **stem**: `.jld2` stores native typed models and datasets (`MacroEconometricModels.save_model` / `load_model` plus plain `.jld2` tabular payloads), `.jls` supports Julia `Serialization` handles, `.fmod` serves compiled closure-bearing DSGE/HA solution objects excluded from native serialization, and `model://name` targets the in-memory session store under [`frdc serve`](@ref ref-serve). Result handles (`--result` / `--save-result`) and [`frdc show`](@ref ref-show) follow the same stem rules.
 
 ```text
 CSV | :example | data simulate --save-data STEM
@@ -45,8 +45,8 @@ estimate multivariate var STEM --save-model var         # stem → var.jld2
         │
         ▼
 irf var --model var --save-result irf      # or positional: irf var var.jld2
-friedman show irf                          # stem → irf.jld2 (no CSV fallback)
-friedman show var                          # fitted model table / fields
+frdc show irf                          # stem → irf.jld2 (no CSV fallback)
+frdc show var                          # fitted model table / fields
 forecast evaluate metrics STEM --actual gdp --result fcst_var,fcst_bvar
 # evaluate --result is a comma-separated string (not RESULT_OPTION)
 ```
@@ -67,7 +67,7 @@ forecast evaluate metrics STEM --actual gdp --result fcst_var,fcst_bvar
 
 1. **Data slots:** resolve `path.jld2` if present (preferred), else `path.csv`, else `path.jls` / exact `path` (`.fmod`, `.toml`, extensionless paths). Missing files raise `data/file-not-found` (exit `3`).
 2. **`--model` and positional model auto-routing:** when the leaf declares non-empty `model_types`, `resolve_stem(; slot=:result)` prefers `STEM.jld2` without CSV fallback and validates the decoded type before dispatch (`model/wrong-kind`, exit `5`). Passing a model/solution handle positionally on such leaves auto-routes it into `--model`, while explicit `<data>` plus domain `--model var|vecm` flags (such as `test multivariate granger`) remain untouched. Leaves with empty `model_types` require explicit extensions or `model://`.
-3. **`--result` and `friedman show STEM`:** `resolve_stem(; slot=:result)` checks `STEM.jld2` then the exact path (no CSV fallback). Bundles emit a key summary (`show_payload`); typed `:timeseries` / `:panel` / `:cross_section` datasets emit descriptive stats; `:io` and arbitrary result structs render via `long_table`, `DataFrame`, or field summaries. Passing `--plot` / `--plot-save` routes through `_maybe_plot`, raising `model/unsupported` (exit `5`) if the result type lacks a plotting recipe.
+3. **`--result` and `frdc show STEM`:** `resolve_stem(; slot=:result)` checks `STEM.jld2` then the exact path (no CSV fallback). Bundles emit a key summary (`show_payload`); typed `:timeseries` / `:panel` / `:cross_section` datasets emit descriptive stats; `:io` and arbitrary result structs render via `long_table`, `DataFrame`, or field summaries. Passing `--plot` / `--plot-save` routes through `_maybe_plot`, raising `model/unsupported` (exit `5`) if the result type lacks a plotting recipe.
 
 If both `macro.jld2` and `macro.csv` exist, the typed handle wins on data slots. Explicit suffixes bypass stem search, while `:example` datasets (such as `:denmark` and `:fred_md`) resolve directly. Central resolution and validation live in `src/handles.jl` and `src/model_handle.jl`.
 

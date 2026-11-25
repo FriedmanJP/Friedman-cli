@@ -8,9 +8,9 @@ Simulate a 2-regime Markov-switching series with a fixed seed, estimate regime-d
 
 <!-- capture -->
 ```bash
-friedman --quiet data simulate regime --kind ms --periods 180 --burn 40 --seed 12 --save-data ms_sim
-friedman --quiet estimate regime ms-ar ms_sim --p 1 --k-regimes 2 --switching-variance --save-model ms_fit
-friedman forecast regime ms-ar --model ms_fit.jld2 --horizons 4 --reps 100
+frdc --quiet data simulate regime --kind ms --periods 180 --burn 40 --seed 12 --save-data ms_sim
+frdc --quiet estimate regime ms-ar ms_sim --p 1 --k-regimes 2 --switching-variance --save-model ms_fit
+frdc forecast regime ms-ar --model ms_fit.jld2 --horizons 4 --reps 100
 ```
 ```text
        MS-AR(1) Forecast for model (h=4, 90% CI)
@@ -68,8 +68,8 @@ y_t = x_t'\theta_1 + x_t'\theta_2 \, G(q_t; \gamma, c) + \varepsilon_t, \qquad G
 
 <!-- capture -->
 ```bash
-friedman --quiet data simulate regime --kind setar --periods 180 --burn 40 --seed 5 --save-data setar_sim
-friedman estimate regime setar setar_sim --p 1 --d 1 --no-linearity
+frdc --quiet data simulate regime --kind setar --periods 180 --burn 40 --seed 5 --save-data setar_sim
+frdc estimate regime setar setar_sim --p 1 --d 1 --no-linearity
 ```
 ```text
                     SETAR(2;1,1) Coefficients (y)
@@ -120,4 +120,4 @@ The estimation tables (`setar_coefficients`, `setar_diagnostics`) identify sampl
 - Hansen, B. E. (2000). Sample splitting and threshold estimation. *Econometrica*, 68(3), 575–603.
 - Teräsvirta, T. (1994). Specification, estimation, and evaluation of smooth transition autoregressive models. *Journal of the American Statistical Association*, 89(425), 208–218.
 - Upstream manual: [MacroEconometricModels.jl — Nonlinear & Regime-Switching](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/nonlinear/)
-- CLI reference: [`friedman estimate regime`](@ref ref-fam-estimate-regime), [`friedman forecast regime`](@ref ref-fam-forecast-regime), [`friedman test hansen-linearity`](@ref ref-test-hansen-linearity), [`friedman test star-linearity`](@ref ref-test-star-linearity)
+- CLI reference: [`frdc estimate regime`](@ref ref-fam-estimate-regime), [`frdc forecast regime`](@ref ref-fam-forecast-regime), [`frdc test hansen-linearity`](@ref ref-test-hansen-linearity), [`frdc test star-linearity`](@ref ref-test-star-linearity)

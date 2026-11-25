@@ -7,8 +7,8 @@
 #   julia --project docs/capture_examples.jl path/to/doc.md   # refresh specific file(s)
 #
 # Supported bash-fence features (executed in-process inside a per-file mktempdir):
-#   - `friedman ...` commands (multi-line blocks execute top-to-bottom; stdout of the
-#     FINAL `friedman` invocation is captured)
+#   - `frdc ...` commands (multi-line blocks execute top-to-bottom; stdout of the
+#     FINAL `frdc` invocation is captured)
 #   - trailing `\` line continuations and `#` comments
 #   - heredoc fixtures: `cat > file <<'EOF' ... EOF` (or `<<EOF`)
 #
@@ -312,7 +312,7 @@ function _run_cli_inprocess(argv::Vector{String}, label::AbstractString)::String
         end
         out = read(out_path, String)
         err = read(err_path, String)
-        code == 0 || error("capture command failed (exit $code): friedman $(join(argv, ' '))\n$err")
+        code == 0 || error("capture command failed (exit $code): frdc $(join(argv, ' '))\n$err")
         return out
     finally
         rm(out_path; force=true)
@@ -413,14 +413,14 @@ function _run_capture(bash_body::AbstractString)::Tuple{String,String}
         end
         tokens = String.(Base.shell_split(s))
         isempty(tokens) && (idx += 1; continue)
-        tokens[1] == "friedman" || error("capture runner expects `friedman ...` or `cat > file <<'EOF'`, got: $s")
+        tokens[1] == "frdc" || error("capture runner expects `frdc ...` or `cat > file <<'EOF'`, got: $s")
         argv = tokens[2:end]
         last_lang = _infer_lang(argv)
         last_out = _run_cli_inprocess(argv, s)
         ran_any = true
         idx += 1
     end
-    ran_any || error("no `friedman` invocation found in <!-- capture --> block")
+    ran_any || error("no `frdc` invocation found in <!-- capture --> block")
     return (last_out, last_lang)
 end
 

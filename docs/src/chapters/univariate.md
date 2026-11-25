@@ -1,6 +1,6 @@
 # [Univariate, Filters & Spectral](@id chap-univariate)
 
-Single-series macroeconomic analysis in `Friedman-cli` spans trend-cycle decomposition ([`friedman filter`](@ref ref-filter)), nonparametric and filter frequency-domain diagnostics ([`friedman spectral`](@ref ref-spectral)), Box–Jenkins, fractional, mixed-frequency, and distributed-lag estimators ([`estimate univariate`](@ref ref-fam-estimate-univariate)), general Gaussian state-space filtering ([`estimate regression statespace`](@ref ref-estimate-regression-statespace)), and time-varying parameter regressions ([`estimate regime tvp`](@ref ref-estimate-regime-tvp)). See [MacroEconometricModels.jl — Univariate & Filters](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/filters/) for mathematical details.
+Single-series macroeconomic analysis in `Friedman-cli` spans trend-cycle decomposition ([`frdc filter`](@ref ref-filter)), nonparametric and filter frequency-domain diagnostics ([`frdc spectral`](@ref ref-spectral)), Box–Jenkins, fractional, mixed-frequency, and distributed-lag estimators ([`estimate univariate`](@ref ref-fam-estimate-univariate)), general Gaussian state-space filtering ([`estimate regression statespace`](@ref ref-estimate-regression-statespace)), and time-varying parameter regressions ([`estimate regime tvp`](@ref ref-estimate-regime-tvp)). See [MacroEconometricModels.jl — Univariate & Filters](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/filters/) for mathematical details.
 
 ## Quick Start
 
@@ -8,7 +8,7 @@ Decompose U.S. real GNP (`:gnp_hamilton`) with the Hamilton regression filter, i
 
 <!-- capture -->
 ```bash
-friedman estimate univariate arima :gnp_hamilton --criterion bic
+frdc estimate univariate arima :gnp_hamilton --criterion bic
 ```
 ```text
             AR(1) Coefficients (gnp_growth)
@@ -53,7 +53,7 @@ while Hamilton (2018) avoids spurious end-of-sample cycles by projecting $y_{t+h
 
 <!-- capture -->
 ```bash
-friedman filter hp :gnp_hamilton --lambda 1600
+frdc filter hp :gnp_hamilton --lambda 1600
 ```
 ```text
             HP Filter (λ=1600.0)
@@ -214,7 +214,7 @@ Compute time-domain ACF/PACF and bivariate cross-correlations via [`spectral acf
 
 <!-- capture -->
 ```bash
-friedman spectral cross :denmark --var1 1 --var2 2
+frdc spectral cross :denmark --var1 1 --var2 2
 ```
 ```text
                            Cross-Spectral Analysis
@@ -261,7 +261,7 @@ Linear Gaussian state-space systems filter and smooth latent states $\alpha_t$ g
 
 <!-- capture -->
 ```bash
-friedman predict regression statespace :nile --kind local-level --state smoothed
+frdc predict regression statespace :nile --kind local-level --state smoothed
 ```
 ```text
 State-Space State Paths (local-level, Nile)
@@ -390,4 +390,4 @@ The `state_space_state_paths` table aligns the annual Nile discharge series (`:n
 - Phillips, P. C., & Shi, Z. (2021). Boosting: Why you can use the HP filter. *International Economic Review*, 62(2), 521–570.
 - Pesaran, M. H., Shin, Y., & Smith, R. J. (2001). Bounds testing approaches to the analysis of level relationships. *Journal of Applied Econometrics*, 16(3), 289–326.
 - Upstream manual: [MacroEconometricModels.jl — Univariate & Filters](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/filters/)
-- CLI reference: [`friedman filter`](@ref ref-filter), [`friedman spectral`](@ref ref-spectral), [`friedman estimate univariate`](@ref ref-fam-estimate-univariate), [`friedman forecast univariate`](@ref ref-fam-forecast-univariate)
+- CLI reference: [`frdc filter`](@ref ref-filter), [`frdc spectral`](@ref ref-spectral), [`frdc estimate univariate`](@ref ref-fam-estimate-univariate), [`frdc forecast univariate`](@ref ref-fam-forecast-univariate)

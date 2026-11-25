@@ -1,6 +1,6 @@
 # [Hypothesis Testing & Diagnostics](@id chap-tests)
 
-Diagnostic and specification tests in `Friedman-cli` live under [`friedman test`](@ref ref-test) across 11 families (`unit-root`, `coint`, `vecm`, `multivariate`, `serial`, `stability`, `panel`, `pvar`, `iv`, `did`, plus standalone model diagnostics). Use the decision guide below to select the right test before or after estimating any model. See [MacroEconometricModels.jl — Hypothesis Tests](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/tests/) for asymptotic distributions and finite-sample adjustments.
+Diagnostic and specification tests in `Friedman-cli` live under [`frdc test`](@ref ref-test) across 11 families (`unit-root`, `coint`, `vecm`, `multivariate`, `serial`, `stability`, `panel`, `pvar`, `iv`, `did`, plus standalone model diagnostics). Use the decision guide below to select the right test before or after estimating any model. See [MacroEconometricModels.jl — Hypothesis Tests](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/tests/) for asymptotic distributions and finite-sample adjustments.
 
 ## Quick Start
 
@@ -8,7 +8,7 @@ Run the Augmented Dickey–Fuller unit-root test (`adf`), KPSS stationarity test
 
 <!-- capture -->
 ```bash
-friedman test unit-root adf :denmark --column 1 --trend constant
+frdc test unit-root adf :denmark --column 1 --trend constant
 ```
 ```text
        ADF Test: LRM
@@ -54,7 +54,7 @@ Classical unit-root tests lose power against trend-stationary alternatives with 
 
 <!-- capture -->
 ```bash
-friedman test stability bai-perron :nile --response 1 --max-breaks 3 --criterion bic
+frdc test stability bai-perron :nile --response 1 --max-breaks 3 --criterion bic
 ```
 ```text
       Bai-Perron Test
@@ -79,7 +79,7 @@ The `bai_perron_test` table identifies `1` endogenous level shift in `:nile` at 
 
 <!-- capture -->
 ```bash
-friedman test coint johansen :denmark --lags 2 --trend constant
+frdc test coint johansen :denmark --lags 2 --trend constant
 ```
 ```text
           Johansen Trace Test
@@ -123,4 +123,4 @@ Both `johansen_trace_test` and `johansen_max_eigenvalue_test` reject rank `0` ($
 - Johansen, S. (1991). Estimation and hypothesis testing of cointegration vectors in Gaussian vector autoregressive models. *Econometrica*, 59(6), 1551–1580.
 - Phillips, P. C., Shi, S., & Yu, J. (2015). Testing for multiple bubbles: Historical episodes of exuberance and collapse in the S&P 500. *IER*, 56(4), 1043–1078.
 - Upstream manual: [MacroEconometricModels.jl — Hypothesis Tests](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/tests/)
-- CLI reference: [`friedman test`](@ref ref-test), [`friedman test unit-root`](@ref ref-fam-test-unit-root), [`friedman test coint`](@ref ref-fam-test-coint), [`friedman test stability`](@ref ref-fam-test-stability)
+- CLI reference: [`frdc test`](@ref ref-test), [`frdc test unit-root`](@ref ref-fam-test-unit-root), [`frdc test coint`](@ref ref-fam-test-coint), [`frdc test stability`](@ref ref-fam-test-stability)

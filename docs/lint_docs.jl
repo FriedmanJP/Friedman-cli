@@ -139,6 +139,12 @@ function _lint_file!(violations::Vector{Violation}, rel::String, path::String, a
         if occursin(r"\b(TODO|FIXME)\b|not yet implemented"i, line) && !(rel == "internals/not-wrapped.md")
             push!(violations, Violation(rel, ln, "NO-TODO", "placeholder / TODO / FIXME marker found outside code block"))
         end
+
+        # #303: flag stray `friedman <subcommand>` invocations outside migration notes
+        if is_hand && occursin(r"`friedman\s+(?:--?[a-z]|completions|data|did|dsge|estimate|fevd|filter|forecast|hadsge|hd|io|irf|model|nowcast|policy|predict|repl|residuals|schema|serve|show|spectral|test)\b", line) &&
+           !occursin(r"migrating|renamed|formerly|legacy|cutover"i, line)
+            push!(violations, Violation(rel, ln, "STRAY-FRIEDMAN-CMD", "use `frdc ...` instead of legacy `friedman ...`: $(strip(line))"))
+        end
     end
 
     seen_h1 || push!(violations, Violation(rel, 1, "H1", "page has no `# ` H1 title"))

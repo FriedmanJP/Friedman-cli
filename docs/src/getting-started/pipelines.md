@@ -12,22 +12,22 @@ Three handle roles govern the CLI boundary:
 | Model | `--save-model` / `--model` (or positional shorthand) | `.jld2` (native HDF5/JLD2), `.jls`, `.fmod` (interim) | [`model info`](@ref ref-model-info), `show <stem>` |
 | Result | `--save-result` / `--result` | `.jld2`, `.jls`, `.fmod` | `show <stem>`, [`model reproduce`](@ref ref-model-reproduce) |
 
-When resolving a bare stem `STEM`, Friedman-cli checks `STEM.jld2`, then `STEM.jls`, then `STEM.fmod`, and finally `STEM.csv` (matching the order documented in [Architecture & Internals](@ref int-architecture)). Any builtin example dataset can be passed directly with a leading colon (`:denmark`, `:fred_qd`, `:pwt`, `:mpdta`, etc.) or materialized into a typed handle with [`friedman data import`](@ref ref-data-import).
+When resolving a bare stem `STEM`, Friedman-cli checks `STEM.jld2`, then `STEM.jls`, then `STEM.fmod`, and finally `STEM.csv` (matching the order documented in [Architecture & Internals](@ref int-architecture)). Any builtin example dataset can be passed directly with a leading colon (`:denmark`, `:fred_qd`, `:pwt`, `:mpdta`, etc.) or materialized into a typed handle with [`frdc data import`](@ref ref-data-import).
 
-If you pass a saved handle directly as the positional argument to `friedman show <path>` ([`show`](@ref ref-show)), or omit `--model` when passing a model stem to post-estimation verbs such as `irf`, `fevd`, `hd`, `forecast`, `predict`, or `residuals`, the router automatically binds the loaded object into `--model` or `--result` without re-estimating.
+If you pass a saved handle directly as the positional argument to `frdc show <path>` ([`show`](@ref ref-show)), or omit `--model` when passing a model stem to post-estimation verbs such as `irf`, `fevd`, `hd`, `forecast`, `predict`, or `residuals`, the router automatically binds the loaded object into `--model` or `--result` without re-estimating.
 
 ---
 
 ## End-to-End Pipeline Example (Table Output)
 
-The workflow below imports `:denmark` (55 quarterly observations across `LRM`, `LRY`, `LPY`, `IBO`, `IDE`), fits a seeded `VAR(2)` saving `var_fit.jld2`, inspects handle metadata with [`friedman model info`](@ref ref-model-info), and computes Cholesky impulse responses without re-fitting the VAR:
+The workflow below imports `:denmark` (55 quarterly observations across `LRM`, `LRY`, `LPY`, `IBO`, `IDE`), fits a seeded `VAR(2)` saving `var_fit.jld2`, inspects handle metadata with [`frdc model info`](@ref ref-model-info), and computes Cholesky impulse responses without re-fitting the VAR:
 
 <!-- capture -->
 ```bash
-friedman --quiet data import :denmark -o macro
-friedman --seed 42 --quiet estimate multivariate var macro --lags 2 --save-model var_fit
-friedman --quiet model info var_fit.jld2
-friedman irf var --model var_fit.jld2 --horizons 4 --shock 1 --ci none
+frdc --quiet data import :denmark -o macro
+frdc --seed 42 --quiet estimate multivariate var macro --lags 2 --save-model var_fit
+frdc --quiet model info var_fit.jld2
+frdc irf var --model var_fit.jld2 --horizons 4 --shock 1 --ci none
 ```
 ```text
            IRF to LRM shock (cholesky identification)
@@ -63,19 +63,19 @@ At horizon `1`, a one-standard-deviation Cholesky shock to `LRM` raises `LRM` by
 
 ## Reproducibility & JSON Envelopes
 
-Under `--seed <int>` (a **leading global** placed before the subcommand), Friedman-cli seeds the process RNG, forwards `seed=` to stochastic estimators, records `meta.seed` and `meta.manifest` (package versions, thread count, OS, git state, and RNG seed) in both native `.jld2` handles and JSON output, and allows bit-for-bit verification with [`friedman model reproduce`](@ref ref-model-reproduce).
+Under `--seed <int>` (a **leading global** placed before the subcommand), Friedman-cli seeds the process RNG, forwards `seed=` to stochastic estimators, records `meta.seed` and `meta.manifest` (package versions, thread count, OS, git state, and RNG seed) in both native `.jld2` handles and JSON output, and allows bit-for-bit verification with [`frdc model reproduce`](@ref ref-model-reproduce).
 
 Every command emitting `--format json` (or leading `--json`) produces exactly **one JSON object on stdout** while keeping progress messages on **stderr**. The example below extracts two variables (`LRM`, `LRY`) from `denmark` and emits the complete JSON v1 envelope for a `VAR(1)`:
 
 <!-- capture -->
 ```bash
-friedman --quiet data load denmark --vars LRM,LRY -o tiny.csv
-friedman --seed 42 --json estimate multivariate var tiny.csv --lags 1
+frdc --quiet data load denmark --vars LRM,LRY -o tiny.csv
+frdc --seed 42 --json estimate multivariate var tiny.csv --lags 1
 ```
 ```json
 {
   "artifacts": [],
-  "command": "friedman estimate multivariate var",
+  "command": "frdc estimate multivariate var",
   "data": {
     "information_criteria": {
       "columns": ["metric", "value"],
@@ -112,6 +112,6 @@ In the captured `VAR(1)` fit, `information_criteria` records `AIC = -14.41023` a
 
 ## See Also
 
-- Full JSON envelope schema, error codes (`model/convergence`, `data/wrong-kind`, etc.), and `friedman serve --mcp`: [Agent Guide](../agent-guide.md)
-- Machine-readable draft-07 per-leaf schemas: `friedman schema <verb> [<family>] <model>`
-- Handle inspection and verification: [`friedman model`](@ref ref-model), [`friedman show`](@ref ref-show)
+- Full JSON envelope schema, error codes (`model/convergence`, `data/wrong-kind`, etc.), and `frdc serve --mcp`: [Agent Guide](../agent-guide.md)
+- Machine-readable draft-07 per-leaf schemas: `frdc schema <verb> [<family>] <model>`
+- Handle inspection and verification: [`frdc model`](@ref ref-model), [`frdc show`](@ref ref-show)

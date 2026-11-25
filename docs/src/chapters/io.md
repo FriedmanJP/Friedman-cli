@@ -1,6 +1,6 @@
 # [Input-Output & Production Networks](@id chap-io)
 
-Classical linear input–output accounting, MRIO database ingestion (`oecd`, `wiod`, `exiobase3`, `eora26`, `gloria`), Leontief/Ghosh multipliers, hypothetical extraction, structural decomposition analysis, and Baqaee–Farhi (2019, 2020) nonlinear general-equilibrium production network analysis live under [`friedman io`](@ref ref-io) across the linear `io` and nonlinear `io bf` families. See [MacroEconometricModels.jl — Input-Output & Networks](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/io/) for mathematical derivations.
+Classical linear input–output accounting, MRIO database ingestion (`oecd`, `wiod`, `exiobase3`, `eora26`, `gloria`), Leontief/Ghosh multipliers, hypothetical extraction, structural decomposition analysis, and Baqaee–Farhi (2019, 2020) nonlinear general-equilibrium production network analysis live under [`frdc io`](@ref ref-io) across the linear `io` and nonlinear `io bf` families. See [MacroEconometricModels.jl — Input-Output & Networks](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/io/) for mathematical derivations.
 
 ## Quick Start
 
@@ -8,7 +8,7 @@ Omit `--data` on any `io` or `io bf` command to run directly on the built-in Mil
 
 <!-- capture -->
 ```bash
-friedman io leontief --matrix L
+frdc io leontief --matrix L
 ```
 ```text
              Leontief Inverse (L)
@@ -34,7 +34,7 @@ In a $S$-sector open input–output table with intermediate technical matrix $A_
 L = (I - A)^{-1}, \quad \Delta x = L \, \Delta y; \qquad G = (I - B)^{-1}, \quad \Delta x' = \Delta v' \, G.
 ```
 
-| Analytical Group | Subcommands under `friedman io` | Purpose & Key Output Tables (`--format json`) |
+| Analytical Group | Subcommands under `frdc io` | Purpose & Key Output Tables (`--format json`) |
 |---|---|---|
 | Ingestion & Balancing | `sources`, `download`, `load`, `balance` (`ras`\|`gras`), `aggregate` | Catalog & fetch external MRIO datasets (`oecd`, `wiod`, `exiobase3`, `eora26`, `gloria`); balance/aggregate tables (`io_table_summary`, `sectors`) |
 | Multipliers & Linkages | `leontief`, `ghosh`, `multipliers` (`output`\|`income`\|`employment`, Type `I`\|`II`), `linkages`, `key-sectors`, `network-stats` | Backward/forward Rasmussen dispersion indices, Domar weights, network centrality (`io_multipliers`, `linkages`, `key_sectors`, `network_stats_summary`) |
@@ -43,7 +43,7 @@ L = (I - A)^{-1}, \quad \Delta x = L \, \Delta y; \qquad G = (I - B)^{-1}, \quad
 
 <!-- capture -->
 ```bash
-friedman io linkages --forward ghosh
+frdc io linkages --forward ghosh
 ```
 ```text
                       Linkages (forward=ghosh)
@@ -73,8 +73,8 @@ When elasticities of substitution across intermediates ($\theta$), final demand 
 
 <!-- capture -->
 ```bash
-friedman --quiet io bf network --theta 0.5,1.2 --save-model bf_net.fmod
-friedman io bf equilibrium --model bf_net.fmod --dlog-a 0.05,0.0 --method newton
+frdc --quiet io bf network --theta 0.5,1.2 --save-model bf_net.fmod
+frdc io bf equilibrium --model bf_net.fmod --dlog-a 0.05,0.0 --method newton
 ```
 ```text
   BF Equilibrium Summary
@@ -119,4 +119,4 @@ The exact nonlinear CES general-equilibrium response outputs scalar aggregate `d
 - Baqaee, D. R., & Farhi, E. (2019). The macroeconomic impact of microeconomic shocks: Beyond Hulten's theorem. *Econometrica*, 87(4), 1155–1203.
 - Baqaee, D. R., & Farhi, E. (2020). Productivity and misallocation in general equilibrium. *Quarterly Journal of Economics*, 135(1), 105–163.
 - Upstream manual: [MacroEconometricModels.jl — Input-Output & Networks](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/io/)
-- CLI reference: [`friedman io`](@ref ref-io), [`friedman io bf network`](@ref ref-io-bf-network), [`friedman io bf equilibrium`](@ref ref-io-bf-equilibrium), [`friedman io bf shock-curve`](@ref ref-io-bf-shock-curve)
+- CLI reference: [`frdc io`](@ref ref-io), [`frdc io bf network`](@ref ref-io-bf-network), [`frdc io bf equilibrium`](@ref ref-io-bf-equilibrium), [`frdc io bf shock-curve`](@ref ref-io-bf-shock-curve)

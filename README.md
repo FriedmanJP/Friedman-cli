@@ -4,7 +4,7 @@
 [![Documentation](https://github.com/FriedmanJP/Friedman-cli/actions/workflows/Documentation.yml/badge.svg)](https://friedmanjp.github.io/Friedman-cli/dev/)
 
 Estimate, test, and simulate macro models without leaving the shell.
-`friedman` wraps [MacroEconometricModels.jl](https://github.com/FriedmanJP/MacroEconometricModels.jl)
+`frdc` wraps [MacroEconometricModels.jl](https://github.com/FriedmanJP/MacroEconometricModels.jl)
 (exact pin in `Project.toml`) as action-first commands —
 `estimate`, `test`, `irf`, `fevd`, `forecast`, `dsge`, `hadsge`, `did`, `policy`, … —
 that read CSV or `.jld2`/`.jls` handles, print tables, and reproduce bit-for-bit.
@@ -15,7 +15,7 @@ equally callable from scripts and AI agents (see [For agents](#for-agents)).
 ## 60 seconds: VAR end-to-end
 
 ```bash
-friedman estimate multivariate var macro.csv --lags 2
+frdc estimate multivariate var macro.csv --lags 2
 ```
 
 ```
@@ -52,7 +52,7 @@ Trend: constant, Observations: 200
 Impulse responses, with bootstrap bands and a plot:
 
 ```bash
-friedman irf var macro.csv --shock 1 --horizons 8 --plot-save irf.html
+frdc irf var macro.csv --shock 1 --horizons 8 --plot-save irf.html
 ```
 
 ```
@@ -88,7 +88,7 @@ expr = "Y[t] = rho * Y[t-1] + sigma * e[t]"
 [[model.equations]]
 expr = "C[t] = Y[t]"
 EOF
-friedman dsge solve rbc.toml
+frdc dsge solve rbc.toml
 ```
 
 ```
@@ -142,7 +142,7 @@ apply it everywhere. (Full tree: [CLI reference overview](https://friedmanjp.git
 
 Data handling (`data describe/diagnose/transform/validate`), filters
 (`filter hp/hamilton/bk`), spectral analysis, nowcasting, and an interactive
-REPL (`friedman repl`, [guide](https://friedmanjp.github.io/Friedman-cli/dev/getting-started/repl/))
+REPL (`frdc repl`, [guide](https://friedmanjp.github.io/Friedman-cli/dev/getting-started/repl/))
 round it out.
 
 ## Reproducibility
@@ -163,11 +163,11 @@ If you are wiring an LLM to economic analysis: with `--format json`, stdout is
 exactly one versioned JSON envelope with stable, registry-declared table keys;
 exit codes are `0 ok · 2 usage · 3 data · 4 config · 5 model · 6 env · 1 internal`,
 and every JSON failure carries a matching `error.code`/`error.exit_code`.
-`friedman schema <path…>` returns a draft-07 input schema plus result-table keys
+`frdc schema <path…>` returns a draft-07 input schema plus result-table keys
 for any command; `serve --mcp` exposes every leaf command as a Model Context Protocol
 tool over stdio (supporting `--families`, `--tools`, and `--compact` scoping).
 For multi-command pipelines and heavy DSGE / Bayesian / volatility workflows, keep a
-persistent `friedman serve --mcp` (or `friedman repl`) session open to amortize Julia/JIT
+persistent `frdc serve --mcp` (or `frdc repl`) session open to amortize Julia/JIT
 startup and share `model://` handles in memory. Start at the
 [Agent Guide](https://friedmanjp.github.io/Friedman-cli/dev/agent-guide/).
 
@@ -178,19 +178,19 @@ Full command reference:
 
 Pre-built standalone binaries are **zero-Julia** (no Julia installation or network artifact fetch required; JuMP + Ipopt ship bundled):
 
-- **Windows (x86_64) — Microsoft Store (recommended):** Microsoft-signed MSIX with auto-updates and `friedman` on `PATH`:
+- **Windows (x86_64) — Microsoft Store (recommended):** Microsoft-signed MSIX with auto-updates and `frdc` on `PATH`:
 
   ```powershell
   winget install 9NBBQSNP6W44 --source msstore
   ```
 
-  Or via GitHub Releases (`.msix` sideload or standalone `.zip` into `%USERPROFILE%\.friedman-cli`):
+  Or via GitHub Releases (`.msix` sideload or standalone `.zip` into `%USERPROFILE%\.frdc`):
 
   ```powershell
   irm https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.ps1 | iex
   ```
 
-- **Linux (x86_64):** Standalone bundle (private Julia `1.14+opt` runtime included) installed to `~/.friedman-cli/` and symlinked at `~/.local/bin/friedman`:
+- **Linux (x86_64):** Standalone bundle (private Julia `1.14+opt` runtime included) installed to `~/.frdc/` and symlinked at `~/.local/bin/frdc`:
 
   ```bash
   curl -fsSL https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.sh | bash
@@ -201,10 +201,10 @@ Pre-built standalone binaries are **zero-Julia** (no Julia installation or netwo
   ```bash
   git clone https://github.com/FriedmanJP/Friedman-cli.git && cd Friedman-cli
   julia --project -e 'using Pkg; Pkg.instantiate()'
-  julia --project bin/friedman --help
+  julia --project bin/frdc --help
   ```
 
-Details (manual `.tar.gz`/`.zip`/`.msix` archives, sideloading, local `build_release.jl` builds): [Installation docs](https://friedmanjp.github.io/Friedman-cli/dev/getting-started/installation/).
+Details (manual `.tar.gz`/`.zip`/`.msix` archives, sideloading, local `build_release.jl` builds, migrating from legacy `friedman` to `frdc`): [Installation docs](https://friedmanjp.github.io/Friedman-cli/dev/getting-started/installation/).
 
 ## License
 

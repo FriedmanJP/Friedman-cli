@@ -8,8 +8,8 @@ Simulate an instrumental-variables dataset (`lp-iv`) with endogenous regressor `
 
 <!-- capture -->
 ```bash
-friedman --quiet data simulate lp-iv --periods 200 --seed 42 --save-data iv_sim
-friedman estimate regression iv iv_sim --dep y --endogenous s --instruments z1 --method tsls --cov-type hc1
+frdc --quiet data simulate lp-iv --periods 200 --seed 42 --save-data iv_sim
+frdc estimate regression iv iv_sim --dep y --endogenous s --instruments z1 --method tsls --cov-type hc1
 ```
 ```text
                       IV (2SLS) Regression Coefficients
@@ -60,7 +60,7 @@ y_i = x_i'\beta + \varepsilon_i, \qquad \widehat{\beta}_{\text{GMM/2SLS}} = (X' 
 
 <!-- capture -->
 ```bash
-friedman estimate regression robust :stackloss --dep stack.loss --psi huber --method mm
+frdc estimate regression robust :stackloss --dep stack.loss --psi huber --method mm
 ```
 ```text
               Robust Regression Coefficients
@@ -103,7 +103,7 @@ Multi-equation linear systems and generalized method-of-moments / simulated meth
 
 <!-- capture -->
 ```bash
-friedman --quiet data simulate arima --phi 0.6 --sigma 0.8 --periods 150 --burn 50 --seed 9 --save-data ar1_sim
+frdc --quiet data simulate arima --phi 0.6 --sigma 0.8 --periods 150 --burn 50 --seed 9 --save-data ar1_sim
 cat > smm_card <<'EOF'
 smm:
   model: ar1
@@ -112,7 +112,7 @@ smm:
   lower: -0.99, 1.0e-4
   upper: 0.99, 10.0
 EOF
-friedman --seed 9 estimate regression smm ar1_sim --config smm_card --sim-ratio 4 --burn 50
+frdc --seed 9 estimate regression smm ar1_sim --config smm_card --sim-ratio 4 --burn 50
 ```
 ```text
      SMM Estimation (model=ar1, weighting=two_step)
@@ -143,4 +143,4 @@ Two-step SMM (`smm_estimates`) recovers persistence `phi = 0.641416` (true `0.6`
 - Duffie, D., & Singleton, K. J. (1993). Simulated moments estimation of Markov models of asset prices. *Econometrica*, 61(4), 929–952.
 - Phillips, P. C., & Hansen, B. E. (1990). Statistical inference in instrumental variables regression with I(1) processes. *Review of Economic Studies*, 57(1), 99–125.
 - Upstream manual: [MacroEconometricModels.jl — Cross-Sectional & GMM](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/regression/)
-- CLI reference: [`friedman estimate regression`](@ref ref-fam-estimate-regression), [`friedman predict regression`](@ref ref-fam-predict-regression), [`friedman residuals regression`](@ref ref-fam-residuals-regression)
+- CLI reference: [`frdc estimate regression`](@ref ref-fam-estimate-regression), [`frdc predict regression`](@ref ref-fam-predict-regression), [`frdc residuals regression`](@ref ref-fam-residuals-regression)

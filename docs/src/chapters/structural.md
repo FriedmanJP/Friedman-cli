@@ -8,7 +8,7 @@ Estimate Cholesky-identified impulse responses with Kilian bias-corrected or iid
 
 <!-- capture -->
 ```bash
-friedman --seed 42 irf var :denmark --lags 2 --shock 1 --horizons 4 --id cholesky --ci bootstrap --replications 100
+frdc --seed 42 irf var :denmark --lags 2 --shock 1 --horizons 4 --id cholesky --ci bootstrap --replications 100
 ```
 ```text
                 IRF to LRM shock (cholesky identification)
@@ -60,7 +60,7 @@ u_t = B_0 \varepsilon_t, \qquad \mathrm{Var}(\varepsilon_t) = I_n, \qquad \Theta
 
 <!-- capture -->
 ```bash
-friedman fevd var :denmark --lags 2 --horizons 4 --id cholesky --normalize
+frdc fevd var :denmark --lags 2 --horizons 4 --id cholesky --normalize
 ```
 ```text
        FEVD (cholesky identification)
@@ -183,8 +183,8 @@ When structural innovations are mutually independent and at most one shock is Ga
 
 <!-- capture -->
 ```bash
-friedman --quiet data simulate svar --dist t --nu 5.0 --periods 160 --burn 50 --seed 9 --save-data svar_sim
-friedman estimate factor fastica svar_sim --lags 1 --method fastica --contrast logcosh
+frdc --quiet data simulate svar --dist t --nu 5.0 --periods 160 --burn 50 --seed 9 --save-data svar_sim
+frdc estimate factor fastica svar_sim --lags 1 --method fastica --contrast logcosh
 ```
 ```text
          Structural Impact Matrix (B0)
@@ -228,8 +228,8 @@ y_{t+h} = \alpha_h + \beta_h \, s_t + \gamma_h' W_{t-1} + u_{t+h}, \qquad h = 0,
 
 <!-- capture -->
 ```bash
-friedman --quiet data dropna :mp_shocks -f csv -o mp_clean.csv
-friedman estimate multivariate lp mp_clean.csv --method standard --shock 1 --horizons 4 --control-lags 2 --vcov newey_west
+frdc --quiet data dropna :mp_shocks -f csv -o mp_clean.csv
+frdc estimate multivariate lp mp_clean.csv --method standard --shock 1 --horizons 4 --control-lags 2 --vcov newey_west
 ```
 ```text
                                                                                                                       LP Coefficients (ygap → responses)
@@ -273,4 +273,4 @@ Newey–West HAC standard errors control for moving-average serial correlation a
 - Jordà, Ò. (2005). Estimation and inference of impulse responses by local projections. *American Economic Review*, 95(1), 161–182.
 - Stock, J. H., & Watson, M. W. (2018). Identification and estimation of dynamic causal effects in macroeconomics using external instruments. *Economic Journal*, 128(610), 917–948.
 - Upstream manuals: [MacroEconometricModels.jl — SVAR](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/svar/), [Local Projections](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/lp/)
-- CLI reference: [`friedman irf`](@ref ref-irf), [`friedman fevd`](@ref ref-fevd), [`friedman hd`](@ref ref-hd), [`friedman estimate multivariate lp`](@ref ref-estimate-multivariate-lp)
+- CLI reference: [`frdc irf`](@ref ref-irf), [`frdc fevd`](@ref ref-fevd), [`frdc hd`](@ref ref-hd), [`frdc estimate multivariate lp`](@ref ref-estimate-multivariate-lp)

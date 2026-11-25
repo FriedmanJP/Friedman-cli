@@ -1,6 +1,6 @@
 # [API Reference](@id int-api)
 
-Agents invoke the `friedman` executable from the shell rather than importing the Julia package directly; see [Automated Pipelines & JSON Envelopes](@ref gs-pipelines) and [Agent Guide](../agent-guide.md) for the supported CLI contract. The exported Julia functions below exist for embedding the CLI dispatcher inside external scripts, custom harnesses, REPL wrappers, and the JSON-RPC MCP loop.
+Agents invoke the `frdc` executable from the shell rather than importing the Julia package directly; see [Automated Pipelines & JSON Envelopes](@ref gs-pipelines) and [Agent Guide](../agent-guide.md) for the supported CLI contract. The exported Julia functions below exist for embedding the CLI dispatcher inside external scripts, custom harnesses, REPL wrappers, and the JSON-RPC MCP loop.
 
 ---
 

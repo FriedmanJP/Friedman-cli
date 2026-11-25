@@ -1,6 +1,6 @@
 # [Nowcasting & Forecast Evaluation](@id chap-nowcast)
 
-Real-time mixed-frequency nowcasting with ragged-edge data releases and formal multi-model forecast evaluation live in [`friedman nowcast`](@ref ref-nowcast) (`dfm`, `bvar`, `bridge`, `news`, `forecast`) and [`friedman forecast evaluate`](@ref ref-fam-forecast-evaluate) (`metrics`, `dm`, `clark-west`, `mincer-zarnowitz`, `encompassing`, `combine`). See [MacroEconometricModels.jl — Nowcasting](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/nowcasting/) and [Forecast Evaluation](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/forecast_evaluation/) for upstream derivations.
+Real-time mixed-frequency nowcasting with ragged-edge data releases and formal multi-model forecast evaluation live in [`frdc nowcast`](@ref ref-nowcast) (`dfm`, `bvar`, `bridge`, `news`, `forecast`) and [`frdc forecast evaluate`](@ref ref-fam-forecast-evaluate) (`metrics`, `dm`, `clark-west`, `mincer-zarnowitz`, `encompassing`, `combine`). See [MacroEconometricModels.jl — Nowcasting](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/nowcasting/) and [Forecast Evaluation](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/forecast_evaluation/) for upstream derivations.
 
 ## Quick Start
 
@@ -35,7 +35,7 @@ m1,m2,gdp
 0.09,0.03,NaN
 0.16,0.11,NaN
 EOF
-friedman nowcast dfm ragged.csv --monthly-vars 2 --quarterly-vars 1 --factors 1 --lags 1 --max-iter 50 --target-var 3
+frdc nowcast dfm ragged.csv --monthly-vars 2 --quarterly-vars 1 --factors 1 --lags 1 --max-iter 50 --target-var 3
 ```
 ```text
 Nowcast DFM (r=1, p=1, target=gdp)
@@ -100,7 +100,7 @@ y,f1,f2
 5.85,5.91,5.20
 6.05,5.98,6.50
 EOF
-friedman forecast evaluate metrics eval.csv --actual y --forecasts f1,f2
+frdc forecast evaluate metrics eval.csv --actual y --forecasts f1,f2
 ```
 ```text
                                    Forecast Accuracy Metrics
@@ -138,4 +138,4 @@ friedman forecast evaluate metrics eval.csv --actual y --forecasts f1,f2
 - Diebold, F. X., & Mariano, R. S. (1995). Comparing predictive accuracy. *Journal of Business & Economic Statistics*, 13(3), 253–263.
 - Clark, T. E., & West, K. D. (2007). Approximately normal tests for equal predictive accuracy in nested models. *Journal of Econometrics*, 138(1), 291–311.
 - Upstream manuals: [MacroEconometricModels.jl — Nowcasting](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/nowcasting/), [Forecast Evaluation](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/forecast_evaluation/)
-- CLI reference: [`friedman nowcast`](@ref ref-nowcast), [`friedman forecast evaluate`](@ref ref-fam-forecast-evaluate)
+- CLI reference: [`frdc nowcast`](@ref ref-nowcast), [`frdc forecast evaluate`](@ref ref-fam-forecast-evaluate)

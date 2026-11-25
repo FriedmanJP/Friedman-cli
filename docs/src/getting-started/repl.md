@@ -7,21 +7,21 @@ Launch an interactive exploratory session inside `Friedman-cli` where datasets s
 Start the REPL from any terminal:
 
 ```bash
-friedman repl
+frdc repl
 ```
 
-Run any `Friedman-cli` command without the `friedman` prefix (single- and double-quoted paths with UTF-8 spaces or characters are preserved):
+Run any `Friedman-cli` command without the `frdc` prefix (single- and double-quoted paths with UTF-8 spaces or characters are preserved):
 
 ```text
-friedman> data use :denmark
+frdc> data use :denmark
   Loaded :denmark (55 × 5, vars: LRM, LRY, LPY, IBO, IDE)
-friedman> estimate multivariate var --lags 2
-friedman> irf var --shock 1 --horizons 8
-friedman> fevd var --horizons 8
-friedman> exit
+frdc> estimate multivariate var --lags 2
+frdc> irf var --shock 1 --horizons 8
+frdc> fevd var --horizons 8
+frdc> exit
 ```
 
-Press **Tab** at any point to complete command verbs, family names, subcommands (depth 1–3), options/flags, built-in `:datasets`, `data use`/`current`/`clear`, `exit`/`quit`, and filesystem paths, or press **Up/Down** to search persistent history saved at `~/.friedman_history` (overridable via `FRIEDMAN_HISTFILE`, with `FRIEDMAN_HISTORY_FILE` fallback). Type `exit`, `quit`, or press `Ctrl-D` to leave. For scripted multi-step workflows, keep `friedman repl` or a persistent `friedman serve --mcp` session active to amortize Julia startup and JIT compilation overhead.
+Press **Tab** at any point to complete command verbs, family names, subcommands (depth 1–3), options/flags, built-in `:datasets`, `data use`/`current`/`clear`, `exit`/`quit`, and filesystem paths, or press **Up/Down** to search persistent history saved at `~/.frdc_history` (overridable via `FRDC_HISTFILE`, with `FRDC_HISTORY_FILE` fallback). Type `exit`, `quit`, or press `Ctrl-D` to leave. For scripted multi-step workflows, keep `frdc repl` or a persistent `frdc serve --mcp` session active to amortize Julia startup and JIT compilation overhead.
 
 ---
 
@@ -42,9 +42,9 @@ Once an estimator runs during a session (`estimate multivariate var`, `estimate 
 All standard output and plot modifiers work directly inside the REPL:
 
 ```text
-friedman> irf var --shock 1 --horizons 12 --plot
-friedman> irf var --shock 1 --horizons 12 --plot-save irf_plot.html
-friedman> irf var --shock 1 --horizons 12 -f csv -o irf_table.csv
+frdc> irf var --shock 1 --horizons 12 --plot
+frdc> irf var --shock 1 --horizons 12 --plot-save irf_plot.html
+frdc> irf var --shock 1 --horizons 12 -f csv -o irf_table.csv
 ```
 
 Use [Interactive REPL](@ref gs-repl) for interactive model exploration, then move tested commands into reproducible scripts or `.jld2` handle pipelines via [Pipelines, Handles & Reproducibility](@ref gs-pipelines).
