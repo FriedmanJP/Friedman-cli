@@ -1,7 +1,7 @@
 # build_release.jl — Cross-platform standalone app build for CI releases
 # Run: julia build_release.jl
 #
-# Produces: build/friedman/ with native bin/friedman(.exe), private libjulia,
+# Produces: build/frdc/ with native bin/frdc(.exe), private libjulia,
 # stdlib libs, bundled JLL artifacts under share/julia/artifacts/, and compressed
 # sysimage under lib/julia/sys.{so,dll,dylib} (zero runtime Julia dependency).
 #
@@ -12,18 +12,15 @@
 # 3. Does NOT modify the source Project.toml or root Manifest.toml
 #
 # Bundled-dependency set = the resolved Manifest.
-#   * With MacroEconometricModels >= 0.7.0, JuMP (MPL-2.0) and Ipopt (MIT wrapper
-#     over the EPL-2.0 Ipopt library, linked dynamically as a separate work) are
-#     REQUIRED upstream deps — they resolve into the Manifest and are bundled.
-#     This is intentional; see the "Solver dependencies" note in README.md.
-#   * PATHSolver / XLSX / ZipFile stay weak deps of MEMs (nothing hard-requires
-#     them), so they are absent from the resolved Manifest and are not bundled.
+#   * With MacroEconometricModels >= 1.1.1, MadNLP (MIT) + NLPModels (MPL-2.0)
+#     replace Ipopt/MUMPS_seq_jll as the built-in GPL-3.0-compatible NLP solver;
+#     Ipopt / PATHSolver / XLSX / ZipFile stay weakdeps and are not bundled.
 #   * include_transitive_dependencies=false + include_lazy_artifacts=false keep
 #     unused lazy artifacts (MKL_jll, oneTBB_jll, IntelOpenMP_jll) out of the
-#     app bundle while bundling all required JLL artifacts (~50 MB).
+#     app bundle while bundling all required JLL artifacts.
 #
 # Julia 1.14 runtime depot behavior:
-#   * Standalone binaries compile with packaging/c_driver/friedman_driver.c,
+#   * Standalone binaries compile with packaging/c_driver/frdc_driver.c,
 #     which defaults JULIA_OBJCACHE=0 unless explicitly overridden by the user
 #     so read-only install roots (WindowsApps MSIX, /opt, chmod 555 depots)
 #     never emit `objcache error` or write cache/v1.14/objcache-lmdb1/.
@@ -40,8 +37,8 @@ using Pkg
 
 const _PROJECT_DIR = @__DIR__
 const _BUILD_PROJECT_DIR = joinpath(_PROJECT_DIR, "build_env")
-const _APP_DIR = joinpath(_PROJECT_DIR, "build", "friedman")
-const _C_DRIVER_PROGRAM = joinpath(_PROJECT_DIR, "packaging", "c_driver", "friedman_driver.c")
+const _APP_DIR = joinpath(_PROJECT_DIR, "build", "frdc")
+const _C_DRIVER_PROGRAM = joinpath(_PROJECT_DIR, "packaging", "c_driver", "frdc_driver.c")
 const _LINEARSOLVE_UUID = Base.UUID("7ed4a6bd-45f5-4d41-b270-4a48e9bafcae")
 
 isfile(_C_DRIVER_PROGRAM) || error("Missing standalone C driver: $(_C_DRIVER_PROGRAM)")
@@ -280,8 +277,11 @@ end
 #
 # cpu_target: Julia PackageCompiler defaults to "sysimage" (three clones on
 # x86_64). One portable clone fits: x86_64 uses "generic", aarch64 uses "apple-m1".
-const _CPU_TARGET = get(ENV, "FRIEDMAN_CPU_TARGET", Sys.ARCH === :x86_64 ? "generic" : "apple-m1")
-const _COMPRESS_SYSIMAGE = lowercase(strip(get(ENV, "FRIEDMAN_COMPRESS_SYSIMAGE", "true"))) in ("1", "true", "yes", "on")
+const _CPU_TARGET = get(ENV, "FRDC_CPU_TARGET",
+                        get(ENV, "FRIEDMAN_CPU_TARGET",
+                            Sys.ARCH === :x86_64 ? "generic" : "apple-m1"))
+const _COMPRESS_SYSIMAGE = lowercase(strip(get(ENV, "FRDC_COMPRESS_SYSIMAGE",
+                                               get(ENV, "FRIEDMAN_COMPRESS_SYSIMAGE", "true")))) in ("1", "true", "yes", "on")
 if !haskey(ENV, "JULIA_IMAGE_THREADS") && Sys.total_memory() < 24 * 1024^3
     ENV["JULIA_IMAGE_THREADS"] = "1"
 end
@@ -292,7 +292,7 @@ println("  This will take several minutes.")
 create_app(
     _BUILD_PROJECT_DIR,
     _APP_DIR;
-    executables = ["friedman" => "julia_main"],
+    executables = ["frdc" => "julia_main"],
     precompile_execution_file = _PRECOMPILE_SCRIPT,
     incremental = true,
     filter_stdlibs = false,
@@ -307,7 +307,7 @@ create_app(
 )
 
 # --- Step 5: Verify standalone outputs & clean up build env ---
-const _EXE_PATH = joinpath(_APP_DIR, "bin", Sys.iswindows() ? "friedman.exe" : "friedman")
+const _EXE_PATH = joinpath(_APP_DIR, "bin", Sys.iswindows() ? "frdc.exe" : "frdc")
 const _SYS_EXT = Sys.iswindows() ? "dll" : Sys.isapple() ? "dylib" : "so"
 const _SYS_PATH = joinpath(_APP_DIR, "lib", "julia", "sys.$(_SYS_EXT)")
 

@@ -65,14 +65,14 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $Ver = "${{ steps.version.outputs.version }}"
-          $Tmp = Join-Path $env:TEMP ("friedman-msix-preflight-" + [System.Guid]::NewGuid().ToString("N"))
+          $Tmp = Join-Path $env:TEMP ("frdc-msix-preflight-" + [System.Guid]::NewGuid().ToString("N"))
           $DummyApp = Join-Path $Tmp "app"
           $SideloadMsix = Join-Path $Tmp "sideload.msix"
           $StoreMsix = Join-Path $Tmp "store.msix"
           New-Item -ItemType Directory -Path (Join-Path $DummyApp "bin") -Force | Out-Null
           try {
             # Copy a small x64 PE binary as placeholder so MakeAppx + Add-AppxPackage validate in seconds
-            Copy-Item "$env:SystemRoot\System32\where.exe" (Join-Path $DummyApp "bin\friedman.exe")
+            Copy-Item "$env:SystemRoot\System32\where.exe" (Join-Path $DummyApp "bin\frdc.exe")
             & packaging/msix/pack_msix.ps1 -AppDir $DummyApp -Version "$Ver" -OutputPath $SideloadMsix -Mode "sideload"
             & packaging/msix/pack_msix.ps1 -AppDir $DummyApp -Version "$Ver" -OutputPath $StoreMsix -Mode "store"
             $DevKey = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock"
@@ -80,7 +80,7 @@ jobs:
             Set-ItemProperty -Path $DevKey -Name "AllowDevelopmentWithoutDevLicense" -Value 1 -Type DWord
             powershell.exe -NoProfile -Command "`$ErrorActionPreference = 'Stop'; Add-AppxPackage -Path '$SideloadMsix' -AllowUnsigned"
             if ($LASTEXITCODE -ne 0) { throw "Pre-flight Add-AppxPackage -AllowUnsigned failed ($LASTEXITCODE)" }
-            $AliasExe = Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps\friedman.exe"
+            $AliasExe = Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps\frdc.exe"
             if (-not (Test-Path $AliasExe)) { throw "Pre-flight AppExecutionAlias not created at $AliasExe" }
             Write-Host "Pre-flight MSIX packaging + Add-AppxPackage + AppExecutionAlias validation passed."
           } finally {
@@ -130,7 +130,7 @@ jobs:
       - name: Build standalone app
         env:
           JULIA_IMAGE_THREADS: "1"
-          FRIEDMAN_COMPRESS_SYSIMAGE: "true"
+          FRDC_COMPRESS_SYSIMAGE: "true"
         run: julia build_release.jl
         timeout-minutes: 120
 
@@ -141,14 +141,14 @@ jobs:
           $ErrorActionPreference = "Stop"
           $Ver = "${{ steps.version.outputs.version }}"
           & packaging/msix/pack_msix.ps1 `
-            -AppDir "build\friedman" `
+            -AppDir "build\frdc" `
             -Version "$Ver" `
-            -OutputPath "build\friedman-v$Ver-windows-x86_64.msix" `
+            -OutputPath "build\frdc-v$Ver-windows-x86_64.msix" `
             -Mode "sideload"
           & packaging/msix/pack_msix.ps1 `
-            -AppDir "build\friedman" `
+            -AppDir "build\frdc" `
             -Version "$Ver" `
-            -OutputPath "build\friedman-v$Ver-windows-x86_64-store.msix" `
+            -OutputPath "build\frdc-v$Ver-windows-x86_64-store.msix" `
             -Mode "store"
 
       - name: Smoke-test standalone Linux binary (offline, zero-Julia)
@@ -156,11 +156,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          BIN="$PWD/build/friedman/bin/friedman"
+          BIN="$PWD/build/frdc/bin/frdc"
 
           # Verify zero MKL/oneTBB/IntelOpenMP lazy artifacts were bundled
-          if [ -d "$PWD/build/friedman/share/julia/artifacts" ]; then
-            if find "$PWD/build/friedman/share/julia/artifacts" -maxdepth 4 \( -iname '*mkl*' -o -iname '*tbb*' -o -iname '*iomp*' \) | grep -q .; then
+          if [ -d "$PWD/build/frdc/share/julia/artifacts" ]; then
+            if find "$PWD/build/frdc/share/julia/artifacts" -maxdepth 4 \( -iname '*mkl*' -o -iname '*tbb*' -o -iname '*iomp*' \) | grep -q .; then
               echo "Unexpected lazy MKL/oneTBB/IntelOpenMP artifact bundled!" >&2
               exit 1
             fi
@@ -312,7 +312,7 @@ jobs:
             JULIA_PKG_OFFLINE="true" \
             GITHUB_STEP_SUMMARY="${GITHUB_STEP_SUMMARY:-}" \
             python3 tools/bench_release.py \
-              --bin "$PWD/build/friedman/bin/friedman" \
+              --bin "$PWD/build/frdc/bin/frdc" \
               --data "$PWD/smoke.csv" \
               --budget-version-ms "$BUDGET_VERSION_MS" \
               --budget-estimate-ms "$BUDGET_ESTIMATE_MS" \
@@ -325,13 +325,13 @@ jobs:
           $ErrorActionPreference = "Stop"
           $Ver = "${{ steps.version.outputs.version }}"
           $Root = (Get-Location).Path
-          $Exe = Join-Path $Root "build\friedman\bin\friedman.exe"
-          $MsixPath = Join-Path $Root "build\friedman-v$Ver-windows-x86_64.msix"
+          $Exe = Join-Path $Root "build\frdc\bin\frdc.exe"
+          $MsixPath = Join-Path $Root "build\frdc-v$Ver-windows-x86_64.msix"
           $PyExe = (Get-Command python3, python -ErrorAction SilentlyContinue | Select-Object -First 1).Source
           if (-not $PyExe) { throw "Python not found on PATH" }
 
           # Verify zero MKL/oneTBB/IntelOpenMP lazy artifacts were bundled
-          $ArtDir = Join-Path $Root "build\friedman\share\julia\artifacts"
+          $ArtDir = Join-Path $Root "build\frdc\share\julia\artifacts"
           if (Test-Path $ArtDir) {
             $BadArt = Get-ChildItem -Path $ArtDir -Recurse -File -ErrorAction SilentlyContinue |
               Where-Object { $_.Name -match '(?i)(mkl|tbb|iomp)' }
@@ -445,7 +445,7 @@ jobs:
 
             # 1. Direct standalone binary checks (strict stdout + stderr + zero depot writes)
             $verRes = Invoke-Friedman $Exe @("--version") -RequireEmptyStderr
-            if ($verRes.Stdout.Trim() -notmatch [regex]::Escape("friedman v$Ver")) {
+            if ($verRes.Stdout.Trim() -notmatch [regex]::Escape("frdc v$Ver")) {
               throw "Unexpected --version output: $($verRes.Stdout)"
             }
             Write-Host $verRes.Stdout.Trim()
@@ -502,7 +502,7 @@ jobs:
             powershell.exe -NoProfile -Command "`$ErrorActionPreference = 'Stop'; Add-AppxPackage -Path '$MsixPath' -AllowUnsigned"
             if ($LASTEXITCODE -ne 0) { throw "Add-AppxPackage -AllowUnsigned failed with exit code $LASTEXITCODE" }
 
-            $AliasExe = Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps\friedman.exe"
+            $AliasExe = Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps\frdc.exe"
             if (-not (Test-Path $AliasExe)) {
               throw "AppExecutionAlias not created at $AliasExe"
             }
@@ -518,7 +518,7 @@ jobs:
             Push-Location $CwdAliasDir
             try {
               $aliasVer = Invoke-Friedman $AliasExe @("--version") -RequireEmptyStderr
-              if ($aliasVer.Stdout.Trim() -notmatch [regex]::Escape("friedman v$Ver")) {
+              if ($aliasVer.Stdout.Trim() -notmatch [regex]::Escape("frdc v$Ver")) {
                 throw "Unexpected Alias --version output: $($aliasVer.Stdout)"
               }
               Write-Host "Alias: $($aliasVer.Stdout.Trim())"
@@ -573,7 +573,7 @@ jobs:
             $env:JULIA_DEPOT_PATH = ""
             $env:JULIA_PKG_OFFLINE = "true"
             & $PyExe tools/bench_release.py `
-              --bin "build/friedman/bin/friedman.exe" `
+              --bin "build/frdc/bin/frdc.exe" `
               --data "smoke.csv" `
               --budget-version-ms "$env:BUDGET_VERSION_MS" `
               --budget-estimate-ms "$env:BUDGET_ESTIMATE_MS"
@@ -589,37 +589,37 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: store-msix-windows-x86_64
-          path: build/friedman-v${{ steps.version.outputs.version }}-windows-x86_64-store.msix
+          path: build/frdc-v${{ steps.version.outputs.version }}-windows-x86_64-store.msix
 
       - name: Archive (tar.gz)
         if: startsWith(github.ref, 'refs/tags/') && matrix.archive_ext == 'tar.gz'
         shell: bash
         run: |
           cd build
-          tar -czf friedman-v${{ steps.version.outputs.version }}-${{ matrix.platform }}.tar.gz friedman/
+          tar -czf frdc-v${{ steps.version.outputs.version }}-${{ matrix.platform }}.tar.gz frdc/
 
       - name: Archive (zip)
         if: startsWith(github.ref, 'refs/tags/') && matrix.archive_ext == 'zip'
         shell: pwsh
         run: |
           cd build
-          Compress-Archive -Path friedman -DestinationPath "friedman-v${{ steps.version.outputs.version }}-${{ matrix.platform }}.zip"
+          Compress-Archive -Path frdc -DestinationPath "frdc-v${{ steps.version.outputs.version }}-${{ matrix.platform }}.zip"
 
       - name: Upload Linux release artifact
         if: startsWith(github.ref, 'refs/tags/') && runner.os == 'Linux'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: friedman-${{ matrix.platform }}
-          path: build/friedman-v${{ steps.version.outputs.version }}-${{ matrix.platform }}.${{ matrix.archive_ext }}
+          name: frdc-${{ matrix.platform }}
+          path: build/frdc-v${{ steps.version.outputs.version }}-${{ matrix.platform }}.${{ matrix.archive_ext }}
 
       - name: Upload Windows release artifacts
         if: startsWith(github.ref, 'refs/tags/') && runner.os == 'Windows'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: friedman-${{ matrix.platform }}
+          name: frdc-${{ matrix.platform }}
           path: |
-            build/friedman-v${{ steps.version.outputs.version }}-${{ matrix.platform }}.${{ matrix.archive_ext }}
-            build/friedman-v${{ steps.version.outputs.version }}-windows-x86_64.msix
+            build/frdc-v${{ steps.version.outputs.version }}-${{ matrix.platform }}.${{ matrix.archive_ext }}
+            build/frdc-v${{ steps.version.outputs.version }}-windows-x86_64.msix
 
   release:
     name: Create Release
@@ -632,7 +632,7 @@ jobs:
       - name: Download release artifacts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          pattern: friedman-*
+          pattern: frdc-*
           path: artifacts
           merge-multiple: true
 

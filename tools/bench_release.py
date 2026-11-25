@@ -128,7 +128,7 @@ def run_case(cmd, n):
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--bin", required=True, help="path to the built friedman binary")
+    ap.add_argument("--bin", required=True, help="path to the built frdc binary")
     ap.add_argument("--data", required=True, help="CSV fixture for the estimate case")
     ap.add_argument("--runs", type=int, default=3, help="cold runs per case (default 3)")
     ap.add_argument("--budget-version-ms", type=float, default=3000.0)
@@ -142,7 +142,7 @@ def main() -> int:
 
     _require_same_leaf()
 
-    # On Windows, create_app() produces native build/friedman/bin/friedman.exe
+    # On Windows, create_app() produces native build/frdc/bin/frdc.exe
     # (normpath converts forward slashes passed from bash; .cmd/.bat handling
     # stays only as an explicit fallback if a batch wrapper is ever passed).
     bin_path = os.path.normpath(args.bin)

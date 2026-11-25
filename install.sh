@@ -7,7 +7,7 @@ set -euo pipefail
 #   curl -fsSL https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.sh | bash -s -- --version 1.0.7
 
 REPO="FriedmanJP/Friedman-cli"
-INSTALL_DIR="$HOME/.friedman-cli"
+INSTALL_DIR="$HOME/.frdc"
 BIN_DIR="$HOME/.local/bin"
 
 # --- Parse arguments ---
@@ -43,11 +43,11 @@ Run or build Friedman-cli from source on macOS (requires Julia 1.13+):
   git clone https://github.com/FriedmanJP/Friedman-cli.git
   cd Friedman-cli
   julia --project -e 'using Pkg; Pkg.instantiate()'
-  julia --project bin/friedman --help
+  julia --project bin/frdc --help
 
 Or compile a local standalone bundle (offline, zero-Julia once built):
   julia build_release.jl
-  ./build/friedman/bin/friedman --version
+  ./build/frdc/bin/frdc --version
 EOF
         exit 0
         ;;
@@ -105,7 +105,7 @@ fi
 echo "Installing standalone Friedman-cli v${VERSION} (zero Julia required)..."
 
 # --- Construct download URL ---
-ARCHIVE_NAME="friedman-v${VERSION}-${PLATFORM}-${ARCH_NAME}.tar.gz"
+ARCHIVE_NAME="frdc-v${VERSION}-${PLATFORM}-${ARCH_NAME}.tar.gz"
 DOWNLOAD_URL="https://github.com/${REPO}/releases/download/v${VERSION}/${ARCHIVE_NAME}"
 
 # --- Download archive ---
@@ -153,7 +153,9 @@ echo "Installing to ${INSTALL_DIR}..."
 mkdir -p "$TMPDIR/extract"
 tar -xzf "$TMPDIR/$ARCHIVE_NAME" -C "$TMPDIR/extract"
 
-if [ -d "$TMPDIR/extract/friedman" ]; then
+if [ -d "$TMPDIR/extract/frdc" ]; then
+    EXTRACTED="$TMPDIR/extract/frdc"
+elif [ -d "$TMPDIR/extract/friedman" ]; then
     EXTRACTED="$TMPDIR/extract/friedman"
 else
     EXTRACTED="$TMPDIR/extract"
@@ -164,12 +166,16 @@ mv "$EXTRACTED" "$INSTALL_DIR"
 
 # --- Create PATH shim ---
 mkdir -p "$BIN_DIR"
-ln -sf "$INSTALL_DIR/bin/friedman" "$BIN_DIR/friedman"
+ln -sf "$INSTALL_DIR/bin/frdc" "$BIN_DIR/frdc"
 
 # --- Verify ---
 echo ""
-"$INSTALL_DIR/bin/friedman" --version
-echo "Friedman-cli installed successfully!"
+"$INSTALL_DIR/bin/frdc" --version
+echo "Friedman-cli (frdc) installed successfully!"
+
+if [ -e "$HOME/.local/bin/friedman" ] || [ -d "$HOME/.friedman-cli" ]; then
+    echo "Note: Legacy friedman installation detected (~/.friedman-cli or ~/.local/bin/friedman); run uninstall.sh or remove it manually."
+fi
 
 # --- PATH guidance ---
 if ! echo "$PATH" | tr ':' '\n' | grep -qx "$BIN_DIR"; then
@@ -187,4 +193,4 @@ if ! echo "$PATH" | tr ':' '\n' | grep -qx "$BIN_DIR"; then
 fi
 
 echo ""
-echo "To uninstall: rm -rf ${INSTALL_DIR} ${BIN_DIR}/friedman"
+echo "To uninstall: rm -rf ${INSTALL_DIR} ${BIN_DIR}/frdc"

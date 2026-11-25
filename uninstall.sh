@@ -1,22 +1,20 @@
 #!/bin/bash
-# Uninstall Friedman-cli: removes ~/.friedman-cli and ~/.local/bin/friedman symlink
+# Uninstall Friedman-cli (frdc): removes ~/.frdc and ~/.local/bin/frdc symlink
+# (and cleans up legacy ~/.friedman-cli / ~/.local/bin/friedman if present).
 set -euo pipefail
 
-INSTALL_DIR="$HOME/.friedman-cli"
-LINK="$HOME/.local/bin/friedman"
+for LINK in "$HOME/.local/bin/frdc" "$HOME/.local/bin/friedman"; do
+    if [ -L "$LINK" ] || [ -f "$LINK" ]; then
+        rm -f "$LINK"
+        echo "Removed symlink: $LINK"
+    fi
+done
 
-if [ -L "$LINK" ] || [ -f "$LINK" ]; then
-    rm -f "$LINK"
-    echo "Removed symlink: $LINK"
-else
-    echo "No symlink found at $LINK"
-fi
+for DIR in "$HOME/.frdc" "$HOME/.friedman-cli"; do
+    if [ -d "$DIR" ]; then
+        rm -rf "$DIR"
+        echo "Removed directory: $DIR"
+    fi
+done
 
-if [ -d "$INSTALL_DIR" ]; then
-    rm -rf "$INSTALL_DIR"
-    echo "Removed directory: $INSTALL_DIR"
-else
-    echo "No install directory found at $INSTALL_DIR"
-fi
-
-echo "Friedman-cli uninstalled."
+echo "Friedman-cli (frdc) uninstalled."

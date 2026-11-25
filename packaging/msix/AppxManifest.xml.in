@@ -33,7 +33,7 @@
   <Applications>
     <Application
       Id="Friedman"
-      Executable="bin\friedman.exe"
+      Executable="bin\frdc.exe"
       EntryPoint="Windows.FullTrustApplication"
       desktop4:Subsystem="console"
       desktop4:SupportsMultipleInstances="true">
@@ -48,10 +48,10 @@
       <Extensions>
         <uap5:Extension
           Category="windows.appExecutionAlias"
-          Executable="bin\friedman.exe"
+          Executable="bin\frdc.exe"
           EntryPoint="Windows.FullTrustApplication">
           <uap5:AppExecutionAlias desktop4:Subsystem="console">
-            <uap5:ExecutionAlias Alias="friedman.exe" />
+            <uap5:ExecutionAlias Alias="frdc.exe" />
           </uap5:AppExecutionAlias>
         </uap5:Extension>
       </Extensions>

@@ -2,11 +2,11 @@
 # package (either Store-ready or sideloadable with Microsoft's unsigned OID).
 #
 # Usage:
-#   pwsh -File packaging/msix/pack_msix.ps1 -Version 1.0.7 -OutputPath build/friedman-v1.0.7-windows-x86_64.msix -Mode sideload
-#   pwsh -File packaging/msix/pack_msix.ps1 -Version 1.0.7 -OutputPath build/friedman-v1.0.7-windows-x86_64-store.msix -Mode store
+#   pwsh -File packaging/msix/pack_msix.ps1 -Version 1.1.0 -OutputPath build/frdc-v1.1.0-windows-x86_64.msix -Mode sideload
+#   pwsh -File packaging/msix/pack_msix.ps1 -Version 1.1.0 -OutputPath build/frdc-v1.1.0-windows-x86_64-store.msix -Mode store
 
 param(
-    [string]$AppDir = "build\friedman",
+    [string]$AppDir = "build\frdc",
     [Parameter(Mandatory = $true)]
     [string]$Version,
     [Parameter(Mandatory = $true)]
@@ -44,7 +44,7 @@ if (-not $Publisher) {
 }
 
 $ResolvedAppDir = (Resolve-Path $AppDir).Path
-$ExePath = Join-Path $ResolvedAppDir "bin\friedman.exe"
+$ExePath = Join-Path $ResolvedAppDir "bin\frdc.exe"
 if (-not (Test-Path $ExePath)) {
     throw "Expected standalone executable not found: $ExePath"
 }
@@ -93,7 +93,7 @@ function Escape-Xml([string]$Text) {
     return [System.Security.SecurityElement]::Escape($Text)
 }
 
-$StageDir = Join-Path ([System.IO.Path]::GetTempPath()) ("friedman-msix-stage-" + [System.Guid]::NewGuid().ToString("N"))
+$StageDir = Join-Path ([System.IO.Path]::GetTempPath()) ("frdc-msix-stage-" + [System.Guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $StageDir -Force | Out-Null
 
 try {

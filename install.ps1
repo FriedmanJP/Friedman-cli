@@ -6,16 +6,16 @@
 #   irm https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.ps1 | iex
 #
 # Specific version (set env var before piping):
-#   $env:FRIEDMAN_VERSION = "1.0.7"; irm https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.ps1 | iex
+#   $env:FRDC_VERSION = "1.1.0"; irm https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.ps1 | iex
 
 $ErrorActionPreference = "Stop"
 
 $Repo = "FriedmanJP/Friedman-cli"
-$InstallDir = Join-Path $env:USERPROFILE ".friedman-cli"
+$InstallDir = Join-Path $env:USERPROFILE ".frdc"
 $BinDir = Join-Path $InstallDir "bin"
 
 # --- Parse version ---
-$Version = $env:FRIEDMAN_VERSION
+$Version = if ($env:FRDC_VERSION) { $env:FRDC_VERSION } else { $env:FRIEDMAN_VERSION }
 if (-not $Version) {
     Write-Host "Fetching latest release..."
     try {
@@ -23,7 +23,7 @@ if (-not $Version) {
         $Version = $Release.tag_name -replace '^v', ''
     } catch {
         Write-Host "Error: Failed to fetch latest release from GitHub API." -ForegroundColor Red
-        Write-Host 'You may be rate-limited. Try setting $env:FRIEDMAN_VERSION = "1.0.7" before running.' -ForegroundColor Yellow
+        Write-Host 'You may be rate-limited. Try setting $env:FRDC_VERSION = "1.1.0" before running.' -ForegroundColor Yellow
         exit 1
     }
 }
@@ -33,14 +33,14 @@ if (-not $Version) {
     exit 1
 }
 
-Write-Host "Installing standalone Friedman-cli v$Version (zero Julia required)..."
+Write-Host "Installing standalone Friedman-cli (frdc) v$Version (zero Julia required)..."
 
 # --- Construct download URL ---
-$ArchiveName = "friedman-v$Version-windows-x86_64.zip"
+$ArchiveName = "frdc-v$Version-windows-x86_64.zip"
 $DownloadUrl = "https://github.com/$Repo/releases/download/v$Version/$ArchiveName"
 
 # --- Download archive ---
-$TmpDir = Join-Path ([System.IO.Path]::GetTempPath()) "friedman-install-$(Get-Random)"
+$TmpDir = Join-Path ([System.IO.Path]::GetTempPath()) "frdc-install-$(Get-Random)"
 New-Item -ItemType Directory -Path $TmpDir -Force | Out-Null
 
 try {
@@ -78,8 +78,11 @@ try {
     $ExtractDir = Join-Path $TmpDir "extract"
     Expand-Archive -Path $ArchivePath -DestinationPath $ExtractDir -Force
 
-    # The archive contains a top-level friedman/ directory
-    $Extracted = Join-Path $ExtractDir "friedman"
+    # The archive contains a top-level frdc/ directory
+    $Extracted = Join-Path $ExtractDir "frdc"
+    if (-not (Test-Path $Extracted)) {
+        $Extracted = Join-Path $ExtractDir "friedman"
+    }
     if (-not (Test-Path $Extracted)) {
         $Extracted = $ExtractDir
     }
@@ -100,14 +103,18 @@ try {
     }
 
     # --- Verify ---
-    $FriedmanExe = Join-Path $BinDir "friedman.exe"
-    if (Test-Path $FriedmanExe) {
+    $FrdcExe = Join-Path $BinDir "frdc.exe"
+    if (Test-Path $FrdcExe) {
         Write-Host ""
-        & $FriedmanExe --version
-        Write-Host "Friedman-cli installed successfully!" -ForegroundColor Green
+        & $FrdcExe --version
+        Write-Host "Friedman-cli (frdc) installed successfully!" -ForegroundColor Green
     } else {
         Write-Host ""
-        Write-Host "Friedman-cli installed to $InstallDir" -ForegroundColor Green
+        Write-Host "Friedman-cli (frdc) installed to $InstallDir" -ForegroundColor Green
+    }
+    $LegacyDir = Join-Path $env:USERPROFILE ".friedman-cli"
+    if (Test-Path $LegacyDir) {
+        Write-Host "Note: Legacy installation detected at $LegacyDir; you may remove it once migrated to frdc." -ForegroundColor Yellow
     }
 
     Write-Host ""
