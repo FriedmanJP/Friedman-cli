@@ -67,7 +67,7 @@ function _default_edit_output(input::String, suffix::String)
 end
 
 function _write_macro_data(obj, output::String; input_path::String, default_stem::String="",
-                          warn_metadata::Bool=false)
+                          warn_metadata::Bool=false, include_dates::Bool=true)
     resolved_in = try
         resolve_stem(input_path; slot=:data)
     catch
@@ -103,14 +103,11 @@ function _write_macro_data(obj, output::String; input_path::String, default_stem
         end
     end
     if want_jld || _is_handle_path(output)
-        save_model_dispatch(output, obj)
+        save_model_dispatch(output, obj; artifact_kind="data")
     else
-        df = DataFrame(to_matrix(obj), varnames(obj))
-        if nameof(typeof(obj)) === :PanelData
-            insertcols!(df, 1, :group => obj.group_id, :time => obj.time_id; makeunique=true)
-        end
+        df = _coerce_tabular_dataframe(obj, input_path; include_dates=include_dates)
         _atomic_write(output, tmp -> CSV.write(tmp, df))
-        (input_handle || warn_metadata) && _status("CSV export dropped frequency/tcode/dates metadata")
+        (input_handle || warn_metadata) && _status("CSV export dropped frequency/tcode metadata")
     end
     _status("Written to $output")
     return output

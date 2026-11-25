@@ -129,9 +129,18 @@ end
 
         miss = joinpath(dir, "miss.csv")
         CSV.write(miss, DataFrame(y1=[1.0, missing, 3.0], y2=[1.0, 2.0, 3.0]))
+        # Default (#307): blank CSV cells convert to Float64(NaN) so diagnose/fix/nowcast pipelines work
+        _capture() do
+            _data_import(; data=miss, kind="timeseries", output=joinpath(dir, "miss_nan"))
+        end
+        miss_obj = load_model_dispatch(joinpath(dir, "miss_nan.jld2"))
+        @test miss_obj isa TimeSeriesData
+        @test isnan(miss_obj.data[2, 1])
+
+        # --strict-missing opts in to immediate exit-3 rejection
         err = try
             _capture() do
-                _data_import(; data=miss, kind="timeseries",
+                _data_import(; data=miss, kind="timeseries", strict_missing=true,
                              output=joinpath(dir, "miss"))
             end
             nothing

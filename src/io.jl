@@ -552,11 +552,18 @@ resolve at call time. `model://` skips `FRIEDMAN_DATA_ROOT` confinement (same as
 wrap_legacy). Only `:timeseries` / `:panel` / `:cross_section` convert to a
 DataFrame; `:io` and other payloads are `data/wrong-kind`.
 """
-function _coerce_tabular_dataframe(obj, path::String)::DataFrame
+function _coerce_tabular_dataframe(obj, path::String; include_dates::Bool=false)::DataFrame
     k = _data_kind_of(obj)
     if k in (:timeseries, :panel, :cross_section)
         df = DataFrame(to_matrix(obj), varnames(obj); makeunique=true)
-        k === :panel && insertcols!(df, 1, :group => obj.group_id, :time => obj.time_id; makeunique=true)
+        if k === :panel
+            insertcols!(df, 1, :group => obj.group_id, :time => obj.time_id; makeunique=true)
+        elseif k === :timeseries && include_dates && hasproperty(obj, :dates)
+            dts = obj.dates
+            if dts isa AbstractVector && length(dts) == nrow(df) && !all(isempty, dts)
+                insertcols!(df, 1, :dates => String[string(d) for d in dts]; makeunique=true)
+            end
+        end
         nrow(df) == 0 && throw(CliError("data/empty", "empty dataset: $path"))
         return df
     elseif k === :tabular

@@ -30,6 +30,26 @@ Non-finiteness needs the explicit `isa Real` check: `isnan`/`isinf`/`isfinite`
 are undefined on `missing` and on non-Real values, and a bare broadcast would throw."""
 _is_gap(v) = v === missing || (v isa Real && !isfinite(v))
 
+"""
+    _check_finite_col!(col, colname; allow_nan=false)
+
+Standardized finite-value guard shared across all univariate, multivariate, and
+panel data loaders (both raw files and handles, #307). Rejects `Inf`/`-Inf`
+unconditionally as `data/non-finite-values` (exit 3) and rejects `missing`/`NaN`
+as `data/missing-values` (exit 3) unless `allow_nan=true`.
+"""
+function _check_finite_col!(col, colname::AbstractString; allow_nan::Bool=false)
+    n_inf = count(v -> v isa Real && isinf(v), col)
+    n_inf > 0 && throw(CliError("data/non-finite-values",
+        "column '$colname' contains $n_inf non-finite (Inf/-Inf) value(s); clean or drop them (e.g. via `data dropna`/`data fix`) first"))
+    if !allow_nan
+        n_miss = count(v -> v === missing || (v isa Real && isnan(v)), col)
+        n_miss > 0 && throw(CliError("data/missing-values",
+            "column '$colname' contains missing values ($n_miss missing/NaN); drop or impute them (e.g. via `data dropna`/`data fix`) first"))
+    end
+    return nothing
+end
+
 # ── Data Loading Helpers ───────────────────────────────────
 
 """
@@ -37,35 +57,23 @@ _is_gap(v) = v === missing || (v isa Real && !isfinite(v))
 
 Load CSV or a typed data handle, convert to a numeric matrix and extract variable names.
 CSV path is bit-identical to `load_data` + `df_to_matrix`; a handle uses `to_matrix`/`varnames`.
-Gap cells reject as typed `data/missing-values` unless `allow_nan` (nowcasting only).
+Gap/non-finite cells reject as typed exit-3 (`data/missing-values` / `data/non-finite-values`)
+unless `allow_nan` (nowcasting only; `Inf`/`-Inf` are always rejected).
 """
 function load_multivariate_data(data::String; allow_nan::Bool=false)
     obj = resolve_data(data)
     if obj isa DataFrame
         df = obj
         vn = variable_names(df)
-        # Guard gap cells (blank `missing` or literal `NaN`) as a typed data error BEFORE
-        # df_to_matrix's Matrix{Float64} conversion (which throws an untyped ArgumentError
-        # → uncaught exit-1) or an upstream NaN validator does — UNLESS the caller
-        # opts out via allow_nan (nowcasting estimators digest ragged-edge NaN
-        # upstream: bridge/bvar/DFM handle arbitrary missing patterns by design).
-        if !allow_nan
-            for c in vn
-                any(_is_gap, df[!, c]) && throw(CliError("data/missing-values",
-                    "column '$c' contains missing values; drop or impute them (e.g. via `data dropna`/`data fix`) first"))
-            end
+        for c in vn
+            _check_finite_col!(df[!, c], c; allow_nan=allow_nan)
         end
         return df_to_matrix(df), vn
     end
     Y = to_matrix(obj)
     vn = Vector{String}(varnames(obj))
-    # A saved handle can itself carry NaN; reject it with the same typed error rather
-    # than an untyped upstream validator failure (honored unless allow_nan).
-    if !allow_nan
-        for (j, c) in enumerate(vn)
-            any(isnan, @view Y[:, j]) && throw(CliError("data/missing-values",
-                "column '$c' contains missing values; drop or impute them (e.g. via `data dropna`/`data fix`) first"))
-        end
+    for (j, c) in enumerate(vn)
+        _check_finite_col!(@view(Y[:, j]), c; allow_nan=allow_nan)
     end
     return Y, vn
 end
@@ -83,8 +91,7 @@ function load_univariate_series(data::String, column::Int)
         (column < 1 || column > length(vn)) && throw(CliError("data/column-range",
             "column $column out of range (data has $(length(vn)) numeric column(s))";
             hint="--column is 1-based; pick 1..$(length(vn))"))
-        any(isnan, @view Y[:, column]) && throw(CliError("data/missing-values",
-            "column '$(vn[column])' contains missing values; drop or impute them (e.g. via `data dropna`/`data fix`) first"))
+        _check_finite_col!(@view(Y[:, column]), vn[column]; allow_nan=false)
         return Vector{Float64}(Y[:, column]), vn[column]
     end
     df = obj
@@ -93,8 +100,7 @@ function load_univariate_series(data::String, column::Int)
         "column $column out of range (data has $(length(varnames_)) numeric column(s))";
         hint="--column is 1-based; pick 1..$(length(varnames_))"))
     col = df[!, varnames_[column]]
-    any(_is_gap, col) && throw(CliError("data/missing-values",
-        "column '$(varnames_[column])' contains missing values; drop or impute them (e.g. via `data dropna`/`data fix`) first"))
+    _check_finite_col!(col, varnames_[column]; allow_nan=false)
     return Vector{Float64}(col), varnames_[column]
 end
 
@@ -1512,34 +1518,40 @@ Load a panel CSV via xtset(), or return a PanelData handle as-is.
 CSV still requires --id-col/--time-col; a `.jld2`/`.fmod`/`model://` PanelData
 handle does not.
 """
-function load_panel_data(data::String, id_col::String, time_col::String)
+function load_panel_data(data::String, id_col::String, time_col::String; allow_nan::Bool=false)
+    df = nothing
     if _is_handle_path(data)
         obj = load_model_dispatch(data)
         k = _data_kind_of(obj)
-        k === :panel && return obj
-        throw(CliError("data/wrong-kind",
-            "$data is a $k handle ($(nameof(typeof(obj)))); this command expects PanelData";
-            hint="data import --kind panel, or pass a panel CSV with --id-col/--time-col"))
+        if k === :panel
+            Y = to_matrix(obj)
+            vn = Vector{String}(MacroEconometricModels.varnames(obj))
+            for (j, c) in enumerate(vn)
+                _check_finite_col!(@view(Y[:, j]), c; allow_nan=allow_nan)
+            end
+            return obj
+        elseif k === :tabular
+            df = _coerce_tabular_dataframe(obj, data)
+        else
+            throw(CliError("data/wrong-kind",
+                "$data is a $k handle ($(nameof(typeof(obj)))); this command expects PanelData";
+                hint="data import --kind panel, or pass a panel CSV/DataFrame handle with --id-col/--time-col"))
+        end
     end
     isempty(id_col) && throw(CliError("usage/missing",
         "panel data requires --id-col to specify the group identifier column"))
     isempty(time_col) && throw(CliError("usage/missing",
         "panel data requires --time-col to specify the time period column"))
-    df = load_data(data)
+    df === nothing && (df = load_data(data))
     id_col in names(df) || throw(CliError("data/missing-column", "id column '$id_col' not found in data (columns: $(join(names(df), ", ")))"))
     time_col in names(df) || throw(CliError("data/missing-column", "time column '$time_col' not found in data (columns: $(join(names(df), ", ")))"))
     # Get numeric variable columns excluding id and time (matches xtset's own
     # num_cols filter; passed explicitly so the panel keeps CLI-facing names).
-    varnames = [n for n in variable_names(df) if n != id_col && n != time_col]
-    isempty(varnames) && throw(CliError("data/invalid",
+    pvarnames = [n for n in variable_names(df) if n != id_col && n != time_col]
+    isempty(pvarnames) && throw(CliError("data/invalid",
         "no numeric variable columns found after excluding id='$id_col'/time='$time_col'; a panel needs at least one numeric variable column"))
-    # Reject gap cells (blank `missing` or literal `NaN`) BEFORE xtset: it silently
-    # NaN-fills a blank cell, which would otherwise propagate to NaN coefficients at
-    # exit 0 — or hit an untyped upstream validator for literal NaN input (exit 1).
-    # Same typed `data/missing-values` (exit 3) as every other shared loader.
-    for c in varnames
-        any(_is_gap, df[!, c]) && throw(CliError("data/missing-values",
-            "column '$c' contains missing values; drop or impute them (e.g. via `data dropna`/`data fix`) first"))
+    for c in pvarnames
+        _check_finite_col!(df[!, c], c; allow_nan=allow_nan)
     end
     # MEMs 0.7.0 xtset takes (df, group_col::Symbol, time_col::Symbol; ...) and
     # resolves group/time ID mapping internally (C054: the old Matrix/Vector
@@ -1548,7 +1560,7 @@ function load_panel_data(data::String, id_col::String, time_col::String)
     # data error so bad user input never surfaces as an internal exit-1 (benefits the whole
     # panel family: pvar/cips/hausman/pedroni/kao/westerlund).
     return try
-        xtset(df, Symbol(id_col), Symbol(time_col); varnames=varnames)
+        xtset(df, Symbol(id_col), Symbol(time_col); varnames=pvarnames)
     catch e
         e isa CliError && rethrow()
         e isa ArgumentError && throw(CliError("data/invalid", "invalid panel structure: $(e.msg)";
@@ -1929,17 +1941,36 @@ Load data as PanelData if id_col/time_col are provided, else as Matrix.
 function _load_panel_or_matrix(data::String; id_col::String="", time_col::String="")
     if _is_handle_path(data)
         obj = load_model_dispatch(data)
-        if _data_kind_of(obj) === :panel
+        k = _data_kind_of(obj)
+        if k === :panel
+            Y = to_matrix(obj)
+            vn = Vector{String}(varnames(obj))
+            for (j, c) in enumerate(vn)
+                _check_finite_col!(@view(Y[:, j]), c; allow_nan=false)
+            end
             _status_styled("  Panel: $(obj.n_groups) units, $(div(obj.T_obs, obj.n_groups)) periods\n"; color=:cyan)
             return obj, true
-        elseif _data_kind_of(obj) === :timeseries
-            Y = Float64.(obj.data)
+        elseif k === :timeseries
+            Y = Float64.(to_matrix(obj))
+            vn = Vector{String}(varnames(obj))
+            for (j, c) in enumerate(vn)
+                _check_finite_col!(@view(Y[:, j]), c; allow_nan=false)
+            end
+            _status("  Matrix: $(size(Y, 1)) obs × $(size(Y, 2)) units")
+            return Y, false
+        elseif k === :tabular
+            if !isempty(id_col) && !isempty(time_col)
+                pd = load_panel_data(data, id_col, time_col)
+                _status_styled("  Panel: $(pd.n_groups) units, $(div(pd.T_obs, pd.n_groups)) periods\n"; color=:cyan)
+                return pd, true
+            end
+            Y, _ = load_multivariate_data(data)
             _status("  Matrix: $(size(Y, 1)) obs × $(size(Y, 2)) units")
             return Y, false
         end
         obj isa AbstractMatrix && return Float64.(obj), false
         throw(CliError("data/wrong-kind",
-            "$data is a $(_data_kind_of(obj)) handle ($(nameof(typeof(obj)))); expected panel or timeseries/matrix data"))
+            "$data is a $k handle ($(nameof(typeof(obj)))); expected panel or timeseries/matrix data"))
     elseif !isempty(id_col) && !isempty(time_col)
         pd = load_panel_data(data, id_col, time_col)
         _status_styled("  Panel: $(pd.n_groups) units, $(div(pd.T_obs, pd.n_groups)) periods\n"; color=:cyan)

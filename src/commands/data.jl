@@ -42,7 +42,8 @@ function data_specs()::Vector{CommandSpec}
                 OptionSpec(name="vars", type=String, default="", description="Comma-separated variable subset (bundled datasets only; ignored with --path)"),
                 OptionSpec(name="country", type=String, default="", description="Country label in status line only (no filtering) (bundled datasets only; ignored with --path)"),
                 OptionSpec(name="dates", type=String, default="", description="CSV/--path and timeseries date-label column (ignored for panels)"),
-                OptionSpec(name="path", type=String, default="", description="Path to data file (.csv, .jld2, .jls; alternative to named dataset)")
+                OptionSpec(name="path", type=String, default="", description="Path to data file (.csv, .jld2, .jls; alternative to named dataset)"),
+                OptionSpec(name="kind", type=String, default="", choices=["timeseries", "panel", "cross-section"], description="Optional container kind override when loading via --path")
             ],
             flags=[FlagSpec(name="transform", short="t", description="Apply stored FRED tcodes (timeseries only) (bundled datasets only; ignored with --path)")],
             tables=[TableSpec(name=:loaded_data,
@@ -219,7 +220,10 @@ function data_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table",
                            description="table|csv|json", choices=["table", "csv", "json"]),
             ],
-            flags=FlagSpec[],
+            flags=[
+                FlagSpec(name="strict-missing",
+                         description="Reject CSVs with blank/missing numeric cells (exit 3) instead of converting to NaN"),
+            ],
             tables=[TableSpec(name=:imported_data,
                               description="Imported handle kind, dimensions, frequency and path")],
             category="data",
@@ -237,7 +241,10 @@ function data_specs()::Vector{CommandSpec}
                 OptionSpec(name="format", short="f", type=String, default="table",
                            description="table|csv|json", choices=["table", "csv", "json"]),
             ],
-            flags=FlagSpec[],
+            flags=[
+                FlagSpec(name="no-dates",
+                         description="Omit date labels column when exporting TimeSeriesData"),
+            ],
             tables=[TableSpec(name=:exported_data,
                               description="Exported dataset rows (streamed to stdout or included in JSON envelope)")],
             category="data",
@@ -261,7 +268,7 @@ function register_data_commands!()
             # data filter returns a DataFrame — do not tag MEMs filter result types.
             push!(specs, _copy_spec(s; data_kinds=[:timeseries, :panel, :cross_section, :csv]))
         elseif leaf == "load"
-            push!(specs, _copy_spec(s; data_kinds=[:csv]))
+            push!(specs, _copy_spec(s; data_kinds=[:csv, :timeseries, :panel, :cross_section]))
         else
             # import already has kinds; export already has three-container kinds without :csv;
             # list has no data slot.
@@ -309,55 +316,121 @@ end
 
 function _data_load(; name::String="", output::String="", format::String="table",
                      vars::String="", country::String="", transform::Bool=false,
-                     dates::String="", path::String="")
+                     dates::String="", path::String="", kind::String="")
     if isempty(name) && isempty(path)
         throw(CliError("usage/missing",
                        "give an example dataset name or --path <file.csv>";
                        hint="run 'frdc data list' to see the available datasets"))
     end
 
-    # If --path is given, load from CSV instead of example datasets
+    # If --path is given, load from file or handle instead of example datasets
     if !isempty(path)
         isempty(name) || _status("Both <name> and --path given; loading --path $path")
-        path = _expanduser(path)
-        df = load_data(path)
-        Y = df_to_matrix(df)
-        vn = variable_names(df)
-        n_obs, n_vars = size(Y)
+        ref = resolve_read_ref(path; slot=:data)
+        resolved = ref_string(ref)
+        label = _is_session_uri(resolved) ? resolved : basename(resolved)
 
-        ts = TimeSeriesData(Y; varnames=vn, tcode=fill(1, n_vars), time_index=collect(1:n_obs))
-
-        if !isempty(dates)
-            if dates in names(df)
-                date_values = string.(df[!, dates])
-                set_dates!(ts, date_values)
-                _status_styled("  Date labels set from column: $dates\n"; color=:cyan)
+        if _is_handle_path(resolved)
+            loaded_obj = load_model_dispatch(resolved)
+            k_in = _data_kind_of(loaded_obj)
+            k_in in (:timeseries, :panel, :cross_section, :tabular) || throw(CliError("data/wrong-kind",
+                "$resolved is not a data container (got $(typeof(loaded_obj)))";
+                hint="pass a TimeSeriesData, PanelData, CrossSectionData, or tabular DataFrame handle"))
+            out_obj = if !isempty(kind)
+                want = _parse_kind(kind)
+                df_src = _coerce_tabular_dataframe(loaded_obj, resolved; include_dates=true)
+                if want === :timeseries
+                    vn_s = variable_names(df_src)
+                    Y_s = _cols_to_float_matrix(df_src, vn_s)
+                    TimeSeriesData(Y_s; varnames=vn_s, tcode=fill(1, length(vn_s)),
+                                   time_index=collect(1:size(Y_s, 1)))
+                elseif want === :cross_section
+                    vn_s = variable_names(df_src)
+                    CrossSectionData(_cols_to_float_matrix(df_src, vn_s); varnames=vn_s)
+                else
+                    k_in === :panel ? loaded_obj :
+                        throw(CliError("usage/invalid",
+                            "data load --kind panel requires a PanelData handle or `data import --kind panel --id-col ... --time-col ...`"))
+                end
             else
-                _status_styled("  Warning: dates column '$dates' not found in data\n"; color=:yellow)
+                loaded_obj
             end
+            if !isempty(dates) && out_obj isa TimeSeriesData
+                df_d = _coerce_tabular_dataframe(out_obj, resolved; include_dates=true)
+                if dates in names(df_d)
+                    set_dates!(out_obj, String[String(string(x)) for x in df_d[!, dates]])
+                    _status_styled("  Date labels set from column: $dates\n"; color=:cyan)
+                else
+                    _status_styled("  Warning: dates column '$dates' not found in data\n"; color=:yellow)
+                end
+            end
+            out_df = _coerce_tabular_dataframe(out_obj, resolved; include_dates=true)
+            n_obs, n_vars = size(out_df)
+            if isempty(output)
+                _status("Loaded $label: $n_obs × $n_vars ($(nameof(typeof(out_obj))))")
+                output_result(out_df; format=Symbol(format), output="",
+                              title="Loaded Data ($label)", key="loaded_data")
+            else
+                if !_is_session_uri(output)
+                    output = _validate_output_path(output; create_parents=true)
+                end
+                if _is_handle_path(output)
+                    output = save_model_dispatch(output, out_obj; artifact_kind="data")
+                else
+                    _atomic_write(output, tmp -> CSV.write(tmp, out_df))
+                    envelope_active() && _add_artifact_once!(_ENVELOPE[], "file", output)
+                end
+                envelope_active() && output_result(out_df; format=Symbol(format), output="",
+                                                   title="Loaded Data ($label)", key="loaded_data")
+                _status("Loaded $label: $n_obs × $n_vars ($(nameof(typeof(out_obj))))")
+                _status("Written to $output")
+            end
+            return out_obj
         end
 
-        out_df = DataFrame(Y, vn)
+        df = load_data(resolved)
+        vn = variable_names(df)
+        isempty(vn) && throw(CliError("data/no-numeric-columns", "no numeric columns found in data"))
+        Y = _cols_to_float_matrix(df, vn)
+        n_obs, n_vars = size(Y)
+
+        out_obj = if !isempty(kind) && _parse_kind(kind) === :cross_section
+            CrossSectionData(Y; varnames=vn)
+        else
+            ts = TimeSeriesData(Y; varnames=vn, tcode=fill(1, n_vars), time_index=collect(1:n_obs))
+            if !isempty(dates)
+                if dates in names(df)
+                    date_values = String[String(string(x)) for x in df[!, dates]]
+                    set_dates!(ts, date_values)
+                    _status_styled("  Date labels set from column: $dates\n"; color=:cyan)
+                else
+                    _status_styled("  Warning: dates column '$dates' not found in data\n"; color=:yellow)
+                end
+            end
+            ts
+        end
+
+        out_df = _coerce_tabular_dataframe(out_obj, resolved; include_dates=true)
         if isempty(output)
-            _status("Loaded $(basename(path)): $n_obs × $n_vars")
+            _status("Loaded $label: $n_obs × $n_vars")
             output_result(out_df; format=Symbol(format), output="",
-                          title="Loaded Data ($(basename(path)))", key="loaded_data")
+                          title="Loaded Data ($label)", key="loaded_data")
         else
             if !_is_session_uri(output)
                 output = _validate_output_path(output; create_parents=true)
             end
             if _is_handle_path(output)
-                output = save_model_dispatch(output, ts; artifact_kind="data")
+                output = save_model_dispatch(output, out_obj; artifact_kind="data")
             else
                 _atomic_write(output, tmp -> CSV.write(tmp, out_df))
                 envelope_active() && _add_artifact_once!(_ENVELOPE[], "file", output)
             end
             envelope_active() && output_result(out_df; format=Symbol(format), output="",
-                                               title="Loaded Data ($(basename(path)))", key="loaded_data")
-            _status("Loaded $(basename(path)): $n_obs × $n_vars")
+                                               title="Loaded Data ($label)", key="loaded_data")
+            _status("Loaded $label: $n_obs × $n_vars")
             _status("Written to $output")
         end
-        return nothing
+        return out_obj
     end
 
     name_sym = parse_dataset_name(name)
@@ -458,7 +531,7 @@ function _data_load(; name::String="", output::String="", format::String="table"
         if !isempty(dates) && is_ts
             # For named datasets, dates column would need to be in the variable names
             if dates in vn
-                date_values = string.(data_mat[:, findfirst(==(dates), vn)])
+                date_values = String[String(string(x)) for x in data_mat[:, findfirst(==(dates), vn)]]
                 set_dates!(dataset, date_values)
                 _status_styled("  Date labels set from column: $dates\n"; color=:cyan)
             else
@@ -725,10 +798,15 @@ function _data_balance(; data::String, method::String="dfm", factors::Int=3,
 
     balanced = balance_panel(ts; method=Symbol(method), r=factors, p=lags)
     _persist_edit(balanced, data, output, "_balanced")
-    bal_Y = hasproperty(balanced, :data) ? balanced.data : to_matrix(balanced)
-    result_df = DataFrame(bal_Y, vn)
+    result_df = if _data_kind_of(balanced) in (:timeseries, :panel, :cross_section)
+        _coerce_tabular_dataframe(balanced, data; include_dates=true)
+    else
+        bal_Y = hasproperty(balanced, :data) ? balanced.data : to_matrix(balanced)
+        DataFrame(bal_Y, vn)
+    end
     output_result(result_df; format=Symbol(format), output="",
                   title="Balanced Panel (method=$method, r=$factors, p=$lags)", key="balanced_panel")
+    return balanced
 end
 
 function _data_dropna(; data::String, vars::String="",
@@ -761,7 +839,7 @@ function _data_dropna(; data::String, vars::String="",
     _status()
 
     _persist_edit(cleaned, data, output, "_dropna")
-    result_df = DataFrame(to_matrix(cleaned), varnames(cleaned))
+    result_df = _coerce_tabular_dataframe(cleaned, data; include_dates=true)
     output_result(result_df; format=Symbol(format), output="", title="Cleaned Data")
     return cleaned
 end
@@ -804,7 +882,7 @@ function _data_keeprows(; data::String, rows::String="",
     _status()
 
     _persist_edit(filtered, data, output, "_rows")
-    result_df = DataFrame(to_matrix(filtered), varnames(filtered))
+    result_df = _coerce_tabular_dataframe(filtered, data; include_dates=true)
     output_result(result_df; format=Symbol(format), output="", title="Filtered Data")
     return filtered
 end
@@ -890,9 +968,25 @@ function _import_mems_error(e)
     return e
 end
 
+"""Convert DataFrame numeric columns to `Matrix{Float64}`, mapping `missing` → `NaN`."""
+function _cols_to_float_matrix(df::DataFrame, vn::Vector{String})::Matrix{Float64}
+    nr = nrow(df)
+    nc = length(vn)
+    Y = Matrix{Float64}(undef, nr, nc)
+    for (j, c) in enumerate(vn)
+        col = df[!, c]
+        @inbounds for i in 1:nr
+            v = col[i]
+            Y[i, j] = ismissing(v) ? NaN : Float64(v)
+        end
+    end
+    return Y
+end
+
 function _data_import(; data::String, kind::String="", frequency::String="other",
                        dates::String="", id_col::String="", time_col::String="",
                        vars::String="", tcodes::String="", note::String="",
+                       strict_missing::Bool=false,
                        output::String="", format::String="table")
     src = data
     loaded_raw = nothing
@@ -905,7 +999,7 @@ function _data_import(; data::String, kind::String="", frequency::String="other"
             loaded_raw = load_model_dispatch(src)
             k_in = _data_kind_of(loaded_raw)
             # Import promotes CSV | :example | .jls | plain .jld2 tabular → native .jld2 handle;
-            # an existing native .jld2/.fmod/model:// typed MEMs container is still rejected.
+            # an existing native .jld2/.fmod/session typed MEMs container is still rejected.
             if !endswith(lowercase(src), ".jls") && k_in in (:timeseries, :panel, :cross_section, :io)
                 throw(CliError("usage/invalid",
                     "data import reads CSV, :example, .jls, or raw tabular .jld2, not an existing $k_in handle";
@@ -919,6 +1013,9 @@ function _data_import(; data::String, kind::String="", frequency::String="other"
         out_path = _validate_output_path(out_path; create_parents=true)
     end
 
+    freq_explicit = (frequency != "other") ||
+        (isdefined(@__MODULE__, :_CURRENT_EXPLICIT_OPTS) && ("frequency" in _CURRENT_EXPLICIT_OPTS[]))
+
     obj = if startswith(src, ":")
         ds = _load_example(parse_dataset_name(src))
         inferred = _data_kind_of(ds)
@@ -926,6 +1023,62 @@ function _data_import(; data::String, kind::String="", frequency::String="other"
             want = _parse_kind(kind)
             want === inferred || throw(CliError("data/wrong-kind",
                 ":example is $inferred; --kind $kind does not match"))
+        end
+        # Honor --vars, --tcodes, --frequency, --dates overrides on :example (#307)
+        vn_all = Vector{String}(varnames(ds))
+        col_idx = if !isempty(vars)
+            keep = String[String(strip(s)) for s in split(vars, ",") if !isempty(strip(s))]
+            idxs = Int[]
+            for v in keep
+                idx = findfirst(==(v), vn_all)
+                idx === nothing && throw(CliError("data/column-range",
+                    "variable '$v' not found in $src";
+                    hint="available: $(join(vn_all[1:min(8, length(vn_all))], ", "))"))
+                push!(idxs, idx)
+            end
+            idxs
+        else
+            collect(1:length(vn_all))
+        end
+        need_rebuild = !isempty(vars) || !isempty(tcodes) || freq_explicit
+        if need_rebuild
+            vn_sub = vn_all[col_idx]
+            Y_sub = Matrix{Float64}(to_matrix(ds)[:, col_idx])
+            if inferred === :timeseries
+                eff_freq = freq_explicit ? _frequency_value(frequency) :
+                    (hasproperty(ds, :frequency) ? ds.frequency : _frequency_value("other"))
+                eff_tc = if !isempty(tcodes)
+                    _parse_tcodes(tcodes, length(vn_sub))
+                elseif hasproperty(ds, :tcode) && length(ds.tcode) >= maximum(col_idx)
+                    Int.(ds.tcode[col_idx])
+                else
+                    fill(1, length(vn_sub))
+                end
+                ti_kw = hasproperty(ds, :time_index) ? (; time_index=collect(ds.time_index)) :
+                        (; time_index=collect(1:size(Y_sub, 1)))
+                ts_new = TimeSeriesData(Y_sub; varnames=vn_sub, frequency=eff_freq,
+                                        tcode=eff_tc, ti_kw...)
+                if hasproperty(ds, :dates) && ds.dates isa AbstractVector && length(ds.dates) == size(Y_sub, 1) && !isempty(ds.dates)
+                    set_dates!(ts_new, String[string(d) for d in ds.dates])
+                end
+                ds = ts_new
+            elseif inferred === :panel
+                eff_freq = freq_explicit ? _frequency_value(frequency) :
+                    (hasproperty(ds, :frequency) ? ds.frequency : _frequency_value("other"))
+                df_p = DataFrame(Y_sub, vn_sub; makeunique=true)
+                insertcols!(df_p, 1, :group => ds.group_id, :time => ds.time_id; makeunique=true)
+                ds = xtset(df_p, :group, :time; varnames=vn_sub, frequency=eff_freq)
+            else
+                ds = CrossSectionData(Y_sub; varnames=vn_sub)
+            end
+        end
+        if !isempty(dates) && inferred === :timeseries
+            vn_cur = Vector{String}(varnames(ds))
+            idx_d = findfirst(==(dates), vn_cur)
+            idx_d === nothing && throw(CliError("data/column-range",
+                "dates column '$dates' not found in $src";
+                hint="available: $(join(vn_cur[1:min(8, length(vn_cur))], ", "))"))
+            set_dates!(ds, String[String(string(x)) for x in to_matrix(ds)[:, idx_d]])
         end
         ds
     else
@@ -946,6 +1099,9 @@ function _data_import(; data::String, kind::String="", frequency::String="other"
         if want === :panel
             _require_columns(df, String[id_col]; label="id column")
             _require_columns(df, String[time_col]; label="time column")
+            (any(ismissing, df[!, id_col]) || any(ismissing, df[!, time_col])) &&
+                throw(CliError("data/missing-values",
+                    "panel identifier columns '$id_col'/'$time_col' cannot contain missing values"))
         end
         if !isempty(dates)
             _require_columns(df, String[dates]; label="dates column")
@@ -963,22 +1119,26 @@ function _data_import(; data::String, kind::String="", frequency::String="other"
         exclude = Set{String}(extra)
         vn = [n for n in variable_names(df) if n ∉ exclude]
         isempty(vn) && throw(CliError("data/no-numeric-columns", "no numeric columns found in data"))
-        _reject_missing_numeric(df, vn)
+        strict_missing && _reject_missing_numeric(df, vn)
         try
             if want === :timeseries
-                Y = Matrix{Float64}(df[!, vn])
+                Y = _cols_to_float_matrix(df, vn)
                 codes = _parse_tcodes(tcodes, length(vn))
                 ts = TimeSeriesData(Y; varnames=vn, frequency=_frequency_value(frequency),
                                     tcode=codes, time_index=collect(1:size(Y, 1)))
                 if !isempty(dates)
-                    set_dates!(ts, string.(df[!, dates]))
+                    set_dates!(ts, String[String(string(x)) for x in df[!, dates]])
                 end
                 ts
             elseif want === :panel
-                xtset(df[!, unique(vcat(String[id_col, time_col], vn))],
-                      Symbol(id_col), Symbol(time_col); frequency=_frequency_value(frequency))
+                df_panel = copy(df[!, unique(vcat(String[id_col, time_col], vn))])
+                for c in vn
+                    df_panel[!, c] = Float64[ismissing(v) ? NaN : Float64(v) for v in df_panel[!, c]]
+                end
+                xtset(df_panel, Symbol(id_col), Symbol(time_col);
+                      varnames=vn, frequency=_frequency_value(frequency))
             else
-                Y = Matrix{Float64}(df[!, vn])
+                Y = _cols_to_float_matrix(df, vn)
                 CrossSectionData(Y; varnames=vn)
             end
         catch e
@@ -987,28 +1147,30 @@ function _data_import(; data::String, kind::String="", frequency::String="other"
     end
 
     # Single-pass atomic persist carrying `note` and `_frdc_meta` (no double write).
-    out_path = save_model_dispatch(out_path, obj; note=note)
+    out_path = save_model_dispatch(out_path, obj; note=note, artifact_kind="data")
     k = _data_kind_of(obj)
     nobs = hasproperty(obj, :data) ? size(obj.data, 1) : 0
     nvars = hasproperty(obj, :varnames) ? length(obj.varnames) : 0
+    reported_freq = hasproperty(obj, :frequency) ? string(obj.frequency) : string(frequency)
     output_kv(Pair{String,Any}[
         "kind" => string(k),
         "n_obs" => nobs,
         "n_vars" => nvars,
         "path" => out_path,
-        "frequency" => string(frequency),
+        "frequency" => reported_freq,
     ]; format=format, output="", title="Imported Data", key="imported_data")
     _status("Imported $k → $out_path")
     return obj
 end
 
-function _data_export(; data::String, output::String="", format::String="table")
+function _data_export(; data::String, output::String="", format::String="table",
+                       no_dates::Bool=false)
     obj = resolve_data(data)
     k = _data_kind_of(obj)
     k in (:timeseries, :panel, :cross_section) || throw(CliError("data/wrong-kind",
         "$data is not a data container (got $(typeof(obj)))";
         hint="pass a TimeSeriesData/PanelData/CrossSectionData handle"))
-    out_df = _coerce_tabular_dataframe(obj, data)
+    out_df = _coerce_tabular_dataframe(obj, data; include_dates=!no_dates)
     if isempty(output)
         output_result(out_df; format=Symbol(format), output="",
                       title="Exported Data", key="exported_data")
@@ -1022,7 +1184,7 @@ function _data_export(; data::String, output::String="", format::String="table")
         ext_eff = isempty(ext) ? ".csv" : ext
         if ext_eff == ".csv"
             _write_macro_data(obj, out; input_path=data, default_stem=dataset_stem(data),
-                              warn_metadata=true)
+                              warn_metadata=true, include_dates=!no_dates)
             envelope_active() && _add_artifact_once!(_ENVELOPE[], "file", out)
         elseif ext_eff in (".jld2", ".jls", ".fmod")
             out = _validate_output_path(out; create_parents=true)
