@@ -209,4 +209,4 @@ Details (manual `.tar.gz`/`.zip`/`.msix` archives, sideloading, local `build_rel
 
 ## License
 
-GPL-3.0-or-later.
+GNU General Public License v3.0 (`GPL-3.0-only`). See [LICENSE](LICENSE), [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md), [DATA_LICENSES.md](DATA_LICENSES.md), and [SOURCE_OFFER.txt](SOURCE_OFFER.txt).

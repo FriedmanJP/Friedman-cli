@@ -83,6 +83,47 @@ _wants_help(args::Vector{String}) = "--help" in args || "-h" in args
 
 Main dispatch: walk the command tree from `entry` using `args`, then execute the matched leaf.
 """
+function _print_warranty(io::IO, entry::Entry)
+    println(io, """
+$(entry.name) v$(entry.version) (Friedman-cli) — GNU General Public License v3.0 (GPL-3.0-only)
+Copyright (C) 2026 Wookyung Chung <chung@friedman.jp>
+Powered by MacroEconometricModels.jl (GPL-3.0-only)
+
+THERE IS NO WARRANTY FOR THE PROGRAM, TO THE EXTENT PERMITTED BY
+APPLICABLE LAW. EXCEPT WHEN OTHERWISE STATED IN WRITING THE COPYRIGHT
+HOLDERS AND/OR OTHER PARTIES PROVIDE THE PROGRAM "AS IS" WITHOUT WARRANTY
+OF ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING, BUT NOT LIMITED TO,
+THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+PURPOSE. THE ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THE PROGRAM
+IS WITH YOU. SHOULD THE PROGRAM PROVE DEFECTIVE, YOU ASSUME THE COST OF
+ALL NECESSARY SERVICING, REPAIR OR CORRECTION.
+
+See LICENSE (GPL-3.0-only §§ 15–16) for full warranty and liability terms.""")
+end
+
+function _print_conditions(io::IO, entry::Entry)
+    println(io, """
+$(entry.name) v$(entry.version) (Friedman-cli) — GNU General Public License v3.0 (GPL-3.0-only)
+Copyright (C) 2026 Wookyung Chung <chung@friedman.jp>
+Powered by MacroEconometricModels.jl (GPL-3.0-only)
+
+This program is free software: you can redistribute verbatim or modified
+copies of it under the terms of the GNU General Public License, version 3
+(GPL-3.0-only), as published by the Free Software Foundation.
+
+Key conditions for conveying copies (GPLv3 §§ 4–6):
+  - Retain all copyright, license, and no-warranty notices intact.
+  - Clearly mark modified versions and license the combined work under GPL-3.0-only.
+  - Provide Corresponding Source alongside any binary distribution (see SOURCE_OFFER.txt).
+
+Bundled notices & documentation (in standalone install root):
+  - LICENSE                                 (verbatim GNU GPL v3.0 text)
+  - SOURCE_OFFER.txt                        (GPLv3 §6 & MPL-2.0 §3.2(b) source offer)
+  - share/licenses/THIRD_PARTY_LICENSES.md  (third-party package, C wrapper & JLL notices)
+  - share/licenses/DATA_LICENSES.md         (bundled example dataset provenance & CC-BY-4.0)
+  - Source repository: https://github.com/FriedmanJP/Friedman-cli""")
+end
+
 function dispatch(entry::Entry, args::Vector{String}=ARGS; extra_kwargs...)
     # Pre-dispatch globals are LEADING-ONLY (#117): they fire only as the FIRST
     # token, before any subcommand path is consumed. The old whole-argv match
@@ -94,10 +135,10 @@ function dispatch(entry::Entry, args::Vector{String}=ARGS; extra_kwargs...)
             println(entry.name, " v", entry.version)
             return
         elseif args[1] == "--warranty"
-            MacroEconometricModels.warranty()
+            _print_warranty(stdout, entry)
             return
         elseif args[1] == "--conditions"
-            MacroEconometricModels.conditions()
+            _print_conditions(stdout, entry)
             return
         end
     end

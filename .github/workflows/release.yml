@@ -206,9 +206,12 @@ jobs:
               "$@"
           }
 
-          # Verify two-binary fastpath layout exists (#296)
+          # Verify two-binary fastpath layout & GPL-3.0 license bundle exist (#290, #296)
           test -x "$PWD/build/frdc/bin/frdc-core" || { echo "Missing build/frdc/bin/frdc-core" >&2; exit 1; }
           test -s "$PWD/build/frdc/share/frdc/cli_cache.bin" || { echo "Missing cli_cache.bin" >&2; exit 1; }
+          for licf in LICENSE SOURCE_OFFER.txt share/licenses/THIRD_PARTY_LICENSES.md share/licenses/sbom-licenses.json share/licenses/DATA_LICENSES.md share/licenses/julia/LICENSE.md share/licenses/julia/THIRDPARTY.md; do
+            test -s "$PWD/build/frdc/$licf" || { echo "Missing/empty license file: build/frdc/$licf" >&2; exit 1; }
+          done
 
           # --version / --help / schema --docs / data list / io sources (fast path + FRDC_NO_FASTPATH=1)
           run_isolated "$BIN" --version > ver_fp.txt 2> ver_err.txt
@@ -495,12 +498,18 @@ jobs:
               throw "julia is still on PATH after stripping: $($RemainingJulia.Source)"
             }
 
-            # Verify two-binary fastpath layout exists (#296)
+            # Verify two-binary fastpath layout & GPL-3.0 license bundle exist (#290, #296)
             if (-not (Test-Path (Join-Path $Root "build\frdc\bin\frdc-core.exe"))) {
               throw "Missing build\frdc\bin\frdc-core.exe"
             }
             if (-not (Test-Path (Join-Path $Root "build\frdc\share\frdc\cli_cache.bin"))) {
               throw "Missing build\frdc\share\frdc\cli_cache.bin"
+            }
+            foreach ($licf in @("LICENSE", "SOURCE_OFFER.txt", "share\licenses\THIRD_PARTY_LICENSES.md", "share\licenses\sbom-licenses.json", "share\licenses\DATA_LICENSES.md", "share\licenses\julia\LICENSE.md", "share\licenses\julia\THIRDPARTY.md")) {
+              $lp = Join-Path $Root "build\frdc\$licf"
+              if (-not (Test-Path $lp) -or (Get-Item $lp).Length -eq 0) {
+                throw "Missing/empty license file: $lp"
+              }
             }
 
             # 1. Direct standalone binary checks (fast-path + FRDC_NO_FASTPATH=1 + zero depot writes)
@@ -731,7 +740,13 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: frdc-${{ matrix.platform }}
-          path: build/frdc-v${{ steps.version.outputs.version }}-${{ matrix.platform }}.${{ matrix.archive_ext }}
+          path: |
+            build/frdc-v${{ steps.version.outputs.version }}-${{ matrix.platform }}.${{ matrix.archive_ext }}
+            build/Manifest-release.toml
+            build/frdc/SOURCE_OFFER.txt
+            build/frdc/share/licenses/THIRD_PARTY_LICENSES.md
+            build/frdc/share/licenses/sbom-licenses.json
+            build/frdc/share/licenses/DATA_LICENSES.md
 
       - name: Upload Windows release artifacts
         if: startsWith(github.ref, 'refs/tags/') && runner.os == 'Windows'

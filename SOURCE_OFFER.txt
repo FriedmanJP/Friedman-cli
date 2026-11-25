@@ -1,0 +1,45 @@
+CORRESPONDING SOURCE OFFER — Friedman-cli (frdc)
+================================================
+
+License: GNU General Public License, version 3 (GPL-3.0-only)
+
+1. GPL-3.0 §6(d) Network Server Access to Corresponding Source
+--------------------------------------------------------------
+Complete Corresponding Source for Friedman-cli (frdc) — including the
+Julia source tree, build scripts (build_release.jl, packaging/), pure C99
+thin wrapper (packaging/thin_wrapper/), resolved Manifest.toml, and
+third-party license SBOM — is publicly hosted at:
+
+  - Friedman-cli:
+      https://github.com/FriedmanJP/Friedman-cli
+      https://github.com/FriedmanJP/Friedman-cli/releases
+  - MacroEconometricModels.jl (GPL-3.0-only):
+      https://github.com/FriedmanJP/MacroEconometricModels.jl
+  - Julia runtime:
+      https://github.com/JuliaLang/julia
+  - Binary JLL build recipes & upstream source archives (Yggdrasil):
+      https://github.com/JuliaPackaging/Yggdrasil
+
+2. MPL-2.0 §3.2(b) Source Code Form Notice
+------------------------------------------
+Standalone binary distributions convey executable code compiled from
+MPL-2.0 Julia packages (JuMP, NLPModels, SolverCore, LinearOperators,
+LDLFactorizations, AMD, Krylov, MutableArithmetics — all free of
+Exhibit B secondary-license restrictions). Exact versions, UUIDs, and
+git-tree-sha1 hashes are listed in Manifest.toml and
+share/licenses/sbom-licenses.json; their Source Code Form is publicly
+available via the Julia General Registry
+(https://github.com/JuliaRegistries/General).
+
+3. GPL-3.0 §6(b) Written Offer (Valid for at Least Three Years)
+---------------------------------------------------------------
+Anyone possessing a standalone Friedman-cli binary distribution may
+obtain a complete machine-readable copy of the Corresponding Source for
+at least three (3) years from the date of distribution by contacting:
+
+  Wookyung Chung <chung@friedman.jp>
+  https://github.com/FriedmanJP/Friedman-cli/issues
+
+Standalone release bundles contain a release-stamped copy of this offer
+with the exact release tag, git commit SHA, Julia version, and package
+SBOM.

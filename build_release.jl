@@ -41,13 +41,15 @@ const _APP_DIR = joinpath(_PROJECT_DIR, "build", "frdc")
 const _C_DRIVER_PROGRAM = joinpath(_PROJECT_DIR, "packaging", "c_driver", "frdc_driver.c")
 const _THIN_WRAPPER_DIR = joinpath(_PROJECT_DIR, "packaging", "thin_wrapper")
 const _THIN_WRAPPER_SRC = joinpath(_THIN_WRAPPER_DIR, "frdc_thin.c")
-const _PACK_GEN_SCRIPT  = joinpath(_PROJECT_DIR, "tools", "gen_fastpath_pack.jl")
-const _LINEARSOLVE_UUID = Base.UUID("7ed4a6bd-45f5-4d41-b270-4a48e9bafcae")
-const _FFTW_UUID        = Base.UUID("7a1cc6ca-52ef-59f5-83cd-3a7055c09341")
+const _PACK_GEN_SCRIPT     = joinpath(_PROJECT_DIR, "tools", "gen_fastpath_pack.jl")
+const _LIC_BUNDLE_SCRIPT   = joinpath(_PROJECT_DIR, "tools", "gen_license_bundle.jl")
+const _LINEARSOLVE_UUID    = Base.UUID("7ed4a6bd-45f5-4d41-b270-4a48e9bafcae")
+const _FFTW_UUID           = Base.UUID("7a1cc6ca-52ef-59f5-83cd-3a7055c09341")
 
-isfile(_C_DRIVER_PROGRAM) || error("Missing standalone C driver: $(_C_DRIVER_PROGRAM)")
-isfile(_THIN_WRAPPER_SRC) || error("Missing thin wrapper C source: $(_THIN_WRAPPER_SRC)")
-isfile(_PACK_GEN_SCRIPT)  || error("Missing fastpath pack generator: $(_PACK_GEN_SCRIPT)")
+isfile(_C_DRIVER_PROGRAM)  || error("Missing standalone C driver: $(_C_DRIVER_PROGRAM)")
+isfile(_THIN_WRAPPER_SRC)  || error("Missing thin wrapper C source: $(_THIN_WRAPPER_SRC)")
+isfile(_PACK_GEN_SCRIPT)   || error("Missing fastpath pack generator: $(_PACK_GEN_SCRIPT)")
+isfile(_LIC_BUNDLE_SCRIPT) || error("Missing license bundle generator: $(_LIC_BUNDLE_SCRIPT)")
 
 # --- Step 1: Create build environment with all deps ---
 println("Setting up build environment...")
@@ -375,6 +377,26 @@ function _compile_thin_wrapper(out_exe::String)
     run(cmd)
 end
 _compile_thin_wrapper(_EXE_PATH)
+
+# --- Step 4c: Bundle GPL-3.0-only LICENSE, SOURCE_OFFER.txt, DATA_LICENSES.md & SBOM (#290) ---
+println("Generating GPL-3.0-only license bundle & SBOM...")
+withenv("JULIA_PKG_PRECOMPILE_AUTO" => "0") do
+    run(`$(Base.julia_cmd()) --project=$(_BUILD_PROJECT_DIR) $(_LIC_BUNDLE_SCRIPT) --app-dir $(_APP_DIR) --manifest $(joinpath(_BUILD_PROJECT_DIR, "Manifest.toml"))`)
+end
+for req_lic in (
+    joinpath(_APP_DIR, "LICENSE"),
+    joinpath(_APP_DIR, "SOURCE_OFFER.txt"),
+    joinpath(_APP_DIR, "share", "licenses", "THIRD_PARTY_LICENSES.md"),
+    joinpath(_APP_DIR, "share", "licenses", "sbom-licenses.json"),
+    joinpath(_APP_DIR, "share", "licenses", "DATA_LICENSES.md"),
+    joinpath(_APP_DIR, "share", "licenses", "COMONICON_LICENSE"),
+    joinpath(_APP_DIR, "share", "licenses", "julia", "LICENSE.md"),
+    joinpath(_APP_DIR, "share", "licenses", "julia", "THIRDPARTY.md"),
+)
+    (isfile(req_lic) && filesize(req_lic) > 0) || error("Missing/empty required license notice: $req_lic")
+end
+# Also copy resolved build_env/Manifest.toml for Corresponding Source release attachment
+cp(joinpath(_BUILD_PROJECT_DIR, "Manifest.toml"), joinpath(_PROJECT_DIR, "build", "Manifest-release.toml"); force=true)
 
 # --- Step 5: Verify standalone outputs & clean up build env ---
 const _SYS_EXT = Sys.iswindows() ? "dll" : Sys.isapple() ? "dylib" : "so"
