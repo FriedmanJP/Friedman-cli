@@ -214,7 +214,7 @@ expr = "pi[t] = 0.99 * pi[t+1] + kappa * y[t]"
             Friedman.dispatch(app, ["--version"])
             for cmd in ["estimate", "test", "irf", "fevd", "hd", "forecast", "predict",
                         "residuals", "filter", "data", "dsge", "hadsge", "did", "policy",
-                        "spectral", "nowcast", "io", "model"]
+                        "ri", "spectral", "nowcast", "io", "model"]
                 Friedman.dispatch(app, [cmd, "--help"])
             end
             Friedman.dispatch(app, ["schema"])
@@ -274,6 +274,50 @@ expr = "pi[t] = 0.99 * pi[t+1] + kappa * y[t]"
             Friedman.dispatch(app, ["test", "serial", "heteroskedasticity", fixture])
             Friedman.dispatch(app, ["hadsge", "steady-state", "huggett", "--format", "json"])
             Friedman.dispatch(app, ["hadsge", "solve", "huggett", "--format", "json"])
+
+            # v1.1.0 / MacroEconometricModels v1.1.1 fast precompile paths (#319):
+            # MadNLP constrained DSGE, ABCD, DSGE-VAR prior, QFM, FHLZ, LMS-SVAR, RI
+            Friedman.dispatch(app, ["dsge", "steady-state", rbc_toml, "--constraint", "y[t] >= -10.0", "--constraint-solver", "madnlp", "--format", "json"])
+            Friedman.dispatch(app, ["dsge", "abcd", "extract", rbc_toml, "--observables", "y", "--format", "json"])
+            Friedman.dispatch(app, ["dsge", "abcd", "invertibility", rbc_toml, "--observables", "y", "--format", "json"])
+            Friedman.dispatch(app, ["dsge", "var", "prior", rbc_toml, "--observables", "y", "--lags", "1", "--format", "json"])
+            qfm_sim = joinpath(outdir, "qfm_sim.jld2")
+            Friedman.dispatch(app, ["data", "simulate", "qfm", "--periods", "40", "--series", "6", "--seed", "7", "--save-data", qfm_sim])
+            Friedman.dispatch(app, ["estimate", "factor", "qfm", qfm_sim, "--tau", "0.5", "--factors", "1", "--format", "json"])
+            Friedman.dispatch(app, ["estimate", "factor", "fhlz", qfm_sim, "--dynamic-rank", "1", "--format", "json"])
+            svar_sim = joinpath(outdir, "svar_sim.jld2")
+            Friedman.dispatch(app, ["data", "simulate", "svar", "--dist", "t", "--nu", "5.0", "--periods", "80", "--burn", "20", "--seed", "7", "--save-data", svar_sim])
+            Friedman.dispatch(app, ["estimate", "multivariate", "lms-svar", svar_sim, "--lags", "1", "--n-starts", "1", "--max-iter", "30", "--format", "json"])
+            ri_toml = joinpath(outdir, "ri_precompile.toml")
+            open(ri_toml, "w") do f
+                println(f, \"\"\"
+[ri]
+A = [[0.85]]
+B = [[0.5]]
+H = [[1.0]]
+capacity = 0.5
+units = "bits"
+[ri.mw]
+capacity = 2.0
+units = "bits"
+[ri.mw.agg_block]
+rho = 0.9
+sigma = 0.01
+weight = 1.0
+[ri.mw.idio_block]
+rho = 0.5
+sigma = 0.10
+weight = 1.0
+[ri.discrete]
+U = [[2.0, 0.0], [0.0, 2.0]]
+mu = [0.5, 0.5]
+omega = 0.8
+units = "nats"
+\"\"\")
+            end
+            Friedman.dispatch(app, ["ri", "solve", "--config", ri_toml, "--format", "json"])
+            Friedman.dispatch(app, ["ri", "mw", "--config", ri_toml, "--horizons", "4", "--format", "json"])
+            Friedman.dispatch(app, ["ri", "discrete", "--config", ri_toml, "--format", "json"])
         end
     end
     """)

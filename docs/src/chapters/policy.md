@@ -12,29 +12,29 @@ frdc --quiet data simulate var --periods 150 --burn 50 --seed 7 --save-data pol_
 frdc policy counterfactual var pol_sim --shocks 3 --nonpolicy-shock 1 --outcomes y1=1,y2=2 --instruments y3=3 --horizon 6 --rule rate-peg
 ```
 ```text
-                  Policy Counterfactual Paths
-┌──────────┬────────────┬─────────┬──────────┬────────────────┐
-│ variable │    role    │ horizon │ baseline │ counterfactual │
-├──────────┼────────────┼─────────┼──────────┼────────────────┤
-│    y1    │  outcome   │    1    │ 1.05875  │    1.05875     │
-│    y1    │  outcome   │    2    │ 0.553439 │    0.594849    │
-│    y1    │  outcome   │    3    │ 0.386411 │    0.406534    │
-│    y1    │  outcome   │    4    │ 0.269918 │    0.281265    │
-│    y1    │  outcome   │    5    │ 0.189571 │    0.19652     │
-│    y1    │  outcome   │    6    │ 0.133503 │    0.13802     │
-│    y2    │  outcome   │    1    │ 0.424755 │    0.424755    │
-│    y2    │  outcome   │    2    │ 0.478048 │    0.457307    │
-│    y2    │  outcome   │    3    │ 0.346778 │    0.345005    │
-│    y2    │  outcome   │    4    │ 0.24945  │    0.252524    │
-│    y2    │  outcome   │    5    │ 0.177835 │    0.181609    │
-│    y2    │  outcome   │    6    │ 0.126217 │    0.129473    │
-│    y3    │ instrument │    1    │ 0.336632 │   -0.001015    │
-│    y3    │ instrument │    2    │ 0.05319  │   -0.018851    │
-│    y3    │ instrument │    3    │ 0.070097 │    0.044004    │
-│    y3    │ instrument │    4    │ 0.059453 │    0.050898    │
-│    y3    │ instrument │    5    │ 0.045698 │    0.043277    │
-│    y3    │ instrument │    6    │ 0.033642 │    0.033267    │
-└──────────┴────────────┴─────────┴──────────┴────────────────┘
+                            Policy Counterfactual Paths
+┌────────┬──────────┬────────────┬───────────┬────────────────┬─────────┬─────────┐
+│ period │ variable │    role    │ baseline  │ counterfactual │  lower  │  upper  │
+├────────┼──────────┼────────────┼───────────┼────────────────┼─────────┼─────────┤
+│   1    │    y1    │  outcome   │  1.05875  │    1.05875     │ missing │ missing │
+│   2    │    y1    │  outcome   │ 0.553439  │    0.594849    │ missing │ missing │
+│   3    │    y1    │  outcome   │ 0.386411  │    0.406534    │ missing │ missing │
+│   4    │    y1    │  outcome   │ 0.269918  │    0.281265    │ missing │ missing │
+│   5    │    y1    │  outcome   │ 0.189571  │    0.19652     │ missing │ missing │
+│   6    │    y1    │  outcome   │ 0.133503  │    0.13802     │ missing │ missing │
+│   1    │    y2    │  outcome   │ 0.424755  │    0.424755    │ missing │ missing │
+│   2    │    y2    │  outcome   │ 0.478048  │    0.457307    │ missing │ missing │
+│   3    │    y2    │  outcome   │ 0.346778  │    0.345005    │ missing │ missing │
+│   4    │    y2    │  outcome   │  0.24945  │    0.252524    │ missing │ missing │
+│   5    │    y2    │  outcome   │ 0.177835  │    0.181609    │ missing │ missing │
+│   6    │    y2    │  outcome   │ 0.126217  │    0.129473    │ missing │ missing │
+│   1    │    y3    │ instrument │ 0.336632  │  -0.00101535   │ missing │ missing │
+│   2    │    y3    │ instrument │ 0.0531898 │   -0.0188509   │ missing │ missing │
+│   3    │    y3    │ instrument │ 0.0700966 │   0.0440045    │ missing │ missing │
+│   4    │    y3    │ instrument │ 0.059453  │   0.0508975    │ missing │ missing │
+│   5    │    y3    │ instrument │ 0.0456978 │   0.0432771    │ missing │ missing │
+│   6    │    y3    │ instrument │ 0.033642  │   0.0332668    │ missing │ missing │
+└────────┴──────────┴────────────┴───────────┴────────────────┴─────────┴─────────┘
 Enforcing Policy Shocks (nu)
 ┌───────┬───────────┐
 │ shock │    nu     │
@@ -148,8 +148,8 @@ When `[loss]` specifies quadratic welfare weights $\lambda$ over target deviatio
 
 Connect empirical VAR/LP policy menus directly to structural equilibrium models:
 
-- **Equilibrium Jacobian & News ([`policy jacobian ha`](@ref ref-policy-jacobian-ha), [`policy news dsge|ha`](@ref ref-fam-policy-news)):** Computes heterogeneous-agent sequence-space Jacobians (`--input r|w`, `sequence_space_jacobian`) and structural anticipated policy news matrices for `dsge` (with optional `--behavioral-m`, `--behavioral-theta` myopia/discounting) or `hadsge` (`--rule-closure administered|market`).
-- **Empirical Testability ([`policy spanning var`](@ref ref-policy-spanning-var), [`policy sufficiency dsge`](@ref ref-policy-sufficiency-dsge)):** Compares empirical "thin" vs. structural "full" counterfactual paths (`spanning_verdict`) and tests whether observable macro indicators satisfy forecast-variance sufficiency (`forecast_sufficiency_fev_ratios`).
+- **Equilibrium Jacobian & News ([`policy jacobian ha`](@ref ref-policy-jacobian-ha), [`policy news dsge|ha`](@ref ref-fam-policy-news)):** Computes heterogeneous-agent sequence-space Jacobians (`--input r|w`, `sequence_space_jacobian`) and structural anticipated policy news matrices for `dsge` (with optional `--behavioral-m`, `--behavioral-theta` cognitive discounting, or `--behavioral-ri-gain` and `--behavioral-ri-rho` rational-inattention expectation anchoring; see [Rational Inattention](@ref chap-ri)) or `hadsge` (`--rule-closure administered|market`).
+- **Empirical Testability ([`policy spanning var`](@ref ref-policy-spanning-var), [`policy sufficiency dsge`](@ref ref-policy-sufficiency-dsge)):** Compares empirical "thin" vs. structural "full" counterfactual paths (`spanning_verdict`) and tests whether observable macro indicators satisfy DARE-backed forecast-variance sufficiency (`forecast_sufficiency_fev_ratios`).
 
 ---
 

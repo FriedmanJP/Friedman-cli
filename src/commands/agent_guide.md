@@ -16,10 +16,12 @@ frdc estimate multivariate var data.csv --lags 1 --format json | jq .
 ```
 
 Model commands are `verb family model` (`estimate volatility garch`,
-`test unit-root adf`). `hadsge solve` is the HouseholdSystem command;
-`dsge solve` stays representative-agent. `frdc schema estimate`
-groups leaves by `family`. `tools/list` takes an optional `prefix`
-(`estimate volatility`, `hadsge`).
+`test unit-root adf`, `test factor onatski-q`). `hadsge solve` is the
+HouseholdSystem command; `dsge solve` stays representative-agent alongside
+`dsge abcd` (canonical ABCD invertibility) and `dsge var` (Bayesian DSGE-VAR);
+`ri` hosts the 11 Rational Inattention leaves (`ri solve`, `ri mw`, `ri discrete`,
+`ri cg-test`, …). `frdc schema estimate` groups leaves by `family`. `tools/list`
+takes an optional `prefix` (`estimate volatility`, `hadsge`, `ri`, `dsge abcd`).
 
 Example shape (fields abbreviated):
 
@@ -29,8 +31,8 @@ Example shape (fields abbreviated):
   "command": "frdc estimate multivariate var",
   "status": "ok",
   "meta": {
-    "cli_version": "1.0.0",
-    "mems_version": "1.0.0",
+    "cli_version": "1.1.0",
+    "mems_version": "1.1.1",
     "julia": "1.13.0",
     "seed": null,
     "argv": ["estimate", "multivariate", "var", "data.csv", "--lags", "1", "--format", "json"],
@@ -226,11 +228,17 @@ the top-level help and from this guide.
 frdc serve --mcp    # JSON-RPC 2.0 / Model Context Protocol on stdio
 ```
 
-`serve` requires `--mcp` (the only supported mode). Every command except `serve` and
-`schema` becomes an MCP **tool** — one persistent process, no per-call startup cost
-(recommended alongside `repl` for multi-step or heavy DSGE/Bayesian/volatility
-pipelines). Server startup flags `--families <csv>`, `--tools <csv>`, and `--compact`
-narrow the exposed catalog or omit verbose parameter descriptions:
+`serve` requires `--mcp` (the only supported mode). In standalone builds, the
+native C99 thin wrapper serves MCP discovery (`initialize`, `ping`, `tools/list`
+with `prefix`/`cursor`/`limit`, `--families`/`--tools`/`--compact`, and
+`notifications/*`) directly from `share/frdc/cli_cache.bin` in **< 10 ms**
+without spawning Julia; the persistent `frdc-core` process is spawned lazily on
+the first `tools/call` (set `FRDC_NO_FASTPATH=1` to bypass the proxy directly to
+`frdc-core`). Every command except `serve` and `schema` becomes an MCP **tool**
+— one persistent process, no per-call startup cost (recommended alongside `repl`
+for multi-step or heavy DSGE/Bayesian/volatility pipelines). Server startup flags
+`--families <csv>`, `--tools <csv>`, and `--compact` narrow the exposed catalog
+or omit verbose parameter descriptions:
 
 - **`tools/list`** mirrors the registry (or the `--families`/`--tools` subset): tool name
   = command path joined with `_` (`estimate_multivariate_var`, `estimate_volatility_garch`,
@@ -304,10 +312,12 @@ or a keys-only bundle listing). Tabular data and saved models also accept Julia
 **Stems vs suffixes & positional model routing.** Data positionals,
 `--save-model`, `--save-result`, `--model` (when the leaf declares
 `model_types`), `--result`, and `frdc show` accept suffix-less stems
-(`macro`, `--save-model var` → `var.jld2`, `--model var` loads `var.jld2`).
-Data load prefers `path.jld2` over `path.csv` and `path.jls` when multiple exist;
-`--model` and `--result` have no CSV fallback, while `frdc show` falls back to
-`<stem>.csv` and accepts `:example` / `.csv` directly. Downstream leaves that
+(`macro`, `--save-model var` → `var.jld2`, `--model var` loads `var.jld2`,
+including dotted stems like `model_v1.2`). When a bare stem matches multiple
+files on disk (e.g., both `macro.jld2` and `macro.csv`), resolution fails fast
+with `data/ambiguous-path` (exit `3`) naming the candidates — pass the explicit
+extension instead. `--model` and `--result` have no CSV fallback, while `frdc show`
+accepts `:example` / `.csv` directly. Downstream leaves that
 declare `model_types` (`irf`, `fevd`, `hd`, `forecast`, `predict`, `residuals`,
 `policy`, `dsge`, `hadsge`, and post-estimation `test` leaves) also accept a
 saved model/solution handle positionally (`frdc irf var var.jld2`),

@@ -46,16 +46,16 @@ L = (I - A)^{-1}, \quad \Delta x = L \, \Delta y; \qquad G = (I - B)^{-1}, \quad
 frdc io linkages --forward ghosh
 ```
 ```text
-                      Linkages (forward=ghosh)
-┌───────────────┬──────────┬─────────┬──────────┬──────────┬───────┐
-│    sector     │ backward │ forward │    Ui    │    Uj    │ class │
-├───────────────┼──────────┼─────────┼──────────┼──────────┼───────┤
-│  Agriculture  │ 1.51815  │ 1.91419 │ 1.02222  │ 1.20833  │  key  │
-│ Manufacturing │ 1.45215  │ 1.25412 │ 0.977778 │ 0.791667 │ weak  │
-└───────────────┴──────────┴─────────┴──────────┴──────────┴───────┘
+                          Linkages (forward=ghosh)
+┌───────────────┬──────────┬─────────┬──────────┬──────────┬────────────────┐
+│    sector     │ backward │ forward │    Ui    │    Uj    │ classification │
+├───────────────┼──────────┼─────────┼──────────┼──────────┼────────────────┤
+│  Agriculture  │ 1.51815  │ 1.91419 │ 1.02222  │ 1.20833  │      key       │
+│ Manufacturing │ 1.45215  │ 1.25413 │ 0.977778 │ 0.791667 │      weak      │
+└───────────────┴──────────┴─────────┴──────────┴──────────┴────────────────┘
 ```
 
-Under [`io linkages`](@ref ref-io-linkages), each sector is classified (`class`) using normalized backward dispersion $U_j$ and forward dispersion $U_i$ relative to `1.0` (`Agriculture` has $U_i = 1.02222$, $U_j = 1.20833$ -> `key`, while `Manufacturing` has $0.977778$, $0.791667$ -> `weak`; [`io key-sectors`](@ref ref-io-key-sectors) extracts `key` vs `weak` rankings cleanly).
+Under [`io linkages`](@ref ref-io-linkages), each sector is classified (`classification`) using normalized backward dispersion $U_j$ and forward dispersion $U_i$ relative to `1.0` (`Agriculture` has $U_i = 1.02222$, $U_j = 1.20833$ -> `key`, while `Manufacturing` has $0.977778$, $0.791667$ -> `weak`; [`io key-sectors`](@ref ref-io-key-sectors) extracts `key` vs `weak` rankings cleanly).
 
 ---
 

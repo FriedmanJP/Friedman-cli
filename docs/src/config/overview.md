@@ -6,9 +6,9 @@
 
 | Guide | Schema Coverage | Primary Chapters |
 |---|---|---|
-| [Priors, SVAR & VECM Identification](@ref cfg-identification) | Minnesota prior, Sign/Narrative/Arias/Uhlig/ADRR/A0/elasticity/magnitude/cumulative/Lewis TVV/SV-SVAR, `[svar]`, `[svec]`, `[nongaussian]`, `[vecm_restriction]` | [VAR, BVAR, VECM & Factor Models](@ref chap-multivariate), [Structural ID, LP & Innovation Accounting](@ref chap-structural), [Hypothesis Testing & Diagnostics](@ref chap-tests) |
-| [DSGE Specs, Priors & OccBin Constraints](@ref cfg-dsge) | `@dsge` `.jl` preamble vs TOML model files, `priors:` / `[priors.*]`, `[determinacy]`, `constraints:` / `[[constraints.*]]` | [Representative-Agent & Bayesian DSGE](@ref chap-dsge) |
-| [GMM, SMM, Systems, State-Space & Policy](@ref cfg-models-policy) | `gmm lp:`/`gmm iv:`/`[gmm]`, `smm:`/`[smm]`, `equations:`/`instruments:`, `[statespace]`, `[garch_midas]`, `[rule]`/`[loss]`/`[[constraint]]` | [Regression, Systems & GMM/SMM](@ref chap-regression), [Univariate, Filters & Spectral](@ref chap-univariate), [Volatility & Multivariate GARCH](@ref chap-volatility), [Policy Counterfactuals & Optimal Policy](@ref chap-policy) |
+| [Priors, SVAR & VECM Identification](@ref cfg-identification) | Minnesota prior, Sign/Narrative/Arias/Uhlig/ADRR/A0/elasticity/magnitude/cumulative/Lewis TVV/SV-SVAR, `[svar]`, `[svec]`, `[svar_hypothesis]`, `[nongaussian]`, `[vecm_restriction]` | [VAR, BVAR, VECM & Factor Models](@ref chap-multivariate), [Structural ID, LP & Innovation Accounting](@ref chap-structural), [Hypothesis Testing & Diagnostics](@ref chap-tests) |
+| [DSGE Specs, Priors & OccBin Constraints](@ref cfg-dsge) | `@dsge` `.jl` preamble vs TOML model files, `priors:` / `[priors.*]`, `[determinacy]`, `constraints:` / `[[constraints.*]]` (`madnlp` default) | [Representative-Agent & Bayesian DSGE](@ref chap-dsge) |
+| [GMM, SMM, Systems, State-Space & Policy](@ref cfg-models-policy) | `gmm lp:`/`gmm iv:`/`[gmm]`, `smm:`/`[smm]`, `equations:`/`instruments:`, `[statespace]` (incl. `G`), `[garch_midas]`, `[rule]`/`[loss]`/`[[constraint]]`, `[ri]`/`[ri.mw]`/`[ri.discrete]`/`[ri.logit]` | [Regression, Systems & GMM/SMM](@ref chap-regression), [Univariate, Filters & Spectral](@ref chap-univariate), [Volatility & Multivariate GARCH](@ref chap-volatility), [Policy Counterfactuals & Optimal Policy](@ref chap-policy), [Rational Inattention](@ref chap-ri) |
 
 ---
 

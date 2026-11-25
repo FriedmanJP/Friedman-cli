@@ -1,6 +1,6 @@
 # [Nowcasting & Forecast Evaluation](@id chap-nowcast)
 
-Real-time mixed-frequency nowcasting with ragged-edge data releases and formal multi-model forecast evaluation live in [`frdc nowcast`](@ref ref-nowcast) (`dfm`, `bvar`, `bridge`, `news`, `forecast`) and [`frdc forecast evaluate`](@ref ref-fam-forecast-evaluate) (`metrics`, `dm`, `clark-west`, `mincer-zarnowitz`, `encompassing`, `combine`). See [MacroEconometricModels.jl — Nowcasting](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/nowcasting/) and [Forecast Evaluation](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/forecast_evaluation/) for upstream derivations.
+Real-time mixed-frequency nowcasting with ragged-edge data releases, Eurocoin / bandpass-GDFM medium-run cyclical indicators, and formal multi-model forecast evaluation live in [`frdc nowcast`](@ref ref-nowcast) (`dfm`, `bvar`, `bridge`, `gdfm`, `news`, `forecast`), [`filter bandpass-gdfm`](@ref ref-filter-bandpass-gdfm), [`filter eurocoin`](@ref ref-filter-eurocoin), and [`frdc forecast evaluate`](@ref ref-fam-forecast-evaluate) (`metrics`, `dm`, `clark-west`, `mincer-zarnowitz`, `encompassing`, `combine`). See [MacroEconometricModels.jl — Nowcasting](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/nowcasting/) and [Forecast Evaluation](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/forecast_evaluation/) for upstream derivations.
 
 ## Quick Start
 
@@ -66,8 +66,10 @@ y_t^Q \approx \frac{1}{3}y_t^* + \frac{2}{3}y_{t-1}^* + y_{t-2}^* + \frac{2}{3}y
 | [`nowcast dfm`](@ref ref-nowcast-dfm) | Kalman–EM dynamic factors (`--factors`, `--lags`, `--idio`) | `nowcast_dfm` |
 | [`nowcast bvar`](@ref ref-nowcast-bvar) | Mixed-frequency Minnesota BVAR (`--prior conjugate\|litterman`, `--lambda0`) | `nowcast_bvar`, `nowcast_bvar_hyperparameters` |
 | [`nowcast bridge`](@ref ref-nowcast-bridge) | Bridge OLS equations (`--lag-m`, `--lag-q`, `--lag-y`) | `nowcast_bridge` |
+| [`nowcast gdfm`](@ref ref-nowcast-gdfm) | Generalized Dynamic Factor Model nowcasting (`--dynamic-rank`, `--nfactors`, `--spectral`) | `nowcast_gdfm` |
 | [`nowcast forecast`](@ref ref-nowcast-forecast) | Multi-step quarterly projection (`--method dfm\|bvar\|bridge`, `--horizons`) | `nowcast_forecast` |
 | [`nowcast news`](@ref ref-nowcast-news) | Banbura–Modugno release impact decomposition between `--data-old` and `--data-new` | `nowcast_news_decomposition` |
+| [`filter bandpass-gdfm`](@ref ref-filter-bandpass-gdfm), [`filter eurocoin`](@ref ref-filter-eurocoin) | Frequency-band common component extraction (`--pl`, `--pu`) and Altissimo et al. Eurocoin real-time GDP growth indicator (`--target`, `--cutoff`) | `bandpass_gdfm_filter`, `eurocoin_indicator` |
 
 Always supply contiguous CSV/handle columns ordered monthly indicators first (`--monthly-vars`) followed by quarterly series (`--quarterly-vars`), with `NaN` filling unobserved monthly quarters. When `--monthly-vars 0` and `--quarterly-vars 0` (defaults), Friedman-cli infers the block split automatically from the pattern of missing rows.
 
@@ -103,13 +105,13 @@ EOF
 frdc forecast evaluate metrics eval.csv --actual y --forecasts f1,f2
 ```
 ```text
-                                   Forecast Accuracy Metrics
-┌───────┬──────────┬──────────┬──────────┬─────────┬─────────┬──────────┬──────────┬──────────┐
-│ model │    ME    │   MAE    │   RMSE   │  MAPE   │  sMAPE  │   MASE   │    U1    │    U2    │
-├───────┼──────────┼──────────┼──────────┼─────────┼─────────┼──────────┼──────────┼──────────┤
-│  f1   │ 0.020833 │ 0.060833 │ 0.063443 │ 1.0971  │ 1.09893 │ 0.087245 │ 0.005764 │ 0.084453 │
-│  f2   │ 0.220833 │  0.5625  │ 0.570694 │ 10.3201 │ 10.5967 │ 0.806714 │ 0.05265  │ 0.754038 │
-└───────┴──────────┴──────────┴──────────┴─────────┴─────────┴──────────┴──────────┴──────────┘
+                                                                 Forecast Accuracy Metrics
+┌───────┬───────────┬───────────┬───────────┬─────────┬─────────┬───────────┬───────────┬───────────┬────────────┬────────────────┬──────────────────┬────┐
+│ model │    ME     │    MAE    │   RMSE    │  MAPE   │  sMAPE  │   MASE    │    U1     │    U2     │ theil_bias │ theil_variance │ theil_covariance │ n  │
+├───────┼───────────┼───────────┼───────────┼─────────┼─────────┼───────────┼───────────┼───────────┼────────────┼────────────────┼──────────────────┼────┤
+│  f1   │ 0.0208333 │ 0.0608333 │ 0.0634429 │ 1.0971  │ 1.09893 │ 0.0872447 │ 0.0057637 │ 0.0844527 │  0.107833  │    0.315233    │     0.576934     │ 12 │
+│  f2   │ 0.220833  │  0.5625   │ 0.570694  │ 10.3201 │ 10.5967 │ 0.806714  │ 0.0526496 │ 0.754038  │  0.149735  │    0.181492    │     0.668774     │ 12 │
+└───────┴───────────┴───────────┴───────────┴─────────┴─────────┴───────────┴───────────┴───────────┴────────────┴────────────────┴──────────────────┴────┘
           Theil MSE Decomposition
 ┌───────┬──────────┬──────────┬────────────┐
 │ model │   bias   │ variance │ covariance │

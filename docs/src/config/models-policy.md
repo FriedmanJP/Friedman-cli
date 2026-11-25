@@ -108,6 +108,7 @@ Used by [`estimate regression statespace`](@ref ref-estimate-regression-statespa
 | `T` | `[statespace]` | `n_state × n_state` transition matrix (required; maps to `Tt`) |
 | `Q` | `[statespace]` | `r × r` state shock covariance (required) |
 | `R` | `[statespace]` | Optional `n_state × r` shock loading matrix |
+| `G` | `[statespace]` | Optional `r × n_obs` state–observation shock cross-covariance `Cov(eta_t, eps_t)` |
 | `d`, `c` | `[statespace]` | Optional observation (`n_obs`) and state (`n_state`) intercepts |
 | `a1`, `P1` | `[statespace]` | Optional explicit initial state mean and covariance (must appear together) |
 | `init_mode` | `[statespace]` | `kappa` (default) \| `diffuse` \| `stationary` |
@@ -164,3 +165,63 @@ horizons = "all"        # "all" or "lo:hi" (1 <= lo <= hi)
 | `lambda_avg`, `lambda_t`, `lambda_y`, `delta`, `K` | `[loss]` | AIT weights and window (defaults `0.6`, `0.4`, `1.0`, `0.1`, `19`) |
 | `lambda`, `beta`, `z_lag` | `[loss.smoothing]` | Instrument change penalty (`lambda > 0`, `beta` in `(0, 1]`, `z_lag` default `0.0`) |
 | `type`, `floor`, `instrument`, `horizons` | `[[constraint]]` | Path bounds for [`policy opp`](@ref ref-fam-policy-opp) (`--constraints-file` paired with `--instrument-path`) |
+
+---
+
+## Rational Inattention Specifications (`[ri]`, `[ri.mw]`, `[ri.discrete]`, `[ri.logit]`)
+
+Used across [`frdc ri`](@ref ref-ri) and [`estimate choice ri-logit`](@ref ref-estimate-choice-ri-logit) ([Rational Inattention](@ref chap-ri), [Discrete Choice, Count & Selection](@ref chap-choice)). In every section, `capacity` and `omega` are mutually exclusive, and CLI `--capacity` / `--omega` / `--units` flags override TOML entries.
+
+```toml
+# 1. LQG Dynamic Rational Inattention (`ri solve|transition|statespace|irf|fevd|simulate|estimate`)
+[ri]
+A = [[0.85]]                 # n x n state transition (scalar allowed for n=1)
+B = [[0.5]]                  # n x m shock loading
+H = [[1.0]]                  # n x d target loading
+beta = 0.99                  # discount factor in (0, 1] (default 1.0)
+capacity = 0.5               # mutual-information cap (or set `omega = ...`, not both)
+units = "bits"               # bits | nats
+state_names = ["x"]
+action_names = ["a"]
+shock_names = ["eps"]
+# Optional dynamic transition fields (`ri transition`):
+# Sigma_init = [[1.0]]
+# capacity_path = [0.25, 0.5, 0.75]   # or omega_path = [...]
+
+# 2. Maćkowiak–Wiederholt multi-block attention (`ri mw`)
+[ri.mw]
+capacity = 2.0               # total capacity (or omega)
+strategic_complementarity = 0.25
+units = "bits"
+[ri.mw.agg_block]
+rho = 0.90                   # AR(1)/AR(2) persistence, or matrix fields A, B|Q, H
+sigma = 0.01
+weight = 1.0
+[ri.mw.idio_block]
+rho = 0.50
+sigma = 0.10
+weight = 1.0
+
+# 3. Matějka–McKay discrete-choice RI (`ri discrete`, `ri iia-test`)
+[ri.discrete]
+U = [[2.0, 0.0], [0.0, 2.0]] # J x S payoff matrix
+mu = [0.5, 0.5]              # length-S state prior vector
+omega = 0.8                  # shadow cost (or capacity)
+units = "nats"
+# new_option_payoffs = [1.0, 1.0]     # length-S vector for `ri iia-test`
+
+# 4. Optional priors / base payoffs for `estimate|predict choice ri-logit`
+[ri.logit]
+priors = "empirical"         # "empirical", length-S vector, or S x M matrix
+# base_payoff = [[0.0, 0.0], [0.0, 0.0]]
+```
+
+| Key | Section | Description |
+|---|---|---|
+| `A`, `B`, `H` | `[ri]` | Required state transition (`n × n`), shock (`n × m`), and target (`n × d`) matrices |
+| `M`, `B_u`, `beta` | `[ri]` | Optional loss weight (`d × d`), endogenous control matrix (`n × d`), and discount factor in `(0, 1]` |
+| `capacity`, `omega`, `units` | `[ri]`, `[ri.mw]`, `[ri.discrete]` | Mutually exclusive attention cap or shadow cost (`> 0`), plus `bits` or `nats` |
+| `Sigma_init`, `omega_path`, `capacity_path` | `[ri]` | Optional initial prior covariance (`n × n`) and time-varying transition schedules for `ri transition` |
+| `agg_block`, `idio_block` | `[ri.mw.*]` | Required aggregate and idiosyncratic blocks via `(rho, sigma, weight, process)` or `(A, B\|Q, H, M)` |
+| `U`, `mu`, `new_option_payoffs` | `[ri.discrete]` | Payoff matrix (`J × S`), state prior (`S`), and expanded-menu payoff vector (`S`) for `ri iia-test` |
+| `priors`, `base_payoff` | `[ri.logit]` | Optional environment state priors (`"empirical"`, `S`, or `S × M`) and baseline payoff matrices (`J × S` or `M × J × S`) |

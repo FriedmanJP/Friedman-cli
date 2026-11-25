@@ -16,17 +16,18 @@ Start with [Getting Started](@ref gs-installation), pick the econometric workflo
 | [Univariate, Filters & Spectral](@ref chap-univariate) | `filter`, `spectral`, `estimate univariate` | HP/Hamilton/BN/BK/BHP/X-13 filters, spectra, ARIMA/SARIMA/ARFIMA/ARDL/NARDL/MIDAS, state-space, TVP |
 | [Volatility & Multivariate GARCH](@ref chap-volatility) | `estimate\|forecast\|predict\|residuals volatility` | ARCH, GARCH, EGARCH, GJR, APARCH, CGARCH, IGARCH, FIGARCH/FIEGARCH, SV, GARCH-MIDAS, CCC/DCC/BEKK |
 | [Regime-Switching & Nonlinear TS](@ref chap-nonlinear) | `estimate\|forecast\|predict\|residuals regime` | Markov-switching AR & regression, SETAR, STAR, threshold regression, nonlinearity tests |
-| [VAR, BVAR, VECM & Factor Models](@ref chap-multivariate) | `estimate multivariate\|factor`, `forecast` | VAR, Bayesian VAR, VECM, MF-VAR, TVP-VAR, FAVAR, conditional scenarios, DFM/GDFM/SDFM |
-| [Structural ID, LP & Innovation Accounting](@ref chap-structural) | `estimate multivariate svar\|svec\|lp`, `irf`, `fevd`, `hd` | Cholesky, long-run, sign/narrative/Arias/Uhlig, proxy/max-share/GMM, non-Gaussian ICA, TVV/SV-VAR |
-| [Nowcasting & Forecast Evaluation](@ref chap-nowcast) | `nowcast`, `forecast evaluate` | DFM EM / Bayesian nowcasting, bridge equations, news decomposition, DM & Clark-West tests |
-| [Regression, Systems & GMM/SMM](@ref chap-regression) | `estimate\|predict\|residuals regression` | OLS/WLS, IV/2SLS, quantile, RDD, Ridge/Lasso/EN, Huber/MM, FMOLS/DOLS, SUR/3SLS, GMM, SMM, KDE |
-| [Discrete Choice, Count & Selection](@ref chap-choice) | `estimate\|predict\|residuals choice`, `tobit`, `heckman` | Binary/ordered/multinomial logit & probit, Poisson/NegBin, censored/truncated/selection models |
-| [Panel Data, Panel VAR & Causal DiD](@ref chap-panel) | `estimate panel`, `irf\|fevd\|test pvar`, `did` | FE/RE/FD/Hausman-Taylor, panel logit/probit/PMG, PVAR + GMM/FEVD/tests, DiD, event studies, LP-DiD |
-| [Representative-Agent & Bayesian DSGE](@ref chap-dsge) | `dsge` (RA & Bayes) | Steady state, 1st/2nd/3rd-order/projection solvers, perfect foresight, constraint/OccBin, SMC/MH Bayes |
+| [VAR, BVAR, VECM & Factor Models](@ref chap-multivariate) | `estimate multivariate\|factor`, `forecast` | VAR, BVAR, VECM, MF-VAR, TVP-VAR, FAVAR, QFM/GaR, QVAR/QFAVAR, FHLZ/GDFM-I(1)/TV-GDFM, LMS-SVAR, SSVARMA |
+| [Structural ID, LP & Innovation Accounting](@ref chap-structural) | `estimate multivariate svar\|svec\|lp`, `irf`, `fevd`, `hd` | Cholesky, long-run, sign/narrative/Arias/Uhlig, proxy/max-share/GMM, ICA/CvM, LMS-SVAR, Lanne–Luoto, spectral FEVD, TVV/SV-VAR |
+| [Nowcasting & Forecast Evaluation](@ref chap-nowcast) | `nowcast`, `filter`, `forecast evaluate` | DFM EM / Bayesian / GDFM nowcasting, bridge equations, Eurocoin & bandpass-GDFM filters, news decomposition, DM & Clark-West tests |
+| [Regression, Systems & GMM/SMM](@ref chap-regression) | `estimate\|predict\|residuals regression` | OLS/WLS, IV/2SLS, quantile (IPM/simplex), RDD, Ridge/Lasso/EN, Huber/MM, FMOLS/DOLS, SUR/3SLS, GMM (incl. CUE), SMM, KDE |
+| [Discrete Choice, Count & Selection](@ref chap-choice) | `estimate\|predict\|residuals choice`, `tobit`, `heckman` | Binary/ordered/multinomial logit & probit, RI-logit (`ri-logit`), Poisson/NegBin, censored/truncated/selection models |
+| [Panel Data, Panel VAR & Causal DiD](@ref chap-panel) | `estimate panel`, `irf\|fevd\|test pvar`, `did` | FE/RE/FD/Hausman-Taylor, panel logit/probit/PMG/quantile (`xtqreg`), PVAR + GMM/FEVD/tests, DiD, event studies, LP-DiD |
+| [Representative-Agent & Bayesian DSGE](@ref chap-dsge) | `dsge` (RA, ABCD, DSGE-VAR & Bayes) | Steady state, 1st/2nd/3rd-order/projection solvers, perfect foresight, OccBin (`madnlp`), canonical ABCD invertibility, DSGE-VAR, SMC/MH Bayes |
 | [Heterogeneous-Agent, CT & OLG Models](@ref chap-hadsge) | `hadsge`, `dsge ct\|olg\|dcegm\|lifecycle\|firm\|bank` | Sequence-space HA (`HouseholdSystem`), Krusell-Smith / Hank, HACT continuous-time, OLG, DCEGM, firm/bank |
-| [Policy Counterfactuals & Optimal Policy](@ref chap-policy) | `policy` | Policy causal menus, rule counterfactuals, historical simulations, optimal policy projections (OPP), spanning |
+| [Policy Counterfactuals & Optimal Policy](@ref chap-policy) | `policy` | Policy causal menus, rule counterfactuals, behavioral RI news, historical simulations, OPP, DARE sufficiency & spanning |
+| [Rational Inattention](@ref chap-ri) | `ri`, `estimate choice ri-logit` | LQG Sims–Kalman & dynamic RI transitions, Maćkowiak–Wiederholt attention allocation, Coibion–Gorodnichenko tests, Matějka–McKay discrete choice & IIA |
 | [Input-Output & Production Networks](@ref chap-io) | `io` (`io`, `bf`) | Leontief/Ghosh multipliers, hypothetical extraction, structural decomposition, Baqaee-Farhi nonlinear GE |
-| [Hypothesis Testing & Diagnostics](@ref chap-tests) | `test` | Unit root, cointegration, VAR/panel/DiD diagnostics, weak instruments, heteroskedasticity, Andrews break tests |
+| [Hypothesis Testing & Diagnostics](@ref chap-tests) | `test` | Unit root, cointegration, factor rank/QFM, SVAR hypothesis/fundamentalness/non-Gaussian, panel/DiD, weak instruments, Andrews break tests |
 
 ---
 
@@ -75,6 +76,7 @@ Pages = [
     "chapters/dsge.md",
     "chapters/hadsge.md",
     "chapters/policy.md",
+    "chapters/rational-inattention.md",
     "chapters/io.md",
     "chapters/tests.md",
     "config/overview.md",

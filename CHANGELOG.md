@@ -4,6 +4,100 @@ All notable changes to Friedman-cli are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to
 Semantic Versioning. Releases before v0.6.0 are recorded in the git tag history.
 
+## [1.1.0] — 2026-11-26 — `frdc` command rename, MacroEconometricModels v1.1.1, 4-layer storage overhaul, <10 ms C99 thin wrapper & lazy MCP proxy, GPL-3.0-only licensing (#219, #287–#321)
+
+Major econometric, architectural, performance, and licensing release upgrading
+to `MacroEconometricModels =1.1.1` (resolving master roadmap `#321`), expanding
+the CLI surface from **477** to **559** registry leaves (plus `schema` and
+`repl`) across **22** top-level commands (adding `ri`) and **278** plot-capable
+upstream result types.
+
+### MacroEconometricModels v1.1.1 Upgrade & Econometric Waves (`[MEM111]`, #312–#319)
+
+- **Foundation & compatibility (`#312`):** Upgraded exact pin to
+  `MacroEconometricModels = "=1.1.1"`, switched default DSGE `--constraint-solver`
+  to GPL-3.0-compatible `madnlp`, updated cleaned public-domain `:fred_md`
+  (`804 × 114`) and `:fred_qd` (`268 × 226`) expectations, and aligned fallback
+  serialization across all 442 upstream types.
+- **Quantile Factor, QVAR, QFAVAR & Panel Quantile (`#313`):** Added
+  `estimate|predict|residuals|forecast factor qfm`, `forecast factor growth-at-risk`,
+  `test factor qfm-spanning|qfm-constancy`, `estimate|residuals multivariate qvar|qfavar`,
+  `irf qvar|qfavar`, `forecast multivariate qfavar`, `estimate|predict|residuals panel xtqreg`,
+  and `--solver ipm` on `estimate regression qreg` (`QuantileVARModel`,
+  `QuantileFAVAR`, and `VBQuantileFAVAR` strictly omit `--plot` to match upstream).
+- **Dynamic Factor Models, Nowcasting & Spectral FEVD (`#314`):** Added
+  `estimate|predict|residuals factor fhlz|gdfm-i1|tv-gdfm`, `irf|fevd|hd gdfm-i1`,
+  `forecast factor gdfm-i1`, `nowcast gdfm`, `filter bandpass-gdfm|eurocoin`,
+  `spectral fevd`, and `test factor onatski-q|ahn-horenstein|onatski-ed`.
+- **Non-Gaussian SVAR, LMS-SVAR, Lanne–Luoto & SSVARMA (`#315`):** Added
+  `estimate|residuals multivariate lms-svar|lanne-luoto|ssvarma`, `irf|fevd ssvarma`,
+  `cvm` ICA method, `--weighting cue` on `estimate regression gmm`, and
+  `test multivariate svar-hypothesis|nongaussian-diag|gmm-moments|fundamentalness|sufficient-info`
+  with `[svar_hypothesis]` TOML schema.
+- **Canonical ABCD State-Space & Bayesian DSGE-VAR (`#316`):** Added
+  `dsge abcd extract|invertibility|innovations|recoverability|population-var|audit-irf|search-observables`,
+  `dsge var prior|lambda|estimate|irf|fevd|hd|forecast`, and DARE-backed
+  `policy sufficiency dsge`.
+- **Rational Inattention & Steady-State Kalman (`#317`):** Added top-level `ri`
+  family (`solve`, `transition`, `statespace`, `irf`, `fevd`, `simulate`,
+  `estimate`, `cg-test`, `mw`, `discrete`, `iia-test`), `estimate|predict choice ri-logit`,
+  `--behavioral-ri-gain`/`--behavioral-ri-rho` on `policy news dsge`, and
+  `--steady-state` + `[statespace] G` on `estimate regression statespace`.
+- **DGP Simulators, 278-Receiver Plot Baseline & Docs (`#318`, `#319`):** Added
+  `data simulate qfm|qfavar|gdfm-infinite|ssvarma`, verified all 278 upstream
+  plot receivers, added `docs/src/chapters/rational-inattention.md`, updated all
+  domain chapters, config schemas, live captures, completions, and `build_release.jl`
+  precompile workload.
+
+### Binary & Command Cutover to `frdc` (`[FRDC]`, #300–#303)
+
+- Renamed CLI binary, executable alias, help/envelope command prefixes, shell
+  completions (`completions/frdc.{bash,zsh}` and `_frdc.fish`), environment
+  variables (`FRDC_*` with legacy `FRIEDMAN_*` fallback), installers, MSIX
+  `AppExecutionAlias` (`frdc.exe`), tests, goldens, and docs from `friedman` to
+  `frdc` (keeping repository name `Friedman-cli` and Julia module `Friedman`).
+
+### Four-Layer Persistence & Handle Overhaul (`[STORAGE]`, #305–#310)
+
+- Unified data, model, and result persistence across `.jld2` (native HDF5/JLD2
+  with header-only `model info` and `archive.jld2#key` addressing), `.jls`,
+  legacy `.fmod`, and in-session URIs (`data://`, `model://`, `result://`, `mem://`).
+- Added atomic write-rename commits, `FRDC_DATA_ROOT`, `model keys`, `model convert`,
+  `data import --strict-missing`, and empirical round-trip verification gate
+  `test/tools/check_handle_roundtrips.jl`.
+
+### Legacy Table Migration (`#219`)
+
+- Completed Wave 3 migration of legacy handlers (Poisson/NegBin/QReg/RDD/SUR/3SLS,
+  DiD event-study/LP-DiD/Bacon, Forecast evaluate/combine, IO multipliers/linkages/SDA/footprint,
+  Policy counterfactual/history/sufficiency, FEVD bvar/lp, and Normality live + `--result`
+  replay) to upstream `Tables.jl` / `long_table` via `_emit_result`.
+
+### Native C99 Thin Wrapper, `FRDCACHE` v1 & Lazy MCP Proxy (`[FASTPATH]`, #293–#299)
+
+- Added deterministic little-endian `FRDCACHE` v1 metadata packer
+  (`tools/gen_fastpath_pack.jl` → `share/frdc/cli_cache.bin`, ~841 KiB, stdlib
+  `Zlib_jll` only) and pure C99 two-binary wrapper (`frdc` → `frdc-core`,
+  vendored MIT `miniz_tinfl.h` + `yyjson`) serving `--help`, `--version`,
+  `schema`, `completions`, `data list`, `io sources`, fast-fail unknown commands,
+  and MCP `initialize`/`ping`/`tools/list` in **< 10 ms** without spawning Julia
+  (lazy handoff on first `tools/call`; `FRDC_NO_FASTPATH=1` bypass).
+- Added ASan+UBSan differential parity test suite `test/test_fastpath.jl` (2,196
+  assertions) and tightened release metadata latency budgets to 50 ms.
+
+### GPL-3.0-Only Licensing, SBOM & Microsoft Store Compliance (`[LICENSE]`, #287–#291)
+
+- Enforced zero GPL-incompatible binary artifacts (`Ipopt`, `MUMPS`, `PATHSolver`,
+  `HSL`, `MKL_jll`, `oneTBB_jll`, `IntelOpenMP_jll`) via `LocalPreferences.toml`
+  (`LinearSolve.LoadMKL_JLL=false`, `FFTW.provider="fftw"`) and hard CI denylists.
+- Added automated `tools/gen_license_bundle.jl` bundling `LICENSE`, `SOURCE_OFFER.txt`,
+  `THIRD_PARTY_LICENSES.md`, `sbom-licenses.json` (covering all 144 non-stdlib
+  Manifest packages + vendored assets), `DATA_LICENSES.md` (with CC-BY-4.0 `:pwt`
+  attribution), and `COMONICON_LICENSE` / Julia notices.
+- Added hard MSIX license-notice gating in `packaging/msix/pack_msix.ps1` and
+  ready-to-paste Microsoft Partner Center Custom License Terms in
+  `packaging/msix/STORE_SUBMISSION.md`.
+
 ## [1.0.7] — 2026-11-24 — Standalone Julia-free releases, Linux/Windows Julia 1.14+opt, Windows MSIX & Microsoft Store prep (#259–#264)
 
 Distribution and packaging milestone on MacroEconometricModels `=1.0.3` (resolving

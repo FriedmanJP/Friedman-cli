@@ -2,7 +2,7 @@ using Documenter
 using Friedman
 
 # Agent guide single source (W5/#140): src/commands/agent_guide.md is baked into
-# the binary and served by `friedman schema --docs`; the site renders the SAME
+# the binary and served by `frdc schema --docs`; the site renders the SAME
 # file. Copied here at build time — docs/src/agent-guide.md is generated, never
 # hand-edited (it is untracked; edit src/commands/agent_guide.md).
 cp(normpath(joinpath(@__DIR__, "..", "src", "commands", "agent_guide.md")),
@@ -42,6 +42,7 @@ makedocs(;
             "Representative-Agent & Bayesian DSGE" => "chapters/dsge.md",
             "Heterogeneous-Agent, CT & OLG Models" => "chapters/hadsge.md",
             "Policy Counterfactuals & Optimal Policy" => "chapters/policy.md",
+            "Rational Inattention" => "chapters/rational-inattention.md",
             "Input-Output & Production Networks" => "chapters/io.md",
         ],
         "Diagnostics" => [
@@ -72,6 +73,7 @@ makedocs(;
             "policy" => "commands/generated/policy.md",
             "predict" => "commands/generated/predict.md",
             "residuals" => "commands/generated/residuals.md",
+            "ri" => "commands/generated/ri.md",
             "serve" => "commands/generated/serve.md",
             "show" => "commands/generated/show.md",
             "spectral" => "commands/generated/spectral.md",
@@ -90,8 +92,8 @@ makedocs(;
         edit_link = "master",
         # Generated CLI reference pages hold complete option schemas for lookup;
         # raise Documenter's HTML size threshold so dense reference tables build cleanly.
-        size_threshold = 500 * 2^10,
-        size_threshold_warn = 300 * 2^10,
+        size_threshold = 750 * 2^10,
+        size_threshold_warn = 500 * 2^10,
     ),
 )
 

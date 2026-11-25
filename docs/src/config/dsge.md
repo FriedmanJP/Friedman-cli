@@ -110,7 +110,7 @@ Provide `grids = [[...], [...]]` (or a single flat list for one parameter, `>= 2
 
 ## OccBin & Perfect-Foresight Constraints (`constraints:`, `--constraint`, `[[constraints.*]]`)
 
-Used by [`dsge solve`](@ref ref-dsge-solve), [`dsge irf`](@ref ref-dsge-irf), [`dsge steady-state`](@ref ref-dsge-steady-state), and [`dsge perfect-foresight`](@ref ref-dsge-perfect-foresight) (select backend via `--constraint-solver nonlinearsolve|optim|nlopt|ipopt|path`).
+Used by [`dsge solve`](@ref ref-dsge-solve), [`dsge irf`](@ref ref-dsge-irf), [`dsge steady-state`](@ref ref-dsge-steady-state), and [`dsge perfect-foresight`](@ref ref-dsge-perfect-foresight) (select backend via `--constraint-solver madnlp|nonlinearsolve|optim|nlopt|ipopt|path`; `madnlp` is the built-in GPL-3.0-compatible default, while `ipopt` and `path` remain optional source-only weak dependencies).
 
 ```text
 constraints:

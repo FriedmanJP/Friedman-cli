@@ -61,7 +61,7 @@ A nonlinear rational-expectations equilibrium satisfies conditional Euler and ma
 | [`dsge perfect-foresight`](@ref ref-dsge-perfect-foresight) | Deterministic nonlinear stacked-time Newton path (`--shocks`, `--sparsity`) | `perfect_foresight_path` |
 | [`dsge determinacy-map`](@ref ref-dsge-determinacy-map) | 1D / 2D parameter grid sweep over `[determinacy]` (`--threaded`) | `dsge_determinacy_map`, `determinacy_region_summary`, `determinacy_boundary` |
 
-Follow [`dsge steady-state`](@ref ref-dsge-steady-state) directly with [`dsge solve`](@ref ref-dsge-solve) or pass `--save-model` so [`dsge irf`](@ref ref-dsge-irf) and [`dsge simulate`](@ref ref-dsge-simulate) reuse the solved policy functions. Notice `--constraint 'i[t] >= 0.0'` (one-sided) activates OccBin regime switching in `solve` and `irf`, while `perfect-foresight` and `steady-state` also support two-sided bounds `lo <= x[t] <= hi`.
+Follow [`dsge steady-state`](@ref ref-dsge-steady-state) directly with [`dsge solve`](@ref ref-dsge-solve) or pass `--save-model` so [`dsge irf`](@ref ref-dsge-irf) and [`dsge simulate`](@ref ref-dsge-simulate) reuse the solved policy functions. Notice `--constraint 'i[t] >= 0.0'` (one-sided) activates OccBin regime switching in `solve` and `irf`, while `perfect-foresight` and `steady-state` also support two-sided bounds `lo <= x[t] <= hi` using the built-in GPL-3.0-compatible `--constraint-solver madnlp` default (optional `ipopt` / `path` remain source-only weak dependencies).
 
 <!-- capture -->
 ```bash
@@ -156,6 +156,30 @@ Identification Diagnostics
 ```
 
 Running [`dsge bayes identification`](@ref ref-dsge-bayes-identification) evaluates the Iskrev (2010) moment-Jacobian column rank (`rank = 2` for `n_params = 2`, `identified = true`, singular values `0.125439` and `0.00125848`) directly around the calibrated `@dsge` baseline without consuming priors (`identification_diagnostics`, `singular_values`), so you can confirm identifiability before switching to a Bayesian estimation card and launching expensive SMC/MH chains.
+
+---
+
+## Canonical ABCD Invertibility & Bayesian DSGE-VAR (`dsge abcd`, `dsge var`)
+
+Linearized DSGE solutions map directly into a canonical Fernández-Villaverde–Rubio-Ramírez–Sargent–Watson (2007) state-space **ABCD** representation ($x_t = A x_{t-1} + B \varepsilon_t$, $y_t = C x_{t-1} + D \varepsilon_t$) and into Del Negro–Schorfheide (2004) **DSGE-VAR($\lambda$)** prior-shrunk vector autoregressions:
+
+- **ABCD Invertibility & Shock Recoverability ([`dsge abcd`](@ref ref-fam-dsge-abcd)):** Extract minimal state-space matrices ([`extract`](@ref ref-dsge-abcd-extract)), test the "Poor Man's Invertibility Condition" eigenvalues of $A - B D^{-1} C$ ([`invertibility`](@ref ref-dsge-abcd-invertibility)), compute the Kalman innovations form ([`innovations`](@ref ref-dsge-abcd-innovations)), check finite-lead shock recoverability ([`recoverability`](@ref ref-dsge-abcd-recoverability)), derive the implied population VAR($p$) ([`population-var`](@ref ref-dsge-abcd-population-var)), audit SVAR IRF bias against true DSGE responses ([`audit-irf`](@ref ref-dsge-abcd-audit-irf)), and search observable subsets that restore invertibility ([`search-observables`](@ref ref-dsge-abcd-search-observables)).
+- **Bayesian DSGE-VAR ([`dsge var`](@ref ref-fam-dsge-var)):** Build the DSGE-implied dummy-observation prior at tightness $\lambda$ ([`prior`](@ref ref-dsge-var-prior)), profile marginal likelihood over `--lambda-grid` to find optimal misspecification weight $\hat{\lambda}$ ([`lambda`](@ref ref-dsge-var-lambda)), sample posterior DSGE-VAR draws ([`estimate`](@ref ref-dsge-var-estimate)), and compute structural [`irf`](@ref ref-dsge-var-irf), [`fevd`](@ref ref-dsge-var-fevd), [`hd`](@ref ref-dsge-var-hd), and [`forecast`](@ref ref-dsge-var-forecast).
+
+<!-- capture -->
+```bash
+frdc dsge abcd invertibility rbc_lin.jl --observables y
+```
+```text
+              FVRSW Poor Man's Invertibility Test (invertible)
+┌────────────┬─────┬─────┬─────────┬────────────┬────────────┬─────────────┐
+│ zero_index │ re  │ im  │ modulus │ invertible │   status   │ max_modulus │
+├────────────┼─────┼─────┼─────────┼────────────┼────────────┼─────────────┤
+│     1      │ 0.0 │ 0.0 │   0.0   │    true    │ invertible │     0.0     │
+└────────────┴─────┴─────┴─────────┴────────────┴────────────┴─────────────┘
+```
+
+The [`dsge abcd invertibility`](@ref ref-dsge-abcd-invertibility) check extracts the canonical $(A, B, C, D)$ matrices for observable `y` and reports the maximum eigenvalue modulus of $A - B D^{-1} C$, verifying whether a VAR in `y` can recover the structural shock `e_a` without fundamentalness distortion.
 
 ---
 

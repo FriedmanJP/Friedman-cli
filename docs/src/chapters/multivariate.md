@@ -169,10 +169,14 @@ X_t = \Lambda F_t + e_t, \qquad \begin{bmatrix} F_t \\ Y_t \end{bmatrix} = \Phi_
 | Static PCA Factor | [`estimate factor static`](@ref ref-estimate-factor-static) | Bai–Ng `ic1`\|`ic2`\|`ic3` rank selection; `scree_data_eigenvalues_variance_shares`, `factor_loadings` |
 | Dynamic Factor | [`estimate factor dynamic`](@ref ref-estimate-factor-dynamic) | Two-step PCA+VAR or Kalman EM (`--method twostep\|em`); `dynamic_factor_loadings` |
 | Generalized Dynamic | [`estimate factor gdfm`](@ref ref-estimate-factor-gdfm) | Forni–Hallin–Lippi–Reichlin frequency-domain dynamic rank (`--spectral`); `gdfm_common_variance_shares` |
+| One-Sided FHLZ / $I(1)$ / TV-GDFM | [`fhlz`](@ref ref-estimate-factor-fhlz), [`gdfm-i1`](@ref ref-estimate-factor-gdfm-i1), [`tv-gdfm`](@ref ref-estimate-factor-tv-gdfm) | One-sided FHLZ (`--dynamic-rank`), $I(1)$ permanent-transitory GDFM (`irf`/`fevd`/`hd`/`forecast gdfm-i1`), and time-varying spectral GDFM |
 | Structural DFM | [`estimate factor sdfm`](@ref ref-estimate-factor-sdfm) | Hallin–Liška / Bai–Ng / Amengual–Watson dynamic shocks (`sdfm_estimation_summary`, `irf`/`fevd`/`hd sdfm`) |
+| Quantile Factor & Growth-at-Risk | [`estimate factor qfm`](@ref ref-estimate-factor-qfm), [`forecast factor growth-at-risk`](@ref ref-forecast-factor-growth-at-risk) | Chen–Dolado–Gonzalo quantile factors (`--tau`/`--taus`, `forecast`/`predict`/`residuals factor qfm`) and Adrian–Boyarchenko–Giannone skewed-$t$ Growth-at-Risk |
 | Factor-Augmented VAR | [`estimate multivariate favar`](@ref ref-estimate-multivariate-favar) | Bernanke–Boivin–Eliasz `--key-vars` combined with slow/fast factor block (`two_step` or `bayesian`) |
+| Quantile VAR & QFAVAR | [`estimate multivariate qvar`](@ref ref-estimate-multivariate-qvar), [`qfavar`](@ref ref-estimate-multivariate-qfavar) | Quantile-specific VAR/FAVAR dynamics (`--taus`, VB or frequentist; structural paths via [`irf qvar`](@ref ref-irf-qvar) and [`irf qfavar`](@ref ref-irf-qfavar)) |
+| Non-Gaussian / Structural VARMA | [`lms-svar`](@ref ref-estimate-multivariate-lms-svar), [`lanne-luoto`](@ref ref-estimate-multivariate-lanne-luoto), [`ssvarma`](@ref ref-estimate-multivariate-ssvarma) | Lanne–Meitz–Saikkonen MLE SVAR, Lanne–Luoto co-kurtosis GMM, and structural SVARMA (`--ar-lags`, `--ma-lags`, `--blaschke`, [`irf`/`fevd ssvarma`](@ref ref-irf-ssvarma)) |
 
-All three PCA/spectral factor models support common-component fitted values via [`predict factor`](@ref ref-fam-predict-factor), idiosyncratic residuals via [`residuals factor`](@ref ref-fam-residuals-factor), and multi-step forecasts via [`forecast factor`](@ref ref-fam-forecast-factor).
+All PCA, spectral, and quantile factor models support common-component fitted values via [`predict factor`](@ref ref-fam-predict-factor), idiosyncratic residuals via [`residuals factor`](@ref ref-fam-residuals-factor), and multi-step forecasts via [`forecast factor`](@ref ref-fam-forecast-factor). Test factor dimension and quantile-factor spanning via [`test factor`](@ref ref-fam-test-factor) ([Hypothesis Testing & Diagnostics](@ref chap-tests)). Note that [`estimate multivariate qvar`](@ref ref-estimate-multivariate-qvar) and [`estimate multivariate qfavar`](@ref ref-estimate-multivariate-qfavar) emit tabular estimation output only (no `--plot`), while [`irf qvar`](@ref ref-irf-qvar), [`irf qfavar`](@ref ref-irf-qfavar), and [`estimate factor qfm`](@ref ref-estimate-factor-qfm) support interactive `--plot` / `--plot-save`.
 
 <!-- capture -->
 ```bash
@@ -213,6 +217,39 @@ Scree Data (Eigenvalues & Variance Shares)
 ```
 
 Extracting two static factors (`--nfactors 2`; omit `--nfactors` to select rank automatically via `--criterion ic1|ic2|ic3`), the first two components explain `0.795612` (`0.511257` + `0.284355`) cumulative variance share in `scree_data_eigenvalues_variance_shares` alongside loadings in `factor_loadings`.
+
+To capture tail-specific comovement missed by mean-variance PCA, simulate a quantile-factor DGP ([`data simulate qfm`](@ref ref-data-simulate-qfm)) and fit [`estimate factor qfm`](@ref ref-estimate-factor-qfm) at $\tau = 0.5$:
+
+<!-- capture -->
+```bash
+frdc --quiet data simulate qfm --periods 60 --series 8 --seed 11 --save-data qfm_sim
+frdc estimate factor qfm qfm_sim --tau 0.5 --factors 2 --standardize
+```
+```text
+          Quantile Factor Model Loadings (r=2, τ=0.5)
+┌──────────┬────────┬─────┬───────────┬───────────┬───────────┐
+│ variable │ factor │ tau │  loading  │ std_error │ pseudo_r2 │
+├──────────┼────────┼─────┼───────────┼───────────┼───────────┤
+│    x1    │   1    │ 0.5 │ 0.891479  │  missing  │ 0.650092  │
+│    x2    │   1    │ 0.5 │ 0.827479  │  missing  │ 0.442992  │
+│    x3    │   1    │ 0.5 │ -1.38318  │  missing  │    1.0    │
+│    x4    │   1    │ 0.5 │ 0.917918  │  missing  │ 0.588681  │
+│    x5    │   1    │ 0.5 │ 0.890507  │  missing  │ 0.326975  │
+│    x6    │   1    │ 0.5 │ -0.649163 │  missing  │ 0.265572  │
+│    x7    │   1    │ 0.5 │ -0.898455 │  missing  │ 0.502982  │
+│    x8    │   1    │ 0.5 │ 0.679897  │  missing  │ 0.385191  │
+│    x1    │   2    │ 0.5 │ 0.463891  │  missing  │ 0.650092  │
+│    x2    │   2    │ 0.5 │ 0.459483  │  missing  │ 0.442992  │
+│    x3    │   2    │ 0.5 │  1.69163  │  missing  │    1.0    │
+│    x4    │   2    │ 0.5 │ 0.418849  │  missing  │ 0.588681  │
+│    x5    │   2    │ 0.5 │ 0.265324  │  missing  │ 0.326975  │
+│    x6    │   2    │ 0.5 │ -0.299927 │  missing  │ 0.265572  │
+│    x7    │   2    │ 0.5 │  -0.4654  │  missing  │ 0.502982  │
+│    x8    │   2    │ 0.5 │ 0.459612  │  missing  │ 0.385191  │
+└──────────┴────────┴─────┴───────────┴───────────┴───────────┘
+```
+
+The quantile factor fit emits `qfm_summary` and `qfm_loadings` at the requested quantile(s), feeding [`forecast factor qfm`](@ref ref-forecast-factor-qfm), [`forecast factor growth-at-risk`](@ref ref-forecast-factor-growth-at-risk), and [`test factor qfm-spanning`](@ref ref-test-factor-qfm-spanning).
 
 ---
 

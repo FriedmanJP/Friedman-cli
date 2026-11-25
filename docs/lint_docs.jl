@@ -28,6 +28,7 @@ const CHAPTER = Set([
     "chapters/dsge.md",
     "chapters/hadsge.md",
     "chapters/policy.md",
+    "chapters/rational-inattention.md",
     "chapters/io.md",
     "chapters/tests.md",
 ])
@@ -142,7 +143,7 @@ function _lint_file!(violations::Vector{Violation}, rel::String, path::String, a
         end
 
         # #303: flag stray `friedman <subcommand>` invocations outside migration notes
-        if is_hand && occursin(r"`friedman\s+(?:--?[a-z]|completions|data|did|dsge|estimate|fevd|filter|forecast|hadsge|hd|io|irf|model|nowcast|policy|predict|repl|residuals|schema|serve|show|spectral|test)\b", line) &&
+        if is_hand && occursin(r"`friedman\s+(?:--?[a-z]|completions|data|did|dsge|estimate|fevd|filter|forecast|hadsge|hd|io|irf|model|nowcast|policy|predict|repl|residuals|ri|schema|serve|show|spectral|test)\b", line) &&
            !occursin(r"migrating|renamed|formerly|legacy|cutover"i, line)
             push!(violations, Violation(rel, ln, "STRAY-FRIEDMAN-CMD", "use `frdc ...` instead of legacy `friedman ...`: $(strip(line))"))
         end

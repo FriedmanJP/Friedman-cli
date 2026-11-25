@@ -46,7 +46,7 @@ y_i = x_i'\beta + \varepsilon_i, \qquad \widehat{\beta}_{\text{GMM/2SLS}} = (X' 
 |---|---|---|
 | [`reg`](@ref ref-estimate-regression-reg) | OLS / WLS (`--weights`) with `ols`, `hc0`–`hc3`, `cluster`, or spatial `conley` (`--lat`, `--lon`, `--dist-cutoff`, `--time-col`) | [`test vif`](@ref ref-test-vif), [`test influence`](@ref ref-test-influence), [`test serial white`](@ref ref-test-serial-white) |
 | [`iv`](@ref ref-estimate-regression-iv) | `tsls`, `liml`, `fuller` (`--fuller-a`), `kclass` (`--k`) | [`test iv weak-instrument`](@ref ref-test-iv-weak-instrument), [`test iv anderson-rubin`](@ref ref-test-iv-anderson-rubin), [`test iv wild-cluster`](@ref ref-test-iv-wild-cluster) |
-| [`qreg`](@ref ref-estimate-regression-qreg) | Quantile regression at `--tau` (`0.5` median or comma list) with `iid`, `robust`, or `--n-boot` SEs | `quantile_regression_coefficients`, `quantile_fit_diagnostics` |
+| [`qreg`](@ref ref-estimate-regression-qreg) | Quantile regression at `--tau` (`0.5` median or comma list) with `--solver ipm\|simplex` (Frisch–Newton interior point or Barrodale–Roberts simplex) and `iid`, `robust`, or `--n-boot` SEs | `quantile_regression_coefficients`, `quantile_fit_diagnostics` |
 | [`rdd`](@ref ref-estimate-regression-rdd) | Sharp or fuzzy (`--fuzzy`) local polynomial RD at `--cutoff` (`triangular`, `epanechnikov`, `uniform`) | `rdd_treatment_effect`, `rdd_settings_diagnostics` |
 
 ---
@@ -98,7 +98,7 @@ Multi-equation linear systems and generalized method-of-moments / simulated meth
 ```
 
 - **Seemingly Unrelated & Three-Stage Least Squares ([`sur`](@ref ref-estimate-regression-sur), [`3sls`](@ref ref-estimate-regression-3sls)):** Supply an `equations:` card (plus `instruments:` or per-equation `| instr` for `3sls`); pass `--iterate` on `sur` for iterative Zellner GLS (`sur_coefficients`, `3sls_coefficients`).
-- **GMM ([`gmm`](@ref ref-estimate-regression-gmm)):** Use `gmm lp:` cards for horizon-0 moment conditions or `gmm iv:` cards for linear IV-GMM (`--weighting identity|optimal|twostep|iterated`); output keys are `gmm_estimates` and `gmm_diagnostics`.
+- **GMM ([`gmm`](@ref ref-estimate-regression-gmm)):** Use `gmm lp:` cards for horizon-0 moment conditions or `gmm iv:` cards for linear IV-GMM (`--weighting identity|optimal|twostep|iterated|cue`, including Hansen–Heaton–Yaron continuously updated `cue`); output keys are `gmm_estimates` and `gmm_diagnostics`.
 - **SMM ([`smm`](@ref ref-estimate-regression-smm)):** Matches simulated autocovariance moments (`ar1`, `arp`, `var1`, `iid_normal`) to sample moments (`--sim-ratio`, `--burn`, leading `--seed`).
 
 <!-- capture -->

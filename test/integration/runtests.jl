@@ -7691,18 +7691,25 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test named_table(rc.doc, :per_series_break_diagnostics) === nothing
         end
 
-        @testset "fevd bvar (point_estimate, (var,shock,h) layout since MEMs 0.7.3/#527)" begin
+        @testset "fevd bvar (point_estimate, (var,shock,h) layout since MEMs 0.7.3/#527; tidy long_table #219)" begin
             r = run_json(["fevd", "bvar", multi, "--lags", "1", "--horizons", "4"])
             assert_envelope_ok(r; label="fevd bvar")
             _, tbl = first_table(r.doc)
             @test tbl !== nothing
+            cols = table_cols(tbl)
+            @test cols[1:4] == ["horizon", "variable", "shock", "value"]
             rows = table_rows(tbl)
-            # One row per horizon (a transposed array silently yields n rows instead)
-            @test length(rows) == 4
-            # Variance shares sum to 1 across shocks at every horizon
+            # Tidy long_table: 3 vars × 3 shocks × 4 horizons = 36 rows
+            @test length(rows) == 36
+            # Variance shares sum to 1 across shocks for every (horizon, variable)
+            by_hv = Dict{Tuple{Int,String},Float64}()
             for row in rows
-                vals = Float64.(collect(row)[2:end])
-                @test isapprox(sum(vals), 1.0; atol=1e-6)
+                h = Int(row[1]); v = String(row[2]); val = Float64(row[4])
+                by_hv[(h, v)] = get(by_hv, (h, v), 0.0) + val
+            end
+            @test length(by_hv) == 12
+            for ((h, v), total) in by_hv
+                @test isapprox(total, 1.0; atol=1e-6)
             end
         end
 
@@ -7735,13 +7742,13 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             rm(nancsv; force=true)
         end
 
-        @testset "non-finite cells (Inf) → data/missing-values; fitted usage guards" begin
-            # `_is_gap` covers ±Inf as well as NaN/missing (upstream `_validate_data`
-            # rejects both); fitted panel handlers throw typed usage/missing.
+        @testset "non-finite cells (Inf) → data/non-finite-values; fitted usage guards" begin
+            # #306: Inf/-Inf reports typed data/non-finite-values (exit 3), distinct from
+            # missing/NaN (data/missing-values); fitted panel handlers throw typed usage/missing.
             infcsv = write_csv(DataFrame(y1=[1.0, Inf, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
                                          y2=[2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]); prefix="inf")
             ri = run_json(["estimate", "multivariate", "var", infcsv, "--lags", "1"])
-            @test ri.code == 3 && String(ri.doc.error.code) == "data/missing-values"
+            @test ri.code == 3 && String(ri.doc.error.code) == "data/non-finite-values"
             rm(infcsv; force=true)
             id = repeat(1:10, inner=5); tt = repeat(1:5, 10)
             pivcsv = write_csv(DataFrame(id=id, time=tt, y=randn(50), x=randn(50),
@@ -9802,14 +9809,22 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             csv = joinpath(dir, "macro.csv")
             Random.seed!(1)
             CSV.write(csv, DataFrame(y1=randn(40), y2=randn(40), y3=randn(40)))
+            # #305: bare stem matching both macro.csv and macro.jld2 fails fast with data/ambiguous-path;
+            # use a distinct handle stem (`macro_h`) for unambiguous bare-stem resolution.
             r0 = run_json(["data", "import", csv, "--kind", "timeseries",
-                           "-o", joinpath(dir, "macro")])
+                           "-o", joinpath(dir, "macro_h")])
             @test r0.code == 0
-            @test isfile(joinpath(dir, "macro.jld2"))
+            @test isfile(joinpath(dir, "macro_h.jld2"))
             rc = run_json(["estimate", "multivariate", "var", csv, "--lags", "1"])
-            rh = run_json(["estimate", "multivariate", "var", joinpath(dir, "macro"), "--lags", "1"])
+            rh = run_json(["estimate", "multivariate", "var", joinpath(dir, "macro_h"), "--lags", "1"])
             @test rc.code == 0
             @test rh.code == 0
+            # Verify ambiguous stem detection when both .csv and .jld2 share a stem
+            r_dup = run_json(["data", "import", csv, "--kind", "timeseries",
+                              "-o", joinpath(dir, "macro")])
+            @test r_dup.code == 0
+            r_amb = run_json(["estimate", "multivariate", "var", joinpath(dir, "macro"), "--lags", "1"])
+            @test r_amb.code == 3 && String(r_amb.doc["error"]["code"]) == "data/ambiguous-path"
             # Distinctive columns (term/estimate), never first(values(...)) / key substring
             coef_table(doc) = begin
                 doc === nothing && return nothing
@@ -9835,9 +9850,9 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             CSV.write(panel, DataFrame(group=g, time=t, y=randn(40), x=randn(40)))
             rp = run_json(["data", "import", panel, "--kind", "panel",
                            "--id-col", "group", "--time-col", "time",
-                           "-o", joinpath(dir, "panel")])
+                           "-o", joinpath(dir, "panel_h")])
             @test rp.code == 0
-            bad = run_json(["estimate", "multivariate", "var", joinpath(dir, "panel"), "--lags", "1"])
+            bad = run_json(["estimate", "multivariate", "var", joinpath(dir, "panel_h"), "--lags", "1"])
             @test bad.code == 3
             @test bad.doc !== nothing
             @test String(bad.doc["error"]["code"]) == "data/wrong-kind"
@@ -9861,7 +9876,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test pvar_tbl !== nothing && !isempty(table_rows(pvar_tbl))
 
             # data describe on a panel handle is not a TS wrap: id/time are identity.
-            rdesc = run_json(["data", "describe", joinpath(dir, "panel")])
+            rdesc = run_json(["data", "describe", joinpath(dir, "panel_h")])
             @test rdesc.code == 0
             desc_tbl = nothing
             for (_, v) in pairs(rdesc.doc.data)
@@ -9877,8 +9892,8 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test !any(v -> v in ("group", "time", "id"), desc_vars)
 
             # data fix on a panel handle preserves type / varnames / frequency.
-            before = Friedman.load_model_dispatch(joinpath(dir, "panel.jld2"))
-            rfix = run_json(["data", "fix", joinpath(dir, "panel"),
+            before = Friedman.load_model_dispatch(joinpath(dir, "panel_h.jld2"))
+            rfix = run_json(["data", "fix", joinpath(dir, "panel_h"),
                              "-o", joinpath(dir, "panel_clean")])
             @test rfix.code == 0
             after = Friedman.load_model_dispatch(joinpath(dir, "panel_clean.jld2"))
@@ -9894,14 +9909,14 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             csv = joinpath(dir, "macro.csv")
             Random.seed!(1)
             CSV.write(csv, DataFrame(y1=randn(40), y2=randn(40), y3=randn(40)))
-            run_json(["data", "import", csv, "--kind", "timeseries", "-o", joinpath(dir, "macro")])
-            r1 = run_json(["estimate", "multivariate", "var", joinpath(dir, "macro"), "--lags", "1",
+            run_json(["data", "import", csv, "--kind", "timeseries", "-o", joinpath(dir, "macro_h")])
+            r1 = run_json(["estimate", "multivariate", "var", joinpath(dir, "macro_h"), "--lags", "1",
                            "--save-model", joinpath(dir, "var")])
             @test r1.code == 0
             r2 = run_json(["irf", "var", "--model", joinpath(dir, "var"),
                            "--horizons", "4", "--save-result", joinpath(dir, "irf")])
             @test r2.code == 0
-            rm(joinpath(dir, "macro.jld2"); force=true)  # --result must not re-estimate from data
+            rm(joinpath(dir, "macro_h.jld2"); force=true)  # --result must not re-estimate from data
             r3 = run_json(["irf", "var", "--result", joinpath(dir, "irf")])
             @test r3.code == 0
             r4 = run_json(["show", joinpath(dir, "irf")])

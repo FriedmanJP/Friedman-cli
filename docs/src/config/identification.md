@@ -187,3 +187,37 @@ b = [[1.0], [-1.0]]   # beta = b        (p x r, exactly r columns)
 | `H` | `test vecm beta`, `test vecm joint` | `p × s` matrix with `s >= r` (`beta = H*phi`) |
 | `A` | `test vecm alpha`, `test vecm joint` | `p × a` matrix with `a >= r` (`alpha = A*psi`) |
 | `b` | `test vecm known-beta` | `p × r` known cointegrating matrix (`beta = b`) |
+
+---
+
+## SVAR Structural Hypothesis Restrictions (`[svar_hypothesis]`)
+
+Used by [`test multivariate svar-hypothesis`](@ref ref-test-multivariate-svar-hypothesis) ([Structural ID, LP & Innovation Accounting](@ref chap-structural), [Hypothesis Testing & Diagnostics](@ref chap-tests)) to test exact structural restrictions on non-Gaussian or LMS-SVAR impact, long-run, and finite-horizon responses:
+
+```toml
+[svar_hypothesis]
+type = "impact_zero"             # recursiveness | impact_zero | impact_linear | long_run | horizon_irf | mixed
+zeros = [[1, 2], [1, 3]]         # 1-based [var, shock] zero entries (impact_zero / long_run)
+# ordering = [1, 2, 3]           # optional variable/shock ordering permutation
+# R = [[0.0, 1.0, 0.0, 0.0]]     # linear constraint R * vec(B0) = r (impact_linear)
+# r = [0.0]
+# restrictions = [{ horizon = 1, var = 1, shock = 2 }]   # horizon_irf
+
+# For type = "mixed", combine one or more sub-tables:
+# [svar_hypothesis.short_run]
+# type = "impact_zero"
+# zeros = [[1, 2]]
+# [svar_hypothesis.long_run]
+# zeros = [[2, 1]]
+# [svar_hypothesis.horizon]
+# restrictions = [{ horizon = 4, var = 1, shock = 2 }]
+```
+
+| Key | Section | Description |
+|---|---|---|
+| `type` | `[svar_hypothesis]` | `recursiveness` \| `impact_zero` \| `impact_linear` \| `long_run` \| `horizon_irf` \| `mixed` (required) |
+| `ordering` | `[svar_hypothesis]` / sub-tables | Optional 1-based permutation vector for ordering-sensitive restrictions |
+| `zeros` | `impact_zero`, `long_run`, sub-tables | Array of `[var, shock]` 1-based index pairs constrained to zero |
+| `R`, `r` | `impact_linear`, `short_run` | Linear restriction matrix `R` and right-hand-side vector `r` on `vec(B0)` |
+| `restrictions` | `horizon_irf`, `horizon` | Array of `{ horizon = h, var = i, shock = j }` finite-horizon zero restrictions |
+| `short_run`, `long_run`, `horizon` | `[svar_hypothesis.*]` | Sub-tables combined when `type = "mixed"` (at least one required) |

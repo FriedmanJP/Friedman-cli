@@ -14,7 +14,7 @@ Three handle roles govern the CLI boundary:
 
 When resolving a bare stem `STEM`, Friedman-cli checks `STEM.jld2`, then `STEM.jls`, then `STEM.fmod`, and finally `STEM.csv` (matching the order documented in [Architecture & Internals](@ref int-architecture)). Any builtin example dataset can be passed directly with a leading colon (`:denmark`, `:fred_qd`, `:pwt`, `:mpdta`, etc.) or materialized into a typed handle with [`frdc data import`](@ref ref-data-import).
 
-If you pass a saved handle directly as the positional argument to `frdc show <path>` ([`show`](@ref ref-show)), or omit `--model` when passing a model stem to post-estimation verbs such as `irf`, `fevd`, `hd`, `forecast`, `predict`, or `residuals`, the router automatically binds the loaded object into `--model` or `--result` without re-estimating.
+If you pass a saved handle directly as the positional argument to `frdc show <path>` ([`show`](@ref ref-show)), or omit `--model` when passing a model stem to post-estimation verbs such as `irf`, `fevd`, `hd`, `forecast`, `predict`, `residuals`, `dsge abcd`/`dsge var`, or `ri`, the router automatically binds the loaded object into `--model` or `--result` without re-estimating. Metadata inspection (`--help`, `schema`, `completions`, `data list`, `io sources`) and MCP `initialize`/`tools/list` discovery are served in **< 10 ms** by the native thin wrapper before spawning the Julia core only on compute calls (`FRDC_NO_FASTPATH=1` bypasses directly to `frdc-core`).
 
 ---
 

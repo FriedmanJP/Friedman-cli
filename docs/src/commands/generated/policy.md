@@ -486,6 +486,8 @@ Square DSGE news menu (policy_news_matrix) for one exogenous shock
 | `--chunk` | — | `Int64` | `0` | — | Shock columns per solve (0 = all at once) |
 | `--behavioral-m` | — | `Float64` | `NaN` | — | Cognitive discounting m in [0,1] (behavioral operator; square menus only) |
 | `--behavioral-theta` | — | `Float64` | `NaN` | — | Sticky-expectations theta in [0,1] |
+| `--behavioral-ri-gain` | — | `Float64` | `NaN` | — | Rational-inattention Kalman gain G in [0,1] (sequence-space RI Jacobian; square menus only) |
+| `--behavioral-ri-rho` | — | `Float64` | `NaN` | — | RI anticipation news persistence rho in [0,1] (requires --behavioral-ri-gain; default 0.8) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
@@ -513,6 +515,8 @@ Square HA sequence-space news menu under a rate-wedge closure
 | `--dx` | — | `Float64` | `0.0001` | — | Finite-difference step |
 | `--behavioral-m` | — | `Float64` | `NaN` | — | Cognitive discounting m in [0,1] (behavioral operator; square menus only) |
 | `--behavioral-theta` | — | `Float64` | `NaN` | — | Sticky-expectations theta in [0,1] |
+| `--behavioral-ri-gain` | — | `Float64` | `NaN` | — | Rational-inattention Kalman gain G in [0,1] (sequence-space RI Jacobian; square menus only) |
+| `--behavioral-ri-rho` | — | `Float64` | `NaN` | — | RI anticipation news persistence rho in [0,1] (requires --behavioral-ri-gain; default 0.8) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |

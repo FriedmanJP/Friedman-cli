@@ -12,7 +12,7 @@ Each estimator family accepts specific container kinds enforced at dispatch (ret
 | Multiple aggregate series | `:timeseries` (`N > 1`) | Quarterly/monthly macro blocks; mixed-freq | [VAR, BVAR, VECM & Factor Models](@ref chap-multivariate), [Structural ID, LP & Innovation Accounting](@ref chap-structural), [Nowcasting & Forecast Evaluation](@ref chap-nowcast) |
 | Unit-by-time observations | `:panel` | Balanced or unbalanced `(group, time)` | [Panel Data, Panel VAR & Causal DiD](@ref chap-panel) |
 | Independent observations | `:cross_section` | Household/firm survey or experimental units | [Regression, Systems & GMM/SMM](@ref chap-regression), [Discrete Choice, Count & Selection](@ref chap-choice) |
-| Economic model (no raw data needed for solve) | Model spec (`.jl` / `.toml`) | Structural calibration or Bayesian estimation | [Representative-Agent & Bayesian DSGE](@ref chap-dsge), [Heterogeneous-Agent, CT & OLG Models](@ref chap-hadsge), [Policy Counterfactuals & Optimal Policy](@ref chap-policy) |
+| Economic model (no raw data needed for solve) | Model spec (`.jl` / `.toml`) | Structural calibration, RI tracking, or Bayesian estimation | [Representative-Agent & Bayesian DSGE](@ref chap-dsge), [Heterogeneous-Agent, CT & OLG Models](@ref chap-hadsge), [Policy Counterfactuals & Optimal Policy](@ref chap-policy), [Rational Inattention](@ref chap-ri) |
 | Inter-sector flows / weights | IO / BF `.toml` or `.csv` | Sector × sector intermediate matrix | [Input-Output & Production Networks](@ref chap-io) |
 
 ---
@@ -26,11 +26,11 @@ Each estimator family accepts specific container kinds enforced at dispatch (ret
 3. **Expecting discrete regime switches or smooth threshold nonlinearity?**
    Use [Regime-Switching & Nonlinear TS](@ref chap-nonlinear) (`estimate regime threshold|setar|star|ms-ar|ms`, paired with Hansen/STAR linearity tests).
 4. **Forecasting or decomposing multi-variable dynamics?**
-   Fit reduced-form VAR, Minnesota/diffuse BVAR, VECM, mixed-frequency VAR, TVP-VAR, FAVAR, or dynamic factor models in [VAR, BVAR, VECM & Factor Models](@ref chap-multivariate).
+   Fit reduced-form VAR, Minnesota/diffuse BVAR, VECM, mixed-frequency VAR, TVP-VAR, FAVAR, quantile factor / Growth-at-Risk (`qfm`, `growth-at-risk`), quantile VAR/FAVAR (`qvar`, `qfavar`), or dynamic/generalized/time-varying factor models (`dfm`, `gdfm`, `fhlz`, `gdfm-i1`, `tv-gdfm`) in [VAR, BVAR, VECM & Factor Models](@ref chap-multivariate).
 5. **Recovering structural shocks, IRFs, FEVDs, or historical decompositions?**
-   Combine Cholesky, long-run, sign/narrative/Arias/Uhlig, proxy IV, max-share, non-Gaussian ICA, or heteroskedastic/SV identification with LP or VAR/BVAR/VECM/FAVAR/TVP-VAR in [Structural ID, LP & Innovation Accounting](@ref chap-structural).
+   Combine Cholesky, long-run, sign/narrative/Arias/Uhlig, proxy IV, max-share, non-Gaussian ICA/CvM, LMS-SVAR (`lms-svar`), Lanne–Luoto co-kurtosis GMM (`lanne-luoto`), structural SVARMA (`ssvarma`), spectral FEVD (`spectral fevd`), or heteroskedastic/SV identification with LP or VAR/BVAR/VECM/FAVAR/TVP-VAR in [Structural ID, LP & Innovation Accounting](@ref chap-structural).
 6. **Nowcasting ragged-edge quarterly GDP from monthly releases or comparing forecasts?**
-   Use `nowcast` and `forecast evaluate` in [Nowcasting & Forecast Evaluation](@ref chap-nowcast).
+   Use `nowcast` (`dfm`, `bvar`, `bridge`, `gdfm`, `news`), `filter eurocoin` / `bandpass-gdfm`, and `forecast evaluate` in [Nowcasting & Forecast Evaluation](@ref chap-nowcast).
 
 ---
 
@@ -44,9 +44,10 @@ Each estimator family accepts specific container kinds enforced at dispatch (ret
 
 ## Structural Equilibrium, Policy & Networks
 
-- **Representative-agent equilibrium:** [Representative-Agent & Bayesian DSGE](@ref chap-dsge) solves linearized, higher-order pruned, projection, perfect-foresight, and inequality-constrained (`bounds`/`OccBin`) DSGE models and estimates parameters via SMC or Random-Walk Metropolis-Hastings.
+- **Representative-agent equilibrium, ABCD invertibility & DSGE-VAR:** [Representative-Agent & Bayesian DSGE](@ref chap-dsge) solves linearized, higher-order pruned, projection, perfect-foresight, and inequality-constrained (`bounds`/`OccBin`, defaulting to GPL-3.0 `madnlp`) DSGE models, audits canonical ABCD invertibility and recoverability (`dsge abcd`), fits Bayesian DSGE-VARs (`dsge var`), and estimates parameters via SMC or Random-Walk Metropolis-Hastings.
 - **Distributional & continuous-time equilibrium:** [Heterogeneous-Agent, CT & OLG Models](@ref chap-hadsge) handles sequence-space `HouseholdSystem` models (`hadsge`), Huggett/Aiyagari/Krusell-Smith/HANK (`dsge ct`), OLG (`dsge olg`), discrete-continuous choice (`dsge dcegm|lifecycle`), firm dynamics (`dsge firm`), and banking (`dsge bank`).
-- **Counterfactuals & normative central banking:** [Policy Counterfactuals & Optimal Policy](@ref chap-policy) runs zeroing/sequence counterfactuals, policy rules, Ramsey/timeless optimal policy, and commitment vs. discretion comparisons.
+- **Counterfactuals & normative central banking:** [Policy Counterfactuals & Optimal Policy](@ref chap-policy) runs zeroing/sequence counterfactuals, policy rules, behavioral RI policy news, Ramsey/timeless optimal policy, DARE sufficiency tests, and commitment vs. discretion comparisons.
+- **Rational inattention & endogenous information acquisition:** [Rational Inattention](@ref chap-ri) solves Sims–Kalman LQG tracking and dynamic attention transitions (`ri solve`, `ri transition`), allocates Maćkowiak–Wiederholt aggregate vs. idiosyncratic attention (`ri mw`), tests Coibion–Gorodnichenko expectation rigidity (`ri cg-test`), solves Matějka–McKay discrete-choice RI and IIA violations (`ri discrete`, `ri iia-test`), and estimates structural RI-logit (`estimate choice ri-logit`).
 - **Sectoral propagation:** [Input-Output & Production Networks](@ref chap-io) computes Leontief/Ghosh multipliers, hypothetical extraction, structural decomposition analysis, and Baqaee-Farhi nonlinear general equilibrium counterfactuals.
 
 ---

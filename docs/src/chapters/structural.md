@@ -178,7 +178,9 @@ With `--normalize`, variance shares across structural shocks sum to `1.0` at eve
 
 When structural innovations are mutually independent and at most one shock is Gaussian (or conditional volatility varies across regimes or stochastic volatility states), $B_0$ is point-identified up to column permutation and sign without zero/sign timing assumptions:
 
-- **Non-Gaussian Independence:** Run [`estimate factor fastica`](@ref ref-estimate-factor-fastica) (`--method fastica|jade|sobi|dcov|hsic`, `--contrast logcosh|exp|kurtosis`) or parametric skewed/heavy-tailed MLE [`estimate regression ml`](@ref ref-estimate-regression-ml) (`--distribution student_t|mixture_normal|pml|skew_normal`), or pass `--id fastica|jade|sobi|dcov|hsic|student_t|mixture_normal|pml|skew_normal` directly to `irf`/`fevd`/`hd`.
+- **Non-Gaussian Independence & Parametric Non-Gaussian SVAR:** Run [`estimate factor fastica`](@ref ref-estimate-factor-fastica) (`--method fastica|jade|sobi|dcov|hsic|cvm`, including Cramér–von Mises `cvm` ICA, `--contrast logcosh|exp|kurtosis`), parametric skewed/heavy-tailed MLE [`estimate regression ml`](@ref ref-estimate-regression-ml) (`--distribution student_t|mixture_normal|pml|skew_normal`), Lanne–Meitz–Saikkonen (2017) per-shock distributional MLE [`estimate multivariate lms-svar`](@ref ref-estimate-multivariate-lms-svar) (`--distributions`), Lanne–Luoto co-kurtosis GMM [`estimate multivariate lanne-luoto`](@ref ref-estimate-multivariate-lanne-luoto), or structural SVARMA [`estimate multivariate ssvarma`](@ref ref-estimate-multivariate-ssvarma) (`--blaschke` non-fundamental roots; paired with [`irf ssvarma`](@ref ref-irf-ssvarma) and [`fevd ssvarma`](@ref ref-fevd-ssvarma)). Pass `--id fastica|jade|sobi|dcov|hsic|cvm|student_t|mixture_normal|pml|skew_normal` directly to `irf`/`fevd`/`hd`.
+- **SVAR Hypothesis, Fundamentalness & Non-Gaussian Diagnostics:** Test 7 structural restriction classes (`recursiveness`, `impact_zero`, `impact_linear`, `long_run`, `horizon_irf`, `mixed`, plus parametric invariance) with [`test multivariate svar-hypothesis`](@ref ref-test-multivariate-svar-hypothesis) (`[svar_hypothesis]` in [Priors, SVAR & VECM Identification](@ref cfg-identification)), verify residual independence with [`test multivariate nongaussian-diag`](@ref ref-test-multivariate-nongaussian-diag) and [`test multivariate gmm-moments`](@ref ref-test-multivariate-gmm-moments), and test VAR invertibility / informational sufficiency via [`test multivariate fundamentalness`](@ref ref-test-multivariate-fundamentalness) and [`test multivariate sufficient-info`](@ref ref-test-multivariate-sufficient-info).
+- **Dynamic Factor & Frequency-Domain Structural Accounting:** Estimate one-sided FHLZ dynamic factors ([`estimate factor fhlz`](@ref ref-estimate-factor-fhlz)) or $I(1)$ permanent-transitory GDFMs ([`estimate factor gdfm-i1`](@ref ref-estimate-factor-gdfm-i1), paired with [`irf gdfm-i1`](@ref ref-irf-gdfm-i1), [`fevd gdfm-i1`](@ref ref-fevd-gdfm-i1), and [`hd gdfm-i1`](@ref ref-hd-gdfm-i1)), and compute band-specific frequency-domain variance decompositions with [`spectral fevd`](@ref ref-spectral-fevd).
 - **Heteroskedasticity Identification:** Pass `--id markov_switching`, `--id garch_id`, `--id lewis-tvv` (Lewis 2021 GMM via time-varying volatility), or `--id sv-em` (Bertsche–Braun stochastic volatility EM; config schema in [Priors, SVAR & VECM Identification](@ref cfg-identification)).
 
 <!-- capture -->
@@ -187,32 +189,46 @@ frdc --quiet data simulate svar --dist t --nu 5.0 --periods 160 --burn 50 --seed
 frdc estimate factor fastica svar_sim --lags 1 --method fastica --contrast logcosh
 ```
 ```text
-         Structural Impact Matrix (B0)
-┌──────────┬───────────┬──────────┬────────────┐
-│ equation │    y1     │    y2    │     y3     │
-├──────────┼───────────┼──────────┼────────────┤
-│    y1    │ 0.120698  │  1.0694  │ 0.0841927  │
-│    y2    │ -0.963088 │ 0.492227 │ -0.0146661 │
-│    y3    │ -0.226159 │ 0.169375 │  1.02858   │
-└──────────┴───────────┴──────────┴────────────┘
-Structural Shocks (first 10 observations)
-┌────┬───────────┬───────────┬───────────┐
-│ t  │  shock_1  │  shock_2  │  shock_3  │
-├────┼───────────┼───────────┼───────────┤
-│ 1  │ -0.223541 │ -0.301329 │ 0.782962  │
-│ 2  │ 0.529053  │ -0.399401 │ 0.880971  │
-│ 3  │  1.70121  │ -0.918688 │  -1.5804  │
-│ 4  │ 0.0276503 │ -0.829793 │ -0.109084 │
-│ 5  │  1.51386  │ 0.635114  │ 0.960682  │
-│ 6  │ -0.242673 │ 0.442985  │ 0.928126  │
-│ 7  │ -0.58509  │ -1.31144  │ -0.692542 │
-│ 8  │ -0.810562 │ -0.85783  │ -0.98159  │
-│ 9  │ 0.0939118 │ 0.137918  │ -1.18268  │
-│ 10 │ 0.351211  │ -2.72084  │ 0.869372  │
-└────┴───────────┴───────────┴───────────┘
+          Structural Impact Matrix (B0)
+┌──────────┬────────────┬────────────┬──────────┐
+│ equation │     y1     │     y2     │    y3    │
+├──────────┼────────────┼────────────┼──────────┤
+│    y1    │  0.118429  │ -0.0387254 │ 1.07227  │
+│    y2    │ -0.0638292 │  0.992959  │ 0.424264 │
+│    y3    │  -1.0085   │ 0.0786838  │ 0.338456 │
+└──────────┴────────────┴────────────┴──────────┘
+  Structural Impact Standard Errors
+┌───────────┬────────────┬───────────┐
+│ parameter │  estimate  │ std_error │
+├───────────┼────────────┼───────────┤
+│  B0[1,1]  │  0.118429  │ 0.0868607 │
+│  B0[2,1]  │ -0.0638292 │ 0.120691  │
+│  B0[3,1]  │  -1.0085   │ 0.0802109 │
+│  B0[1,2]  │ -0.0387254 │  0.12201  │
+│  B0[2,2]  │  0.992959  │ 0.0710262 │
+│  B0[3,2]  │ 0.0786838  │ 0.110066  │
+│  B0[1,3]  │  1.07227   │ 0.0893959 │
+│  B0[2,3]  │  0.424264  │ 0.105166  │
+│  B0[3,3]  │  0.338456  │ 0.0880016 │
+└───────────┴────────────┴───────────┘
+  Structural Shocks (first 10 observations)
+┌────┬────────────┬────────────┬────────────┐
+│ t  │  shock_1   │  shock_2   │  shock_3   │
+├────┼────────────┼────────────┼────────────┤
+│ 1  │ -0.848703  │ 0.0730329  │ -0.167836  │
+│ 2  │ -0.834654  │ -0.691316  │ -0.202392  │
+│ 3  │  1.66492   │  -1.51052  │  -1.08727  │
+│ 4  │ -0.0291152 │ -0.0825904 │ -0.832797  │
+│ 5  │ -0.573337  │  -1.58284  │  0.885413  │
+│ 6  │ -0.867606  │  0.134237  │  0.588033  │
+│ 7  │  0.354198  │  0.568545  │  -1.44676  │
+│ 8  │  0.673685  │  0.874502  │  -1.06668  │
+│ 9  │  1.18783   │  0.101977  │ -0.0722512 │
+│ 10 │  -1.24395  │ -0.716487  │  -2.49427  │
+└────┴────────────┴────────────┴────────────┘
 ```
 
-The FastICA estimator reports the identified impact matrix `structural_impact_matrix_b0` (e.g., `(y1, y1) = 0.120698`, `(y1, y2) = 1.0694`, `(y3, y3) = 1.02858`) and extracted independent shock series `structural_shocks` directly without Cholesky ordering assumptions.
+The FastICA estimator reports the identified impact matrix `structural_impact_matrix_b0` (e.g., `(y1, y1) = 0.118429`, `(y1, y3) = 1.07227`, `(y3, y1) = -1.0085`), asymptotic standard errors (`Structural Impact Standard Errors`), and extracted independent shock series `structural_shocks` directly without Cholesky ordering assumptions.
 
 ---
 

@@ -54,6 +54,7 @@ requiring sequential moment conditions (Arellano–Bond / Blundell–Bond GMM) w
 | [`plogit`](@ref ref-estimate-panel-plogit), [`pprobit`](@ref ref-estimate-panel-pprobit) | Pooled, random-effects, and Mundlak–Chamberlain CRE (`--method pooled\|re\|cre`) | [`predict`/`residuals panel plogit \| pprobit`](@ref ref-fam-predict-panel) |
 | [`pmg`](@ref ref-estimate-panel-pmg) | Pesaran–Shin–Smith Mean Group (`mg`), Pooled Mean Group (`pmg`), Dynamic FE (`dfe`) | [`test panel pmg-hausman`](@ref ref-test-panel-pmg-hausman) |
 | [`xtcointreg`](@ref ref-estimate-panel-xtcointreg) | Panel FMOLS / DOLS (`--pooling group\|pooled`) | [`test coint kao \| pedroni \| westerlund \| fisher-johansen`](@ref ref-fam-test-coint) |
+| [`xtqreg`](@ref ref-estimate-panel-xtqreg) | Interactive-factor panel quantile regression (`--tau`, `--factors`, `--slope`, bias correction) | [`predict`/`residuals panel xtqreg`](@ref ref-predict-panel-xtqreg) |
 
 ---
 

@@ -84,6 +84,7 @@ P(y_i = j \mid x_i) = \frac{\exp(x_i'\beta_j)}{1 + \sum_{m=2}^J \exp(x_i'\beta_m
 ```
 
 - **Multinomial Logit ([`estimate choice mlogit`](@ref ref-estimate-choice-mlogit)):** Estimates alternative-varying slope vectors relative to the base category (`multinomial_logit_coefficients`); test independence of irrelevant alternatives (IIA) via [`test hausman-iia`](@ref ref-test-hausman-iia) (`--omit-category`).
+- **Rational-Inattention Logit ([`estimate choice ri-logit`](@ref ref-estimate-choice-ri-logit), [`predict choice ri-logit`](@ref ref-predict-choice-ri-logit)):** Estimates Matějka–McKay (2015) endogenous-consideration discrete choice models across observed or `--unobserved-state` choice environments (`--env-col`, `--choice-col`, `--alt-col`, `--attr-cols`, optional `[ri.logit]` config); see [Rational Inattention](@ref chap-ri) for the structural RI family (`ri discrete`, `ri iia-test`).
 - **Count Regression ([`poisson`](@ref ref-estimate-choice-poisson), [`nbreg`](@ref ref-estimate-choice-nbreg)):** Support optional `--offset` or `--exposure` controls and exponentiated incidence rate ratios (`--irr`). Test equidispersion ($\mathrm{Var}(y \mid x) = \mathbb{E}[y \mid x]$) via Cameron–Trivedi [`test dispersion`](@ref ref-test-dispersion) before choosing Poisson over Negative Binomial (`overdispersion_parameter`).
 
 ---

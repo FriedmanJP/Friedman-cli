@@ -4,3 +4,13 @@
 # filter x13 TableSpec names (x_13_seasonal_factors / x_13_diagnostics) in --result re-render
 96baa6cbc735e202c5f016be2dfd6fa5a35d4de2:src/commands/shared.jl:generic-api-key:1909
 96baa6cbc735e202c5f016be2dfd6fa5a35d4de2:src/commands/shared.jl:generic-api-key:1925
+2f25ec53319c0a3c8d82702d20d1607aa79c770c:src/commands/shared.jl:generic-api-key:2334
+# [MEM111-W2] #314: output_result/long_table key= / key_prefix= slug literals for GDFM-I(1)
+0ec34c57bbd359f33f098bc8d0455bcf64794178:src/commands/w2_gdfm.jl:generic-api-key:518
+0ec34c57bbd359f33f098bc8d0455bcf64794178:src/commands/w2_gdfm.jl:generic-api-key:550
+0ec34c57bbd359f33f098bc8d0455bcf64794178:src/commands/w2_gdfm.jl:generic-api-key:652
+0ec34c57bbd359f33f098bc8d0455bcf64794178:src/commands/w2_gdfm.jl:generic-api-key:685
+ea3ad917f491c56eccceff036bb7653ce5a6dcf1:src/commands/w2_gdfm.jl:generic-api-key:518
+ea3ad917f491c56eccceff036bb7653ce5a6dcf1:src/commands/w2_gdfm.jl:generic-api-key:550
+ea3ad917f491c56eccceff036bb7653ce5a6dcf1:src/commands/w2_gdfm.jl:generic-api-key:652
+ea3ad917f491c56eccceff036bb7653ce5a6dcf1:src/commands/w2_gdfm.jl:generic-api-key:685

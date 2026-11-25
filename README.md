@@ -4,10 +4,10 @@
 [![Documentation](https://github.com/FriedmanJP/Friedman-cli/actions/workflows/Documentation.yml/badge.svg)](https://friedmanjp.github.io/Friedman-cli/dev/)
 
 Estimate, test, and simulate macro models without leaving the shell.
-`frdc` wraps [MacroEconometricModels.jl](https://github.com/FriedmanJP/MacroEconometricModels.jl)
-(exact pin in `Project.toml`) as action-first commands —
-`estimate`, `test`, `irf`, `fevd`, `forecast`, `dsge`, `hadsge`, `did`, `policy`, … —
-that read CSV or `.jld2`/`.jls` handles, print tables, and reproduce bit-for-bit.
+`frdc` v1.1.0 wraps [MacroEconometricModels.jl](https://github.com/FriedmanJP/MacroEconometricModels.jl)
+(`=1.1.1`, exact pin in `Project.toml`) as action-first commands —
+`estimate`, `test`, `irf`, `fevd`, `forecast`, `dsge`, `hadsge`, `did`, `policy`, `ri`, … —
+that read CSV or `.jld2`/`.jls` handles, print tables, generate interactive plots across 278 plot-capable types, and reproduce bit-for-bit.
 
 Built for applied economists and researchers who live in the terminal;
 equally callable from scripts and AI agents (see [For agents](#for-agents)).
@@ -124,19 +124,20 @@ Commands are organized by **action**, not model type — learn `estimate` once,
 apply it everywhere. (Full tree: [CLI reference overview](https://friedmanjp.github.io/Friedman-cli/dev/commands/overview/).)
 
 - **Time series** — VAR/BVAR, VECM, local projections (incl. IV/smooth/state-dependent),
-  FAVAR, structural DFM, ARIMA/ARDL/MIDAS, regime switching (SETAR/STAR/MS):
-  `estimate multivariate var`, `irf lp`, `forecast`, [guide](https://friedmanjp.github.io/Friedman-cli/dev/chapters/multivariate/)
+  FAVAR, quantile factors/VAR/FAVAR & Growth-at-Risk (`qfm`, `qvar`, `qfavar`, `growth-at-risk`),
+  DFM/GDFM/FHLZ/GDFM-I(1)/TV-GDFM/SDFM, ARIMA/ARDL/MIDAS, regime switching (SETAR/STAR/MS):
+  `estimate multivariate var`, `estimate factor qfm`, `irf lp`, `forecast`, [guide](https://friedmanjp.github.io/Friedman-cli/dev/chapters/multivariate/)
 - **Volatility** — ARCH/GARCH/EGARCH/GJR, stochastic volatility, CCC/DCC/BEKK:
   `estimate volatility garch`, `forecast volatility garch`, [guide](https://friedmanjp.github.io/Friedman-cli/dev/chapters/volatility/)
-- **Micro & panels** — OLS/IV/choice models, panel regression, DiD suite
+- **Micro & panels** — OLS/IV/choice models (incl. RI-logit `ri-logit`), panel regression & interactive-factor panel quantile (`xtqreg`), DiD suite
   (TWFE, Callaway-Sant'Anna, event studies, HonestDiD):
-  `estimate choice logit`, `did estimate`, [guide](https://friedmanjp.github.io/Friedman-cli/dev/chapters/panel/)
-- **Equilibrium** — RA/HA/OLG models, perturbation/projection/VFI, Bayesian estimation:
-  `dsge solve`, `hadsge solve ha_huggett.jl`, [guide](https://friedmanjp.github.io/Friedman-cli/dev/chapters/dsge/)
-- **Identification & diagnostics** — Cholesky/sign/narrative/long-run/Arias/Uhlig,
-  unit-root and cointegration batteries, breaks, Granger, weak instruments:
-  `irf var --id sign --config sign.toml`, `test unit-root adf`, [guide](https://friedmanjp.github.io/Friedman-cli/dev/chapters/tests/)
-- **Policy & IO** — causal-effect menus, optimal policy, counterfactuals,
+  `estimate choice logit`, `estimate panel xtqreg`, `did estimate`, [guide](https://friedmanjp.github.io/Friedman-cli/dev/chapters/panel/)
+- **Equilibrium & Rational Inattention** — RA/HA/OLG models, perturbation/projection/VFI, OccBin (`madnlp` GPL-3.0 default), canonical ABCD invertibility (`dsge abcd`), Bayesian DSGE & DSGE-VAR (`dsge var`), plus full LQG / Maćkowiak–Wiederholt / Matějka–McKay Rational Inattention (`ri`):
+  `dsge solve`, `dsge abcd invertibility`, `ri solve`, `hadsge solve ha_huggett.jl`, [DSGE guide](https://friedmanjp.github.io/Friedman-cli/dev/chapters/dsge/) · [RI guide](https://friedmanjp.github.io/Friedman-cli/dev/chapters/rational-inattention/)
+- **Identification & diagnostics** — Cholesky/sign/narrative/long-run/Arias/Uhlig, LMS-SVAR, Lanne–Luoto GMM, SSVARMA, Cramér–von Mises ICA, spectral FEVD,
+  unit-root, cointegration, factor-rank, SVAR hypothesis & fundamentalness batteries, breaks, Granger, weak instruments:
+  `irf var --id sign --config sign.toml`, `test unit-root adf`, `test multivariate svar-hypothesis`, [guide](https://friedmanjp.github.io/Friedman-cli/dev/chapters/tests/)
+- **Policy & IO** — causal-effect menus, optimal policy, behavioral RI policy news, counterfactuals,
   Leontief/Ghosh multipliers, SDA, Baqaee-Farhi:
   `policy effects var`, `io multipliers`, [guide](https://friedmanjp.github.io/Friedman-cli/dev/chapters/policy/)
 
@@ -165,8 +166,10 @@ exit codes are `0 ok · 2 usage · 3 data · 4 config · 5 model · 6 env · 1 i
 and every JSON failure carries a matching `error.code`/`error.exit_code`.
 `frdc schema <path…>` returns a draft-07 input schema plus result-table keys
 for any command in **< 10 ms** via the native thin wrapper (set `FRDC_NO_FASTPATH=1`
-to bypass); `serve --mcp` exposes every leaf command as a Model Context Protocol
-tool over stdio (supporting `--families`, `--tools`, and `--compact` scoping).
+to bypass); `serve --mcp` exposes all 558 leaf commands as Model Context Protocol
+tools over stdio — answering `initialize`, `ping`, and `tools/list` in **< 10 ms**
+from the embedded `FRDCACHE` pack and spawning `frdc-core` lazily on the first
+`tools/call` (supporting `--families`, `--tools`, and `--compact` scoping).
 For multi-command pipelines and heavy DSGE / Bayesian / volatility workflows, keep a
 persistent `frdc serve --mcp` (or `frdc repl`) session open to amortize Julia/JIT
 startup and share `model://` handles in memory. Start at the

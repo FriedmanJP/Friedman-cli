@@ -1,6 +1,6 @@
 # [Data Management & Simulation](@id chap-data)
 
-Every empirical pipeline begins with typed containers (`:timeseries`, `:panel`, `:cross_section`) imported from raw CSVs, loaded from bundled macroeconomic and microeconometric benchmarks, cleaned or filtered via [`frdc data`](@ref ref-data), or generated with known ground-truth parameters under the 21 structural and reduced-form DGP simulators in [`frdc data simulate`](@ref ref-data). See the upstream [Data Management manual](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/data/) in `MacroEconometricModels.jl` for underlying container types.
+Every empirical pipeline begins with typed containers (`:timeseries`, `:panel`, `:cross_section`) imported from raw CSVs, loaded from bundled macroeconomic and microeconometric benchmarks, cleaned or filtered via [`frdc data`](@ref ref-data), or generated with known ground-truth parameters under the 25 structural and reduced-form DGP simulators in [`frdc data simulate`](@ref ref-fam-data-simulate). See the upstream [Data Management manual](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/data/) in `MacroEconometricModels.jl` for underlying container types.
 
 ## Quick Start
 
@@ -44,14 +44,14 @@ All 12 built-in datasets can be passed directly to estimators via a leading colo
 | `:gnp_hamilton` | Time Series | `135 × 1` | U.S. real GNP growth for AR/ARIMA, regime switching (`ms-ar`), and unit-root tests |
 | `:mp_shocks` | Time Series | `240 × 8` | Monthly monetary policy proxy and macro aggregates for LP-IV and proxy-SVAR |
 | `:nile` | Time Series | `100 × 1` | Annual Nile river flow volume for state-space local level and structural break tests |
-| `:pwt` | Panel | `38 × 74 × 42` | Penn World Table cross-country panel for panel FE/RE/PMGs and dynamic panels |
+| `:pwt` | Panel | `38 × 74 × 42` | Penn World Table cross-country panel (CC-BY-4.0) for panel FE/RE/PMGs and dynamic panels |
 | `:mpdta` | Panel | `500 × 5 × 3` | Teen employment minimum-wage panel for staggered DiD and event-study estimators |
 | `:ddcg` | Panel | `184 × 51 × 2` | Democracy and growth country-year panel for dynamic panel and LP-DiD |
 | `:grunfeld` | Panel | `10 × 20 × 3` | Firm investment panel for SUR, 3SLS, and panel FE/RE comparisons |
 | `:mroz` | Cross Section | `753 × 22` | Married women's labor supply for IV/2SLS, Probit/Logit, Tobit, and Heckman |
 | `:stackloss` | Cross Section | `21 × 4` | Ammonia plant loss data for robust M/MM regression and outlier diagnostics |
 
-When importing a raw CSV file via [`frdc data import`](@ref ref-data-import), declare the container kind (`--kind timeseries|panel|cross-section`) alongside `--frequency`, `--dates`, or `--id-col`/`--time-col`. Use [`frdc data export`](@ref ref-data-export) to serialize typed handles to flat CSV (dropping metadata) or write `.jld2`/`.jls`/`.fmod` targets with `-o`.
+When importing a raw CSV file via [`frdc data import`](@ref ref-data-import), declare the container kind (`--kind timeseries|panel|cross-section`) alongside `--frequency`, `--dates`, or `--id-col`/`--time-col`. Use [`frdc data export`](@ref ref-data-export) to serialize typed handles to flat CSV (dropping metadata) or write `.jld2`/`.jls`/`.fmod` targets with `-o`. Provenance and redistribution terms for all bundled datasets—including the cleaned public-domain U.S. federal subsets in `:fred_md` (`804 × 114`) and `:fred_qd` (`268 × 226`) and the CC-BY-4.0 attribution for `:pwt`—are documented in `DATA_LICENSES.md` (shipped in `share/licenses/DATA_LICENSES.md` inside standalone bundles).
 
 Data transformation and cleaning utilities (`data load`, `fix`, `transform`, `balance`, `dropna`, `keeprows`, and `export`) never create unsolicited files in the current working directory: when `-o` is omitted they stream directly to stdout in the requested `--format`, and write output files (recorded in JSON `artifacts`) only when `-o` is explicitly passed. Pass `--vars` before `--transform` on [`frdc data load`](@ref ref-data-load) to subset columns cleanly prior to applying stored FRED transformation codes.
 
@@ -96,7 +96,7 @@ Friedman-cli includes built-in DGP simulators organized under [`frdc data simula
 | Domain | `data simulate <dgp>` Subcommands | Ground-Truth Persistence |
 |---|---|---|
 | Univariate & Long Memory | `arima`, `ardl`, `garch`, `sv`, `regime` | `simulated_data`, `population_truth`, `simulation_settings` |
-| Multivariate & Structural Macro | `var`, `svar`, `vecm`, `heteroskedastic-var`, `factors`, `lp-iv`, `cointreg` | Structural impact matrix, cointegrating rank, or VAR lag matrices |
+| Multivariate & Structural Macro | `var`, `svar`, `vecm`, `heteroskedastic-var`, `factors`, `qfm`, `qfavar`, `gdfm-infinite`, `ssvarma`, `lp-iv`, `cointreg` | Structural impact matrix, cointegrating rank, quantile/GDFM/SVARMA truth, or VAR lag matrices |
 | Micro, Cross-Section & Panel | `cross-section`, `gmm`, `panel`, `pvar`, `did` | Known slope, selection/censoring thresholds, or cohort ATTs |
 | Equilibrium & Heterogeneity | `dsge`, `ha`, `ct`, `olg` | Simulated series plus solver grid / policy truth |
 
