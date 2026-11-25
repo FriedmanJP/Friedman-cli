@@ -646,8 +646,10 @@ function _load_io(data::String; n_sectors::Int=0, n_fd::Int=1,
             hint="use :wiot or an IO CSV via --data path --n-sectors N"))
         return io
     end
-    lc = lowercase(data)
-    if endswith(lc, ".jld2") || startswith(data, "model://")
+    if !_is_session_uri(data)
+        data = _validate_input_path(data)
+    end
+    if _is_handle_path(data)
         m = load_model_dispatch(data)
         m isa IOData || throw(CliError("data/invalid",
             "$data is not an IOData handle (got $(typeof(m)))";

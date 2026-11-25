@@ -1,33 +1,14 @@
-function resolve_save_path(path::String)::String
+function resolve_save_path(path::String; default_ext::String=".jld2")::String
     isempty(path) && return path
-    startswith(path, "model://") && return path
-    occursin(r"\.[A-Za-z0-9]+$", basename(path)) && return path
-    return path * ".jld2"
+    _is_session_uri(path) && return path
+    p = _expanduser(path)
+    !isempty(_known_ext(p)) && return p
+    return p * default_ext
 end
 
 function resolve_stem(path::String; slot::Symbol=:data)::String
-    startswith(path, ":") && return path
-    startswith(path, "model://") && return path
-    path = _expanduser(path)
-    if occursin(r"\.[A-Za-z0-9]+$", basename(path))
-        return path
-    end
-    jld = path * ".jld2"
-    isfile(jld) && return jld
-    jls = path * ".jls"
-    isfile(jls) && return jls
-    if slot === :data
-        csv = path * ".csv"
-        isfile(csv) && return csv
-    else
-        fmod = path * ".fmod"
-        isfile(fmod) && return fmod
-    end
-    isfile(path) && return path
-    bn = basename(path)
-    hint = slot === :data ? "tried $(bn).jld2, $(bn).jls, and $(bn).csv" :
-                            "tried $(bn).jld2, $(bn).jls, and $(bn).fmod"
-    throw(CliError("data/file-not-found", "file not found: $path"; hint=hint))
+    ref = resolve_read_ref(path; slot=slot)
+    return ref_string(ref)
 end
 
 function _data_kind_of(obj)::Symbol
@@ -49,9 +30,9 @@ function _data_kind_of(obj)::Symbol
 end
 
 function _is_handle_path(path::String)::Bool
-    startswith(path, "model://") && return true
-    lc = lowercase(path)
-    return endswith(lc, ".jld2") || endswith(lc, ".jls") || endswith(lc, ".fmod")
+    _is_session_uri(path) && return true
+    ref = parse_handle_ref(path)
+    return ref.format in (:jld2, :jls, :fmod)
 end
 
 function resolve_data(path::String)
@@ -73,9 +54,10 @@ function _default_edit_output(input::String, suffix::String)
     catch
         input
     end
-    dir = startswith(resolved, ":") ? "" : dirname(resolved)
+    base_res, _ = _split_key_selector(resolved)
+    dir = (startswith(resolved, ":") || _is_session_uri(resolved)) ? "" : dirname(base_res)
     base = (isempty(dir) || dir == ".") ? (stem * suffix) : joinpath(dir, stem * suffix)
-    if endswith(lowercase(resolved), ".jls")
+    if endswith(lowercase(base_res), ".jls")
         return base * ".jls"
     elseif _is_handle_path(resolved)
         return resolve_save_path(base)
@@ -95,21 +77,26 @@ function _write_macro_data(obj, output::String; input_path::String, default_stem
     if isempty(output)
         output = default_stem
         output = input_handle ? resolve_save_path(output) :
-                 (endswith(lowercase(output), ".csv") ? output : output * ".csv")
+                 (endswith(lowercase(output), ".csv") ? _expanduser(output) : _expanduser(output) * ".csv")
+    elseif _is_session_uri(output)
+        # Session URI handled directly by save_model_dispatch
     else
         output = input_handle ? resolve_save_path(output) : (
-            occursin(r"\.[A-Za-z0-9]+$", basename(output)) ? output : output * ".csv")
+            !isempty(_known_ext(_expanduser(output))) ? _expanduser(output) : _expanduser(output) * ".csv")
     end
-    want_jld = endswith(lowercase(output), ".jld2")
+    want_jld = !_is_session_uri(output) && endswith(lowercase(output), ".jld2")
     if want_jld && !input_handle
         throw(CliError("usage/invalid",
             "refusing to write a .jld2 from CSV; run 'data import' first";
             hint="frdc data import $input_path --kind timeseries -o $(dataset_stem(input_path))"))
     end
-    _validate_output_path(output)
-    if input_handle
+    if !_is_session_uri(output)
+        output = _validate_output_path(output; create_parents=true)
+    end
+    if input_handle && !_is_session_uri(output) && !_is_session_uri(resolved_in)
         try
-            if isfile(output) && _resolve_path(output) == _resolve_path(resolved_in)
+            base_in, _ = _split_key_selector(resolved_in)
+            if isfile(output) && _resolve_path(output) == _resolve_path(base_in)
                 _status("replacing $output")
             end
         catch
@@ -122,7 +109,7 @@ function _write_macro_data(obj, output::String; input_path::String, default_stem
         if nameof(typeof(obj)) === :PanelData
             insertcols!(df, 1, :group => obj.group_id, :time => obj.time_id; makeunique=true)
         end
-        CSV.write(output, df)
+        _atomic_write(output, tmp -> CSV.write(tmp, df))
         (input_handle || warn_metadata) && _status("CSV export dropped frequency/tcode/dates metadata")
     end
     _status("Written to $output")

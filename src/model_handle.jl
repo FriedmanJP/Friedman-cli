@@ -55,11 +55,11 @@ end
 """
     save_model_handle(path, model; model_type="")
 
-Write a `.fmod` handle: header + serialized model.
+Write a `.fmod` handle atomically: header + serialized model.
 """
 function save_model_handle(path::String, model; model_type::String="")
     isempty(path) && return nothing
-    _validate_output_path(path)
+    dest = _validate_output_path(path; create_parents=true)
     mtype = isempty(model_type) ? string(typeof(model)) : model_type
     header = ModelHandleHeader(
         FMOD_MAGIC,
@@ -67,28 +67,41 @@ function save_model_handle(path::String, model; model_type::String="")
         _mems_version_string(),
         mtype,
     )
-    open(path, "w") do io
-        serialize(io, (header, model))
-    end
-    _status("Model handle written to $path ($mtype)")
-    return path
+    _atomic_write(dest, tmp -> begin
+        open(tmp, "w") do io
+            serialize(io, (header, model))
+        end
+    end)
+    _status("Model handle written to $dest ($mtype)")
+    return dest
 end
 
 """
     load_model_handle(path) → model
 
 Load a `.fmod` handle. Throws `CliError` with code `env/model-version` on
-magic/version mismatch (exit class 6).
+magic/version mismatch (exit class 6) or `data/corrupt-handle` (exit class 3)
+on empty/corrupt input.
 """
 function load_model_handle(path::String)
+    path = _validate_input_path(path)
     isfile(path) || throw(CliError("data/file-not-found", "model handle not found: $path",
                                    hint="check --model path"))
+    magic = sniff_handle_format(path)
+    magic === :empty && throw(CliError("data/corrupt-handle",
+        "model handle is empty or truncated: $path";
+        hint="re-create the handle"))
+    magic === :hdf5 && throw(CliError("data/corrupt-handle",
+        "format mismatch: '$path' contains HDF5/JLD2 data, not .fmod";
+        hint="rename to .jld2"))
+    magic === :unknown && throw(CliError("data/corrupt-handle",
+        "corrupt or unrecognized model handle: $path"))
     payload = try
         open(path, "r") do io
             deserialize(io)
         end
     catch e
-        throw(CliError("env/model-corrupt", "failed to read model handle: $path",
+        throw(CliError("data/corrupt-handle", "failed to read model handle: $path",
                        hint=sprint(showerror, e)))
     end
     header, model = _unpack_fmod(payload, path)
@@ -130,15 +143,19 @@ end
 Read header (and light model summary) without re-running estimation.
 """
 function model_handle_info(path::String)
+    path = _validate_input_path(path)
     isfile(path) || throw(CliError("data/file-not-found", "model handle not found: $path"))
+    magic = sniff_handle_format(path)
+    (magic === :empty || magic === :unknown) && throw(CliError("data/corrupt-handle",
+        "corrupt or empty model handle: $path"))
     payload = try
         open(deserialize, path)
     catch e
-        throw(CliError("env/model-corrupt", "failed to read model handle: $path",
+        throw(CliError("data/corrupt-handle", "failed to read model handle: $path",
                        hint=sprint(showerror, e)))
     end
     header, model = _unpack_fmod(payload, path)
-    dims = _model_dims(model)
+    dims = _extract_dims(model)
     return (
         path = path,
         magic = header.magic,
@@ -152,15 +169,36 @@ function model_handle_info(path::String)
 end
 
 function _jls_model_info(path::String)
+    path = _validate_input_path(path)
     isfile(path) || throw(CliError("data/file-not-found", "model handle not found: $path",
                                    hint="check handle path"))
+    magic = sniff_handle_format(path)
+    if magic === :empty || magic === :unknown
+        throw(CliError("data/corrupt-handle", "corrupt or empty .jls file: $path"))
+    elseif magic === :hdf5
+        throw(CliError("data/corrupt-handle",
+            "format mismatch: '$path' has .jls extension but contains HDF5/JLD2 data";
+            hint="rename to .jld2"))
+    end
     payload = try
         open(deserialize, path)
     catch e
-        throw(CliError("data/serialization", "failed to read serialized .jls file: $path",
+        throw(CliError("data/corrupt-handle", "failed to read serialized .jls file: $path",
                        hint=sprint(showerror, e)))
     end
-    if payload isa Tuple && length(payload) == 2 && payload[1] isa ModelHandleHeader
+    if payload isa FrdcJlsEnvelope
+        return (
+            path = path,
+            magic = "Julia Serialization (jls)",
+            cli_version = payload.cli_version,
+            mems_version = payload.mems_version,
+            model_type = payload.type_name,
+            runtime_cli = _cli_version_string(),
+            runtime_mems = _mems_version_string(),
+            dimensions = payload.dims,
+            note = payload.note,
+        )
+    elseif payload isa Tuple && length(payload) == 2 && payload[1] isa ModelHandleHeader
         header, model = payload
         return (
             path = path,
@@ -170,7 +208,8 @@ function _jls_model_info(path::String)
             model_type = header.model_type,
             runtime_cli = _cli_version_string(),
             runtime_mems = _mems_version_string(),
-            dimensions = _model_dims(model),
+            dimensions = _extract_dims(model),
+            note = "",
         )
     end
     return (
@@ -181,22 +220,12 @@ function _jls_model_info(path::String)
         model_type = string(nameof(typeof(payload))),
         runtime_cli = _cli_version_string(),
         runtime_mems = _mems_version_string(),
-        dimensions = _model_dims(payload),
+        dimensions = _extract_dims(payload),
+        note = "",
     )
 end
 
-function _model_dims(model)
-    try
-        if hasproperty(model, :Y)
-            Y = model.Y
-            return Dict("T" => size(Y, 1), "n" => size(Y, 2))
-        elseif hasproperty(model, :p) && hasproperty(model, :n)
-            return Dict("p" => model.p, "n" => model.n)
-        end
-    catch
-    end
-    return Dict{String,Any}()
-end
+_model_dims(model) = _extract_dims(model)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Hybrid native/interim save+load (C052) + envelope reproducibility manifest
@@ -308,7 +337,10 @@ else
     _NATIVE_SAVE_TYPES_FALLBACK
 end
 
-_is_native_saveable(model) = string(nameof(typeof(model))) in _NATIVE_SAVE_TYPES
+include("storage/ref.jl")
+include("storage/codec.jl")
+
+_is_native_saveable(model) = is_mems_serializable(model)
 
 """
     save_model_dispatch(path, model) → path
@@ -403,128 +435,22 @@ function _serve_store_or_throw(path::String)
     return store
 end
 
-function save_model_dispatch(path::String, model)
+function save_model_dispatch(path::String, model; note::String="", source_model=nothing,
+                             compress::Bool=false)
     isempty(path) && return nothing
-    if startswith(path, "model://")
-        store = _serve_store_or_throw(path)
-        store[path] = model
-        _status("Model stored in session as $path ($(nameof(typeof(model))))")
-        return path
-    end
-    lc = lowercase(path)
-    if endswith(lc, ".jld2")
-        _is_native_saveable(model) || throw(CliError(
-            "model/unsupported-save",
-            "native .jld2 save does not support $(typeof(model))",
-            # 350 supported types is far too many to list in an error; the actionable
-            # half of the old hint was always "use .fmod".
-            hint="re-run with a .fmod or .jls path — this type is outside the 350-type " *
-                 "native registry, so it uses Julia Serialization instead",
-        ))
-        _validate_output_path(path)
-        MacroEconometricModels.save_model(model, path)
-        cli_ver = _cli_version_string()
-        if _is_hdf5_file(path)
-            try
-                JLD2.jldopen(path, "r+") do f
-                    f["_friedman_cli_version"] = cli_ver
-                end
-            catch
-            end
-        else
-            try
-                d = open(deserialize, path)
-                if d isa AbstractDict
-                    d["_friedman_cli_version"] = cli_ver
-                    open(io -> serialize(io, d), path, "w")
-                end
-            catch
-            end
-        end
-        _status("Model saved to $path (native jld2, $(nameof(typeof(model))))")
-        return path
-    elseif endswith(lc, ".jls")
-        _validate_output_path(path)
-        open(path, "w") do io
-            serialize(io, model)
-        end
-        _status("Serialized to $path ($(nameof(typeof(model))))")
-        return path
-    else
-        # `.fmod` or any other suffix → interim format. This keeps save/load
-        # SYMMETRIC: load_model_dispatch routes only `.jld2`/`.jls` specially,
-        # so any other non-`.jld2` path is written in the interim format to reload.
-        # Use a `.jld2` suffix to opt into the native, portable, versioned format.
-        return save_model_handle(path, model)
-    end
+    ref = resolve_write_ref(path; default_ext="", create_parents=true)
+    return save_handle!(ref, model; note=note, source_model=source_model, compress=compress)
 end
 
 """
     load_model_dispatch(path) → model
 
-Hybrid load (C052). `.jld2` → native MEMs `load_model` (a bad/incompatible file
-raises `SerializationError` → exit 3 via `_domain_error_class`), falling back to
-plain JLD2 user archives (`"data"` key or single-entry archive) when no MEMs
-container header is present. `.jls` → standard Julia `Serialization.deserialize`.
-Any other handle suffix → the interim `.fmod` loader (version mismatch → env/model-version, exit 6).
+Unified handle load delegating to `src/storage/codec.jl` (`HandleRef` +
+magic-byte dispatch + `#key` extraction + `FRDC_DATA_ROOT` confinement).
 """
 function load_model_dispatch(path::String)
-    if startswith(path, "model://")
-        store = _serve_store_or_throw(path)
-        haskey(store, path) || throw(CliError("data/file-not-found",
-            "no session model stored at $path";
-            hint="save one first with --save-model $path"))
-        return store[path]
-    end
-    isfile(path) || throw(CliError("data/file-not-found", "model file not found: $path",
-                                   hint="check handle path"))
-    lc = lowercase(path)
-    if endswith(lc, ".jls")
-        payload = try
-            open(deserialize, path)
-        catch e
-            throw(CliError("data/serialization", "failed to read serialized .jls file: $path",
-                           hint=sprint(showerror, e)))
-        end
-        if payload isa Tuple && length(payload) == 2 && payload[1] isa ModelHandleHeader
-            return payload[2]
-        end
-        return payload
-    elseif endswith(lc, ".jld2")
-        try
-            return MacroEconometricModels.load_model(path)
-        catch e
-            if _is_hdf5_file(path)
-                d = try
-                    JLD2.load(path)
-                catch err_jld
-                    _has_supertype_named(typeof(e), :MacroModelError) && rethrow(e)
-                    throw(CliError("data/serialization", "failed to read JLD2 file: $path",
-                                   hint=sprint(showerror, err_jld)))
-                end
-                if _is_mems_jld2_dict(d)
-                    _has_supertype_named(typeof(e), :MacroModelError) && rethrow(e)
-                    throw(CliError("data/serialization", "failed to read native model file: $path",
-                                   hint=sprint(showerror, e)))
-                end
-                haskey(d, "data") && return d["data"]
-                length(d) == 1 && return only(values(d))
-                ks = join(sort!(String[string(k) for k in keys(d)]), ", ")
-                throw(CliError("data/serialization",
-                    "ambiguous JLD2 archive '$path' (keys: $ks)";
-                    hint="save tabular data under key \"data\" or as a single-entry archive"))
-            end
-            # A MacroModelError (e.g. SerializationError: version/type mismatch) is
-            # already typed — let _domain_error_class map it (→ data/serialization,
-            # exit 3). Anything else (EOFError on non-JLD2 / garbage / a `.fmod`
-            # renamed to `.jld2`) is still bad input, not a CLI bug: wrap it so it
-            # never surfaces as internal/error (exit 1) — mirrors load_model_handle.
-            _has_supertype_named(typeof(e), :MacroModelError) && rethrow()
-            throw(CliError("data/serialization", "failed to read native model file: $path",
-                           hint=sprint(showerror, e)))
-        end
-    end
-    return load_model_handle(path)
+    ref = parse_handle_ref(path)
+    return load_handle(ref)
 end
 
 """
@@ -589,13 +515,39 @@ stay best-effort (empty when reconstruction fails). Shares the field shape of
 plus the header `note`.
 """
 function _native_model_info(path::String)
+    path = _validate_input_path(path)
     isfile(path) || throw(CliError("data/file-not-found", "model file not found: $path",
                                    hint="check the path"))
+    magic = sniff_handle_format(path)
+    if magic === :empty || magic === :unknown
+        throw(CliError("data/corrupt-handle", "corrupt or empty .jld2 file: $path"))
+    end
+    # Check _frdc_meta header directly if HDF5 so we stay strictly header-only
+    frdc_meta = if magic === :hdf5
+        try
+            _with_quiet_jld2() do
+                JLD2.jldopen(path, "r") do f
+                    haskey(f, "_frdc_meta") ? f["_frdc_meta"] : nothing
+                end
+            end
+        catch
+            nothing
+        end
+    else
+        try
+            d = open(deserialize, path)
+            (d isa AbstractDict && haskey(d, "_frdc_meta")) ? d["_frdc_meta"] : nothing
+        catch
+            nothing
+        end
+    end
     header = try
-        MacroEconometricModels.model_info(path)
+        _with_quiet_jld2() do
+            MacroEconometricModels.model_info(path)
+        end
     catch e
         _has_supertype_named(typeof(e), :MacroModelError) && rethrow()
-        throw(CliError("data/serialization", "failed to read native model file: $path",
+        throw(CliError("data/corrupt-handle", "failed to read native model file: $path",
                        hint=sprint(showerror, e)))
     end
     is_bundle = get(header, "bundle", false) === true
@@ -605,15 +557,23 @@ function _native_model_info(path::String)
     else
         model_type = string(get(header, "type", "unknown"))
     end
-    dims = try
-        _model_dims(load_model_dispatch(path))
-    catch
-        Dict{String,Any}()
-    end
-    cli_ver = if _is_hdf5_file(path)
+    dims = if frdc_meta isa AbstractDict && haskey(frdc_meta, "dims")
+        Dict{String,Any}(string(k) => v for (k, v) in frdc_meta["dims"])
+    else
         try
-            JLD2.jldopen(path, "r") do f
-                haskey(f, "_friedman_cli_version") ? string(f["_friedman_cli_version"]) : "n/a"
+            _extract_dims(load_model_dispatch(path))
+        catch
+            Dict{String,Any}()
+        end
+    end
+    cli_ver = if frdc_meta isa AbstractDict && haskey(frdc_meta, "cli_version")
+        string(frdc_meta["cli_version"])
+    elseif magic === :hdf5
+        try
+            _with_quiet_jld2() do
+                JLD2.jldopen(path, "r") do f
+                    haskey(f, "_friedman_cli_version") ? string(f["_friedman_cli_version"]) : "n/a"
+                end
             end
         catch
             "n/a"
@@ -629,6 +589,10 @@ function _native_model_info(path::String)
     end
     raw_pv = string(get(header, "package_version", ""))
     mems_ver = (isempty(raw_pv) || raw_pv == "unknown") ? _mems_version_string() : raw_pv
+    note_str = string(get(header, "note", ""))
+    if isempty(note_str) && frdc_meta isa AbstractDict && haskey(frdc_meta, "note")
+        note_str = string(frdc_meta["note"])
+    end
     return (
         path = path,
         magic = "MEMs native (jld2)",
@@ -638,6 +602,6 @@ function _native_model_info(path::String)
         runtime_cli = _cli_version_string(),
         runtime_mems = _mems_version_string(),
         dimensions = dims,
-        note = string(get(header, "note", "")),
+        note = note_str,
     )
 end

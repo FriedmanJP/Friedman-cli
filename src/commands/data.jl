@@ -343,12 +343,13 @@ function _data_load(; name::String="", output::String="", format::String="table"
             output_result(out_df; format=Symbol(format), output="",
                           title="Loaded Data ($(basename(path)))", key="loaded_data")
         else
-            _validate_output_path(output)
-            lc_out = lowercase(output)
-            if endswith(lc_out, ".jld2") || endswith(lc_out, ".jls") || endswith(lc_out, ".fmod")
-                save_model_dispatch(output, ts)
+            if !_is_session_uri(output)
+                output = _validate_output_path(output; create_parents=true)
+            end
+            if _is_handle_path(output)
+                output = save_model_dispatch(output, ts)
             else
-                CSV.write(output, out_df)
+                _atomic_write(output, tmp -> CSV.write(tmp, out_df))
             end
             envelope_active() && add_artifact!(_ENVELOPE[], "file", output)
             envelope_active() && output_result(out_df; format=Symbol(format), output="",
@@ -393,9 +394,10 @@ function _data_load(; name::String="", output::String="", format::String="table"
             output_result(df; format=Symbol(format), output="",
                           title="Loaded Data ($name)", key="loaded_data")
         else
-            _validate_output_path(output)
-            lc_out = lowercase(output)
-            if endswith(lc_out, ".jld2") || endswith(lc_out, ".jls") || endswith(lc_out, ".fmod")
+            if !_is_session_uri(output)
+                output = _validate_output_path(output; create_parents=true)
+            end
+            if _is_handle_path(output)
                 out_pd = if isempty(vars)
                     dataset
                 elseif hasproperty(dataset, :frequency)
@@ -403,9 +405,9 @@ function _data_load(; name::String="", output::String="", format::String="table"
                 else
                     xtset(df, :group, :time)
                 end
-                save_model_dispatch(output, out_pd)
+                output = save_model_dispatch(output, out_pd)
             else
-                CSV.write(output, df)
+                _atomic_write(output, tmp -> CSV.write(tmp, df))
             end
             envelope_active() && add_artifact!(_ENVELOPE[], "file", output)
             envelope_active() && output_result(df; format=Symbol(format), output="",
@@ -472,12 +474,13 @@ function _data_load(; name::String="", output::String="", format::String="table"
             output_result(out_df; format=Symbol(format), output="",
                           title="Loaded Data ($name)", key="loaded_data")
         else
-            _validate_output_path(output)
-            lc_out = lowercase(output)
-            if endswith(lc_out, ".jld2") || endswith(lc_out, ".jls") || endswith(lc_out, ".fmod")
-                save_model_dispatch(output, dataset)
+            if !_is_session_uri(output)
+                output = _validate_output_path(output; create_parents=true)
+            end
+            if _is_handle_path(output)
+                output = save_model_dispatch(output, dataset)
             else
-                CSV.write(output, out_df)
+                _atomic_write(output, tmp -> CSV.write(tmp, out_df))
             end
             envelope_active() && add_artifact!(_ENVELOPE[], "file", output)
             envelope_active() && output_result(out_df; format=Symbol(format), output="",
@@ -912,7 +915,9 @@ function _data_import(; data::String, kind::String="", frequency::String="other"
     end
     out_stem = isempty(output) ? joinpath(dirname(src), dataset_stem(src)) : output
     out_path = resolve_save_path(out_stem)
-    _validate_output_path(out_path)
+    if !_is_session_uri(out_path)
+        out_path = _validate_output_path(out_path; create_parents=true)
+    end
 
     obj = if startswith(src, ":")
         ds = _load_example(parse_dataset_name(src))
@@ -981,16 +986,8 @@ function _data_import(; data::String, kind::String="", frequency::String="other"
         end
     end
 
-    # Always persist first; `note=` is a best-effort native-header rewrite.
-    save_model_dispatch(out_path, obj)
-    if !isempty(note)
-        try
-            MacroEconometricModels.save_model(obj, out_path; note=note)
-        catch e
-            e isa MethodError || rethrow()
-            _status("note= ignored: save_model does not accept note in this build")
-        end
-    end
+    # Single-pass atomic persist carrying `note` and `_frdc_meta` (no double write).
+    out_path = save_model_dispatch(out_path, obj; note=note)
     k = _data_kind_of(obj)
     nobs = hasproperty(obj, :data) ? size(obj.data, 1) : 0
     nvars = hasproperty(obj, :varnames) ? length(obj.varnames) : 0
@@ -1023,9 +1020,11 @@ function _data_export(; data::String, output::String="", format::String="table")
     if ext_eff == ".csv"
         _write_macro_data(obj, out; input_path=data, default_stem=dataset_stem(data),
                           warn_metadata=true)
-    elseif ext_eff in (".jld2", ".jls", ".fmod")
-        _validate_output_path(out)
-        save_model_dispatch(out, obj)
+    elseif ext_eff in (".jld2", ".jls", ".fmod") || _is_session_uri(output)
+        if !_is_session_uri(out)
+            out = _validate_output_path(out; create_parents=true)
+        end
+        out = save_model_dispatch(out, obj)
     else
         throw(CliError("usage/invalid",
             "unsupported export file extension '$ext_eff' for '$output'";

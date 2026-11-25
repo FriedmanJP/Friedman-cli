@@ -25,17 +25,23 @@ end
                             varnames=["y1", "y2"])
         save_model_dispatch(jld, ts)
 
-        @test resolve_stem(joinpath(dir, "macro"); slot=:data) == jld
+        # Ambiguous bare stem when both macro.csv and macro.jld2 exist (#305)
+        err_amb = try; resolve_stem(joinpath(dir, "macro"); slot=:data); nothing; catch e; e; end
+        @test err_amb isa CliError && err_amb.code == "data/ambiguous-path"
         @test resolve_stem(csv; slot=:data) == csv
         @test resolve_stem(jld; slot=:data) == jld
         @test resolve_save_path(joinpath(dir, "out")) == joinpath(dir, "out.jld2")
         @test resolve_save_path(joinpath(dir, "out.csv")) == joinpath(dir, "out.csv")
+        @test resolve_save_path(joinpath(dir, "model_v1.2")) == joinpath(dir, "model_v1.2.jld2")
         @test resolve_save_path("model://m1") == "model://m1"
 
-        loaded = resolve_data(joinpath(dir, "macro"))
+        loaded = resolve_data(jld)
         @test loaded isa TimeSeriesData
         @test _data_kind_of(loaded) === :timeseries
 
+        rm(csv)
+        @test resolve_stem(joinpath(dir, "macro"); slot=:data) == jld
+        CSV.write(csv, DataFrame(y1=randn(12), y2=randn(12)))
         rm(jld)
         @test resolve_stem(joinpath(dir, "macro"); slot=:data) == csv
         df = resolve_data(joinpath(dir, "macro"))
@@ -2033,7 +2039,8 @@ end
 
         bad_hdf5 = joinpath(dir, "bad_hdf5.jld2")
         write(bad_hdf5, vcat(_HDF5_MAGIC, zeros(UInt8, 24)))
-        @test_throws MacroEconometricModels.SerializationError load_model_dispatch(bad_hdf5)
+        err_bh = try; load_model_dispatch(bad_hdf5); nothing; catch e; e; end
+        @test err_bh isa CliError && err_bh.code == "data/corrupt-handle" && exit_class(err_bh) == 3
 
         fake_mems_jld2 = joinpath(dir, "fake_mems.jld2")
         JLD2.jldsave(fake_mems_jld2; format_version="99.0", payload=1)

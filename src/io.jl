@@ -337,51 +337,78 @@ Expand `~`, make absolute, and normalize away `.`/`..` segments.
 """
 _resolve_path(path::String) = normpath(abspath(_expanduser(path)))
 
+"""Resolve symlinks on an existing path or its deepest existing ancestor."""
+function _canonical_for_confinement(path::String)::String
+    resolved = _resolve_path(path)
+    if ispath(resolved) || islink(resolved)
+        try; return realpath(resolved); catch; return resolved; end
+    end
+    parts = String[]
+    cur = resolved
+    while true
+        parent = dirname(cur)
+        parent == cur && break
+        pushfirst!(parts, basename(cur))
+        cur = parent
+        if ispath(cur)
+            base_real = try; realpath(cur); catch; cur; end
+            return normpath(joinpath(base_real, parts...))
+        end
+    end
+    return resolved
+end
+
 """
     _validate_path(path, kind) → String
 
 Confine `path` to `FRDC_DATA_ROOT` when that is set, comparing *normalized*
-paths so `..` segments are resolved rather than pattern-matched. Returns `path`
-unchanged (callers keep using the string the user gave).
+symlink-resolved paths so `..` segments and symlinks cannot escape. Returns the
+expanded path string.
 """
 function _validate_path(path::String, kind::String)
     isempty(path) && return path
+    exp = _expanduser(path)
     root = _data_root()
-    isempty(root) && return path
+    isempty(root) && return exp
 
-    resolved = _resolve_path(path)
-    root_resolved = _resolve_path(root)
+    resolved = _canonical_for_confinement(exp)
+    root_resolved = _canonical_for_confinement(root)
     sep = Base.Filesystem.path_separator
     inside = resolved == root_resolved ||
              startswith(resolved, endswith(root_resolved, sep) ? root_resolved : root_resolved * sep)
     inside || throw(CliError("data/bad-path",
         "$kind path escapes FRDC_DATA_ROOT: $path";
         hint="resolved to $resolved, which is outside $root_resolved"))
-    return path
+    return exp
 end
 
 """
     _validate_input_path(path) → String
 
-Validate an input file path. See [`_validate_path`](@ref).
+Validate an input file path and return its `~`-expanded form. See [`_validate_path`](@ref).
 """
 _validate_input_path(path::String) = _validate_path(path, "input")
 
 """
-    _validate_output_path(path) → String
+    _validate_output_path(path; create_parents=false) → String
 
-Validate an output file path. See [`_validate_path`](@ref).
+Validate an output file path, returning its `~`-expanded form. Creates missing
+parent directories when `create_parents=true`. See [`_validate_path`](@ref).
 """
-function _validate_output_path(path::String)
-    _validate_path(path, "output")
+function _validate_output_path(path::String; create_parents::Bool=false)
     isempty(path) && return path
-    parent = dirname(abspath(_expanduser(path)))
+    exp = _validate_path(path, "output")
+    parent = dirname(abspath(exp))
     if !isempty(parent) && !isdir(parent)
-        throw(CliError("data/file-not-found",
-            "output directory does not exist: $parent";
-            hint="create the directory first (e.g. mkdir -p $parent)"))
+        if create_parents
+            mkpath(parent)
+        else
+            throw(CliError("data/file-not-found",
+                "output directory does not exist: $parent";
+                hint="create the directory first (e.g. mkdir -p $parent)"))
+        end
     end
-    return path
+    return exp
 end
 
 # ── Example datasets ─────────────────────────────────────
@@ -495,7 +522,19 @@ not a file literally named `:fred-md_clean.csv`) and the extension from a path.
 function dataset_stem(source::AbstractString)
     s = String(source)
     startswith(s, ":") && return replace(lowercase(s[2:end]), "-" => "_")
-    return replace(basename(s), r"\.[^.]+$" => "")
+    # Strip optional #key selector before basename
+    if isdefined(@__MODULE__, :_split_key_selector)
+        s, _ = _split_key_selector(s)
+    end
+    bn = basename(s)
+    # Strip only known handle/data extensions so dotted stems like macro.v1.csv -> macro.v1
+    lbn = lowercase(bn)
+    for ext in (".jld2", ".jls", ".fmod", ".csv", ".tsv", ".parquet", ".xlsx", ".xls", ".dta", ".sav", ".sas7bdat", ".json")
+        if endswith(lbn, ext) && length(bn) > length(ext)
+            return bn[1:prevind(bn, end - ncodeunits(ext) + 1)]
+        end
+    end
+    return bn
 end
 
 """
@@ -543,19 +582,23 @@ function load_data(path::String)
     if startswith(path, ":")
         return dataset_to_dataframe(_load_example(parse_dataset_name(path)))
     end
-    path = _expanduser(path)
-    # Session URIs are not filesystem paths — confinement would map `model://m1`
-    # to `data/bad-path` whenever FRIEDMAN_DATA_ROOT is set.
-    if !startswith(path, "model://")
-        _validate_input_path(path)
-    end
-    lc = lowercase(path)
-    if endswith(lc, ".jld2") || endswith(lc, ".jls") || endswith(lc, ".fmod") || startswith(path, "model://")
+    is_sess = startswith(path, "model://") || startswith(path, "data://") ||
+              startswith(path, "result://") || startswith(path, "mem://")
+    if is_sess
         obj = load_model_dispatch(path)
         return _coerce_tabular_dataframe(obj, path)
     end
-    isfile(path) || throw(CliError("data/file-not-found", "file not found: $path"; hint="check the path"))
-    df = CSV.read(path, DataFrame)
+    base_path, key_sel = isdefined(@__MODULE__, :_split_key_selector) ?
+        _split_key_selector(path) : (path, nothing)
+    exp_base = _validate_input_path(base_path)
+    lc = lowercase(exp_base)
+    if endswith(lc, ".jld2") || endswith(lc, ".jls") || endswith(lc, ".fmod")
+        full_ref = key_sel === nothing ? exp_base : "$(exp_base)#$(key_sel)"
+        obj = load_model_dispatch(full_ref)
+        return _coerce_tabular_dataframe(obj, path)
+    end
+    isfile(exp_base) || throw(CliError("data/file-not-found", "file not found: $path"; hint="check the path"))
+    df = CSV.read(exp_base, DataFrame)
     nrow(df) == 0 && throw(CliError("data/empty", "empty dataset: $path"))
     return df
 end
