@@ -23,15 +23,28 @@
 #     app bundle while bundling all required JLL artifacts (~50 MB).
 #
 # Julia 1.14 runtime depot behavior:
-#   * Julia 1.14 writes cache/v1.14/objcache-lmdb1/ into the first writable
-#     JULIA_DEPOT_PATH entry on startup, degrades cleanly (exit 0) on read-only
-#     depots, and writes nothing when JULIA_OBJCACHE=0.
+#   * Standalone binaries compile with packaging/c_driver/friedman_driver.c,
+#     which defaults JULIA_OBJCACHE=0 unless explicitly overridden by the user
+#     so read-only install roots (WindowsApps MSIX, /opt, chmod 555 depots)
+#     never emit `objcache error` or write cache/v1.14/objcache-lmdb1/.
+#
+# Deterministic CPU-independent MKL exclusion:
+#   * LinearSolve.jl defaults `LoadMKL_JLL` to `!occursin("EPYC", cpu_model)`
+#     on x86_64, which would bake `using MKL_jll` into builds compiled on Intel
+#     hosts (triggering ~200 MB lazy-artifact downloads at runtime). Adding
+#     LinearSolve to build_env/Project.toml [deps] with LocalPreferences.toml
+#     `LoadMKL_JLL = false` (and FFTW `provider = "fftw"`) guarantees portable,
+#     zero-MKL standalone bundles on both Intel and AMD x86_64 hosts.
 
 using Pkg
 
 const _PROJECT_DIR = @__DIR__
 const _BUILD_PROJECT_DIR = joinpath(_PROJECT_DIR, "build_env")
 const _APP_DIR = joinpath(_PROJECT_DIR, "build", "friedman")
+const _C_DRIVER_PROGRAM = joinpath(_PROJECT_DIR, "packaging", "c_driver", "friedman_driver.c")
+const _LINEARSOLVE_UUID = Base.UUID("7ed4a6bd-45f5-4d41-b270-4a48e9bafcae")
+
+isfile(_C_DRIVER_PROGRAM) || error("Missing standalone C driver: $(_C_DRIVER_PROGRAM)")
 
 # --- Step 1: Create build environment with all deps ---
 println("Setting up build environment...")
@@ -50,20 +63,33 @@ end
 
 # Read original Project.toml. Friedman declares no weakdeps/extensions of its own;
 # these deletes are defensive so a future weak dep never forces an extension into
-# the build. What actually gets bundled is fixed by Project.toml / seeded Manifest.
+# the build. Add LinearSolve to temporary build_env [deps] solely so Julia's
+# Preferences system binds [LinearSolve] LoadMKL_JLL = false in LocalPreferences.toml
+# (Base.get_preferences only resolves direct project deps).
 const _ORIGINAL_TOML = Pkg.TOML.parsefile(joinpath(_PROJECT_DIR, "Project.toml"))
 delete!(_ORIGINAL_TOML, "weakdeps")
 delete!(_ORIGINAL_TOML, "extensions")
+_ORIGINAL_TOML["deps"]["LinearSolve"] = string(_LINEARSOLVE_UUID)
 
-# Write Project.toml without weakdeps
+# Write Project.toml and LocalPreferences.toml into temporary build_env
 open(joinpath(_BUILD_PROJECT_DIR, "Project.toml"), "w") do io
     Pkg.TOML.print(io, _ORIGINAL_TOML)
+end
+open(joinpath(_BUILD_PROJECT_DIR, "LocalPreferences.toml"), "w") do io
+    write(io, """
+[LinearSolve]
+LoadMKL_JLL = false
+
+[FFTW]
+provider = "fftw"
+""")
 end
 
 # Seed the resolved Manifest only when its Julia major.minor matches VERSION so
 # Julia 1.14 builds resolve cleanly against Project.toml's exact MEMs pin without
 # touching the root Manifest.toml.
 const _SRC_MANIFEST = joinpath(_PROJECT_DIR, "Manifest.toml")
+_seeded_manifest = false
 if isfile(_SRC_MANIFEST)
     manifest_toml = Pkg.TOML.parsefile(_SRC_MANIFEST)
     manifest_jver_str = get(manifest_toml, "julia_version", "")
@@ -76,6 +102,7 @@ if isfile(_SRC_MANIFEST)
     if manifest_matches
         println("Seeding Manifest.toml (julia_version=$(manifest_jver_str))...")
         cp(_SRC_MANIFEST, joinpath(_BUILD_PROJECT_DIR, "Manifest.toml"))
+        _seeded_manifest = true
     else
         println("Skipping root Manifest.toml (manifest julia_version=$(repr(manifest_jver_str)) != $(VERSION.major).$(VERSION.minor)); resolving fresh inside build_env...")
     end
@@ -86,8 +113,17 @@ end
 # --pkgimages=no in its subprocesses, so default pkgimages would be discarded.
 Pkg.activate(_BUILD_PROJECT_DIR)
 withenv("JULIA_PKG_PRECOMPILE_AUTO" => "0") do
+    if _seeded_manifest
+        Pkg.resolve()
+    end
     Pkg.instantiate()
 end
+
+# Fail fast if LinearSolve.LoadMKL_JLL preference was not bound in build_env
+const _LS_PREFS = Base.get_preferences(_LINEARSOLVE_UUID)
+get(_LS_PREFS, "LoadMKL_JLL", nothing) === false ||
+    error("Expected LinearSolve.LoadMKL_JLL=false in build_env, got: $(_LS_PREFS)")
+println("Verified build_env preferences: LinearSolve.LoadMKL_JLL=false, FFTW.provider=fftw")
 
 # --- Step 2: Install PackageCompiler ---
 println("Loading PackageCompiler...")
@@ -261,9 +297,11 @@ create_app(
     incremental = true,
     filter_stdlibs = false,
     force = true,
+    c_driver_program = _C_DRIVER_PROGRAM,
     cpu_target = _CPU_TARGET,
     include_lazy_artifacts = false,
     include_transitive_dependencies = false,
+    include_preferences = true,
     sysimage_build_args = `-O1 --strip-metadata`,
     compress_sysimage = _COMPRESS_SYSIMAGE,
 )
@@ -278,6 +316,16 @@ isfile(_SYS_PATH) || error("Expected standalone sysimage not found at $(_SYS_PAT
 
 const _ARTIFACTS_DIR = joinpath(_APP_DIR, "share", "julia", "artifacts")
 const _ARTIFACT_COUNT = isdir(_ARTIFACTS_DIR) ? count(p -> isdir(joinpath(_ARTIFACTS_DIR, p)), readdir(_ARTIFACTS_DIR)) : 0
+if isdir(_ARTIFACTS_DIR)
+    for (root, _, files) in walkdir(_ARTIFACTS_DIR)
+        for f in files
+            lf = lowercase(f)
+            if occursin("libmkl", lf) || occursin("libiomp", lf) || occursin("libtbb", lf)
+                error("Unexpected lazy MKL/oneTBB/IntelOpenMP binary bundled: $(joinpath(root, f))")
+            end
+        end
+    end
+end
 
 rm(_BUILD_PROJECT_DIR; force=true, recursive=true)
 

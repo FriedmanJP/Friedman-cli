@@ -1,0 +1,205 @@
+// Standalone C entry-point driver for Friedman-cli.
+// Derived from PackageCompiler.jl's src/embedding_wrapper.c (MIT License,
+// Copyright (c) 2018-2026 Kristoffer Carlsson and contributors).
+//
+// Modification for Friedman-cli:
+//   Defaults JULIA_OBJCACHE=0 before jl_init() unless explicitly set by the
+//   caller so standalone binaries running from read-only install directories
+//   (WindowsApps MSIX, /opt, chmod 555 depots) never emit `objcache error` to
+//   stderr or write cache/v1.14/objcache-lmdb1/ into user depots.
+
+// Standard headers
+#include <errno.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+// Julia headers
+#include "julia.h"
+#include "uv.h"
+
+#ifdef _MSC_VER
+JL_DLLEXPORT char *dirname(char *);
+#else
+#include <libgen.h>
+#endif
+
+#ifdef NEW_DEFINE_FAST_TLS_SYNTAX
+JULIA_DEFINE_FAST_TLS
+#else
+JULIA_DEFINE_FAST_TLS()
+#endif
+
+jl_value_t *checked_eval_string(const char *code) {
+    jl_value_t *result = jl_eval_string(code);
+    if (jl_exception_occurred()) {
+        // none of these allocate, so a gc-root (JL_GC_PUSH) is not necessary
+        jl_call2(jl_get_function(jl_base_module, "showerror"), jl_stderr_obj(),
+                 jl_exception_occurred());
+        jl_printf(jl_stderr_stream(), "\n");
+        jl_atexit_hook(1);
+        exit(1);
+    }
+    assert(result && "Missing return value but no exception occurred!");
+    return result;
+}
+
+void set_depot_load_path(const char *root_dir) {
+#ifdef _WIN32
+    char *path_sep = ";";
+    char *julia_share_subdir = "\\share\\julia";
+#else
+    char *path_sep = ":";
+    char *julia_share_subdir = "/share/julia";
+#endif
+    int share_path_len = strlen(root_dir) + strlen(julia_share_subdir) + 1;
+
+    char *curr_depot_path = getenv("JULIA_DEPOT_PATH");
+    int curr_depot_path_len = curr_depot_path == NULL ? 0 : strlen(curr_depot_path);
+    int new_depot_path_len = curr_depot_path_len + 1 + share_path_len;
+    char *new_depot_path = calloc(sizeof (char), new_depot_path_len);
+    if (curr_depot_path_len > 0) {
+        strcat(new_depot_path, curr_depot_path);
+        strcat(new_depot_path, path_sep);
+    }
+    strcat(new_depot_path, root_dir);
+    strcat(new_depot_path, julia_share_subdir);
+
+    char *curr_load_path = getenv("JULIA_LOAD_PATH");
+    int curr_load_path_len = curr_load_path == NULL ? 0 : strlen(curr_load_path);
+    int new_load_path_len = curr_load_path_len + 1 + share_path_len;
+    char *new_load_path = calloc(sizeof (char), new_load_path_len);
+    if (curr_load_path_len > 0) {
+        strcat(new_load_path, curr_load_path);
+        strcat(new_load_path, path_sep);
+    }
+    strcat(new_load_path, root_dir);
+    strcat(new_load_path, julia_share_subdir);
+
+#ifdef _WIN32
+    _putenv_s("JULIA_DEPOT_PATH", new_depot_path);
+    _putenv_s("JULIA_LOAD_PATH", new_load_path);
+#else
+    setenv("JULIA_DEPOT_PATH", new_depot_path, 1);
+    setenv("JULIA_LOAD_PATH", new_load_path, 1);
+#endif
+    free(new_load_path);
+    free(new_depot_path);
+}
+
+// main function (windows UTF16 -> UTF8 argument conversion code copied from
+// julia's ui/repl.c)
+#ifdef _WIN32
+int wmain(int argc, wchar_t *wargv[], wchar_t *envp[]) {
+    (void)envp;
+    char **argv = (char **)malloc(sizeof(char *) * argc);
+    if (!argv) return 1;
+
+    for (int i = 0; i < argc; i++) { // write the command line to UTF8
+        wchar_t *warg = wargv[i];
+        size_t len = WideCharToMultiByte(CP_UTF8, 0, warg, -1, NULL, 0, NULL, NULL);
+        if (!len) return 1;
+        char *arg = (char *)malloc(len);
+        if (!WideCharToMultiByte(CP_UTF8, 0, warg, -1, arg, len, NULL, NULL)) return 1;
+        argv[i] = arg;
+    }
+#else
+int main(int argc, char *argv[]) {
+    argv = uv_setup_args(argc, argv);
+#endif
+
+    // Find where eventual julia arguments start
+    int program_argc = argc;
+    for (int i = 0; i < argc; i++) {
+        if (strcmp(argv[i], "--julia-args") == 0) {
+            program_argc = i;
+            break;
+        }
+    }
+    int julia_argc = argc - program_argc;
+    if (julia_argc > 0) {
+        // Replace `--julia-args` with the program name
+        argv[program_argc] = argv[0];
+        char **julia_argv = &argv[program_argc];
+        jl_parse_opts(&julia_argc, &julia_argv);
+    }
+
+    // Get the current exe path so we can compute a relative depot path
+    char *exe_path = (char *)malloc(PATH_MAX);
+    size_t path_size = PATH_MAX;
+    if (!exe_path) {
+        jl_errorf("fatal error: failed to allocate memory: %s",
+                  strerror(errno));
+        free(exe_path);
+        return 1;
+    }
+    if (uv_exepath(exe_path, &path_size)) {
+        jl_error("fatal error: unexpected error while retrieving exepath");
+        free(exe_path);
+        return 1;
+    }
+
+    // Set up LOAD_PATH and DEPOT_PATH
+    char *root_dir = dirname(dirname(exe_path));
+    set_depot_load_path(root_dir);
+
+    // Disable Julia 1.14 LMDB objcache by default in standalone binaries
+    // (respects caller override if JULIA_OBJCACHE is already set in env).
+#ifdef _WIN32
+    if (getenv("JULIA_OBJCACHE") == NULL &&
+        GetEnvironmentVariableW(L"JULIA_OBJCACHE", NULL, 0) == 0) {
+        _putenv_s("JULIA_OBJCACHE", "0");
+        SetEnvironmentVariableW(L"JULIA_OBJCACHE", L"0");
+    }
+#else
+    setenv("JULIA_OBJCACHE", "0", 0);
+#endif
+
+    jl_init();
+
+    // Initialize Core.ARGS with the full argv.
+    jl_set_ARGS(program_argc, argv);
+
+    // Update ARGS and PROGRAM_FILE
+    checked_eval_string("append!(empty!(Base.ARGS), Core.ARGS)");
+
+#if JULIA_VERSION_MAJOR == 1 && JULIA_VERSION_MINOR >= 12
+    checked_eval_string("Core.eval(Base, :(global PROGRAM_FILE))");
+    checked_eval_string("Base.PROGRAM_FILE = popfirst!(ARGS)");
+#else
+    jl_value_t *firstarg = checked_eval_string("popfirst!(ARGS)");
+    JL_GC_PUSH1(&firstarg);
+    jl_sym_t *var = jl_symbol("PROGRAM_FILE");
+    #if JULIA_VERSION_MAJOR == 1 && JULIA_VERSION_MINOR >= 11
+        jl_binding_t *bp = jl_get_binding_wr(jl_base_module, var, /* alloc */ 1);
+        jl_checked_assignment(bp, jl_base_module, var, firstarg);
+    #elif JULIA_VERSION_MAJOR == 1 && JULIA_VERSION_MINOR >= 10
+        jl_binding_t *bp = jl_get_binding_wr(jl_base_module, var);
+        jl_checked_assignment(bp, jl_base_module, var, firstarg);
+    #elif JULIA_VERSION_MAJOR == 1 && JULIA_VERSION_MINOR >= 9
+        jl_binding_t *bp = jl_get_binding_wr(jl_base_module, var, 1);
+        jl_checked_assignment(bp, firstarg);
+    #else
+        jl_set_global(jl_base_module, jl_symbol("PROGRAM_FILE"), firstarg);
+    #endif
+    JL_GC_POP();
+#endif
+
+    // call the work function, and get back a value
+    jl_value_t *jl_retcode = checked_eval_string(JULIA_MAIN "()");
+    int32_t retcode = 0;
+    if (!jl_typeis(jl_retcode, jl_int32_type)) {
+        fprintf(stderr,
+                "ERROR: expected a Cint return value from function " JULIA_MAIN
+                "\n");
+        retcode = 1;
+    } else {
+        retcode = jl_unbox_int32(jl_retcode);
+    }
+
+    // Cleanup and gracefully exit
+    free(exe_path);
+    jl_atexit_hook(retcode);
+    return retcode;
+}

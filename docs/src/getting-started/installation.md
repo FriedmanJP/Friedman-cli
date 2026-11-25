@@ -64,12 +64,12 @@ Pre-built standalone archives are published on the [GitHub Releases](https://git
 
 - **Standalone `.zip` / `install.ps1`:** Extract anywhere (or run `install.ps1` for `%USERPROFILE%\.friedman-cli\bin\friedman.exe`) with zero admin privileges or Developer Mode.
 
-### Linux Runtime Depot Notes
+### Runtime Depot & Offline Notes
 
-Standalone builds bundle all required artifacts under `share/julia/artifacts/` and run completely offline without network access. On Linux/Windows standalone builds powered by Julia 1.14, Julia may write a local object cache under `$JULIA_DEPOT_PATH/cache/v1.14/objcache-lmdb1/` when a writable depot exists, degrades cleanly on read-only depots, and writes nothing at all when `JULIA_OBJCACHE=0` is set:
+Standalone builds bundle all required artifacts under `share/julia/artifacts/` and run completely offline without network access. On Linux/Windows standalone builds powered by Julia 1.14, the native entry point defaults `JULIA_OBJCACHE=0` so read-only install directories (Windows `WindowsApps` MSIX, `/opt`, `chmod 555` depots) never emit `objcache error` messages or write cache files into user depots. Set `JULIA_OBJCACHE=1` if you want to opt into Julia's on-disk JIT object cache under a writable depot:
 
 ```bash
-JULIA_OBJCACHE=0 friedman --version
+JULIA_OBJCACHE=1 friedman --version
 ```
 
 ---

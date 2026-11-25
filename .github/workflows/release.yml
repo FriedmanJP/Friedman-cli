@@ -160,8 +160,8 @@ jobs:
 
           # Verify zero MKL/oneTBB/IntelOpenMP lazy artifacts were bundled
           if [ -d "$PWD/build/friedman/share/julia/artifacts" ]; then
-            if find "$PWD/build/friedman/share/julia/artifacts" -maxdepth 2 -iname '*mkl*' -o -iname '*onetbb*' -o -iname '*intelopenmp*' | grep -q .; then
-              echo "Unexpected lazy artifact bundled!" >&2
+            if find "$PWD/build/friedman/share/julia/artifacts" -maxdepth 4 \( -iname '*mkl*' -o -iname '*tbb*' -o -iname '*iomp*' \) | grep -q .; then
+              echo "Unexpected lazy MKL/oneTBB/IntelOpenMP artifact bundled!" >&2
               exit 1
             fi
           fi
@@ -187,8 +187,8 @@ jobs:
           EMPTY_HOME=$(mktemp -d)
           EMPTY_DEPOT=$(mktemp -d)
           RO_DEPOT=$(mktemp -d)
-          NOWRITE_DEPOT=$(mktemp -d)
-          trap 'chmod 755 "$RO_DEPOT" 2>/dev/null || true; rm -rf "$EMPTY_HOME" "$EMPTY_DEPOT" "$RO_DEPOT" "$NOWRITE_DEPOT"' EXIT
+          STDERR_LOG=$(mktemp)
+          trap 'chmod 755 "$RO_DEPOT" 2>/dev/null || true; rm -rf "$EMPTY_HOME" "$EMPTY_DEPOT" "$RO_DEPOT" "$STDERR_LOG"' EXIT
 
           # Ensure julia is genuinely absent from the isolated PATH
           if env -i PATH="/usr/bin:/bin" sh -c 'command -v julia >/dev/null 2>&1'; then
@@ -196,6 +196,7 @@ jobs:
             exit 1
           fi
 
+          # Run under default user env (NO JULIA_OBJCACHE override — friedman_driver.c defaults it to 0)
           run_isolated() {
             env -i \
               PATH="/usr/bin:/bin" \
@@ -205,12 +206,14 @@ jobs:
               "$@"
           }
 
-          # --version / --help
-          run_isolated "$BIN" --version
-          run_isolated "$BIN" --help > /dev/null
+          # --version / --help must emit zero stderr bytes
+          run_isolated "$BIN" --version 2> ver_err.txt
+          test ! -s ver_err.txt || { echo "Unexpected stderr from --version:"; cat ver_err.txt >&2; exit 1; }
+          run_isolated "$BIN" --help > /dev/null 2> help_err.txt
+          test ! -s help_err.txt || { echo "Unexpected stderr from --help:"; cat help_err.txt >&2; exit 1; }
 
           # Hard gate: exactly one JSON document (no ::warning fallback)
-          run_isolated "$BIN" --quiet estimate multivariate var smoke.csv --lags 1 --format json > smoke_out.json
+          run_isolated "$BIN" --quiet estimate multivariate var smoke.csv --lags 1 --format json > smoke_out.json 2>> "$STDERR_LOG"
           python3 - <<'PY'
           import json
           raw = open("smoke_out.json").read().strip()
@@ -222,14 +225,17 @@ jobs:
           print("json hard gate ok")
           PY
 
-          # schema & completions
-          run_isolated "$BIN" schema estimate multivariate var > schema_out.json
+          # schema & completions (must emit zero stderr)
+          run_isolated "$BIN" schema estimate multivariate var > schema_out.json 2> step_err.txt
+          test ! -s step_err.txt || { echo "Unexpected stderr from schema:"; cat step_err.txt >&2; exit 1; }
           python3 -c "import json; json.load(open('schema_out.json')); print('schema json ok')"
-          run_isolated "$BIN" completions bash > comp_bash.sh
+          run_isolated "$BIN" completions bash > comp_bash.sh 2> step_err.txt
+          test ! -s step_err.txt || { echo "Unexpected stderr from completions:"; cat step_err.txt >&2; exit 1; }
           test -s comp_bash.sh
 
           # Bundled example datasets (:denmark, :wiot) & non-"nothing" mems_version
-          run_isolated "$BIN" --quiet data describe :denmark --format json > denmark_out.json
+          run_isolated "$BIN" --quiet data describe :denmark --format json > denmark_out.json 2> step_err.txt
+          test ! -s step_err.txt || { echo "Unexpected stderr from :denmark:"; cat step_err.txt >&2; exit 1; }
           python3 - <<'PY'
           import json
           d = json.load(open("denmark_out.json"))
@@ -238,18 +244,26 @@ jobs:
           assert mv and mv != "nothing" and mv != "unknown", f"bad mems_version: {mv!r}"
           print(f"bundled :denmark + mems_version ({mv}) ok")
           PY
-          run_isolated "$BIN" --quiet data import :denmark -o smoke_denmark.jld2 --format json > /dev/null
-          run_isolated "$BIN" --quiet io leontief --format json > wiot_out.json
+          run_isolated "$BIN" --quiet data import :denmark -o smoke_denmark.jld2 --format json > /dev/null 2>> "$STDERR_LOG"
+          run_isolated "$BIN" --quiet io leontief --format json > wiot_out.json 2> step_err.txt
+          test ! -s step_err.txt || { echo "Unexpected stderr from io leontief:"; cat step_err.txt >&2; exit 1; }
           python3 -c "import json; d=json.load(open('wiot_out.json')); assert d.get('status')=='ok'; print('bundled :wiot ok')"
 
           # .jld2 save + irf --plot-save (D3 bundle) + dsge solve + piped repl
-          run_isolated "$BIN" --quiet estimate multivariate var smoke.csv --lags 1 --save-model smoke_var.jld2 --format json > /dev/null
-          run_isolated "$BIN" --quiet irf var --model smoke_var.jld2 --horizons 4 --plot-save smoke_irf.html --format json > irf_out.json
+          run_isolated "$BIN" --quiet estimate multivariate var smoke.csv --lags 1 --save-model smoke_var.jld2 --format json > /dev/null 2>> "$STDERR_LOG"
+          run_isolated "$BIN" --quiet irf var --model smoke_var.jld2 --horizons 4 --plot-save smoke_irf.html --format json > irf_out.json 2>> "$STDERR_LOG"
           test -s smoke_irf.html
-          run_isolated "$BIN" --quiet dsge solve smoke_rbc.toml --format json > dsge_out.json
+          run_isolated "$BIN" --quiet dsge solve smoke_rbc.toml --format json > dsge_out.json 2> step_err.txt
+          test ! -s step_err.txt || { echo "Unexpected stderr from dsge solve:"; cat step_err.txt >&2; exit 1; }
           python3 -c "import json; d=json.load(open('dsge_out.json')); assert d.get('status')=='ok'; print('dsge solve ok')"
-          printf -- '--version\nexit\n' | run_isolated "$BIN" repl > repl_out.txt
+          printf -- '--version\nexit\n' | run_isolated "$BIN" repl > repl_out.txt 2>> "$STDERR_LOG"
           echo "piped repl ok"
+
+          # Ensure zero objcache/artifact download chatter across all commands
+          if grep -iE 'objcache error|Downloading artifact|Failure artifact' "$STDERR_LOG"; then
+            echo "Forbidden runtime stderr detected!" >&2
+            exit 1
+          fi
 
           # Exit codes: unknown command -> 2, missing file -> 3
           set +e
@@ -265,31 +279,22 @@ jobs:
           test "$ec" -eq 3 || { echo "expected exit 3 for missing file, got $ec"; exit 1; }
           echo "exit-code checks ok"
 
-          # Verify zero unintended depot/home mutations
+          # Verify zero home mutations and zero files written into depot under default env
           test ! -e "$EMPTY_HOME/.julia" || { echo "Unexpected $EMPTY_HOME/.julia created!"; exit 1; }
-          for forbidden in artifacts packages compiled registries clones logs scratchspaces; do
-            if [ -e "$EMPTY_DEPOT/$forbidden" ]; then
-              echo "Unexpected depot subdir $forbidden created in offline mode!" >&2
-              exit 1
-            fi
-          done
+          if [ -n "$(find "$EMPTY_DEPOT" -mindepth 1 -print -quit)" ]; then
+            echo "Unexpected files written into depot in offline standalone mode:" >&2
+            find "$EMPTY_DEPOT" -mindepth 1 >&2
+            exit 1
+          fi
+          echo "zero-write offline depot check ok"
 
-          # Read-only depot (chmod 555) must degrade cleanly with exit 0
+          # Read-only depot (chmod 555) must exit 0 with empty stderr on --version
           chmod 555 "$RO_DEPOT"
-          env -i PATH="/usr/bin:/bin" HOME="$EMPTY_HOME" JULIA_DEPOT_PATH="$RO_DEPOT" JULIA_PKG_OFFLINE="true" "$BIN" --version
+          env -i PATH="/usr/bin:/bin" HOME="$EMPTY_HOME" JULIA_DEPOT_PATH="$RO_DEPOT" JULIA_PKG_OFFLINE="true" "$BIN" --version 2> ro_err.txt
+          test ! -s ro_err.txt || { echo "Unexpected stderr on read-only depot:"; cat ro_err.txt >&2; exit 1; }
           env -i PATH="/usr/bin:/bin" HOME="$EMPTY_HOME" JULIA_DEPOT_PATH="$RO_DEPOT" JULIA_PKG_OFFLINE="true" "$BIN" --quiet estimate multivariate var smoke.csv --lags 1 --format json > /dev/null
           chmod 755 "$RO_DEPOT"
           echo "read-only depot ok"
-
-          # JULIA_OBJCACHE=0 must write zero files into depot
-          env -i PATH="/usr/bin:/bin" HOME="$EMPTY_HOME" JULIA_DEPOT_PATH="$NOWRITE_DEPOT" JULIA_PKG_OFFLINE="true" JULIA_OBJCACHE="0" "$BIN" --version
-          env -i PATH="/usr/bin:/bin" HOME="$EMPTY_HOME" JULIA_DEPOT_PATH="$NOWRITE_DEPOT" JULIA_PKG_OFFLINE="true" JULIA_OBJCACHE="0" "$BIN" --quiet estimate multivariate var smoke.csv --lags 1 --format json > /dev/null
-          if [ -n "$(find "$NOWRITE_DEPOT" -mindepth 1 -print -quit)" ]; then
-            echo "JULIA_OBJCACHE=0 wrote files into depot:" >&2
-            find "$NOWRITE_DEPOT" -mindepth 1 >&2
-            exit 1
-          fi
-          echo "JULIA_OBJCACHE=0 zero-write check ok"
 
       # C074/#79 (W6/#141): latency budgets gate the release on Linux (cold start, min of 3).
       - name: Latency budgets (Linux, offline, enforced)
@@ -322,6 +327,72 @@ jobs:
           $Root = (Get-Location).Path
           $Exe = Join-Path $Root "build\friedman\bin\friedman.exe"
           $MsixPath = Join-Path $Root "build\friedman-v$Ver-windows-x86_64.msix"
+          $PyExe = (Get-Command python3, python -ErrorAction SilentlyContinue | Select-Object -First 1).Source
+          if (-not $PyExe) { throw "Python not found on PATH" }
+
+          # Verify zero MKL/oneTBB/IntelOpenMP lazy artifacts were bundled
+          $ArtDir = Join-Path $Root "build\friedman\share\julia\artifacts"
+          if (Test-Path $ArtDir) {
+            $BadArt = Get-ChildItem -Path $ArtDir -Recurse -File -ErrorAction SilentlyContinue |
+              Where-Object { $_.Name -match '(?i)(mkl|tbb|iomp)' }
+            if ($BadArt) {
+              throw "Unexpected lazy MKL/oneTBB/IntelOpenMP artifact bundled: $($BadArt[0].FullName)"
+            }
+          }
+
+          # Helper that captures stdout, stderr, and exit code strictly and rejects
+          # objcache / lazy-artifact download errors on stderr.
+          function Invoke-Friedman {
+            param(
+              [string]$FilePath,
+              [string[]]$Arguments,
+              [int]$ExpectedExit = 0,
+              [string]$StdInText = $null,
+              [switch]$RequireEmptyStderr
+            )
+            $psi = [System.Diagnostics.ProcessStartInfo]::new()
+            $psi.FileName = $FilePath
+            $psi.UseShellExecute = $false
+            $psi.RedirectStandardOutput = $true
+            $psi.RedirectStandardError = $true
+            $psi.RedirectStandardInput = ($null -ne $StdInText)
+            $psi.WorkingDirectory = (Get-Location).Path
+            foreach ($a in $Arguments) { [void]$psi.ArgumentList.Add($a) }
+            $proc = [System.Diagnostics.Process]::Start($psi)
+            if ($null -ne $StdInText) {
+              $proc.StandardInput.Write($StdInText)
+              $proc.StandardInput.Close()
+            }
+            $outTask = $proc.StandardOutput.ReadToEndAsync()
+            $errTask = $proc.StandardError.ReadToEndAsync()
+            $proc.WaitForExit()
+            $stdout = $outTask.GetAwaiter().GetResult()
+            $stderr = $errTask.GetAwaiter().GetResult()
+            $code = $proc.ExitCode
+            $cmdStr = "$FilePath $($Arguments -join ' ')"
+            if ($code -ne $ExpectedExit) {
+              throw "Command '$cmdStr' exited $code (expected $ExpectedExit)`nSTDOUT:`n$stdout`nSTDERR:`n$stderr"
+            }
+            if ($stderr -match '(?i)objcache error|Downloading artifact|Failure artifact') {
+              throw "Forbidden runtime stderr from '$cmdStr':`n$stderr"
+            }
+            if ($RequireEmptyStderr -and $stderr.Trim().Length -gt 0) {
+              throw "Expected empty stderr from '$cmdStr', got:`n$stderr"
+            }
+            return [pscustomobject]@{ Stdout = $stdout; Stderr = $stderr; ExitCode = $code }
+          }
+
+          function Assert-SingleJsonOk {
+            param([string]$JsonText, [string]$Label)
+            $tmpJson = Join-Path $env:TEMP ("friedman-json-" + [System.Guid]::NewGuid().ToString("N") + ".json")
+            try {
+              [System.IO.File]::WriteAllText($tmpJson, $JsonText, [System.Text.UTF8Encoding]::new($false))
+              & $PyExe -c "import json, sys; raw=open(sys.argv[1], encoding='utf-8').read().strip(); assert raw, 'empty stdout'; dec=json.JSONDecoder(); obj, idx=dec.raw_decode(raw); assert raw[idx:].strip()=='', f'trailing garbage: {raw[idx:]!r}'; assert obj.get('status')=='ok', obj" $tmpJson
+              if ($LASTEXITCODE -ne 0) { throw "Strict single-JSON validation failed for $Label" }
+            } finally {
+              Remove-Item -Path $tmpJson -Force -ErrorAction SilentlyContinue
+            }
+          }
 
           # Create fixtures
           $SmokeCsv = Join-Path $Root "smoke.csv"
@@ -351,9 +422,9 @@ jobs:
           # Minimal Windows core system PATH (zero julia/juliaup/chocolatey/WindowsApps)
           $CleanPath = "$env:SystemRoot\System32;$env:SystemRoot;$env:SystemRoot\System32\Wbem;$env:SystemRoot\System32\WindowsPowerShell\v1.0"
 
-          $NoWriteDepot = Join-Path $env:TEMP ("friedman-nowrite-" + [System.Guid]::NewGuid().ToString("N"))
+          $EmptyDepot = Join-Path $env:TEMP ("friedman-depot-" + [System.Guid]::NewGuid().ToString("N"))
           $CwdAliasDir = Join-Path $env:TEMP ("friedman-alias-cwd-" + [System.Guid]::NewGuid().ToString("N"))
-          New-Item -ItemType Directory -Path $NoWriteDepot, $CwdAliasDir -Force | Out-Null
+          New-Item -ItemType Directory -Path $EmptyDepot, $CwdAliasDir -Force | Out-Null
 
           $OrigPath = $env:PATH
           $OrigDepot = $env:JULIA_DEPOT_PATH
@@ -362,67 +433,69 @@ jobs:
 
           try {
             $env:PATH = $CleanPath
-            $env:JULIA_DEPOT_PATH = $NoWriteDepot
+            $env:JULIA_DEPOT_PATH = $EmptyDepot
             $env:JULIA_PKG_OFFLINE = "true"
-            $env:JULIA_OBJCACHE = "0"
+            # Do NOT set JULIA_OBJCACHE here — verify friedman_driver.c's built-in default!
+            Remove-Item Env:JULIA_OBJCACHE -ErrorAction SilentlyContinue
 
             $RemainingJulia = Get-Command julia -ErrorAction SilentlyContinue
             if ($RemainingJulia) {
               throw "julia is still on PATH after stripping: $($RemainingJulia.Source)"
             }
 
-            # 1. Direct standalone binary checks
-            & $Exe --version
-            if ($LASTEXITCODE -ne 0) { throw "friedman.exe --version failed" }
-            & $Exe --help | Out-Null
-            if ($LASTEXITCODE -ne 0) { throw "friedman.exe --help failed" }
+            # 1. Direct standalone binary checks (strict stdout + stderr + zero depot writes)
+            $verRes = Invoke-Friedman $Exe @("--version") -RequireEmptyStderr
+            if ($verRes.Stdout.Trim() -notmatch [regex]::Escape("friedman v$Ver")) {
+              throw "Unexpected --version output: $($verRes.Stdout)"
+            }
+            Write-Host $verRes.Stdout.Trim()
+            $null = Invoke-Friedman $Exe @("--help") -RequireEmptyStderr
 
-            $VarJson = & $Exe --quiet estimate multivariate var $SmokeCsv --lags 1 --format json
-            if ($LASTEXITCODE -ne 0) { throw "VAR JSON failed" }
-            $VarObj = ($VarJson | Out-String) | ConvertFrom-Json
-            if ($VarObj.status -ne "ok") { throw "Unexpected VAR JSON status" }
+            $varRes = Invoke-Friedman $Exe @("--quiet", "estimate", "multivariate", "var", $SmokeCsv, "--lags", "1", "--format", "json")
+            Assert-SingleJsonOk $varRes.Stdout "direct VAR JSON"
 
-            $SchemaJson = & $Exe schema estimate multivariate var
-            if ($LASTEXITCODE -ne 0) { throw "schema failed" }
-            $null = ($SchemaJson | Out-String) | ConvertFrom-Json
+            $schemaRes = Invoke-Friedman $Exe @("schema", "estimate", "multivariate", "var") -RequireEmptyStderr
+            $null = $schemaRes.Stdout | ConvertFrom-Json
 
-            $CompOut = & $Exe completions bash
-            if ($LASTEXITCODE -ne 0 -or -not $CompOut) { throw "completions bash failed" }
+            $compRes = Invoke-Friedman $Exe @("completions", "bash") -RequireEmptyStderr
+            if (-not $compRes.Stdout.Trim()) { throw "empty completions bash output" }
 
-            $DenmarkJson = & $Exe --quiet data describe :denmark --format json
-            if ($LASTEXITCODE -ne 0) { throw "data describe :denmark failed" }
-            $DenmarkObj = ($DenmarkJson | Out-String) | ConvertFrom-Json
-            if ($DenmarkObj.status -ne "ok" -or -not $DenmarkObj.meta.mems_version) {
-              throw "Invalid :denmark / mems_version response"
+            $denmarkRes = Invoke-Friedman $Exe @("--quiet", "data", "describe", ":denmark", "--format", "json") -RequireEmptyStderr
+            Assert-SingleJsonOk $denmarkRes.Stdout "direct :denmark"
+            $denmarkObj = $denmarkRes.Stdout | ConvertFrom-Json
+            if (-not $denmarkObj.meta.mems_version -or $denmarkObj.meta.mems_version -in @("nothing", "unknown")) {
+              throw "Invalid mems_version: $($denmarkObj.meta.mems_version)"
             }
 
-            $WiotJson = & $Exe --quiet io leontief --format json
-            if ($LASTEXITCODE -ne 0) { throw "io leontief failed" }
-            if ((($WiotJson | Out-String) | ConvertFrom-Json).status -ne "ok") { throw "io leontief status not ok" }
+            $denmarkJld2 = Join-Path $CwdAliasDir "direct_denmark.jld2"
+            $null = Invoke-Friedman $Exe @("--quiet", "data", "import", ":denmark", "-o", $denmarkJld2, "--format", "json")
+            if (-not (Test-Path $denmarkJld2)) { throw "data import :denmark failed to create .jld2" }
+
+            $wiotRes = Invoke-Friedman $Exe @("--quiet", "io", "leontief", "--format", "json") -RequireEmptyStderr
+            Assert-SingleJsonOk $wiotRes.Stdout "direct :wiot"
 
             $VarJld2 = Join-Path $CwdAliasDir "direct_var.jld2"
             $IrfHtml = Join-Path $CwdAliasDir "direct_irf.html"
-            & $Exe --quiet estimate multivariate var $SmokeCsv --lags 1 --save-model $VarJld2 --format json | Out-Null
-            if ($LASTEXITCODE -ne 0) { throw "save-model .jld2 failed" }
-            & $Exe --quiet irf var --model $VarJld2 --horizons 4 --plot-save $IrfHtml --format json | Out-Null
-            if ($LASTEXITCODE -ne 0 -or -not (Test-Path $IrfHtml)) { throw "irf --plot-save failed" }
+            $null = Invoke-Friedman $Exe @("--quiet", "estimate", "multivariate", "var", $SmokeCsv, "--lags", "1", "--save-model", $VarJld2, "--format", "json")
+            if (-not (Test-Path $VarJld2)) { throw "save-model .jld2 not created" }
+            $irfRes = Invoke-Friedman $Exe @("--quiet", "irf", "var", "--model", $VarJld2, "--horizons", "4", "--plot-save", $IrfHtml, "--format", "json")
+            Assert-SingleJsonOk $irfRes.Stdout "direct irf"
+            if (-not (Test-Path $IrfHtml) -or (Get-Item $IrfHtml).Length -eq 0) { throw "irf --plot-save empty/missing" }
 
-            $DsgeJson = & $Exe --quiet dsge solve $SmokeToml --format json
-            if ($LASTEXITCODE -ne 0 -or (($DsgeJson | Out-String) | ConvertFrom-Json).status -ne "ok") { throw "dsge solve failed" }
+            $dsgeRes = Invoke-Friedman $Exe @("--quiet", "dsge", "solve", $SmokeToml, "--format", "json") -RequireEmptyStderr
+            Assert-SingleJsonOk $dsgeRes.Stdout "direct dsge solve"
 
-            "--version`nexit`n" | & $Exe repl | Out-Null
-            if ($LASTEXITCODE -ne 0) { throw "piped repl failed" }
+            $null = Invoke-Friedman $Exe @("repl") -StdInText "--version`nexit`n"
+            $null = Invoke-Friedman $Exe @("nosuchcmd") -ExpectedExit 2
+            $null = Invoke-Friedman $Exe @("estimate", "multivariate", "var", "C:\nope\missing.csv") -ExpectedExit 3
 
-            & $Exe nosuchcmd *> $null
-            if ($LASTEXITCODE -ne 2) { throw "Expected exit 2, got $LASTEXITCODE" }
-            & $Exe estimate multivariate var C:\nope\missing.csv *> $null
-            if ($LASTEXITCODE -ne 3) { throw "Expected exit 3, got $LASTEXITCODE" }
+            $Written = Get-ChildItem -Path $EmptyDepot -Recurse -Force -ErrorAction SilentlyContinue
+            if ($Written) {
+              throw "Standalone binary wrote files into depot under default env: $(($Written | Select-Object -ExpandProperty FullName) -join ', ')"
+            }
+            Write-Host "Direct standalone Windows binary smoke tests passed (zero stderr errors, zero depot writes)."
 
-            $Written = Get-ChildItem -Path $NoWriteDepot -Recurse -Force -ErrorAction SilentlyContinue
-            if ($Written) { throw "JULIA_OBJCACHE=0 wrote files into depot!" }
-            Write-Host "Direct standalone Windows binary smoke tests passed."
-
-            # 2. Install sideload MSIX & verify AppExecutionAlias + uv_exepath + caller CWD
+            # 2. Install sideload MSIX & verify AppExecutionAlias + read-only WindowsApps + caller CWD
             $DevKey = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock"
             if (-not (Test-Path $DevKey)) { New-Item -Path $DevKey -Force | Out-Null }
             Set-ItemProperty -Path $DevKey -Name "AllowDevelopmentWithoutDevLicense" -Value 1 -Type DWord
@@ -434,8 +507,8 @@ jobs:
               throw "AppExecutionAlias not created at $AliasExe"
             }
 
-            # Run alias tests with empty JULIA_DEPOT_PATH and default objcache behavior
-            # to verify clean degradation against the read-only WindowsApps package root.
+            # Run alias tests with empty JULIA_DEPOT_PATH and unset JULIA_OBJCACHE
+            # against the read-only WindowsApps package root: must emit ZERO objcache errors!
             $env:JULIA_DEPOT_PATH = ""
             Remove-Item Env:JULIA_OBJCACHE -ErrorAction SilentlyContinue
 
@@ -444,48 +517,44 @@ jobs:
 
             Push-Location $CwdAliasDir
             try {
-              & $AliasExe --version
-              if ($LASTEXITCODE -ne 0) { throw "Alias --version failed" }
+              $aliasVer = Invoke-Friedman $AliasExe @("--version") -RequireEmptyStderr
+              if ($aliasVer.Stdout.Trim() -notmatch [regex]::Escape("friedman v$Ver")) {
+                throw "Unexpected Alias --version output: $($aliasVer.Stdout)"
+              }
+              Write-Host "Alias: $($aliasVer.Stdout.Trim())"
 
-              & $AliasExe --quiet estimate multivariate var .\smoke.csv --lags 1 --format json --output .\alias_out.json --save-model .\alias_var.jld2
-              if ($LASTEXITCODE -ne 0) { throw "Alias VAR relative CWD failed" }
+              $null = Invoke-Friedman $AliasExe @("--quiet", "estimate", "multivariate", "var", ".\smoke.csv", "--lags", "1", "--format", "json", "--output", ".\alias_out.json", "--save-model", ".\alias_var.jld2")
               if (-not (Test-Path ".\alias_out.json") -or -not (Test-Path ".\alias_var.jld2")) {
                 throw "Alias relative output/save-model files not created in caller CWD!"
               }
+              Assert-SingleJsonOk ([System.IO.File]::ReadAllText((Resolve-Path ".\alias_out.json").Path)) "alias VAR JSON -o"
 
-              & $AliasExe --quiet irf var --model .\alias_var.jld2 --horizons 4 --plot-save .\alias_irf.html --format json | Out-Null
-              if ($LASTEXITCODE -ne 0 -or -not (Test-Path ".\alias_irf.html")) {
-                throw "Alias irf --plot-save failed"
+              $aliasIrf = Invoke-Friedman $AliasExe @("--quiet", "irf", "var", "--model", ".\alias_var.jld2", "--horizons", "4", "--plot-save", ".\alias_irf.html", "--format", "json")
+              Assert-SingleJsonOk $aliasIrf.Stdout "alias irf"
+              if (-not (Test-Path ".\alias_irf.html") -or (Get-Item ".\alias_irf.html").Length -eq 0) {
+                throw "Alias irf --plot-save empty/missing"
               }
 
-              $AliasDenmark = & $AliasExe --quiet data describe :denmark --format json
-              if ($LASTEXITCODE -ne 0 -or (($AliasDenmark | Out-String) | ConvertFrom-Json).status -ne "ok") {
-                throw "Alias :denmark failed"
-              }
+              $aliasDenmark = Invoke-Friedman $AliasExe @("--quiet", "data", "describe", ":denmark", "--format", "json") -RequireEmptyStderr
+              Assert-SingleJsonOk $aliasDenmark.Stdout "alias :denmark"
 
-              $AliasDsge = & $AliasExe --quiet dsge solve .\smoke_rbc.toml --format json
-              if ($LASTEXITCODE -ne 0 -or (($AliasDsge | Out-String) | ConvertFrom-Json).status -ne "ok") {
-                throw "Alias dsge solve failed"
-              }
+              $aliasDsge = Invoke-Friedman $AliasExe @("--quiet", "dsge", "solve", ".\smoke_rbc.toml", "--format", "json") -RequireEmptyStderr
+              Assert-SingleJsonOk $aliasDsge.Stdout "alias dsge solve"
 
-              "--version`nexit`n" | & $AliasExe repl | Out-Null
-              if ($LASTEXITCODE -ne 0) { throw "Alias piped repl failed" }
-
-              & $AliasExe nosuchcmd *> $null
-              if ($LASTEXITCODE -ne 2) { throw "Alias expected exit 2, got $LASTEXITCODE" }
-              & $AliasExe estimate multivariate var .\missing.csv *> $null
-              if ($LASTEXITCODE -ne 3) { throw "Alias expected exit 3, got $LASTEXITCODE" }
+              $null = Invoke-Friedman $AliasExe @("repl") -StdInText "--version`nexit`n"
+              $null = Invoke-Friedman $AliasExe @("nosuchcmd") -ExpectedExit 2
+              $null = Invoke-Friedman $AliasExe @("estimate", "multivariate", "var", ".\missing.csv") -ExpectedExit 3
             } finally {
               Pop-Location
             }
-            Write-Host "MSIX AppExecutionAlias + CWD smoke tests passed."
+            Write-Host "MSIX AppExecutionAlias + CWD smoke tests passed (zero objcache/stderr errors)."
           } finally {
             powershell.exe -NoProfile -Command "Get-AppxPackage -Name 'FriedmanJP.Friedman-cli' -ErrorAction SilentlyContinue | Remove-AppxPackage -ErrorAction SilentlyContinue"
             $env:PATH = $OrigPath
             $env:JULIA_DEPOT_PATH = $OrigDepot
             $env:JULIA_PKG_OFFLINE = $OrigOffline
             $env:JULIA_OBJCACHE = $OrigObjcache
-            Remove-Item -Path $NoWriteDepot, $CwdAliasDir -Recurse -Force -ErrorAction SilentlyContinue
+            Remove-Item -Path $EmptyDepot, $CwdAliasDir -Recurse -Force -ErrorAction SilentlyContinue
           }
 
       - name: Latency report (Windows, offline, report-only)

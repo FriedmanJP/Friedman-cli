@@ -20,12 +20,17 @@ macOS binaries in favor of from-source / local `build_release.jl` builds.
   Replaced `create_sysimage()` + generated shell/`.cmd` launchers with
   `PackageCompiler.create_app()` (`executables=["friedman" => "julia_main"]`,
   `incremental=true`, `filter_stdlibs=false`, `include_lazy_artifacts=false`,
-  `include_transitive_dependencies=false`, `compress_sysimage=true` by default via
-  `FRIEDMAN_COMPRESS_SYSIMAGE`, `sysimage_build_args=`-O1 --strip-metadata``).
-  Produces native `bin/friedman` / `bin/friedman.exe`, private `libjulia`,
-  compressed `lib/julia/sys.*`, and 14 required JLL artifacts while excluding
-  unused `MKL_jll` / `oneTBB_jll` / `IntelOpenMP_jll`. Made `Manifest.toml` seeding
-  version-aware across Julia `1.13` and `1.14`.
+  `include_transitive_dependencies=false`, `include_preferences=true`,
+  `compress_sysimage=true` by default via `FRIEDMAN_COMPRESS_SYSIMAGE`,
+  `sysimage_build_args=`-O1 --strip-metadata``). Produces native `bin/friedman` /
+  `bin/friedman.exe` using custom C entry point `packaging/c_driver/friedman_driver.c`
+  (defaults `JULIA_OBJCACHE=0` before `jl_init()` unless overridden so read-only
+  install roots such as Windows `WindowsApps` MSIX never emit `objcache error` or
+  mutate depots), private `libjulia`, compressed `lib/julia/sys.*`, and 14 required
+  JLL artifacts while deterministically excluding `MKL_jll` / `oneTBB_jll` /
+  `IntelOpenMP_jll` via build-env `LocalPreferences.toml` (`LinearSolve.LoadMKL_JLL=false`,
+  `FFTW.provider="fftw"`). Made `Manifest.toml` seeding version-aware across Julia
+  `1.13` and `1.14`.
 - **Benchmark scripts (`tools/bench_release.py`, `tools/bench_binary.sh`):**
   Updated for native `bin/friedman.exe` (keeping `.cmd`/`.bat` fallback) and
   `lib/julia/sys.*` path layout.
@@ -36,9 +41,11 @@ macOS binaries in favor of from-source / local `build_release.jl` builds.
   release binaries; switched both `ubuntu-latest` (`linux-x86_64`) and
   `windows-latest` (`windows-x86_64`) release builds to Julia `1.14+opt` via
   `julia-actions/install-juliaup`; added strict offline, zero-Julia smoke tests
-  (stripped `PATH`, read-only `chmod 555` depot, `JULIA_OBJCACHE=0` zero-write
-  assertion, `:denmark`, `:wiot`, `completions bash`, `.jld2` + `irf --plot-save`,
-  `dsge solve`, piped `repl`, exit codes `2`/`3`) and enforced Linux latency gate.
+  on both Linux and Windows (stripped `PATH`, read-only `chmod 555` depot, zero
+  depot writes under default user env, strict stderr checks forbidding `objcache`
+  and lazy-artifact chatter, single-JSON gate, `:denmark`, `:wiot`, `completions bash`,
+  `.jld2` + `irf --plot-save`, `dsge solve`, piped `repl`, exit codes `2`/`3`) and
+  enforced Linux latency gate.
 - **Full Julia `1.14+opt` CI backing (`.github/workflows/CI.yml`):** Added
   `1.14+opt` legs across `engine` (Linux + Windows), `integration-core` (T3), and
   `e2e` (T4), while retaining `macos-latest` (`1.13`) for macOS from-source CI.
