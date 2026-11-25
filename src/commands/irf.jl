@@ -335,7 +335,7 @@ function _irf_var(; data::String="", result=nothing, model=nothing, lags=nothing
     if isnothing(model)
         model, Y, varnames, p = _load_and_estimate_var(data, lags)
     else
-        varnames = model.varnames
+        varnames = _model_varnames(model)
         p = model.p
     end
     n = length(varnames)
@@ -611,7 +611,7 @@ function _irf_bvar(; data::String="", result=nothing, lags::Int=4, shock::Int=1,
         post, Y, varnames, p, n = _load_and_estimate_bvar(data, lags, config, draws, sampler)
     else
         post = model
-        varnames = post.varnames
+        varnames = _model_varnames(post)
         p = post.p
         n = length(varnames)
     end
@@ -747,7 +747,7 @@ function _irf_lp(; data::String="", result=nothing, shock::Int=1, shocks::String
         n = size(Y, 2)
     else
         slp = model
-        varnames = slp.varnames
+        varnames = _model_varnames(slp)
         n = length(varnames)
     end
     irf_result = slp.irf
@@ -823,7 +823,7 @@ function _irf_vecm(; data::String="", result=nothing, lags::Int=2, rank::String=
     else
         vecm = model
         var_model = to_var(vecm)
-        varnames = vecm.varnames
+        varnames = _model_varnames(vecm)
         p = vecm.p
     end
     n = length(varnames)
@@ -909,7 +909,7 @@ function _irf_pvar(; data::String="", result=nothing, id_col::String="", time_co
     if isnothing(model)
         model, panel, varnames = _load_and_estimate_pvar(data, id_col, time_col, lags)
     else
-        varnames = model.varnames
+        varnames = _model_varnames(model)
     end
     n = length(varnames)
 
@@ -961,7 +961,7 @@ function _irf_favar(; data::String="", result=nothing, factors=nothing, lags::In
         favar, Y, varnames = _load_and_estimate_favar(data, factors, lags, key_vars, "two_step", 5000)
     else
         favar = model
-        varnames = favar.varnames
+        varnames = _model_varnames(favar)
     end
     n = size(favar.Y, 2)
 

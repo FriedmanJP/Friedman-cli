@@ -294,14 +294,24 @@ function _build_frdc_meta(obj; note::String="", source_model=nothing)::Dict{Stri
             src_dict[String(k)] = v
         end
     end
+    hint_vn, hint_kind = isdefined(@__MODULE__, :_consume_save_meta!) ?
+        _consume_save_meta!() : (nothing, "")
+    extracted_vn = _extract_varnames(obj)
+    vn = if hint_vn !== nothing && !isempty(hint_vn) &&
+            (isempty(extracted_vn) || obj isa AbstractDict)
+        hint_vn
+    else
+        extracted_vn
+    end
+    kind_str = !isempty(hint_kind) ? hint_kind : _storage_kind_tag(obj)
     return Dict{String,Any}(
         "schema_version" => _FRDC_META_SCHEMA_VERSION,
         "cli_version"    => _cli_version_string(),
         "mems_version"   => _mems_version_string(),
-        "kind"           => _storage_kind_tag(obj),
+        "kind"           => kind_str,
         "type_name"      => string(nameof(typeof(obj))),
         "dims"           => _extract_dims(obj),
-        "varnames"       => _extract_varnames(obj),
+        "varnames"       => vn,
         "note"           => String(note),
         "seed"           => seed_val,
         "source_model"   => src_dict,
@@ -532,9 +542,23 @@ Magic-byte-first handle loader with preflight corruption checks (zero
 `JLD2.MmapIO` stderr warnings), format-vs-extension mismatch detection,
 `#key` extraction, and legacy `.fmod` deprecation read support.
 """
+function _read_jld2_frdc_meta(path::String)
+    return try
+        _with_quiet_jld2() do
+            JLD2.jldopen(path, "r") do f
+                haskey(f, "_frdc_meta") ? f["_frdc_meta"] : nothing
+            end
+        end
+    catch
+        nothing
+    end
+end
+
 function load_handle(ref::HandleRef)
     if ref.scheme === :session
-        return session_store_get(ref.raw)
+        entry = session_store_get_entry(ref.raw)
+        isdefined(@__MODULE__, :_record_handle_meta!) && _record_handle_meta!(entry.payload, entry.meta)
+        return entry.payload
     end
 
     _enforce_data_root!(ref; kind="input")
@@ -579,6 +603,10 @@ function load_handle(ref::HandleRef)
                 e
             end
             if !(native_res isa Exception)
+                if isdefined(@__MODULE__, :_record_handle_meta!)
+                    meta = _read_jld2_frdc_meta(path)
+                    meta !== nothing && _record_handle_meta!(native_res, meta)
+                end
                 return native_res
             end
             # Inspect plain JLD2 or report native SerializationError / corruption
@@ -599,8 +627,17 @@ function load_handle(ref::HandleRef)
             end
             # Filter out internal CLI metadata keys when inspecting plain JLD2 user keys
             user_dict = Dict{String,Any}(string(k) => v for (k, v) in d if !startswith(string(k), "_"))
-            haskey(user_dict, "data") && return user_dict["data"]
-            length(user_dict) == 1 && return only(values(user_dict))
+            plain_meta = get(d, "_frdc_meta", nothing)
+            if haskey(user_dict, "data")
+                val = user_dict["data"]
+                isdefined(@__MODULE__, :_record_handle_meta!) && plain_meta !== nothing && _record_handle_meta!(val, plain_meta)
+                return val
+            end
+            if length(user_dict) == 1
+                val = only(values(user_dict))
+                isdefined(@__MODULE__, :_record_handle_meta!) && plain_meta !== nothing && _record_handle_meta!(val, plain_meta)
+                return val
+            end
             ks = join(sort!(collect(keys(user_dict))), ", ")
             throw(CliError("data/serialization",
                 "ambiguous JLD2 archive '$(ref.raw)' (keys: $ks)";
@@ -643,6 +680,12 @@ function load_handle(ref::HandleRef)
         if !isdefined(MacroEconometricModels, :_build_container)
             try
                 obj = MacroEconometricModels.load_model(path)
+                if isdefined(@__MODULE__, :_record_handle_meta!)
+                    raw_d = try; open(deserialize, path); catch; nothing; end
+                    if raw_d isa AbstractDict && haskey(raw_d, "_frdc_meta")
+                        _record_handle_meta!(obj, raw_d["_frdc_meta"])
+                    end
+                end
                 if ref.key !== nothing && obj isa AbstractDict
                     return _extract_key_from_dict(obj, ref.key::String, ref.raw)
                 end
@@ -669,6 +712,17 @@ function load_handle(ref::HandleRef)
 
     if payload isa FrdcJlsEnvelope
         val = payload.payload
+        if isdefined(@__MODULE__, :_record_handle_meta!)
+            _record_handle_meta!(val, Dict{String,Any}(
+                "kind" => payload.kind,
+                "type_name" => payload.type_name,
+                "dims" => payload.dims,
+                "varnames" => payload.varnames,
+                "note" => payload.note,
+                "seed" => payload.seed,
+                "source_model" => payload.source_model,
+            ))
+        end
         return (ref.key !== nothing && val isa AbstractDict) ?
             _extract_key_from_dict(val, ref.key::String, ref.raw) : val
     elseif payload isa Tuple && length(payload) == 2 && payload[1] isa ModelHandleHeader

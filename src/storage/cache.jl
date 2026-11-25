@@ -6,7 +6,59 @@
 # `resolve_data`, etc.) load the same path during the same CLI invocation.
 
 const _INVOCATION_HANDLE_CACHE = Ref{Union{Nothing,Dict{String,Any}}}(nothing)
+const _INVOCATION_HANDLE_META = Ref{Union{Nothing,Dict{UInt64,Dict{String,Any}}}}(nothing)
+const _FALLBACK_HANDLE_META = Dict{UInt64,Dict{String,Any}}()
+const _NEXT_SAVE_VARNAMES = Ref{Union{Nothing,Vector{String}}}(nothing)
+const _NEXT_SAVE_KIND = Ref{String}("")
 const _HANDLE_LOAD_COUNTER = Ref{Int}(0)
+
+"""Associate parsed `_frdc_meta` with a loaded object so downstream helpers
+(`_model_varnames`, `_model_series_name`, `_rerender_filter_result`) can inspect
+saved column names without re-opening the file."""
+function _record_handle_meta!(obj, meta)
+    (obj === nothing || !(meta isa AbstractDict)) && return nothing
+    d = Dict{String,Any}(String(k) => v for (k, v) in meta)
+    id = objectid(obj)
+    inv = _INVOCATION_HANDLE_META[]
+    if inv !== nothing
+        inv[id] = d
+    else
+        length(_FALLBACK_HANDLE_META) >= 256 && empty!(_FALLBACK_HANDLE_META)
+        _FALLBACK_HANDLE_META[id] = d
+    end
+    return nothing
+end
+
+"""Look up `_frdc_meta` recorded when `obj` was loaded (or `nothing`)."""
+function _lookup_handle_meta(obj)::Union{Nothing,Dict{String,Any}}
+    obj === nothing && return nothing
+    id = objectid(obj)
+    inv = _INVOCATION_HANDLE_META[]
+    if inv !== nothing && haskey(inv, id)
+        return inv[id]
+    end
+    return get(_FALLBACK_HANDLE_META, id, nothing)
+end
+
+"""Stage optional metadata (`varnames`, `kind`) for the next `save_handle!` call
+within the current invocation (e.g., univariate models or multi-column filters)."""
+function _set_save_meta!(; varnames=nothing, kind::String="")
+    if varnames !== nothing
+        _NEXT_SAVE_VARNAMES[] = String[string(v) for v in varnames]
+    end
+    if !isempty(kind)
+        _NEXT_SAVE_KIND[] = kind
+    end
+    return nothing
+end
+
+function _consume_save_meta!()
+    vn = _NEXT_SAVE_VARNAMES[]
+    kd = _NEXT_SAVE_KIND[]
+    _NEXT_SAVE_VARNAMES[] = nothing
+    _NEXT_SAVE_KIND[] = ""
+    return vn, kd
+end
 
 function _handle_cache_key(ref::HandleRef)::String
     if ref.scheme === :session
@@ -30,10 +82,14 @@ function with_handle_cache(fn::Function)
         return fn()
     end
     _INVOCATION_HANDLE_CACHE[] = Dict{String,Any}()
+    _INVOCATION_HANDLE_META[] = Dict{UInt64,Dict{String,Any}}()
     try
         return fn()
     finally
         _INVOCATION_HANDLE_CACHE[] = nothing
+        _INVOCATION_HANDLE_META[] = nothing
+        _NEXT_SAVE_VARNAMES[] = nothing
+        _NEXT_SAVE_KIND[] = ""
     end
 end
 

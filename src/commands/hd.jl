@@ -201,7 +201,7 @@ function _hd_var(; data::String="", result=nothing, model=nothing, lags=nothing,
     if model isa SVARModel
         id in ("cholesky", "svar") || throw(CliError("usage/invalid",
             "hd var: SVARModel is already structurally identified; omit --id (got --id $id)"))
-        varnames = model.varnames
+        varnames = _model_varnames(model)
         hd_result = try
             historical_decomposition(model)
         catch e
@@ -220,7 +220,7 @@ function _hd_var(; data::String="", result=nothing, model=nothing, lags=nothing,
     if isnothing(model)
         model, Y, varnames, p = _load_and_estimate_var(data, lags)
     else
-        varnames = model.varnames
+        varnames = _model_varnames(model)
         p = model.p
         Y = model.Y
     end
@@ -355,7 +355,7 @@ function _hd_bvar(; data::String="", result=nothing, lags::Int=4, id::String="ch
         post, Y, varnames, p, n = _load_and_estimate_bvar(data, lags, config, draws, sampler)
     else
         post = model
-        varnames = post.varnames
+        varnames = _model_varnames(post)
         p = post.p
         n = length(varnames)
         Y = post.data
@@ -439,9 +439,9 @@ function _hd_lp(; data::String="", result=nothing, lags::Int=4, var_lags=nothing
         end
     else
         slp = model
-        varnames = slp.varnames
+        varnames = _model_varnames(slp)
         vp = isnothing(var_lags) ? lags : var_lags
-        hd_horizon = slp.horizon
+        hd_horizon = _model_horizon(slp)
     end
 
     _status("Computing LP Historical Decomposition: id=$id")
@@ -513,7 +513,7 @@ function _hd_vecm(; data::String="", result=nothing, lags::Int=2, rank::String="
     else
         vecm = model
         var_model = to_var(vecm)
-        varnames = vecm.varnames
+        varnames = _model_varnames(vecm)
         p = vecm.p
         Y = vecm.Y
     end
@@ -587,7 +587,7 @@ function _hd_favar(; data::String="", result=nothing, factors=nothing, lags::Int
         favar, Y, varnames = _load_and_estimate_favar(data, factors, lags, key_vars, "two_step", 5000)
     else
         favar = model
-        varnames = favar.varnames
+        varnames = _model_varnames(favar)
     end
     kwargs = _build_identification_kwargs(id, config; nvars=length(varnames),
                                               leaf="hd favar")

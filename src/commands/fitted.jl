@@ -167,7 +167,7 @@ function _predict_static(; data::String="", nfactors=nothing,
         fm = estimate_factors(X, r)
     else
         fm = model
-        varnames = fm.varnames
+        varnames = _model_varnames(fm)
         r = fm.r
     end
     fitted = predict(fm)
@@ -208,8 +208,7 @@ function _predict_dynamic(; data::String="", nfactors=nothing, factor_lags::Int=
         fm = model
         r = fm.r
         factor_lags = fm.p
-        # DynamicFactorModel carries no varnames upstream — use real's own default naming
-        varnames = ["Var $i" for i in 1:size(fm.X, 2)]
+        varnames = _model_varnames(fm)
     end
     fitted = predict(fm)
     T = size(fitted, 1)
@@ -253,8 +252,7 @@ function _predict_gdfm(; data::String="", nfactors=nothing, dynamic_rank=nothing
     else
         gm = model
         q = gm.q
-        # GeneralizedDynamicFactorModel carries no varnames upstream
-        varnames = ["Var $i" for i in 1:size(gm.X, 2)]
+        varnames = _model_varnames(gm)
     end
     fitted = predict(gm)
     T = size(fitted, 1)
@@ -947,7 +945,7 @@ function _residuals_static(; data::String="", nfactors=nothing,
         fm = estimate_factors(X, r)
     else
         fm = model
-        varnames = fm.varnames
+        varnames = _model_varnames(fm)
         r = fm.r
     end
     resid = residuals(fm)
@@ -988,8 +986,7 @@ function _residuals_dynamic(; data::String="", nfactors=nothing, factor_lags::In
         fm = model
         r = fm.r
         factor_lags = fm.p
-        # DynamicFactorModel carries no varnames upstream — use real's own default naming
-        varnames = ["Var $i" for i in 1:size(fm.X, 2)]
+        varnames = _model_varnames(fm)
     end
     resid = residuals(fm)
     T = size(resid, 1)
@@ -1028,8 +1025,7 @@ function _residuals_gdfm(; data::String="", nfactors=nothing, dynamic_rank=nothi
     else
         gm = model
         q = gm.q
-        # GeneralizedDynamicFactorModel carries no varnames upstream
-        varnames = ["Var $i" for i in 1:size(gm.X, 2)]
+        varnames = _model_varnames(gm)
     end
     resid = residuals(gm)
     T = size(resid, 1)

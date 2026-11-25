@@ -2535,6 +2535,7 @@ function _estimate_arima(; data::String, column::Int=1, p=nothing, d::Int=0, q::
         "BIC" => round(bic(model); digits=4),
         "Log-likelihood" => round(loglikelihood(model); digits=4),
     ]; format=format, output=_per_var_output_path(output, "criteria"), title="Information Criteria")
+    _set_save_meta!(; varnames=[vname])
     return model
 end
 
@@ -2621,6 +2622,7 @@ function _estimate_sarima(; data::String, column::Int=1, p=nothing, d::Int=0, q:
         "n_effective"    => length(model.residuals),
     ]; format=format, output=_per_var_output_path(output, "criteria"), title="Information Criteria")
     _maybe_plot(model; plot=plot, plot_save=plot_save)
+    _set_save_meta!(; varnames=[vname])
     return model
 end
 
@@ -2639,9 +2641,13 @@ function _forecast_sarima(; data::String="", result=nothing, column::Int=1, p=no
         "forecast univariate sarima: --horizons must be ≥ 1 (got $horizons)"))
     (0 < ci_level < 1) || throw(CliError("usage/invalid",
         "forecast univariate sarima: --ci-level must satisfy 0 < level < 1 (got $ci_level)"))
-    model, vname, _ = _sarima_fit(data, column, p, d, q, P, D, Q, s, auto,
-                                  max_p, max_q, max_P, max_Q, criterion, method,
-                                  max_iter, no_intercept, "forecast univariate sarima")
+    if isnothing(model)
+        model, vname, _ = _sarima_fit(data, column, p, d, q, P, D, Q, s, auto,
+                                      max_p, max_q, max_P, max_Q, criterion, method,
+                                      max_iter, no_intercept, "forecast univariate sarima")
+    else
+        vname = _model_series_name(model)
+    end
     lbl = _sarima_label(model)
     _status("$lbl forecast (h=$horizons): variable=$vname, ci=$ci_level"); _status()
     fc = try
@@ -2668,7 +2674,7 @@ function _predict_sarima(; data::String="", column::Int=1, p=nothing, d::Int=0, 
                                 "predict univariate sarima")
         (mm, vn)
     else
-        (model, "model")
+        (model, _model_series_name(model))
     end
     f = predict(m)
     _status("$(_sarima_label(m)) fitted values: variable=$vname, n=$(length(f))"); _status()
@@ -2690,7 +2696,7 @@ function _residuals_sarima(; data::String="", column::Int=1, p=nothing, d::Int=0
                                 "residuals univariate sarima")
         (mm, vn)
     else
-        (model, "model")
+        (model, _model_series_name(model))
     end
     r = residuals(m)
     _status("$(_sarima_label(m)) residuals: variable=$vname, n=$(length(r))"); _status()
@@ -3170,6 +3176,7 @@ function _estimate_dynamic(; data::String, nfactors=nothing, factor_lags::Int=1,
     for (i, ev) in enumerate(sort(eig_moduli; rev=true))
         _status("  lambda$i = $(round(ev; digits=6))")
     end
+    _set_save_meta!(; varnames=varnames)
     return model
 end
 

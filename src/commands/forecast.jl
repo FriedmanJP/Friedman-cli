@@ -823,7 +823,7 @@ function _forecast_bvar(; data::String="", result=nothing, lags::Int=4, horizons
         post, Y, varnames, p, n = _load_and_estimate_bvar(data, lags, config, draws, sampler)
     else
         post = model
-        varnames = post.varnames
+        varnames = _model_varnames(post)
         p = post.p
         n = length(varnames)
         Y = post.data
@@ -864,7 +864,7 @@ function _forecast_lp(; data::String="", result=nothing, shock::Int=1, horizons:
         model = estimate_lp(Y, shock, horizons;
             lags=lags, cov_type=Symbol(vcov))
     else
-        varnames = model.varnames
+        varnames = _model_varnames(model)
     end
 
     _status("Computing LP forecast: shock=$shock, horizons=$horizons, shock_size=$shock_size, ci=$ci_method")
@@ -918,6 +918,8 @@ function _forecast_arima(; data::String="", result=nothing, column::Int=1, p=not
             _status()
             _estimate_arima_model(y, p, d, q; method=method_sym)
         end
+    else
+        vname = _model_series_name(model)
     end
 
     fc = forecast(model, horizons; conf_level=confidence)
@@ -1053,7 +1055,7 @@ function _forecast_static(; data::String="", result=nothing, nfactors=nothing, h
         fm = estimate_factors(X, r)
     else
         fm = model
-        varnames = fm.varnames
+        varnames = _model_varnames(fm)
     end
     fc = forecast(fm, horizons; ci_method=Symbol(ci_method), conf_level=conf_level)
 
@@ -1102,7 +1104,7 @@ function _forecast_dynamic(; data::String="", result=nothing, nfactors=nothing, 
         fm = estimate_dynamic_factors(X, r, factor_lags; method=Symbol(method))
     else
         fm = model
-        varnames = fm.varnames
+        varnames = _model_varnames(fm)
     end
     fc = forecast(fm, horizons)
 
@@ -1165,7 +1167,7 @@ function _forecast_gdfm(; data::String="", result=nothing, nfactors=nothing, dyn
         fm = estimate_gdfm(X, q; r=r, spectral=_GDFM_SPECTRAL[spectral])
     else
         fm = model
-        varnames = fm.varnames
+        varnames = _model_varnames(fm)
     end
 
     # C051: route through MEMs' GDFM forecast (→ FactorForecast) and render its tidy
@@ -1211,7 +1213,7 @@ function _forecast_sdfm(; data::String="", result=nothing, factors=nothing, id::
         _status()
     else
         sdfm = model
-        varnames = sdfm.varnames
+        varnames = _model_varnames(sdfm)
     end
 
     fc = ci == "bootstrap" ?
@@ -1242,7 +1244,7 @@ function _forecast_vecm(; data::String="", result=nothing, lags::Int=2, rank::St
         vecm, Y, varnames, p = _load_and_estimate_vecm(data, lags, rank, deterministic, "johansen", 0.05)
     else
         vecm = model
-        varnames = vecm.varnames
+        varnames = _model_varnames(vecm)
         p = vecm.p
     end
     r = cointegrating_rank(vecm)
@@ -1277,7 +1279,7 @@ function _forecast_favar(; data::String="", result=nothing, factors=nothing, lag
         favar, Y, varnames = _load_and_estimate_favar(data, factors, lags, key_vars, "two_step", 5000)
     else
         favar = model
-        varnames = favar.varnames
+        varnames = _model_varnames(favar)
     end
 
     _status("FAVAR Forecast: horizon=$horizons" * (panel_forecast ? ", panel-wide" : ""))

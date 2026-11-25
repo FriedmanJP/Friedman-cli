@@ -163,7 +163,7 @@ function register_filter_commands!()
     for s in _tag_slot_types(filter_specs(), _FILTER_SLOT_TYPES)
         leaf = join(s.path, " ")
         key = isempty(s.tables) ? "" : string(s.tables[1].name)
-        h = wrap_legacy(_with_result(s.handler, leaf; key=key))
+        h = wrap_legacy(_with_result(s.handler, leaf; key=key, render_fn=_rerender_filter_result))
         push!(specs, _copy_spec(s; handler=h))
     end
     specs = with_result_handles(with_default_csv_kinds(with_data_kinds(specs, [:timeseries, :csv])))
@@ -226,6 +226,7 @@ function _filter_hp(; data::String, lambda::Float64=1600.0, columns::String="",
     result_df.t = 1:T_obs
     cycles = Vector{Float64}[]
     originals = Vector{Float64}[]
+    col_results = Dict{String,Any}()
     last_result = nothing
 
     for ci in col_idx
@@ -233,6 +234,7 @@ function _filter_hp(; data::String, lambda::Float64=1600.0, columns::String="",
         y = Y[:, ci]
         res = hp_filter(y; lambda=lambda)
         last_result = res
+        col_results[vname] = res
         ps = isempty(plot_save) ? "" : (length(col_idx) == 1 ? plot_save : _per_var_output_path(plot_save, vname))
         _maybe_plot(res; plot=plot, plot_save=ps)
         t = trend(res)
@@ -247,7 +249,16 @@ function _filter_hp(; data::String, lambda::Float64=1600.0, columns::String="",
     output_result(result_df; format=Symbol(format), output=output,
                   title="HP Filter (λ=$(lambda))", key="hp_filter")
     _print_variance_ratios(sel_names, cycles, originals)
-    return last_result
+    return _finalize_filter_return(sel_names, col_results, last_result)
+end
+
+function _finalize_filter_return(sel_names::Vector{String}, col_results::Dict{String,Any}, last_result)
+    if length(sel_names) == 1
+        _set_save_meta!(; varnames=sel_names)
+        return last_result
+    end
+    _set_save_meta!(; varnames=sel_names, kind="result_collection")
+    return col_results
 end
 
 # ── Hamilton Filter ──────────────────────────────────────
@@ -268,6 +279,7 @@ function _filter_hamilton(; data::String, horizon::Int=8, lags::Int=4, columns::
     cycles = Vector{Float64}[]
     originals = Vector{Float64}[]
     first_valid = nothing
+    col_results = Dict{String,Any}()
     last_result = nothing
 
     for ci in col_idx
@@ -275,6 +287,7 @@ function _filter_hamilton(; data::String, horizon::Int=8, lags::Int=4, columns::
         y = Y[:, ci]
         res = hamilton_filter(y; h=horizon, p=lags)
         last_result = res
+        col_results[vname] = res
         ps = isempty(plot_save) ? "" : (length(col_idx) == 1 ? plot_save : _per_var_output_path(plot_save, vname))
         _maybe_plot(res; plot=plot, plot_save=ps, original=y)
         t = trend(res)
@@ -305,7 +318,7 @@ function _filter_hamilton(; data::String, horizon::Int=8, lags::Int=4, columns::
     output_result(result_df; format=Symbol(format), output=output,
                   title="Hamilton Filter (h=$horizon, p=$lags)", key="hamilton_filter")
     _print_variance_ratios(sel_names, cycles, originals)
-    return last_result
+    return _finalize_filter_return(sel_names, col_results, last_result)
 end
 
 # ── Beveridge-Nelson Decomposition ───────────────────────
@@ -329,6 +342,7 @@ function _filter_bn(; data::String, method::String="arima", p=nothing, q=nothing
     result_df.t = 1:T_obs
     cycles = Vector{Float64}[]
     originals = Vector{Float64}[]
+    col_results = Dict{String,Any}()
     last_result = nothing
 
     for ci in col_idx
@@ -343,6 +357,7 @@ function _filter_bn(; data::String, method::String="arima", p=nothing, q=nothing
             beveridge_nelson(y; kwargs...)
         end
         last_result = res
+        col_results[vname] = res
         ps = isempty(plot_save) ? "" : (length(col_idx) == 1 ? plot_save : _per_var_output_path(plot_save, vname))
         _maybe_plot(res; plot=plot, plot_save=ps)
         t = trend(res)
@@ -357,7 +372,7 @@ function _filter_bn(; data::String, method::String="arima", p=nothing, q=nothing
     output_result(result_df; format=Symbol(format), output=output,
                   title="Beveridge-Nelson Decomposition")
     _print_variance_ratios(sel_names, cycles, originals)
-    return last_result
+    return _finalize_filter_return(sel_names, col_results, last_result)
 end
 
 # ── Baxter-King Band-Pass Filter ─────────────────────────
@@ -378,6 +393,7 @@ function _filter_bk(; data::String, pl::Int=6, pu::Int=32, K::Int=12, columns::S
     cycles = Vector{Float64}[]
     originals = Vector{Float64}[]
     first_valid = nothing
+    col_results = Dict{String,Any}()
     last_result = nothing
 
     for ci in col_idx
@@ -385,6 +401,7 @@ function _filter_bk(; data::String, pl::Int=6, pu::Int=32, K::Int=12, columns::S
         y = Y[:, ci]
         res = baxter_king(y; pl=pl, pu=pu, K=K)
         last_result = res
+        col_results[vname] = res
         ps = isempty(plot_save) ? "" : (length(col_idx) == 1 ? plot_save : _per_var_output_path(plot_save, vname))
         _maybe_plot(res; plot=plot, plot_save=ps, original=y)
         t = trend(res)
@@ -416,7 +433,7 @@ function _filter_bk(; data::String, pl::Int=6, pu::Int=32, K::Int=12, columns::S
     output_result(result_df; format=Symbol(format), output=output,
                   title="Baxter-King Filter (pl=$pl, pu=$pu, K=$K)", key="baxter_king_filter")
     _print_variance_ratios(sel_names, cycles, originals)
-    return last_result
+    return _finalize_filter_return(sel_names, col_results, last_result)
 end
 
 # ── Boosted HP Filter ────────────────────────────────────
@@ -439,6 +456,7 @@ function _filter_bhp(; data::String, lambda::Float64=1600.0, stopping::String="B
     result_df.t = 1:T_obs
     cycles = Vector{Float64}[]
     originals = Vector{Float64}[]
+    col_results = Dict{String,Any}()
     last_result = nothing
 
     for ci in col_idx
@@ -446,6 +464,7 @@ function _filter_bhp(; data::String, lambda::Float64=1600.0, stopping::String="B
         y = Y[:, ci]
         res = boosted_hp(y; lambda=lambda, stopping=stop_sym, max_iter=max_iter, sig_p=sig_p)
         last_result = res
+        col_results[vname] = res
         ps = isempty(plot_save) ? "" : (length(col_idx) == 1 ? plot_save : _per_var_output_path(plot_save, vname))
         _maybe_plot(res; plot=plot, plot_save=ps)
         t = trend(res)
@@ -462,7 +481,7 @@ function _filter_bhp(; data::String, lambda::Float64=1600.0, stopping::String="B
     output_result(result_df; format=Symbol(format), output=output,
                   title="Boosted HP Filter (λ=$(lambda), stopping=$stopping)", key="boosted_hp_filter")
     _print_variance_ratios(sel_names, cycles, originals)
-    return last_result
+    return _finalize_filter_return(sel_names, col_results, last_result)
 end
 
 # ── X-13ARIMA-SEATS (C042 / MEMs 0.6.7 pure-Julia port) ───
@@ -510,6 +529,7 @@ function _filter_x13(; data::String,
     seas_df = DataFrame(t = 1:T_obs)
     irr_df = DataFrame(t = 1:T_obs)
     diag_rows = NamedTuple[]
+    col_results = Dict{String,Any}()
     last_result = nothing
 
     for ci in col_idx
@@ -561,6 +581,7 @@ function _filter_x13(; data::String,
         ))
         _status("  $vname: method=$(res.method), ARIMA=($order_str), outliers=$(res.n_outliers)")
         last_result = res
+        col_results[vname] = res
     end
 
     diag_df = DataFrame(diag_rows)
@@ -574,5 +595,6 @@ function _filter_x13(; data::String,
                   title="X-13 Irregular")
     output_result(diag_df; format=Symbol(format), output=_per_var_output_path(output, "diagnostics"),
                   title="X-13 Diagnostics")
-    return last_result
+    sel_names = [varnames[ci] for ci in col_idx]
+    return _finalize_filter_return(sel_names, col_results, last_result)
 end

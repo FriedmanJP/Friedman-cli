@@ -341,6 +341,7 @@ include("storage/ref.jl")
 include("storage/codec.jl")
 include("storage/session.jl")
 include("storage/cache.jl")
+include("storage/introspect.jl")
 
 _is_native_saveable(model) = is_mems_serializable(model)
 

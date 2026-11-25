@@ -67,6 +67,12 @@ function _load_typed_handle(path::String, allowed::Vector{Symbol}, code::String;
     obj = load_model_dispatch(path)
     n = nameof(typeof(obj))
     if n ∉ allowed
+        # Allow homogeneous result/model collections (e.g. multi-column filter bundles)
+        # when every value matches an allowed type (#308).
+        if obj isa AbstractDict && !isempty(obj) &&
+           all(v -> nameof(typeof(v)) in allowed, values(obj))
+            return obj
+        end
         other = code == "model/wrong-kind" ? "--result" : "--model"
         throw(CliError(code,
             "$path is a $n handle; this command accepts $(join(allowed, ", "))";

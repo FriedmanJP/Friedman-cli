@@ -2248,64 +2248,127 @@ function _rerender_fevd_result(result; format::String="table", output::String=""
     return _rerender_long_table(result; format, output, title, key, plot, plot_save)
 end
 
+_is_single_filter_result(result) = nameof(typeof(result)) === :X13FilterResult ||
+    (applicable(trend, result) && applicable(cycle, result))
+
+_is_filter_result(result) = _is_single_filter_result(result) ||
+    (result isa AbstractDict && !isempty(result) && all(_is_single_filter_result, values(result)))
+
+function _ordered_filter_entries(result)
+    meta = isdefined(@__MODULE__, :_lookup_handle_meta) ? _lookup_handle_meta(result) : nothing
+    meta_vns = (meta isa AbstractDict && haskey(meta, "varnames") && meta["varnames"] isa AbstractVector) ?
+        String[string(v) for v in meta["varnames"] if !isempty(string(v))] : String[]
+    if result isa AbstractDict
+        ordered = Pair{String,Any}[]
+        seen = Set{String}()
+        for vn in meta_vns
+            if haskey(result, vn) && !(vn in seen)
+                push!(ordered, vn => result[vn])
+                push!(seen, vn)
+            end
+        end
+        for k in sort!(String[string(k) for k in keys(result)])
+            if !(k in seen) && haskey(result, k)
+                push!(ordered, k => result[k])
+                push!(seen, k)
+            end
+        end
+        return ordered, true
+    end
+    if !isempty(meta_vns)
+        return Pair{String,Any}[meta_vns[1] => result], true
+    end
+    return Pair{String,Any}["" => result], false
+end
+
 function _rerender_filter_result(result; format::String="table", output::String="",
                                  title::String="", key::String="",
-                                 plot::Bool=false, plot_save::String="")
-    tn = nameof(typeof(result))
+                                 plot::Bool=false, plot_save::String="", _...)
+    entries, has_vnames = _ordered_filter_entries(result)
+    isempty(entries) && return result
+    first_res = entries[1][2]
+    tn = nameof(typeof(first_res))
     if tn === :X13FilterResult
-        T = length(result.trend)
+        T = length(first_res.trend)
         tcol = collect(1:T)
-        output_result(DataFrame(t=tcol, adjusted=round.(result.adjusted; digits=6));
-                      format=Symbol(format), output=output, title="X-13 Seasonally Adjusted",
-                      key="x_13_seasonally_adjusted")
-        output_result(DataFrame(t=tcol, trend=round.(result.trend; digits=6));
-                      format=Symbol(format), output=_per_var_output_path(output, "trend"),
+        adj_df = DataFrame(t=tcol)
+        trend_df = DataFrame(t=tcol)
+        seas_df = DataFrame(t=tcol)
+        irr_df = DataFrame(t=tcol)
+        diag_rows = NamedTuple[]
+        for (vname, res) in entries
+            col_adj = has_vnames ? vname : "adjusted"
+            col_tr  = has_vnames ? vname : "trend"
+            col_sea = has_vnames ? vname : "seasonal"
+            col_irr = has_vnames ? vname : "irregular"
+            adj_df[!, col_adj] = round.(res.adjusted; digits=6)
+            trend_df[!, col_tr] = round.(res.trend; digits=6)
+            seas_df[!, col_sea] = round.(res.seasonal; digits=6)
+            irr_df[!, col_irr] = round.(res.irregular; digits=6)
+            order = res.arima_order
+            order_str = order isa Tuple ? join(string.(order), ",") : string(order)
+            push!(diag_rows, (
+                variable = isempty(vname) ? "series" : vname,
+                method = string(res.method),
+                frequency = res.frequency,
+                transform = string(res.transform),
+                arima_order = order_str,
+                aic = round(Float64(res.aic); digits=4),
+                sigma2 = round(Float64(res.sigma2); digits=6),
+                n_outliers = Int(res.n_outliers),
+                T_obs = Int(res.T_obs),
+            ))
+            ps = isempty(plot_save) ? "" : (length(entries) == 1 ? plot_save : _per_var_output_path(plot_save, vname))
+            _maybe_plot(res; plot=plot, plot_save=ps)
+        end
+        output_result(adj_df; format=Symbol(format), output=output,
+                      title="X-13 Seasonally Adjusted", key="x_13_seasonally_adjusted")
+        output_result(trend_df; format=Symbol(format), output=_per_var_output_path(output, "trend"),
                       title="X-13 Trend", key="x_13_trend")
-        output_result(DataFrame(t=tcol, seasonal=round.(result.seasonal; digits=6));
-                      format=Symbol(format), output=_per_var_output_path(output, "seasonal"),
+        output_result(seas_df; format=Symbol(format), output=_per_var_output_path(output, "seasonal"),
                       title="X-13 Seasonal Factors", key="x_13_seasonal_factors")
-        output_result(DataFrame(t=tcol, irregular=round.(result.irregular; digits=6));
-                      format=Symbol(format), output=_per_var_output_path(output, "irregular"),
+        output_result(irr_df; format=Symbol(format), output=_per_var_output_path(output, "irregular"),
                       title="X-13 Irregular", key="x_13_irregular")
-        order = result.arima_order
-        order_str = order isa Tuple ? join(string.(order), ",") : string(order)
-        output_kv(Pair{String,Any}[
-            "method" => string(result.method),
-            "frequency" => result.frequency,
-            "transform" => string(result.transform),
-            "arima_order" => order_str,
-            "aic" => round(Float64(result.aic); digits=4),
-            "sigma2" => round(Float64(result.sigma2); digits=6),
-            "n_outliers" => Int(result.n_outliers),
-            "T_obs" => Int(result.T_obs),
-        ]; format=format, output=_per_var_output_path(output, "diagnostics"),
-            title="X-13 Diagnostics", key="x_13_diagnostics")
-        _maybe_plot(result; plot=plot, plot_save=plot_save)
+        output_result(DataFrame(diag_rows); format=Symbol(format),
+                      output=_per_var_output_path(output, "diagnostics"),
+                      title="X-13 Diagnostics", key="x_13_diagnostics")
         return result
     end
-    t = collect(Float64, trend(result))
-    c = collect(Float64, cycle(result))
-    idx = collect(1:length(t))
-    if hasproperty(result, :valid_range)
-        vr = result.valid_range
-        Tfull = hasproperty(result, :T_obs) ? Int(result.T_obs) : length(t)
-        if length(t) == Tfull
-            t = t[vr]
-            c = c[vr]
+
+    result_df = DataFrame()
+    t_set = false
+    for (vname, res) in entries
+        t = collect(Float64, trend(res))
+        c = collect(Float64, cycle(res))
+        idx = collect(1:length(t))
+        if hasproperty(res, :valid_range)
+            vr = res.valid_range
+            Tfull = hasproperty(res, :T_obs) ? Int(res.T_obs) : length(t)
+            if length(t) == Tfull
+                t = t[vr]
+                c = c[vr]
+            end
+            idx = collect(vr)
         end
-        idx = collect(vr)
+        if !t_set
+            result_df.t = idx
+            t_set = true
+        end
+        t_col = has_vnames && !isempty(vname) ? "$(vname)_trend" : "trend"
+        c_col = has_vnames && !isempty(vname) ? "$(vname)_cycle" : "cycle"
+        result_df[!, t_col] = round.(t; digits=6)
+        result_df[!, c_col] = round.(c; digits=6)
+        ps = isempty(plot_save) ? "" : (length(entries) == 1 ? plot_save : _per_var_output_path(plot_save, vname))
+        _maybe_plot(res; plot=plot, plot_save=ps)
     end
-    result_df = DataFrame(t=idx, trend=round.(t; digits=6), cycle=round.(c; digits=6))
     output_result(result_df; format=Symbol(format), output=output, title=title, key=key)
-    _maybe_plot(result; plot=plot, plot_save=plot_save)
     return result
 end
 
-_is_filter_result(result) = nameof(typeof(result)) === :X13FilterResult ||
-    (applicable(trend, result) && applicable(cycle, result))
-
-"""Accept `result=` from wrap_legacy; re-render without calling `handler`."""
-function _with_result(handler, leaf::String; key::String="")
+"""Accept `result=` from wrap_legacy; re-render without calling `handler`.
+Supports an optional command-native `render_fn(loaded; format, output, title, key, plot, plot_save, kwargs...)`
+so `--result` replay preserves 1:1 JSON `tables` schema parity with live execution (#308)."""
+function _with_result(handler, leaf::String; key::String="", render_fn=nothing)
     return function (; result=nothing, kwargs...)
         data = get(kwargs, :data, "")
         data_s = data isa AbstractString ? String(data) : ""
@@ -2318,7 +2381,10 @@ function _with_result(handler, leaf::String; key::String="")
             k = isempty(key) ? replace(leaf, r"[^A-Za-z0-9]+" => "_") : key
             plot = get(kwargs, :plot, false) === true
             plot_save = string(get(kwargs, :plot_save, ""))
-            if _is_filter_result(loaded)
+            if render_fn !== nothing
+                render_fn(loaded; format=fmt, output=out, title=leaf, key=k,
+                          plot=plot, plot_save=plot_save)
+            elseif _is_filter_result(loaded)
                 _rerender_filter_result(loaded; format=fmt, output=out, title=leaf, key=k,
                                         plot=plot, plot_save=plot_save)
             elseif applicable(long_table, loaded)

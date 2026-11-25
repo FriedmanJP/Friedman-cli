@@ -1869,11 +1869,120 @@ function _extract_residual_series(data::String, column::Int, model)
         n = size(r, 2)
         (1 <= column <= n) || throw(CliError("data/column-range",
             "column $column out of range 1:$n for $(nameof(typeof(model))) residuals"))
-        vname = hasproperty(model, :varnames) && length(model.varnames) >= column ?
-            "$(model.varnames[column]) (residuals)" : "col_$column (residuals)"
+        vns = _model_varnames(model)
+        vname = length(vns) >= column ? "$(vns[column]) (residuals)" : "col_$column (residuals)"
         return Vector{Float64}(r[:, column]), vname
     end
-    return Vector{Float64}(r), "$(nameof(typeof(model))) residuals"
+    return Vector{Float64}(r), "$(_model_series_name(model)) (residuals)"
+end
+
+"""Native `--result` renderer for statistical test handles (#308).
+Matches live JSON `tables` column schemas 1:1 across tabular and KV test results."""
+function _rerender_test_result(result; format::String="table", output::String="",
+                               title::String="", key::String="",
+                               plot::Bool=false, plot_save::String="")
+    tn = nameof(typeof(result))
+    if tn === :JohansenResult
+        trace_df = DataFrame(
+            rank=0:(length(result.trace_stats)-1),
+            trace_stat=round.(result.trace_stats; digits=4),
+            p_value=round.(result.trace_pvalues; digits=4),
+            reject=[p < 0.05 ? "yes" : "no" for p in result.trace_pvalues],
+        )
+        output_result(trace_df; format=Symbol(format),
+                      output=_per_var_output_path(output, "trace"),
+                      title="Johansen Trace Test")
+        maxeig_df = DataFrame(
+            rank=0:(length(result.max_eigen_stats)-1),
+            max_stat=round.(result.max_eigen_stats; digits=4),
+            p_value=round.(result.max_eigen_pvalues; digits=4),
+            reject=[p < 0.05 ? "yes" : "no" for p in result.max_eigen_pvalues],
+        )
+        output_result(maxeig_df; format=Symbol(format),
+                      output=output, title="Johansen Max Eigenvalue Test")
+    elseif tn === :NormalityTestSuite
+        test_df = DataFrame(
+            test=[string(r.test_name) for r in result.results],
+            statistic=[round(r.statistic; digits=4) for r in result.results],
+            p_value=[round(r.pvalue; digits=4) for r in result.results],
+            df=[r.df for r in result.results],
+        )
+        output_result(test_df; format=Symbol(format), output=output,
+                      title="Normality Tests for VAR Residuals")
+    elseif tn === :VECMGrangerResult
+        test_df = DataFrame(
+            test=["Short-run", "Long-run", "Strong (joint)"],
+            statistic=round.([result.short_run_stat, result.long_run_stat, result.strong_stat]; digits=4),
+            df=[result.short_run_df, result.long_run_df, result.strong_df],
+            p_value=round.([result.short_run_pvalue, result.long_run_pvalue, result.strong_pvalue]; digits=4),
+        )
+        output_result(test_df; format=Symbol(format), output=output,
+                      title="Granger Causality", key="granger_causality")
+    elseif tn === :VarianceRatioResult
+        df = DataFrame(
+            horizon=result.q,
+            variance_ratio=round.(Float64.(result.vr); digits=4),
+            z_star=round.(Float64.(result.z_star); digits=4),
+            p_value=round.(Float64.(result.z_star_pvalue); digits=4),
+        )
+        output_result(df; format=Symbol(format), output=output,
+                      title="Variance-Ratio Test", key="variance_ratio_test")
+        output_kv(Pair{String,Any}[
+            "Chow-Denning stat" => round(Float64(result.cd_star_stat); digits=4),
+            "Chow-Denning p-value" => round(Float64(result.cd_star_pvalue); digits=4),
+            "robust" => result.robust,
+            "observations" => result.nobs,
+        ]; format=format, output=_per_var_output_path(output, "summary"),
+            title="Joint Random-Walk Test")
+    elseif tn === :BDSResult
+        df = DataFrame(
+            embed_dim=result.m,
+            statistic=round.(Float64.(vec(result.statistic)); digits=4),
+            p_value=round.(Float64.(vec(result.pvalue)); digits=4),
+        )
+        output_result(df; format=Symbol(format), output=output,
+                      title="BDS Test", key="bds_test")
+    elseif tn === :ADFResult
+        output_kv(Pair{String,Any}[
+            "Test statistic" => round(result.statistic; digits=4),
+            "Lags" => result.lags,
+            "p-value" => round(result.pvalue; digits=4),
+        ]; format=format, output=output, title="ADF Test", key="adf_test")
+    elseif tn === :KPSSResult
+        output_kv(Pair{String,Any}[
+            "Test statistic" => round(result.statistic; digits=4),
+        ]; format=format, output=output, title="KPSS Test", key="kpss_test")
+    elseif tn === :PPResult
+        output_kv(Pair{String,Any}[
+            "Test statistic" => round(result.statistic; digits=4),
+            "p-value" => round(result.pvalue; digits=4),
+        ]; format=format, output=output, title="Phillips-Perron Test",
+            key="phillips_perron_test")
+    elseif tn === :ZAResult
+        pairs = Pair{String,Any}[
+            "Test statistic" => round(result.statistic; digits=4),
+            "Break index" => result.break_index,
+            "Lags" => result.lags,
+            "p-value" => round(result.pvalue; digits=4),
+        ]
+        output_kv(pairs; format=format, output=output, title="Zivot-Andrews Test",
+                  key=isempty(key) ? "zivot_andrews_test" : key)
+    elseif tn === :LjungBoxResult
+        output_kv(Pair{String,Any}[
+            "Q-statistic" => round(result.statistic; digits=4),
+            "p-value" => round(result.pvalue; digits=4),
+            "Lags" => result.lags,
+        ]; format=format, output=output, title="Ljung-Box Test",
+            key=isempty(key) ? "ljung_box_test" : key)
+    elseif applicable(long_table, result)
+        _rerender_long_table(result; format=format, output=output, title=title, key=key,
+                             plot=plot, plot_save=plot_save)
+        return result
+    else
+        _rerender_kv(result; format=format, output=output, title=title, key=key)
+    end
+    _maybe_plot(result; plot=plot, plot_save=plot_save)
+    return result
 end
 
 function register_test_commands!()
@@ -1906,7 +2015,7 @@ function register_test_commands!()
     specs = CommandSpec[_finalize_spec(s) for s in specs]
     specs = map(specs) do s
         key = isempty(s.tables) ? "" : string(s.tables[1].name)
-        h = wrap_legacy(_with_result(s.handler, join(s.path, " "); key=key))
+        h = wrap_legacy(_with_result(s.handler, join(s.path, " "); key=key, render_fn=_rerender_test_result))
         _copy_spec(s; handler=h)
     end
     # `did test *` lands here as `test did *` (#202).
@@ -4508,7 +4617,7 @@ function _test_granger_vecm(data, cause, effect, lags, rank, deterministic, form
         n = size(Y, 2)
     else
         vecm = vecm_model
-        varnames = vecm.varnames
+        varnames = _model_varnames(vecm)
         p = vecm.p
         n = length(varnames)
     end
@@ -4546,7 +4655,7 @@ function _test_granger_var(data, cause, effect, lags, test_all, format, output; 
         n = size(Y, 2)
     else
         model = var_model
-        varnames = model.varnames
+        varnames = _model_varnames(model)
         p = model.p
         n = length(varnames)
     end
