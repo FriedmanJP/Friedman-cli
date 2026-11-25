@@ -121,16 +121,9 @@ function _did_event_study(; data::String, outcome::String, treatment::String,
         leads=leads, lags=lags, covariates=covs,
         cluster=Symbol(cluster), conf_level=conf_level)
 
-    coef_df = DataFrame(
-        Event_Time = result.event_times,
-        Coefficient = round.(result.coefficients; digits=6),
-        SE = round.(result.se; digits=6),
-        CI_Lower = round.(result.ci_lower; digits=6),
-        CI_Upper = round.(result.ci_upper; digits=6)
-    )
     fmt = Symbol(lowercase(format))
-    output_result(coef_df; format=fmt, output=output,
-        title="Event Study LP — $(result.outcome_var)", key="event_study_lp")
+    _emit_result(result; title="Event Study LP — $(result.outcome_var)",
+                 key="event_study_lp", format=fmt, output=output)
 
     _status()
     _status_styled("  N: "; bold=true)
@@ -207,17 +200,9 @@ function _did_lp_did(; data::String, outcome::String, treatment::String,
         throw(_domain_or_data_error(e, "LP-DiD estimation"))
     end
 
-    coef_df = DataFrame(
-        Event_Time = result.event_times,
-        Coefficient = round.(result.coefficients; digits=6),
-        SE = round.(result.se; digits=6),
-        CI_Lower = round.(result.ci_lower; digits=6),
-        CI_Upper = round.(result.ci_upper; digits=6),
-        N_obs = result.nobs_per_horizon
-    )
     fmt = Symbol(lowercase(format))
-    output_result(coef_df; format=fmt, output=output,
-        title="LP-DiD (Dube et al. 2023) — $(result.outcome_var)", key="lp_did_dube_et_al_2023")
+    _emit_result(result; title="LP-DiD (Dube et al. 2023) — $(result.outcome_var)",
+                 key="lp_did_dube_et_al_2023", format=fmt, output=output)
 
     _status()
     _status_styled("  Specification: "; bold=true)
@@ -257,16 +242,9 @@ function _did_test_bacon(; data::String, outcome::String, treatment::String,
 
     result = bacon_decomposition(pd, outcome, treatment)
 
-    dec_df = DataFrame(
-        Comparison = String.(result.comparison_type),
-        Cohort_i = result.cohort_i,
-        Cohort_j = result.cohort_j,
-        Estimate = round.(result.estimates; digits=6),
-        Weight = round.(result.weights; digits=6)
-    )
     fmt = Symbol(lowercase(format))
-    output_result(dec_df; format=fmt, output=output,
-        title="Bacon Decomposition (Goodman-Bacon 2021)")
+    _emit_result(result; title="Bacon Decomposition (Goodman-Bacon 2021)",
+                 key="bacon_decomposition_goodman_bacon_2021", format=fmt, output=output)
 
     _status()
     _status_styled("  Overall ATT (TWFE): "; bold=true)
@@ -617,36 +595,15 @@ function _rerender_did_result(result; format::String="table", output::String="",
                           title="Group-Time ATT (Callaway-Sant'Anna)")
         end
     elseif tn === :EventStudyLP
-        coef_df = DataFrame(
-            Event_Time = result.event_times,
-            Coefficient = round.(result.coefficients; digits=6),
-            SE = round.(result.se; digits=6),
-            CI_Lower = round.(result.ci_lower; digits=6),
-            CI_Upper = round.(result.ci_upper; digits=6),
-        )
-        output_result(coef_df; format=fmt, output=output,
-                      title="Event Study LP", key="event_study_lp")
+        _emit_result(result; title="Event Study LP", key="event_study_lp",
+                     format=fmt, output=output)
     elseif tn === :LPDiDResult
-        coef_df = DataFrame(
-            Event_Time = result.event_times,
-            Coefficient = round.(result.coefficients; digits=6),
-            SE = round.(result.se; digits=6),
-            CI_Lower = round.(result.ci_lower; digits=6),
-            CI_Upper = round.(result.ci_upper; digits=6),
-            N_obs = result.nobs_per_horizon,
-        )
-        output_result(coef_df; format=fmt, output=output,
-                      title="LP-DiD (Dube et al. 2023)", key="lp_did_dube_et_al_2023")
+        _emit_result(result; title="LP-DiD (Dube et al. 2023)", key="lp_did_dube_et_al_2023",
+                     format=fmt, output=output)
     elseif tn === :BaconDecomposition
-        dec_df = DataFrame(
-            Comparison = String.(result.comparison_type),
-            Cohort_i = result.cohort_i,
-            Cohort_j = result.cohort_j,
-            Estimate = round.(result.estimates; digits=6),
-            Weight = round.(result.weights; digits=6),
-        )
-        output_result(dec_df; format=fmt, output=output,
-                      title="Bacon Decomposition (Goodman-Bacon 2021)")
+        _emit_result(result; title="Bacon Decomposition (Goodman-Bacon 2021)",
+                     key="bacon_decomposition_goodman_bacon_2021",
+                     format=fmt, output=output)
     elseif tn === :PretrendTestResult
         output_kv([
             "Test type" => String(result.test_type),

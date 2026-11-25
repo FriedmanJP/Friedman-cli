@@ -1318,12 +1318,11 @@ function _forecast_favar(; data::String="", result=nothing, factors=nothing, lag
     return (; model=favar, result=fc)
 end
 
-# ── forecast evaluate: forecast evaluation & combination (C072, M5c) ──
-# Wraps the MEMs `fceval/` module (model-agnostic, plain vectors). The result
-# types (ForecastEvaluation/DMTestResult/…) are NOT Tables.jl-registered upstream,
-# so tables are hand-built (a documented C051 exception, like the io and SUR/3SLS
-# families). Uniform input: data + --actual, then either --forecasts columns or
-# --result stems; the handler forms the errors / f_adj / forecast matrix.
+# ── forecast evaluate: forecast evaluation & combination (C072, M5c, #219) ──
+# Wraps the MEMs `fceval/` module (model-agnostic, plain vectors). Primary tables
+# route through `_emit_result` (upstream Tables.jl). Uniform input: data + --actual,
+# then either --forecasts columns or --result stems; the handler forms the errors /
+# f_adj / forecast matrix.
 #
 # Convention notes (mirrored in docs): DM consumes forecast ERRORS e=actual-fc;
 # Clark-West needs f_adj = f_small - f_big (the forecast difference; the library
@@ -1496,19 +1495,15 @@ function _forecast_eval_metrics(; data::String, actual::String="", forecasts::St
     catch e
         throw(_fceval_error(e, "forecast evaluation"))
     end
-    # C051 exception: hand-built WIDE accuracy table model | ME | MAE | ... | U2.
-    acc = DataFrame(model = ev.models)
-    for (k, mname) in enumerate(ev.metrics)
-        acc[!, mname] = round.(ev.values[:, k]; digits=6)
-    end
-    output_result(acc; format=Symbol(format), output=output, title="Forecast Accuracy Metrics")
+    _emit_result(ev; title="Forecast Accuracy Metrics", key="forecast_accuracy_metrics",
+                 format=Symbol(format), output=output)
     # Theil MSE decomposition (proportions sum to 1): model | bias | variance | covariance.
     dec = DataFrame(model = ev.models,
                     bias = round.(ev.decomp[:, 1]; digits=6),
                     variance = round.(ev.decomp[:, 2]; digits=6),
                     covariance = round.(ev.decomp[:, 3]; digits=6))
     output_result(dec; format=Symbol(format), output=_per_var_output_path(output, "decomp"),
-                  title="Theil MSE Decomposition")
+                  title="Theil MSE Decomposition", key="theil_mse_decomposition")
     # #95: ForecastEvaluation has a real recipe (bar chart of the chosen metric). The
     # other five `evaluate` leaves return DMTestResult / MincerZarnowitzResult /
     # ForecastEncompassingResult / ForecastCombination, none of which have one — so they
@@ -1531,20 +1526,8 @@ function _forecast_eval_dm(; data::String, actual::String="", forecasts::String=
     catch e
         throw(_fceval_error(e, "Diebold-Mariano test"))
     end
-    output_kv(Pair{String,Any}[
-        "test"           => "Diebold-Mariano",
-        "model_1"        => fnames[1],
-        "model_2"        => fnames[2],
-        "loss"           => string(r.loss),
-        "statistic"      => round(r.statistic; digits=4),
-        "p_value"        => round(r.pvalue; digits=4),
-        "mean_loss_diff" => round(r.dbar; digits=6),
-        "lrvar"          => round(r.lrvar; digits=6),
-        "horizon"        => r.h,
-        "hln"            => r.hln,
-        "alternative"    => string(r.alternative),
-        "n"              => r.T_obs,
-    ]; format=format, output=output, title="Diebold-Mariano Test")
+    _emit_result(r; title="Diebold-Mariano Test", key="diebold_mariano_test",
+                 format=Symbol(format), output=output)
     return r
 end
 
@@ -1563,18 +1546,8 @@ function _forecast_eval_clark_west(; data::String, actual::String="", forecasts:
     catch e
         throw(_fceval_error(e, "Clark-West test"))
     end
-    output_kv(Pair{String,Any}[
-        "test"          => "Clark-West",
-        "model_small"   => fnames[1],
-        "model_big"     => fnames[2],
-        "statistic"     => round(r.statistic; digits=4),
-        "p_value"       => round(r.pvalue; digits=4),
-        "mean_adj_diff" => round(r.fbar; digits=6),
-        "lrvar"         => round(r.lrvar; digits=6),
-        "horizon"       => r.h,
-        "alternative"   => string(r.alternative),
-        "n"             => r.T_obs,
-    ]; format=format, output=output, title="Clark-West Test")
+    _emit_result(r; title="Clark-West Test", key="clark_west_test",
+                 format=Symbol(format), output=output)
     return r
 end
 
@@ -1590,21 +1563,9 @@ function _forecast_eval_mincer_zarnowitz(; data::String, actual::String="", fore
     catch e
         throw(_fceval_error(e, "Mincer-Zarnowitz test"))
     end
-    output_kv(Pair{String,Any}[
-        "test"         => "Mincer-Zarnowitz",
-        "forecast"     => fnames[1],
-        "a"            => round(r.a; digits=6),
-        "b"            => round(r.b; digits=6),
-        "se_a"         => round(r.se[1]; digits=6),
-        "se_b"         => round(r.se[2]; digits=6),
-        "wald_chi2"    => round(r.wald; digits=4),
-        "p_value_wald" => round(r.pvalue_wald; digits=4),
-        "fstat"        => round(r.fstat; digits=4),
-        "p_value_f"    => round(r.pvalue_f; digits=4),
-        "hac_lags"     => r.lags,
-        "kernel"       => string(r.kernel),
-        "n"            => r.T_obs,
-    ]; format=format, output=output, title="Mincer-Zarnowitz Efficiency Test")
+    _emit_result(r; title="Mincer-Zarnowitz Efficiency Test",
+                 key="mincer_zarnowitz_efficiency_test",
+                 format=Symbol(format), output=output)
     return r
 end
 
@@ -1620,19 +1581,9 @@ function _forecast_eval_encompassing(; data::String, actual::String="", forecast
     catch e
         throw(_fceval_error(e, "forecast encompassing test"))
     end
-    output_kv(Pair{String,Any}[
-        "test"     => "Forecast-Encompassing",
-        "model_1"  => fnames[1],
-        "model_2"  => fnames[2],
-        "b1"       => round(r.b1; digits=6),
-        "b2"       => round(r.b2; digits=6),
-        "se_b2"    => round(r.se_b2; digits=6),
-        "t_stat"   => round(r.tstat; digits=4),
-        "p_value"  => round(r.pvalue; digits=4),
-        "hac_lags" => r.lags,
-        "kernel"   => string(r.kernel),
-        "n"        => r.T_obs,
-    ]; format=format, output=output, title="Forecast Encompassing Test")
+    _emit_result(r; title="Forecast Encompassing Test",
+                 key="forecast_encompassing_test",
+                 format=Symbol(format), output=output)
     return r
 end
 
@@ -1650,11 +1601,9 @@ function _forecast_eval_combine(; data::String, actual::String="", forecasts::St
     catch e
         throw(_fceval_error(e, "forecast combination"))
     end
-    # C051 exception: hand-built weights table model | weight | mse (weights sum to 1).
-    wtab = DataFrame(model = r.models,
-                     weight = round.(r.weights; digits=6),
-                     mse = round.(r.mse; digits=6))
-    output_result(wtab; format=Symbol(format), output=output, title="Forecast Combination Weights")
+    _emit_result(r; title="Forecast Combination Weights",
+                 key="forecast_combination_weights",
+                 format=Symbol(format), output=output)
     if emit_series
         stab = DataFrame(index = collect(1:length(r.combined)),
                          combined = round.(r.combined; digits=6))

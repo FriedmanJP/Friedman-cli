@@ -1909,7 +1909,7 @@ end  # Shared utilities
             @testset "counterfactual var — bootstrap draws → band columns" begin
                 doc = _pdoc([base; "--rule"; "rate-peg"; "--replications"; "30"])
                 p = doc.data[:policy_counterfactual_paths]
-                @test "q16" in String.(p.columns) && "q84" in String.(p.columns)
+                @test "lower" in String.(p.columns) && "upper" in String.(p.columns)
                 s = Dict(String(collect(r)[1]) => collect(r)[2]
                          for r in doc.data[:counterfactual_summary].rows)
                 @test s["n_draws_used"] == 30
@@ -5543,37 +5543,41 @@ end  # HD handlers
                 csv = _fceval_csv(dir)
                 doc = _evaldoc(["dm", csv, "--actual", "y", "--forecasts", "f1,f2", "--loss", "ad", "--horizon", "2"])
                 @test doc.status == "ok"
-                @test String(_metric(doc, "test")) == "Diebold-Mariano"
-                @test 0.0 <= Float64(_metric(doc, "p_value")) <= 1.0
+                t = _tblwith(doc, "statistic")
+                @test String(collect(first(t.rows))[findfirst(==("test"), String.(t.columns))]) == "Diebold-Mariano"
+                @test 0.0 <= Float64(collect(first(t.rows))[findfirst(==("p_value"), String.(t.columns))]) <= 1.0
                 e = _errcode(["dm", csv, "--actual", "y", "--forecasts", "f1"])
                 @test e isa CliError && e.code == "usage/arity"
             end
         end
 
-        @testset "clark-west — kv" begin
+        @testset "clark-west — tidy table" begin
             mktempdir() do dir
                 doc = _evaldoc(["clark-west", _fceval_csv(dir), "--actual", "y", "--forecasts", "f1,f2"])
-                @test String(_metric(doc, "test")) == "Clark-West"
-                @test 0.0 <= Float64(_metric(doc, "p_value")) <= 1.0
+                t = _tblwith(doc, "statistic")
+                @test String(collect(first(t.rows))[findfirst(==("test"), String.(t.columns))]) == "Clark-West"
+                @test 0.0 <= Float64(collect(first(t.rows))[findfirst(==("p_value"), String.(t.columns))]) <= 1.0
             end
         end
 
-        @testset "mincer-zarnowitz — kv + arity" begin
+        @testset "mincer-zarnowitz — tidy table + arity" begin
             mktempdir() do dir
                 csv = _fceval_csv(dir)
                 doc = _evaldoc(["mincer-zarnowitz", csv, "--actual", "y", "--forecasts", "f1", "--lags", "2"])
-                @test String(_metric(doc, "test")) == "Mincer-Zarnowitz"
-                @test 0.0 <= Float64(_metric(doc, "p_value_wald")) <= 1.0
+                t = _tblwith(doc, "statistic")
+                @test occursin("Mincer-Zarnowitz", String(collect(first(t.rows))[findfirst(==("test"), String.(t.columns))]))
+                @test 0.0 <= Float64(collect(first(t.rows))[findfirst(==("p_value"), String.(t.columns))]) <= 1.0
                 e = _errcode(["mincer-zarnowitz", csv, "--actual", "y", "--forecasts", "f1,f2"])
                 @test e isa CliError && e.code == "usage/arity"
             end
         end
 
-        @testset "encompassing — kv" begin
+        @testset "encompassing — tidy table" begin
             mktempdir() do dir
                 doc = _evaldoc(["encompassing", _fceval_csv(dir), "--actual", "y", "--forecasts", "f1,f2"])
-                @test String(_metric(doc, "test")) == "Forecast-Encompassing"
-                @test 0.0 <= Float64(_metric(doc, "p_value")) <= 1.0
+                t = _tblwith(doc, "statistic")
+                @test occursin("encompassing", lowercase(String(collect(first(t.rows))[findfirst(==("test"), String.(t.columns))])))
+                @test 0.0 <= Float64(collect(first(t.rows))[findfirst(==("p_value"), String.(t.columns))]) <= 1.0
             end
         end
 
@@ -11257,22 +11261,28 @@ end
     end
 end
 
-@testset "_emit_result routing (#216)" begin
+@testset "_emit_result routing (#216, #219)" begin
     @testset "unsupported type throws model/unsupported, never silent hand-build" begin
-        y = Float64.(rand(0:5, 50))  # integer-valued: the mock mirrors real's count guard
-        X = hcat(ones(50), randn(50, 2))
-        m = estimate_poisson(y, X)
         e = try
-            _emit_result(m; title="t", key="k", format="table", output="")
+            _emit_result((; not_a_table=1); title="t", key="k", format="table", output="")
             nothing
         catch ex
             ex
         end
         @test e isa CliError && e.code == "model/unsupported"
     end
+    @testset "Wave 3 (#219) newly registered Tables.jl types route via _emit_result" begin
+        y = Float64.(rand(0:5, 50))
+        X = hcat(ones(50), randn(50, 2))
+        m = estimate_poisson(y, X)
+        out = _capture() do
+            _emit_result(m; title="t", key="k", format="table", output="")
+        end
+        @test occursin("estimate", out) && occursin("std_error", out)
+    end
 end
 
-@testset "_emit_result long_table branch (#217)" begin
+@testset "_emit_result long_table branch (#217, #219)" begin
     @testset "ImpulseResponse routes via long_table" begin
         irf = ImpulseResponse(rand(4, 2, 2), nothing, nothing)
         out = _capture() do
@@ -11303,17 +11313,14 @@ end
         end
         @test occursin("shock1", out)
     end
-    @testset "BayesianFEVD/LPFEVD/HD throw until upstream lands (TIDY-09/11/12)" begin
-        for x in (BayesianFEVD(rand(2, 2, 4), rand(4, 2, 2, 3), [0.16, 0.5, 0.84]),
+    @testset "BayesianFEVD/LPFEVD/HD route via long_table (#219)" begin
+        for x in (BayesianFEVD(rand(2, 2, 4), rand(2, 2, 4, 3), [0.16, 0.5, 0.84]),
                   LPFEVD(rand(2, 2, 4), nothing, nothing, rand(2, 2, 4), rand(2, 2, 4), 4, 2, 2),
                   HistoricalDecomposition(rand(4, 2, 2), rand(4, 2), rand(4, 2), rand(4, 2), 4))
-            e = try
+            out = _capture() do
                 _emit_result(x; title="t", key="k", format="table", output="")
-                nothing
-            catch ex
-                ex
             end
-            @test e isa CliError && e.code == "model/unsupported"
+            @test occursin("value", out) && occursin("variable", out)
         end
     end
 end
@@ -14455,16 +14462,16 @@ end
 
     @testset "multipliers (kind × type)" begin
         d1 = _iodoc("multipliers", "--kind", "output", "--type", "I")
-        t = _table(d1, ["sector", "multiplier"])
+        t = _table(d1, ["sector", "value", "kind", "type"])
         vals = [Float64(r[2]) for r in t.rows]
         @test isapprox(vals, [1.518152, 1.452145]; atol=1e-4)
-        @test _hascols(_iodoc("multipliers", "--kind", "income", "--type", "II"), ["sector", "multiplier"])
-        @test _hascols(_iodoc("multipliers", "--kind", "employment"), ["sector", "multiplier"])
+        @test _hascols(_iodoc("multipliers", "--kind", "income", "--type", "II"), ["sector", "value", "kind", "type"])
+        @test _hascols(_iodoc("multipliers", "--kind", "employment"), ["sector", "value", "kind", "type"])
     end
 
     @testset "linkages / key-sectors" begin
         lk = _iodoc("linkages")
-        @test _hascols(lk, ["sector", "backward", "forward", "Ui", "Uj", "class"])
+        @test _hascols(lk, ["sector", "backward", "forward", "Ui", "Uj", "classification"])
         ks = _iodoc("key-sectors")
         t = _table(ks, ["sector", "class"])
         classes = [String(r[2]) for r in t.rows]
@@ -14473,23 +14480,18 @@ end
 
     @testset "sda (two periods; same → ~0)" begin
         doc = _iodoc("sda", "--method", "additive")
-        t = _table(doc, ["sector", "L_effect", "Y_effect", "total", "residual"])
+        t = _table(doc, ["factor", "index", "effect", "total", "residual"])
         @test all(isapprox(Float64(r[4]), 0.0; atol=1e-6) for r in t.rows)
-        # omitted --factors/--on → legacy L/Y keys, no named-factor columns
-        cols = String.(t.columns)
-        @test "intensity_effect" ∉ cols && "technology_effect" ∉ cols
-        # explicit --factors → named columns, not legacy L/Y
+        facs = Set(String(r[1]) for r in t.rows)
+        @test facs == Set(["L", "Y"])
+        # explicit --factors → named factor rows
         named = _iodoc("sda", "--factors", "technology,final-demand")
-        nt = _table(named, ["sector", "technology_effect", "final_demand_effect", "total", "residual"])
-        ncols = String.(nt.columns)
-        @test "L_effect" ∉ ncols && "Y_effect" ∉ ncols
+        nt = _table(named, ["factor", "index", "effect", "total", "residual"])
+        @test Set(String(r[1]) for r in nt.rows) == Set(["technology", "final_demand"])
         # satellite --on (bundled :wiot has CO2) → intensity + technology + final_demand
         sat = _iodoc("sda", "--on", "CO2")
-        st = _table(sat, ["intensity_effect", "technology_effect", "final_demand_effect"])
-        scols = String.(st.columns)
-        @test "L_effect" ∉ scols && "Y_effect" ∉ scols
-        @test "intensity_effect" in scols && "technology_effect" in scols &&
-              "final_demand_effect" in scols
+        st = _table(sat, ["factor", "index", "effect", "total", "residual"])
+        @test issubset(Set(["intensity", "technology", "final_demand"]), Set(String(r[1]) for r in st.rows))
     end
 
     @testset "extract (name / index / errors)" begin
@@ -14525,7 +14527,7 @@ end
         raw = _ioraw("footprint")
         @test isempty(validate_envelope_json(raw))
         doc = JSON3.read(raw)
-        @test _hascols(doc, ["stressor", "footprint"])
+        @test _hascols(doc, ["stressor", "sector", "value", "total"])
         @test _hascols(doc, ["sector", "CO2"])
         det = _iodoc("footprint", "--account", "employment", "--detail")
         @test length(collect(keys(det.data))) == 4            # footprint + by_sector + S + M

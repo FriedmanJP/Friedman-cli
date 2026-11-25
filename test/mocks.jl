@@ -17464,6 +17464,391 @@ function DataFrames.DataFrame(m::RILogitModel)
     _mock_coef_df_base(copy(m.varnames), Float64.(m.beta))
 end
 
+# ── Wave 3 (#219): upstream Tables.jl / long_table mirrors ──
+
+function DataFrames.DataFrame(m::PoissonModel)
+    _mock_coef_df_base(copy(m.varnames), Float64.(coef(m)))
+end
+
+function DataFrames.DataFrame(m::NegBinModel)
+    k = length(m.beta)
+    est = vcat(Float64.(m.beta), [Float64(m.alpha)])
+    s = vcat(Float64.(stderror(m)), [Float64(m.alpha_se)])
+    stat = est ./ s
+    DataFrame(
+        block=vcat(fill("coef", k), ["dispersion"]),
+        term=vcat(String.(m.varnames), ["alpha"]),
+        estimate=est, std_error=s, stat=stat,
+        p_value=fill(0.05, k + 1),
+        ci_lower=est .- 1.96 .* s,
+        ci_upper=est .+ 1.96 .* s,
+    )
+end
+
+function DataFrames.DataFrame(m::QuantileRegModel)
+    taus = Float64[]; terms = String[]; est = Float64[]; s = Float64[]
+    for (j, t) in enumerate(m.taus)
+        append!(taus, fill(Float64(t), length(m.varnames)))
+        append!(terms, String.(m.varnames))
+        append!(est, Float64.(m.beta[:, j]))
+        append!(s, Float64.(m.stderr[:, j]))
+    end
+    stat = est ./ s
+    DataFrame(
+        tau=taus, term=terms, estimate=est, std_error=s, stat=stat,
+        p_value=fill(0.05, length(est)),
+        ci_lower=est .- 1.96 .* s,
+        ci_upper=est .+ 1.96 .* s,
+    )
+end
+
+function DataFrames.DataFrame(r::RDDResult)
+    est = Float64[r.tau_conventional, r.tau_bias_corrected]
+    s = Float64[r.se_conventional, r.se_robust]
+    stat = est ./ s
+    DataFrame(
+        term=["Conventional", "Robust (bias-corrected)"],
+        estimate=est, std_error=s, stat=stat,
+        p_value=[0.05, Float64(r.pvalue_robust)],
+        ci_lower=[Float64(r.ci_conventional[1]), Float64(r.ci_robust[1])],
+        ci_upper=[Float64(r.ci_conventional[2]), Float64(r.ci_robust[2])],
+        h=fill(Float64(r.h), 2),
+        b=fill(Float64(r.b), 2),
+    )
+end
+
+function _mock_eqstack_df(m)
+    eqs = String[]; terms = String[]; est = Float64[]; s = Float64[]
+    for j in eachindex(m.eqnames)
+        append!(eqs, fill(m.eqnames[j], length(m.varnames[j])))
+        append!(terms, String.(m.varnames[j]))
+        append!(est, Float64.(m.betas[j]))
+        append!(s, Float64.(m.ses[j]))
+    end
+    stat = est ./ s
+    return DataFrame(
+        equation=eqs, term=terms, estimate=est, std_error=s, stat=stat,
+        p_value=fill(0.05, length(est)),
+        ci_lower=est .- 1.96 .* s,
+        ci_upper=est .+ 1.96 .* s,
+    )
+end
+
+function DataFrames.DataFrame(m::SURModel)
+    df = _mock_eqstack_df(m)
+    n = DataFrames.nrow(df)
+    df[!, :nobs] = fill(m.nobs, n)
+    df[!, :mcelroy_r2] = fill(Float64(m.mcelroy_r2), n)
+    df[!, :det_sigma] = fill(Float64(m.det_sigma), n)
+    df[!, :loglik] = fill(Float64(m.loglik), n)
+    return df
+end
+
+function DataFrames.DataFrame(m::ThreeSLSModel)
+    df = _mock_eqstack_df(m)
+    n = DataFrames.nrow(df)
+    ni = Int[]
+    for j in eachindex(m.eqnames)
+        append!(ni, fill(m.n_instruments[j], length(m.betas[j])))
+    end
+    df[!, :nobs] = fill(m.nobs, n)
+    df[!, :mcelroy_r2] = fill(Float64(m.mcelroy_r2), n)
+    df[!, :det_sigma] = fill(Float64(m.det_sigma), n)
+    df[!, :n_instruments] = ni
+    return df
+end
+
+function DataFrames.DataFrame(r::EventStudyLP)
+    est = Float64.(r.coefficients); s = Float64.(r.se)
+    DataFrame(
+        event_time=collect(r.event_times),
+        term=["h=$(e)" for e in r.event_times],
+        estimate=est, std_error=s, stat=est ./ s,
+        p_value=fill(0.05, length(est)),
+        ci_lower=Float64.(r.ci_lower),
+        ci_upper=Float64.(r.ci_upper),
+    )
+end
+
+function DataFrames.DataFrame(r::LPDiDResult)
+    et = Union{Missing,Int}[e for e in r.event_times]
+    term = ["h=$(e)" for e in r.event_times]
+    est = Float64.(collect(r.coefficients))
+    s = Float64.(collect(r.se))
+    lo = Float64.(collect(r.ci_lower))
+    hi = Float64.(collect(r.ci_upper))
+    block = fill("dynamic", length(term))
+    for (nm, pool) in (("Pre-pooled", r.pooled_pre), ("Post-pooled", r.pooled_post))
+        pool === nothing && continue
+        push!(et, missing); push!(term, nm); push!(est, Float64(pool.coef))
+        push!(s, Float64(pool.se)); push!(lo, Float64(pool.ci_lower))
+        push!(hi, Float64(pool.ci_upper)); push!(block, "pooled")
+    end
+    DataFrame(
+        block=block, event_time=et, term=term, estimate=est, std_error=s,
+        stat=est ./ s, p_value=fill(0.05, length(est)), ci_lower=lo, ci_upper=hi,
+    )
+end
+
+function DataFrames.DataFrame(r::BaconDecomposition)
+    DataFrame(
+        type=string.(r.comparison_type),
+        cohort_i=collect(r.cohort_i),
+        cohort_j=collect(r.cohort_j),
+        estimate=Float64.(r.estimates),
+        weight=Float64.(r.weights),
+    )
+end
+
+function DataFrames.DataFrame(ev::ForecastEvaluation)
+    m = length(ev.models)
+    df = DataFrame(model=collect(ev.models))
+    for (k, mt) in enumerate(ev.metrics)
+        df[!, Symbol(mt)] = Float64.(ev.values[:, k])
+    end
+    df[!, :theil_bias] = Float64.(ev.decomp[:, 1])
+    df[!, :theil_variance] = Float64.(ev.decomp[:, 2])
+    df[!, :theil_covariance] = Float64.(ev.decomp[:, 3])
+    df[!, :n] = fill(ev.n, m)
+    return df
+end
+
+function DataFrames.DataFrame(c::ForecastCombination)
+    n = length(c.models)
+    DataFrame(
+        model=collect(c.models),
+        weight=Float64.(c.weights),
+        mse=Float64.(c.mse),
+        method=fill(string(c.method), n),
+    )
+end
+
+function DataFrames.DataFrame(r::DMTestResult)
+    dec = r.pvalue < 0.05 ? "reject" : "fail to reject"
+    DataFrame(
+        test=["Diebold-Mariano"], statistic=[Float64(r.statistic)],
+        p_value=Union{Missing,Float64}[Float64(r.pvalue)],
+        decision=Union{Missing,String}[dec],
+        cv_1pct=Union{Missing,Float64}[missing],
+        cv_5pct=Union{Missing,Float64}[missing],
+        cv_10pct=Union{Missing,Float64}[missing],
+        dbar=[Float64(r.dbar)], lrvar=[Float64(r.lrvar)],
+    )
+end
+
+function DataFrames.DataFrame(r::ClarkWestResult)
+    dec = r.pvalue < 0.05 ? "reject" : "fail to reject"
+    DataFrame(
+        test=["Clark-West"], statistic=[Float64(r.statistic)],
+        p_value=Union{Missing,Float64}[Float64(r.pvalue)],
+        decision=Union{Missing,String}[dec],
+        cv_1pct=Union{Missing,Float64}[missing],
+        cv_5pct=Union{Missing,Float64}[missing],
+        cv_10pct=Union{Missing,Float64}[missing],
+        fbar=[Float64(r.fbar)], lrvar=[Float64(r.lrvar)],
+    )
+end
+
+function DataFrames.DataFrame(r::MincerZarnowitzResult)
+    DataFrame(
+        test=["Mincer-Zarnowitz Wald", "Mincer-Zarnowitz F"],
+        statistic=[Float64(r.wald), Float64(r.fstat)],
+        p_value=Union{Missing,Float64}[Float64(r.pvalue_wald), Float64(r.pvalue_f)],
+        decision=Union{Missing,String}[r.pvalue_wald < 0.05 ? "reject" : "fail to reject",
+                                       r.pvalue_f < 0.05 ? "reject" : "fail to reject"],
+        cv_1pct=Union{Missing,Float64}[missing, missing],
+        cv_5pct=Union{Missing,Float64}[missing, missing],
+        cv_10pct=Union{Missing,Float64}[missing, missing],
+        a=[Float64(r.a), Float64(r.a)],
+        b=[Float64(r.b), Float64(r.b)],
+        se_a=[Float64(r.se[1]), Float64(r.se[1])],
+        se_b=[Float64(r.se[2]), Float64(r.se[2])],
+    )
+end
+
+function DataFrames.DataFrame(r::ForecastEncompassingResult)
+    dec = r.pvalue < 0.05 ? "reject" : "fail to reject"
+    DataFrame(
+        test=["Forecast encompassing"], statistic=[Float64(r.tstat)],
+        p_value=Union{Missing,Float64}[Float64(r.pvalue)],
+        decision=Union{Missing,String}[dec],
+        cv_1pct=Union{Missing,Float64}[missing],
+        cv_5pct=Union{Missing,Float64}[missing],
+        cv_10pct=Union{Missing,Float64}[missing],
+        b1=[Float64(r.b1)], b2=[Float64(r.b2)],
+    )
+end
+
+function DataFrames.DataFrame(pc::PolicyCounterfactual)
+    period = Int[]; variable = String[]; role = String[]
+    baseline = Float64[]; counterfactual = Float64[]
+    lower = Union{Missing,Float64}[]; upper = Union{Missing,Float64}[]
+    for (names, rolename, base, cf, bands) in (
+            (pc.outcomes, "outcome", pc.x_base, pc.x_cf, pc.x_bands),
+            (pc.instruments, "instrument", pc.z_base, pc.z_cf, pc.z_bands))
+        for (i, nm) in enumerate(names)
+            b = base[i]; cc = cf[i]
+            Bd = bands === nothing ? nothing : bands[i]
+            nq = Bd === nothing ? 0 : size(Bd, 2)
+            for h in eachindex(b)
+                push!(period, h); push!(variable, string(nm)); push!(role, rolename)
+                push!(baseline, Float64(b[h])); push!(counterfactual, Float64(cc[h]))
+                push!(lower, nq > 0 ? Float64(Bd[h, 1]) : missing)
+                push!(upper, nq > 0 ? Float64(Bd[h, nq]) : missing)
+            end
+        end
+    end
+    DataFrame(; period, variable, role, baseline, counterfactual, lower, upper)
+end
+
+function DataFrames.DataFrame(ch::CounterfactualHistory)
+    nd, nv = size(ch.realized)
+    date = String[]; variable = String[]; realized = Float64[]; counterfactual = Float64[]
+    cf_lower = Union{Missing,Float64}[]; cf_upper = Union{Missing,Float64}[]; rel_residual = Float64[]
+    nq = ch.cf_bands === nothing ? 0 : size(ch.cf_bands, 3)
+    for d in 1:nd, v in 1:nv
+        push!(date, ch.dates[d]); push!(variable, string(ch.varnames[v]))
+        push!(realized, Float64(ch.realized[d, v])); push!(counterfactual, Float64(ch.cf[d, v]))
+        push!(cf_lower, nq > 0 ? Float64(ch.cf_bands[d, v, 1]) : missing)
+        push!(cf_upper, nq > 0 ? Float64(ch.cf_bands[d, v, nq]) : missing)
+        push!(rel_residual, Float64(ch.rel_residual[d]))
+    end
+    DataFrame(; date, variable, realized, counterfactual, cf_lower, cf_upper, rel_residual)
+end
+
+function DataFrames.DataFrame(fs::ForecastSufficiency)
+    H, no = size(fs.fev_ratio)
+    horizon = Int[]; observable = String[]; fev_ratio = Float64[]; one_step_ratio = Float64[]
+    for h in 1:H, o in 1:no
+        push!(horizon, h); push!(observable, string(fs.observables[o]))
+        push!(fev_ratio, Float64(fs.fev_ratio[h, o]))
+        push!(one_step_ratio, Float64(fs.one_step_ratio[o]))
+    end
+    DataFrame(; horizon, observable, fev_ratio, one_step_ratio)
+end
+
+function DataFrames.DataFrame(m::IOMultipliers)
+    n = length(m.sectors)
+    DataFrame(
+        sector=collect(m.sectors), value=Float64.(m.values),
+        kind=fill(string(m.kind), n), type=fill(string(m.type), n),
+    )
+end
+
+function DataFrames.DataFrame(r::LinkageResult)
+    DataFrame(
+        sector=collect(r.sectors), backward=Float64.(r.backward),
+        forward=Float64.(r.forward), Ui=Float64.(r.Ui),
+        Uj=Float64.(r.Uj), classification=string.(r.classification),
+    )
+end
+
+function DataFrames.DataFrame(r::SDAResult)
+    fkeys = sort!(collect(keys(r.effects)); by=string)
+    factor = String[]; index = Int[]; effect = Float64[]; total = Float64[]; residual = Float64[]
+    for k in fkeys
+        v = r.effects[k]
+        for i in eachindex(v)
+            push!(factor, string(k)); push!(index, i)
+            push!(effect, Float64(v[i])); push!(total, Float64(r.total[i]))
+            push!(residual, Float64(r.residual[i]))
+        end
+    end
+    m = length(factor)
+    DataFrame(; factor, index, effect, total, residual,
+              method=fill(string(r.method), m), on=fill("output", m))
+end
+
+function DataFrames.DataFrame(fp::FootprintResult)
+    ns, nsec = size(fp.by_sector)
+    totals = [sum(@view fp.total[i, :]) for i in 1:ns]
+    stressor = String[]; sector = Int[]; value = Float64[]; total = Float64[]
+    for i in 1:ns, j in 1:nsec
+        push!(stressor, fp.stressors[i]); push!(sector, j)
+        push!(value, Float64(fp.by_sector[i, j])); push!(total, Float64(totals[i]))
+    end
+    DataFrame(; stressor, sector, value, total)
+end
+
+function DataFrames.DataFrame(fp::RegionalFootprintResult)
+    ns, ng = size(fp.production)
+    stressor = String[]; region = String[]; production = Float64[]; consumption = Float64[]
+    for i in 1:ns, r in 1:ng
+        push!(stressor, fp.stressors[i]); push!(region, fp.regions[r])
+        push!(production, Float64(fp.production[i, r]))
+        push!(consumption, Float64(fp.consumption[i, r]))
+    end
+    DataFrame(; stressor, region, production, consumption)
+end
+
+function DataFrames.DataFrame(s::NormalityTestSuite)
+    test = String[]; statistic = Float64[]; p_value = Union{Missing,Float64}[]
+    decision = Union{Missing,String}[]
+    cv_1pct = Union{Missing,Float64}[]; cv_5pct = Union{Missing,Float64}[]; cv_10pct = Union{Missing,Float64}[]
+    for r in s.results
+        push!(test, string(r.test_name))
+        push!(statistic, Float64(r.statistic))
+        push!(p_value, Float64(r.pvalue))
+        push!(decision, r.pvalue < 0.05 ? "reject" : "fail to reject")
+        push!(cv_1pct, missing); push!(cv_5pct, missing); push!(cv_10pct, missing)
+    end
+    DataFrame(; test, statistic, p_value, decision, cv_1pct, cv_5pct, cv_10pct)
+end
+
+function long_table(f::BayesianFEVD)
+    nv, ns, H = size(f.point_estimate)
+    nq = size(f.quantiles, 4)
+    horizon = Int[]; variable = String[]; shock = String[]
+    value = Float64[]; lower = Union{Missing,Float64}[]; upper = Union{Missing,Float64}[]
+    for h in 1:H, v in 1:nv, s in 1:ns
+        push!(horizon, h); push!(variable, f.variables[v]); push!(shock, f.shocks[s])
+        push!(value, Float64(f.point_estimate[v, s, h]))
+        push!(lower, nq > 0 ? Float64(f.quantiles[v, s, h, 1]) : missing)
+        push!(upper, nq > 0 ? Float64(f.quantiles[v, s, h, nq]) : missing)
+    end
+    DataFrame(; horizon, variable, shock, value, lower, upper)
+end
+
+function long_table(f::LPFEVD)
+    nv, ns, H = size(f.bias_corrected)
+    vns = hasproperty(f, :variables) ? f.variables : ["y$i" for i in 1:nv]
+    sns = hasproperty(f, :shocks) ? f.shocks : ["shock$i" for i in 1:ns]
+    horizon = Int[]; variable = String[]; shock = String[]
+    value = Float64[]; se = Float64[]; lower = Float64[]; upper = Float64[]
+    for h in 1:H, v in 1:nv, s in 1:ns
+        push!(horizon, h); push!(variable, vns[v]); push!(shock, sns[s])
+        push!(value, Float64(f.bias_corrected[v, s, h]))
+        push!(se, Float64(f.se[v, s, h]))
+        push!(lower, Float64(f.ci_lower[v, s, h]))
+        push!(upper, Float64(f.ci_upper[v, s, h]))
+    end
+    DataFrame(; horizon, variable, shock, value, se, lower, upper)
+end
+
+function long_table(hd::HistoricalDecomposition)
+    Teff, nv, ns = size(hd.contributions)
+    time = Int[]; variable = String[]; shock = String[]; value = Float64[]
+    for t in 1:Teff, v in 1:nv, s in 1:ns
+        push!(time, t); push!(variable, hd.variables[v]); push!(shock, hd.shock_names[s])
+        push!(value, Float64(hd.contributions[t, v, s]))
+    end
+    DataFrame(; time, variable, shock, value)
+end
+
+function long_table(hd::BayesianHistoricalDecomposition)
+    Teff, nv, ns = size(hd.point_estimate)
+    nq = size(hd.quantiles, 4)
+    time = Int[]; variable = String[]; shock = String[]
+    value = Float64[]; lower = Union{Missing,Float64}[]; upper = Union{Missing,Float64}[]
+    for t in 1:Teff, v in 1:nv, s in 1:ns
+        push!(time, t); push!(variable, hd.variables[v]); push!(shock, hd.shock_names[s])
+        push!(value, Float64(hd.point_estimate[t, v, s]))
+        push!(lower, nq > 0 ? Float64(hd.quantiles[t, v, s, 1]) : missing)
+        push!(upper, nq > 0 ? Float64(hd.quantiles[t, v, s, nq]) : missing)
+    end
+    DataFrame(; time, variable, shock, value, lower, upper)
+end
+
 for _w5_T in (SteadyStateKalman, RationalInattentionProblem, SimsKalmanSolution,
               DynamicRISolution, RIEstimationResult, CGTestResult, MWAttentionResult,
               RIDiscreteChoiceSolution, RIIIADiagnostic, RILogitModel)

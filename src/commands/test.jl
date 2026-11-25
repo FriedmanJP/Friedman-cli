@@ -1918,14 +1918,9 @@ function _rerender_test_result(result; format::String="table", output::String=""
         output_result(maxeig_df; format=Symbol(format),
                       output=output, title="Johansen Max Eigenvalue Test")
     elseif tn === :NormalityTestSuite
-        test_df = DataFrame(
-            test=[string(r.test_name) for r in result.results],
-            statistic=[round(r.statistic; digits=4) for r in result.results],
-            p_value=[round(r.pvalue; digits=4) for r in result.results],
-            df=[r.df for r in result.results],
-        )
-        output_result(test_df; format=Symbol(format), output=output,
-                      title="Normality Tests for VAR Residuals")
+        _emit_result(result; format=format, output=output,
+                     title="Normality Tests for VAR Residuals",
+                     key="normality_tests_for_var_residuals")
     elseif tn === :VECMGrangerResult
         test_df = DataFrame(
             test=["Short-run", "Long-run", "Strong (joint)"],
@@ -2321,23 +2316,9 @@ function _test_normality(; data::String, lags=nothing,
 
     suite = normality_test_suite(model)
 
-    test_df = DataFrame(
-        test=String[],
-        statistic=Float64[],
-        p_value=Float64[],
-        df=Int[]
-    )
-    for r in suite.results
-        push!(test_df, (
-            test=string(r.test_name),
-            statistic=round(r.statistic; digits=4),
-            p_value=round(r.pvalue; digits=4),
-            df=r.df
-        ))
-    end
-
-    output_result(test_df; format=Symbol(format), output=output,
-                  title="Normality Tests for VAR Residuals")
+    _emit_result(suite; title="Normality Tests for VAR Residuals",
+                 key="normality_tests_for_var_residuals",
+                 format=Symbol(format), output=output)
 
     _status()
     n_reject = count(r -> r.pvalue < 0.05, suite.results)

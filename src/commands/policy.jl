@@ -668,22 +668,10 @@ function _render_policy_moments(m; format::String="table", output::String="",
 end
 
 function _render_policy_counterfactual(r; format::String="table", output::String="")
-    # 1. Paths table (baseline vs counterfactual, bands when propagated).
-    nq = length(r.quantile_levels)
-    has_bands = r.x_bands !== nothing
-    rows = DataFrame(variable=String[], role=String[], horizon=Int[],
-                     baseline=Float64[], counterfactual=Float64[])
-    if has_bands
-        for q in 1:nq
-            rows[!, Symbol("q", round(Int, 100 * r.quantile_levels[q]))] = Float64[]
-        end
-    end
-    _push_paths!(rows, r.outcomes, "outcome", r.x_base, r.x_cf, r.x_bands, nq)
-    _push_paths!(rows, r.instruments, "instrument", r.z_base, r.z_cf, r.z_bands, nq)
-    # Title (→ envelope table key) is FIXED — the rule name lives in the summary
-    # kv; a rule-dependent slug would make named_table selection impossible.
-    output_result(rows; format=Symbol(format), output=output,
-                  title="Policy Counterfactual Paths")
+    # 1. Paths table via upstream Tables.jl (#219): period | variable | role | baseline | counterfactual | lower | upper.
+    _emit_result(r; title="Policy Counterfactual Paths",
+                 key="policy_counterfactual_paths",
+                 format=Symbol(format), output=output)
 
     # 2. The enforcing date-0 policy-shock vector ν*.
     nu_df = DataFrame(shock=r.shock_labels, nu=round.(Float64.(r.nu); digits=6))
@@ -731,20 +719,6 @@ function _render_policy_counterfactual(r; format::String="table", output::String
         "rule NOT enforceable within the span of the supplied policy shocks; the counterfactual is a least-squares approximation — read error_path")
     output_kv(pairs; format=format, output=_per_var_output_path(output, "summary"),
               title="Counterfactual Summary")
-end
-
-function _push_paths!(rows, syms, role, base, cf, bands, nq)
-    for (i, sym) in enumerate(syms)
-        for h in eachindex(base[i])
-            row = Any[String(sym), role, h,
-                      round(Float64(base[i][h]); digits=6),
-                      round(Float64(cf[i][h]); digits=6)]
-            if bands !== nothing
-                append!(row, [round(Float64(bands[i][h, q]); digits=6) for q in 1:nq])
-            end
-            push!(rows, row)
-        end
-    end
 end
 
 # ── OPP family (W6/#128, Barnichon–Mesters) ─────────────────
@@ -1373,18 +1347,8 @@ end
 
 function _render_policy_history(hist, n_used::Int, n_failed::Int;
                                 format::String="table", output::String="")
-    nd_, nv_ = size(hist.realized)
-    dv = String[]; vv = String[]; rv = Float64[]; cv = Float64[]; rr = Float64[]
-    for d in 1:nd_, v in 1:nv_
-        push!(dv, hist.dates[d]); push!(vv, String(hist.varnames[v]))
-        push!(rv, round(Float64(hist.realized[d, v]); digits=6))
-        push!(cv, round(Float64(hist.cf[d, v]); digits=6))
-        push!(rr, round(Float64(hist.rel_residual[d]); digits=6))
-    end
-    output_result(DataFrame(date=dv, variable=vv, realized=rv,
-                            counterfactual=cv, rel_residual=rr);
-                  format=Symbol(format), output=output,
-                  title="Counterfactual History")
+    _emit_result(hist; title="Counterfactual History", key="counterfactual_history",
+                 format=Symbol(format), output=output)
     output_kv(Pair{String,Any}[
         "policy" => hist.policy_name,
         "H" => hist.H,
@@ -1594,14 +1558,9 @@ function _policy_spanning(; data::String="", model="", result=nothing, lags=noth
 end
 
 function _render_policy_sufficiency(fs; format::String="table", output::String="")
-    fv = String[]; fh = Int[]; fr = Float64[]
-    for (j, s) in enumerate(fs.observables), h in 1:fs.H
-        push!(fv, String(s)); push!(fh, h)
-        push!(fr, round(Float64(fs.fev_ratio[h, j]); digits=6))
-    end
-    output_result(DataFrame(observable=fv, horizon=fh, fev_ratio=fr);
-                  format=Symbol(format), output=output,
-                  title="Forecast Sufficiency FEV Ratios")
+    _emit_result(fs; title="Forecast Sufficiency FEV Ratios",
+                 key="forecast_sufficiency_fev_ratios",
+                 format=Symbol(format), output=output)
     output_kv(Pair{String,Any}[
         "invertible" => fs.invertible,
         "one_step_ratio" => join(round.(Float64.(fs.one_step_ratio); digits=6), ", "),

@@ -2337,11 +2337,15 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                                ("mincer-zarnowitz", "f1"), ("encompassing", "f1,f2"))
                 r = run_json(["forecast", "evaluate", leaf, csv, "--actual", "y", "--forecasts", fc])
                 assert_envelope_ok(r; label="forecast evaluate $leaf")
-                stat = _kvval(r.doc, "statistic")
-                leaf in ("dm", "clark-west") && (@test stat isa Real && isfinite(Float64(stat)))
-                pname = leaf == "mincer-zarnowitz" ? "p_value_wald" : "p_value"
-                pv = _kvval(r.doc, pname)
-                @test pv isa Real && 0.0 <= Float64(pv) <= 1.0
+                tbl = _tblcol(r.doc, "statistic")
+                @test tbl !== nothing
+                if tbl !== nothing
+                    row1 = collect(first(table_rows(tbl)))
+                    stat = row1[col_index(tbl, "statistic")]
+                    pv   = row1[col_index(tbl, "p_value")]
+                    @test stat isa Real && isfinite(Float64(stat))
+                    @test pv isa Real && 0.0 <= Float64(pv) <= 1.0
+                end
             end
         end
 
@@ -4668,24 +4672,21 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         tt = nothing
         for (_, v) in pairs(rr.doc.data)
             (v isa JSON3.Object && haskey(v, :rows)) || continue
-            all(c -> c in table_cols(v), ["method", "estimate", "std_error"]) && (tt = v)
+            all(c -> c in table_cols(v), ["term", "estimate", "std_error", "h", "b"]) && (tt = v)
         end
         @test tt !== nothing
         if tt !== nothing
-            bym = Dict(String(collect(rw)[col_index(tt, "method")]) => collect(rw)
+            bym = Dict(String(collect(rw)[col_index(tt, "term")]) => collect(rw)
                        for rw in table_rows(tt))
-            @test sort(collect(keys(bym))) == ["bias-corrected", "conventional", "robust"]
-            for m in ("conventional", "robust")
+            @test sort(collect(keys(bym))) == ["Conventional", "Robust (bias-corrected)"]
+            for m in ("Conventional", "Robust (bias-corrected)")
                 a = bym[m]
                 lo = Float64(a[col_index(tt, "ci_lower")])
                 hi = Float64(a[col_index(tt, "ci_upper")])
                 @test lo <= 3.0 <= hi
             end
-            # "robust" is the BIAS-CORRECTED point with a wider SE, not a third estimate.
-            @test Float64(bym["robust"][col_index(tt, "estimate")]) ≈
-                  Float64(bym["bias-corrected"][col_index(tt, "estimate")]) atol=1e-9
-            @test Float64(bym["robust"][col_index(tt, "std_error")]) >=
-                  Float64(bym["conventional"][col_index(tt, "std_error")])
+            @test Float64(bym["Robust (bias-corrected)"][col_index(tt, "std_error")]) >=
+                  Float64(bym["Conventional"][col_index(tt, "std_error")])
         end
 
         # Auto-selected bandwidth must be reported, and an explicit one must be honoured.
@@ -7001,8 +7002,9 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         @testset "multipliers output Type I ≈ [1.518,1.452]" begin
             r = run_json(["io", "multipliers", "--kind", "output", "--type", "I"])
             assert_envelope_ok(r; label="io multipliers")
-            t = cols_table(r.doc, ["sector", "multiplier"])
-            vi = findfirst(==("multiplier"), table_cols(t))
+            t = cols_table(r.doc, ["sector", "value", "kind", "type"])
+            @test t !== nothing
+            vi = findfirst(==("value"), table_cols(t))
             vals = sort([Float64(collect(x)[vi]) for x in table_rows(t)]; rev=true)
             @test isapprox(vals, [1.518152, 1.452145]; atol=1e-4)
             assert_envelope_ok(run_json(["io", "multipliers", "--kind", "income", "--type", "II"]); label="io mult inc II")
@@ -7012,23 +7014,26 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         @testset "linkages / key-sectors / sda / baqaee-farhi" begin
             r = run_json(["io", "linkages"])
             assert_envelope_ok(r; label="io linkages")
-            @test cols_table(r.doc, ["sector", "backward", "forward", "Ui", "Uj", "class"]) !== nothing
+            @test cols_table(r.doc, ["sector", "backward", "forward", "Ui", "Uj", "classification"]) !== nothing
             assert_envelope_ok(run_json(["io", "key-sectors"]); label="io key-sectors")
             rs = run_json(["io", "sda", "--method", "additive"])
             assert_envelope_ok(rs; label="io sda")
-            ts = cols_table(rs.doc, ["sector", "L_effect", "Y_effect", "total", "residual"])
+            ts = cols_table(rs.doc, ["factor", "index", "effect", "total", "residual"])
             @test ts !== nothing
-            @test "intensity_effect" ∉ table_cols(ts) && "technology_effect" ∉ table_cols(ts)
+            fi_s = col_index(ts, "factor")
+            @test Set(String(collect(x)[fi_s]) for x in table_rows(ts)) == Set(["L", "Y"])
             named = run_json(["io", "sda", "--factors", "technology,final-demand"])
             assert_envelope_ok(named; label="io sda --factors")
-            nt = cols_table(named.doc, ["technology_effect", "final_demand_effect", "total", "residual"])
+            nt = cols_table(named.doc, ["factor", "index", "effect", "total", "residual"])
             @test nt !== nothing
-            @test "L_effect" ∉ table_cols(nt) && "Y_effect" ∉ table_cols(nt)
+            fi_n = col_index(nt, "factor")
+            @test Set(String(collect(x)[fi_n]) for x in table_rows(nt)) == Set(["technology", "final_demand"])
             sat = run_json(["io", "sda", "--on", "CO2"])
             assert_envelope_ok(sat; label="io sda --on CO2")
-            st = cols_table(sat.doc, ["intensity_effect", "technology_effect", "final_demand_effect"])
+            st = cols_table(sat.doc, ["factor", "index", "effect", "total", "residual"])
             @test st !== nothing
-            @test "L_effect" ∉ table_cols(st) && "Y_effect" ∉ table_cols(st)
+            fi_c = col_index(st, "factor")
+            @test issubset(Set(["intensity", "technology", "final_demand"]), Set(String(collect(x)[fi_c]) for x in table_rows(st)))
             bf = run_json(["io", "baqaee-farhi"])
             assert_envelope_ok(bf; label="io baqaee-farhi")
             @test cols_table(bf.doc, ["sector", "domar", "influence", "upstreamness", "downstreamness"]) !== nothing
@@ -7043,9 +7048,9 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test isapprox(loss["Agriculture"], 1000.0; atol=1e-3)
             fp = run_json(["io", "footprint"])
             assert_envelope_ok(fp; label="io footprint")
-            ft = cols_table(fp.doc, ["stressor", "footprint"])
+            ft = cols_table(fp.doc, ["stressor", "sector", "value", "total"])
             @test ft !== nothing
-            fi = findfirst(==("footprint"), table_cols(ft))
+            fi = findfirst(==("total"), table_cols(ft))
             @test isapprox(Float64(collect(first(table_rows(ft)))[fi]), 400.0; atol=1e-6)
         end
 
@@ -8048,8 +8053,8 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                       Float64(collect(r)[col_index(tp, "estimate")]) for r in table_rows(tp))
             @test isapprox(pc["x1"], 0.5; atol=0.12)
             @test isapprox(pc["x2"], -0.3; atol=0.12)
-            # tidy C051 column set, hand-built because these types are NOT Tables.jl-registered
-            for c in ("std_error", "z_stat", "p_value", "ci_lower", "ci_upper")
+            # tidy C051 column set via upstream Tables.jl (#219)
+            for c in ("std_error", "stat", "p_value", "ci_lower", "ci_upper")
                 @test c in table_cols(tp)
             end
 
@@ -8988,7 +8993,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                                 "--horizon", "6", "--replications", "50"], maps))
             @test rb.code == 0
             p = named_table(rb.doc, :policy_counterfactual_paths)
-            @test "q16" in table_cols(p) && "q84" in table_cols(p)
+            @test "lower" in table_cols(p) && "upper" in table_cols(p)
             @test Int(cfsum(rb)["n_draws_used"]) > 0
 
             # bvar route propagates posterior draws

@@ -885,9 +885,8 @@ function _io_multipliers(; data::String="", n_sectors::Int=0, n_fd::Int=1, secto
             hint="employment multipliers need an 'employment' satellite account (present in :wiot; a plain CSV table has none)"))
         rethrow()
     end
-    df = DataFrame(sector=m.sectors, multiplier=round.(m.values; digits=6))
-    output_result(df; format=Symbol(format), output=output,
-                  title="Type $(type) $(kind) multipliers", key="io_multipliers")
+    _emit_result(m; title="Type $(type) $(kind) multipliers", key="io_multipliers",
+                 format=Symbol(format), output=output)
     return m
 end
 
@@ -895,14 +894,8 @@ function _io_linkages(; data::String="", n_sectors::Int=0, n_fd::Int=1, sectors:
                       forward::String="ghosh", format::String="table", output::String="")
     io = _load_io(data; n_sectors=n_sectors, n_fd=n_fd, sectors=sectors)
     lk = linkages(io; forward=Symbol(forward))
-    df = DataFrame(sector=lk.sectors,
-                   backward=round.(lk.backward; digits=6),
-                   forward=round.(lk.forward; digits=6),
-                   Ui=round.(lk.Ui; digits=6),
-                   Uj=round.(lk.Uj; digits=6),
-                   class=string.(lk.classification))
-    output_result(df; format=Symbol(format), output=output,
-                  title="Linkages (forward=$forward)", key="linkages")
+    _emit_result(lk; title="Linkages (forward=$forward)", key="linkages",
+                 format=Symbol(format), output=output)
     return lk
 end
 
@@ -959,27 +952,8 @@ function _io_sda(; data::String="", data2::String="", n_sectors::Int=0, n_fd::In
         e isa ArgumentError && throw(CliError("usage/invalid", _err_message(e)))
         rethrow()
     end
-    labels = length(r.total) == length(io0.sectors) ? io0.sectors :
-             (hasproperty(r, :stressors) ? collect(r.stressors) : ["row$i" for i in 1:length(r.total)])
-    # Legacy L/Y column names only when --factors is omitted AND --on is output.
-    # Explicit --factors (even technology,final-demand) and satellite --on use
-    # the named-factor *_effect columns (intensity/technology/final_demand).
-    if facs === nothing && on_arg === :output && haskey(r.effects, :L) && haskey(r.effects, :Y)
-        df = DataFrame(sector=labels,
-                       L_effect=round.(r.effects[:L]; digits=6),
-                       Y_effect=round.(r.effects[:Y]; digits=6),
-                       total=round.(r.total; digits=6),
-                       residual=round.(r.residual; digits=6))
-    else
-        df = DataFrame(sector=labels)
-        for (k, v) in r.effects
-            df[!, Symbol(string(k) * "_effect")] = round.(v; digits=6)
-        end
-        df[!, :total] = round.(r.total; digits=6)
-        df[!, :residual] = round.(r.residual; digits=6)
-    end
-    output_result(df; format=Symbol(format), output=output,
-                  title="Structural Decomposition ($method)", key="structural_decomposition")
+    _emit_result(r; title="Structural Decomposition ($method)", key="structural_decomposition",
+                 format=Symbol(format), output=output)
     _maybe_plot(r; plot=plot, plot_save=plot_save)
     return r
 end
@@ -1066,24 +1040,12 @@ function _io_footprint(; data::String="", n_sectors::Int=0, n_fd::Int=1, sectors
         rethrow()
     end
     if by_sym === :region
-        # RegionalFootprintResult: production/consumption stressor×G
-        prod = hasproperty(fp, :production) ? fp.production : fp.total
-        consu = hasproperty(fp, :consumption) ? fp.consumption : fp.total
-        regs = hasproperty(fp, :regions) ? collect(fp.regions) : io.regions
-        stressors = hasproperty(fp, :stressors) ? collect(fp.stressors) : [name]
-        df = DataFrame(region=regs)
-        for (i, s) in enumerate(stressors)
-            i <= size(prod, 1) && (df[!, Symbol("production_" * s)] = round.(prod[i, :]; digits=6))
-            i <= size(consu, 1) && (df[!, Symbol("consumption_" * s)] = round.(consu[i, :]; digits=6))
-        end
-        output_result(df; format=Symbol(format), output=output,
-                      title="Regional Footprint ($name)", key="regional_footprint")
+        _emit_result(fp; title="Regional Footprint ($name)", key="regional_footprint",
+                     format=Symbol(format), output=output)
         return fp
     end
-    # Total footprint per stressor (summed over final-demand categories).
-    tot = vec(sum(fp.total; dims=2))
-    output_result(DataFrame(stressor=fp.stressors, footprint=round.(tot; digits=6));
-                  format=Symbol(format), output=output, title="Footprint ($name)", key="footprint")
+    _emit_result(fp; title="Footprint ($name)", key="footprint",
+                 format=Symbol(format), output=output)
     # Per-sector contribution: sector × stressor(s).
     output_result(_io_matrix_df(permutedims(fp.by_sector), io.sectors, fp.stressors);
                   format=Symbol(format), output=_per_var_output_path(output, "by_sector"),

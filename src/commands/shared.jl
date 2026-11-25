@@ -2286,19 +2286,15 @@ function _rerender_fevd_result(result; format::String="table", output::String=""
         _maybe_plot(result; plot=plot, plot_save=plot_save)
         return result
     elseif tn === :LPFEVD
-        n = size(result.bias_corrected, 1)
-        vn = _result_varnames(result, n)
-        _output_fevd_tables(result.bias_corrected, vn, result.horizon;
-                            id="", title_prefix="LP FEVD", format=format, output=output,
-                            key_prefix=isempty(key_prefix) ? "lp_fevd" : key_prefix)
+        _emit_result(result; title=isempty(title) ? "LP FEVD" : title,
+                     key=isempty(key) ? "lp_fevd" : key,
+                     format=Symbol(format), output=output)
         _maybe_plot(result; plot=plot, plot_save=plot_save)
         return result
     elseif tn === :BayesianFEVD
-        vn = _result_varnames(result, size(result.point_estimate, 1))
-        H = hasproperty(result, :horizon) ? Int(result.horizon) : size(result.point_estimate, 3)
-        _output_fevd_tables(result.point_estimate, vn, H;
-                            id="", title_prefix="Bayesian FEVD", format=format, output=output,
-                            key_prefix=isempty(key_prefix) ? "bayesian_fevd" : key_prefix)
+        _emit_result(result; title=isempty(title) ? "Bayesian FEVD" : title,
+                     key=isempty(key) ? "bayesian_fevd" : key,
+                     format=Symbol(format), output=output)
         _maybe_plot(result; plot=plot, plot_save=plot_save)
         return result
     end
@@ -4220,6 +4216,18 @@ end
 const _TIDY_COEF_TYPES = Union{RegModel,LogitModel,ProbitModel,PanelRegModel,PanelIVModel,
     PanelLogitModel,PanelProbitModel,MarginalEffects,OrderedLogitModel,OrderedProbitModel,
     MultinomialLogitModel,VARModel,DIDResult,
+    # Wave 3 (#219): landed upstream Tables.jl coverage
+    PoissonModel,NegBinModel,QuantileRegModel,RDDResult,SURModel,ThreeSLSModel,
+    EventStudyLP,LPDiDResult,BaconDecomposition,MultinomialMarginalEffects,
+    ForecastEvaluation,ForecastCombination,DMTestResult,ClarkWestResult,
+    MincerZarnowitzResult,ForecastEncompassingResult,
+    PolicyCounterfactual,CounterfactualMoments,CounterfactualHistory,
+    BaselinePath,PolicyForecast,OPPSequence,ForecastSufficiency,
+    MacroEconometricModels.LeontiefModel,MacroEconometricModels.GhoshModel,LinkageResult,IOMultipliers,FootprintResult,SDAResult,
+    RegionalFootprintResult,NormalityTestSuite,
+    DSGESolution,PerturbationSolution,PerfectForesightPath,OccBinSolution,OccBinIRF,
+    HASteadyState,BayesianDSGESimulation,
+    # v1.1.0 series (#313-#317)
     QFMICResult,QFMSpanningResult,QFMLoadingConstancyTest,QuantileFactorPanelModel,
     QuantileVARModel,
     OnatskiQTestResult,AhnHorensteinResult,OnatskiEDResult,EurocoinResult,GDFMNowcastResult,
@@ -4241,10 +4249,9 @@ function _emit_result(m::_TIDY_COEF_TYPES; title::String="Results", key::Abstrac
                       format::Union{String,Symbol}=:table, output::String="")
     output_result(DataFrame(m); format=format, output=output, title=title, key=key)
 end
-# Mirrors the upstream `long_table` receivers 1:1 (MEMs core/tables.jl). Deliberately
-# NOT extended to BayesianFEVD/LPFEVD/HD — those have no upstream long_table (TIDY-09/
-# TIDY-11/TIDY-12) and must keep hitting the typed fallback until they land.
+# Mirrors the upstream `long_table` receivers 1:1 (MEMs core/tables.jl).
 const _TIDY_LONG_TYPES = Union{ImpulseResponse,BayesianImpulseResponse,FEVD,
+    BayesianFEVD,LPFEVD,HistoricalDecomposition,BayesianHistoricalDecomposition,
     LPImpulseResponse,AbstractForecastResult,
     QuantileFactorModel,QuantileFactorGrid,GrowthAtRiskResult,
     QuantileImpulseResponse,QuantileFAVAR,VBQuantileFAVAR,

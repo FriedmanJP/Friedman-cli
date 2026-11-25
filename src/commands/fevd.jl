@@ -62,7 +62,7 @@ function fevd_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:bayesian_fevd, family=true, description="Posterior-mean variance shares, one wide table per variable (horizon | one column per shock)")],
+            tables=[TableSpec(name=:bayesian_fevd, description="Posterior-mean variance shares, tidy long form: horizon | variable | shock | value | lower | upper")],
             category="fevd",
             handler=wrap_legacy(_fevd_bvar),
         ),
@@ -84,7 +84,7 @@ function fevd_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:lp_fevd, family=true, description="Bias-corrected LP variance shares, one wide table per variable (horizon | one column per shock)")],
+            tables=[TableSpec(name=:lp_fevd, description="Bias-corrected LP variance shares, tidy long form: horizon | variable | shock | value | se | lower | upper")],
             category="fevd",
             handler=wrap_legacy(_fevd_lp),
         ),
@@ -439,11 +439,8 @@ function _fevd_bvar(; data::String="", result=nothing, lags::Int=4, horizons::In
 
     _maybe_plot(bfevd; plot=plot, plot_save=plot_save)
 
-    # BayesianFEVD.point_estimate is (variable, shock, horizon) since MEMs 0.7.3 (#527
-    # unified it with FEVD/LPFEVD) — exactly the order the shared renderer indexes.
-    _output_fevd_tables(bfevd.point_estimate, varnames, horizons;
-                        id=id, title_prefix="Bayesian FEVD", format=format, output=output,
-                        key_prefix="bayesian_fevd")
+    _emit_result(bfevd; title="Bayesian FEVD ($id identification)", key="bayesian_fevd",
+                 format=Symbol(format), output=output)
     return (; model=post, result=bfevd)
 end
 
@@ -483,9 +480,8 @@ function _fevd_lp(; data::String="", result=nothing, horizons::Int=20, lags::Int
 
     _maybe_plot(fevd_result; plot=plot, plot_save=plot_save)
 
-    _output_fevd_tables(fevd_result.bias_corrected, varnames, horizons;
-                        id=id, title_prefix="LP FEVD", format=format, output=output,
-                        key_prefix="lp_fevd")
+    _emit_result(fevd_result; title="LP FEVD ($id identification)", key="lp_fevd",
+                 format=Symbol(format), output=output)
     return (; model=slp, result=fevd_result)
 end
 

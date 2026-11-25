@@ -4185,10 +4185,7 @@ function _estimate_iv(; data::String, dep::String="", endogenous::String="",
     return model
 end
 
-# ── Systems: SUR & 3SLS (C063, M5c) ─────────────────────────
-# SURModel/ThreeSLSModel are not Tables.jl-registered upstream, so the coefficient
-# table is hand-built (documented C051 exception, like the io family): one tidy row
-# per (equation, term). Both are asymptotic (FGLS / 3SLS) → normal-approx p-values/CIs.
+# ── Systems: SUR & 3SLS (C063, M5c; #219 upstream Tables.jl) ─────────────────
 
 # Build a (y, X, names) equation tuple from column names; optionally prepend a constant.
 function _system_eq_matrix(df, numcols::Vector{String}, eq::AbstractDict, intercept::Bool)
@@ -4215,25 +4212,6 @@ function _system_instr_matrix(df, numcols::Vector{String}, eq::AbstractDict, int
     end
     Zcols = [Vector{Float64}(df[!, c]) for c in eq["instr"]]
     intercept ? hcat(ones(Float64, size(df, 1)), Zcols...) : hcat(Zcols...)
-end
-
-# Tidy coefficient table for a SUR/ThreeSLS model: equation|term|estimate|std_error|stat|p_value|ci_lower|ci_upper.
-function _system_coef_table(model)
-    eqc = String[]; term = String[]; est = Float64[]; sec = Float64[]
-    stat = Float64[]; pval = Float64[]; lo = Float64[]; hi = Float64[]
-    z95 = 1.959964
-    for j in eachindex(model.eqnames)
-        b = model.betas[j]; s = model.ses[j]; vn = model.varnames[j]
-        for i in eachindex(b)
-            zi = s[i] == 0 ? 0.0 : b[i] / s[i]
-            push!(eqc, model.eqnames[j]); push!(term, vn[i])
-            push!(est, round(b[i]; digits=6)); push!(sec, round(s[i]; digits=6))
-            push!(stat, round(zi; digits=4)); push!(pval, round(2.0 * (1.0 - _normal_cdf(abs(zi))); digits=4))
-            push!(lo, round(b[i] - z95 * s[i]; digits=6)); push!(hi, round(b[i] + z95 * s[i]; digits=6))
-        end
-    end
-    DataFrame(equation=eqc, term=term, estimate=est, std_error=sec,
-              stat=stat, p_value=pval, ci_lower=lo, ci_upper=hi)
 end
 
 # Map an estimation failure to a typed CliError (never an uncaught exit-1 — io-family lesson).
@@ -4374,8 +4352,8 @@ function _estimate_sur(; data::String, config::String="", iterate::Bool=false,
         throw(_system_estimation_error(e, "SUR"))
     end
 
-    output_result(_system_coef_table(model); format=Symbol(format), output=output,
-                  title="SUR Coefficients")
+    _emit_result(model; title="SUR Coefficients", key="sur_coefficients",
+                 format=Symbol(format), output=output)
     kind = model.iterated ? "Iterated SUR" : "SUR"
     output_kv(Pair{String,Any}[
         "estimator"  => model.restricted ? "$kind (restricted)" : kind,
@@ -4422,8 +4400,8 @@ function _estimate_3sls(; data::String, config::String="", instruments::String="
         throw(_system_estimation_error(e, "3SLS"))
     end
 
-    output_result(_system_coef_table(model); format=Symbol(format), output=output,
-                  title="3SLS Coefficients")
+    _emit_result(model; title="3SLS Coefficients", key="3sls_coefficients",
+                 format=Symbol(format), output=output)
     output_kv(Pair{String,Any}[
         "estimator"          => "3SLS",
         "equations"          => length(model.eqnames),
@@ -4948,31 +4926,6 @@ function _irr_table(model, conf_level::Float64)
                      ci_upper=round.(Float64.(irr.ci_upper); digits=6))
 end
 
-"""Tidy coefficient table for the count models.
-
-Hand-built on purpose: `_reg_coef_table` goes through `DataFrame(model)`, and MEMs 0.7.2
-does NOT register `PoissonModel`/`NegBinModel` with Tables.jl — routing them there raises
-"no default `Tables.columns` implementation" and exits 1. Column set matches the tidy C051
-convention the registered models produce, so the envelope shape stays uniform.
-"""
-function _count_coef_table(model, conf_level::Float64)
-    beta = Float64.(coef(model))
-    se = Float64.(stderror(model))
-    z = [s > 0 ? b / s : NaN for (b, s) in zip(beta, se)]
-    # Distributions is not a direct CLI dep — use the shared A&S normal helpers, same as
-    # the volatility renderers, rather than pulling `Normal()` in through MEMs.
-    zc = _normal_quantile(1 - (1 - conf_level) / 2)
-    return DataFrame(
-        term=copy(model.varnames),
-        estimate=round.(beta; digits=6),
-        std_error=round.(se; digits=6),
-        z_stat=round.(z; digits=4),
-        p_value=round.([isnan(v) ? NaN : 2 * (1 - _normal_cdf(abs(v))) for v in z]; digits=6),
-        ci_lower=round.(beta .- zc .* se; digits=6),
-        ci_upper=round.(beta .+ zc .* se; digits=6),
-    )
-end
-
 """Fit statistics shared by the two count estimators."""
 function _count_fit_pairs(model)
     return Pair{String,Any}[
@@ -5047,8 +5000,8 @@ function _estimate_poisson(; data::String, dep::String="", offset::String="",
     _status("Poisson Regression: $dep_name ~ $(join(xcols, " + "))")
     _status("  Observations: $(length(model.y)), Regressors: $(length(xcols)), Cov type: $cov_type")
     _status()
-    output_result(_count_coef_table(model, conf_level); format=Symbol(format), output=output,
-                  title="Poisson Regression Coefficients")
+    _emit_result(model; title="Poisson Regression Coefficients",
+                 key="poisson_regression_coefficients", format=Symbol(format), output=output)
     if irr
         output_result(_irr_table(model, conf_level); format=Symbol(format),
                       output=_per_var_output_path(output, "irr"),
@@ -5071,8 +5024,9 @@ function _estimate_nbreg(; data::String, dep::String="", offset::String="",
     _status("Negative Binomial (NB2) Regression: $dep_name ~ $(join(xcols, " + "))")
     _status("  Observations: $(length(model.y)), Regressors: $(length(xcols))")
     _status()
-    output_result(_count_coef_table(model, conf_level); format=Symbol(format), output=output,
-                  title="Negative Binomial Regression Coefficients")
+    _emit_result(model; title="Negative Binomial Regression Coefficients",
+                 key="negative_binomial_regression_coefficients",
+                 format=Symbol(format), output=output)
     # α and its delta-method SE are NOT in the coefficient table (upstream's vcov slice
     # stops at β), so they get their own table — with a distinct output path, or --output
     # would drop the coefficients above.
@@ -8453,26 +8407,8 @@ function _estimate_qreg(; data::String, dep::String="", tau::String="0.5",
         throw(_domain_or_data_error(e, "estimate regression qreg"))
     end
 
-    # beta/stderr are k × n_tau, so the tidy table carries a `tau` column and one row per
-    # (tau, term) -- never a wide per-quantile block.
-    k, ntau = size(model.beta)
-    z = _normal_quantile(1 - alpha / 2)
-    rows_tau = Float64[]; rows_term = String[]
-    est = Float64[]; ses = Float64[]; stat = Float64[]; pval = Float64[]
-    lo = Float64[]; hi = Float64[]
-    for j in 1:ntau, i in 1:k
-        b = Float64(model.beta[i, j]); s = Float64(model.stderr[i, j])
-        t = s > 0 ? b / s : NaN
-        push!(rows_tau, Float64(model.taus[j])); push!(rows_term, model.varnames[i])
-        push!(est, b); push!(ses, s); push!(stat, t)
-        push!(pval, isfinite(t) ? 2 * (1 - _normal_cdf(abs(t))) : NaN)
-        push!(lo, b - z * s); push!(hi, b + z * s)
-    end
-    output_result(DataFrame(tau=rows_tau, term=rows_term, estimate=est, std_error=ses,
-                            stat=stat, p_value=pval, ci_lower=lo, ci_upper=hi);
-                  format=Symbol(format), output=output,
-                  title="Quantile Regression Coefficients ($(se_l) SE)",
-                  key="quantile_regression_coefficients")
+    _emit_result(model; title="Quantile Regression Coefficients ($(se_l) SE)",
+                 key="quantile_regression_coefficients", format=Symbol(format), output=output)
 
     # Pseudo-R² is per-quantile and NOT comparable with an OLS R²: it compares the check-
     # function objective against an intercept-only quantile fit, so it measures fit at that
@@ -8564,23 +8500,9 @@ function _estimate_rdd(; data::String, outcome::String="", running::String="",
         throw(_domain_or_data_error(e, "estimate regression rdd"))
     end
 
-    # The CCT triple. All three share ONE point estimate per row-pair by construction:
-    # "robust" is the bias-corrected estimate with a wider SE that accounts for having
-    # estimated the bias, NOT a third estimate. Reporting them as three rows makes that
-    # explicit rather than leaving a reader to infer it.
-    output_result(DataFrame(
-        method   = ["conventional", "bias-corrected", "robust"],
-        estimate = round.([Float64(res.tau_conventional), Float64(res.tau_bias_corrected),
-                           Float64(res.tau_bias_corrected)]; digits=6),
-        std_error = round.([Float64(res.se_conventional), Float64(res.se_conventional),
-                            Float64(res.se_robust)]; digits=6),
-        ci_lower = round.([Float64(res.ci_conventional[1]), NaN,
-                           Float64(res.ci_robust[1])]; digits=6),
-        ci_upper = round.([Float64(res.ci_conventional[2]), NaN,
-                           Float64(res.ci_robust[2])]; digits=6),
-    ); format=Symbol(format), output=output,
-       title="RDD Treatment Effect ($(res.design), $(round(Int, 100*res.level))% CI)",
-       key="rdd_treatment_effect")
+    _emit_result(res;
+                 title="RDD Treatment Effect ($(res.design), $(round(Int, 100*res.level))% CI)",
+                 key="rdd_treatment_effect", format=Symbol(format), output=output)
 
     settings = Pair{String,Any}[
         "design"          => String(res.design),
