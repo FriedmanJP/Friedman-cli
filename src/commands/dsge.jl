@@ -63,7 +63,7 @@ function dsge_specs()::Vector{CommandSpec}
                            description="State vector x1,x2,… at which to evaluate the VFI value function"),
                 OptionSpec(name="constraints", type=String, default="", description="Path to OccBin constraints TOML"),
                 CONSTRAINT_OPTION,
-                OptionSpec(name="constraint-solver", type=String, default="", description="Constraint solver: nonlinearsolve|optim|nlopt|ipopt|path"),
+                OptionSpec(name="constraint-solver", type=String, default="", description="Constraint solver: nonlinearsolve|optim|nlopt|madnlp|ipopt|path (madnlp default for nonlinear constraints)"),
                 OptionSpec(name="periods", type=Int, default=40, description="Number of periods for the OccBin path (--constraints without --constraint-solver; ignored otherwise)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -250,7 +250,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="shocks", type=String, default="", description="Path to shock sequence CSV"),
                 OptionSpec(name="constraints", type=String, default="", description="Path to constraints TOML"),
                 CONSTRAINT_OPTION,
-                OptionSpec(name="constraint-solver", type=String, default="", description="Constraint solver: nonlinearsolve|optim|nlopt|ipopt|path"),
+                OptionSpec(name="constraint-solver", type=String, default="", description="Constraint solver: nonlinearsolve|optim|nlopt|madnlp|ipopt|path (madnlp default for nonlinear constraints)"),
                 OptionSpec(name="periods", type=Int, default=100, description="Simulation periods"),
                 OptionSpec(name="sparsity", type=String, default="auto",
                            choices=["auto", "dense"],
@@ -275,7 +275,7 @@ function dsge_specs()::Vector{CommandSpec}
             options=[
                 OptionSpec(name="constraints", type=String, default="", description="Path to OccBin constraints TOML"),
                 CONSTRAINT_OPTION,
-                OptionSpec(name="constraint-solver", type=String, default="", description="Constraint solver: nonlinearsolve|optim|nlopt|ipopt|path"),
+                OptionSpec(name="constraint-solver", type=String, default="", description="Constraint solver: nonlinearsolve|optim|nlopt|madnlp|ipopt|path (madnlp default for nonlinear constraints)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -1706,9 +1706,9 @@ function _dsge_solve(; model::String, method::String="gensys", order::Int=1,
                       periods::Int=40,
                       output::String="", format::String="table",
                       plot::Bool=false, plot_save::String="")
-    if !isempty(constraint_solver) && !(constraint_solver in ("nonlinearsolve", "optim", "nlopt", "ipopt", "path"))
+    if !isempty(constraint_solver) && !(constraint_solver in ("nonlinearsolve", "optim", "nlopt", "madnlp", "ipopt", "path"))
         throw(CliError("usage/invalid-option",
-            "invalid --constraint-solver value '$constraint_solver'; must be one of: nonlinearsolve, optim, nlopt, ipopt, path"))
+            "invalid --constraint-solver value '$constraint_solver'; must be one of: nonlinearsolve, optim, nlopt, madnlp, ipopt, path"))
     end
 
     # CARD-W2 (#210): this leaf is the one that CONSUMES a `constraints:` stanza, so
@@ -2143,9 +2143,9 @@ function _dsge_steady_state(; model::String, constraints::String="",
                              constraint_solver::String="",
                              constraint::Vector{String}=String[],
                              output::String="", format::String="table")
-    if !isempty(constraint_solver) && !(constraint_solver in ("nonlinearsolve", "optim", "nlopt", "ipopt", "path"))
+    if !isempty(constraint_solver) && !(constraint_solver in ("nonlinearsolve", "optim", "nlopt", "madnlp", "ipopt", "path"))
         throw(CliError("usage/invalid-option",
-            "invalid --constraint-solver value '$constraint_solver'; must be one of: nonlinearsolve, optim, nlopt, ipopt, path"))
+            "invalid --constraint-solver value '$constraint_solver'; must be one of: nonlinearsolve, optim, nlopt, madnlp, ipopt, path"))
     end
 
     # CARD-W2 (#210): this leaf CONSUMES a `constraints:` stanza, so it is the only
@@ -2455,9 +2455,9 @@ function _dsge_perfect_foresight(; model::String, shocks::String="",
                                   sparsity::String="auto", max_iter::Int=100, tol::Float64=1e-8,
                                   output::String="", format::String="table",
                                   plot::Bool=false, plot_save::String="")
-    if !isempty(constraint_solver) && !(constraint_solver in ("nonlinearsolve", "optim", "nlopt", "ipopt", "path"))
+    if !isempty(constraint_solver) && !(constraint_solver in ("nonlinearsolve", "optim", "nlopt", "madnlp", "ipopt", "path"))
         throw(CliError("usage/invalid-option",
-            "invalid --constraint-solver value '$constraint_solver'; must be one of: nonlinearsolve, optim, nlopt, ipopt, path"))
+            "invalid --constraint-solver value '$constraint_solver'; must be one of: nonlinearsolve, optim, nlopt, madnlp, ipopt, path"))
     end
     periods >= 1 || throw(CliError("usage/invalid",
         "perfect-foresight: --periods must be ≥ 1 (got $periods)"))
@@ -2593,9 +2593,9 @@ function _dsge_bayes_inputs(; model::String, data::String, params::String,
     isempty(priors) && isempty(prior) && !haskey(stanzas, :priors) &&
         throw(CliError("usage/missing", _PRIORS_REQUIRED_MESSAGE))
 
-    if !isempty(constraint_solver) && !(constraint_solver in ("nonlinearsolve", "optim", "nlopt", "ipopt", "path"))
+    if !isempty(constraint_solver) && !(constraint_solver in ("nonlinearsolve", "optim", "nlopt", "madnlp", "ipopt", "path"))
         throw(CliError("usage/invalid",
-            "invalid --constraint-solver value '$constraint_solver'; must be one of: nonlinearsolve, optim, nlopt, ipopt, path"))
+            "invalid --constraint-solver value '$constraint_solver'; must be one of: nonlinearsolve, optim, nlopt, madnlp, ipopt, path"))
     end
 
     spec = _load_dsge_model(model; allow_priors=true)

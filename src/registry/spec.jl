@@ -320,7 +320,7 @@ const BAYES_OPTIONS = [
     OptionSpec(name="solver", type=String, default="gensys", description="gensys|klein|perturbation", choices=["gensys", "klein", "perturbation"]),
     OptionSpec(name="order", type=Int, default=1, description="Perturbation order (1, 2, or 3)"),
     OptionSpec(name="constraint-solver", type=String, default="",
-               description="Constraint solver: nonlinearsolve|optim|nlopt|ipopt|path"),
+               description="Constraint solver: nonlinearsolve|optim|nlopt|madnlp|ipopt|path (madnlp default for nonlinear constraints)"),
     # W12/#114 (MEMs#339): trends in observables. Shared across the whole `dsge bayes`
     # family because every leaf re-estimates from scratch — a prefilter available only on
     # `bayes estimate` could not be carried into `bayes irf`/`fevd`/`hd`. NOT offered on the

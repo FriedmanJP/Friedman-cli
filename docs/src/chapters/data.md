@@ -15,9 +15,9 @@ friedman data list
 ┌──────────────┬───────────────┬──────────────┬──────────────────────────────────────────────────────────────────────────────────────────┐
 │     name     │     type      │  dimensions  │                                       description                                        │
 ├──────────────┼───────────────┼──────────────┼──────────────────────────────────────────────────────────────────────────────────────────┤
-│   fred_md    │  Time Series  │  804 × 126   │                 FRED-MD Monthly Database (126 macroeconomic indicators)                  │
-│   fred_qd    │  Time Series  │  268 × 245   │                FRED-QD Quarterly Database (245 macroeconomic indicators)                 │
-│     pwt      │     Panel     │ 38 × 74 × 42 │               Penn World Table (38 OECD countries, 74 years, 42 variables)               │
+│   fred_md    │  Time Series  │  804 × 114   │            FRED-MD Monthly Database (114 US federal public-domain indicators)            │
+│   fred_qd    │  Time Series  │  268 × 226   │           FRED-QD Quarterly Database (226 US federal public-domain indicators)           │
+│     pwt      │     Panel     │ 38 × 74 × 42 │         Penn World Table (38 OECD countries, 74 years, 42 variables; CC-BY-4.0)          │
 │    mpdta     │     Panel     │ 500 × 5 × 3  │                       Callaway-Sant'Anna (2021) minimum wage panel                       │
 │     ddcg     │     Panel     │ 184 × 51 × 2 │                           Acemoglu et al. democracy-GDP panel                            │
 │   denmark    │  Time Series  │    55 × 5    │                Danish money-demand data (Johansen-Juselius cointegration)                │
@@ -38,8 +38,8 @@ All 12 built-in datasets can be passed directly to estimators via a leading colo
 
 | Dataset (`:name`) | Kind | Dimensions | Domain & Use Case |
 |---|---|---|---|
-| `:fred_md` | Time Series | `804 × 126` | Monthly U.S. macroeconomic panel (McCracken–Ng) for factor models, DFM, BVAR |
-| `:fred_qd` | Time Series | `268 × 245` | Quarterly U.S. macroeconomic panel for structural macro and nowcasting |
+| `:fred_md` | Time Series | `804 × 114` | Monthly U.S. federal public-domain macroeconomic panel (McCracken–Ng) for factor models, DFM, BVAR |
+| `:fred_qd` | Time Series | `268 × 226` | Quarterly U.S. federal public-domain macroeconomic panel for structural macro and nowcasting |
 | `:denmark` | Time Series | `55 × 5` | Danish money demand (`LRM`, `LRY`, `LPY`, `IBO`, `IDE`) for VECM/VAR/cointegration |
 | `:gnp_hamilton` | Time Series | `135 × 1` | U.S. real GNP growth for AR/ARIMA, regime switching (`ms-ar`), and unit-root tests |
 | `:mp_shocks` | Time Series | `240 × 8` | Monthly monetary policy proxy and macro aggregates for LP-IV and proxy-SVAR |

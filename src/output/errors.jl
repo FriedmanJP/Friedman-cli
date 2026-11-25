@@ -126,6 +126,12 @@ function _domain_error_class(e)
         # It is untyped upstream, so match its distinctive message.
         return CliError("data/orientation", _err_message(e);
                         hint="pass data as T×n (time in rows, variables in columns); transpose if it is n×T")
+    elseif e isa ArgumentError && _is_missing_solver_ext_error(_err_message(e))
+        # MEMs v1.1.1 demoted Ipopt (EPL-2.0) and PATHSolver (proprietary) to
+        # optional weakdeps (#312 / MEMs#930); missing weakdeps raise an
+        # ArgumentError instructing the user to use built-in :madnlp.
+        return CliError("env/missing-dep", _err_message(e);
+                        hint="use built-in GPL-3.0-compatible --constraint-solver madnlp (default for nonlinear constraints)")
     end
     return nothing
 end
@@ -134,3 +140,7 @@ end
 stable ASCII substring since upstream does not give it a typed exception."""
 _is_orientation_error(msg::AbstractString) =
     occursin("neither dimension equals the number of observables", msg)
+
+"""True if `msg` is MEMs' optional weakdep solver error for Ipopt/PATHSolver (#312)."""
+_is_missing_solver_ext_error(msg::AbstractString) =
+    occursin("Ipopt not loaded", msg) || occursin("PATHSolver not loaded", msg)

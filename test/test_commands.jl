@@ -10243,6 +10243,18 @@ end
                                      constraint_solver="nlopt")
             end
             @test contains(out, "Steady State")
+            out_mad = _capture() do
+                _dsge_steady_state(; model=model_path, constraints=cons_path,
+                                     constraint_solver="madnlp")
+            end
+            @test contains(out_mad, "Steady State")
+            # Missing optional Ipopt / PATHSolver weakdeps map to env/missing-dep (exit 6) with madnlp hint
+            ce_ipopt = _domain_error_class(ArgumentError("Ipopt not loaded. Use solver=:madnlp."))
+            @test ce_ipopt isa CliError && ce_ipopt.code == "env/missing-dep" &&
+                  exit_class(ce_ipopt) == 6 && occursin("madnlp", ce_ipopt.hint)
+            ce_path = _domain_error_class(ArgumentError("PATHSolver not loaded."))
+            @test ce_path isa CliError && ce_path.code == "env/missing-dep" &&
+                  exit_class(ce_path) == 6 && occursin("madnlp", ce_path.hint)
         end
     end
 
@@ -15370,8 +15382,8 @@ end
         _SEED[] = nothing
     end
 
-    @testset "fallback registry is the 0.9.3 set" begin
-        @test length(_NATIVE_SAVE_TYPES_FALLBACK) == 350
+    @testset "fallback registry is the 1.1.1 set" begin
+        @test length(_NATIVE_SAVE_TYPES_FALLBACK) == 400
         for t in ("VARModel", "BVARPosterior", "RegModel", "DSGESolution",
                   "PerturbationSolution", "KrusellSmithSolution", "HASteadyState",
                   "HADSGESolution", "BayesianDSGE", "PosteriorMode", "SVARModel",
@@ -15379,7 +15391,9 @@ end
                   "RobustBayesResult", "SignIdentifiedSet", "ImpulseResponse",
                   "BayesianImpulseResponse", "FEVD", "VARForecast", "BVARForecast",
                   "IOMultipliers", "LinkageResult", "JohansenResult",
-                  "IdentifiabilityTestResult", "MFVARPosterior", "TVPVARPosterior")
+                  "IdentifiabilityTestResult", "MFVARPosterior", "TVPVARPosterior",
+                  "LewisTVVResult", "SVSVARResult", "QuantileFactorModel",
+                  "ABCDSystem", "DSGEVARPosterior", "DynamicRISolution")
             @test t in _NATIVE_SAVE_TYPES_FALLBACK
         end
     end

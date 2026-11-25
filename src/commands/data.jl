@@ -280,9 +280,9 @@ end
 # The table is built by walking EXAMPLE_DATASETS, so this map cannot silently
 # omit a dataset that `data load` accepts.
 const _DATASET_INFO = Dict(
-    :fred_md      => ("Time Series",  "804 × 126",    "FRED-MD Monthly Database (126 macroeconomic indicators)"),
-    :fred_qd      => ("Time Series",  "268 × 245",    "FRED-QD Quarterly Database (245 macroeconomic indicators)"),
-    :pwt          => ("Panel",        "38 × 74 × 42", "Penn World Table (38 OECD countries, 74 years, 42 variables)"),
+    :fred_md      => ("Time Series",  "804 × 114",    "FRED-MD Monthly Database (114 US federal public-domain indicators)"),
+    :fred_qd      => ("Time Series",  "268 × 226",    "FRED-QD Quarterly Database (226 US federal public-domain indicators)"),
+    :pwt          => ("Panel",        "38 × 74 × 42", "Penn World Table (38 OECD countries, 74 years, 42 variables; CC-BY-4.0)"),
     :mpdta        => ("Panel",        "500 × 5 × 3",  "Callaway-Sant'Anna (2021) minimum wage panel"),
     :ddcg         => ("Panel",        "184 × 51 × 2", "Acemoglu et al. democracy-GDP panel"),
     :denmark      => ("Time Series",  "55 × 5",       "Danish money-demand data (Johansen-Juselius cointegration)"),

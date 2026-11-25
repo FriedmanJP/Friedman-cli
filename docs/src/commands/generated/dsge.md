@@ -780,7 +780,7 @@ Estimate two DSGE models with Bayesian sampling and compare log marginal likelih
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
 | `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
-| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
+| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) |
 | `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
 | `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
 | `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
@@ -821,7 +821,7 @@ Estimate a DSGE model with Bayesian sampling and report the posterior
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
 | `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
-| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
+| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) |
 | `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
 | `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
 | `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
@@ -860,7 +860,7 @@ Estimate a DSGE model with Bayesian sampling and report posterior-mean FEVD
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
 | `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
-| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
+| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) |
 | `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
 | `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
 | `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
@@ -900,7 +900,7 @@ Estimate a DSGE model with Bayesian sampling and report the posterior-mean histo
 | `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
 | `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
-| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
+| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) |
 | `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
 | `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
 | `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
@@ -965,7 +965,7 @@ Estimate a DSGE model with Bayesian sampling and report posterior-mean IRFs
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
 | `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
-| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
+| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) |
 | `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
 | `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
 | `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
@@ -1006,7 +1006,7 @@ Estimate a DSGE model with Bayesian sampling and run the Koop-Pesaran-Smith lear
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
 | `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
-| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
+| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) |
 | `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
 | `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
 | `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
@@ -1047,7 +1047,7 @@ Estimate a DSGE model with Bayesian sampling and report bridge-sampling and SMC 
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
 | `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
-| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
+| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) |
 | `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
 | `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
 | `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
@@ -1087,7 +1087,7 @@ Estimate a DSGE model with Bayesian sampling and report MCMC convergence diagnos
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
 | `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
-| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
+| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) |
 | `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
 | `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
 | `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
@@ -1125,7 +1125,7 @@ Estimate a DSGE model with Bayesian sampling and report prior-posterior overlap 
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
 | `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
-| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
+| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) |
 | `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
 | `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
 | `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
@@ -1159,7 +1159,7 @@ Maximize the DSGE posterior and report the mode with Laplace standard errors wit
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
 | `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
-| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
+| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--max-iter` | — | `Int64` | `500` | — | Maximum optimizer iterations (≥ 1) |
@@ -1192,7 +1192,7 @@ Estimate a DSGE model with Bayesian sampling and report the posterior predictive
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
 | `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
-| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
+| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) |
 | `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
 | `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
 | `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
@@ -1227,7 +1227,7 @@ Draw from the DSGE prior and report the prior predictive distribution without da
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
 | `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
-| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
+| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) |
 | `--draws` | — | `Int64` | `500` | — | Total posterior draws |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -1258,7 +1258,7 @@ Estimate a DSGE model with Bayesian sampling and report posterior-mean simulated
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
 | `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
-| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
+| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) |
 | `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
 | `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
 | `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
@@ -1299,7 +1299,7 @@ Estimate a DSGE model with Bayesian sampling and report the posterior summary wi
 | `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
 | `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
 | `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
-| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
+| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) |
 | `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
 | `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
 | `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
@@ -1523,7 +1523,7 @@ Solve a DSGE model under perfect foresight along a shock path
 | `--shocks` | — | `String` | `""` | — | Path to shock sequence CSV |
 | `--constraints` | — | `String` | `""` | — | Path to constraints TOML |
 | `--constraint` | — | `String` *(repeatable)* | `String[]` | — | OccBin bound 'var[t] >= expr' or 'var[t] <= expr'; repeatable; adds to --constraints and the constraints: stanza |
-| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
+| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) |
 | `--periods` | — | `Int64` | `100` | — | Simulation periods |
 | `--sparsity` | — | `String` | `auto` | `auto`, `dense` | Jacobian: auto (sparse BT) or dense (nlopt/path/ipopt ignore this) |
 | `--max-iter` | — | `Int64` | `100` | — | Newton iterations (≥ 1) |
@@ -1609,7 +1609,7 @@ Solve a DSGE model and report the policy solution
 | `--evaluate-at` | — | `String` | `""` | — | State vector x1,x2,… at which to evaluate the VFI value function |
 | `--constraints` | — | `String` | `""` | — | Path to OccBin constraints TOML |
 | `--constraint` | — | `String` *(repeatable)* | `String[]` | — | OccBin bound 'var[t] >= expr' or 'var[t] <= expr'; repeatable; adds to --constraints and the constraints: stanza |
-| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
+| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) |
 | `--periods` | — | `Int64` | `40` | — | Number of periods for the OccBin path (--constraints without --constraint-solver; ignored otherwise) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -1634,7 +1634,7 @@ Compute the DSGE steady state
 |--------|-------|------|---------|---------|-------------|
 | `--constraints` | — | `String` | `""` | — | Path to OccBin constraints TOML |
 | `--constraint` | — | `String` *(repeatable)* | `String[]` | — | OccBin bound 'var[t] >= expr' or 'var[t] <= expr'; repeatable; adds to --constraints and the constraints: stanza |
-| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|ipopt\|path |
+| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 

@@ -10757,6 +10757,56 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         end
     end
 
+    @testset "MEM111-W0 (#312): MEMs v1.1.1 MadNLP, FRED dims, weakdep errors & 400-type sync" begin
+        @test length(MacroEconometricModels._SERIALIZABLE_TYPES) == 400
+        @test Friedman._NATIVE_SAVE_TYPES == Friedman._NATIVE_SAVE_TYPES_FALLBACK
+        rl = run_json(["data", "list"])
+        assert_envelope_ok(rl; label="data list v1.1.1")
+        rows = rl.doc.data.available_datasets.rows
+        fmd_row = only(filter(r -> String(r[1]) == "fred_md", rows))
+        fqd_row = only(filter(r -> String(r[1]) == "fred_qd", rows))
+        @test occursin("114", String(fmd_row[3]))
+        @test occursin("226", String(fqd_row[3]))
+        @test size(MacroEconometricModels.load_example(:fred_md).data, 2) == 114
+        @test size(MacroEconometricModels.load_example(:fred_qd).data, 2) == 226
+
+        mktempdir() do dir
+            rbc = joinpath(dir, "rbc.jl")
+            write(rbc, """
+            using .MacroEconometricModels
+            @dsge begin
+                parameters: α = 0.33, β = 0.99, δ = 0.025, ρ = 0.9
+                endogenous: k, c, z
+                exogenous: e
+                c[t]^(-1) = β * c[t+1]^(-1) * (α * exp(z[t+1]) * k[t]^(α-1) + 1 - δ)
+                k[t] = exp(z[t]) * k[t-1]^α + (1 - δ) * k[t-1] - c[t]
+                z[t] = ρ * z[t-1] + e[t]
+            end
+            """)
+            cons = joinpath(dir, "cons.toml")
+            write(cons, """
+            [[constraints.bounds]]
+            variable = "c"
+            lower = 0.01
+            [[constraints.nonlinear]]
+            expr = "c[t] <= 10.0"
+            label = "cap"
+            """)
+            shocks = joinpath(dir, "shocks.csv")
+            CSV.write(shocks, DataFrame(e=[0.01; zeros(9)]))
+
+            rss = run_json(["dsge", "steady-state", rbc, "--constraints", cons, "--constraint-solver", "madnlp"])
+            assert_envelope_ok(rss; label="dsge steady-state --constraint-solver madnlp")
+            rpf = run_json(["dsge", "perfect-foresight", rbc, "--shocks", shocks, "--periods", "10",
+                            "--constraints", cons, "--constraint-solver", "madnlp"])
+            assert_envelope_ok(rpf; label="dsge perfect-foresight --constraint-solver madnlp")
+            rip = run_json(["dsge", "steady-state", rbc, "--constraints", cons, "--constraint-solver", "ipopt"])
+            @test rip.code == 6
+            @test String(rip.doc.error.code) == "env/missing-dep"
+            @test occursin("madnlp", String(rip.doc.error.hint))
+        end
+    end
+
 end
 
 # Real entry-point coverage (C036) — also on core/CI path
