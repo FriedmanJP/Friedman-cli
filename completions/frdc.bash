@@ -1,5 +1,5 @@
-# Friedman-cli bash completion (generated from APP)
-_friedman() {
+# Friedman-cli (frdc) bash completion (generated from APP)
+_frdc() {
   local cur prev
   cur="${COMP_WORDS[COMP_CWORD]}"
   prev=""
@@ -6768,4 +6768,4 @@ _friedman() {
       COMPREPLY=( $(compgen -W "--help -h --no-color" -- "$cur") ) ;;
   esac
 }
-complete -F _friedman friedman
+complete -F _frdc frdc

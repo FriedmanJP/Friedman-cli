@@ -27,11 +27,11 @@ _has_printable_default(d) = d !== nothing &&
 _desc_mentions_default(desc::AbstractString) = occursin(r"\(default[:\s]"i, desc)
 
 """
-    print_repl_help(io=stdout; prog="friedman repl")
+    print_repl_help(io=stdout; prog="frdc repl")
 
-Print help for the interactive `friedman repl` subcommand.
+Print help for the interactive `frdc repl` subcommand.
 """
-function print_repl_help(io::IO=stdout; prog::String="friedman repl")
+function print_repl_help(io::IO=stdout; prog::String="frdc repl")
     printstyled(io, prog, "\n"; bold=true)
     println(io)
     println(io, "Start an interactive session with persistent arrow-key history, line editing, and tab completion.")
@@ -46,7 +46,7 @@ function print_repl_help(io::IO=stdout; prog::String="friedman repl")
     print_entry_line(io, "exit, quit", "Exit the interactive session (or press Ctrl-D)")
     println(io)
     printstyled(io, "Environment:\n"; bold=true, color=:yellow)
-    print_entry_line(io, "FRIEDMAN_HISTFILE", "History file path (default: ~/.friedman_history; set to none to disable)")
+    print_entry_line(io, "FRDC_HISTFILE", "History file path (default: ~/.frdc_history; fallback: FRIEDMAN_HISTFILE; set to none to disable)")
 end
 
 """

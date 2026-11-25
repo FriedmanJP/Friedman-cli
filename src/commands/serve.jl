@@ -253,7 +253,7 @@ function _serve_loop(input::IO, output::IO; families::AbstractString="",
                     "protocolVersion" => _MCP_PROTOCOL_VERSION,
                     "capabilities" => Dict{String,Any}("tools" => Dict{String,Any}()),
                     "serverInfo" => Dict{String,Any}(
-                        "name" => "friedman", "version" => string(FRIEDMAN_VERSION)))))
+                        "name" => "frdc", "version" => string(FRIEDMAN_VERSION)))))
             elseif startswith(method, "notifications/")
                 # notifications carry no id and get no response
             elseif method == "ping"
@@ -316,8 +316,8 @@ function _serve(; mcp::Bool=false, families::String="", tools::String="", compac
                 format::String="table", output::String="", kwargs...)
     mcp || throw(CliError("usage/missing",
         "serve requires --mcp (the only supported mode)";
-        hint="friedman serve --mcp speaks JSON-RPC 2.0 / Model Context Protocol on stdio"))
-    _status("friedman MCP server on stdio (JSON-RPC 2.0, protocol $_MCP_PROTOCOL_VERSION); " *
+        hint="frdc serve --mcp speaks JSON-RPC 2.0 / Model Context Protocol on stdio"))
+    _status("frdc MCP server on stdio (JSON-RPC 2.0, protocol $_MCP_PROTOCOL_VERSION); " *
             "one line per message; Ctrl-D to stop")
     _serve_loop(stdin, stdout; families=families, tools=tools, compact=compact)
     return nothing

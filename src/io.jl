@@ -232,7 +232,7 @@ function _extract_global_flags!(args::Vector{String})
             end
         elseif leaf_is_serve
             throw(CliError("usage/invalid",
-                "--json cannot be used with `friedman serve` (stdout is reserved for JSON-RPC)"))
+                "--json cannot be used with `frdc serve` (stdout is reserved for JSON-RPC)"))
         elseif leaf_is_completions || leaf_is_schema
             # Handled natively by completions envelope wrapper or schema's raw JSON output
         elseif leaf_has_format
@@ -297,18 +297,38 @@ function _expanduser(path::AbstractString)
 end
 
 """
+    _env_get(primary, legacy, default=nothing)
+    _env_get(keys::Tuple{Vararg{String}}, default=nothing)
+
+Read a runtime environment variable preferring `FRDC_*` with silent fallback to
+legacy `FRIEDMAN_*` names (#300).
+"""
+function _env_get(primary::String, legacy::String, default=nothing)
+    haskey(ENV, primary) && return ENV[primary]
+    haskey(ENV, legacy) && return ENV[legacy]
+    return default
+end
+function _env_get(keys::Tuple{Vararg{String}}, default=nothing)
+    for k in keys
+        haskey(ENV, k) && return ENV[k]
+    end
+    return default
+end
+
+"""
     _data_root() → String
 
-Directory that file access is confined to, from `FRIEDMAN_DATA_ROOT`; empty when unset.
+Directory that file access is confined to, from `FRDC_DATA_ROOT` (fallback:
+`FRIEDMAN_DATA_ROOT`); empty when unset.
 
 Confinement is opt-in. The old guard rejected any path whose *string* contained `..`,
 which blocked ordinary relative paths (`../shared/data.csv` — with no workaround in
 the REPL, which has no shell to resolve them) and even absolute paths whose filename
 merely contained two dots, while still permitting any absolute path to anywhere. That
-is not containment. Set `FRIEDMAN_DATA_ROOT` to get real containment; leave it unset
-for normal filesystem access (#83).
+is not containment. Set `FRDC_DATA_ROOT` to get real containment; leave it unset
+for normal filesystem access (#83, #300).
 """
-_data_root() = get(ENV, "FRIEDMAN_DATA_ROOT", "")
+_data_root() = String(something(_env_get("FRDC_DATA_ROOT", "FRIEDMAN_DATA_ROOT", ""), ""))
 
 """
     _resolve_path(path) → String
@@ -320,7 +340,7 @@ _resolve_path(path::String) = normpath(abspath(_expanduser(path)))
 """
     _validate_path(path, kind) → String
 
-Confine `path` to `FRIEDMAN_DATA_ROOT` when that is set, comparing *normalized*
+Confine `path` to `FRDC_DATA_ROOT` when that is set, comparing *normalized*
 paths so `..` segments are resolved rather than pattern-matched. Returns `path`
 unchanged (callers keep using the string the user gave).
 """
@@ -335,7 +355,7 @@ function _validate_path(path::String, kind::String)
     inside = resolved == root_resolved ||
              startswith(resolved, endswith(root_resolved, sep) ? root_resolved : root_resolved * sep)
     inside || throw(CliError("data/bad-path",
-        "$kind path escapes FRIEDMAN_DATA_ROOT: $path";
+        "$kind path escapes FRDC_DATA_ROOT: $path";
         hint="resolved to $resolved, which is outside $root_resolved"))
     return path
 end
@@ -436,10 +456,10 @@ function parse_dataset_name(name::AbstractString)
 
     known = String[String(d) for d in EXAMPLE_DATASETS]
     hint = if sym === :wiot
-        "the wiot input-output table is served by the 'io' family, e.g. 'friedman io leontief'"
+        "the wiot input-output table is served by the 'io' family, e.g. 'frdc io leontief'"
     else
         sugg = _nearest(replace(lowercase(stem), "-" => "_"), known)
-        isnothing(sugg) ? "run 'friedman data list' to see the available datasets" :
+        isnothing(sugg) ? "run 'frdc data list' to see the available datasets" :
                           "did you mean '$sugg'?"
     end
     throw(CliError("data/unknown-dataset",

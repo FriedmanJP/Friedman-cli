@@ -7199,7 +7199,7 @@ function _load_threshold_data(data::String, dep::String, threshold_col::String)
         hint="the CSV needs at least one column besides those two"))
     for c in vcat(depc, threshold_col, xcols)
         any(_is_gap, df[!, c]) && throw(CliError("data/missing-values",
-            "column '$c' has missing values"; hint="clean them with `friedman data dropna`"))
+            "column '$c' has missing values"; hint="clean them with `frdc data dropna`"))
     end
     y = Vector{Float64}(df[!, depc])
     q = Vector{Float64}(df[!, threshold_col])

@@ -122,10 +122,10 @@ function build_app()
         "show"      => register_show_commands!(),
     )
 
-    root = NodeCommand("friedman", root_cmds,
+    root = NodeCommand("frdc", root_cmds,
         "A macroeconometric analysis toolkit powered by MacroEconometricModels.jl")
 
-    return Entry("friedman", root; version=FRIEDMAN_VERSION)
+    return Entry("frdc", root; version=FRIEDMAN_VERSION)
 end
 
 """Memoized command tree, built once at precompile time (F57)."""
@@ -166,7 +166,7 @@ argv's non-dash tokens against the registry tree, stopping at the first token
 that is not a subcommand (so data paths/values never leak into `command`)."""
 function _net_command(args::Vector{String})
     node = APP.root
-    path = String["friedman"]
+    path = String["frdc"]
     for tok in args
         startswith(tok, "-") && continue
         if node isa NodeCommand && haskey(node.subcmds, tok)
@@ -223,10 +223,10 @@ function run_cli(args::Vector{String})::Cint
     # Launch REPL if "repl" is the first argument
     if !isempty(args) && args[1] == "repl"
         if any(a -> a in ("--help", "-h"), @view args[2:end])
-            print_repl_help(stdout; prog="friedman repl")
+            print_repl_help(stdout; prog="frdc repl")
             return Cint(0)
         elseif length(args) > 1
-            msg = "friedman repl takes no positional arguments (got '$(args[2])'); run 'friedman repl --help'"
+            msg = "frdc repl takes no positional arguments (got '$(args[2])'); run 'frdc repl --help'"
             _status_styled("Error: "; bold=true, color=:red)
             println(stderr, msg)
             return Cint(2)

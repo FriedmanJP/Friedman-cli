@@ -1,6 +1,6 @@
-#compdef friedman
-# Friedman-cli zsh completion (generated from APP)
-_friedman() {
+#compdef frdc
+# Friedman-cli (frdc) zsh completion (generated from APP)
+_frdc() {
   local cur prev path_str is_leaf expect_val w cand
   cur="${words[$CURRENT]}"
   prev=""
@@ -2507,4 +2507,4 @@ _friedman() {
     fi
   fi
 }
-_friedman "$@"
+_frdc "$@"

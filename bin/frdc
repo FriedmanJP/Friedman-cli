@@ -1,9 +1,9 @@
 #!/usr/bin/env julia
 #
-# friedman — macroeconometric analysis from the terminal
+# frdc — Friedman-cli: macroeconometric analysis from the terminal
 #
-# Usage: julia --project=/path/to/Friedman-cli bin/friedman [command] [args...]
-#    or: ./bin/friedman [command] [args...]  (if Julia is in PATH)
+# Usage: julia --project=/path/to/Friedman-cli bin/frdc [command] [args...]
+#    or: ./bin/frdc [command] [args...]  (if Julia is in PATH)
 
 script_dir = @__DIR__
 project_dir = dirname(script_dir)

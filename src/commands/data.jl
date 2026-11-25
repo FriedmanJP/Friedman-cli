@@ -313,7 +313,7 @@ function _data_load(; name::String="", output::String="", format::String="table"
     if isempty(name) && isempty(path)
         throw(CliError("usage/missing",
                        "give an example dataset name or --path <file.csv>";
-                       hint="run 'friedman data list' to see the available datasets"))
+                       hint="run 'frdc data list' to see the available datasets"))
     end
 
     # If --path is given, load from CSV instead of example datasets

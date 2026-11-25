@@ -1,9 +1,9 @@
-# `friedman completions bash|zsh|fish` — print shell completion scripts (C029, #283)
+# `frdc completions bash|zsh|fish` — print shell completion scripts (C029, #283, #300)
 
 const _COMPLETION_FILES = Dict(
-    "bash" => "friedman.bash",
-    "zsh"  => "friedman.zsh",
-    "fish" => "_friedman.fish",
+    "bash" => "frdc.bash",
+    "zsh"  => "frdc.zsh",
+    "fish" => "_frdc.fish",
 )
 
 function _completions_root()::String
@@ -77,8 +77,8 @@ function generate_bash_completion(app::Entry)::String
     nodes, leaves, leaf_paths, datasets = _completion_tree_data(app)
     ds_words = join(datasets, " ")
     io = IOBuffer()
-    println(io, "# Friedman-cli bash completion (generated from APP)")
-    println(io, "_friedman() {")
+    println(io, "# Friedman-cli (frdc) bash completion (generated from APP)")
+    println(io, "_frdc() {")
     println(io, "  local cur prev")
     println(io, "  cur=\"\${COMP_WORDS[COMP_CWORD]}\"")
     println(io, "  prev=\"\"")
@@ -172,7 +172,7 @@ function generate_bash_completion(app::Entry)::String
     println(io, "      COMPREPLY=( \$(compgen -W \"--help -h --no-color\" -- \"\$cur\") ) ;;")
     println(io, "  esac")
     println(io, "}")
-    println(io, "complete -F _friedman friedman")
+    println(io, "complete -F _frdc frdc")
     return String(take!(io))
 end
 
@@ -180,9 +180,9 @@ function generate_zsh_completion(app::Entry)::String
     nodes, leaves, _, datasets = _completion_tree_data(app)
     ds_quoted = join(["'" * d * "'" for d in datasets], " ")
     io = IOBuffer()
-    println(io, "#compdef friedman")
-    println(io, "# Friedman-cli zsh completion (generated from APP)")
-    println(io, "_friedman() {")
+    println(io, "#compdef frdc")
+    println(io, "# Friedman-cli (frdc) zsh completion (generated from APP)")
+    println(io, "_frdc() {")
     println(io, "  local cur prev path_str is_leaf expect_val w cand")
     println(io, "  cur=\"\${words[\$CURRENT]}\"")
     println(io, "  prev=\"\"")
@@ -265,15 +265,15 @@ function generate_zsh_completion(app::Entry)::String
     println(io, "    fi")
     println(io, "  fi")
     println(io, "}")
-    println(io, "_friedman \"\$@\"")
+    println(io, "_frdc \"\$@\"")
     return String(take!(io))
 end
 
 function generate_fish_completion(app::Entry)::String
     nodes, leaves, _, datasets = _completion_tree_data(app)
     io = IOBuffer()
-    println(io, "# Friedman-cli fish completion (generated from APP)")
-    println(io, "function __friedman_path_is")
+    println(io, "# Friedman-cli (frdc) fish completion (generated from APP)")
+    println(io, "function __frdc_path_is")
     println(io, "  set -l tokens (commandline -opc)")
     println(io, "  set -e tokens[1]")
     println(io, "  set -l p")
@@ -303,7 +303,7 @@ function generate_fish_completion(app::Entry)::String
     for k in nodes[String[]]
         desc = k == "repl" ? "Interactive session REPL" :
                (haskey(app.root.subcmds, k) ? app.root.subcmds[k].description : k)
-        println(io, "complete -c friedman -n \"__friedman_path_is ''\" -f -a $k -d '$(_shell_sq_esc(desc))'")
+        println(io, "complete -c frdc -n \"__frdc_path_is ''\" -f -a $k -d '$(_shell_sq_esc(desc))'")
     end
     # Depth-2 and depth-3 subcommands
     for p in sort!(collect(keys(nodes)); by=p -> join(p, " "))
@@ -316,32 +316,32 @@ function generate_fish_completion(app::Entry)::String
         end
         for k in nodes[p]
             sub = cur_node.subcmds[k]
-            println(io, "complete -c friedman -n \"__friedman_path_is '$pk'\" -f -a $k -d '$(_shell_sq_esc(sub.description))'")
+            println(io, "complete -c frdc -n \"__frdc_path_is '$pk'\" -f -a $k -d '$(_shell_sq_esc(sub.description))'")
         end
     end
     # Leaf options, flags, choices, datasets
     ds_list = join(datasets, " ")
     for (p, leaf) in leaves
         pk = join(p, " ")
-        cond = "__friedman_path_is '$pk'"
+        cond = "__frdc_path_is '$pk'"
         for o in leaf.options
             short_arg = length(o.short) == 1 ? " -s $(o.short)" : ""
             ch_arg = (o.choices !== nothing && !isempty(o.choices)) ?
                 " -x -a '$(join(o.choices, " "))'" : " -r"
             desc = _shell_sq_esc(o.description)
-            println(io, "complete -c friedman -n \"$cond\" -l $(o.name)$short_arg$ch_arg -d '$desc'")
+            println(io, "complete -c frdc -n \"$cond\" -l $(o.name)$short_arg$ch_arg -d '$desc'")
         end
         for f in leaf.flags
             short_arg = length(f.short) == 1 ? " -s $(f.short)" : ""
             desc = _shell_sq_esc(f.description)
-            println(io, "complete -c friedman -n \"$cond\" -l $(f.name)$short_arg -d '$desc'")
+            println(io, "complete -c frdc -n \"$cond\" -l $(f.name)$short_arg -d '$desc'")
         end
-        println(io, "complete -c friedman -n \"$cond\" -l help -s h -d 'Show command help'")
+        println(io, "complete -c frdc -n \"$cond\" -l help -s h -d 'Show command help'")
         if !isempty(datasets) && (any(a -> a.name == "data", leaf.args) || leaf.name == "show")
-            println(io, "complete -c friedman -n \"$cond; and string match -q ':*' -- (commandline -ct)\" -f -a '$ds_list'")
+            println(io, "complete -c frdc -n \"$cond; and string match -q ':*' -- (commandline -ct)\" -f -a '$ds_list'")
         end
     end
-    println(io, "complete -c friedman -n \"__friedman_path_is 'repl'\" -l help -s h -d 'Show REPL help'")
+    println(io, "complete -c frdc -n \"__frdc_path_is 'repl'\" -l help -s h -d 'Show REPL help'")
     return String(take!(io))
 end
 

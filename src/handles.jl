@@ -104,7 +104,7 @@ function _write_macro_data(obj, output::String; input_path::String, default_stem
     if want_jld && !input_handle
         throw(CliError("usage/invalid",
             "refusing to write a .jld2 from CSV; run 'data import' first";
-            hint="friedman data import $input_path --kind timeseries -o $(dataset_stem(input_path))"))
+            hint="frdc data import $input_path --kind timeseries -o $(dataset_stem(input_path))"))
     end
     _validate_output_path(output)
     if input_handle

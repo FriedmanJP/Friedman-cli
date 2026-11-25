@@ -221,7 +221,7 @@ function dispatch_leaf(leaf::LeafCommand, args::Vector{String}; prog::String=lea
         # FRIEDMAN_LEGACY_OUTPUT escape hatch was removed at v1.0.0)
         fmt = get(bound, :format, _FORCE_JSON[] ? "json" : nothing)
         out_path = string(get(bound, :output, ""))
-        is_comp = startswith(prog, "friedman completions")
+        is_comp = startswith(prog, "frdc completions") || endswith(prog, " completions")
         use_json_env = (fmt == "json") || (_FORCE_JSON[] && is_comp)
         use_csv_env = (fmt == "csv") && isempty(out_path)
         use_env = use_json_env || use_csv_env

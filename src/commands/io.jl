@@ -746,7 +746,7 @@ function _io_download(; source::String="", storage::String="", source_version::S
     if offline || _offline_env()
         throw(CliError("env/network",
             "network access disabled (--offline); refusing to download :$source";
-            hint="drop --offline (and unset FRIEDMAN_OFFLINE) to allow the download"))
+            hint="drop --offline (and unset FRDC_OFFLINE / FRIEDMAN_OFFLINE) to allow the download"))
     end
 
     src = Symbol(source)
@@ -1123,8 +1123,8 @@ end
 
 # ── Download support ─────────────────────────────────────────
 
-"True when the environment forces offline mode (FRIEDMAN_OFFLINE=1|true)."
-_offline_env() = lowercase(get(ENV, "FRIEDMAN_OFFLINE", "")) in ("1", "true", "yes")
+"True when the environment forces offline mode (FRDC_OFFLINE=1|true, fallback FRIEDMAN_OFFLINE)."
+_offline_env() = lowercase(String(something(_env_get("FRDC_OFFLINE", "FRIEDMAN_OFFLINE", ""), ""))) in ("1", "true", "yes")
 
 "Parse a comma-separated year filter into a Vector{Int} (or nothing for 'all')."
 function _parse_years(years::String)

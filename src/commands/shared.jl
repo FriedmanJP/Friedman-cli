@@ -2496,12 +2496,12 @@ function _wrong_command_for_kinds(spec, intended::String)
     if isempty(names)
         return CliError("usage/wrong-command",
             "this is a representative-agent ModelSpec — use `dsge solve|irf|…`, not `$intended`",
-            hint="e.g. friedman dsge solve <file>")
+            hint="e.g. frdc dsge solve <file>")
     end
     if length(names) == 1 && names[1] == "HouseholdSystem"
         return CliError("usage/wrong-command",
             "this is a heterogeneous-agent spec — use `hadsge …`",
-            hint="e.g. friedman hadsge solve <file> --method reiter")
+            hint="e.g. frdc hadsge solve <file> --method reiter")
     end
     families = String[]
     for n in names

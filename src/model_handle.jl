@@ -398,7 +398,7 @@ end
 function _serve_store_or_throw(path::String)
     store = _SERVE_MODEL_STORE[]
     store === nothing && throw(CliError("usage/invalid",
-        "$path: model:// handles are only available inside `friedman serve --mcp`";
+        "$path: model:// handles are only available inside `frdc serve --mcp`";
         hint="use a .jld2 or .fmod file path outside a serve session"))
     return store
 end

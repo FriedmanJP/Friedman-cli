@@ -389,7 +389,7 @@ function repl_dispatch(s::Session, app::Entry, args::Vector{String};
                         doc = Dict{String,Any}(
                             "schema_version" => 1,
                             "status"         => "error",
-                            "command"        => "friedman data use",
+                            "command"        => "frdc data use",
                             "data"           => Dict{String,Any}(),
                             "warnings"       => Any[],
                             "artifacts"      => Any[],
@@ -415,7 +415,7 @@ function repl_dispatch(s::Session, app::Entry, args::Vector{String};
                 end
                 if wants_json
                     _repl_emit_json_envelope(
-                        output, "friedman data use", "data_use",
+                        output, "frdc data use", "data_use",
                         String["data_path", "rows", "cols", "varnames"],
                         Vector{Any}[Any[s.data_path, size(s.Y, 1), size(s.Y, 2), join(s.varnames, ", ")]],
                     )
@@ -432,7 +432,7 @@ function repl_dispatch(s::Session, app::Entry, args::Vector{String};
                 if wants_json
                     cached_str = isempty(s.results) ? "" : join(sort!(String[string(k) for k in keys(s.results)]), ", ")
                     _repl_emit_json_envelope(
-                        output, "friedman data current", "data_current",
+                        output, "frdc data current", "data_current",
                         String["loaded", "data_path", "rows", "cols", "cached_results"],
                         Vector{Any}[Any[session_has_data(s), s.data_path,
                                         session_has_data(s) ? size(s.Y, 1) : 0,
@@ -456,7 +456,7 @@ function repl_dispatch(s::Session, app::Entry, args::Vector{String};
                 session_clear!(s)
                 if wants_json
                     _repl_emit_json_envelope(
-                        output, "friedman data clear", "data_clear",
+                        output, "frdc data clear", "data_clear",
                         String["cleared"], Vector{Any}[Any[true]],
                     )
                 elseif !quiet
@@ -552,14 +552,16 @@ end
 """
     _resolve_histfile() → String
 
-Resolve the persistent REPL history file path. Defaults to `~/.friedman_history`;
-override via `FRIEDMAN_HISTFILE`. Setting `FRIEDMAN_HISTFILE` to `""`, `"none"`,
-`"off"`, `"false"`, or `"0"` disables disk persistence for the session.
+Resolve the persistent REPL history file path. Defaults to `~/.frdc_history`
+(seeding from `~/.friedman_history` on first launch if present); override via
+`FRDC_HISTFILE` (fallback: `FRIEDMAN_HISTFILE`, `FRIEDMAN_HISTORY_FILE`).
+Setting it to `""`, `"none"`, `"off"`, `"false"`, or `"0"` disables disk
+persistence for the session.
 """
 function _resolve_histfile()::String
-    raw = get(ENV, "FRIEDMAN_HISTFILE", get(ENV, "FRIEDMAN_HISTORY_FILE", nothing))
+    raw = _env_get(("FRDC_HISTFILE", "FRIEDMAN_HISTFILE", "FRIEDMAN_HISTORY_FILE"), nothing)
     if raw === nothing
-        return joinpath(_expanduser("~"), ".friedman_history")
+        return joinpath(_expanduser("~"), ".frdc_history")
     end
     s = strip(raw)
     (isempty(s) || lowercase(s) in ("none", "off", "false", "0")) && return ""
@@ -569,7 +571,7 @@ end
 """
     start_repl()
 
-Launch the interactive REPL with a `friedman>` prompt.
+Launch the interactive REPL with a `frdc>` prompt.
 """
 function start_repl()
     app = APP
@@ -587,7 +589,7 @@ function start_repl()
     # Keep index on provider if LineEdit path is active (rebuild after init)
     _COMPLETION_INDEX[] = idx
 
-    printstyled("Friedman REPL v$(FRIEDMAN_VERSION)\n"; bold=true)
+    printstyled("Friedman-cli (frdc) REPL v$(FRIEDMAN_VERSION)\n"; bold=true)
     println("Type commands as you would on the command line. Type 'exit' to quit.")
     println()
 
@@ -616,7 +618,7 @@ function _repl_readline_loop(
 )
     while true
         try
-            printstyled(output, "friedman> "; color=:blue, bold=true)
+            printstyled(output, "frdc> "; color=:blue, bold=true)
             flush(output)
             if eof(input)
                 println(output, "\nGoodbye!")
@@ -894,18 +896,27 @@ function _init_completion_provider()
             has_color = _Terminals.hascolor(term_obj)
 
             panel = _LineEdit.Prompt(
-                "friedman> ";
+                "frdc> ";
                 prompt_prefix=has_color ? "\e[1m\e[34m" : "",
                 prompt_suffix=has_color ? "\e[0m" : "",
                 complete=FriedmanCompletionProvider(app, idx),
                 on_enter=Returns(true),
             )
 
-            hp = _REPL.REPLHistoryProvider(Dict{Symbol,_LineEdit.Prompt}(:friedman => panel))
+            hp = _REPL.REPLHistoryProvider(Dict{Symbol,_LineEdit.Prompt}(:frdc => panel))
             hpath = histfile === nothing ? _resolve_histfile() : histfile
             if !isempty(hpath)
                 try
                     mkpath(dirname(abspath(hpath)))
+                    # Migrate legacy ~/.friedman_history if default ~/.frdc_history does not exist yet
+                    default_h = joinpath(_expanduser("~"), ".frdc_history")
+                    legacy_h = joinpath(_expanduser("~"), ".friedman_history")
+                    if histfile === nothing && hpath == default_h && !isfile(hpath) && isfile(legacy_h)
+                        try
+                            write(hpath, replace(read(legacy_h, String), "# mode: friedman" => "# mode: frdc"))
+                        catch
+                        end
+                    end
                     hp.history = _REPL.History.HistoryFile(hpath)
                     _REPL.history_do_initialize(hp)
                 catch

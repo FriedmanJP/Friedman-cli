@@ -179,7 +179,7 @@ function _input_schema(leaf::LeafCommand, path::Vector{String})
     end
     schema = Dict{String,Any}(
         "\$schema" => "http://json-schema.org/draft-07/schema#",
-        "title" => join(vcat(["friedman"], path), " "),
+        "title" => join(vcat(["frdc"], path), " "),
         "type" => "object",
         "properties" => props,
         "required" => required,
@@ -346,7 +346,7 @@ function _resolve_schema_path(root::NodeCommand, parts::Vector{String})
     for (i, p) in enumerate(parts)
         haskey(node.subcmds, p) || throw(CliError("usage/unknown-command",
             _unknown_command_message(
-                join(vcat(["friedman"], path), " "), p, parts[i+1:end])))
+                join(vcat(["frdc"], path), " "), p, parts[i+1:end])))
         sub = node.subcmds[p]
         push!(path, p)
         if sub isa LeafCommand
@@ -386,7 +386,7 @@ function _schema_cmd(; path_parts::Vector{String}=String[], format::String="json
 end
 
 """Dispatch `schema [path…] [--docs] [--output=…]` without fixed arity (path is varargs)."""
-function dispatch_schema(args::Vector{String}; prog::String="friedman schema")
+function dispatch_schema(args::Vector{String}; prog::String="frdc schema")
     leaf = register_schema_command!()
     if _wants_help(args)
         print_help(stdout, leaf; prog=prog)
