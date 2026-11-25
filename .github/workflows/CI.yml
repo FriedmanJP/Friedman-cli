@@ -76,6 +76,12 @@ jobs:
       - name: Live handle round-trip CI gate (#310)
         if: matrix.os == 'ubuntu-latest' && matrix.version == '1.13'
         run: julia --project test/tools/check_handle_roundtrips.jl
+      - name: Fast-path metadata pack & thin wrapper parity (#293-#299)
+        if: matrix.version == '1.13'
+        shell: bash
+        run: |
+          julia --project test/tools/check_fastpath_pack.jl
+          julia --project test/test_fastpath.jl
       - name: Docs generation --check (P2-6 / C028)
         if: matrix.os == 'ubuntu-latest' && matrix.version == '1.13'
         run: |

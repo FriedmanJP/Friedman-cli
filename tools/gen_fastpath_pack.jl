@@ -205,7 +205,9 @@ function _write_sorted_json_dict(d::AbstractDict{String,String})::String
     return String(take!(io))
 end
 
-function generate_fastpath_pack(output_path::AbstractString; source_stamp::UInt64=UInt64(0))
+function generate_fastpath_pack(output_path::AbstractString;
+                                source_stamp::UInt64=UInt64(0),
+                                source_root::String="")
     app = Friedman.APP
     root = app.root
 
@@ -235,6 +237,9 @@ function generate_fastpath_pack(output_path::AbstractString; source_stamp::UInt6
         "version_line"             => "$(app.name) v$(app.version)\n",
         "warranty_text"            => String(warranty_bytes),
     ]
+    if source_stamp > 0 && !isempty(source_root)
+        push!(meta_pairs, "source_root" => source_root)
+    end
     sort!(meta_pairs; by=first)
 
     # 2. Walk command tree for node_tbl, help payloads, and schema payloads
@@ -456,6 +461,7 @@ end
 function _parse_cli_args(args::Vector{String})
     out = ""
     stamp = UInt64(0)
+    sroot = ""
     i = 1
     while i <= length(args)
         a = args[i]
@@ -473,17 +479,24 @@ function _parse_cli_args(args::Vector{String})
         elseif startswith(a, "--source-stamp=")
             stamp = parse(UInt64, a[16:end])
             i += 1
+        elseif a == "--source-root"
+            i + 1 <= length(args) || error("--source-root requires a directory path")
+            sroot = args[i + 1]
+            i += 2
+        elseif startswith(a, "--source-root=")
+            sroot = a[15:end]
+            i += 1
         else
             error("unknown argument: $a")
         end
     end
-    isempty(out) && error("usage: julia --project tools/gen_fastpath_pack.jl --output <path> [--source-stamp <unix>]")
-    return out, stamp
+    isempty(out) && error("usage: julia --project tools/gen_fastpath_pack.jl --output <path> [--source-stamp <unix>] [--source-root <dir>]")
+    return out, stamp, sroot
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    out, stamp = _parse_cli_args(ARGS)
-    stats = generate_fastpath_pack(out; source_stamp=stamp)
+    out, stamp, sroot = _parse_cli_args(ARGS)
+    stats = generate_fastpath_pack(out; source_stamp=stamp, source_root=sroot)
     println("Generated FRDCACHE v1: $(stats.path) ($(round(stats.total_bytes / 1024; digits=1)) KiB; " *
             "index=$(round(stats.index_bytes / 1024; digits=1)) KiB, " *
             "blocks=$(stats.n_blocks), entries=$(stats.n_entries), " *

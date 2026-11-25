@@ -1522,13 +1522,19 @@ static int run_thin(int argc, char **argv) {
     }
 
 #ifndef _WIN32
-    /* Dev-mode staleness check: if running in source tree without frdc-core,
-       fall back to julia when src/ or Project.toml is newer than source_stamp. */
-    {
+    /* Dev-mode staleness check: when pack embeds a non-zero source_stamp (dev builds),
+       fall back to frdc-core/julia whenever src/ or Project.toml is newer. */
+    if (pack.source_stamp > 0) {
+        FrdcSlice sroot;
         char core_tmp[FRDC_PATH_MAX];
         int is_dev = 0;
-        if (frdc_resolve_core_path(exe_path, core_tmp, sizeof(core_tmp), &is_dev) == 0 &&
-            is_dev && dev_pack_is_stale(core_tmp, pack.source_stamp)) {
+        const char *check_root = NULL;
+        if (frdc_pack_meta(&pack, "source_root", &sroot) == 0 && sroot.len > 0) {
+            check_root = (const char *)sroot.ptr;
+        } else if (frdc_resolve_core_path(exe_path, core_tmp, sizeof(core_tmp), &is_dev) == 0 && is_dev) {
+            check_root = core_tmp;
+        }
+        if (check_root && dev_pack_is_stale(check_root, pack.source_stamp)) {
             frdc_pack_free(&pack);
             return frdc_exec_core(exe_path, argc, argv);
         }

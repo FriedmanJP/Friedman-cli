@@ -164,7 +164,8 @@ exactly one versioned JSON envelope with stable, registry-declared table keys;
 exit codes are `0 ok · 2 usage · 3 data · 4 config · 5 model · 6 env · 1 internal`,
 and every JSON failure carries a matching `error.code`/`error.exit_code`.
 `frdc schema <path…>` returns a draft-07 input schema plus result-table keys
-for any command; `serve --mcp` exposes every leaf command as a Model Context Protocol
+for any command in **< 10 ms** via the native thin wrapper (set `FRDC_NO_FASTPATH=1`
+to bypass); `serve --mcp` exposes every leaf command as a Model Context Protocol
 tool over stdio (supporting `--families`, `--tools`, and `--compact` scoping).
 For multi-command pipelines and heavy DSGE / Bayesian / volatility workflows, keep a
 persistent `frdc serve --mcp` (or `frdc repl`) session open to amortize Julia/JIT

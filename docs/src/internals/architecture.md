@@ -6,16 +6,24 @@ Friedman-cli is a Julia CLI application built around a custom declarative comman
 
 ## Execution Flow
 
+Standalone release builds ship a **two-binary Pure C99 thin front-end** (`bin/frdc` → `bin/frdc-core` + `share/frdc/cli_cache.bin`) so static metadata invocations avoid booting `libjulia` and decompressing the PackageCompiler sysimage:
+
 ```text
-bin/frdc ARGS
-  → Pkg.activate(project_dir) (+ instantiate when the Manifest is absent)
-  → Friedman.main(ARGS) → run_cli(ARGS)
-    → Friedman.APP                         # Entry built once (const APP = build_app())
-      # build_app() registers every top-level command group once
-    → dispatch(APP, args)
-      → dispatch_node()                    # walks the NodeCommand tree by matching tokens
-      → dispatch_leaf()                    # tokenize → bind_args → leaf.handler(; bound...)
+bin/frdc ARGS  (Pure C99 thin wrapper; ~52 KiB; bypassed if FRDC_NO_FASTPATH=1 or --julia-args)
+  ├─ Tier 1–4 fast paths (<10 ms) from single-source FRDCACHE v1 pack (share/frdc/cli_cache.bin):
+  │    --version/-V, --warranty, --conditions, root/node/leaf/repl --help,
+  │    schema [path...] [--docs], completions bash|zsh|fish,
+  │    data list, io sources (table|csv|json envelope), unknown-command fast-fail (exit 2)
+  └─ Fail-open execv / CreateProcessW → bin/frdc-core ARGS  (or julia --project bin/frdc in source dev)
+       → Friedman.main(ARGS) → run_cli(ARGS)
+         → Friedman.APP                         # Entry built once (const APP = build_app())
+           # build_app() registers every top-level command group once
+         → dispatch(APP, args)
+           → dispatch_node()                    # walks the NodeCommand tree by matching tokens
+           → dispatch_leaf()                    # tokenize → bind_args → leaf.handler(; bound...)
 ```
+
+`cli_cache.bin` is generated directly from `Friedman.APP` and `Friedman.REGISTRY` by `tools/gen_fastpath_pack.jl` with per-block zlib compression and IEEE CRC32 verification; any missing, version-mismatched, or corrupt pack fails open directly to `frdc-core`. Set `FRDC_NO_FASTPATH=1` (legacy fallback `FRIEDMAN_NO_FASTPATH=1`) to force every invocation through `frdc-core`.
 
 See [Automated Pipelines & JSON Envelopes](@ref gs-pipelines) for exit codes and envelope schemas.
 

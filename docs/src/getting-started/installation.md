@@ -76,7 +76,7 @@ JULIA_OBJCACHE=1 frdc --version
 
 ## Shell Completions
 
-Generate tab completion scripts for interactive shell use ([`completions`](@ref ref-completions)):
+Standalone builds include a native C99 thin front-end that serves `--version`, `--help`, `schema`, `completions`, `data list`, and `io sources` in **< 10 ms**, making shell-init sourcing (such as `eval "$(frdc completions zsh)"`) instantaneous. You can also write static completion scripts ([`completions`](@ref ref-completions)):
 
 ```bash
 # Bash
@@ -112,6 +112,13 @@ To compile a standalone relocatable app bundle locally (including macOS Apple Si
 ```bash
 julia --project build_release.jl
 ./build/frdc/bin/frdc --version
+```
+
+For fast local metadata/help/schema turnaround on macOS or Linux without compiling a full sysimage, build the optional local thin wrapper (it automatically falls back to `julia --project bin/frdc` whenever `src/` or `Project.toml` changes):
+
+```bash
+julia --project tools/build_thin_wrapper.jl
+./build/dev-wrapper/bin/frdc --help
 ```
 
 ---

@@ -1,8 +1,9 @@
 # Agent Guide
 
 Contract for agents driving Friedman-cli. This document is the single source: it
-ships inside the binary and is served verbatim by `frdc schema --docs`, and
-the documentation site renders the same file. The per-leaf CLI reference
+ships inside the binary and is served verbatim by `frdc schema --docs` (in < 10 ms
+via the native thin wrapper; set `FRDC_NO_FASTPATH=1` to bypass directly to `frdc-core`),
+and the documentation site renders the same file. The per-leaf CLI reference
 lives under `commands/generated/` (indexed at `commands/overview.md`); this
 guide covers the output contract shared by every leaf.
 
