@@ -64,6 +64,7 @@ include(joinpath(project_root, "src", "handles.jl"))
 include(joinpath(project_root, "src", "registry", "spec.jl"))
 include(joinpath(project_root, "src", "registry", "adapter.jl"))
 include(joinpath(project_root, "src", "registry", "families.jl"))
+include(joinpath(project_root, "src", "commands", "w1_quantile.jl"))
 include(joinpath(project_root, "src", "commands", "estimate.jl"))
 include(joinpath(project_root, "src", "commands", "test.jl"))
 include(joinpath(project_root, "src", "commands", "irf.jl"))
@@ -16158,3 +16159,4 @@ end
 
 include(joinpath(project_root, "test", "test_handles.jl"))
 include(joinpath(project_root, "test", "test_storage.jl"))
+include(joinpath(project_root, "test", "test_w1_quantile.jl"))

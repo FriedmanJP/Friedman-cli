@@ -245,7 +245,8 @@ function irf_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:sdfm_irf, description="Panel-wide structural DFM responses to every shock: horizon | variable | shock | value | lower | upper")],
             category="irf",
             handler=wrap_legacy(_irf_sdfm),
-        )
+        ),
+        w1_irf_specs()...,
     ]
 end
 
@@ -259,6 +260,8 @@ const _IRF_SLOT_TYPES = Dict{Vector{String},Tuple{Vector{Symbol},Vector{Symbol}}
     ["irf", "pvar"]   => ([:PVARModel], [:NamedTuple, :ImpulseResponse]),
     ["irf", "favar"]  => ([:FAVARModel], [:ImpulseResponse]),
     ["irf", "sdfm"]   => ([:StructuralDFM], [:ImpulseResponse]),
+    ["irf", "qvar"]   => ([:QuantileVARModel], [:QuantileImpulseResponse]),
+    ["irf", "qfavar"] => ([:QuantileFAVAR, :VBQuantileFAVAR], [:QuantileImpulseResponse]),
 )
 
 function register_irf_commands!()

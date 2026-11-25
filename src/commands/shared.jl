@@ -4162,7 +4162,9 @@ end
 # green suite. Explicit unions are grep-able and T3 enforces conformance.
 const _TIDY_COEF_TYPES = Union{RegModel,LogitModel,ProbitModel,PanelRegModel,PanelIVModel,
     PanelLogitModel,PanelProbitModel,MarginalEffects,OrderedLogitModel,OrderedProbitModel,
-    MultinomialLogitModel,VARModel,DIDResult}
+    MultinomialLogitModel,VARModel,DIDResult,
+    QFMICResult,QFMSpanningResult,QFMLoadingConstancyTest,QuantileFactorPanelModel,
+    QuantileVARModel}
 
 """Emit a coefficient-bearing result via upstream Tables.jl (`DataFrame(m)`).
 
@@ -4178,7 +4180,9 @@ end
 # NOT extended to BayesianFEVD/LPFEVD/HD — those have no upstream long_table (TIDY-09/
 # TIDY-11/TIDY-12) and must keep hitting the typed fallback until they land.
 const _TIDY_LONG_TYPES = Union{ImpulseResponse,BayesianImpulseResponse,FEVD,
-    LPImpulseResponse,AbstractForecastResult}
+    LPImpulseResponse,AbstractForecastResult,
+    QuantileFactorModel,QuantileFactorGrid,GrowthAtRiskResult,
+    QuantileImpulseResponse,QuantileFAVAR,VBQuantileFAVAR}
 
 """Emit an array-valued result via upstream `long_table`.
 

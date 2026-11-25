@@ -12522,13 +12522,16 @@ struct QuantileRegModel{T<:AbstractFloat}
 end
 
 function estimate_qreg(y::AbstractVector, X::AbstractMatrix, tau=0.5;
-                       se::Symbol=:iid, varnames=nothing, n_boot::Int=500,
+                       se::Symbol=:iid, solver::Symbol=:ipm,
+                       varnames=nothing, n_boot::Int=500,
                        rng=nothing, alpha::Real=0.05, seed=nothing)
     n, k = length(y), size(X, 2)
     size(X, 1) == n || throw(ArgumentError("X must have $n rows (got $(size(X, 1)))"))
     n > k || throw(ArgumentError("Need n > k (n=$n, k=$k)"))
     se in (:iid, :robust, :boot) ||
         throw(ArgumentError("se must be :iid, :robust, or :boot; got :$se"))
+    solver in (:ipm, :irls) ||
+        throw(ArgumentError("solver must be :ipm or :irls; got :$solver"))
     taus = tau isa Real ? Float64[tau] : Float64.(collect(tau))
     all(t -> 0 < t < 1, taus) || throw(ArgumentError("tau must lie in (0, 1)"))
     nt = length(taus)
@@ -13416,5 +13419,868 @@ export dgp_var, dgp_nongaussian_var, dgp_heteroskedastic_var, dgp_arima,
        dgp_dynamic_factors, dgp_lp_iv, dgp_panel, dgp_panel_var,
        dgp_staggered_did, dgp_gmm, dgp_regime_switching, dgp_cross_section,
        dgp_dsge_observed
+
+# ── [MEM111-W1] #313 ──
+# Faithful mocks for QFM, Growth-at-Risk, interactive panel xtqreg, QVAR, QFAVAR.
+# Strictly zero kwargs absorbers; field names, array shapes, and DataFrame/long_table
+# schemas mirror MacroEconometricModels v1.1.1 1:1.
+
+struct QuantileFactorModel{T<:AbstractFloat}
+    X::Matrix{T}
+    tau::T
+    factors::Matrix{T}
+    loadings::Matrix{T}
+    sigma_sq::Vector{T}
+    common_component::Matrix{T}
+    residuals::Matrix{T}
+    objective::T
+    pseudo_r2::Vector{T}
+    r::Int
+    method::Symbol
+    standardized::Bool
+    converged::Bool
+    iterations::Int
+    se_loadings::Union{Nothing,Matrix{T}}
+    se_factors::Union{Nothing,Matrix{T}}
+    varnames::Vector{String}
+    manifest::Any
+end
+
+struct QFMICResult{T<:AbstractFloat}
+    tau::T
+    r_max::Int
+    sigma_sq::Vector{T}
+    threshold_PNT::T
+    r_rank::Int
+    loss::Vector{T}
+    IC1::Vector{T}
+    IC2::Vector{T}
+    IC3::Vector{T}
+    r_IC1::Int
+    r_IC2::Int
+    r_IC3::Int
+end
+
+struct QuantileFactorGrid{T<:AbstractFloat}
+    taus::Vector{T}
+    models::Vector{QuantileFactorModel{T}}
+    r_by_tau::Vector{Int}
+    varnames::Vector{String}
+    manifest::Any
+end
+
+Base.length(g::QuantileFactorGrid) = length(g.models)
+Base.eachindex(g::QuantileFactorGrid) = eachindex(g.models)
+Base.iterate(g::QuantileFactorGrid, state...) = iterate(g.models, state...)
+Base.getindex(g::QuantileFactorGrid, j::Integer) = g.models[j]
+function Base.getindex(g::QuantileFactorGrid; tau::Real)
+    idx = findfirst(t -> abs(Float64(t) - Float64(tau)) <= 1e-8, g.taus)
+    idx === nothing && throw(KeyError(tau))
+    return g.models[idx]
+end
+
+struct QFMSpanningResult{T<:AbstractFloat}
+    taus::Vector{T}
+    r_qfm::Vector{Int}
+    r_pca::Int
+    ols_r2::Vector{Vector{T}}
+    quantile_r1::Vector{Vector{T}}
+    cancor::Vector{Vector{T}}
+    unspanned::Vector{Vector{Bool}}
+    threshold::T
+    n_obs::Int
+    n_vars::Int
+end
+
+struct QFMLoadingConstancyTest{T<:AbstractFloat}
+    tau1::T
+    tau2::T
+    r1::Int
+    r2::Int
+    statistic::T
+    pvalue::T
+    boot_stats::Vector{T}
+    n_boot::Int
+    block_length::Int
+    bootstrap::Symbol
+    n_obs::Int
+    n_vars::Int
+    dof::Int
+    manifest::Any
+end
+
+struct QuantileFactorPanelModel{T<:AbstractFloat}
+    beta::Vector{T}
+    beta_i::Matrix{T}
+    vcov_mat::Matrix{T}
+    stderr::Vector{T}
+    factors::Matrix{T}
+    loadings::Matrix{T}
+    tau::T
+    r::Int
+    slope::Symbol
+    residuals::Matrix{T}
+    fitted::Matrix{T}
+    objective::T
+    converged::Bool
+    iterations::Int
+    n_units::Int
+    n_periods::Int
+    varnames::Vector{String}
+    manifest::Any
+end
+
+struct GrowthAtRiskResult{T<:AbstractFloat}
+    y::Vector{T}
+    target_name::String
+    taus::Vector{T}
+    horizon::Int
+    lags::Int
+    alpha::T
+    density::Symbol
+    rearrange::Bool
+    fitted_quantiles::Matrix{T}
+    actual_target::Vector{T}
+    oos_quantiles::Vector{T}
+    coefficients::Vector{Vector{T}}
+    density_params::Matrix{T}
+    oos_density_params::Vector{T}
+    gar::Vector{T}
+    expected_shortfall::Vector{T}
+    upside_entropy::Vector{T}
+    downside_entropy::Vector{T}
+    oos_gar::T
+    oos_expected_shortfall::T
+    oos_upside_entropy::T
+    oos_downside_entropy::T
+    quantile_score::Vector{T}
+    crps::Vector{T}
+    oos_split::Union{Int,Nothing}
+    pit::Vector{T}
+    oos_quantile_scores::Vector{T}
+    oos_crps::Vector{T}
+    n_obs::Int
+    n_eff::Int
+    manifest::Any
+end
+
+struct QuantileVARModel{T<:AbstractFloat}
+    A0_list::Vector{Matrix{T}}
+    B_list::Vector{Matrix{T}}
+    resid_list::Vector{Matrix{T}}
+    se_list::Vector{Matrix{T}}
+    taus::Vector{T}
+    ordering::Vector{Int}
+    Y::Matrix{T}
+    p::Int
+    varnames::Vector{String}
+    manifest::Any
+end
+
+struct QuantileImpulseResponse{T<:AbstractFloat}
+    values::Array{T,3}
+    ci_lower::Array{T,3}
+    ci_upper::Array{T,3}
+    horizon::Int
+    tau_profile::Vector{T}
+    baseline_tau::T
+    shock_size::T
+    method::Symbol
+    ci_type::Symbol
+    conf_level::T
+    variables::Vector{String}
+    shocks::Vector{String}
+end
+
+struct QuantileFAVAR{T<:AbstractFloat}
+    qvar::QuantileVARModel{T}
+    factors_list::Vector{Matrix{T}}
+    loadings_list::Vector{Matrix{T}}
+    lambda_y_list::Vector{Matrix{T}}
+    intercept_list::Vector{Vector{T}}
+    qfm_models::Vector{QuantileFactorModel{T}}
+    taus::Vector{T}
+    X_panel::Matrix{T}
+    Y_key::Matrix{T}
+    Y_key_indices::Vector{Int}
+    n_factors::Int
+    n_key::Int
+    p::Int
+    standardize::Bool
+    panel_varnames::Vector{String}
+    varnames::Vector{String}
+    manifest::Any
+end
+
+struct VBQuantileFAVAR{T<:AbstractFloat}
+    qvar::QuantileVARModel{T}
+    factors_mean::Vector{Matrix{T}}
+    loadings_mean::Vector{Matrix{T}}
+    lambda_y_mean::Vector{Matrix{T}}
+    intercept_mean::Vector{Vector{T}}
+    factor_cov::Vector{Array{T,3}}
+    var_cov::Vector{Vector{Matrix{T}}}
+    A0_draws::Vector{Array{T,3}}
+    B_draws::Vector{Array{T,3}}
+    loadings_draws::Vector{Array{T,3}}
+    lambda_y_draws::Vector{Array{T,3}}
+    taus::Vector{T}
+    X_panel::Matrix{T}
+    Y_key::Matrix{T}
+    Y_key_indices::Vector{Int}
+    n_factors::Int
+    n_key::Int
+    p::Int
+    standardize::Bool
+    vb_converged::Vector{Bool}
+    vb_iterations::Vector{Int}
+    panel_varnames::Vector{String}
+    varnames::Vector{String}
+    manifest::Any
+end
+
+# StatsAPI / accessors
+predict(m::QuantileFactorModel) = m.common_component
+residuals(m::QuantileFactorModel) = m.residuals
+predict(m::QuantileFactorPanelModel) = m.fitted
+residuals(m::QuantileFactorPanelModel) = m.residuals
+coef(m::QuantileFactorPanelModel) = m.beta
+stderror(m::QuantileFactorPanelModel) = m.stderr
+residuals(m::QuantileVARModel) = length(m.resid_list) == 1 ? m.resid_list[1] : cat(m.resid_list...; dims=3)
+coef(m::QuantileVARModel) = length(m.B_list) == 1 ? m.B_list[1] : cat(m.B_list...; dims=3)
+stderror(m::QuantileVARModel) = length(m.se_list) == 1 ? m.se_list[1] : cat(m.se_list...; dims=3)
+
+# Tables.jl / DataFrame & long_table mirrors (matching real src/core/tables.jl & quantile_panel.jl 1:1)
+function DataFrames.DataFrame(ic::QFMICResult)
+    rmax = ic.r_max
+    return DataFrames.DataFrame(
+        r=collect(1:rmax),
+        tau=fill(Float64(ic.tau), rmax),
+        sigma_sq=Float64.(collect(ic.sigma_sq[1:rmax])),
+        loss=Float64.(collect(ic.loss[1:rmax])),
+        IC1=Float64.(collect(ic.IC1[1:rmax])),
+        IC2=Float64.(collect(ic.IC2[1:rmax])),
+        IC3=Float64.(collect(ic.IC3[1:rmax])),
+        r_IC1=fill(ic.r_IC1, rmax),
+        r_IC2=fill(ic.r_IC2, rmax),
+        r_IC3=fill(ic.r_IC3, rmax),
+        r_rank=fill(ic.r_rank, rmax),
+    )
+end
+
+function DataFrames.DataFrame(s::QFMSpanningResult)
+    tau = Float64[]; factor = Int[]; ols_r2 = Float64[]
+    quantile_r1 = Float64[]; cancor = Float64[]; unspanned = Bool[]
+    for (ti, t) in enumerate(s.taus)
+        m = length(s.ols_r2[ti])
+        for k in 1:m
+            push!(tau, Float64(t)); push!(factor, k)
+            push!(ols_r2, Float64(s.ols_r2[ti][k]))
+            push!(quantile_r1, Float64(s.quantile_r1[ti][min(k, end)]))
+            push!(cancor, Float64(s.cancor[ti][min(k, end)]))
+            push!(unspanned, Bool(s.unspanned[ti][min(k, end)]))
+        end
+    end
+    return DataFrames.DataFrame(; tau, factor, ols_r2, quantile_r1, cancor, unspanned)
+end
+
+function DataFrames.DataFrame(t::QFMLoadingConstancyTest)
+    return DataFrames.DataFrame(
+        test=["QFM loading constancy"],
+        tau1=[Float64(t.tau1)],
+        tau2=[Float64(t.tau2)],
+        statistic=[Float64(t.statistic)],
+        p_value=[Float64(t.pvalue)],
+        n_boot=[t.n_boot],
+        dof=[t.dof],
+    )
+end
+
+function DataFrames.DataFrame(m::QuantileFactorPanelModel)
+    est = Float64.(m.beta)
+    s = Float64.(m.stderr)
+    stat = est ./ s
+    return DataFrames.DataFrame(
+        term=String.(m.varnames),
+        estimate=est,
+        std_error=s,
+        stat=stat,
+        p_value=fill(0.05, length(est)),
+        ci_lower=est .- 1.96 .* s,
+        ci_upper=est .+ 1.96 .* s,
+    )
+end
+
+function DataFrames.DataFrame(m::QuantileVARModel)
+    n = size(m.Y, 2)
+    vn = length(m.varnames) == n ? m.varnames : ["y$i" for i in 1:n]
+    k_lag = isempty(m.B_list) ? 0 : size(m.B_list[1], 1)
+    tnames = vcat(["const"], ["L$(lag)_$v" for lag in 1:m.p for v in vn])
+    length(tnames) == k_lag || (tnames = ["coef_$i" for i in 1:k_lag])
+    tau = Float64[]; equation = String[]; term = String[]
+    estimate = Float64[]; std_error = Float64[]
+    for (ti, t) in enumerate(m.taus)
+        B = m.B_list[ti]; SE = m.se_list[ti]
+        for eq in 1:n, c in 1:size(B, 1)
+            push!(tau, Float64(t)); push!(equation, vn[eq]); push!(term, tnames[c])
+            push!(estimate, Float64(B[c, eq])); push!(std_error, Float64(SE[c, eq]))
+        end
+    end
+    return DataFrames.DataFrame(; tau, equation, term, estimate, std_error)
+end
+
+function long_table(m::QuantileFactorModel)
+    N, r = size(m.loadings)
+    vn = length(m.varnames) == N ? m.varnames : ["var_$i" for i in 1:N]
+    variable = String[]; factor = Int[]; tau = Float64[]
+    loading = Float64[]; std_error = Union{Missing,Float64}[]; pseudo_r2 = Float64[]
+    has_se = m.se_loadings !== nothing && size(m.se_loadings) == (N, r)
+    for k in 1:r, j in 1:N
+        push!(variable, vn[j]); push!(factor, k); push!(tau, Float64(m.tau))
+        push!(loading, Float64(m.loadings[j, k]))
+        push!(std_error, has_se ? Float64(m.se_loadings[j, k]) : missing)
+        push!(pseudo_r2, Float64(m.pseudo_r2[j]))
+    end
+    return DataFrames.DataFrame(; variable, factor, tau, loading, std_error, pseudo_r2)
+end
+
+function long_table(g::QuantileFactorGrid)
+    tau = Float64[]; variable = String[]; factor = Int[]; loading = Float64[]; r_at_tau = Int[]
+    for (ti, m) in enumerate(g.models)
+        N, r = size(m.loadings)
+        vn = length(m.varnames) == N ? m.varnames : ["var_$i" for i in 1:N]
+        t = Float64(g.taus[ti]); rk = g.r_by_tau[ti]
+        for k in 1:r, j in 1:N
+            push!(tau, t); push!(variable, vn[j]); push!(factor, k)
+            push!(loading, Float64(m.loadings[j, k])); push!(r_at_tau, rk)
+        end
+    end
+    return DataFrames.DataFrame(; tau, variable, factor, loading, r_at_tau)
+end
+
+function long_table(g::GrowthAtRiskResult)
+    Teff, nq = size(g.fitted_quantiles)
+    act = length(g.actual_target) == Teff ? g.actual_target : fill(NaN, Teff)
+    period = Int[]; tau = Float64[]; fitted_quantile = Float64[]
+    gar = Float64[]; expected_shortfall = Float64[]; actual = Float64[]
+    for q in 1:nq, t in 1:Teff
+        push!(period, t); push!(tau, Float64(g.taus[min(q, end)]))
+        push!(fitted_quantile, Float64(g.fitted_quantiles[t, q]))
+        push!(gar, Float64(g.gar[t]))
+        push!(expected_shortfall, Float64(g.expected_shortfall[t]))
+        push!(actual, Float64(act[t]))
+    end
+    return DataFrames.DataFrame(; period, tau, fitted_quantile, gar, expected_shortfall, actual)
+end
+
+function long_table(irf::QuantileImpulseResponse)
+    H, nv, ns = size(irf.values)
+    vn = length(irf.variables) == nv ? irf.variables : ["var_$i" for i in 1:nv]
+    sn = length(irf.shocks) == ns ? irf.shocks : ["shock_$i" for i in 1:ns]
+    has_ci = irf.ci_type != :none
+    horizon = Int[]; variable = String[]; shock = String[]; tau = Float64[]
+    value = Float64[]; lower = Union{Missing,Float64}[]; upper = Union{Missing,Float64}[]
+    for h in 1:H, v in 1:nv, s in 1:ns
+        push!(horizon, h); push!(variable, vn[v]); push!(shock, sn[s])
+        push!(tau, Float64(irf.tau_profile[min(h, end)]))
+        push!(value, Float64(irf.values[h, v, s]))
+        push!(lower, has_ci ? Float64(irf.ci_lower[h, v, s]) : missing)
+        push!(upper, has_ci ? Float64(irf.ci_upper[h, v, s]) : missing)
+    end
+    return DataFrames.DataFrame(; horizon, variable, shock, tau, value, lower, upper)
+end
+
+function long_table(m::QuantileFAVAR)
+    tau = Float64[]; variable = String[]; component = String[]; estimate = Float64[]
+    N = size(m.X_panel, 2)
+    pvn = length(m.panel_varnames) == N ? m.panel_varnames : ["panel_$i" for i in 1:N]
+    for (ti, t) in enumerate(m.taus)
+        L = m.loadings_list[ti]; Ly = m.lambda_y_list[ti]
+        for k in 1:size(L, 2), i in 1:size(L, 1)
+            push!(tau, Float64(t)); push!(variable, pvn[min(i, end)])
+            push!(component, "factor_$k"); push!(estimate, Float64(L[i, k]))
+        end
+        for k in 1:size(Ly, 2), i in 1:size(Ly, 1)
+            push!(tau, Float64(t)); push!(variable, pvn[min(i, end)])
+            push!(component, "key_$k"); push!(estimate, Float64(Ly[i, k]))
+        end
+    end
+    return DataFrames.DataFrame(; tau, variable, component, estimate)
+end
+
+function long_table(m::VBQuantileFAVAR)
+    tau = Float64[]; variable = String[]; component = String[]; estimate = Float64[]
+    N = size(m.X_panel, 2)
+    pvn = length(m.panel_varnames) == N ? m.panel_varnames : ["panel_$i" for i in 1:N]
+    for (ti, t) in enumerate(m.taus)
+        L = m.loadings_mean[ti]; Ly = m.lambda_y_mean[ti]
+        for k in 1:size(L, 2), i in 1:size(L, 1)
+            push!(tau, Float64(t)); push!(variable, pvn[min(i, end)])
+            push!(component, "factor_$k"); push!(estimate, Float64(L[i, k]))
+        end
+        for k in 1:size(Ly, 2), i in 1:size(Ly, 1)
+            push!(tau, Float64(t)); push!(variable, pvn[min(i, end)])
+            push!(component, "key_$k"); push!(estimate, Float64(Ly[i, k]))
+        end
+    end
+    return DataFrames.DataFrame(; tau, variable, component, estimate)
+end
+
+# Mock estimators & diagnostics (explicit kwargs — ZERO absorbers!)
+
+function ic_criteria_qfm(X::AbstractMatrix, r_max::Int, tau::Real=0.5;
+                         method::Symbol=:iqr, threshold_scale::Real=1.0,
+                         warn_boundary::Bool=true, standardize::Bool=false,
+                         robust_scale::Bool=true, init::Symbol=:pca,
+                         n_starts::Int=3, max_iter::Int=200, tol::Real=1e-7,
+                         threaded::Bool=true, bandwidth::Union{Symbol,Real}=:auto,
+                         kernel::Symbol=:gaussian, rng=nothing, seed=nothing)
+    T_obs, N = size(X)
+    1 <= r_max <= min(T_obs, N) || throw(ArgumentError("r_max must be in 1:$(min(T_obs, N))"))
+    0 < tau < 1 || throw(ArgumentError("tau must lie strictly in (0, 1)"))
+    method in (:iqr, :smoothed_iqr) || throw(ArgumentError("method must be :iqr or :smoothed_iqr"))
+    kernel in (:gaussian, :logistic, :epanechnikov) || throw(ArgumentError("unknown kernel :$kernel"))
+    sig = Float64[1.0 / k for k in 1:r_max]
+    loss = Float64[0.5 / (k + 1) for k in 0:r_max]
+    ic1 = Float64[log(loss[k + 1]) + 0.05 * k for k in 0:r_max]
+    ic2 = Float64[log(loss[k + 1]) + 0.07 * k for k in 0:r_max]
+    ic3 = Float64[log(loss[k + 1]) + 0.09 * k for k in 0:r_max]
+    r_sel = min(2, r_max)
+    return QFMICResult{Float64}(Float64(tau), r_max, sig, 0.4, r_sel,
+                                loss, ic1, ic2, ic3, r_sel, r_sel, min(1, r_max))
+end
+
+function estimate_qfm(X::AbstractMatrix, r::Int, tau::Real=0.5;
+                      standardize::Bool=false, robust_scale::Bool=true,
+                      init::Symbol=:pca, n_starts::Int=3, max_iter::Int=200,
+                      tol::Real=1e-7, threaded::Bool=true,
+                      varnames::Union{Nothing,Vector{String}}=nothing,
+                      method::Symbol=:iqr, bandwidth::Union{Symbol,Real}=:auto,
+                      kernel::Symbol=:gaussian, se::Symbol=:none,
+                      hac_bandwidth::Union{Symbol,Int}=:auto, n_boot::Int=200,
+                      rng=nothing, seed=nothing)
+    Xm = Matrix{Float64}(X)
+    T_obs, N = size(Xm)
+    1 <= r <= min(T_obs, N) || throw(ArgumentError("r must be in 1:$(min(T_obs, N))"))
+    0 < tau < 1 || throw(ArgumentError("tau must lie strictly in (0, 1)"))
+    method in (:iqr, :smoothed_iqr) || throw(ArgumentError("method must be :iqr or :smoothed_iqr"))
+    kernel in (:gaussian, :logistic, :epanechnikov) || throw(ArgumentError("unknown kernel :$kernel"))
+    se in (:none, :asymptotic, :bootstrap) || throw(ArgumentError("unknown se :$se"))
+    init in (:pca, :quantile_svd, :random) || throw(ArgumentError("unknown init :$init"))
+    vn = varnames === nothing ? ["Var $i" for i in 1:N] : copy(varnames)
+    F = [sin(0.1 * t * k) for t in 1:T_obs, k in 1:r]
+    L = [0.5 + 0.1 * i / (k + 1) + 0.05 * Float64(tau) for i in 1:N, k in 1:r]
+    cc = F * L'
+    res = Xm - cc
+    se_L = se === :none ? nothing : fill(0.05, N, r)
+    se_F = se === :none ? nothing : fill(0.05, T_obs, r)
+    return QuantileFactorModel{Float64}(
+        Xm, Float64(tau), F, L, Float64[1.0 / k for k in 1:r], cc, res,
+        0.25, fill(0.4, N), r, method, standardize, true, 12,
+        se_L, se_F, vn, nothing,
+    )
+end
+
+function estimate_qfm(X::AbstractMatrix, r::Symbol, tau::Real=0.5;
+                      r_max::Int=min(10, max(1, min(size(X)...) - 1)),
+                      criterion::Symbol=:rank, threshold_scale::Real=1.0,
+                      standardize::Bool=false, robust_scale::Bool=true,
+                      init::Symbol=:pca, n_starts::Int=3, max_iter::Int=200,
+                      tol::Real=1e-7, threaded::Bool=true,
+                      varnames::Union{Nothing,Vector{String}}=nothing,
+                      method::Symbol=:iqr, bandwidth::Union{Symbol,Real}=:auto,
+                      kernel::Symbol=:gaussian, se::Symbol=:none,
+                      hac_bandwidth::Union{Symbol,Int}=:auto, n_boot::Int=200,
+                      rng=nothing, seed=nothing)
+    r === :auto || throw(ArgumentError("r must be Int or :auto"))
+    ic = ic_criteria_qfm(X, r_max, tau; method=method, threshold_scale=threshold_scale,
+                         standardize=standardize, robust_scale=robust_scale, init=init,
+                         n_starts=n_starts, max_iter=max_iter, tol=tol,
+                         bandwidth=bandwidth, kernel=kernel, rng=rng, seed=seed)
+    r_sel = criterion === :rank ? ic.r_rank :
+            criterion === :ic1 ? ic.r_IC1 :
+            criterion === :ic2 ? ic.r_IC2 : ic.r_IC3
+    return estimate_qfm(X, max(r_sel, 1), tau; standardize=standardize,
+                        robust_scale=robust_scale, init=init, n_starts=n_starts,
+                        max_iter=max_iter, tol=tol, threaded=threaded, varnames=varnames,
+                        method=method, bandwidth=bandwidth, kernel=kernel, se=se,
+                        hac_bandwidth=hac_bandwidth, n_boot=n_boot, rng=rng, seed=seed)
+end
+
+function estimate_qfm(X::AbstractMatrix,
+                      r_or_auto::Union{Int,Symbol,AbstractVector{<:Integer}},
+                      taus::AbstractVector{<:Real};
+                      threaded::Bool=true, standardize::Bool=false,
+                      robust_scale::Bool=true, init::Symbol=:pca, n_starts::Int=3,
+                      max_iter::Int=200, tol::Real=1e-7,
+                      varnames::Union{Nothing,Vector{String}}=nothing,
+                      method::Symbol=:iqr, bandwidth::Union{Symbol,Real}=:auto,
+                      kernel::Symbol=:gaussian, se::Symbol=:none,
+                      hac_bandwidth::Union{Symbol,Int}=:auto, n_boot::Int=200,
+                      r_max::Int=min(10, max(1, min(size(X)...) - 1)),
+                      criterion::Symbol=:rank, threshold_scale::Real=1.0,
+                      rng=nothing, seed=nothing)
+    N = size(X, 2)
+    vn = varnames === nothing ? ["Var $i" for i in 1:N] : copy(varnames)
+    taus_f = Float64.(collect(taus))
+    models = QuantileFactorModel{Float64}[]
+    r_by = Int[]
+    for (j, tj) in enumerate(taus_f)
+        rj = r_or_auto isa AbstractVector ? Int(r_or_auto[j]) : r_or_auto
+        mj = if rj isa Symbol
+            estimate_qfm(X, rj, tj; r_max=r_max, criterion=criterion,
+                         threshold_scale=threshold_scale, standardize=standardize,
+                         robust_scale=robust_scale, init=init, n_starts=n_starts,
+                         max_iter=max_iter, tol=tol, threaded=threaded, varnames=vn,
+                         method=method, bandwidth=bandwidth, kernel=kernel, se=se,
+                         hac_bandwidth=hac_bandwidth, n_boot=n_boot, rng=rng, seed=seed)
+        else
+            estimate_qfm(X, rj, tj; standardize=standardize,
+                         robust_scale=robust_scale, init=init, n_starts=n_starts,
+                         max_iter=max_iter, tol=tol, threaded=threaded, varnames=vn,
+                         method=method, bandwidth=bandwidth, kernel=kernel, se=se,
+                         hac_bandwidth=hac_bandwidth, n_boot=n_boot, rng=rng, seed=seed)
+        end
+        push!(models, mj)
+        push!(r_by, mj.r)
+    end
+    return QuantileFactorGrid{Float64}(taus_f, models, r_by, vn, nothing)
+end
+
+function forecast(qfm::QuantileFactorModel{T}, h::Int;
+                  p::Int=1, ci_method::Symbol=:none, conf_level::Real=0.95,
+                  n_boot::Int=299, rng=nothing, seed=nothing) where {T<:AbstractFloat}
+    h >= 1 || throw(ArgumentError("h must be >= 1"))
+    p >= 1 || throw(ArgumentError("p must be >= 1"))
+    ci_method in (:none, :bootstrap) || throw(ArgumentError("ci_method must be :none or :bootstrap"))
+    N = size(qfm.X, 2)
+    r = qfm.r
+    F_fc = fill(T(0.1), h, r)
+    X_fc = fill(T(0.2 + qfm.tau), h, N)
+    lo = ci_method === :none ? zeros(T, h, N) : X_fc .- T(0.1)
+    hi = ci_method === :none ? zeros(T, h, N) : X_fc .+ T(0.1)
+    se_x = ci_method === :none ? zeros(T, h, N) : fill(T(0.05), h, N)
+    return FactorForecast{T}(F_fc, X_fc, zeros(T, h, r), zeros(T, h, r),
+                             lo, hi, zeros(T, h, r), se_x, h, T(conf_level), ci_method)
+end
+
+function forecast(grid::QuantileFactorGrid{T}, h::Int;
+                  p::Int=1, rearrange::Bool=true, ci_method::Symbol=:none,
+                  conf_level::Real=0.95, n_boot::Int=299, rng=nothing,
+                  seed=nothing) where {T<:AbstractFloat}
+    return FactorForecast{T}[forecast(m, h; p=p, ci_method=ci_method,
+                                      conf_level=conf_level, n_boot=n_boot,
+                                      rng=rng, seed=seed) for m in grid.models]
+end
+
+function growth_at_risk(grid::QuantileFactorGrid{T},
+                        y_or_col::Union{Int,AbstractString,Symbol,AbstractVector{<:Real}},
+                        h::Int=1; X=nothing, taus=nothing, lags::Int=1,
+                        rearrange::Bool=true, alpha::Real=0.05,
+                        density::Symbol=:skewed_t, oos_split::Union{Nothing,Int}=nothing,
+                        rng=nothing, seed=nothing) where {T<:AbstractFloat}
+    density in (:skewed_t, :normal, :none) ||
+        throw(ArgumentError("density must be :skewed_t, :normal, or :none"))
+    X_src = X === nothing ? grid.models[1].X : Matrix{T}(X)
+    T_obs = size(X_src, 1)
+    tname = y_or_col isa Int ? grid.varnames[y_or_col] :
+            (y_or_col isa AbstractVector ? "target" : String(y_or_col))
+    y = y_or_col isa Int ? Vector{T}(X_src[:, y_or_col]) :
+        y_or_col isa AbstractVector ? Vector{T}(y_or_col) :
+        Vector{T}(X_src[:, something(findfirst(==(String(y_or_col)), grid.varnames), 1)])
+    taus_T = taus === nothing ? copy(grid.taus) : T[T(tj) for tj in taus]
+    M = length(taus_T)
+    T_eff = max(T_obs - h - max(lags, 1) + 1, 2)
+    fq = [T(0.1 * t + 2.0 * (taus_T[q] - 0.5)) for t in 1:T_eff, q in 1:M]
+    return GrowthAtRiskResult{T}(
+        y, tname, taus_T, h, lags, T(alpha), density, rearrange,
+        fq, y[end - T_eff + 1:end], vec(fq[end, :]),
+        [zeros(T, 1 + grid.r_by_tau[1] + lags) for _ in 1:M],
+        zeros(T, T_eff, 4), zeros(T, 4),
+        vec(fq[:, 1]), vec(fq[:, 1]) .- T(0.2),
+        fill(T(0.1), T_eff), fill(T(0.15), T_eff),
+        fq[end, 1], fq[end, 1] - T(0.2), T(0.1), T(0.15),
+        fill(T(0.05), M), fill(T(0.08), T_eff), oos_split,
+        oos_split === nothing ? T[] : fill(T(0.5), 3),
+        oos_split === nothing ? T[] : fill(T(0.05), M),
+        oos_split === nothing ? T[] : fill(T(0.08), 3),
+        T_obs, T_eff, nothing,
+    )
+end
+
+function growth_at_risk(X::AbstractMatrix{<:Real},
+                        target_col::Union{Int,AbstractString,Symbol,AbstractVector{<:Real}},
+                        h::Int=1; r::Union{Int,Symbol}=2,
+                        taus::AbstractVector{<:Real}=[0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95],
+                        lags::Int=1, rearrange::Bool=true, alpha::Real=0.05,
+                        density::Symbol=:skewed_t, standardize::Bool=true,
+                        oos_split::Union{Nothing,Int}=nothing,
+                        varnames=nothing, rng=nothing, seed=nothing)
+    grid = estimate_qfm(Float64.(X), r, taus; standardize=standardize,
+                        varnames=varnames === nothing ? nothing : String.(collect(varnames)),
+                        rng=rng, seed=seed)
+    return growth_at_risk(grid, target_col, h; taus=taus, lags=lags, rearrange=rearrange,
+                          alpha=alpha, density=density, oos_split=oos_split, rng=rng, seed=seed)
+end
+
+function test_qfm_spanning(qfm::QuantileFactorModel{T}, X::AbstractMatrix=qfm.X;
+                           r_pca::Union{Int,Symbol}=:auto,
+                           r_max::Int=min(10, max(1, min(size(X)...) - 1)),
+                           criterion::Symbol=:ic2,
+                           standardize::Union{Bool,Nothing}=nothing,
+                           threshold::Real=0.5) where {T<:AbstractFloat}
+    T_obs, N = size(X)
+    rp = r_pca === :auto ? min(2, N) : Int(r_pca)
+    r2 = [T(0.8 / k) for k in 1:qfm.r]
+    r1 = [T(0.6 / k) for k in 1:qfm.r]
+    cc = [T(0.9 / k) for k in 1:min(qfm.r, rp)]
+    unsp = Bool[v < T(threshold) for v in r2]
+    return QFMSpanningResult{T}(T[qfm.tau], Int[qfm.r], rp, [r2], [r1], [cc], [unsp],
+                                T(threshold), T_obs, N)
+end
+
+function test_qfm_spanning(grid::QuantileFactorGrid{T}, X::AbstractMatrix=grid.models[1].X;
+                           r_pca::Union{Int,Symbol}=:auto,
+                           r_max::Int=min(10, max(1, min(size(X)...) - 1)),
+                           criterion::Symbol=:ic2,
+                           standardize::Union{Bool,Nothing}=nothing,
+                           threshold::Real=0.5) where {T<:AbstractFloat}
+    T_obs, N = size(X)
+    rp = r_pca === :auto ? min(2, N) : Int(r_pca)
+    M = length(grid.models)
+    r2s = [[T(0.8 / k) for k in 1:m.r] for m in grid.models]
+    r1s = [[T(0.6 / k) for k in 1:m.r] for m in grid.models]
+    ccs = [[T(0.9 / k) for k in 1:min(m.r, rp)] for m in grid.models]
+    unsp = [Bool[v < T(threshold) for v in r2s[j]] for j in 1:M]
+    return QFMSpanningResult{T}(copy(grid.taus), copy(grid.r_by_tau), rp,
+                                r2s, r1s, ccs, unsp, T(threshold), T_obs, N)
+end
+
+function test_qfm_loading_constancy(grid::QuantileFactorGrid{T}, tau1::Real, tau2::Real;
+                                    n_boot::Int=299, block_length::Int=0,
+                                    bootstrap::Symbol=:block, threaded::Bool=true,
+                                    max_iter::Int=60, tol::Real=1e-5,
+                                    rng=nothing, seed=nothing) where {T<:AbstractFloat}
+    bootstrap in (:block, :wild) || throw(ArgumentError("bootstrap must be :block or :wild"))
+    m1 = grid[tau=tau1]
+    m2 = grid[tau=tau2]
+    T_obs, N = size(m1.X)
+    ell = block_length > 0 ? block_length : 4
+    return QFMLoadingConstancyTest{T}(
+        T(tau1), T(tau2), m1.r, m2.r, T(0.42), T(0.18), fill(T(0.3), n_boot),
+        n_boot, ell, bootstrap, T_obs, N, max(m1.r * (N - m2.r), 1), nothing,
+    )
+end
+
+function test_qfm_loading_constancy(X::AbstractMatrix, tau1::Real, tau2::Real;
+                                    r::Union{Int,Symbol,AbstractVector{<:Integer}}=:auto,
+                                    n_boot::Int=299, block_length::Int=0,
+                                    bootstrap::Symbol=:block, threaded::Bool=true,
+                                    max_iter::Int=60, tol::Real=1e-5,
+                                    standardize::Bool=false, rng=nothing, seed=nothing)
+    bootstrap in (:block, :wild) || throw(ArgumentError("bootstrap must be :block or :wild"))
+    T_obs, N = size(X)
+    r1 = r isa Int ? r : (r isa AbstractVector ? Int(r[1]) : min(2, N))
+    r2 = r isa Int ? r : (r isa AbstractVector ? Int(r[2]) : min(2, N))
+    ell = block_length > 0 ? block_length : 4
+    return QFMLoadingConstancyTest{Float64}(
+        Float64(tau1), Float64(tau2), r1, r2, 0.42, 0.18, fill(0.3, n_boot),
+        n_boot, ell, bootstrap, T_obs, N, max(r1 * (N - r2), 1), nothing,
+    )
+end
+
+function estimate_xtqreg_factors(pd::PanelData, y::Symbol, x::AbstractVector{Symbol},
+                                 r::Union{Int,Symbol}=1, tau::Real=0.5;
+                                 slope::Symbol=:homogeneous, se::Symbol=:asymptotic,
+                                 n_boot::Int=199, r_max::Int=6, maxiter::Int=100,
+                                 tol::Real=1e-5, varnames=nothing,
+                                 bias_correct::Bool=true, threaded::Bool=true,
+                                 rng=nothing, seed=nothing)
+    slope in (:homogeneous, :heterogeneous) || throw(ArgumentError("slope must be :homogeneous or :heterogeneous"))
+    se in (:asymptotic, :bootstrap) || throw(ArgumentError("se must be :asymptotic or :bootstrap"))
+    0 < tau < 1 || throw(ArgumentError("tau must lie strictly in (0, 1)"))
+    p = length(x)
+    p >= 1 || throw(ArgumentError("x must not be empty"))
+    N = pd.n_groups
+    T_obs = max(div(pd.T_obs, max(N, 1)), 2)
+    r_sel = r === :auto ? 1 : Int(r)
+    vn = varnames === nothing ? String.(x) : String.(collect(varnames))
+    beta = Float64[0.5 + 0.1 * j for j in 1:p]
+    beta_i = slope === :heterogeneous ? repeat(beta', N, 1) : Matrix{Float64}(undef, 0, 0)
+    vc = Matrix{Float64}(0.01 * I, p, p)
+    return QuantileFactorPanelModel{Float64}(
+        beta, beta_i, vc, fill(0.1, p),
+        zeros(Float64, T_obs, r_sel), zeros(Float64, N, r_sel),
+        Float64(tau), r_sel, slope,
+        fill(0.05, N, T_obs), fill(1.0, N, T_obs),
+        0.12, true, 8, N, T_obs, vn, nothing,
+    )
+end
+
+function estimate_qvar(Y::AbstractMatrix, p::Int,
+                       taus::AbstractVector{<:Real}=[0.10, 0.50, 0.90];
+                       ordering::AbstractVector{<:Integer}=1:size(Y, 2),
+                       se::Symbol=:asymptotic, n_boot::Int=199,
+                       varnames=nothing, rng=nothing, seed=nothing)
+    Ym = Matrix{Float64}(Y)
+    T_obs, n = size(Ym)
+    p >= 1 || throw(ArgumentError("p must be >= 1"))
+    se in (:asymptotic, :bootstrap, :none) || throw(ArgumentError("invalid se :$se"))
+    ord = Int.(collect(ordering))
+    (length(ord) == n && sort(ord) == collect(1:n)) || throw(ArgumentError("invalid ordering"))
+    vn = varnames === nothing ? ["y$i" for i in 1:n] : String.(collect(varnames))
+    taus_f = Float64.(collect(taus))
+    M = length(taus_f)
+    k_lag = 1 + n * p
+    T_eff = max(T_obs - p, 1)
+    A0_list = [Matrix{Float64}(I, n, n) for _ in 1:M]
+    B_list = [fill(0.1 * m, k_lag, n) for m in 1:M]
+    resid_list = [fill(0.01 * m, T_eff, n) for m in 1:M]
+    se_list = [se === :none ? zeros(Float64, k_lag, n) : fill(0.05, k_lag, n) for _ in 1:M]
+    return QuantileVARModel{Float64}(A0_list, B_list, resid_list, se_list,
+                                     taus_f, ord, Ym, p, vn, nothing)
+end
+
+function qirf(qvar::QuantileVARModel{T}, H::Int;
+              shock::Union{Int,Nothing}=nothing, shock_size::Real=1.0,
+              tau_profile::Union{Real,AbstractVector{<:Real}}=0.10,
+              baseline_tau::Real=0.50, method::Symbol=:analytical,
+              ci_type::Symbol=:none, n_boot::Int=199, conf_level::Real=0.95,
+              rng=nothing, seed=nothing) where {T<:AbstractFloat}
+    H >= 1 || throw(ArgumentError("H must be >= 1"))
+    method in (:analytical, :simulation) || throw(ArgumentError("method must be :analytical or :simulation"))
+    ci_type in (:none, :bootstrap) || throw(ArgumentError("ci_type must be :none or :bootstrap"))
+    n = size(qvar.Y, 2)
+    ns = shock === nothing ? n : 1
+    sh_names = shock === nothing ? copy(qvar.varnames) : [qvar.varnames[shock]]
+    tp = tau_profile isa Real ? fill(T(tau_profile), H) :
+         T[i <= length(tau_profile) ? T(tau_profile[i]) : T(baseline_tau) for i in 1:H]
+    vals = [T(shock_size) * T(0.8^(h - 1)) * (v == s ? one(T) : T(0.2)) for h in 1:H, v in 1:n, s in 1:ns]
+    lo = ci_type === :none ? zeros(T, H, n, ns) : vals .- T(0.1)
+    hi = ci_type === :none ? zeros(T, H, n, ns) : vals .+ T(0.1)
+    return QuantileImpulseResponse{T}(vals, lo, hi, H, tp, T(baseline_tau),
+                                      T(shock_size), method, ci_type, T(conf_level),
+                                      copy(qvar.varnames), sh_names)
+end
+
+function estimate_qfavar(X_panel::AbstractMatrix, Y_key::AbstractVector{<:Integer},
+                         r::Int, p::Int,
+                         taus::AbstractVector{<:Real}=[0.10, 0.50, 0.90];
+                         method::Symbol=:twostep, standardize::Bool=true,
+                         panel_varnames=nothing, key_names=nothing,
+                         se::Symbol=:none, vb_maxiter::Int=100, vb_tol::Real=1e-4,
+                         n_draws::Int=200, rng=nothing, seed=nothing)
+    method in (:twostep, :vb) || throw(ArgumentError("method must be :twostep or :vb"))
+    Xm = Matrix{Float64}(X_panel)
+    T_obs, N = size(Xm)
+    idx = Int.(collect(Y_key))
+    n_key = length(idx)
+    pvn = panel_varnames === nothing ? ["X$i" for i in 1:N] : String.(collect(panel_varnames))
+    kvn = key_names === nothing ? [pvn[i] for i in idx] : String.(collect(key_names))
+    vns = vcat(["F$i" for i in 1:r], kvn)
+    taus_f = Float64.(collect(taus))
+    M = length(taus_f)
+    Yk = Matrix{Float64}(Xm[:, idx])
+    Z = hcat(zeros(Float64, T_obs, r), Yk)
+    qv = estimate_qvar(Z, p, taus_f; se=se, varnames=vns, rng=rng, seed=seed)
+    facs = [zeros(Float64, T_obs, r) for _ in 1:M]
+    loads = [fill(0.3, N, r) for _ in 1:M]
+    lys = [fill(0.2, N, n_key) for _ in 1:M]
+    ints = [zeros(Float64, N) for _ in 1:M]
+    if method === :vb
+        n_aug = r + n_key
+        k_lag = 1 + n_aug * p
+        return VBQuantileFAVAR{Float64}(
+            qv, facs, loads, lys, ints,
+            [zeros(Float64, T_obs, r, r) for _ in 1:M],
+            [[Matrix{Float64}(I, k_lag, k_lag) for _ in 1:n_aug] for _ in 1:M],
+            [zeros(Float64, n_draws, n_aug, n_aug) for _ in 1:M],
+            [zeros(Float64, n_draws, k_lag, n_aug) for _ in 1:M],
+            [zeros(Float64, n_draws, N, r) for _ in 1:M],
+            [zeros(Float64, n_draws, N, n_key) for _ in 1:M],
+            taus_f, Xm, Yk, idx, r, n_key, p, standardize,
+            fill(true, M), fill(10, M), pvn, vns, nothing,
+        )
+    end
+    qfms = [estimate_qfm(Xm, r, tj; standardize=standardize, varnames=pvn) for tj in taus_f]
+    return QuantileFAVAR{Float64}(
+        qv, facs, loads, lys, ints, qfms, taus_f, Xm, Yk, idx,
+        r, n_key, p, standardize, pvn, vns, nothing,
+    )
+end
+
+function qfavar_panel_irf(m::Union{QuantileFAVAR{T},VBQuantileFAVAR{T}}, H::Int;
+                          shock::Union{Int,Nothing}=nothing, shock_size::Real=1.0,
+                          tau_profile::Union{Real,AbstractVector{<:Real}}=0.10,
+                          baseline_tau::Real=0.50, method::Symbol=:analytical,
+                          ci_type::Symbol=:none, n_boot::Int=199, conf_level::Real=0.95,
+                          rng=nothing, seed=nothing) where {T<:AbstractFloat}
+    H >= 1 || throw(ArgumentError("H must be >= 1"))
+    method in (:analytical, :simulation) || throw(ArgumentError("method must be :analytical or :simulation"))
+    ci_type in (:none, :bootstrap, :credible) || throw(ArgumentError("invalid ci_type :$ci_type"))
+    if ci_type === :credible && !(m isa VBQuantileFAVAR)
+        throw(ArgumentError("ci_type=:credible is only supported for VBQuantileFAVAR"))
+    end
+    N = size(m.X_panel, 2)
+    n_aug = m.n_factors + m.n_key
+    ns = shock === nothing ? n_aug : 1
+    sh_names = shock === nothing ? copy(m.varnames) : [m.varnames[shock]]
+    tp = tau_profile isa Real ? fill(T(tau_profile), H) :
+         T[i <= length(tau_profile) ? T(tau_profile[i]) : T(baseline_tau) for i in 1:H]
+    vals = [T(shock_size) * T(0.8^(h - 1)) * T(0.15) for h in 1:H, v in 1:N, s in 1:ns]
+    lo = ci_type === :none ? zeros(T, H, N, ns) : vals .- T(0.05)
+    hi = ci_type === :none ? zeros(T, H, N, ns) : vals .+ T(0.05)
+    out_meth = (m isa VBQuantileFAVAR && method === :analytical) ? :vb : method
+    return QuantileImpulseResponse{T}(vals, lo, hi, H, tp, T(baseline_tau),
+                                      T(shock_size), out_meth, ci_type, T(conf_level),
+                                      copy(m.panel_varnames), sh_names)
+end
+
+function qfavar_panel_forecast(m::Union{QuantileFAVAR{T},VBQuantileFAVAR{T}}, h::Int;
+                               rearrange::Bool=true) where {T<:AbstractFloat}
+    h >= 1 || throw(ArgumentError("h must be >= 1"))
+    N = size(m.X_panel, 2)
+    M = length(m.taus)
+    pq = [T(0.1 * step + 0.05 * i + m.taus[mi]) for step in 1:h, i in 1:N, mi in 1:M]
+    idx_med = argmin(abs.(m.taus .- T(0.5)))
+    idx_lo = argmin(m.taus)
+    idx_hi = argmax(m.taus)
+    return (
+        quantiles = pq,
+        forecast = Matrix{T}(pq[:, :, idx_med]),
+        ci_lower = Matrix{T}(pq[:, :, idx_lo]),
+        ci_upper = Matrix{T}(pq[:, :, idx_hi]),
+        factors = zeros(T, h, m.n_factors, M),
+        taus = copy(m.taus),
+        horizon = h,
+        varnames = copy(m.panel_varnames),
+        rearranged = rearrange,
+    )
+end
+
+report(m::QuantileFactorModel) = "QuantileFactorModel mock report"
+report(r::QFMICResult) = "QFMICResult mock report"
+report(g::QuantileFactorGrid) = "QuantileFactorGrid mock report"
+report(s::QFMSpanningResult) = "QFMSpanningResult mock report"
+report(t::QFMLoadingConstancyTest) = "QFMLoadingConstancyTest mock report"
+report(m::QuantileFactorPanelModel) = "QuantileFactorPanelModel mock report"
+report(g::GrowthAtRiskResult) = "GrowthAtRiskResult mock report"
+report(m::QuantileVARModel) = "QuantileVARModel mock report"
+report(q::QuantileImpulseResponse) = "QuantileImpulseResponse mock report"
+report(m::QuantileFAVAR) = "QuantileFAVAR mock report"
+report(m::VBQuantileFAVAR) = "VBQuantileFAVAR mock report"
+
+for _T in (QuantileFactorModel, QFMICResult, QuantileFactorGrid, QFMSpanningResult,
+           QFMLoadingConstancyTest, QuantileFactorPanelModel, GrowthAtRiskResult,
+           QuantileVARModel, QuantileImpulseResponse, QuantileFAVAR, VBQuantileFAVAR)
+    _SERIALIZABLE_TYPES[String(nameof(_T))] = _T
+end
+
+export QuantileFactorModel, QFMICResult, QuantileFactorGrid, QFMSpanningResult,
+       QFMLoadingConstancyTest, QuantileFactorPanelModel, GrowthAtRiskResult,
+       QuantileVARModel, QuantileImpulseResponse, QuantileFAVAR, VBQuantileFAVAR,
+       estimate_qfm, ic_criteria_qfm, growth_at_risk, test_qfm_spanning,
+       test_qfm_loading_constancy, estimate_xtqreg_factors, estimate_qvar, qirf,
+       estimate_qfavar, qfavar_panel_irf, qfavar_panel_forecast
 
 end # module

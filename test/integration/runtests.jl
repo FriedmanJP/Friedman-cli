@@ -10809,5 +10809,8 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
 
 end
 
+# Wave 1 ([MEM111-W1] #313): QFM, GaR, xtqreg, QVAR, QFAVAR & QReg IPM
+include(joinpath(@__DIR__, "test_w1_quantile.jl"))
+
 # Real entry-point coverage (C036) — also on core/CI path
 include(joinpath(@__DIR__, "test_entry.jl"))

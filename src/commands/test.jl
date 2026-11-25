@@ -1774,7 +1774,8 @@ function test_specs()::Vector{CommandSpec}
                               description="Chi-square statistic, p-value, df and the IIA decision")],
             category="test",
             handler=_test_hausman_iia,
-        )
+        ),
+        w1_test_specs()...,
     ]
 end
 
@@ -1836,6 +1837,8 @@ const _TEST_RESULT_TYPES = Dict{String,Vector{Symbol}}(
     "bartlett-wn" => [:BartlettWhiteNoiseResult], "box-pierce" => [:BoxPierceResult],
     "durbin-watson" => [:DurbinWatsonResult], "brant" => Symbol[],
     "hausman-iia" => Symbol[],
+    "qfm-spanning" => [:QFMSpanningResult],
+    "qfm-constancy" => [:QFMLoadingConstancyTest],
 )
 
 const _SERIAL_RESIDUAL_MODELS = [
@@ -1860,6 +1863,8 @@ const _TEST_MODEL_TYPES = Dict{String,Vector{Symbol}}(
     "box-pierce"    => _SERIAL_RESIDUAL_MODELS,
     "arch-lm"       => _SERIAL_RESIDUAL_MODELS,
     "bartlett-wn"   => _SERIAL_RESIDUAL_MODELS,
+    "qfm-spanning"  => [:QuantileFactorModel, :QuantileFactorGrid],
+    "qfm-constancy" => [:QuantileFactorGrid],
 )
 
 function _extract_residual_series(data::String, column::Int, model)
@@ -1974,6 +1979,10 @@ function _rerender_test_result(result; format::String="table", output::String=""
             "Lags" => result.lags,
         ]; format=format, output=output, title="Ljung-Box Test",
             key=isempty(key) ? "ljung_box_test" : key)
+    elseif result isa _TIDY_COEF_TYPES
+        _emit_result(result; title=title, key=key, format=Symbol(format), output=output)
+        _maybe_plot(result; plot=plot, plot_save=plot_save)
+        return result
     elseif applicable(long_table, result)
         _rerender_long_table(result; format=format, output=output, title=title, key=key,
                              plot=plot, plot_save=plot_save)

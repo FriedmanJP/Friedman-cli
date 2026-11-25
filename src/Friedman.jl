@@ -57,6 +57,7 @@ include("registry/adapter.jl")
 include("registry/families.jl")
 
 # Commands (action-first hierarchy)
+include("commands/w1_quantile.jl")  # [MEM111-W1] QFM, GaR, xtqreg, QVAR, QFAVAR (#313)
 include("commands/estimate.jl")
 include("commands/test.jl")
 include("commands/irf.jl")

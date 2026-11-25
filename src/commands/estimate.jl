@@ -175,6 +175,7 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable (default: first numeric column)"),
                 OptionSpec(name="tau", type=String, default="0.5", description="Quantile(s) in (0,1); one value or a comma-list"),
                 OptionSpec(name="se", type=String, default="iid", description="Standard errors: iid|robust|boot", choices=["iid","robust","boot"]),
+                OptionSpec(name="solver", type=String, default="ipm", description="LP solver: ipm (Frisch-Newton interior point) | irls", choices=["ipm","irls"]),
                 OptionSpec(name="n-boot", type=Int, default=500, description="Bootstrap replications for --se boot"),
                 OptionSpec(name="alpha", type=Float64, default=0.05, description="Significance level for the CI, in (0,1)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -1882,11 +1883,12 @@ function estimate_specs()::Vector{CommandSpec}
                               description="Pseudo R-squared, log-likelihood, AIC/BIC and the category count")],
             category="estimate",
             handler=wrap_legacy(_estimate_mlogit),
-        )
+        ),
+        w1_estimate_specs()...,
     ]
 end
 
-const _ESTIMATE_PANEL = Set(["pvar", "preg", "piv", "plogit", "pprobit", "pmg", "xtcointreg"])
+const _ESTIMATE_PANEL = Set(["pvar", "preg", "piv", "plogit", "pprobit", "pmg", "xtcointreg", "xtqreg"])
 const _ESTIMATE_XS = Set(["3sls", "elastic-net", "heckman", "iv", "kde", "kernel-reg",
     "lasso", "logit", "lowess", "ml", "mlogit", "nbreg", "ologit", "oprobit",
     "poisson", "probit", "qreg", "rdd", "reg", "ridge", "robust", "select",
@@ -8291,13 +8293,19 @@ function _parse_taus(tau::String)
     return taus
 end
 
+const _QREG_SOLVERS = ("ipm", "irls")
+
 function _estimate_qreg(; data::String, dep::String="", tau::String="0.5",
-                         se::String="iid", n_boot::Int=500, alpha::Float64=0.05,
+                         se::String="iid", solver::String="ipm",
+                         n_boot::Int=500, alpha::Float64=0.05,
                          output::String="", format::String="table")
     taus = _parse_taus(tau)
     se_l = lowercase(strip(se))
     se_l in _QREG_SE_TYPES || throw(CliError("usage/invalid-option",
         "invalid --se '$se'; must be one of $(join(_QREG_SE_TYPES, "|"))"))
+    solver_l = lowercase(strip(solver))
+    solver_l in _QREG_SOLVERS || throw(CliError("usage/invalid-option",
+        "invalid --solver '$solver'; must be one of $(join(_QREG_SOLVERS, "|"))"))
     n_boot >= 1 || throw(CliError("usage/invalid", "--n-boot must be ≥ 1 (got $n_boot)"))
     0 < alpha < 1 || throw(CliError("usage/invalid",
         "--alpha must lie in (0, 1) (got $alpha)"))
@@ -8305,12 +8313,13 @@ function _estimate_qreg(; data::String, dep::String="", tau::String="0.5",
     y, X, xcols = _load_reg_data(data, dep)
     dep_name = _resolve_dep_name(data, dep)
     _status("Quantile Regression: $dep_name ~ $(join(xcols, " + "))")
-    _status("  Observations: $(length(y)), τ: $(join(taus, ", ")), SE: $se_l")
+    _status("  Observations: $(length(y)), τ: $(join(taus, ", ")), SE: $se_l, Solver: $solver_l")
     _status()
 
     model = try
         estimate_qreg(y, X, length(taus) == 1 ? taus[1] : taus;
-                      se=Symbol(se_l), varnames=xcols, n_boot=n_boot, alpha=alpha,
+                      se=Symbol(se_l), solver=Symbol(solver_l),
+                      varnames=xcols, n_boot=n_boot, alpha=alpha,
                       _fwd_seed()...)
     catch e
         e isa CliError && rethrow()

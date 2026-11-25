@@ -2155,7 +2155,7 @@ function predict_specs()::Vector{CommandSpec}
             category="predict",
             handler=_predict_garch_midas,
         ),
-    ])
+    ], w1_predict_specs())
 end
 
 function residuals_specs()::Vector{CommandSpec}
@@ -2469,7 +2469,7 @@ function residuals_specs()::Vector{CommandSpec}
             category="residuals",
             handler=_residuals_garch_midas,
         ),
-    ])
+    ], w1_residuals_specs())
 end
 
 function _overlay_estimator_data_kinds(specs::Vector{CommandSpec})
@@ -2485,11 +2485,14 @@ const _FITTED_MODEL_TYPES = Dict{String,Vector{Symbol}}(
     "arima" => [:ARIMAModel, :ARMAModel, :ARModel, :MAModel],
     "vecm" => [:VECMModel], "static" => [:FactorModel],
     "dynamic" => [:DynamicFactorModel], "gdfm" => [:GeneralizedDynamicFactorModel],
+    "qfm" => [:QuantileFactorModel, :QuantileFactorGrid],
     "arch" => [:ARCHModel], "garch" => [:GARCHModel], "egarch" => [:EGARCHModel],
     "gjr-garch" => [:GJRGARCHModel], "sv" => [:SVModel], "favar" => [:FAVARModel],
+    "qvar" => [:QuantileVARModel],
     "reg" => [:RegModel], "logit" => [:LogitModel], "probit" => [:ProbitModel],
     "preg" => [:PanelRegModel], "piv" => [:PanelIVModel],
     "plogit" => [:PanelLogitModel], "pprobit" => [:PanelProbitModel],
+    "xtqreg" => [:QuantileFactorPanelModel],
     "ologit" => [:OrderedLogitModel], "oprobit" => [:OrderedProbitModel],
     "mlogit" => [:MultinomialLogitModel], "sarima" => [:SARIMAModel],
     "poisson" => [:PoissonModel], "nbreg" => [:NegBinModel],

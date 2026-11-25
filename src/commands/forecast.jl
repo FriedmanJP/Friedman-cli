@@ -714,7 +714,8 @@ function forecast_specs()::Vector{CommandSpec}
                     TableSpec(name=:combined_forecast_series, description="The combined forecast itself (--emit-series): index | combined")],
             category="forecast",
             handler=wrap_legacy(_forecast_eval_combine),
-        )
+        ),
+        w1_forecast_specs()...,
     ]
 end
 
@@ -733,8 +734,11 @@ const _FORECAST_SLOT_TYPES = Dict{Vector{String},Tuple{Vector{Symbol},Vector{Sym
     ["forecast", "dynamic"]     => ([:DynamicFactorModel], [:FactorForecast]),
     ["forecast", "gdfm"]        => ([:GeneralizedDynamicFactorModel], [:FactorForecast]),
     ["forecast", "sdfm"]        => ([:StructuralDFM], [:FactorForecast]),
+    ["forecast", "qfm"]         => ([:QuantileFactorModel, :QuantileFactorGrid], [:FactorForecast]),
+    ["forecast", "growth-at-risk"] => ([:QuantileFactorGrid], [:GrowthAtRiskResult]),
     ["forecast", "vecm"]        => ([:VECMModel], [:VECMForecast]),
     ["forecast", "favar"]       => ([:FAVARModel], [:VARForecast]),
+    ["forecast", "qfavar"]      => ([:QuantileFAVAR, :VBQuantileFAVAR], [:NamedTuple]),
     ["forecast", "scenario"]    => ([:VARModel, :BVARPosterior], [:ConditionalForecast]),
     ["forecast", "midas"]       => ([:MidasModel], [:MidasForecast]),
     ["forecast", "arch"]        => ([:ARCHModel], [:VolatilityForecast]),
