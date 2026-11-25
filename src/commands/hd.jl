@@ -140,10 +140,13 @@ function hd_specs()::Vector{CommandSpec}
                 OptionSpec(name="factors", short="q", type=Int, default=nothing, description="Number of dynamic factors (default: auto via --q-method)"),
                 OptionSpec(name="id", type=String, default="cholesky", description=_SDFM_ID_DESC),
                 OptionSpec(name="q-method", type=String, default="hallin-liska", description="Auto factor selection: hallin-liska|bai-ng|amengual-watson", choices=["hallin-liska","bai-ng","amengual-watson"]),
-                OptionSpec(name="method", type=String, default="fglr", description="Estimator: fglr|gdfm-var (gdfm-var is the legacy path)", choices=["fglr","gdfm-var"]),
+                OptionSpec(name="method", type=String, default="fglr", description="Estimator: fglr|fhlz|gdfm-var (fhlz is one-sided infinite-r; gdfm-var is legacy)", choices=["fglr","fhlz","gdfm-var"]),
                 OptionSpec(name="spectral", type=String, default="lag-window", description="GDFM spectrum: lag-window (FHLR)|smoothed-periodogram", choices=["lag-window","smoothed-periodogram"]),
                 OptionSpec(name="instrument", type=String, default="", description="Proxy-instrument CSV column (only with --id proxy)"),
-                OptionSpec(name="var-lags", type=Int, default=1, description="Factor VAR lag order"),
+                OptionSpec(name="var-lags", type=String, default="auto", description="Factor VAR lag order (positive integer or auto|aic|bic|hq)"),
+                OptionSpec(name="n-perm", type=Int, default=30, description="Cross-sectional permutations for --method fhlz"),
+                OptionSpec(name="p-max", type=Int, default=nothing, description="Maximum lag order for automatic/FHLZ lag selection"),
+                OptionSpec(name="target", type=String, default="", description="Target variable name or 1-based index (for --id max-share)"),
                 OptionSpec(name="horizons", type=Int, default=20, description="HD horizon (periods decomposed)"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for sign restrictions"),
                 OptionSpec(name="space", type=String, default="panel", description="Decomposition space: panel|factor", choices=["panel","factor"]),
@@ -158,17 +161,19 @@ function hd_specs()::Vector{CommandSpec}
             tables=[TableSpec(name=:sdfm_historical_decomposition, family=true, description="One table per variable: period | actual | initial | one shock-contribution column per shock plus the idiosyncratic aggregate in panel space")],
             category="hd",
             handler=wrap_legacy(_hd_sdfm),
-        )
+        ),
+        w2_hd_specs()...,
     ]
 end
 
 const _HD_SLOT_TYPES = Dict{Vector{String},Tuple{Vector{Symbol},Vector{Symbol}}}(
-    ["hd", "var"]   => ([:VARModel, :SVARModel], [:HistoricalDecomposition]),
-    ["hd", "bvar"]  => ([:BVARPosterior], [:BayesianHistoricalDecomposition]),
-    ["hd", "lp"]    => ([:StructuralLP], [:HistoricalDecomposition]),
-    ["hd", "vecm"]  => ([:VECMModel, :SVECResult], [:HistoricalDecomposition]),
-    ["hd", "favar"] => ([:FAVARModel], [:HistoricalDecomposition]),
-    ["hd", "sdfm"]  => ([:StructuralDFM], [:HistoricalDecomposition]),
+    ["hd", "var"]     => ([:VARModel, :SVARModel], [:HistoricalDecomposition]),
+    ["hd", "bvar"]    => ([:BVARPosterior], [:BayesianHistoricalDecomposition]),
+    ["hd", "lp"]      => ([:StructuralLP], [:HistoricalDecomposition]),
+    ["hd", "vecm"]    => ([:VECMModel, :SVECResult], [:HistoricalDecomposition]),
+    ["hd", "favar"]   => ([:FAVARModel], [:HistoricalDecomposition]),
+    ["hd", "sdfm"]    => ([:StructuralDFM], [:HistoricalDecomposition]),
+    ["hd", "gdfm-i1"] => ([:CointegratedGDFM], [:HistoricalDecomposition]),
 )
 
 function register_hd_commands!()
@@ -623,10 +628,12 @@ end
 # ── SDFM HD ──────────────────────────────────────────────
 
 function _hd_sdfm(; data::String="", result=nothing, factors=nothing, id::String="cholesky",
-                   var_lags::Int=1, horizons::Int=20,
+                   var_lags="auto", horizons::Int=20,
                    config::String="", method::String="fglr",
                    spectral::String="lag-window", instrument::String="",
-                   q_method::String="hallin-liska", space::String="panel",
+                   q_method::String="hallin-liska",
+                   n_perm::Int=30, p_max=nothing, target::String="",
+                   space::String="panel",
                    no_idiosyncratic::Bool=false,
                    output::String="", format::String="table",
                    plot::Bool=false, plot_save::String="",
@@ -662,7 +669,8 @@ function _hd_sdfm(; data::String="", result=nothing, factors=nothing, id::String
         # Shared estimation surface with `estimate`/`irf`/`fevd` sdfm. HD uses
         # the identification stored at estimation (upstream #710).
         sdfm, _, _, _ = _load_and_estimate_sdfm(data, factors, id, var_lags,
-            horizons, config, method, spectral, instrument, q_method)
+            horizons, config, method, spectral, instrument, q_method;
+            n_perm=n_perm, p_max=p_max === nothing ? nothing : Int(p_max), target=target)
     else
         sdfm = model
     end

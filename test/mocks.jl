@@ -463,6 +463,7 @@ struct GeneralizedDynamicFactorModel{T}
     kernel::Symbol
     standardized::Bool
     variance_explained::Vector{T}
+    varnames::Vector{String}
 end
 struct FactorForecast{T} <: AbstractForecastResult{T}
     factors::Matrix{T}; observables::Matrix{T}
@@ -1745,21 +1746,49 @@ function ic_criteria_gdfm(X, max_q; standardize=true)
     (q_ratio=min(2, max_q), q_opt=min(2, max_q))
 end
 function estimate_gdfm(X, q; r=2, standardize=true, bandwidth=0, kernel=:bartlett,
-                       spectral=:lag_window)
+                       varnames=nothing, spectral=:lag_window,
+                       allow_missing=false, em_max_iter=50, em_tol=1e-4,
+                       n_lags_proj=0)
     spectral in (:lag_window, :smoothed_periodogram) ||
         throw(ArgumentError("spectral must be :lag_window or :smoothed_periodogram, got :$spectral"))
-    T_obs, n = size(X)
+    kernel in (:bartlett, :parzen, :tukey) ||
+        throw(ArgumentError("kernel must be :bartlett, :parzen, or :tukey, got :$kernel"))
+    em_max_iter >= 1 || throw(ArgumentError("em_max_iter must be >= 1"))
+    em_tol > 0 || throw(ArgumentError("em_tol must be > 0"))
+    n_lags_proj >= 0 || throw(ArgumentError("n_lags_proj must be >= 0"))
+    X_mat = Float64.(X)
+    if any(isinf, X_mat)
+        throw(ArgumentError("X contains Inf/-Inf"))
+    end
+    if !allow_missing && any(isnan, X_mat)
+        throw(ArgumentError("X contains NaN"))
+    end
+    T_obs, n = size(X_mat)
+    if allow_missing && any(isnan, X_mat)
+        X_imp = copy(X_mat)
+        for j in 1:n
+            fin = [v for v in @view(X_imp[:, j]) if isfinite(v)]
+            isempty(fin) && throw(ArgumentError("Column $j is all NaN"))
+            mu = sum(fin) / length(fin)
+            for i in 1:T_obs
+                isnan(X_imp[i, j]) && (X_imp[i, j] = mu)
+            end
+        end
+        X_mat = X_imp
+    end
+    r_use = r == 0 ? q : r
     bw = bandwidth == 0 ? 5 : bandwidth
-    fac = ones(T_obs, r) * 0.1
+    vn = varnames === nothing ? ["Var $i" for i in 1:n] : String[string(v) for v in varnames]
+    fac = ones(T_obs, r_use) * 0.1
     cc = ones(T_obs, n) * 0.5
     idio = ones(T_obs, n) * 0.1
-    load_s = ones(n, r, 10) * 0.3
+    load_s = ones(n, r_use, 10) * 0.3
     sx = ones(n, n, 10) * 0.1
     schi = ones(n, n, 10) * 0.05
-    eigs = ones(r, 10)
+    eigs = ones(r_use, 10)
     freqs = collect(range(0, stop=π, length=10))
-    GeneralizedDynamicFactorModel(Float64.(X), fac, cc, idio, load_s, sx, schi, eigs, freqs,
-        q, r, bw, kernel, standardize, fill(0.5, r))
+    GeneralizedDynamicFactorModel(X_mat, fac, cc, idio, load_s, sx, schi, eigs, freqs,
+        q, r_use, bw, kernel, standardize, fill(0.5, r_use), vn)
 end
 function common_variance_share(model::GeneralizedDynamicFactorModel)
     n = size(model.common_component, 2)
@@ -6031,13 +6060,15 @@ struct StructuralDFM{T<:Real}
 end
 
 function estimate_structural_dfm(X::Matrix{T}, q::Int;
-        identification=:cholesky, p=1, H=40, sign_check=nothing,
+        identification=:cholesky, p::Union{Int,Symbol}=:auto,
+        p_max::Union{Nothing,Int}=nothing, H=40, sign_check=nothing,
         max_draws=1000, standardize=true, bandwidth=0, kernel=:bartlett,
-        spectral=:lag_window, method=:fglr, instrument=nothing, seed=nothing,
+        spectral=:lag_window, method=:fglr, n_perm::Int=30,
+        instrument=nothing, target=nothing, seed=nothing,
         r=0, varnames::Union{Nothing,Vector{String}}=nothing,
         id_kwargs::NamedTuple=NamedTuple()) where T
-    method in (:fglr, :gdfm_var) ||
-        throw(ArgumentError("method must be :fglr or :gdfm_var, got :$method"))
+    method in (:fglr, :fhlz, :gdfm_var) ||
+        throw(ArgumentError("method must be :fglr, :fhlz, or :gdfm_var, got :$method"))
     spectral in (:lag_window, :smoothed_periodogram) ||
         throw(ArgumentError("spectral must be :lag_window or :smoothed_periodogram, got :$spectral"))
     # Real (factor/structural.jl) requires an instrument for proxy identification.
@@ -6048,30 +6079,39 @@ function estimate_structural_dfm(X::Matrix{T}, q::Int;
     vn = varnames === nothing ? ["Var $i" for i in 1:n_vars] : varnames
     length(vn) == n_vars || throw(ArgumentError(
         "varnames has $(length(vn)) entries but panel has $n_vars columns"))
+    p_use = if p isa Integer
+        Int(p)
+    elseif method === :fhlz
+        something(p_max, 5)
+    else
+        1
+    end
     gdfm = estimate_gdfm(X, q; standardize=standardize, bandwidth=bandwidth, kernel=kernel,
-                         spectral=spectral)
-    factor_Y = randn(T, n_obs - p, q)
-    B_fvar = ones(T, q * p + 1, q) * T(0.1)
-    U_fvar = randn(T, n_obs - p, q)
+                         varnames=vn, spectral=spectral)
+    factor_Y = randn(T, max(2, n_obs - p_use), q)
+    B_fvar = ones(T, q * p_use + 1, q) * T(0.1)
+    U_fvar = randn(T, max(2, n_obs - p_use), q)
     Sigma_fvar = Matrix{T}(I(q)) * T(0.5)
     # Real names the factor VAR "Static factor $i" — fevd/hd sdfm labels
     # come from here (verified at MEMs 1.0.0 against the fglr estimate path).
-    fvar = VARModel{T}(factor_Y, p, B_fvar, U_fvar, Sigma_fvar, T(-50.0), T(-48.0),
+    fvar = VARModel{T}(factor_Y, p_use, B_fvar, U_fvar, Sigma_fvar, T(-50.0), T(-48.0),
                        T(-45.0), ["Static factor $i" for i in 1:q])
     B0 = Matrix{T}(I(q))
     Q_mat = Matrix{T}(I(q))
     loadings_td = randn(T, n_vars, q)
     s_irf = ones(T, H + 1, n_vars, q) * T(0.05)
     snames = ["Shock $i" for i in 1:q]
-    StructuralDFM{T}(gdfm, fvar, B0, Q_mat, identification, s_irf, loadings_td, p, snames, vn)
+    StructuralDFM{T}(gdfm, fvar, B0, Q_mat, identification, s_irf, loadings_td, p_use, snames, vn)
 end
 
 # Real (factor/structural.jl): q=:auto selects via q_method (hallin_liska default).
 # Deterministic canned selection matching the old ic_criteria_gdfm auto (2 factors
 # when the panel allows it).
 function estimate_structural_dfm(X::Matrix{T}, q::Symbol;
-        q_method=:hallin_liska, q_max=8, r=0, identification=:cholesky, p=1, H=40,
-        method=:fglr, spectral=:lag_window, instrument=nothing, seed=nothing,
+        q_method=:hallin_liska, q_max=8, r=0, identification=:cholesky,
+        p::Union{Int,Symbol}=:auto, p_max::Union{Nothing,Int}=nothing, H=40,
+        method=:fglr, n_perm::Int=30, spectral=:lag_window,
+        instrument=nothing, target=nothing, seed=nothing,
         sign_check=nothing,
         standardize=true, bandwidth=0, kernel=:bartlett, varnames=nothing,
         id_kwargs::NamedTuple=NamedTuple()) where T
@@ -6083,9 +6123,9 @@ function estimate_structural_dfm(X::Matrix{T}, q::Symbol;
     q_hat = max(min(q_cap, 2), 1)
     # No `; kwargs...` absorber here (the mock budget in check_mock_surface.jl is
     # frozen): the forwarded set is enumerated explicitly, matching the CLI surface.
-    estimate_structural_dfm(X, q_hat; r=r, identification=identification, p=p, H=H,
-        method=method, spectral=spectral, instrument=instrument, seed=seed,
-        sign_check=sign_check,
+    estimate_structural_dfm(X, q_hat; r=r, identification=identification,
+        p=p, p_max=p_max, H=H, method=method, n_perm=n_perm, spectral=spectral,
+        instrument=instrument, target=target, seed=seed, sign_check=sign_check,
         standardize=standardize, bandwidth=bandwidth, kernel=kernel, varnames=varnames,
         id_kwargs=id_kwargs)
 end
@@ -14282,5 +14322,594 @@ export QuantileFactorModel, QFMICResult, QuantileFactorGrid, QFMSpanningResult,
        estimate_qfm, ic_criteria_qfm, growth_at_risk, test_qfm_spanning,
        test_qfm_loading_constancy, estimate_xtqreg_factors, estimate_qvar, qirf,
        estimate_qfavar, qfavar_panel_irf, qfavar_panel_forecast
+
+
+# ── [MEM111-W2] #314 ──────────────────────────────────────────
+
+struct FHLZModel{T<:AbstractFloat}
+    X::Matrix{T}
+    q::Int
+    common_component::Matrix{T}
+    idiosyncratic::Matrix{T}
+    innovations::Matrix{T}
+    impulse_filters::Array{T,3}
+    p_blocks::Matrix{Int}
+    n_perm::Int
+    bandwidth::Int
+    kernel::Symbol
+    standardized::Bool
+    variance_explained::Vector{T}
+    varnames::Vector{String}
+    manifest::Any
+end
+
+struct CointegratedGDFM{T<:AbstractFloat}
+    X::Matrix{T}
+    common_levels::Matrix{T}
+    idiosyncratic::Matrix{T}
+    irf_matrices::Array{T,3}
+    long_run_impact::Matrix{T}
+    B0::Matrix{T}
+    shocks::Matrix{T}
+    trend_coef::Matrix{T}
+    p_blocks::Matrix{Int}
+    q::Int
+    n_permanent::Int
+    n_perm::Int
+    bandwidth::Int
+    kernel::Symbol
+    det_trend::Symbol
+    identification::Symbol
+    irf_horizon::Int
+    varnames::Vector{String}
+    shock_names::Vector{String}
+    manifest::Any
+end
+
+struct TimeVaryingGDFM{T<:AbstractFloat}
+    X::Matrix{T}
+    common_component::Matrix{T}
+    idiosyncratic::Matrix{T}
+    eigenvalues_path::Array{T,3}
+    frequencies::Vector{T}
+    u_grid::Vector{T}
+    variance_share_path::Matrix{T}
+    q::Int
+    n_grid::Int
+    time_bandwidth::T
+    lag_bandwidth::Int
+    time_kernel::Symbol
+    lag_kernel::Symbol
+    standardized::Bool
+    varnames::Vector{String}
+end
+
+struct OnatskiQTestResult{T<:AbstractFloat}
+    statistic::T
+    pvalue::T
+    crit_vals::Vector{T}
+    alpha_levels::Vector{T}
+    k0::Int
+    k1::Int
+    n_obs::Int
+    n_vars::Int
+    bandwidth::Int
+    n_blocks::Int
+    rejected_05::Bool
+end
+
+struct AhnHorensteinResult{T<:AbstractFloat}
+    eigenvalues::Vector{T}
+    mock_eigenvalue::T
+    er::Vector{T}
+    gr::Vector{T}
+    r_er::Int
+    r_gr::Int
+    k_max::Int
+    n_obs::Int
+    n_vars::Int
+end
+
+struct OnatskiEDResult{T<:AbstractFloat}
+    eigenvalues::Vector{T}
+    r_ed::Int
+    delta::T
+    iterations::Int
+    converged::Bool
+    k_max::Int
+    n_obs::Int
+    n_vars::Int
+end
+
+struct BandPassGDFMResult{T<:AbstractFloat}
+    common_twosided::Matrix{T}
+    common_onesided::Matrix{T}
+    variance_share::Vector{T}
+    band::Tuple{T,T}
+    r::Int
+    varnames::Vector{String}
+end
+
+struct EurocoinResult{T<:AbstractFloat}
+    indicator::Vector{T}
+    target_lowpass::Vector{T}
+    weights::Vector{T}
+    r2::T
+    cutoff::T
+    q::Int
+    r::Int
+end
+
+struct SpectralFEVDResult{T<:AbstractFloat}
+    shares::Matrix{T}
+    power_band::Matrix{T}
+    total_power_band::Vector{T}
+    band::Tuple{T,T}
+    include_idiosyncratic::Bool
+    varnames::Vector{String}
+    shock_names::Vector{String}
+end
+
+struct GDFMNowcastResult{T<:AbstractFloat}
+    nowcast::Vector{T}
+    se::Vector{T}
+    panel_imputed::Matrix{T}
+    horizon::Int
+    n_lags::Int
+    observed_mask::BitMatrix
+    varnames::Vector{String}
+end
+
+function _w2_mock_impute_nan(X::AbstractMatrix)
+    X_mat = Matrix{Float64}(X)
+    T_obs, N = size(X_mat)
+    for j in 1:N
+        fin = [v for v in @view(X_mat[:, j]) if isfinite(v)]
+        isempty(fin) && throw(ArgumentError("Column $j is all NaN"))
+        mu = sum(fin) / length(fin)
+        for i in 1:T_obs
+            isnan(X_mat[i, j]) && (X_mat[i, j] = mu)
+        end
+    end
+    return X_mat
+end
+
+function estimate_gdfm_fhlz(X::AbstractMatrix, q::Int;
+        bandwidth::Int=0, kernel::Symbol=:bartlett, p_max::Int=5,
+        lag_criterion::Symbol=:bic, n_perm::Int=30, irf_horizon::Int=40,
+        standardize::Bool=true, threaded::Bool=true,
+        varnames::Union{Nothing,AbstractVector{<:AbstractString}}=nothing,
+        seed::Union{Integer,Nothing}=nothing, rng::Any=nothing,
+        allow_missing::Bool=false, em_max_iter::Int=50, em_tol::Real=1e-4)
+    kernel in (:bartlett, :parzen, :tukey) || throw(ArgumentError("kernel must be :bartlett, :parzen, or :tukey"))
+    lag_criterion in (:bic, :aic) || throw(ArgumentError("lag_criterion must be :bic or :aic"))
+    p_max >= 1 || throw(ArgumentError("p_max must be >= 1"))
+    n_perm >= 1 || throw(ArgumentError("n_perm must be >= 1"))
+    irf_horizon >= 1 || throw(ArgumentError("irf_horizon must be >= 1"))
+    em_max_iter >= 1 || throw(ArgumentError("em_max_iter must be >= 1"))
+    em_tol > 0 || throw(ArgumentError("em_tol must be > 0"))
+    X_raw = Matrix{Float64}(X)
+    any(isinf, X_raw) && throw(ArgumentError("X contains Inf/-Inf"))
+    if !allow_missing && any(isnan, X_raw)
+        throw(ArgumentError("X contains NaN"))
+    end
+    X_orig = allow_missing && any(isnan, X_raw) ? _w2_mock_impute_nan(X_raw) : X_raw
+    T_obs, N = size(X_orig)
+    (1 <= q <= min(T_obs, N)) || throw(ArgumentError("q out of range"))
+    p_use = min(p_max, max(1, T_obs - 2))
+    T_eff = max(1, T_obs - p_use)
+    bw = bandwidth > 0 ? bandwidth : max(3, round(Int, 0.5 * sqrt(T_obs)))
+    vn = varnames === nothing ? ["Var $i" for i in 1:N] : String[string(v) for v in varnames]
+    cc = X_orig[(T_obs - T_eff + 1):end, :] .* 0.7
+    idio = X_orig[(T_obs - T_eff + 1):end, :] .- cc
+    innov = ones(Float64, T_eff, q) .* 0.1
+    imp = ones(Float64, irf_horizon, N, q) .* 0.05
+    n_blocks = max(1, div(N, q + 1))
+    p_blocks = fill(min(2, p_use), n_perm, n_blocks)
+    ve = fill(0.6 / q, q)
+    FHLZModel{Float64}(X_orig, q, cc, idio, innov, imp, p_blocks, n_perm, bw,
+        kernel, standardize, ve, vn, nothing)
+end
+
+predict(m::FHLZModel) = m.common_component
+residuals(m::FHLZModel) = m.idiosyncratic
+common_variance_share(m::FHLZModel) = fill(0.6, size(m.X, 2))
+
+function long_table(m::FHLZModel)
+    H, nv, nq = size(m.impulse_filters)
+    horizon = Int[]; variable = String[]; shock = String[]; value = Float64[]; var_explained = Float64[]
+    for s in 1:nq, v in 1:nv, h in 1:H
+        push!(horizon, h - 1)
+        push!(variable, v <= length(m.varnames) ? m.varnames[v] : "var_$v")
+        push!(shock, "u_$s")
+        push!(value, Float64(m.impulse_filters[h, v, s]))
+        push!(var_explained, s <= length(m.variance_explained) ? Float64(m.variance_explained[s]) : NaN)
+    end
+    DataFrame(; horizon, variable, shock, value, var_explained)
+end
+
+function estimate_gdfm_i1(X_levels::AbstractMatrix, q::Int;
+        p_max::Int=4, n_perm::Int=25, bandwidth::Int=0, kernel::Symbol=:bartlett,
+        det_trend::Symbol=:constant, irf_horizon::Int=40,
+        identification::Symbol=:permanent_transitory,
+        sign_check::Union{Nothing,Function}=nothing,
+        n_permanent::Union{Nothing,Int}=nothing,
+        order::Union{Nothing,Vector{Int}}=nothing,
+        target_vars=nothing, instrument=nothing, normalize=nothing,
+        max_draws::Int=1000, lag_criterion::Symbol=:bic,
+        standardize::Bool=true, threaded::Bool=true,
+        varnames::Union{Nothing,AbstractVector{<:AbstractString}}=nothing,
+        shock_names::Union{Nothing,AbstractVector{<:AbstractString}}=nothing,
+        rng::Any=nothing, seed::Union{Integer,Nothing}=nothing)
+    kernel in (:bartlett, :parzen, :tukey) || throw(ArgumentError("kernel must be :bartlett, :parzen, or :tukey"))
+    det_trend in (:none, :constant, :linear) || throw(ArgumentError("det_trend must be :none, :constant, or :linear"))
+    identification in (:permanent_transitory, :cholesky, :long_run, :sign, :proxy) ||
+        throw(ArgumentError("invalid identification :$identification"))
+    lag_criterion in (:bic, :aic) || throw(ArgumentError("lag_criterion must be :bic or :aic"))
+    identification === :sign && sign_check === nothing && throw(ArgumentError("sign_check required for :sign"))
+    identification === :proxy && instrument === nothing && throw(ArgumentError("instrument required for :proxy"))
+    X_orig = Matrix{Float64}(X_levels)
+    T_obs, N = size(X_orig)
+    (1 <= q <= min(T_obs - 1, N)) || throw(ArgumentError("q out of range"))
+    n_perm_use = n_permanent === nothing ? min(1, q) : Int(n_permanent)
+    (0 <= n_perm_use <= q) || throw(ArgumentError("n_permanent out of range"))
+    p_use = min(p_max, max(1, T_obs - q - 4))
+    T_eff = max(2, T_obs - p_use)
+    bw = bandwidth > 0 ? bandwidth : max(3, round(Int, 0.5 * sqrt(T_obs)))
+    vn = varnames === nothing ? ["Var $i" for i in 1:N] : String[string(v) for v in varnames]
+    sn = shock_names === nothing ? (
+        identification === :permanent_transitory ?
+            vcat(["Permanent $i" for i in 1:n_perm_use], ["Transitory $i" for i in 1:(q - n_perm_use)]) :
+            ["Shock $i" for i in 1:q]
+    ) : String[string(s) for s in shock_names]
+    cc = X_orig .* 0.8
+    idio = X_orig .- cc
+    irf_mats = ones(Float64, irf_horizon + 1, N, q) .* 0.1
+    lr_imp = ones(Float64, N, q) .* 0.1
+    if n_perm_use < q
+        lr_imp[:, (n_perm_use + 1):q] .= 0.0
+    end
+    B0 = Matrix{Float64}(I, q, q)
+    shocks = ones(Float64, T_eff, q) .* 0.1
+    trend_coef = zeros(Float64, 2, N)
+    n_blocks = max(1, div(N, q + 1))
+    p_blocks = fill(min(2, p_use), n_perm, n_blocks)
+    CointegratedGDFM{Float64}(X_orig, cc, idio, irf_mats, lr_imp, B0, shocks, trend_coef,
+        p_blocks, q, n_perm_use, n_perm, bw, kernel, det_trend, identification,
+        irf_horizon, vn, sn, nothing)
+end
+
+predict(m::CointegratedGDFM) = m.common_levels
+residuals(m::CointegratedGDFM) = m.idiosyncratic
+common_variance_share(m::CointegratedGDFM) = fill(0.8, size(m.X, 2))
+
+function long_table(m::CointegratedGDFM)
+    H, nv, nq = size(m.irf_matrices)
+    horizon = Int[]; variable = String[]; shock = String[]; value = Float64[]
+    for h in 1:H, v in 1:nv, s in 1:nq
+        push!(horizon, h - 1)
+        push!(variable, v <= length(m.varnames) ? m.varnames[v] : "var_$v")
+        push!(shock, s <= length(m.shock_names) ? m.shock_names[s] : "shock_$s")
+        push!(value, Float64(m.irf_matrices[h, v, s]))
+    end
+    DataFrame(; horizon, variable, shock, value)
+end
+
+function irf(m::CointegratedGDFM{T}, horizon::Int=m.irf_horizon + 1) where T
+    horizon >= 1 || throw(ArgumentError("horizon must be >= 1"))
+    N = length(m.varnames)
+    q = m.q
+    vals = ones(T, horizon, N, q) .* T(0.1)
+    ImpulseResponse(vals, nothing, nothing, horizon, copy(m.varnames), copy(m.shock_names), :none)
+end
+
+function fevd(m::CointegratedGDFM{T}, horizon::Int=m.irf_horizon + 1;
+              include_idiosyncratic::Bool=false) where T
+    horizon >= 1 || throw(ArgumentError("horizon must be >= 1"))
+    N = length(m.varnames)
+    q = m.q
+    ns = include_idiosyncratic ? q + 1 : q
+    snames = include_idiosyncratic ? vcat(copy(m.shock_names), ["Idiosyncratic"]) : copy(m.shock_names)
+    decomp = fill(one(T) / T(ns), N, ns, horizon)
+    props = fill(one(T) / T(ns), N, ns, horizon)
+    FEVD{T}(decomp, props, copy(m.varnames), snames)
+end
+
+function historical_decomposition(m::CointegratedGDFM{T}, horizon::Int=size(m.shocks, 1);
+                                  include_idiosyncratic::Bool=true) where T
+    T_eff = min(horizon, size(m.shocks, 1))
+    T_eff >= 1 || throw(ArgumentError("horizon must be >= 1"))
+    N = length(m.varnames)
+    q = m.q
+    ns = include_idiosyncratic ? q + 1 : q
+    snames = include_idiosyncratic ? vcat(copy(m.shock_names), ["Idiosyncratic"]) : copy(m.shock_names)
+    contribs = fill(T(0.1), T_eff, N, ns)
+    actual = ones(T, T_eff, N)
+    init = actual .- dropdims(sum(contribs; dims=3); dims=3)
+    shocks_h = m.shocks[1:T_eff, :]
+    HistoricalDecomposition{T}(contribs, init, actual, shocks_h, T_eff,
+        copy(m.varnames), snames, m.identification)
+end
+
+function forecast(m::CointegratedGDFM{T}, h::Int;
+                  ci_method::Symbol=:none, reps::Int=200, conf_level::Real=0.95,
+                  rng::Any=nothing, seed::Union{Integer,Nothing}=nothing) where T
+    h >= 1 || throw(ArgumentError("h must be >= 1"))
+    ci_method in (:none, :theoretical, :bootstrap) || throw(ArgumentError("invalid ci_method"))
+    N = length(m.varnames)
+    q = m.q
+    F_fc = zeros(T, h, q)
+    X_fc = ones(T, h, N) .* T(0.2)
+    se = ci_method === :none ? zeros(T, h, N) : ones(T, h, N) .* T(0.1)
+    FactorForecast(F_fc, X_fc, F_fc, F_fc, X_fc .- se, X_fc .+ se,
+        zeros(T, h, q), se, h, T(conf_level), ci_method)
+end
+
+function estimate_tv_gdfm(X::AbstractMatrix, q::Int;
+        time_bandwidth::Real=0.0, lag_bandwidth::Int=0,
+        time_kernel::Symbol=:epanechnikov, lag_kernel::Symbol=:bartlett,
+        n_grid::Int=25, standardize::Bool=true,
+        varnames::Union{Nothing,AbstractVector{<:AbstractString}}=nothing)
+    time_kernel in (:epanechnikov, :gaussian, :uniform) || throw(ArgumentError("invalid time_kernel"))
+    lag_kernel in (:bartlett, :parzen, :tukey) || throw(ArgumentError("invalid lag_kernel"))
+    n_grid >= 1 || throw(ArgumentError("n_grid must be >= 1"))
+    X_orig = Matrix{Float64}(X)
+    T_obs, N = size(X_orig)
+    (1 <= q <= min(T_obs, N)) || throw(ArgumentError("q out of range"))
+    b_T = time_bandwidth > 0 ? Float64(time_bandwidth) : max(0.12, Float64(T_obs)^(-0.2))
+    M_T = lag_bandwidth > 0 ? lag_bandwidth : max(3, round(Int, 0.5 * sqrt(b_T * T_obs)))
+    vn = varnames === nothing ? ["Var $i" for i in 1:N] : String[string(v) for v in varnames]
+    cc = X_orig .* 0.65
+    idio = X_orig .- cc
+    n_freq = 17
+    freqs = collect(range(0.0, stop=Float64(π), length=n_freq))
+    u_grid = collect(range(1.0 / (2 * n_grid), stop=1.0 - 1.0 / (2 * n_grid), length=n_grid))
+    eigs = ones(Float64, n_grid, N, n_freq)
+    vsp = fill(0.65 / q, T_obs, q)
+    TimeVaryingGDFM{Float64}(X_orig, cc, idio, eigs, freqs, u_grid, vsp,
+        q, n_grid, b_T, M_T, time_kernel, lag_kernel, standardize, vn)
+end
+
+predict(m::TimeVaryingGDFM) = m.common_component
+residuals(m::TimeVaryingGDFM) = m.idiosyncratic
+common_variance_share(m::TimeVaryingGDFM) = m.variance_share_path
+
+function long_table(m::TimeVaryingGDFM)
+    T_obs, q = size(m.variance_share_path)
+    time = Int[]; factor = Int[]; variance_share = Float64[]
+    for k in 1:q, t in 1:T_obs
+        push!(time, t); push!(factor, k); push!(variance_share, Float64(m.variance_share_path[t, k]))
+    end
+    DataFrame(; time, factor, variance_share)
+end
+
+function onatski_q_test(X::AbstractMatrix, k0::Int, k1::Int;
+        bandwidth::Union{Int,Nothing}=nothing, n_blocks::Union{Int,Nothing}=nothing,
+        kernel::Symbol=:bartlett, freq::Union{Real,Nothing}=nothing,
+        standardize::Bool=true, demean::Bool=true, n_sim::Int=5000,
+        rng::Any=nothing, seed::Union{Integer,Nothing}=nothing)
+    kernel in (:bartlett, :parzen, :tukey_hanning) || throw(ArgumentError("invalid kernel"))
+    T_obs, N = size(X)
+    (k0 >= 0 && k1 > k0 && k1 + 2 <= N) || throw(ArgumentError("invalid k0/k1"))
+    bw = bandwidth === nothing ? clamp(round(Int, sqrt(T_obs)), 3, max(3, T_obs - 1)) : bandwidth
+    nb = n_blocks === nothing ? 4 : n_blocks
+    stat = k0 < 2 ? 12.5 : 1.2
+    pval = k0 < 2 ? 0.005 : 0.42
+    OnatskiQTestResult{Float64}(stat, pval, [3.1, 4.5, 6.8], [0.10, 0.05, 0.01],
+        k0, k1, T_obs, N, bw, nb, pval < 0.05)
+end
+
+function onatski_q_select(X::AbstractMatrix;
+        k_max::Int=min(8, size(X, 2) - 2), alpha::Real=0.05,
+        bandwidth::Union{Int,Nothing}=nothing, n_blocks::Union{Int,Nothing}=nothing,
+        kernel::Symbol=:bartlett, freq::Union{Real,Nothing}=nothing,
+        standardize::Bool=true, demean::Bool=true, n_sim::Int=5000,
+        rng::Any=nothing, seed::Union{Integer,Nothing}=nothing)
+    tests = OnatskiQTestResult{Float64}[]
+    q_hat = k_max
+    for k0 in 0:(k_max - 1)
+        res = onatski_q_test(X, k0, k_max; bandwidth=bandwidth, n_blocks=n_blocks,
+            kernel=kernel, freq=freq, standardize=standardize, demean=demean,
+            n_sim=n_sim, rng=rng, seed=seed)
+        push!(tests, res)
+        if res.pvalue >= Float64(alpha)
+            q_hat = k0
+            break
+        end
+    end
+    return q_hat, tests
+end
+
+function DataFrames.DataFrame(r::OnatskiQTestResult)
+    DataFrame(
+        test=["Onatski (2009) dynamic rank q-test"],
+        k0=[r.k0], k1=[r.k1],
+        statistic=[Float64(r.statistic)],
+        p_value=[Float64(r.pvalue)],
+        crit_05=[isempty(r.crit_vals) ? NaN : Float64(r.crit_vals[min(2, end)])],
+        rejected_05=[r.rejected_05],
+    )
+end
+
+function ahn_horenstein(X::AbstractMatrix, k_max::Int=min(10, min(size(X)...) - 2);
+        demean::Bool=true, standardize::Bool=true)
+    T_obs, N = size(X)
+    m = min(T_obs, N)
+    (1 <= k_max <= m - 2) || throw(ArgumentError("k_max out of range"))
+    evals = [10.0 / k for k in 1:m]
+    er = vcat([1.5], [k == 2 ? 4.5 : 1.2 for k in 1:k_max])
+    gr = vcat([1.3], [k == 2 ? 3.8 : 1.1 for k in 1:k_max])
+    r_er = min(2, k_max)
+    r_gr = min(2, k_max)
+    AhnHorensteinResult{Float64}(evals, sum(evals) / log(Float64(m)), er, gr,
+        r_er, r_gr, k_max, T_obs, N)
+end
+
+function DataFrames.DataFrame(r::AhnHorensteinResult)
+    kmax = min(r.k_max, length(r.eigenvalues), length(r.er), length(r.gr))
+    DataFrame(
+        k=collect(1:kmax),
+        eigenvalue=Float64.(collect(r.eigenvalues[1:kmax])),
+        er=Float64.(collect(r.er[1:kmax])),
+        gr=Float64.(collect(r.gr[1:kmax])),
+        r_er=fill(r.r_er, kmax),
+        r_gr=fill(r.r_gr, kmax),
+    )
+end
+
+function onatski_ed(X::AbstractMatrix, k_max::Int=min(10, min(size(X)...) - 2);
+        max_iter::Int=20, standardize::Bool=true, demean::Bool=true)
+    T_obs, N = size(X)
+    m = min(T_obs, N)
+    (1 <= k_max <= m - 2) || throw(ArgumentError("k_max out of range"))
+    max_iter >= 1 || throw(ArgumentError("max_iter must be >= 1"))
+    evals = [10.0 / k for k in 1:m]
+    OnatskiEDResult{Float64}(evals, min(2, k_max), 0.75, 3, true, k_max, T_obs, N)
+end
+
+function DataFrames.DataFrame(r::OnatskiEDResult)
+    n = length(r.eigenvalues)
+    DataFrame(
+        k=collect(1:n),
+        eigenvalue=Float64.(collect(r.eigenvalues)),
+        delta=fill(Float64(r.delta), n),
+        r_ed=fill(r.r_ed, n),
+        converged=fill(r.converged, n),
+    )
+end
+
+function bandpass_gdfm(gdfm::GeneralizedDynamicFactorModel{T},
+                       band::Tuple{Real,Real}; r::Int=gdfm.r) where T
+    w_lo, w_hi = Float64(band[1]), Float64(band[2])
+    (0.0 <= w_lo < w_hi <= Float64(π) + 1e-12) || throw(ArgumentError("invalid band"))
+    T_obs, N = size(gdfm.X)
+    (gdfm.q <= r <= N) || throw(ArgumentError("r out of range"))
+    c2 = gdfm.common_component .* 0.5
+    c1 = gdfm.common_component .* 0.45
+    vsh = fill(0.4, N)
+    BandPassGDFMResult{Float64}(Matrix{Float64}(c2), Matrix{Float64}(c1), vsh,
+        (w_lo, min(w_hi, Float64(π))), r, copy(gdfm.varnames))
+end
+
+function long_table(r::BandPassGDFMResult)
+    Teff, N = size(r.common_twosided)
+    time = Int[]; variable = String[]; twosided = Float64[]; onesided = Float64[]
+    for j in 1:N, t in 1:Teff
+        push!(time, t)
+        push!(variable, j <= length(r.varnames) ? r.varnames[j] : "var_$j")
+        push!(twosided, Float64(r.common_twosided[t, j]))
+        push!(onesided, Float64(r.common_onesided[t, j]))
+    end
+    DataFrame(; time, variable, twosided, onesided)
+end
+
+function eurocoin_indicator(X::AbstractMatrix, target::AbstractVector, q::Int;
+        cutoff::Real=π / 6, r::Int=0, bandwidth::Int=0,
+        kernel::Symbol=:bartlett, standardize::Bool=true)
+    kernel in (:bartlett, :parzen, :tukey) || throw(ArgumentError("invalid kernel"))
+    T_obs, N = size(X)
+    length(target) == T_obs || throw(ArgumentError("target length mismatch"))
+    r_use = r == 0 ? q : r
+    (1 <= q <= r_use <= min(T_obs, N)) || throw(ArgumentError("invalid q/r"))
+    c_val = Float64(cutoff)
+    (0.0 < c_val < Float64(π)) || throw(ArgumentError("cutoff must be in (0, pi)"))
+    t_lp = Float64.(collect(target)) .* 0.8
+    ind = t_lp .* 0.95
+    w = fill(1.0 / N, N)
+    EurocoinResult{Float64}(ind, t_lp, w, 0.88, c_val, q, r_use)
+end
+
+function DataFrames.DataFrame(r::EurocoinResult)
+    T_eff = length(r.indicator)
+    tlp = length(r.target_lowpass) == T_eff ? Float64.(collect(r.target_lowpass)) : fill(NaN, T_eff)
+    DataFrame(
+        period=collect(1:T_eff),
+        indicator=Float64.(collect(r.indicator)),
+        target_lowpass=tlp,
+        r2=fill(Float64(r.r2), T_eff),
+        cutoff=fill(Float64(r.cutoff), T_eff),
+    )
+end
+
+function spectral_fevd(sdfm::StructuralDFM{T},
+                       band::Tuple{Real,Real}=(2π / 32, 2π / 6);
+                       include_idiosyncratic::Bool=false) where T
+    w_lo, w_hi = Float64(band[1]), Float64(band[2])
+    (0.0 <= w_lo < w_hi <= Float64(π) + 1e-12) || throw(ArgumentError("invalid band"))
+    N = length(sdfm.varnames)
+    q = sdfm.gdfm.q
+    ns = include_idiosyncratic ? q + 1 : q
+    snames = include_idiosyncratic ? vcat(copy(sdfm.shock_names), ["Idiosyncratic"]) : copy(sdfm.shock_names)
+    shares = fill(1.0 / ns, N, ns)
+    power = fill(0.5 / ns, N, ns)
+    tot = fill(0.5, N)
+    SpectralFEVDResult{Float64}(shares, power, tot, (w_lo, min(w_hi, Float64(π))),
+        include_idiosyncratic, copy(sdfm.varnames), snames)
+end
+
+function long_table(r::SpectralFEVDResult)
+    nv, ns = size(r.shares)
+    variable = String[]; shock = String[]; share = Float64[]; power_band = Float64[]
+    for v in 1:nv, s in 1:ns
+        push!(variable, v <= length(r.varnames) ? r.varnames[v] : "var_$v")
+        push!(shock, s <= length(r.shock_names) ? r.shock_names[s] : "shock_$s")
+        push!(share, Float64(r.shares[v, s]))
+        push!(power_band, Float64(r.power_band[v, s]))
+    end
+    DataFrame(; variable, shock, share, power_band)
+end
+
+function nowcast_gdfm(gdfm::GeneralizedDynamicFactorModel{T},
+                      X_ragged::AbstractMatrix{<:Real}, h::Int=0;
+                      n_lags::Int=2) where T
+    n_lags >= 0 || throw(ArgumentError("n_lags must be >= 0"))
+    T_r, N_r = size(X_ragged)
+    T_r >= 1 || throw(ArgumentError("X_ragged must have >= 1 row"))
+    N = length(gdfm.varnames)
+    N_r == N || throw(ArgumentError("X_ragged column mismatch"))
+    any(isinf, X_ragged) && throw(ArgumentError("X_ragged contains Inf/-Inf"))
+    X_mat = Matrix{Float64}(X_ragged)
+    mask = BitMatrix(.!isnan.(X_mat))
+    imp = copy(X_mat)
+    for j in 1:N, i in 1:T_r
+        isnan(imp[i, j]) && (imp[i, j] = 0.25)
+    end
+    nc = vec(imp[end, :])
+    se = fill(0.15, N)
+    GDFMNowcastResult{Float64}(nc, se, imp, h, n_lags, mask, copy(gdfm.varnames))
+end
+
+function DataFrames.DataFrame(r::GDFMNowcastResult)
+    n = length(r.nowcast)
+    DataFrame(
+        variable=[i <= length(r.varnames) ? r.varnames[i] : "var_$i" for i in 1:n],
+        nowcast=Float64.(collect(r.nowcast)),
+        std_error=Float64.(collect(r.se)),
+        horizon=fill(r.horizon, n),
+        observed=Bool.(collect(r.observed_mask[end, 1:min(n, size(r.observed_mask, 2))])),
+    )
+end
+
+for (_w2_k, _w2_T) in (
+    "FHLZModel" => FHLZModel,
+    "CointegratedGDFM" => CointegratedGDFM,
+    "TimeVaryingGDFM" => TimeVaryingGDFM,
+    "OnatskiQTestResult" => OnatskiQTestResult,
+    "AhnHorensteinResult" => AhnHorensteinResult,
+    "OnatskiEDResult" => OnatskiEDResult,
+    "BandPassGDFMResult" => BandPassGDFMResult,
+    "EurocoinResult" => EurocoinResult,
+    "SpectralFEVDResult" => SpectralFEVDResult,
+    "GDFMNowcastResult" => GDFMNowcastResult,
+)
+    _SERIALIZABLE_TYPES[_w2_k] = _w2_T
+end
+
+export FHLZModel, CointegratedGDFM, TimeVaryingGDFM,
+       OnatskiQTestResult, AhnHorensteinResult, OnatskiEDResult,
+       BandPassGDFMResult, EurocoinResult, SpectralFEVDResult, GDFMNowcastResult,
+       estimate_gdfm_fhlz, estimate_gdfm_i1, estimate_tv_gdfm,
+       onatski_q_test, onatski_q_select, ahn_horenstein, onatski_ed,
+       bandpass_gdfm, eurocoin_indicator, spectral_fevd, nowcast_gdfm
 
 end # module

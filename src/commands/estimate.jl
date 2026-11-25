@@ -430,11 +430,17 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="nfactors", type=Int, default=nothing, description="Number of static factors (default: auto)"),
                 OptionSpec(name="dynamic-rank", type=Int, default=nothing, description="Dynamic rank (default: auto)"),
                 OptionSpec(name="spectral", type=String, default="lag-window", description="Spectrum: lag-window (FHLR)|smoothed-periodogram", choices=["lag-window","smoothed-periodogram"]),
+                OptionSpec(name="bandwidth", type=Int, default=0, description="Spectral lag-window bandwidth (0=auto)"),
+                OptionSpec(name="kernel", type=String, default="bartlett", description="Spectral lag-window kernel: bartlett|parzen|tukey", choices=["bartlett","parzen","tukey"]),
+                OptionSpec(name="em-max-iter", type=Int, default=50, description="Maximum EM iterations for missing-data imputation (with --allow-missing)"),
+                OptionSpec(name="em-tol", type=Float64, default=1e-4, description="EM convergence tolerance (with --allow-missing)"),
+                OptionSpec(name="n-lags-proj", type=Int, default=0, description="Past lags included in stacked FHLR one-sided projection"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
             ],
             flags=[
+                FlagSpec(name="allow-missing", description="Allow missing/NaN entries (interior or ragged-edge) via EM-spectral imputation"),
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
             tables=[TableSpec(name=:gdfm_common_variance_shares,
@@ -1443,16 +1449,19 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "sdfm"],
-            summary="Structural DFM (FGLR or legacy GDFM-VAR) with q auto-selection",
+            summary="Structural DFM (FGLR, FHLZ one-sided, or legacy GDFM-VAR) with q auto-selection",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="factors", short="q", type=Int, default=nothing, description="Number of dynamic factors (default: auto via --q-method)"),
                 OptionSpec(name="id", type=String, default="cholesky", description=_SDFM_ID_DESC),
                 OptionSpec(name="q-method", type=String, default="hallin-liska", description="Auto factor selection: hallin-liska|bai-ng|amengual-watson", choices=["hallin-liska","bai-ng","amengual-watson"]),
-                OptionSpec(name="method", type=String, default="fglr", description="Estimator: fglr|gdfm-var (gdfm-var is the legacy path)", choices=["fglr","gdfm-var"]),
+                OptionSpec(name="method", type=String, default="fglr", description="Estimator: fglr|fhlz|gdfm-var (fhlz is one-sided infinite-r; gdfm-var is legacy)", choices=["fglr","fhlz","gdfm-var"]),
                 OptionSpec(name="spectral", type=String, default="lag-window", description="GDFM spectrum: lag-window (FHLR)|smoothed-periodogram", choices=["lag-window","smoothed-periodogram"]),
                 OptionSpec(name="instrument", type=String, default="", description="Proxy-instrument CSV column (only with --id proxy)"),
-                OptionSpec(name="var-lags", type=Int, default=1, description="Factor VAR lag order"),
+                OptionSpec(name="var-lags", type=String, default="auto", description="Factor VAR lag order (positive integer or auto|aic|bic|hq)"),
+                OptionSpec(name="n-perm", type=Int, default=30, description="Cross-sectional permutations for --method fhlz"),
+                OptionSpec(name="p-max", type=Int, default=nothing, description="Maximum lag order for automatic/FHLZ lag selection"),
+                OptionSpec(name="target", type=String, default="", description="Target variable name or 1-based index (for --id max-share)"),
                 OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=40, description="Structural IRF horizon"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for sign/narrative checks and --id lewis-tvv|sv-em knobs"),
                 OptionSpec(name="bandwidth", type=Int, default=0, description="Spectral bandwidth (0=auto)"),
@@ -1885,6 +1894,7 @@ function estimate_specs()::Vector{CommandSpec}
             handler=wrap_legacy(_estimate_mlogit),
         ),
         w1_estimate_specs()...,
+        w2_estimate_specs()...,
     ]
 end
 
@@ -3184,13 +3194,29 @@ end
 
 function _estimate_gdfm(; data::String, nfactors=nothing, dynamic_rank=nothing,
                          spectral::String="lag-window",
+                         bandwidth::Int=0, kernel::String="bartlett",
+                         allow_missing::Bool=false, em_max_iter::Int=50,
+                         em_tol::Float64=1e-4, n_lags_proj::Int=0,
                          output::String="", format::String="table",
                          plot::Bool=false, plot_save::String="")
-    X, varnames = load_multivariate_data(data)
+    haskey(_GDFM_SPECTRAL, spectral) || throw(CliError("usage/invalid",
+        "estimate factor gdfm: --spectral must be lag-window|smoothed-periodogram (got '$spectral')"))
+    k_sym = _w2_validate_kernel(kernel, "estimate factor gdfm")
+    bandwidth >= 0 || throw(CliError("usage/invalid",
+        "estimate factor gdfm: --bandwidth must be >= 0 (got $bandwidth)"))
+    em_max_iter >= 1 || throw(CliError("usage/invalid",
+        "estimate factor gdfm: --em-max-iter must be >= 1 (got $em_max_iter)"))
+    em_tol > 0 || throw(CliError("usage/invalid",
+        "estimate factor gdfm: --em-tol must be > 0 (got $em_tol)"))
+    n_lags_proj >= 0 || throw(CliError("usage/invalid",
+        "estimate factor gdfm: --n-lags-proj must be >= 0 (got $n_lags_proj)"))
+
+    X, varnames = load_multivariate_data(data; allow_nan=allow_missing)
+    X_ic = allow_missing ? _w2_complete_for_ic(X) : X
 
     q = if isnothing(dynamic_rank)
         _status("Selecting dynamic rank...")
-        ic = ic_criteria_gdfm(X, min(5, size(X, 2)))
+        ic = ic_criteria_gdfm(X_ic, min(5, size(X_ic, 2)))
         q_opt = ic.q_ratio
         _status("  Auto-selected $q_opt dynamic factors")
         q_opt
@@ -3200,20 +3226,25 @@ function _estimate_gdfm(; data::String, nfactors=nothing, dynamic_rank=nothing,
 
     r = if isnothing(nfactors)
         _status("Selecting static rank...")
-        ic_static = ic_criteria(X, min(20, size(X, 2)))
-        r_opt = ic_static.r_IC1
+        ic_static = ic_criteria(X_ic, min(20, size(X_ic, 2)))
+        r_opt = max(q, ic_static.r_IC1)
         _status("  Auto-selected $r_opt static factors")
         r_opt
     else
         nfactors
     end
 
-    haskey(_GDFM_SPECTRAL, spectral) || throw(CliError("usage/invalid",
-        "estimate factor gdfm: --spectral must be lag-window|smoothed-periodogram (got '$spectral')"))
-    _status("Estimating GDFM: static rank=$r, dynamic rank=$q, spectral=$spectral")
+    _status("Estimating GDFM: static rank=$r, dynamic rank=$q, spectral=$spectral, kernel=$kernel, allow_missing=$allow_missing")
     _status()
 
-    model = estimate_gdfm(X, q; r=r, spectral=_GDFM_SPECTRAL[spectral])
+    model = try
+        estimate_gdfm(X, q; r=r, spectral=_GDFM_SPECTRAL[spectral],
+                      bandwidth=bandwidth, kernel=k_sym, varnames=varnames,
+                      allow_missing=allow_missing, em_max_iter=em_max_iter,
+                      em_tol=em_tol, n_lags_proj=n_lags_proj)
+    catch e
+        throw(_domain_or_data_error(e, "GDFM estimation"))
+    end
 
     var_shares = common_variance_share(model)
     var_df = DataFrame(variable=varnames, common_variance_share=round.(var_shares; digits=4))
@@ -3762,18 +3793,20 @@ end
 # ── Structural DFM ────────────────────────────────────
 
 function _estimate_sdfm(; data::String, factors=nothing, id::String="cholesky",
-                         var_lags::Int=1, horizon::Int=40,
+                         var_lags="auto", horizon::Int=40,
                          config::String="", bandwidth::Int=0,
                          kernel::String="bartlett", method::String="fglr",
                          spectral::String="lag-window", instrument::String="",
                          q_method::String="hallin-liska",
+                         n_perm::Int=30, p_max=nothing, target::String="",
                          output::String="", format::String="table",
                          plot::Bool=false, plot_save::String="")
-    # W1/#165: one shared data path (see `_load_and_estimate_sdfm`); --factors
-    # omitted selects q via upstream `:auto` + `--q-method` (deterministic).
+    # W1/#165 + W2/#314: one shared data path (see `_load_and_estimate_sdfm`);
+    # --factors omitted selects q via upstream `:auto` + `--q-method`.
     sdfm, Y, varnames, q = _load_and_estimate_sdfm(data, factors, id, var_lags, horizon,
         config, method, spectral, instrument, q_method;
-        bandwidth=bandwidth, kernel=kernel)
+        bandwidth=bandwidth, kernel=kernel, n_perm=n_perm,
+        p_max=p_max === nothing ? nothing : Int(p_max), target=target)
     n = length(varnames)
 
     _status("Estimating Structural DFM: $q factors, id=$id, method=$method, VAR lags=$var_lags, horizon=$horizon")

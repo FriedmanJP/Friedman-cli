@@ -204,6 +204,7 @@ function register_nowcast_commands!()
         push!(specs, s2)
     end
     specs = with_result_handles(with_default_csv_kinds(with_data_kinds(specs, [:timeseries, :csv])))
+    append!(specs, w2_nowcast_specs())
     specs = register!(specs)
     return build_node("nowcast", specs;
         description="Nowcasting: DFM, BVAR, bridge equations, news decomposition and forecast")

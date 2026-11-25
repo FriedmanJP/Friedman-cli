@@ -68,6 +68,19 @@ function load_multivariate_data(data::String; allow_nan::Bool=false)
         for c in vn
             _check_finite_col!(df[!, c], c; allow_nan=allow_nan)
         end
+        if allow_nan
+            isempty(vn) && throw(CliError("data/no-numeric-columns", "no numeric columns found in data"))
+            nr, nc = nrow(df), length(vn)
+            Y = Matrix{Float64}(undef, nr, nc)
+            for (j, c) in enumerate(vn)
+                col = df[!, c]
+                @inbounds for i in 1:nr
+                    v = col[i]
+                    Y[i, j] = v === missing ? NaN : Float64(v)
+                end
+            end
+            return Y, vn
+        end
         return df_to_matrix(df), vn
     end
     Y = to_matrix(obj)
@@ -1777,6 +1790,7 @@ end
 
 const _SDFM_METHODS = Dict(
     "fglr" => :fglr,
+    "fhlz" => :fhlz,
     "gdfm-var" => :gdfm_var,
 )
 
@@ -1791,17 +1805,19 @@ const _GDFM_SPECTRAL = Dict(
     "smoothed-periodogram" => :smoothed_periodogram,
 )
 
-# W1/#193 (MEMs#830): advertised sdfm --id values. kebab → underscore.
+# W1/#193 (MEMs#830) + W2/#314 (MEMs#894): advertised sdfm --id values. kebab → underscore.
 # Unknown tokens fall through to Symbol(id) and the estimator wrap.
 const _SDFM_ID_CLI = Dict(
     "cholesky"     => :cholesky,
     "sign"         => :sign,
+    "longrun"      => :long_run,
+    "max-share"    => :max_share,
     "proxy"        => :proxy,
     "lewis-tvv"    => :lewis_tvv,
     "sv-em"        => :sv_em,
     "gmm-moments"  => :gmm_moments,
 )
-const _SDFM_ID_DESC = "cholesky|sign|proxy|lewis-tvv|sv-em|gmm-moments (--id proxy requires --instrument)"
+const _SDFM_ID_DESC = "cholesky|sign|longrun|max-share|proxy|lewis-tvv|sv-em|gmm-moments (--id proxy requires --instrument)"
 
 """
     _sdfm_id_kwargs(id, config, q, leaf) → NamedTuple
@@ -1853,12 +1869,38 @@ function _load_instrument(data::String, column::String)
     end
 end
 
+"""Parse `--var-lags` for SDFM estimation: positive integer or `auto|aic|bic|hq`."""
+function _parse_sdfm_var_lags(var_lags, leaf::String)
+    if var_lags === nothing
+        return :auto
+    elseif var_lags isa Symbol
+        var_lags in (:auto, :aic, :bic, :hq) && return var_lags
+        throw(CliError("usage/invalid",
+            "$leaf: --var-lags must be a positive integer or auto|aic|bic|hq (got ':$var_lags')"))
+    elseif var_lags isa Integer
+        Int(var_lags) >= 1 || throw(CliError("usage/invalid",
+            "$leaf: --var-lags must be >= 1 (got $var_lags)"))
+        return Int(var_lags)
+    end
+    s = lowercase(strip(string(var_lags)))
+    (isempty(s) || s == "auto") && return :auto
+    s == "aic" && return :aic
+    s == "bic" && return :bic
+    s == "hq"  && return :hq
+    v = tryparse(Int, s)
+    if v !== nothing && v >= 1
+        return v
+    end
+    throw(CliError("usage/invalid",
+        "$leaf: --var-lags must be a positive integer or auto|aic|bic|hq (got '$var_lags')"))
+end
+
 """
     _load_and_estimate_sdfm(data, factors, id, var_lags, horizon, config, method,
                             spectral, instrument_col, q_method) → (sdfm, Y, varnames, q)
 
 Shared Structural-DFM estimation for the `estimate`/`irf`/`fevd`/`forecast sdfm`
-data paths (W1/#165): one implementation, one option surface.
+data paths (W1/#165, W2/#314): one implementation, one option surface.
 
 - `factors === nothing` → upstream `:auto` q-selection via `q_method`
   (deterministic; replaces the legacy `ic_criteria_gdfm` auto path).
@@ -1867,17 +1909,25 @@ data paths (W1/#165): one implementation, one option surface.
   by upstream (selection never runs), so it is `usage/invalid` there too.
 - `--seed` is forwarded as the estimator's own `seed=` (C052/#243 pattern).
 """
-function _load_and_estimate_sdfm(data::String, factors, id::String, var_lags::Int,
+function _load_and_estimate_sdfm(data::String, factors, id::String, var_lags,
                                  horizon::Int, config::String, method::String,
                                  spectral::String, instrument_col::String,
                                  q_method::String; bandwidth::Int=0,
-                                 kernel::String="bartlett")
+                                 kernel::String="bartlett",
+                                 n_perm::Int=30,
+                                 p_max::Union{Nothing,Int}=nothing,
+                                 target::String="")
     haskey(_SDFM_METHODS, method) || throw(CliError("usage/invalid",
-        "estimate factor sdfm: --method must be fglr|gdfm-var (got '$method')"))
+        "estimate factor sdfm: --method must be fglr|fhlz|gdfm-var (got '$method')"))
     haskey(_GDFM_SPECTRAL, spectral) || throw(CliError("usage/invalid",
         "estimate factor sdfm: --spectral must be lag-window|smoothed-periodogram (got '$spectral')"))
     haskey(_SDFM_Q_METHODS, q_method) || throw(CliError("usage/invalid",
         "estimate factor sdfm: --q-method must be hallin-liska|bai-ng|amengual-watson (got '$q_method')"))
+    n_perm >= 1 || throw(CliError("usage/invalid",
+        "estimate factor sdfm: --n-perm must be >= 1 (got $n_perm)"))
+    p_max === nothing || p_max >= 1 || throw(CliError("usage/invalid",
+        "estimate factor sdfm: --p-max must be >= 1 (got $p_max)"))
+    p_arg = _parse_sdfm_var_lags(var_lags, "estimate factor sdfm")
     if factors !== nothing && q_method != "hallin-liska"
         throw(CliError("usage/invalid",
             "estimate factor sdfm: --q-method '$q_method' applies only to automatic factor " *
@@ -1895,6 +1945,8 @@ function _load_and_estimate_sdfm(data::String, factors, id::String, var_lags::In
 
     Y, varnames = load_multivariate_data(data)
 
+    target_val = isempty(target) ? nothing : _resolve_target_var(target, varnames, "estimate factor sdfm")
+
     sign_check = nothing
     if id == "sign" && !isempty(config)
         sign_check, _ = _build_check_func(config)
@@ -1908,11 +1960,12 @@ function _load_and_estimate_sdfm(data::String, factors, id::String, var_lags::In
     q_for_id = factors isa Integer ? Int(factors) : nothing
     id_kw = _sdfm_id_kwargs(id, config, q_for_id, "estimate factor sdfm")
 
-    est_kw = (identification=id_sym, p=var_lags, H=horizon,
-              method=_SDFM_METHODS[method], spectral=_GDFM_SPECTRAL[spectral],
-              sign_check=sign_check, instrument=instrument, seed=_SEED[],
-              bandwidth=bandwidth, kernel=Symbol(kernel), varnames=varnames,
-              id_kwargs=id_kw)
+    est_kw = (identification=id_sym, p=p_arg, p_max=p_max, H=horizon,
+              method=_SDFM_METHODS[method], n_perm=n_perm,
+              spectral=_GDFM_SPECTRAL[spectral],
+              sign_check=sign_check, instrument=instrument, target=target_val,
+              seed=_SEED[], bandwidth=bandwidth, kernel=Symbol(kernel),
+              varnames=varnames, id_kwargs=id_kw)
     # Upstream rejects unknown `identification` symbols with a bare
     # ArgumentError — wrap so a bad --id is data/invalid (exit 3),
     # not an untyped exit 1 (same class as the W1/#186 VAR IRF wrap).
@@ -4164,7 +4217,8 @@ const _TIDY_COEF_TYPES = Union{RegModel,LogitModel,ProbitModel,PanelRegModel,Pan
     PanelLogitModel,PanelProbitModel,MarginalEffects,OrderedLogitModel,OrderedProbitModel,
     MultinomialLogitModel,VARModel,DIDResult,
     QFMICResult,QFMSpanningResult,QFMLoadingConstancyTest,QuantileFactorPanelModel,
-    QuantileVARModel}
+    QuantileVARModel,
+    OnatskiQTestResult,AhnHorensteinResult,OnatskiEDResult,EurocoinResult,GDFMNowcastResult}
 
 """Emit a coefficient-bearing result via upstream Tables.jl (`DataFrame(m)`).
 
@@ -4182,7 +4236,8 @@ end
 const _TIDY_LONG_TYPES = Union{ImpulseResponse,BayesianImpulseResponse,FEVD,
     LPImpulseResponse,AbstractForecastResult,
     QuantileFactorModel,QuantileFactorGrid,GrowthAtRiskResult,
-    QuantileImpulseResponse,QuantileFAVAR,VBQuantileFAVAR}
+    QuantileImpulseResponse,QuantileFAVAR,VBQuantileFAVAR,
+    FHLZModel,CointegratedGDFM,TimeVaryingGDFM,BandPassGDFMResult,SpectralFEVDResult}
 
 """Emit an array-valued result via upstream `long_table`.
 

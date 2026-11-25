@@ -204,6 +204,7 @@ function register_spectral_commands!()
         push!(specs, _copy_spec(s; handler=h, result_types=rt))
     end
     specs = with_result_handles(with_default_csv_kinds(with_data_kinds(specs, [:timeseries, :csv])))
+    append!(specs, w2_spectral_specs())
     specs = register!(specs)
     return build_node("spectral", specs;
         description="Spectral analysis: ACF/PACF, periodogram, spectral density, cross-spectrum, transfer function")

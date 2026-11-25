@@ -2155,7 +2155,9 @@ function predict_specs()::Vector{CommandSpec}
             category="predict",
             handler=_predict_garch_midas,
         ),
-    ], w1_predict_specs())
+        w1_predict_specs()...,
+        w2_predict_specs()...,
+    ])
 end
 
 function residuals_specs()::Vector{CommandSpec}
@@ -2469,7 +2471,9 @@ function residuals_specs()::Vector{CommandSpec}
             category="residuals",
             handler=_residuals_garch_midas,
         ),
-    ], w1_residuals_specs())
+        w1_residuals_specs()...,
+        w2_residuals_specs()...,
+    ])
 end
 
 function _overlay_estimator_data_kinds(specs::Vector{CommandSpec})
@@ -2486,6 +2490,7 @@ const _FITTED_MODEL_TYPES = Dict{String,Vector{Symbol}}(
     "vecm" => [:VECMModel], "static" => [:FactorModel],
     "dynamic" => [:DynamicFactorModel], "gdfm" => [:GeneralizedDynamicFactorModel],
     "qfm" => [:QuantileFactorModel, :QuantileFactorGrid],
+    "fhlz" => [:FHLZModel], "gdfm-i1" => [:CointegratedGDFM], "tv-gdfm" => [:TimeVaryingGDFM],
     "arch" => [:ARCHModel], "garch" => [:GARCHModel], "egarch" => [:EGARCHModel],
     "gjr-garch" => [:GJRGARCHModel], "sv" => [:SVModel], "favar" => [:FAVARModel],
     "qvar" => [:QuantileVARModel],

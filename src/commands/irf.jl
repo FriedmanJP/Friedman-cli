@@ -227,10 +227,13 @@ function irf_specs()::Vector{CommandSpec}
                 OptionSpec(name="factors", short="q", type=Int, default=nothing, description="Number of dynamic factors (default: auto via --q-method)"),
                 OptionSpec(name="id", type=String, default="cholesky", description=_SDFM_ID_DESC),
                 OptionSpec(name="q-method", type=String, default="hallin-liska", description="Auto factor selection: hallin-liska|bai-ng|amengual-watson", choices=["hallin-liska","bai-ng","amengual-watson"]),
-                OptionSpec(name="method", type=String, default="fglr", description="Estimator: fglr|gdfm-var (gdfm-var is the legacy path)", choices=["fglr","gdfm-var"]),
+                OptionSpec(name="method", type=String, default="fglr", description="Estimator: fglr|fhlz|gdfm-var (fhlz is one-sided infinite-r; gdfm-var is legacy)", choices=["fglr","fhlz","gdfm-var"]),
                 OptionSpec(name="spectral", type=String, default="lag-window", description="GDFM spectrum: lag-window (FHLR)|smoothed-periodogram", choices=["lag-window","smoothed-periodogram"]),
                 OptionSpec(name="instrument", type=String, default="", description="Proxy-instrument CSV column (only with --id proxy)"),
-                OptionSpec(name="var-lags", type=Int, default=1, description="Factor VAR lag order"),
+                OptionSpec(name="var-lags", type=String, default="auto", description="Factor VAR lag order (positive integer or auto|aic|bic|hq)"),
+                OptionSpec(name="n-perm", type=Int, default=30, description="Cross-sectional permutations for --method fhlz"),
+                OptionSpec(name="p-max", type=Int, default=nothing, description="Maximum lag order for automatic/FHLZ lag selection"),
+                OptionSpec(name="target", type=String, default="", description="Target variable name or 1-based index (for --id max-share)"),
                 OptionSpec(name="horizons", type=Int, default=40, description="IRF horizon"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for sign restrictions"),
                 OptionSpec(name="ci", type=String, default="none", description="Bands: none|bootstrap (residual bootstrap)", choices=["none","bootstrap"]),
@@ -247,6 +250,7 @@ function irf_specs()::Vector{CommandSpec}
             handler=wrap_legacy(_irf_sdfm),
         ),
         w1_irf_specs()...,
+        w2_irf_specs()...,
     ]
 end
 
@@ -262,6 +266,7 @@ const _IRF_SLOT_TYPES = Dict{Vector{String},Tuple{Vector{Symbol},Vector{Symbol}}
     ["irf", "sdfm"]   => ([:StructuralDFM], [:ImpulseResponse]),
     ["irf", "qvar"]   => ([:QuantileVARModel], [:QuantileImpulseResponse]),
     ["irf", "qfavar"] => ([:QuantileFAVAR, :VBQuantileFAVAR], [:QuantileImpulseResponse]),
+    ["irf", "gdfm-i1"] => ([:CointegratedGDFM], [:ImpulseResponse]),
 )
 
 function register_irf_commands!()
@@ -1020,10 +1025,11 @@ end
 # ── Structural DFM IRF ────────────────────────────────
 
 function _irf_sdfm(; data::String="", result=nothing, factors=nothing, id::String="cholesky",
-                    var_lags::Int=1, horizons::Int=40,
+                    var_lags="auto", horizons::Int=40,
                     config::String="", method::String="fglr",
                     spectral::String="lag-window", instrument::String="",
                     q_method::String="hallin-liska",
+                    n_perm::Int=30, p_max=nothing, target::String="",
                     ci::String="none", reps::Int=200,
                     output::String="", format::String="table",
                     plot::Bool=false, plot_save::String="",
@@ -1037,11 +1043,10 @@ function _irf_sdfm(; data::String="", result=nothing, factors=nothing, id::Strin
     reps >= 1 || throw(CliError("usage/invalid",
         "irf sdfm: --reps must be ≥ 1 (got $reps)"))
     if isnothing(model)
-        # W1/#165: shared estimation surface with `estimate sdfm` (H=horizons —
-        # post-0.9.1 the IRF is computed on demand, but the stored horizon still
-        # bounds the mock clamp, so keep them equal).
+        # W1/#165 + W2/#314: shared estimation surface with `estimate sdfm`.
         sdfm, _, _, q = _load_and_estimate_sdfm(data, factors, id, var_lags,
-            horizons, config, method, spectral, instrument, q_method)
+            horizons, config, method, spectral, instrument, q_method;
+            n_perm=n_perm, p_max=p_max === nothing ? nothing : Int(p_max), target=target)
     else
         sdfm = model
     end

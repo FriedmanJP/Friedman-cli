@@ -2029,6 +2029,7 @@ function register_test_commands!()
     end
     # `did test *` lands here as `test did *` (#202).
     append!(specs, _did_test_specs())
+    append!(specs, w2_test_specs())
     specs = register!(specs)
     return build_node("test", specs; description="Statistical tests (unit root, cointegration, diagnostics)")
 end
