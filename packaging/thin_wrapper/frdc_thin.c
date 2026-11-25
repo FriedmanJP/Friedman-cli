@@ -1843,6 +1843,48 @@ static int run_thin(int argc, char **argv) {
                 frdc_pack_free(&pack);
                 return 2;
             }
+#ifdef FRDC_ENABLE_MCP_PROXY
+            if (!force_json) {
+                int has_mcp = 0;
+                int mcp_compact = 0;
+                const char *mcp_families = "";
+                const char *mcp_tools = "";
+                int ok_opts = 1;
+                for (int si = leaf_start; si < rem_n; ) {
+                    const char *st = rem[si];
+                    if (strcmp(st, "--mcp") == 0) {
+                        has_mcp = 1;
+                        si++;
+                    } else if (strcmp(st, "--compact") == 0) {
+                        mcp_compact = 1;
+                        si++;
+                    } else if (strcmp(st, "--families") == 0 && si + 1 < rem_n) {
+                        mcp_families = rem[si + 1];
+                        si += 2;
+                    } else if (strncmp(st, "--families=", 11) == 0) {
+                        mcp_families = st + 11;
+                        si++;
+                    } else if (strcmp(st, "--tools") == 0 && si + 1 < rem_n) {
+                        mcp_tools = rem[si + 1];
+                        si += 2;
+                    } else if (strncmp(st, "--tools=", 8) == 0) {
+                        mcp_tools = st + 8;
+                        si++;
+                    } else {
+                        ok_opts = 0;
+                        break;
+                    }
+                }
+                if (ok_opts && has_mcp) {
+                    int rc = frdc_mcp_proxy_main(&pack, exe_path, argc, argv,
+                                                 quiet, no_color,
+                                                 mcp_families, mcp_tools, mcp_compact);
+                    free(rem);
+                    frdc_pack_free(&pack);
+                    return rc;
+                }
+            }
+#endif
         }
         break;
     }

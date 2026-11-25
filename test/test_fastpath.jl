@@ -423,6 +423,145 @@ print(p.returncode)
             write(pack_path, orig_bytes)
         end
 
-        @test has_mcp isa Bool
+        @test has_mcp == true
+
+        # 10. Lazy MCP Proxy (#299): zero-spawn discovery parity + multi-call live handoff
+        @testset "Lazy MCP Proxy (#299)" begin
+            # Helper to run live Julia _serve_loop for differential comparison
+            function run_julia_mcp(input_str::String; families::String="", tools::String="", compact::Bool=false)
+                in_io = IOBuffer(input_str)
+                out_io = IOBuffer()
+                Friedman._serve_loop(in_io, out_io; families=families, tools=tools, compact=compact)
+                return [JSON3.read(l) for l in split(String(take!(out_io)), '\n') if !isempty(strip(l))]
+            end
+
+            # 10a. Pure discovery session (asserts ZERO frdc-core spawns — core stub exits 42!)
+            discovery_lines = join([
+                """{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}""",
+                """{"jsonrpc":"2.0","method":"notifications/initialized"}""",
+                """{"jsonrpc":"2.0","id":"p-1","method":"ping"}""",
+                """{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{"prefix":"estimate multivariate","limit":5}}""",
+                """{"jsonrpc":"2.0","id":3,"method":"tools/list","params":{"prefix":"estimate multivariate","cursor":"5","limit":5}}""",
+                """{"jsonrpc":"2.0","id":4,"method":"tools/list","params":{"families":"ri"}}""",
+                """{"jsonrpc":"2.0","id":5,"method":"tools/list","params":{"tools":"irf_*"}}""",
+                """{"jsonrpc":"2.0","id":6,"method":"tools/list","params":{"prefix":"nonexistent_prefix"}}""",
+                """not valid json""",
+                """{"jsonrpc":"2.0","id":7,"method":"unknown/method"}""",
+                """{"jsonrpc":"2.0","method":"unknown/notification_no_id"}""",
+                """{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"totally_bogus_tool","arguments":{}}}""",
+            ], "\n") * "\n"
+
+            fp_disc = _run_proc(wrapper_exe, ["serve", "--mcp"]; stdin_data=discovery_lines)
+            @test fp_disc.code == 0
+            @test occursin("frdc MCP server on stdio", fp_disc.stderr)
+            @test !occursin("CORE_FALLBACK", fp_disc.stdout)
+            fp_msgs = [JSON3.read(l) for l in split(fp_disc.stdout, '\n') if !isempty(strip(l))]
+            jl_msgs = run_julia_mcp(discovery_lines)
+            @test length(fp_msgs) == length(jl_msgs) == 10
+            for (fm, jm) in zip(fp_msgs, jl_msgs)
+                @test fm == jm
+            end
+
+            # --quiet suppresses banner; --compact & CLI --families/--tools filter both tools/list & unknown-tool check
+            scoped_lines = join([
+                """{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}""",
+                """{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"irf_var","arguments":{}}}""",
+            ], "\n") * "\n"
+            fp_sc = _run_proc(wrapper_exe, ["serve", "--mcp", "--quiet", "--compact", "--families", "ri"];
+                              stdin_data=scoped_lines)
+            @test fp_sc.code == 0
+            @test fp_sc.stderr == ""
+            sc_msgs = [JSON3.read(l) for l in split(fp_sc.stdout, '\n') if !isempty(strip(l))]
+            jl_sc = run_julia_mcp(scoped_lines; families="ri", compact=true)
+            @test length(sc_msgs) == 2
+            @test sc_msgs[1] == jl_sc[1]
+            # irf_var is outside --families ri -> rejected as -32602 WITHOUT spawning frdc-core!
+            @test Int(sc_msgs[2].error.code) == -32602
+            @test String(sc_msgs[2].error.message) == "unknown tool: irf_var"
+
+            # 10b. Pin Julia _serve_loop invariant: accepts tools/call without prior initialize
+            direct_call = """{"jsonrpc":"2.0","id":99,"method":"tools/call","params":{"name":"data_list","arguments":{}}}\n"""
+            direct_res = run_julia_mcp(direct_call)
+            @test length(direct_res) == 1
+            @test !direct_res[1].result.isError
+            @test String(JSON3.read(String(direct_res[1].result.content[1].text)).status) == "ok"
+
+            # 10c. Full multi-call lazy handoff into live Julia backend (POSIX: piped batch + interactive)
+            # Verifies: zero duplicate banner, zero lost buffered bytes, model:// session persistence across calls
+            if !Sys.iswindows()
+                mktempdir() do d2
+                    b2 = joinpath(d2, "bin")
+                    s2 = joinpath(d2, "share", "frdc")
+                    mkpath(b2); mkpath(s2)
+                    cp(wrapper_exe, joinpath(b2, "frdc"))
+                    cp(pack_path, joinpath(s2, "cli_cache.bin"))
+                    # Wire frdc-core to live Julia CLI
+                    core_sh = joinpath(b2, "frdc-core")
+                    write(core_sh, "#!/bin/sh\nexec \"$(joinpath(Sys.BINDIR, "julia"))\" --project=\"$(_ROOT)\" \"$(joinpath(_ROOT, "bin", "frdc"))\" \"\$@\"\n")
+                    chmod(core_sh, 0o755)
+
+                    # Fixture CSV for VAR + IRF session test
+                    csv_p = joinpath(d2, "var_mcp.csv")
+                    open(csv_p, "w") do io
+                        println(io, "y1,y2")
+                        for t in 1:40
+                            println(io, "$(sin(t/3)),$(cos(t/4))")
+                        end
+                    end
+
+                    batch = join([
+                        """{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}""",
+                        """{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{"prefix":"irf","limit":2}}""",
+                        """{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"estimate_multivariate_var","arguments":{"data":"$csv_p","lags":1,"save-model":"model://m1"}}}""",
+                        """{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"irf_var","arguments":{"model":"model://m1","horizons":4}}}""",
+                        """{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"model_info","arguments":{"path":"model://m1"}}}""",
+                        """{"jsonrpc":"2.0","id":6,"method":"tools/list","params":{"prefix":"ri","limit":2}}""",
+                    ], "\n") * "\n"
+
+                    res = _run_proc(joinpath(b2, "frdc"), ["serve", "--mcp"]; stdin_data=batch)
+                    @test res.code == 0
+                    # Exactly ONE startup banner on stderr (Julia core silenced via FRDC_MCP_SILENT_BANNER=1)
+                    @test count("frdc MCP server on stdio", res.stderr) == 1
+                    msgs = [JSON3.read(l) for l in split(res.stdout, '\n') if !isempty(strip(l))]
+                    @test length(msgs) == 6
+                    @test Int(msgs[1].id) == 1 && String(msgs[1].result.serverInfo.name) == "frdc"
+                    @test Int(msgs[2].id) == 2 && length(msgs[2].result.tools) == 2
+                    for k in 3:5
+                        @test Int(msgs[k].id) == k
+                        @test !msgs[k].result.isError
+                        env_doc = JSON3.read(String(msgs[k].result.content[1].text))
+                        @test String(env_doc.status) == "ok"
+                    end
+                    @test Int(msgs[6].id) == 6 && length(msgs[6].result.tools) == 2
+
+                    # Interactive line-by-line session (write -> flush -> read each response before next write)
+                    py = Sys.which("python3")
+                    if py !== nothing
+                        inter = read(`$py -c "
+import json, subprocess, sys
+p = subprocess.Popen([sys.argv[1], 'serve', '--mcp', '--quiet'],
+                     stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+def ask(obj):
+    p.stdin.write(json.dumps(obj) + '\n'); p.stdin.flush()
+    return json.loads(p.stdout.readline())
+r1 = ask({'jsonrpc':'2.0','id':1,'method':'initialize','params':{}})
+assert r1['result']['serverInfo']['name'] == 'frdc'
+r2 = ask({'jsonrpc':'2.0','id':2,'method':'tools/list','params':{'prefix':'data','limit':3}})
+assert len(r2['result']['tools']) == 3
+r3 = ask({'jsonrpc':'2.0','id':3,'method':'tools/call','params':{'name':'data_list','arguments':{}}})
+assert not r3['result']['isError']
+r4 = ask({'jsonrpc':'2.0','id':4,'method':'ping'})
+assert r4['id'] == 4 and r4['result'] == {}
+p.stdin.close()
+err = p.stderr.read()
+rc = p.wait()
+assert rc == 0 and err == '', (rc, err)
+print('INTERACTIVE_OK')
+" $(joinpath(b2, "frdc"))`, String)
+                        @test strip(inter) == "INTERACTIVE_OK"
+                    end
+                end
+            end
+        end
     end
 end

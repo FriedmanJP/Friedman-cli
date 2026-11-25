@@ -13,7 +13,9 @@ bin/frdc ARGS  (Pure C99 thin wrapper; ~52 KiB; bypassed if FRDC_NO_FASTPATH=1 o
   ├─ Tier 1–4 fast paths (<10 ms) from single-source FRDCACHE v1 pack (share/frdc/cli_cache.bin):
   │    --version/-V, --warranty, --conditions, root/node/leaf/repl --help,
   │    schema [path...] [--docs], completions bash|zsh|fish,
-  │    data list, io sources (table|csv|json envelope), unknown-command fast-fail (exit 2)
+  │    data list, io sources (table|csv|json envelope), unknown-command fast-fail (exit 2),
+  │    serve --mcp State 0 lazy JSON-RPC proxy (initialize, ping, tools/list, unknown-tool -32602;
+  │    lazily spawns frdc-core on first valid tools/call with half-duplex stdin pump)
   └─ Fail-open execv / CreateProcessW → bin/frdc-core ARGS  (or julia --project bin/frdc in source dev)
        → Friedman.main(ARGS) → run_cli(ARGS)
          → Friedman.APP                         # Entry built once (const APP = build_app())

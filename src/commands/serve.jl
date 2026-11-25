@@ -325,8 +325,11 @@ function _serve(; mcp::Bool=false, families::String="", tools::String="", compac
     mcp || throw(CliError("usage/missing",
         "serve requires --mcp (the only supported mode)";
         hint="frdc serve --mcp speaks JSON-RPC 2.0 / Model Context Protocol on stdio"))
-    _status("frdc MCP server on stdio (JSON-RPC 2.0, protocol $_MCP_PROTOCOL_VERSION); " *
-            "one line per message; Ctrl-D to stop")
+    silent_banner = isdefined(@__MODULE__, :_env_get) ?
+        (_env_get("FRDC_MCP_SILENT_BANNER", "FRIEDMAN_MCP_SILENT_BANNER") == "1") :
+        (get(ENV, "FRDC_MCP_SILENT_BANNER", get(ENV, "FRIEDMAN_MCP_SILENT_BANNER", "")) == "1")
+    silent_banner || _status("frdc MCP server on stdio (JSON-RPC 2.0, protocol $_MCP_PROTOCOL_VERSION); " *
+                             "one line per message; Ctrl-D to stop")
     _serve_loop(stdin, stdout; families=families, tools=tools, compact=compact)
     return nothing
 end
