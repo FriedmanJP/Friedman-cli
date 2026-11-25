@@ -27,7 +27,12 @@ struct FrdcJlsEnvelope
     source_model::Any
     created_utc::String
     payload::Any
+    provenance::Dict{String,Any}
 end
+
+# Backward-compatible 12-arg constructor
+FrdcJlsEnvelope(sv, cv, mv, k, tn, d, vn, note, seed, sm, ts, payload) =
+    FrdcJlsEnvelope(sv, cv, mv, k, tn, d, vn, note, seed, sm, ts, payload, Dict{String,Any}())
 
 """Run `fn()` with `JLD2` internal warnings (e.g. MmapIO fallback) suppressed."""
 function _with_quiet_jld2(fn::Function)
@@ -187,6 +192,10 @@ function _extract_dims(obj)::Dict{String,Any}
         elseif obj isa AbstractVector
             d["length"] = length(obj)
             return d
+        elseif obj isa AbstractArray{<:Union{Real,Missing}}
+            d["shape"] = join(size(obj), "×")
+            d["ndims"] = ndims(obj)
+            return d
         elseif obj isa AbstractDict
             d["entries"] = length(obj)
             return d
@@ -205,6 +214,39 @@ function _extract_dims(obj)::Dict{String,Any}
         elseif n === :IOData
             hasproperty(obj, :Z) && (d["sectors"] = size(obj.Z, 1))
             return d
+        elseif n === :StructuralLP
+            hasproperty(obj, :var_model) && hasproperty(obj.var_model, :Y) &&
+                (d["T"] = size(obj.var_model.Y, 1); d["n"] = size(obj.var_model.Y, 2))
+            hasproperty(obj, :irf) && hasproperty(obj.irf, :horizon) &&
+                (d["horizon"] = Int(obj.irf.horizon))
+            hasproperty(obj, :lags) && (d["lags"] = Int(obj.lags))
+            return d
+        elseif n in (:NowcastDFM, :NowcastBVAR, :NowcastBridge)
+            hasproperty(obj, :data) && obj.data isa AbstractMatrix && (d["T"] = size(obj.data, 1); d["n"] = size(obj.data, 2))
+            hasproperty(obj, :nM) && (d["nM"] = Int(obj.nM))
+            hasproperty(obj, :nQ) && (d["nQ"] = Int(obj.nQ))
+            hasproperty(obj, :r) && (d["r"] = Int(obj.r))
+            hasproperty(obj, :p) && (d["p"] = Int(obj.p))
+            hasproperty(obj, :lags) && (d["lags"] = Int(obj.lags))
+            hasproperty(obj, :n_equations) && (d["n_equations"] = Int(obj.n_equations))
+            !isempty(d) && return d
+        elseif n === :NowcastResult
+            hasproperty(obj, :target_index) && (d["target_index"] = Int(obj.target_index))
+            hasproperty(obj, :X_sm) && obj.X_sm isa AbstractMatrix && (d["T"] = size(obj.X_sm, 1); d["n"] = size(obj.X_sm, 2))
+            !isempty(d) && return d
+        elseif n === :NowcastNews
+            hasproperty(obj, :variable_names) && (d["n_vars"] = length(obj.variable_names))
+            hasproperty(obj, :impact_news) && (d["n_news"] = length(obj.impact_news))
+            !isempty(d) && return d
+        elseif n in (:DIDResult, :EventStudyLP, :LPDiDResult)
+            hasproperty(obj, :n_obs) && (d["n_obs"] = Int(obj.n_obs))
+            hasproperty(obj, :T_obs) && (d["T"] = Int(obj.T_obs))
+            hasproperty(obj, :n_groups) && (d["groups"] = Int(obj.n_groups))
+            hasproperty(obj, :event_times) && (d["event_times"] = length(obj.event_times))
+            !isempty(d) && return d
+        elseif n in (:SpectralDensityResult, :CrossSpectrumResult, :TransferFunctionResult)
+            hasproperty(obj, :freq) && (d["n_freq"] = length(obj.freq))
+            !isempty(d) && return d
         end
         # Standard matrix/sample properties
         if hasproperty(obj, :Y) && obj.Y isa AbstractMatrix
@@ -218,16 +260,54 @@ function _extract_dims(obj)::Dict{String,Any}
         elseif hasproperty(obj, :data) && obj.data isa AbstractMatrix
             d["T"] = size(obj.data, 1)
             d["n"] = size(obj.data, 2)
+        elseif hasproperty(obj, :theta_draws) && obj.theta_draws isa AbstractMatrix
+            d["draws"] = size(obj.theta_draws, 1)
+            d["params"] = size(obj.theta_draws, 2)
+        elseif hasproperty(obj, :draws) && obj.draws isa AbstractMatrix
+            d["draws"] = size(obj.draws, 1)
+            d["params"] = size(obj.draws, 2)
+        elseif hasproperty(obj, :a_grid) && obj.a_grid isa AbstractVector
+            d["n_a"] = length(obj.a_grid)
+            hasproperty(obj, :z_grid) && obj.z_grid isa AbstractVector && (d["n_z"] = length(obj.z_grid))
+        elseif hasproperty(obj, :k_grid) && obj.k_grid isa AbstractVector
+            d["n_k"] = length(obj.k_grid)
+        elseif hasproperty(obj, :n_grid) && obj.n_grid isa AbstractVector
+            d["n_grid"] = length(obj.n_grid)
+        elseif hasproperty(obj, :grid) && hasproperty(obj.grid, :a_grid)
+            d["n_a"] = length(obj.grid.a_grid)
+        elseif hasproperty(obj, :steady_state) && hasproperty(obj.steady_state, :a_grid)
+            d["n_a"] = length(obj.steady_state.a_grid)
+        elseif hasproperty(obj, :n_full_states) && obj.n_full_states isa Integer
+            d["n_full_states"] = Int(obj.n_full_states)
+            hasproperty(obj, :n_reduced) && obj.n_reduced isa Integer && (d["n_reduced"] = Int(obj.n_reduced))
+        elseif hasproperty(obj, :M) && obj.M isa AbstractMatrix
+            d["n_states"] = size(obj.M, 1)
+        elseif hasproperty(obj, :distribution) && obj.distribution isa AbstractArray
+            d["grid"] = join(size(obj.distribution), "×")
+        elseif hasproperty(obj, :c_policy) && obj.c_policy isa AbstractArray
+            d["grid"] = join(size(obj.c_policy), "×")
+        elseif hasproperty(obj, :value) && obj.value isa AbstractArray
+            d["grid"] = join(size(obj.value), "×")
+        elseif hasproperty(obj, :a) && obj.a isa AbstractVector
+            d["n_a"] = length(obj.a)
+        elseif hasproperty(obj, :solution) && obj.solution !== nothing
+            sub = _extract_dims(obj.solution)
+            merge!(d, sub)
         end
         # Model order / factors / draws / horizon
         hasproperty(obj, :p) && obj.p isa Integer && (d["p"] = Int(obj.p))
         hasproperty(obj, :q) && obj.q isa Integer && (d["q"] = Int(obj.q))
         hasproperty(obj, :n) && obj.n isa Integer && !haskey(d, "n") && (d["n"] = Int(obj.n))
+        hasproperty(obj, :m) && obj.m isa Integer && !haskey(d, "n") && (d["m"] = Int(obj.m))
         hasproperty(obj, :r) && obj.r isa Integer && (d["r"] = Int(obj.r))
         hasproperty(obj, :k) && obj.k isa Integer && !haskey(d, "k") && (d["k"] = Int(obj.k))
         hasproperty(obj, :horizon) && obj.horizon isa Integer && (d["horizon"] = Int(obj.horizon))
         hasproperty(obj, :H) && obj.H isa Integer && !haskey(d, "horizon") && (d["horizon"] = Int(obj.H))
+        hasproperty(obj, :T_obs) && obj.T_obs isa Integer && !haskey(d, "T") && (d["T"] = Int(obj.T_obs))
+        hasproperty(obj, :n_obs) && obj.n_obs isa Integer && !haskey(d, "n_obs") && (d["n_obs"] = Int(obj.n_obs))
+        hasproperty(obj, :n_groups) && obj.n_groups isa Integer && !haskey(d, "groups") && (d["groups"] = Int(obj.n_groups))
         hasproperty(obj, :n_draws) && obj.n_draws isa Integer && (d["draws"] = Int(obj.n_draws))
+        hasproperty(obj, :n_periods) && obj.n_periods isa Integer && (d["periods"] = Int(obj.n_periods))
         # Array-shaped derived results
         if hasproperty(obj, :values) && obj.values isa AbstractArray
             sz = size(obj.values)
@@ -275,11 +355,31 @@ function _extract_dims(obj)::Dict{String,Any}
             d["n"] = size(obj.path, 2)
         elseif hasproperty(obj, :steady_state) && obj.steady_state isa AbstractVector
             d["n_vars"] = length(obj.steady_state)
+        elseif hasproperty(obj, :V) && obj.V isa AbstractArray
+            d["grid"] = join(size(obj.V), "×")
+        elseif hasproperty(obj, :policy) && obj.policy isa AbstractArray
+            d["grid"] = join(size(obj.policy), "×")
+        elseif hasproperty(obj, :C) && obj.C isa AbstractVector
+            d["T"] = length(obj.C)
+        elseif hasproperty(obj, :Y) && obj.Y isa AbstractVector
+            d["T"] = length(obj.Y)
+        elseif hasproperty(obj, :K) && obj.K isa AbstractVector
+            d["T"] = length(obj.K)
+        elseif hasproperty(obj, :L) && obj.L isa AbstractVector
+            d["T"] = length(obj.L)
+        elseif hasproperty(obj, :theta) && obj.theta isa AbstractVector
+            d["params"] = length(obj.theta)
+        elseif hasproperty(obj, :statistic)
+            d["scalar_test"] = 1
         end
-        # Fallback: varnames count if nothing else matched
+        # Fallback: varnames count or field count if nothing else matched
         if isempty(d)
             vn = _extract_varnames(obj)
-            isempty(vn) || (d["n_vars"] = length(vn))
+            if !isempty(vn)
+                d["n_vars"] = length(vn)
+            elseif hasproperty(obj, :spec) && hasproperty(obj.spec, :n_endog)
+                d["n_endog"] = Int(obj.spec.n_endog)
+            end
         end
     catch
     end
@@ -304,6 +404,9 @@ function _build_frdc_meta(obj; note::String="", source_model=nothing)::Dict{Stri
         extracted_vn
     end
     kind_str = !isempty(hint_kind) ? hint_kind : _storage_kind_tag(obj)
+    prov = isdefined(@__MODULE__, :_capture_provenance) ?
+        _capture_provenance(; source_model_path=string(get(src_dict, "path", ""))) :
+        Dict{String,Any}()
     return Dict{String,Any}(
         "schema_version" => _FRDC_META_SCHEMA_VERSION,
         "cli_version"    => _cli_version_string(),
@@ -315,6 +418,7 @@ function _build_frdc_meta(obj; note::String="", source_model=nothing)::Dict{Stri
         "note"           => String(note),
         "seed"           => seed_val,
         "source_model"   => src_dict,
+        "provenance"     => prov,
         "created_utc"    => Dates.format(Dates.now(Dates.UTC), "yyyy-mm-ddTHH:MM:SSZ"),
     )
 end
@@ -347,6 +451,16 @@ function _artifact_kind_for(obj, override::String)::String
     return "model"
 end
 
+function _is_plain_jld2_payload(obj)::Bool
+    _storage_kind_tag(obj) == "tabular" && return true
+    obj isa AbstractArray{<:Union{Real,Missing}} && return true
+    if obj isa NamedTuple && !isempty(keys(obj)) &&
+       !(haskey(obj, :model) && haskey(obj, :result)) &&
+       all(v -> v isa Union{AbstractArray,Real,AbstractString,Bool,Nothing}, values(obj))
+        return true
+    end
+    return false
+end
 function _register_handle_artifact!(obj, written_path::String, artifact_kind::String)
     if isdefined(@__MODULE__, :envelope_active) && envelope_active() &&
        isdefined(@__MODULE__, :_add_artifact_once!)
@@ -370,8 +484,9 @@ function save_handle!(ref::HandleRef, obj; note::String="", source_model=nothing
     _enforce_data_root!(ref; kind="output")
     fmt = ref.format
     if fmt === nothing
-        # Extensionless path: default to .jld2 when native-saveable or tabular, else .jls
-        if is_mems_serializable(obj) || _storage_kind_tag(obj) == "tabular"
+        # Extensionless path: default to .jld2 when native-saveable or plain JLD2-safe, else .jls
+        if is_mems_serializable(obj) || _is_plain_jld2_payload(obj) ||
+           (obj isa AbstractDict{String} && !isempty(obj) && all(is_mems_serializable, values(obj)))
             dest = dest * ".jld2"
             fmt = :jld2
         else
@@ -397,7 +512,7 @@ function save_handle!(ref::HandleRef, obj; note::String="", source_model=nothing
 
     if fmt === :jld2
         is_native = is_mems_serializable(obj)
-        is_tabular = _storage_kind_tag(obj) == "tabular"
+        is_tabular = _is_plain_jld2_payload(obj)
         is_bundle = obj isa AbstractDict{String} && !isempty(obj) && all(is_mems_serializable, values(obj))
         if !is_native && !is_tabular && !is_bundle
             n_reg = isdefined(MacroEconometricModels, :_SERIALIZABLE_TYPES) ?
@@ -496,6 +611,7 @@ function save_handle!(ref::HandleRef, obj; note::String="", source_model=nothing
             source_model,
             meta["created_utc"],
             obj,
+            get(meta, "provenance", Dict{String,Any}()),
         )
         _atomic_write(dest, tmp -> begin
             open(tmp, "w") do io

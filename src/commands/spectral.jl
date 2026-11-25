@@ -125,8 +125,85 @@ function spectral_specs()::Vector{CommandSpec}
     ]
 end
 
+const _SPECTRAL_RESULT_TYPES = Dict{Vector{String},Vector{Symbol}}(
+    ["spectral", "acf"]         => [:ACFResult],
+    ["spectral", "periodogram"] => [:SpectralDensityResult],
+    ["spectral", "density"]     => [:SpectralDensityResult],
+    ["spectral", "cross"]       => [:CrossSpectrumResult],
+    ["spectral", "transfer"]    => [:TransferFunctionResult],
+)
+
+function _rerender_spectral_result(result; format::String="table", output::String="",
+                                   title::String="", key::String="",
+                                   plot::Bool=false, plot_save::String="")
+    tn = nameof(typeof(result))
+    if tn === :ACFResult
+        acf_df = DataFrame(
+            Lag     = result.lags,
+            ACF     = round.(result.acf; digits=6),
+            PACF    = round.(result.pacf; digits=6),
+            Q_stat  = round.(result.q_stats; digits=4),
+            p_value = round.(result.q_pvalues; digits=4),
+        )
+        output_result(acf_df; format=Symbol(format), output=output, title="ACF / PACF")
+    elseif tn === :SpectralDensityResult
+        if key == "periodogram" || !hasproperty(result, :ci_lower) || result.ci_lower === nothing
+            peri_df = DataFrame(
+                Frequency = round.(result.freq; digits=6),
+                Power     = round.(result.density; digits=6),
+            )
+            output_result(peri_df; format=Symbol(format), output=output, title="Periodogram")
+        else
+            sd_df = DataFrame(
+                Frequency = round.(result.freq; digits=6),
+                Density   = round.(result.density; digits=6),
+                CI_Lower  = round.(result.ci_lower; digits=6),
+                CI_Upper  = round.(result.ci_upper; digits=6),
+            )
+            output_result(sd_df; format=Symbol(format), output=output, title="Spectral Density")
+        end
+    elseif tn === :CrossSpectrumResult
+        cs_df = DataFrame(
+            Frequency     = round.(result.freq; digits=6),
+            Co_spectrum   = round.(result.co_spectrum; digits=6),
+            Quad_spectrum = round.(result.quad_spectrum; digits=6),
+            Coherence     = round.(result.coherence; digits=6),
+            Phase         = round.(result.phase; digits=6),
+            Gain          = round.(result.gain; digits=6),
+        )
+        output_result(cs_df; format=Symbol(format), output=output, title="Cross-Spectral Analysis")
+    elseif tn === :TransferFunctionResult
+        tf_df = DataFrame(
+            Frequency = round.(result.freq; digits=6),
+            Gain      = round.(result.gain; digits=6),
+            Phase     = round.(result.phase; digits=6),
+        )
+        output_result(tf_df; format=Symbol(format), output=output, title="Filter Transfer Function")
+    else
+        _rerender_kv(result; format=format, output=output, title=title, key=key)
+    end
+    _maybe_plot(result; plot=plot, plot_save=plot_save)
+    return result
+end
+
 function register_spectral_commands!()
-    specs = with_default_csv_kinds(with_data_kinds(spectral_specs(), [:timeseries, :csv]))
+    raw_handlers = Dict(
+        ["spectral", "acf"]         => _spectral_acf,
+        ["spectral", "periodogram"] => _spectral_periodogram,
+        ["spectral", "density"]     => _spectral_density,
+        ["spectral", "cross"]       => _spectral_cross,
+        ["spectral", "transfer"]    => _spectral_transfer,
+    )
+    specs = CommandSpec[]
+    for s in spectral_specs()
+        rt = get(_SPECTRAL_RESULT_TYPES, s.path, Symbol[])
+        key = isempty(s.tables) ? "" : string(s.tables[1].name)
+        raw_fn = raw_handlers[s.path]
+        h = wrap_legacy(_with_result(raw_fn, join(s.path, " "); key=key,
+                                     render_fn=_rerender_spectral_result))
+        push!(specs, _copy_spec(s; handler=h, result_types=rt))
+    end
+    specs = with_result_handles(with_default_csv_kinds(with_data_kinds(specs, [:timeseries, :csv])))
     specs = register!(specs)
     return build_node("spectral", specs;
         description="Spectral analysis: ACF/PACF, periodogram, spectral density, cross-spectrum, transfer function")

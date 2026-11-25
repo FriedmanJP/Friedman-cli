@@ -1663,15 +1663,120 @@ const _DSGE_MODEL_TYPES = Dict{Vector{String},Vector{Symbol}}(
     ["dsge", "ha", "hd"]              => [:HADSGESolution],
 )
 
+const _DSGE_SAVE_MODEL_PATHS = Set{Vector{String}}([
+    ["dsge", "solve"], ["dsge", "estimate"],
+    ["dsge", "ha", "solve"], ["dsge", "ha", "steady-state"], ["dsge", "ha", "estimate"],
+    ["dsge", "bayes", "estimate"],
+    ["dsge", "ct", "solve"],
+    ["dsge", "olg", "solve"],
+    ["dsge", "dcegm", "solve"], ["dsge", "dcegm", "steady-state"],
+    ["dsge", "lifecycle", "steady-state"],
+    ["dsge", "firm", "steady-state"],
+    ["dsge", "bank", "pe"], ["dsge", "bank", "steady-state"],
+])
+
+function _dsge_result_specs()::Dict{Vector{String},Tuple{Vector{Symbol},Function}}
+    return Dict{Vector{String},Tuple{Vector{Symbol},Function}}(
+        ["dsge", "irf"]                     => ([:ImpulseResponse, :OccBinIRF], _dsge_irf),
+        ["dsge", "fevd"]                    => ([:FEVD], _dsge_fevd),
+        ["dsge", "hd"]                      => ([:HistoricalDecomposition], _dsge_hd),
+        ["dsge", "perfect-foresight"]       => ([:PerfectForesightPath], _dsge_perfect_foresight),
+        ["dsge", "determinacy-map"]         => ([:DeterminacyMap], _dsge_determinacy_map),
+        ["dsge", "ha", "accuracy"]          => ([:DenHaanAccuracy], _dsge_ha_accuracy),
+        ["dsge", "ha", "irf"]               => ([:ImpulseResponse, :SSJImpulseResponse], _dsge_ha_irf),
+        ["dsge", "ha", "fevd"]              => ([:FEVD], _dsge_ha_fevd),
+        ["dsge", "ha", "hd"]                => ([:HistoricalDecomposition], _dsge_ha_hd),
+        ["dsge", "ct", "transition"]        => ([:CTTransition, :CTTwoAssetTransition], _dsge_ct_transition),
+        ["dsge", "ct", "irf"]               => ([:ImpulseResponse], _dsge_ct_irf),
+        ["dsge", "ct", "fevd"]              => ([:FEVD], _dsge_ct_fevd),
+        ["dsge", "olg", "simulate"]         => ([:Matrix, :TimeSeriesData], _dsge_olg_simulate),
+        ["dsge", "olg", "irf"]              => ([:ImpulseResponse], _dsge_olg_irf),
+        ["dsge", "olg", "fevd"]             => ([:FEVD], _dsge_olg_fevd),
+        ["dsge", "dcegm", "irf"]            => ([:ImpulseResponse], _dsge_dcegm_irf),
+        ["dsge", "dcegm", "fevd"]           => ([:FEVD], _dsge_dcegm_fevd),
+        ["dsge", "dcegm", "simulate"]       => ([:Matrix, :TimeSeriesData], _dsge_dcegm_simulate),
+        ["dsge", "dcegm", "transition"]     => ([:DCEGMTransition], _dsge_dcegm_transition),
+        ["dsge", "lifecycle", "transition"] => ([:LifeCycleTransition], _dsge_lifecycle_transition),
+        ["dsge", "lifecycle", "irf"]        => ([:ImpulseResponse], _dsge_lifecycle_irf),
+        ["dsge", "lifecycle", "fevd"]       => ([:FEVD], _dsge_lifecycle_fevd),
+        ["dsge", "lifecycle", "simulate"]   => ([:Matrix, :TimeSeriesData], _dsge_lifecycle_simulate),
+        ["dsge", "firm", "transition"]      => ([:KhanThomasTransition], _dsge_firm_transition),
+        ["dsge", "firm", "irf"]             => ([:ImpulseResponse], _dsge_firm_irf),
+        ["dsge", "bank", "transition"]      => ([:IntermediaryTransition], _dsge_bank_transition),
+        ["dsge", "bank", "irf"]             => ([:ImpulseResponse], _dsge_bank_irf),
+    )
+end
+
+function _rerender_dsge_result(result; format::String="table", output::String="",
+                               title::String="", key::String="",
+                               plot::Bool=false, plot_save::String="")
+    tn = nameof(typeof(result))
+    if tn === :ImpulseResponse || tn === :SSJImpulseResponse
+        return _rerender_irf_result(result; format=format, output=output,
+            title=isempty(title) ? "DSGE IRF" : title,
+            key=isempty(key) ? "dsge_irf" : key, plot=plot, plot_save=plot_save)
+    elseif tn === :FEVD
+        return _rerender_fevd_result(result; format=format, output=output,
+            title=isempty(title) ? "DSGE FEVD" : title,
+            key=isempty(key) ? "dsge_fevd" : key, plot=plot, plot_save=plot_save)
+    elseif tn === :HistoricalDecomposition
+        _output_hd_tables((vi, si) -> contribution(result, vi, si),
+                          result.variables, result.T_eff;
+                          id="", title_prefix=isempty(title) ? "DSGE Historical Decomposition" : title,
+                          format=format, output=output,
+                          actual=result.actual, initial=result.initial_conditions,
+                          key_prefix=isempty(key) ? "dsge_hd" : key)
+        _maybe_plot(result; plot=plot, plot_save=plot_save)
+        return result
+    elseif tn === :PerfectForesightPath
+        n_periods, nv = size(result.path)
+        vns = _model_varnames(result)
+        length(vns) == nv || (vns = String["var_$i" for i in 1:nv])
+        path_df = DataFrame(period=1:n_periods)
+        for (vi, vn) in enumerate(vns)
+            path_df[!, vn] = result.path[:, vi]
+        end
+        output_result(path_df; format=Symbol(format), output=output,
+                      title="Perfect Foresight Path (T=$n_periods)",
+                      key="perfect_foresight_path")
+        _maybe_plot(result; plot=plot, plot_save=plot_save)
+        return result
+    elseif result isa AbstractMatrix
+        T_p, nv = size(result)
+        df = DataFrame(period=1:T_p)
+        for j in 1:nv
+            df[!, "var_$j"] = result[:, j]
+        end
+        output_result(df; format=Symbol(format), output=output,
+                      title=isempty(title) ? "Simulated Path" : title,
+                      key=isempty(key) ? "simulated_path" : key)
+        return result
+    elseif applicable(long_table, result)
+        return _rerender_long_table(result; format=format, output=output,
+            title=title, key=key, plot=plot, plot_save=plot_save)
+    else
+        _rerender_kv(result; format=format, output=output, title=title, key=key)
+        _maybe_plot(result; plot=plot, plot_save=plot_save)
+        return result
+    end
+end
+
 function _prepared_dsge_specs()
-    # --save-model on solution/posterior-returning leaves (matched on pre-promotion path).
+    res_specs = _dsge_result_specs()
+    # --save-model on solution/posterior/steady-state leaves & --save-result/--result on result leaves.
     specs = map(dsge_specs()) do s
-        s2 = s.path in (["dsge", "solve"], ["dsge", "estimate"],
-                        ["dsge", "ha", "solve"], ["dsge", "ha", "steady-state"],
-                        ["dsge", "ha", "estimate"],
-                        ["dsge", "bayes", "estimate"]) ? with_save_model([s])[1] : s
+        s2 = s.path in _DSGE_SAVE_MODEL_PATHS ? with_save_model([s])[1] : s
         mt = get(_DSGE_MODEL_TYPES, s2.path, nothing)
-        mt === nothing ? s2 : _copy_spec(s2; model_types=mt)
+        mt === nothing || (s2 = _copy_spec(s2; model_types=mt))
+        if haskey(res_specs, s2.path)
+            rt, raw_fn = res_specs[s2.path]
+            key = isempty(s2.tables) ? "" : string(s2.tables[1].name)
+            h = wrap_legacy(_with_result(raw_fn, join(s2.path, " "); key=key,
+                                         render_fn=_rerender_dsge_result))
+            s2 = _copy_spec(s2; handler=h, result_types=rt)
+            s2 = with_result_handles([s2])[1]
+        end
+        s2
     end
     out = CommandSpec[]
     for s in specs
@@ -2300,7 +2405,7 @@ function _dsge_irf(; model="", method::String="gensys", order::Int=1,
                           title="OccBin IRF: $vname ← $(ob_irf.shock_name)",
                           key=_table_key("occbin_irf", vname))
         end
-        return
+        return ob_irf
     end
 
     _status("\nComputing IRF: horizon=$horizon, shock_size=$shock_size")
@@ -2325,6 +2430,7 @@ function _dsge_irf(; model="", method::String="gensys", order::Int=1,
                       title="DSGE IRF: shock=$shock_name (method=$method, h=$horizon)",
                       key=_table_key("dsge_irf", shock_name))
     end
+    return irf_result
 end
 
 function _dsge_fevd(; model="", method::String="gensys", order::Int=1,
@@ -2391,6 +2497,7 @@ function _dsge_fevd(; model="", method::String="gensys", order::Int=1,
                       title="DSGE FEVD: $vname ($mode_label)",
                       key=_table_key("dsge_fevd", vname))
     end
+    return fevd_result
 end
 
 function _dsge_estimate(; model::String, data::String="", method::String="irf_matching",
@@ -2523,6 +2630,7 @@ function _dsge_perfect_foresight(; model::String, shocks::String="",
     output_result(path_df; format=Symbol(format), output=output,
                   title="Perfect Foresight Path (T=$n_periods, converged=$(pf.converged))",
                   key="perfect_foresight_path")
+    return pf
 end
 
 # ── Bayesian DSGE Handlers ─────────────────────────────────────

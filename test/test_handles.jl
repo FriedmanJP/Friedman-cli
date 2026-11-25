@@ -2447,10 +2447,10 @@ end
             _dispatch_via_app(["show", csv_stem, "--format", "json"])
         end
         @test haskey(JSON3.read(out_show_stem).data, :show_payload)
-        out_show_ex = _capture() do
+        out_show_ex = _capture_all() do
             _dispatch_via_app(["show", ":denmark", "--format", "json"])
         end
-        @test haskey(JSON3.read(out_show_ex).data, :show_payload)
+        @test haskey(JSON3.read(out_show_ex.out).data, :show_payload)
 
         # #277: zero unsolicited CWD writes when -o is omitted across data utilities
         cwd_dir = joinpath(dir, "clean_cwd")

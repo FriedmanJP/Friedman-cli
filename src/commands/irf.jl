@@ -256,7 +256,7 @@ const _IRF_SLOT_TYPES = Dict{Vector{String},Tuple{Vector{Symbol},Vector{Symbol}}
     ["irf", "tvpvar"] => ([:TVPVARPosterior], [:BayesianImpulseResponse]),
     ["irf", "lp"]     => ([:StructuralLP], [:ImpulseResponse]),
     ["irf", "vecm"]   => ([:VECMModel, :SVECResult], [:ImpulseResponse]),
-    ["irf", "pvar"]   => ([:PVARModel], Symbol[]),
+    ["irf", "pvar"]   => ([:PVARModel], [:NamedTuple, :ImpulseResponse]),
     ["irf", "favar"]  => ([:FAVARModel], [:ImpulseResponse]),
     ["irf", "sdfm"]   => ([:StructuralDFM], [:ImpulseResponse]),
 )
@@ -903,7 +903,26 @@ function _irf_pvar(; data::String="", result=nothing, id_col::String="", time_co
                     model=nothing)
     loaded = _loaded_result(result; data, model, leaf="irf pvar",
                             horizons, horizons_default=10)
-    loaded === nothing || return loaded
+    if loaded !== nothing
+        if loaded isa ImpulseResponse
+            return _rerender_irf_result(loaded; format, output, title="Panel VAR IRF",
+                key="panel_var_oirf", plot, plot_save)
+        end
+        n_v = size(loaded.irf, 2)
+        vns = _model_varnames(loaded)
+        length(vns) == n_v || (vns = String["var_$i" for i in 1:n_v])
+        key_prefix = irf_type == "girf" ? "panel_var_girf" : "panel_var_oirf"
+        for shock in 1:n_v
+            shock_name = _shock_name(vns, shock)
+            irf_df = build_irf_table(loaded.irf, loaded.lower, loaded.upper, vns, shock)
+            output_result(irf_df; format=Symbol(format),
+                          output=_per_var_output_path(output, shock_name),
+                          title="Panel VAR $(uppercase(irf_type)) to $shock_name shock",
+                          key=_table_key(key_prefix, shock_name))
+        end
+        _maybe_plot(loaded; plot=plot, plot_save=plot_save)
+        return loaded
+    end
     validate_method(irf_type, ["oirf", "girf"], "IRF type")
 
     if isnothing(model)

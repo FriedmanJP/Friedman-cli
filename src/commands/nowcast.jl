@@ -139,8 +139,71 @@ function nowcast_specs()::Vector{CommandSpec}
     ]
 end
 
+const _NOWCAST_SLOT_TYPES = Dict{Vector{String},Tuple{Vector{Symbol},Vector{Symbol}}}(
+    ["nowcast", "dfm"]      => ([:NowcastDFM], [:NowcastResult]),
+    ["nowcast", "bvar"]     => ([:NowcastBVAR], [:NowcastResult]),
+    ["nowcast", "bridge"]   => ([:NowcastBridge], [:NowcastResult]),
+    ["nowcast", "news"]     => ([:NowcastDFM, :NowcastBVAR], [:NowcastNews]),
+    ["nowcast", "forecast"] => ([:NowcastDFM, :NowcastBVAR, :NowcastBridge], [:NowcastForecast, :Matrix]),
+)
+
+function _rerender_nowcast_result(result; format::String="table", output::String="",
+                                  title::String="", key::String="",
+                                  plot::Bool=false, plot_save::String="")
+    tn = nameof(typeof(result))
+    if tn === :NowcastResult
+        result_df = DataFrame(
+            metric=["nowcast", "forecast"],
+            value=[round(Float64(result.nowcast); digits=6), round(Float64(result.forecast); digits=6)],
+        )
+        output_result(result_df; format=Symbol(format), output=output,
+                      title=isempty(title) ? "Nowcast Result" : title,
+                      key=isempty(key) ? "nowcast_dfm" : key)
+    elseif tn === :NowcastNews
+        result_df = DataFrame(
+            variable=result.variable_names,
+            news_impact=round.(result.impact_news; digits=6),
+        )
+        output_result(result_df; format=Symbol(format), output=output,
+                      title="Nowcast News Decomposition",
+                      key="nowcast_news_decomposition")
+    elseif result isa AbstractMatrix
+        h, nc = size(result)
+        meta = isdefined(@__MODULE__, :_lookup_handle_meta) ? _lookup_handle_meta(result) : nothing
+        vns = (meta isa AbstractDict && haskey(meta, "varnames") && length(meta["varnames"]) >= nc) ?
+            String[string(v) for v in meta["varnames"][1:nc]] :
+            String["var_$i" for i in 1:nc]
+        fc_df = DataFrame()
+        fc_df[!, :horizon] = 1:h
+        for i in 1:nc
+            fc_df[!, Symbol(vns[i])] = round.(result[:, i]; digits=6)
+        end
+        output_result(fc_df; format=Symbol(format), output=output,
+                      title="Nowcast Forecast (h=$h)", key="nowcast_forecast")
+    elseif applicable(long_table, result)
+        _rerender_long_table(result; format=format, output=output, title=title, key=key,
+                             plot=plot, plot_save=plot_save)
+        return result
+    else
+        _rerender_kv(result; format=format, output=output, title=title, key=key)
+    end
+    _maybe_plot(result; plot=plot, plot_save=plot_save)
+    return result
+end
+
 function register_nowcast_commands!()
-    specs = with_default_csv_kinds(with_data_kinds(nowcast_specs(), [:timeseries, :csv]))
+    specs = CommandSpec[]
+    for s in _tag_slot_types(nowcast_specs(), _NOWCAST_SLOT_TYPES)
+        s2 = with_save_model([s])[1]
+        if !isempty(s2.model_types) && !any(o -> o.name == "model", s2.options)
+            s2 = with_model_option([s2])[1]
+        end
+        if s2.path == ["nowcast", "news"]
+            s2 = _copy_spec(s2; allow_data_with_model=true)
+        end
+        push!(specs, s2)
+    end
+    specs = with_result_handles(with_default_csv_kinds(with_data_kinds(specs, [:timeseries, :csv])))
     specs = register!(specs)
     return build_node("nowcast", specs;
         description="Nowcasting: DFM, BVAR, bridge equations, news decomposition and forecast")
@@ -166,99 +229,116 @@ end
 
 # ── Handlers ─────────────────────────────────────────────
 
-function _nowcast_dfm(; data::String, monthly_vars::Int=0, quarterly_vars::Int=0,
+function _nowcast_dfm(; data::String="", result=nothing, model=nothing,
+                       monthly_vars::Int=0, quarterly_vars::Int=0,
                        factors::Int=2, lags::Int=1, idio::String="ar1",
                        max_iter::Int=100, target_var::Int=0,
                        output::String="", format::String="table",
                        plot::Bool=false, plot_save::String="")
-    Y, varnames = load_multivariate_data(data; allow_nan=true)
-    nM, nQ = _validate_nowcast_vars(Y, monthly_vars, quarterly_vars)
-    T_obs, N = size(Y)
+    loaded = _loaded_result(result; data, model, leaf="nowcast dfm")
+    loaded === nothing || return _rerender_nowcast_result(loaded; format, output,
+        title="Nowcast DFM", key="nowcast_dfm", plot, plot_save)
+    if isnothing(model)
+        Y, varnames = load_multivariate_data(data; allow_nan=true)
+        nM, nQ = _validate_nowcast_vars(Y, monthly_vars, quarterly_vars)
+        T_obs, N = size(Y)
 
-    _status("Nowcast DFM: $N variables ($nM monthly, $nQ quarterly), T=$T_obs")
-    _status("  Factors: $factors, VAR lags: $lags, idiosyncratic: $idio")
-    _status()
+        _status("Nowcast DFM: $N variables ($nM monthly, $nQ quarterly), T=$T_obs")
+        _status("  Factors: $factors, VAR lags: $lags, idiosyncratic: $idio")
+        _status()
 
-    model = nowcast_dfm(Y, nM, nQ; r=factors, p=lags, idio=Symbol(idio), max_iter=max_iter)
+        model = nowcast_dfm(Y, nM, nQ; r=factors, p=lags, idio=Symbol(idio), max_iter=max_iter)
+        _set_save_meta!(; varnames=varnames)
+    else
+        varnames = _model_varnames(model)
+    end
     tv = target_var > 0 ? target_var : nothing
-    result = nowcast(model; target_var=tv)
+    nc_res = nowcast(model; target_var=tv)
 
-    _maybe_plot(result; plot=plot, plot_save=plot_save)
+    _maybe_plot(nc_res; plot=plot, plot_save=plot_save)
 
-    idx = result.target_index
+    idx = nc_res.target_index
     target_name = idx <= length(varnames) ? varnames[idx] : "var_$idx"
     _status("  Target: $target_name (index $idx)")
-    _status_styled("  Nowcast: $(round(result.nowcast; digits=4))\n"; color=:green)
-    _status_styled("  Forecast: $(round(result.forecast; digits=4))\n"; color=:cyan)
+    _status_styled("  Nowcast: $(round(nc_res.nowcast; digits=4))\n"; color=:green)
+    _status_styled("  Forecast: $(round(nc_res.forecast; digits=4))\n"; color=:cyan)
     _status()
 
     result_df = DataFrame(
         metric=["nowcast", "forecast", "log-likelihood", "EM iterations"],
-        value=[round(result.nowcast; digits=6), round(result.forecast; digits=6),
+        value=[round(nc_res.nowcast; digits=6), round(nc_res.forecast; digits=6),
                round(model.loglik; digits=2), model.n_iter]
     )
     output_result(result_df; format=Symbol(format), output=output,
-                  title="Nowcast DFM (r=$factors, p=$lags, target=$target_name)", key="nowcast_dfm")
+                  title="Nowcast DFM (r=$(model.r), p=$(model.p), target=$target_name)", key="nowcast_dfm")
+    return (; model, result=nc_res)
 end
 
-function _nowcast_bvar(; data::String, monthly_vars::Int=0, quarterly_vars::Int=0,
+function _nowcast_bvar(; data::String="", result=nothing, model=nothing,
+                        monthly_vars::Int=0, quarterly_vars::Int=0,
                         lags::Int=5, target_var::Int=0,
                         prior::String="conjugate", theta_cross::String="",
                         lambda0::Float64=0.2, theta0::Float64=1.0,
                         miu0::Float64=1.0, alpha0::Float64=2.0,
                         output::String="", format::String="table")
-    # --theta-cross is a Litterman-only knob: under the conjugate NIW prior the
-    # cross/own tightness ratio is pinned by Σ whatever the dummy rows are (MEMs#602),
-    # so upstream rejects the combination — guard it as a typed usage error up front.
-    tc = nothing
-    if !isempty(theta_cross)
-        prior == "conjugate" && throw(CliError("usage/invalid",
-            "nowcast bvar: --theta-cross is not a parameter of the conjugate prior " *
-            "(the dummy-observation NIW pins the cross/own tightness ratio via Σ)";
-            hint="use --prior litterman, which fixes Σ and frees the cross-lag knob"))
-        tc = tryparse(Float64, theta_cross)
-        (tc === nothing || tc <= 0) && throw(CliError("usage/invalid",
-            "nowcast bvar: --theta-cross must be a positive number (got '$theta_cross')"))
+    loaded = _loaded_result(result; data, model, leaf="nowcast bvar")
+    loaded === nothing || return _rerender_nowcast_result(loaded; format, output,
+        title="Nowcast BVAR", key="nowcast_bvar")
+    if isnothing(model)
+        # --theta-cross is a Litterman-only knob: under the conjugate NIW prior the
+        # cross/own tightness ratio is pinned by Σ whatever the dummy rows are (MEMs#602),
+        # so upstream rejects the combination — guard it as a typed usage error up front.
+        tc = nothing
+        if !isempty(theta_cross)
+            prior == "conjugate" && throw(CliError("usage/invalid",
+                "nowcast bvar: --theta-cross is not a parameter of the conjugate prior " *
+                "(the dummy-observation NIW pins the cross/own tightness ratio via Σ)";
+                hint="use --prior litterman, which fixes Σ and frees the cross-lag knob"))
+            tc = tryparse(Float64, theta_cross)
+            (tc === nothing || tc <= 0) && throw(CliError("usage/invalid",
+                "nowcast bvar: --theta-cross must be a positive number (got '$theta_cross')"))
+        end
+        lambda0 > 0 || throw(CliError("usage/invalid", "nowcast bvar: --lambda0 must be > 0 (got $lambda0)"))
+        theta0 > 0 || throw(CliError("usage/invalid", "nowcast bvar: --theta0 must be > 0 (got $theta0)"))
+        miu0 > 0 || throw(CliError("usage/invalid", "nowcast bvar: --miu0 must be > 0 (got $miu0)"))
+        alpha0 > 0 || throw(CliError("usage/invalid", "nowcast bvar: --alpha0 must be > 0 (got $alpha0)"))
+
+        Y, varnames = load_multivariate_data(data; allow_nan=true)
+        nM, nQ = _validate_nowcast_vars(Y, monthly_vars, quarterly_vars)
+        T_obs, N = size(Y)
+
+        _status("Nowcast BVAR: $N variables ($nM monthly, $nQ quarterly), T=$T_obs")
+        _status("  Lags: $lags, Prior: $prior" * (tc === nothing ? "" : ", theta_cross0=$tc"))
+        _status()
+
+        model = tc === nothing ?
+            nowcast_bvar(Y, nM, nQ; lags=lags, lambda0=lambda0, theta0=theta0,
+                         miu0=miu0, alpha0=alpha0, prior=Symbol(prior)) :
+            nowcast_bvar(Y, nM, nQ; lags=lags, lambda0=lambda0, theta0=theta0,
+                         miu0=miu0, alpha0=alpha0, prior=Symbol(prior), theta_cross0=tc)
+        _set_save_meta!(; varnames=varnames)
+    else
+        varnames = _model_varnames(model)
+        prior = string(model.prior)
     end
-    lambda0 > 0 || throw(CliError("usage/invalid", "nowcast bvar: --lambda0 must be > 0 (got $lambda0)"))
-    theta0 > 0 || throw(CliError("usage/invalid", "nowcast bvar: --theta0 must be > 0 (got $theta0)"))
-    miu0 > 0 || throw(CliError("usage/invalid", "nowcast bvar: --miu0 must be > 0 (got $miu0)"))
-    alpha0 > 0 || throw(CliError("usage/invalid", "nowcast bvar: --alpha0 must be > 0 (got $alpha0)"))
-
-    Y, varnames = load_multivariate_data(data; allow_nan=true)
-    nM, nQ = _validate_nowcast_vars(Y, monthly_vars, quarterly_vars)
-    T_obs, N = size(Y)
-
-    _status("Nowcast BVAR: $N variables ($nM monthly, $nQ quarterly), T=$T_obs")
-    _status("  Lags: $lags, Prior: $prior" * (tc === nothing ? "" : ", theta_cross0=$tc"))
-    _status()
-
-    model = tc === nothing ?
-        nowcast_bvar(Y, nM, nQ; lags=lags, lambda0=lambda0, theta0=theta0,
-                     miu0=miu0, alpha0=alpha0, prior=Symbol(prior)) :
-        nowcast_bvar(Y, nM, nQ; lags=lags, lambda0=lambda0, theta0=theta0,
-                     miu0=miu0, alpha0=alpha0, prior=Symbol(prior), theta_cross0=tc)
     tv = target_var > 0 ? target_var : nothing
-    result = nowcast(model; target_var=tv)
+    nc_res = nowcast(model; target_var=tv)
 
-    idx = result.target_index
+    idx = nc_res.target_index
     target_name = idx <= length(varnames) ? varnames[idx] : "var_$idx"
     _status("  Target: $target_name (index $idx)")
-    _status_styled("  Nowcast: $(round(result.nowcast; digits=4))\n"; color=:green)
-    _status_styled("  Forecast: $(round(result.forecast; digits=4))\n"; color=:cyan)
+    _status_styled("  Nowcast: $(round(nc_res.nowcast; digits=4))\n"; color=:green)
+    _status_styled("  Forecast: $(round(nc_res.forecast; digits=4))\n"; color=:cyan)
     _status()
 
     result_df = DataFrame(
         metric=["nowcast", "forecast", "log-likelihood"],
-        value=[round(result.nowcast; digits=6), round(result.forecast; digits=6),
+        value=[round(nc_res.nowcast; digits=6), round(nc_res.forecast; digits=6),
                round(model.loglik; digits=2)]
     )
     output_result(result_df; format=Symbol(format), output=output,
-                  title="Nowcast BVAR (lags=$lags, prior=$prior, target=$target_name)", key="nowcast_bvar")
+                  title="Nowcast BVAR (lags=$(model.lags), prior=$prior, target=$target_name)", key="nowcast_bvar")
 
-    # Optimized hyperparameters (Nelder-Mead), not the initial values. loglik is NOT
-    # comparable across priors (conjugate integrates Σ out; Litterman holds it fixed) —
-    # the settings table records the prior so a reader can't compare across it blindly.
     settings = Pair{String,Any}[
         "prior" => string(model.prior),
         "lambda (overall shrinkage)" => round(model.lambda; digits=6),
@@ -272,46 +352,61 @@ function _nowcast_bvar(; data::String, monthly_vars::Int=0, quarterly_vars::Int=
               title="Nowcast BVAR Hyperparameters")
     prior == "litterman" &&
         _status("Note: loglik under litterman is a fixed-Σ objective — not comparable to the conjugate prior's value.")
+    return (; model, result=nc_res)
 end
 
-function _nowcast_bridge(; data::String, monthly_vars::Int=0, quarterly_vars::Int=0,
+function _nowcast_bridge(; data::String="", result=nothing, model=nothing,
+                          monthly_vars::Int=0, quarterly_vars::Int=0,
                           lag_m::Int=1, lag_q::Int=1, lag_y::Int=1, target_var::Int=0,
                           output::String="", format::String="table")
-    Y, varnames = load_multivariate_data(data; allow_nan=true)
-    nM, nQ = _validate_nowcast_vars(Y, monthly_vars, quarterly_vars)
-    T_obs, N = size(Y)
+    loaded = _loaded_result(result; data, model, leaf="nowcast bridge")
+    loaded === nothing || return _rerender_nowcast_result(loaded; format, output,
+        title="Nowcast Bridge", key="nowcast_bridge")
+    if isnothing(model)
+        Y, varnames = load_multivariate_data(data; allow_nan=true)
+        nM, nQ = _validate_nowcast_vars(Y, monthly_vars, quarterly_vars)
+        T_obs, N = size(Y)
 
-    _status("Nowcast Bridge: $N variables ($nM monthly, $nQ quarterly), T=$T_obs")
-    _status("  Lags: lagM=$lag_m, lagQ=$lag_q, lagY=$lag_y")
-    _status()
+        _status("Nowcast Bridge: $N variables ($nM monthly, $nQ quarterly), T=$T_obs")
+        _status("  Lags: lagM=$lag_m, lagQ=$lag_q, lagY=$lag_y")
+        _status()
 
-    model = nowcast_bridge(Y, nM, nQ; lagM=lag_m, lagQ=lag_q, lagY=lag_y)
+        model = nowcast_bridge(Y, nM, nQ; lagM=lag_m, lagQ=lag_q, lagY=lag_y)
+        _set_save_meta!(; varnames=varnames)
+    else
+        varnames = _model_varnames(model)
+    end
     tv = target_var > 0 ? target_var : nothing
-    result = nowcast(model; target_var=tv)
+    nc_res = nowcast(model; target_var=tv)
 
-    idx = result.target_index
+    idx = nc_res.target_index
     target_name = idx <= length(varnames) ? varnames[idx] : "var_$idx"
     _status("  Target: $target_name (index $idx)")
-    _status_styled("  Nowcast: $(round(result.nowcast; digits=4))\n"; color=:green)
-    _status_styled("  Forecast: $(round(result.forecast; digits=4))\n"; color=:cyan)
+    _status_styled("  Nowcast: $(round(nc_res.nowcast; digits=4))\n"; color=:green)
+    _status_styled("  Forecast: $(round(nc_res.forecast; digits=4))\n"; color=:cyan)
     _status()
 
     result_df = DataFrame(
         metric=["nowcast", "forecast", "n_equations"],
-        value=[round(result.nowcast; digits=6), round(result.forecast; digits=6),
+        value=[round(nc_res.nowcast; digits=6), round(nc_res.forecast; digits=6),
                model.n_equations]
     )
     output_result(result_df; format=Symbol(format), output=output,
                   title="Nowcast Bridge (lagM=$lag_m, lagQ=$lag_q, lagY=$lag_y, target=$target_name)",
                   key="nowcast_bridge")
+    return (; model, result=nc_res)
 end
 
 function _nowcast_news(; data_new::String="", data_old::String="",
+                        result=nothing, model=nothing,
                         monthly_vars::Int=0, quarterly_vars::Int=0,
                         method::String="dfm", factors::Int=2, lags::Int=1,
                         target_period::Int=0, target_var::Int=0,
                         output::String="", format::String="table",
                         plot::Bool=false, plot_save::String="")
+    loaded = _loaded_result(result; data="", model, leaf="nowcast news")
+    loaded === nothing || return _rerender_nowcast_result(loaded; format, output,
+        title="Nowcast News Decomposition", key="nowcast_news_decomposition", plot, plot_save)
     isempty(data_new) && throw(CliError("usage/missing", "--data-new is required";
         hint="path to the newer data vintage"))
     isempty(data_old) && throw(CliError("usage/missing", "--data-old is required";
@@ -328,23 +423,19 @@ function _nowcast_news(; data_new::String="", data_old::String="",
     _status("  Method: $method")
     _status()
 
-    # Estimate model on old data. Both DFM and BVAR admit the Banbura-Modugno
-    # Kalman-smoother news decomposition upstream (MEMs 1.0.2 added
-    # nowcast_news(::NowcastBVAR)); bridge equations have no state-space form.
-    model = if method == "dfm"
-        nowcast_dfm(Y_old, nM, nQ; r=factors, p=lags)
-    elseif method == "bvar"
-        nowcast_bvar(Y_old, nM, nQ; lags=lags)
-    else
-        throw(CliError("usage/invalid",
-            "unknown nowcast method for news: $method"; hint="use --method dfm|bvar"))
+    if isnothing(model)
+        model = if method == "dfm"
+            nowcast_dfm(Y_old, nM, nQ; r=factors, p=lags)
+        elseif method == "bvar"
+            nowcast_bvar(Y_old, nM, nQ; lags=lags)
+        else
+            throw(CliError("usage/invalid",
+                "unknown nowcast method for news: $method"; hint="use --method dfm|bvar"))
+        end
     end
 
     tp = target_period > 0 ? target_period : T_new
     tv = target_var > 0 ? target_var : size(Y_new, 2)
-    # The two vintages must be the SAME shape — a vintage differs by which cells are
-    # filled in, not by row count. Upstream signals a mismatch with a bare
-    # ArgumentError, which would exit 1 rather than flag the user's input.
     news = try
         nowcast_news(Y_new, Y_old, model, tp; target_var=tv)
     catch e
@@ -363,36 +454,45 @@ function _nowcast_news(; data_new::String="", data_old::String="",
     _status_styled("  Revision: $(round(revision; digits=4))\n"; color=:cyan)
     _status()
 
-    # News impact table
     result_df = DataFrame(
         variable=news.variable_names,
         news_impact=round.(news.impact_news; digits=6)
     )
     output_result(result_df; format=Symbol(format), output=output,
                   title="Nowcast News Decomposition (method=$method)", key="nowcast_news_decomposition")
+    return (; model, result=news)
 end
 
-function _nowcast_forecast(; data::String, monthly_vars::Int=0, quarterly_vars::Int=0,
+function _nowcast_forecast(; data::String="", result=nothing, model=nothing,
+                             monthly_vars::Int=0, quarterly_vars::Int=0,
                              method::String="dfm", factors::Int=2, lags::Int=1,
                              horizons::Int=4, target_var::Int=0,
                              output::String="", format::String="table",
                              plot::Bool=false, plot_save::String="")
-    Y, varnames = load_multivariate_data(data; allow_nan=true)
-    nM, nQ = _validate_nowcast_vars(Y, monthly_vars, quarterly_vars)
-    T_obs, N = size(Y)
+    loaded = _loaded_result(result; data, model, leaf="nowcast forecast",
+                            horizons, horizons_default=4)
+    loaded === nothing || return _rerender_nowcast_result(loaded; format, output,
+        title="Nowcast Forecast", key="nowcast_forecast", plot, plot_save)
+    if isnothing(model)
+        Y, varnames = load_multivariate_data(data; allow_nan=true)
+        nM, nQ = _validate_nowcast_vars(Y, monthly_vars, quarterly_vars)
+        T_obs, N = size(Y)
 
-    _status("Nowcast Forecast: $N variables ($nM monthly, $nQ quarterly), T=$T_obs")
-    _status("  Method: $method, horizons: $horizons")
-    _status()
+        _status("Nowcast Forecast: $N variables ($nM monthly, $nQ quarterly), T=$T_obs")
+        _status("  Method: $method, horizons: $horizons")
+        _status()
 
-    model = if method == "dfm"
-        nowcast_dfm(Y, nM, nQ; r=factors, p=lags)
-    elseif method == "bvar"
-        nowcast_bvar(Y, nM, nQ; lags=lags)
-    elseif method == "bridge"
-        nowcast_bridge(Y, nM, nQ)
+        model = if method == "dfm"
+            nowcast_dfm(Y, nM, nQ; r=factors, p=lags)
+        elseif method == "bvar"
+            nowcast_bvar(Y, nM, nQ; lags=lags)
+        elseif method == "bridge"
+            nowcast_bridge(Y, nM, nQ)
+        else
+            error("unknown nowcast method: $method (expected dfm|bvar|bridge)")
+        end
     else
-        error("unknown nowcast method: $method (expected dfm|bvar|bridge)")
+        varnames = _model_varnames(model)
     end
 
     tv = target_var > 0 ? target_var : nothing
@@ -400,15 +500,16 @@ function _nowcast_forecast(; data::String, monthly_vars::Int=0, quarterly_vars::
 
     _maybe_plot(fc_mat; plot=plot, plot_save=plot_save)
 
-    # Build forecast table
     fc_df = DataFrame()
     fc_df[!, :horizon] = 1:horizons
-    for (i, vname) in enumerate(varnames)
-        if i <= size(fc_mat, 2)
-            fc_df[!, Symbol(vname)] = round.(fc_mat[:, i]; digits=6)
-        end
+    n_cols = size(fc_mat, 2)
+    eff_vnames = length(varnames) >= n_cols ? varnames[1:n_cols] : String["var_$i" for i in 1:n_cols]
+    for (i, vname) in enumerate(eff_vnames)
+        fc_df[!, Symbol(vname)] = round.(fc_mat[:, i]; digits=6)
     end
 
     output_result(fc_df; format=Symbol(format), output=output,
                   title="Nowcast Forecast ($method, h=$horizons)", key="nowcast_forecast")
+    _set_save_meta!(; varnames=eff_vnames)
+    return (; model, result=fc_mat)
 end

@@ -1280,9 +1280,24 @@ function _policy_news(route::String; model="", result=nothing, policy_shock::Str
     return ce
 end
 
-function _policy_jacobian(; model="", input::String="r", jac_output::String="",
+function _policy_jacobian(; model="", result=nothing, input::String="r", jac_output::String="",
                           t_horizon::Int=300, dx::Float64=1e-4,
                           output::String="", format::String="table")
+    loaded = _loaded_result(result; data="", model=(model isa AbstractString ? nothing : model),
+                            leaf="policy jacobian ha")
+    if loaded !== nothing
+        J = loaded isa AbstractMatrix ? loaded : (hasproperty(loaded, :J) ? loaded.J : loaded)
+        rows = Int[]; cols = Int[]; vals = Float64[]
+        for j in axes(J, 2), i in axes(J, 1)
+            push!(rows, i); push!(cols, j)
+            push!(vals, round(Float64(J[i, j]); digits=8))
+        end
+        output_result(DataFrame(row=rows, col=cols, value=vals);
+                      format=Symbol(format), output=output,
+                      title="Sequence-Space Jacobian",
+                      key="sequence_space_jacobian")
+        return loaded
+    end
     input in ("r", "w") || throw(CliError("usage/invalid-option",
         "invalid --input '$input'; must be r or w"))
     t_horizon >= 1 || throw(CliError("usage/invalid",
@@ -1317,6 +1332,7 @@ function _policy_jacobian(; model="", input::String="r", jac_output::String="",
                   format=Symbol(format), output=output,
                   title="Sequence-Space Jacobian d$(jac_output)/d$(input)",
                   key="sequence_space_jacobian")
+    return J
 end
 
 function _render_policy_history(hist, n_used::Int, n_failed::Int;
@@ -2076,7 +2092,7 @@ function register_policy_commands!()
         ["policy", "opp-sequence", "bvar"]   => ([:BVARPosterior], [:OPPSequence]),
         ["policy", "news", "dsge"]           => ([:DSGESolution, :PerturbationSolution], [:PolicyCausalEffects]),
         ["policy", "news", "ha"]             => ([:HADSGESolution], [:PolicyCausalEffects]),
-        ["policy", "jacobian", "ha"]         => ([:HADSGESolution], Symbol[]),
+        ["policy", "jacobian", "ha"]         => ([:HADSGESolution], [:Matrix, :SSJGEJacobian]),
         ["policy", "history", "var"]         => ([:VARModel, :SVARModel], [:CounterfactualHistory]),
         ["policy", "history", "bvar"]        => ([:BVARPosterior], [:CounterfactualHistory]),
         ["policy", "spanning", "var"]        => ([:DSGESolution, :PerturbationSolution], [:SpanningDiagnostic]),

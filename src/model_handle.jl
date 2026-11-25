@@ -169,10 +169,11 @@ function model_handle_info(path::String)
 end
 
 function _jls_model_info(path::String)
-    path = _validate_input_path(path)
-    isfile(path) || throw(CliError("data/file-not-found", "model handle not found: $path",
+    base, key = _split_key_selector(path)
+    base = _validate_input_path(base)
+    isfile(base) || throw(CliError("data/file-not-found", "model handle not found: $path",
                                    hint="check handle path"))
-    magic = sniff_handle_format(path)
+    magic = sniff_handle_format(base)
     if magic === :empty || magic === :unknown
         throw(CliError("data/corrupt-handle", "corrupt or empty .jls file: $path"))
     elseif magic === :hdf5
@@ -181,22 +182,44 @@ function _jls_model_info(path::String)
             hint="rename to .jld2"))
     end
     payload = try
-        open(deserialize, path)
+        open(deserialize, base)
     catch e
         throw(CliError("data/corrupt-handle", "failed to read serialized .jls file: $path",
                        hint=sprint(showerror, e)))
     end
     if payload isa FrdcJlsEnvelope
+        val = payload.payload
+        if key !== nothing && val isa AbstractDict
+            val = _extract_key_from_dict(val, key, path)
+            return (
+                path = path,
+                magic = "Julia Serialization (jls)",
+                cli_version = payload.cli_version,
+                mems_version = payload.mems_version,
+                model_type = string(nameof(typeof(val))),
+                kind = _storage_kind_tag(val),
+                runtime_cli = _cli_version_string(),
+                runtime_mems = _mems_version_string(),
+                dimensions = _extract_dims(val),
+                note = payload.note,
+                has_provenance = payload.source_model !== nothing || !isempty(payload.provenance),
+                keys = String[],
+            )
+        end
+        ukeys = val isa AbstractDict ? sort!(String[string(k) for k in keys(val)]) : String[]
         return (
             path = path,
             magic = "Julia Serialization (jls)",
             cli_version = payload.cli_version,
             mems_version = payload.mems_version,
             model_type = payload.type_name,
+            kind = payload.kind,
             runtime_cli = _cli_version_string(),
             runtime_mems = _mems_version_string(),
             dimensions = payload.dims,
             note = payload.note,
+            has_provenance = payload.source_model !== nothing || !isempty(payload.provenance),
+            keys = ukeys,
         )
     elseif payload isa Tuple && length(payload) == 2 && payload[1] isa ModelHandleHeader
         header, model = payload
@@ -206,10 +229,13 @@ function _jls_model_info(path::String)
             cli_version = header.cli_version,
             mems_version = header.mems_version,
             model_type = header.model_type,
+            kind = _storage_kind_tag(model),
             runtime_cli = _cli_version_string(),
             runtime_mems = _mems_version_string(),
             dimensions = _extract_dims(model),
             note = "",
+            has_provenance = false,
+            keys = model isa AbstractDict ? sort!(String[string(k) for k in keys(model)]) : String[],
         )
     end
     return (
@@ -218,10 +244,13 @@ function _jls_model_info(path::String)
         cli_version = "n/a",
         mems_version = "n/a",
         model_type = string(nameof(typeof(payload))),
+        kind = _storage_kind_tag(payload),
         runtime_cli = _cli_version_string(),
         runtime_mems = _mems_version_string(),
         dimensions = _extract_dims(payload),
         note = "",
+        has_provenance = false,
+        keys = payload isa AbstractDict ? sort!(String[string(k) for k in keys(payload)]) : String[],
     )
 end
 
@@ -342,6 +371,7 @@ include("storage/codec.jl")
 include("storage/session.jl")
 include("storage/cache.jl")
 include("storage/introspect.jl")
+include("storage/provenance.jl")
 
 _is_native_saveable(model) = is_mems_serializable(model)
 
@@ -519,103 +549,311 @@ function _envelope_manifest()
 end
 
 """
-    _native_model_info(path) → NamedTuple
+    _native_model_info(path; deep=false) → NamedTuple
 
-`model info` for a native `.jld2` handle (C052, W3/#167). Reads the container
-header via MEMs `model_info` — versions, note, bundle layout — WITHOUT
-reconstructing the payload, so a corrupt payload still inspects; dimensions
-stay best-effort (empty when reconstruction fails). Shares the field shape of
-[`model_handle_info`](@ref) so the `model info` renderer is format-agnostic,
-plus the header `note`.
+Strictly header-only `model info` for `.jld2` handles ([STORAGE-W5] #309):
+- Reads ONLY `_frdc_meta` / MEMs header keys (`model_info`) / top-level JLD2 keys.
+- NEVER calls `load_model` or DSGE `Core.eval` unless `deep=true` is explicitly
+  requested on a legacy handle lacking `_frdc_meta`.
+- Handles plain `.jld2` archives (e.g. saved `DataFrame` or multi-key JLD2) and
+  `archive.jld2#key` selectors gracefully (`magic = "jld2-plain"`).
 """
-function _native_model_info(path::String)
-    path = _validate_input_path(path)
-    isfile(path) || throw(CliError("data/file-not-found", "model file not found: $path",
+function _native_model_info(raw_path::String; deep::Bool=false)
+    base_path, key = _split_key_selector(raw_path)
+    path = _validate_input_path(base_path)
+    isfile(path) || throw(CliError("data/file-not-found", "model file not found: $raw_path",
                                    hint="check the path"))
     magic = sniff_handle_format(path)
     if magic === :empty || magic === :unknown
-        throw(CliError("data/corrupt-handle", "corrupt or empty .jld2 file: $path"))
+        throw(CliError("data/corrupt-handle", "corrupt or empty .jld2 file: $raw_path"))
     end
-    # Check _frdc_meta header directly if HDF5 so we stay strictly header-only
-    frdc_meta = if magic === :hdf5
+
+    display_path = key === nothing ? path : "$path#$key"
+    frdc_meta = nothing
+    top_keys = String[]
+    has_container = false
+    has_src_model = false
+    legacy_cli_ver = "n/a"
+
+    if magic === :hdf5
         try
             _with_quiet_jld2() do
                 JLD2.jldopen(path, "r") do f
-                    haskey(f, "_frdc_meta") ? f["_frdc_meta"] : nothing
+                    top_keys = String[string(k) for k in keys(f)]
+                    has_container = "container" in top_keys || "__format__" in top_keys ||
+                        "format_version" in top_keys || "package_version" in top_keys
+                    has_src_model = "_friedman_source_model" in top_keys
+                    if "_frdc_meta" in top_keys
+                        frdc_meta = f["_frdc_meta"]
+                    end
+                    if "_friedman_cli_version" in top_keys
+                        legacy_cli_ver = string(f["_friedman_cli_version"])
+                    end
                 end
             end
-        catch
-            nothing
+        catch e
+            throw(CliError("data/corrupt-handle", "corrupt or unreadable JLD2 file: $raw_path",
+                           hint=sprint(showerror, e)))
         end
     else
-        try
-            d = open(deserialize, path)
-            (d isa AbstractDict && haskey(d, "_frdc_meta")) ? d["_frdc_meta"] : nothing
-        catch
-            nothing
+        # Mock `.jld2` container in unit tests (non-HDF5 serialized Dict)
+        d = try
+            open(deserialize, path)
+        catch e
+            throw(CliError("data/corrupt-handle", "failed to read model file: $raw_path",
+                           hint=sprint(showerror, e)))
+        end
+        if d isa AbstractDict
+            top_keys = String[string(k) for k in keys(d)]
+            has_container = _is_mems_jld2_dict(d)
+            has_src_model = haskey(d, "_friedman_source_model")
+            haskey(d, "_frdc_meta") && (frdc_meta = d["_frdc_meta"])
+            haskey(d, "_friedman_cli_version") && (legacy_cli_ver = string(d["_friedman_cli_version"]))
         end
     end
+
+    # Plain JLD2 archive (DataFrame, Matrix, multi-key user archive — no MEMs container)
+    if !has_container
+        user_keys = sort!(String[k for k in top_keys if !startswith(k, "_")])
+        if key !== nothing
+            key in user_keys || throw(CliError("data/key-not-found",
+                "key '$key' not found in '$raw_path' (available: $(join(user_keys, ", ")))";
+                hint="inspect available keys with `frdc model keys $path`"))
+        end
+        cli_ver = (frdc_meta isa AbstractDict && haskey(frdc_meta, "cli_version")) ?
+            string(frdc_meta["cli_version"]) : legacy_cli_ver
+        mems_ver = (frdc_meta isa AbstractDict && haskey(frdc_meta, "mems_version")) ?
+            string(frdc_meta["mems_version"]) : "n/a"
+        note_str = (frdc_meta isa AbstractDict && haskey(frdc_meta, "note")) ?
+            string(frdc_meta["note"]) : ""
+        kind_str = (frdc_meta isa AbstractDict && haskey(frdc_meta, "kind")) ?
+            string(frdc_meta["kind"]) : (length(user_keys) > 1 && key === nothing ? "archive" : "tabular")
+        has_prov = has_src_model || (frdc_meta isa AbstractDict &&
+            (!isempty(get(frdc_meta, "source_model", Dict())) || !isempty(get(frdc_meta, "provenance", Dict()))))
+
+        dims = Dict{String,Any}()
+        mtype = if key === nothing && frdc_meta isa AbstractDict && haskey(frdc_meta, "type_name")
+            if haskey(frdc_meta, "dims")
+                dims = Dict{String,Any}(string(k) => v for (k, v) in frdc_meta["dims"])
+            end
+            string(frdc_meta["type_name"])
+        elseif key !== nothing
+            # Inspect the single selected key
+            val = try
+                _with_quiet_jld2() do
+                    JLD2.jldopen(path, "r") do f
+                        f[key]
+                    end
+                end
+            catch
+                nothing
+            end
+            val !== nothing && (dims = _extract_dims(val))
+            val === nothing ? "unknown" : string(nameof(typeof(val)))
+        elseif length(user_keys) == 1
+            if deep
+                val = try
+                    _with_quiet_jld2() do
+                        JLD2.jldopen(path, "r") do f
+                            f[user_keys[1]]
+                        end
+                    end
+                catch
+                    nothing
+                end
+                val !== nothing && (dims = _extract_dims(val))
+                val === nothing ? "jld2-plain($(user_keys[1]))" : string(nameof(typeof(val)))
+            else
+                "jld2-plain(key: $(user_keys[1]))"
+            end
+        else
+            dims["keys"] = length(user_keys)
+            "jld2-plain($(length(user_keys)) keys: $(join(user_keys, ", ")))"
+        end
+        return (
+            path = display_path,
+            magic = "jld2-plain",
+            cli_version = cli_ver,
+            mems_version = mems_ver,
+            model_type = mtype,
+            kind = kind_str,
+            runtime_cli = _cli_version_string(),
+            runtime_mems = _mems_version_string(),
+            dimensions = dims,
+            note = note_str,
+            has_provenance = has_prov,
+            keys = user_keys,
+        )
+    end
+
+    # MEMs native container — strictly header-only!
     header = try
         _with_quiet_jld2() do
             MacroEconometricModels.model_info(path)
         end
     catch e
-        _has_supertype_named(typeof(e), :MacroModelError) && rethrow()
-        throw(CliError("data/corrupt-handle", "failed to read native model file: $path",
-                       hint=sprint(showerror, e)))
+        if frdc_meta isa AbstractDict
+            Dict{String,Any}(
+                "type" => get(frdc_meta, "type_name", "unknown"),
+                "package_version" => get(frdc_meta, "mems_version", _mems_version_string()),
+                "note" => get(frdc_meta, "note", ""),
+                "bundle" => get(frdc_meta, "kind", "") in ("bundle", "result_collection"),
+            )
+        else
+            _has_supertype_named(typeof(e), :MacroModelError) && rethrow()
+            throw(CliError("data/corrupt-handle", "failed to read native model file: $raw_path",
+                           hint=sprint(showerror, e)))
+        end
     end
+
     is_bundle = get(header, "bundle", false) === true
+    bundle_keys = String[]
     if is_bundle
         entries = get(header, "entries", Dict{String,Any}())
-        model_type = "bundle($(length(entries)) entries: $(join(sort!(collect(keys(entries))), ", ")))"
+        bundle_keys = sort!(String[string(k) for k in keys(entries)])
+        if key !== nothing
+            key in bundle_keys || throw(CliError("data/key-not-found",
+                "key '$key' not found in bundle '$raw_path' (available: $(join(bundle_keys, ", ")))";
+                hint="inspect available keys with `frdc model keys $path`"))
+            entry_info = entries[key]
+            model_type = entry_info isa AbstractDict ?
+                string(get(entry_info, "type", "unknown")) : string(entry_info)
+        else
+            model_type = "bundle($(length(bundle_keys)) entries: $(join(bundle_keys, ", ")))"
+        end
     else
-        model_type = string(get(header, "type", "unknown"))
+        key === nothing || throw(CliError("data/key-not-found",
+            "handle '$raw_path' is not a multi-entry bundle";
+            hint="omit '#$key' to inspect the single object"))
+        model_type = if frdc_meta isa AbstractDict && haskey(frdc_meta, "type_name") &&
+                        get(header, "type", "unknown") in ("unknown", "")
+            string(frdc_meta["type_name"])
+        else
+            string(get(header, "type", "unknown"))
+        end
     end
-    dims = if frdc_meta isa AbstractDict && haskey(frdc_meta, "dims")
+
+    # Strictly header-only dims: read from _frdc_meta, NEVER call load_model unless --deep!
+    dims = if key === nothing && frdc_meta isa AbstractDict && haskey(frdc_meta, "dims")
         Dict{String,Any}(string(k) => v for (k, v) in frdc_meta["dims"])
-    else
+    elseif deep
         try
-            _extract_dims(load_model_dispatch(path))
+            _extract_dims(load_model_dispatch(raw_path))
         catch
             Dict{String,Any}()
         end
+    else
+        Dict{String,Any}()
     end
+
     cli_ver = if frdc_meta isa AbstractDict && haskey(frdc_meta, "cli_version")
         string(frdc_meta["cli_version"])
-    elseif magic === :hdf5
-        try
-            _with_quiet_jld2() do
-                JLD2.jldopen(path, "r") do f
-                    haskey(f, "_friedman_cli_version") ? string(f["_friedman_cli_version"]) : "n/a"
-                end
-            end
-        catch
-            "n/a"
-        end
     else
-        try
-            d = open(deserialize, path)
-            (d isa AbstractDict && haskey(d, "_friedman_cli_version")) ?
-                string(d["_friedman_cli_version"]) : "n/a"
-        catch
-            "n/a"
-        end
+        legacy_cli_ver
     end
     raw_pv = string(get(header, "package_version", ""))
-    mems_ver = (isempty(raw_pv) || raw_pv == "unknown") ? _mems_version_string() : raw_pv
+    mems_ver = (isempty(raw_pv) || raw_pv == "unknown") ?
+        (frdc_meta isa AbstractDict ? string(get(frdc_meta, "mems_version", _mems_version_string())) : _mems_version_string()) :
+        raw_pv
     note_str = string(get(header, "note", ""))
     if isempty(note_str) && frdc_meta isa AbstractDict && haskey(frdc_meta, "note")
         note_str = string(frdc_meta["note"])
     end
+    kind_str = (frdc_meta isa AbstractDict && haskey(frdc_meta, "kind")) ?
+        string(frdc_meta["kind"]) : (is_bundle ? "bundle" : "model")
+    has_prov = has_src_model || (frdc_meta isa AbstractDict &&
+        (!isempty(get(frdc_meta, "source_model", Dict())) || !isempty(get(frdc_meta, "provenance", Dict()))))
+
     return (
-        path = path,
+        path = display_path,
         magic = "MEMs native (jld2)",
         cli_version = cli_ver,
         mems_version = mems_ver,
         model_type = model_type,
+        kind = kind_str,
         runtime_cli = _cli_version_string(),
         runtime_mems = _mems_version_string(),
         dimensions = dims,
         note = note_str,
+        has_provenance = has_prov,
+        keys = bundle_keys,
     )
+end
+
+"""Header-only archive/bundle key inspector for `frdc model keys` (#309)."""
+function _inspect_handle_keys(raw_path::String)
+    if _is_session_uri(raw_path)
+        entry = session_store_get_entry(raw_path)
+        if entry.payload isa AbstractDict
+            ks = sort!(String[string(k) for k in keys(entry.payload)])
+            return [(key=k, selector="$(raw_path)#$k",
+                     type=string(nameof(typeof(entry.payload[k]))),
+                     dims=string(_extract_dims(entry.payload[k]))) for k in ks]
+        end
+        return [(key="(root)", selector=raw_path,
+                 type=string(nameof(typeof(entry.payload))),
+                 dims=string(get(entry.meta, "dims", _extract_dims(entry.payload))))]
+    end
+    base, _ = _split_key_selector(raw_path)
+    p = resolve_stem(base; slot=:model)
+    p = _validate_input_path(p)
+    isfile(p) || throw(CliError("data/file-not-found", "model file not found: $raw_path"))
+    magic = sniff_handle_format(p)
+    (magic === :empty || magic === :unknown) &&
+        throw(CliError("data/corrupt-handle", "corrupt or empty handle: $raw_path"))
+
+    if magic === :hdf5
+        top_keys = String[]
+        has_container = false
+        _with_quiet_jld2() do
+            JLD2.jldopen(p, "r") do f
+                top_keys = String[string(k) for k in keys(f)]
+                has_container = "container" in top_keys || "__format__" in top_keys ||
+                    "format_version" in top_keys || "package_version" in top_keys
+            end
+        end
+        if has_container
+            header = try
+                _with_quiet_jld2() do; MacroEconometricModels.model_info(p); end
+            catch
+                Dict{String,Any}()
+            end
+            if get(header, "bundle", false) === true
+                entries = get(header, "entries", Dict{String,Any}())
+                ks = sort!(String[string(k) for k in keys(entries)])
+                return [(key=k, selector="$(p)#$k",
+                         type=(entries[k] isa AbstractDict ? string(get(entries[k], "type", "unknown")) : string(entries[k])),
+                         dims="") for k in ks]
+            end
+            return [(key="(root)", selector=p,
+                     type=string(get(header, "type", "unknown")), dims="")]
+        else
+            ukeys = sort!(String[k for k in top_keys if !startswith(k, "_")])
+            rows = NamedTuple{(:key, :selector, :type, :dims),Tuple{String,String,String,String}}[]
+            _with_quiet_jld2() do
+                JLD2.jldopen(p, "r") do f
+                    for k in ukeys
+                        tstr, dstr = try
+                            v = f[k]
+                            string(nameof(typeof(v))), string(_extract_dims(v))
+                        catch
+                            "unknown", ""
+                        end
+                        push!(rows, (key=k, selector="$(p)#$k", type=tstr, dims=dstr))
+                    end
+                end
+            end
+            return rows
+        end
+    end
+
+    # .jls / .fmod
+    obj = load_model_dispatch(p)
+    if obj isa AbstractDict
+        ks = sort!(String[string(k) for k in keys(obj)])
+        return [(key=k, selector="$(p)#$k",
+                 type=string(nameof(typeof(obj[k]))),
+                 dims=string(_extract_dims(obj[k]))) for k in ks]
+    end
+    return [(key="(root)", selector=p, type=string(nameof(typeof(obj))), dims=string(_extract_dims(obj)))]
 end

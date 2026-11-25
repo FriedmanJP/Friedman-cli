@@ -97,6 +97,7 @@ function _did_estimate(; data::String, outcome::String, treatment::String,
     end
 
     _maybe_plot(result; plot=plot, plot_save=plot_save)
+    return result
 end
 
 function _did_event_study(; data::String, outcome::String, treatment::String,
@@ -142,6 +143,7 @@ function _did_event_study(; data::String, outcome::String, treatment::String,
     _status("$(result.horizon)")
 
     _maybe_plot(result; plot=plot, plot_save=plot_save)
+    return result
 end
 
 function _did_lp_did(; data::String, outcome::String, treatment::String,
@@ -238,6 +240,7 @@ function _did_lp_did(; data::String, outcome::String, treatment::String,
     end
 
     _maybe_plot(result; plot=plot, plot_save=plot_save)
+    return result
 end
 
 function _did_test_bacon(; data::String, outcome::String, treatment::String,
@@ -270,6 +273,7 @@ function _did_test_bacon(; data::String, outcome::String, treatment::String,
     _status(round(result.overall_att; digits=6))
 
     _maybe_plot(result; plot=plot, plot_save=plot_save)
+    return result
 end
 
 function _did_test_pretrend(; data::String, outcome::String, treatment::String,
@@ -306,6 +310,7 @@ function _did_test_pretrend(; data::String, outcome::String, treatment::String,
             "Cannot reject parallel trends (p > 0.05)" :
             "Reject parallel trends (p ≤ 0.05)"
     ]; format=format, output=output, title="Pre-Trend Test")
+    return result
 end
 
 function _did_test_negweight(; data::String, treatment::String,
@@ -337,6 +342,7 @@ function _did_test_negweight(; data::String, treatment::String,
         output_result(wt_df; format=fmt, output=_per_var_output_path(output, "weights"),
             title="Weight Details")
     end
+    return result
 end
 
 function _did_test_honest(; data::String, outcome::String, treatment::String,
@@ -384,6 +390,7 @@ function _did_test_honest(; data::String, outcome::String, treatment::String,
     _status(round(result.breakdown_value; digits=4))
 
     _maybe_plot(result; plot=plot, plot_save=plot_save)
+    return result
 end
 
 # ─── Command Registration ───────────────────────────────────────
@@ -582,9 +589,130 @@ function did_specs()::Vector{CommandSpec}
     ]
 end
 
+const _DID_RESULT_TYPES = Dict{Vector{String},Vector{Symbol}}(
+    ["did", "estimate"]          => [:DIDResult],
+    ["did", "event-study"]       => [:EventStudyLP],
+    ["did", "lp-did"]            => [:LPDiDResult],
+    ["did", "test", "bacon"]     => [:BaconDecomposition],
+    ["did", "test", "pretrend"]  => [:PretrendTestResult],
+    ["did", "test", "negweight"] => [:NegativeWeightResult],
+    ["did", "test", "honest"]    => [:HonestDiDResult],
+)
+
+function _rerender_did_result(result; format::String="table", output::String="",
+                              title::String="", key::String="",
+                              plot::Bool=false, plot_save::String="")
+    tn = nameof(typeof(result))
+    fmt = Symbol(lowercase(format))
+    if tn === :DIDResult
+        _emit_result(result; title="DID Estimation", key="did_estimation",
+                     format=fmt, output=output)
+        if hasproperty(result, :group_time_att) && !isnothing(result.group_time_att) &&
+           hasproperty(result, :cohorts) && !isnothing(result.cohorts) &&
+           size(result.group_time_att, 1) == length(result.cohorts)
+            gt = result.group_time_att
+            gt_df = DataFrame(gt, ["period_$(t)" for t in 1:size(gt, 2)])
+            insertcols!(gt_df, 1, :Cohort => result.cohorts)
+            output_result(gt_df; format=fmt, output=_per_var_output_path(output, "group_time"),
+                          title="Group-Time ATT (Callaway-Sant'Anna)")
+        end
+    elseif tn === :EventStudyLP
+        coef_df = DataFrame(
+            Event_Time = result.event_times,
+            Coefficient = round.(result.coefficients; digits=6),
+            SE = round.(result.se; digits=6),
+            CI_Lower = round.(result.ci_lower; digits=6),
+            CI_Upper = round.(result.ci_upper; digits=6),
+        )
+        output_result(coef_df; format=fmt, output=output,
+                      title="Event Study LP", key="event_study_lp")
+    elseif tn === :LPDiDResult
+        coef_df = DataFrame(
+            Event_Time = result.event_times,
+            Coefficient = round.(result.coefficients; digits=6),
+            SE = round.(result.se; digits=6),
+            CI_Lower = round.(result.ci_lower; digits=6),
+            CI_Upper = round.(result.ci_upper; digits=6),
+            N_obs = result.nobs_per_horizon,
+        )
+        output_result(coef_df; format=fmt, output=output,
+                      title="LP-DiD (Dube et al. 2023)", key="lp_did_dube_et_al_2023")
+    elseif tn === :BaconDecomposition
+        dec_df = DataFrame(
+            Comparison = String.(result.comparison_type),
+            Cohort_i = result.cohort_i,
+            Cohort_j = result.cohort_j,
+            Estimate = round.(result.estimates; digits=6),
+            Weight = round.(result.weights; digits=6),
+        )
+        output_result(dec_df; format=fmt, output=output,
+                      title="Bacon Decomposition (Goodman-Bacon 2021)")
+    elseif tn === :PretrendTestResult
+        output_kv([
+            "Test type" => String(result.test_type),
+            "F-statistic" => round(result.statistic; digits=4),
+            "p-value" => round(result.pvalue; digits=4),
+            "Degrees of freedom" => result.df,
+            "Verdict" => result.pvalue > 0.05 ?
+                "Cannot reject parallel trends (p > 0.05)" :
+                "Reject parallel trends (p ≤ 0.05)",
+        ]; format=format, output=output, title="Pre-Trend Test")
+    elseif tn === :NegativeWeightResult
+        output_kv([
+            "Negative weights found" => result.has_negative_weights ? "yes" : "no",
+            "Number of negative weights" => result.n_negative,
+            "Total negative weight" => round(result.total_negative_weight; digits=6),
+        ]; format=format, output=output,
+            title="Negative Weight Check (de Chaisemartin-D'Haultfoeuille 2020)")
+        if result.has_negative_weights && !isempty(result.cohort_time_pairs)
+            wt_df = DataFrame(
+                Cohort = [p[1] for p in result.cohort_time_pairs],
+                Time = [p[2] for p in result.cohort_time_pairs],
+                Weight = round.(result.weights; digits=6),
+            )
+            output_result(wt_df; format=fmt, output=_per_var_output_path(output, "weights"),
+                          title="Weight Details")
+        end
+    elseif tn === :HonestDiDResult
+        hon_df = DataFrame(
+            Event_Time = result.post_event_times,
+            ATT = round.(result.post_att; digits=6),
+            Robust_CI_Lower = round.(result.robust_ci_lower; digits=6),
+            Robust_CI_Upper = round.(result.robust_ci_upper; digits=6),
+            Original_CI_Lower = round.(result.original_ci_lower; digits=6),
+            Original_CI_Upper = round.(result.original_ci_upper; digits=6),
+        )
+        output_result(hon_df; format=fmt, output=output,
+                      title="HonestDiD Sensitivity (Rambachan-Roth 2023)",
+                      key="honestdid_sensitivity_rambachan_roth_2023")
+    else
+        _rerender_kv(result; format=format, output=output, title=title, key=key)
+    end
+    _maybe_plot(result; plot=plot, plot_save=plot_save)
+    return result
+end
+
 """Prepared DiD specs. `did test *` is rewritten to `test did *` by `_finalize_spec`."""
 function _prepared_did_specs()
-    specs = with_default_csv_kinds(with_data_kinds(did_specs(), [:panel, :csv]))
+    raw_handlers = Dict(
+        ["did", "estimate"]          => _did_estimate,
+        ["did", "event-study"]       => _did_event_study,
+        ["did", "lp-did"]            => _did_lp_did,
+        ["did", "test", "bacon"]     => _did_test_bacon,
+        ["did", "test", "pretrend"]  => _did_test_pretrend,
+        ["did", "test", "negweight"] => _did_test_negweight,
+        ["did", "test", "honest"]    => _did_test_honest,
+    )
+    specs = CommandSpec[]
+    for s in did_specs()
+        rt = get(_DID_RESULT_TYPES, s.path, Symbol[])
+        key = isempty(s.tables) ? "" : string(s.tables[1].name)
+        raw_fn = raw_handlers[s.path]
+        h = wrap_legacy(_with_result(raw_fn, join(s.path, " "); key=key,
+                                     render_fn=_rerender_did_result))
+        push!(specs, _copy_spec(s; handler=h, result_types=rt))
+    end
+    specs = with_result_handles(with_default_csv_kinds(with_data_kinds(specs, [:panel, :csv])))
     return CommandSpec[_finalize_spec(s) for s in specs]
 end
 

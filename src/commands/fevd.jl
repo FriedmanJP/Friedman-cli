@@ -185,7 +185,7 @@ const _FEVD_SLOT_TYPES = Dict{Vector{String},Tuple{Vector{Symbol},Vector{Symbol}
     ["fevd", "bvar"]  => ([:BVARPosterior], [:BayesianFEVD]),
     ["fevd", "lp"]    => ([:StructuralLP], [:LPFEVD]),
     ["fevd", "vecm"]  => ([:VECMModel, :SVECResult], [:FEVD]),
-    ["fevd", "pvar"]  => ([:PVARModel], Symbol[]),
+    ["fevd", "pvar"]  => ([:PVARModel], [:Array, :FEVD]),
     ["fevd", "favar"] => ([:FAVARModel], [:FEVD]),
     ["fevd", "sdfm"]  => ([:StructuralDFM], [:FEVD]),
 )
@@ -560,7 +560,23 @@ function _fevd_pvar(; data::String="", result=nothing, id_col::String="", time_c
                      model=nothing)
     loaded = _loaded_result(result; data, model, leaf="fevd pvar",
                             horizons, horizons_default=10)
-    loaded === nothing || return loaded
+    if loaded !== nothing
+        if loaded isa AbstractArray && ndims(loaded) == 3
+            h_eff = size(loaded, 1) - 1
+            n_v = size(loaded, 2)
+            vns = _model_varnames(loaded)
+            length(vns) == n_v || (vns = String["var_$i" for i in 1:n_v])
+            proportions = permutedims(loaded[2:end, :, :], (2, 3, 1))
+            _output_fevd_tables(proportions, vns, h_eff;
+                                id="cholesky", title_prefix="Panel VAR FEVD",
+                                format=format, output=output, key_prefix="panel_var_fevd")
+            _maybe_plot(loaded; plot=plot, plot_save=plot_save)
+            return loaded
+        end
+        return _rerender_fevd_result(loaded; format, output, title="Panel VAR FEVD",
+                                     key="panel_var_fevd", plot, plot_save,
+                                     key_prefix="panel_var_fevd")
+    end
     if isnothing(model)
         model, panel, varnames = _load_and_estimate_pvar(data, id_col, time_col, lags)
     else
