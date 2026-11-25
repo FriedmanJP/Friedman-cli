@@ -1,0 +1,10 @@
+# GPL-3.0-only compliance preferences (#288):
+# Prevent LinearSolve and FFTW from loading proprietary Intel MKL / oneTBB /
+# IntelOpenMP (ISSL, GPL-incompatible) on Intel x86_64 hosts.
+# Bound via Project.toml [extras] (LinearSolve, FFTW).
+
+[LinearSolve]
+LoadMKL_JLL = false
+
+[FFTW]
+provider = "fftw"

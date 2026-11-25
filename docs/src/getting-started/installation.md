@@ -125,8 +125,9 @@ julia --project tools/build_thin_wrapper.jl
 
 ## Optional Dependencies & Licensing
 
-- **MCP & Complementarity / NLP Solvers:** Equilibrium models built with JuMP/Ipopt ship bundled; optional `PATHSolver` licenses must be installed/licensed in your environment when solving complementarity problems that target that backend. Check solver license terms separately.
-- **License:** Friedman-cli is distributed under **GPL-3.0-or-later**. See `LICENSE` in the repository root.
+- **Constrained DSGE / NLP Solvers:** Standalone releases bundle the GPL-3.0-compatible `MadNLP` (MIT) + `NLPModels` (MPL-2.0) interior-point solver (`--constraint-solver madnlp`), along with native Projected Newton and `NLopt` (LGPL-2.1+). Optional `Ipopt` (`EPL-2.0` + `MUMPS_seq_jll` `CeCILL-C`) and `PATHSolver` (proprietary) remain source-install-only weak dependencies and are never bundled in distributed binaries.
+- **Data Licenses:** Bundled example datasets (`:fred_md`, `:fred_qd` US federal public-domain subsets; `:pwt` under CC-BY-4.0; and 10 public-domain / academic replication datasets) are documented in `DATA_LICENSES.md` (`share/licenses/DATA_LICENSES.md` in standalone releases).
+- **License:** Friedman-cli is distributed under **GPL-3.0-only**. See `LICENSE`, `SOURCE_OFFER.txt`, and `share/licenses/THIRD_PARTY_LICENSES.md`.
 
 ---
 

@@ -158,10 +158,10 @@ jobs:
           set -euo pipefail
           BIN="$PWD/build/frdc/bin/frdc"
 
-          # Verify zero MKL/oneTBB/IntelOpenMP lazy artifacts were bundled
+          # Verify zero GPL-incompatible solver / proprietary MKL artifacts were bundled (#287, #288)
           if [ -d "$PWD/build/frdc/share/julia/artifacts" ]; then
-            if find "$PWD/build/frdc/share/julia/artifacts" -maxdepth 4 \( -iname '*mkl*' -o -iname '*tbb*' -o -iname '*iomp*' \) | grep -q .; then
-              echo "Unexpected lazy MKL/oneTBB/IntelOpenMP artifact bundled!" >&2
+            if find "$PWD/build/frdc/share/julia/artifacts" -maxdepth 4 \( -iname '*ipopt*' -o -iname '*mumps*' -o -iname '*pathsolver*' -o -iname '*libpath*' -o -iname '*libhsl*' -o -iname '*hsl_jll*' -o -iname '*mkl*' -o -iname '*tbb*' -o -iname '*iomp*' \) | grep -q .; then
+              echo "GPL-incompatible solver or proprietary MKL/oneTBB/IntelOpenMP artifact bundled!" >&2
               exit 1
             fi
           fi
@@ -382,13 +382,13 @@ jobs:
           $PyExe = (Get-Command python3, python -ErrorAction SilentlyContinue | Select-Object -First 1).Source
           if (-not $PyExe) { throw "Python not found on PATH" }
 
-          # Verify zero MKL/oneTBB/IntelOpenMP lazy artifacts were bundled
+          # Verify zero GPL-incompatible solver / proprietary MKL artifacts were bundled (#287, #288)
           $ArtDir = Join-Path $Root "build\frdc\share\julia\artifacts"
           if (Test-Path $ArtDir) {
             $BadArt = Get-ChildItem -Path $ArtDir -Recurse -File -ErrorAction SilentlyContinue |
-              Where-Object { $_.Name -match '(?i)(mkl|tbb|iomp)' }
+              Where-Object { $_.Name -match '(?i)(ipopt|mumps|pathsolver|libpath|libhsl|hsl_jll|mkl|tbb|iomp)' }
             if ($BadArt) {
-              throw "Unexpected lazy MKL/oneTBB/IntelOpenMP artifact bundled: $($BadArt[0].FullName)"
+              throw "GPL-incompatible solver or MKL/oneTBB/IntelOpenMP artifact bundled: $($BadArt[0].FullName)"
             }
           }
 

@@ -177,7 +177,7 @@ Full command reference:
 
 ## Installation
 
-Pre-built standalone binaries are **zero-Julia** (no Julia installation or network artifact fetch required; JuMP + Ipopt ship bundled):
+Pre-built standalone binaries are **zero-Julia** (no Julia installation or network artifact fetch required; GPL-3.0-compatible `MadNLP` + `NLPModels` constrained NLP solvers ship bundled; optional `Ipopt` and `PATHSolver` remain source-only weak dependencies):
 
 - **Windows (x86_64) — Microsoft Store (recommended):** Microsoft-signed MSIX with auto-updates and `frdc` on `PATH`:
 

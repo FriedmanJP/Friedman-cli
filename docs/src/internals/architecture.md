@@ -167,7 +167,7 @@ Include order in `src/Friedman.jl` is load-bearing: `output/errors.jl`, `io.jl`,
 
 - **Handler naming:** `_action_model(; kwargs...)` (for instance `_estimate_var`, `_irf_bvar`, `_forecast_sarima`, `_nowcast_dfm`), with keyword argument names mirroring kebab-to-snake declared options.
 - **Registration:** Each action file exports `register_<action>_commands!()` returning a `NodeCommand` (except singleton leaves such as [`show`](@ref ref-show), [`serve`](@ref ref-serve), and registry-hidden `schema`).
-- **Core dependencies:** `MacroEconometricModels` (exact pin in `Project.toml`), `CSV`, `DataFrames`, `PrettyTables`, `JSON3`, `TOML`, `JLD2` (explicitly imported to trigger native `.jld2` save/load extensions), `FFTW` (spectral/GDFM extensions), `LinearAlgebra`, `Statistics`, `SparseArrays`, `Random`, `Serialization`, and `Logging`.
+- **Core dependencies:** `MacroEconometricModels` (exact pin in `Project.toml`), `CSV`, `DataFrames`, `PrettyTables`, `JSON3`, `TOML`, `JLD2` (explicitly imported to trigger native `.jld2` save/load extensions), `LinearAlgebra`, `Statistics`, `SparseArrays`, `Random`, `Serialization`, and `Logging` (`LocalPreferences.toml` pins `LinearSolve.LoadMKL_JLL = false` and `FFTW.provider = "fftw"` for GPL-3.0 compliance).
 - **Stability policy:** The machine surface — command tree, options/flags, `schema/envelope-v1.json`, `data` table keys, error taxonomy, and exit codes — follows strict semver. Envelope v1 is frozen; minor releases are additive-only.
 
 ---

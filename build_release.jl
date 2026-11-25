@@ -43,6 +43,7 @@ const _THIN_WRAPPER_DIR = joinpath(_PROJECT_DIR, "packaging", "thin_wrapper")
 const _THIN_WRAPPER_SRC = joinpath(_THIN_WRAPPER_DIR, "frdc_thin.c")
 const _PACK_GEN_SCRIPT  = joinpath(_PROJECT_DIR, "tools", "gen_fastpath_pack.jl")
 const _LINEARSOLVE_UUID = Base.UUID("7ed4a6bd-45f5-4d41-b270-4a48e9bafcae")
+const _FFTW_UUID        = Base.UUID("7a1cc6ca-52ef-59f5-83cd-3a7055c09341")
 
 isfile(_C_DRIVER_PROGRAM) || error("Missing standalone C driver: $(_C_DRIVER_PROGRAM)")
 isfile(_THIN_WRAPPER_SRC) || error("Missing thin wrapper C source: $(_THIN_WRAPPER_SRC)")
@@ -72,6 +73,7 @@ const _ORIGINAL_TOML = Pkg.TOML.parsefile(joinpath(_PROJECT_DIR, "Project.toml")
 delete!(_ORIGINAL_TOML, "weakdeps")
 delete!(_ORIGINAL_TOML, "extensions")
 _ORIGINAL_TOML["deps"]["LinearSolve"] = string(_LINEARSOLVE_UUID)
+_ORIGINAL_TOML["deps"]["FFTW"]        = string(_FFTW_UUID)
 
 # Write Project.toml and LocalPreferences.toml into temporary build_env
 open(joinpath(_BUILD_PROJECT_DIR, "Project.toml"), "w") do io
@@ -121,11 +123,29 @@ withenv("JULIA_PKG_PRECOMPILE_AUTO" => "0") do
     Pkg.instantiate()
 end
 
-# Fail fast if LinearSolve.LoadMKL_JLL preference was not bound in build_env
+# Fail fast if LinearSolve.LoadMKL_JLL or FFTW.provider preferences were not bound in build_env
 const _LS_PREFS = Base.get_preferences(_LINEARSOLVE_UUID)
 get(_LS_PREFS, "LoadMKL_JLL", nothing) === false ||
     error("Expected LinearSolve.LoadMKL_JLL=false in build_env, got: $(_LS_PREFS)")
+const _FFTW_PREFS = Base.get_preferences(_FFTW_UUID)
+get(_FFTW_PREFS, "provider", nothing) == "fftw" ||
+    error("Expected FFTW.provider=\"fftw\" in build_env, got: $(_FFTW_PREFS)")
 println("Verified build_env preferences: LinearSolve.LoadMKL_JLL=false, FFTW.provider=fftw")
+
+# Fail fast if any GPL-incompatible solver package landed in build_env/Manifest.toml (#287)
+const _FORBIDDEN_MANIFEST_PKGS = ("ipopt", "ipopt_jll", "mumps_seq_jll", "mumps",
+                                  "pathsolver", "pathsolver_jll", "hsl_jll", "hsl")
+let mpath = joinpath(_BUILD_PROJECT_DIR, "Manifest.toml")
+    if isfile(mpath)
+        mdeps = get(Pkg.TOML.parsefile(mpath), "deps", Dict{String,Any}())
+        for pkg_name in keys(mdeps)
+            lp = lowercase(pkg_name)
+            if lp in _FORBIDDEN_MANIFEST_PKGS || occursin("ipopt", lp) || occursin("mumps", lp) || occursin("pathsolver", lp)
+                error("GPL-incompatible solver package found in build_env/Manifest.toml: $pkg_name")
+            end
+        end
+    end
+end
 
 # --- Step 2: Install PackageCompiler ---
 println("Loading PackageCompiler...")
@@ -371,8 +391,13 @@ if isdir(_ARTIFACTS_DIR)
     for (root, _, files) in walkdir(_ARTIFACTS_DIR)
         for f in files
             lf = lowercase(f)
-            if occursin("libmkl", lf) || occursin("libiomp", lf) || occursin("libtbb", lf)
-                error("Unexpected lazy MKL/oneTBB/IntelOpenMP binary bundled: $(joinpath(root, f))")
+            if occursin("libmkl", lf) || occursin("mkl_", lf) ||
+               occursin("libiomp", lf) || occursin("intelopenmp", lf) ||
+               occursin("libtbb", lf) || occursin("onetbb", lf) ||
+               occursin("ipopt", lf) || occursin("mumps", lf) ||
+               occursin("pathsolver", lf) || occursin("libpath", lf) ||
+               occursin("libhsl", lf) || occursin("hsl_jll", lf)
+                error("GPL-incompatible binary artifact bundled (#287/#288): $(joinpath(root, f))")
             end
         end
     end
