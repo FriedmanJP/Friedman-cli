@@ -20,10 +20,12 @@
 
 #include <ctype.h>
 #include <errno.h>
+#include <inttypes.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
@@ -858,7 +860,326 @@ static int looks_like_value(const char *s) {
     return 0;
 }
 
-/* ── Tier 1 & Tier 2 Fast-Path Handlers ────────────────────────────────── */
+/* ── Growable buffer, RFC 8259 JSON string escaper, clock & envelopes ──── */
+
+typedef struct {
+    char *data;
+    size_t len;
+    size_t cap;
+    int oom;
+} FrdcBuf;
+
+static void buf_init(FrdcBuf *b) {
+    b->data = NULL;
+    b->len = 0;
+    b->cap = 0;
+    b->oom = 0;
+}
+
+static void buf_free(FrdcBuf *b) {
+    free(b->data);
+    b->data = NULL;
+    b->len = 0;
+    b->cap = 0;
+    b->oom = 0;
+}
+
+static int buf_reserve(FrdcBuf *b, size_t extra) {
+    if (b->oom) return -1;
+    if (extra > SIZE_MAX - b->len - 1u) { b->oom = 1; return -1; }
+    size_t need = b->len + extra + 1u;
+    if (need <= b->cap) return 0;
+    size_t ncap = b->cap ? b->cap : 256u;
+    while (ncap < need) {
+        if (ncap > SIZE_MAX / 2u) { ncap = need; break; }
+        ncap *= 2u;
+    }
+    char *p = (char *)realloc(b->data, ncap);
+    if (!p) { b->oom = 1; return -1; }
+    b->data = p;
+    b->cap = ncap;
+    return 0;
+}
+
+static void buf_append_mem(FrdcBuf *b, const void *src, size_t n) {
+    if (n == 0) return;
+    if (buf_reserve(b, n) != 0) return;
+    memcpy(b->data + b->len, src, n);
+    b->len += n;
+    b->data[b->len] = '\0';
+}
+
+static void buf_append_str(FrdcBuf *b, const char *s) {
+    if (s) buf_append_mem(b, s, strlen(s));
+}
+
+static void buf_append_ch(FrdcBuf *b, char c) {
+    if (buf_reserve(b, 1u) != 0) return;
+    b->data[b->len++] = c;
+    b->data[b->len] = '\0';
+}
+
+static void buf_append_json_str(FrdcBuf *b, const char *s, size_t len) {
+    static const char HEX[] = "0123456789abcdef";
+    buf_append_ch(b, '"');
+    for (size_t i = 0; i < len; i++) {
+        unsigned char c = (unsigned char)s[i];
+        switch (c) {
+            case '"':  buf_append_mem(b, "\\\"", 2); break;
+            case '\\': buf_append_mem(b, "\\\\", 2); break;
+            case '\b': buf_append_mem(b, "\\b", 2); break;
+            case '\f': buf_append_mem(b, "\\f", 2); break;
+            case '\n': buf_append_mem(b, "\\n", 2); break;
+            case '\r': buf_append_mem(b, "\\r", 2); break;
+            case '\t': buf_append_mem(b, "\\t", 2); break;
+            default:
+                if (c < 0x20u) {
+                    char esc[6];
+                    esc[0] = '\\'; esc[1] = 'u'; esc[2] = '0'; esc[3] = '0';
+                    esc[4] = HEX[(c >> 4) & 0x0Fu];
+                    esc[5] = HEX[c & 0x0Fu];
+                    buf_append_mem(b, esc, 6);
+                } else {
+                    buf_append_ch(b, (char)c);
+                }
+                break;
+        }
+    }
+    buf_append_ch(b, '"');
+}
+
+static void buf_append_json_cstr(FrdcBuf *b, const char *s) {
+    if (!s) s = "";
+    buf_append_json_str(b, s, strlen(s));
+}
+
+static uint64_t monotonic_ns(void) {
+#ifdef _WIN32
+    LARGE_INTEGER freq, ctr;
+    if (QueryPerformanceFrequency(&freq) && QueryPerformanceCounter(&ctr) && freq.QuadPart > 0) {
+        return (uint64_t)((double)ctr.QuadPart * 1e9 / (double)freq.QuadPart);
+    }
+    return 0;
+#else
+    struct timespec ts;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0) {
+        return (uint64_t)ts.tv_sec * 1000000000ull + (uint64_t)ts.tv_nsec;
+    }
+    return 0;
+#endif
+}
+
+static void format_utc_iso8601(char out[32]) {
+    time_t now = time(NULL);
+    struct tm gmt;
+    memset(&gmt, 0, sizeof(gmt));
+#ifdef _WIN32
+    gmtime_s(&gmt, &now);
+#else
+    gmtime_r(&now, &gmt);
+#endif
+    snprintf(out, 32, "%04d-%02d-%02dT%02d:%02d:%02dZ",
+             gmt.tm_year + 1900, gmt.tm_mon + 1, gmt.tm_mday,
+             gmt.tm_hour, gmt.tm_min, gmt.tm_sec);
+}
+
+static int argv_wants_json(int argc, char **argv, int stop_idx) {
+    for (int i = 1; i < stop_idx; i++) {
+        const char *tok = argv[i];
+        if (strcmp(tok, "--format=json") == 0 ||
+            strcmp(tok, "-f=json") == 0 ||
+            strcmp(tok, "--json") == 0) {
+            return 1;
+        }
+        if ((strcmp(tok, "--format") == 0 || strcmp(tok, "-f") == 0) &&
+            i + 1 < stop_idx && strcmp(argv[i + 1], "json") == 0) {
+            return 1;
+        }
+    }
+    (void)argc;
+    return 0;
+}
+
+static void resolve_net_command(const FrdcPack *pack, int argc, char **argv,
+                                char *out, size_t cap) {
+    FrdcSlice cname;
+    const char *prog = "frdc";
+    if (frdc_pack_meta(pack, "cli_name", &cname) == 0 && cname.len > 0) {
+        prog = (const char *)cname.ptr;
+    }
+    char path[256];
+    size_t plen = 0;
+    path[0] = '\0';
+    for (int i = 1; i < argc; i++) {
+        const char *tok = argv[i];
+        if (tok[0] == '-') continue;
+        char cand[256];
+        int n = plen == 0
+            ? snprintf(cand, sizeof(cand), "%s", tok)
+            : snprintf(cand, sizeof(cand), "%s %s", path, tok);
+        if (n <= 0 || (size_t)n >= sizeof(cand)) break;
+        uint32_t fl = 0;
+        if (frdc_pack_node(pack, cand, (size_t)n, &fl) != 0) break;
+        memcpy(path, cand, (size_t)n + 1);
+        plen = (size_t)n;
+        if (fl & FRDC_NODE_IS_LEAF) break;
+    }
+    if (plen == 0) {
+        snprintf(out, cap, "%s", prog);
+    } else {
+        snprintf(out, cap, "%s %s", prog, path);
+    }
+}
+
+static void emit_stderr_error(const char *msg, int quiet, int stderr_use_color) {
+    if (!quiet) {
+        if (stderr_use_color) {
+            const char *styled = "\x1b[31m\x1b[1mError: \x1b[22m\x1b[39m";
+            frdc_write_all_stderr((const uint8_t *)styled, strlen(styled));
+        } else {
+            const char *plain = "Error: ";
+            frdc_write_all_stderr((const uint8_t *)plain, strlen(plain));
+        }
+    }
+    frdc_write_all_stderr((const uint8_t *)msg, strlen(msg));
+    const uint8_t nl = '\n';
+    frdc_write_all_stderr(&nl, 1);
+}
+
+static void buf_append_argv_array(FrdcBuf *b, int argc, char **argv) {
+    buf_append_ch(b, '[');
+    for (int i = 1; i < argc; i++) {
+        if (i > 1) buf_append_ch(b, ',');
+        buf_append_json_cstr(b, argv[i]);
+    }
+    buf_append_ch(b, ']');
+}
+
+static void emit_error_envelope(const FrdcPack *pack, int argc, char **argv,
+                                const char *code, const char *msg, const char *hint,
+                                int exit_code, int has_seed, int64_t seed_val,
+                                uint64_t t0_ns) {
+    FrdcSlice cli_ver = { (const uint8_t *)"0.0.0", 5 };
+    FrdcSlice jl_ver  = { (const uint8_t *)"unknown", 7 };
+    FrdcSlice mems_ver = { (const uint8_t *)"unknown", 7 };
+    frdc_pack_meta(pack, "cli_version", &cli_ver);
+    frdc_pack_meta(pack, "julia_version", &jl_ver);
+    frdc_pack_meta(pack, "mems_version", &mems_ver);
+
+    char cmd[300];
+    resolve_net_command(pack, argc, argv, cmd, sizeof(cmd));
+
+    uint64_t t1_ns = monotonic_ns();
+    double elapsed_ms = (t1_ns >= t0_ns) ? ((double)(t1_ns - t0_ns) / 1e6) : 0.0;
+    char numbuf[64];
+
+    FrdcBuf b;
+    buf_init(&b);
+    buf_append_str(&b, "{\"schema_version\":1,\"command\":");
+    buf_append_json_cstr(&b, cmd);
+    buf_append_str(&b, ",\"status\":\"error\",\"meta\":{\"cli_version\":");
+    buf_append_json_str(&b, (const char *)cli_ver.ptr, cli_ver.len);
+    buf_append_str(&b, ",\"julia\":");
+    buf_append_json_str(&b, (const char *)jl_ver.ptr, jl_ver.len);
+    buf_append_str(&b, ",\"seed\":");
+    if (has_seed) {
+        snprintf(numbuf, sizeof(numbuf), "%" PRId64, seed_val);
+        buf_append_str(&b, numbuf);
+    } else {
+        buf_append_str(&b, "null");
+    }
+    buf_append_str(&b, ",\"argv\":");
+    buf_append_argv_array(&b, argc, argv);
+    snprintf(numbuf, sizeof(numbuf), "%.6f", elapsed_ms);
+    buf_append_str(&b, ",\"elapsed_ms\":");
+    buf_append_str(&b, numbuf);
+    buf_append_str(&b, ",\"mems_version\":");
+    buf_append_json_str(&b, (const char *)mems_ver.ptr, mems_ver.len);
+    buf_append_str(&b, "},\"data\":{},\"warnings\":[],\"artifacts\":[],\"error\":{\"code\":");
+    buf_append_json_cstr(&b, code);
+    buf_append_str(&b, ",\"message\":");
+    buf_append_json_cstr(&b, msg);
+    if (hint && hint[0] != '\0') {
+        buf_append_str(&b, ",\"hint\":");
+        buf_append_json_cstr(&b, hint);
+    }
+    snprintf(numbuf, sizeof(numbuf), "%d", exit_code);
+    buf_append_str(&b, ",\"exit_code\":");
+    buf_append_str(&b, numbuf);
+    buf_append_str(&b, "}}\n");
+    if (!b.oom) {
+        frdc_write_all_stdout((const uint8_t *)b.data, b.len);
+    }
+    buf_free(&b);
+}
+
+/* Format unknown-command message matching _unknown_command_message in src/cli/dispatch.jl */
+static void build_unknown_cmd_msg(const FrdcPack *pack, const char *cur_path,
+                                  const char *subcmd, const char *const *rest, int n_rest,
+                                  FrdcBuf *out) {
+    FrdcSlice cname;
+    const char *prog = "frdc";
+    if (frdc_pack_meta(pack, "cli_name", &cname) == 0 && cname.len > 0) {
+        prog = (const char *)cname.ptr;
+    }
+
+    /* Build base: "<prog>[ <cur_path>]: unknown command '<subcmd>'" */
+    buf_append_str(out, prog);
+    if (cur_path && cur_path[0] != '\0') {
+        buf_append_ch(out, ' ');
+        buf_append_str(out, cur_path);
+    }
+    buf_append_str(out, ": unknown command '");
+    buf_append_str(out, subcmd);
+    buf_append_ch(out, '\'');
+
+    /* Longest-prefix lookup in repl_tbl over [cur_path_segs..., subcmd, rest...] */
+    const char *toks[8];
+    int ntoks = 0;
+    char cur_copy[256];
+    if (cur_path && cur_path[0] != '\0' && strlen(cur_path) < sizeof(cur_copy)) {
+        strcpy(cur_copy, cur_path);
+        char *p = cur_copy;
+        while (*p && ntoks < 6) {
+            while (*p == ' ') p++;
+            if (!*p) break;
+            toks[ntoks++] = p;
+            while (*p && *p != ' ') p++;
+            if (*p == ' ') *p++ = '\0';
+        }
+    }
+    if (ntoks < 8) toks[ntoks++] = subcmd;
+    for (int i = 0; i < n_rest && ntoks < 8; i++) {
+        toks[ntoks++] = rest[i];
+    }
+
+    int max_len = ntoks < 4 ? ntoks : 4;
+    for (int len = max_len; len >= 1; len--) {
+        char cand[300];
+        size_t clen = 0;
+        cand[0] = '\0';
+        int ok = 1;
+        for (int j = 0; j < len; j++) {
+            size_t tl = strlen(toks[j]);
+            if (clen + (j > 0 ? 1u : 0u) + tl >= sizeof(cand)) { ok = 0; break; }
+            if (j > 0) cand[clen++] = ' ';
+            memcpy(cand + clen, toks[j], tl);
+            clen += tl;
+            cand[clen] = '\0';
+        }
+        if (!ok) continue;
+        FrdcSlice repl;
+        if (frdc_pack_repl(pack, cand, clen, &repl) == 0 && repl.len > 0) {
+            /* UTF-8 em-dash: " — use `<new>`" */
+            buf_append_str(out, " \xe2\x80\x94 use `");
+            buf_append_mem(out, repl.ptr, repl.len);
+            buf_append_ch(out, '`');
+            return;
+        }
+    }
+}
+
+/* ── Tier 1, Tier 2, Tier 3 & Tier 4 Fast-Path Handlers ────────────────── */
 
 static int handle_help_key(const FrdcPack *pack, const char *path, size_t path_len, int use_color) {
     char key[300];
@@ -876,7 +1197,11 @@ static int handle_help_key(const FrdcPack *pack, const char *path, size_t path_l
     return 0;
 }
 
-static int handle_schema_cmd(const FrdcPack *pack, char **args, int nargs, int use_color) {
+/* Returns: 0 = handled (exit 0), 2 = handled fast-fail (exit 2), -1 = fail open */
+static int handle_schema_cmd(const FrdcPack *pack, int orig_argc, char **orig_argv,
+                             char **args, int nargs, int use_color,
+                             int quiet, int stderr_use_color, int wants_json,
+                             int has_seed, int64_t seed_val, uint64_t t0_ns) {
     if (wants_help_in(args, 0, nargs)) {
         return handle_help_key(pack, "schema", 6, use_color);
     }
@@ -918,33 +1243,76 @@ static int handle_schema_cmd(const FrdcPack *pack, char **args, int nargs, int u
 
     if (strcmp(format, "json") != 0) return -1;
 
-    char joined[256];
-    size_t jlen = 0;
-    joined[0] = '\0';
+    /* Walk path_parts replicating _resolve_schema_path() in src/commands/schema.jl */
+    char cur[256];
+    size_t clen = 0;
+    cur[0] = '\0';
     for (int p = 0; p < n_parts; p++) {
-        size_t sl = strlen(path_parts[p]);
-        if (jlen + (p > 0 ? 1u : 0u) + sl >= sizeof(joined)) return -1;
-        if (p > 0) joined[jlen++] = ' ';
-        memcpy(joined + jlen, path_parts[p], sl);
-        jlen += sl;
-        joined[jlen] = '\0';
-    }
+        char cand[256];
+        int n = clen == 0
+            ? snprintf(cand, sizeof(cand), "%s", path_parts[p])
+            : snprintf(cand, sizeof(cand), "%s %s", cur, path_parts[p]);
+        if (n <= 0 || (size_t)n >= sizeof(cand)) return -1;
 
-    uint32_t fl = 0;
-    if (frdc_pack_node(pack, joined, jlen, &fl) != 0) {
-        /* Unknown schema path (handled in Tier 4 / #295, or fail open) */
-        return -1;
+        uint32_t fl = 0;
+        if (frdc_pack_node(pack, cand, (size_t)n, &fl) != 0) {
+            /* Tier 4 fast-fail: unknown schema path */
+            FrdcBuf msg;
+            buf_init(&msg);
+            build_unknown_cmd_msg(pack, cur, path_parts[p],
+                                  path_parts + p + 1, n_parts - p - 1, &msg);
+            FrdcBuf emsg;
+            buf_init(&emsg);
+            buf_append_str(&emsg, "usage/unknown-command: ");
+            buf_append_mem(&emsg, msg.data, msg.len);
+            if (!emsg.oom) emit_stderr_error(emsg.data, quiet, stderr_use_color);
+            if (wants_json && !msg.oom) {
+                emit_error_envelope(pack, orig_argc, orig_argv,
+                                    "usage/unknown-command", msg.data, NULL,
+                                    2, has_seed, seed_val, t0_ns);
+            }
+            buf_free(&emsg);
+            buf_free(&msg);
+            return 2;
+        }
+        memcpy(cur, cand, (size_t)n + 1);
+        clen = (size_t)n;
+        if ((fl & FRDC_NODE_IS_LEAF) && p + 1 < n_parts) {
+            /* Extra tokens after a leaf */
+            FrdcBuf msg;
+            buf_init(&msg);
+            buf_append_str(&msg, "schema: '");
+            buf_append_str(&msg, path_parts[p]);
+            buf_append_str(&msg, "' is a leaf; extra path ");
+            for (int q = p + 1; q < n_parts; q++) {
+                if (q > p + 1) buf_append_ch(&msg, ' ');
+                buf_append_str(&msg, path_parts[q]);
+            }
+            FrdcBuf emsg;
+            buf_init(&emsg);
+            buf_append_str(&emsg, "usage/unknown-command: ");
+            buf_append_mem(&emsg, msg.data, msg.len);
+            if (!emsg.oom) emit_stderr_error(emsg.data, quiet, stderr_use_color);
+            if (wants_json && !msg.oom) {
+                emit_error_envelope(pack, orig_argc, orig_argv,
+                                    "usage/unknown-command", msg.data, NULL,
+                                    2, has_seed, seed_val, t0_ns);
+            }
+            buf_free(&emsg);
+            buf_free(&msg);
+            return 2;
+        }
     }
 
     char key[300];
     key[0] = 'S';
     key[1] = ':';
-    if (jlen > 0) memcpy(key + 2, joined, jlen);
-    key[2 + jlen] = '\0';
+    if (clen > 0) memcpy(key + 2, cur, clen);
+    key[2 + clen] = '\0';
 
     uint8_t *raw = NULL;
     size_t rlen = 0;
-    if (frdc_pack_read_entry(pack, key, 2 + jlen, &raw, &rlen) != 0) return -1;
+    if (frdc_pack_read_entry(pack, key, 2 + clen, &raw, &rlen) != 0) return -1;
 
     if (!docs) {
         frdc_write_all_stdout(raw, rlen);
@@ -987,9 +1355,140 @@ static int handle_completions_cmd(const FrdcPack *pack, const char *shell,
     return 0;
 }
 
+/* Tier 3: Static offline catalogs (`data list` and `io sources`) */
+static int handle_catalog_cmd(const FrdcPack *pack, const char *tag, const char *cmd_label,
+                              int orig_argc, char **orig_argv,
+                              char **leaf_args, int leaf_argc,
+                              int compact, int has_seed, int64_t seed_val,
+                              uint64_t t0_ns) {
+    const char *format = "table";
+    int i = 0;
+    while (i < leaf_argc) {
+        const char *tok = leaf_args[i];
+        if (strcmp(tok, "--format") == 0 || strcmp(tok, "-f") == 0) {
+            if (i + 1 >= leaf_argc) return -1;
+            format = leaf_args[i + 1];
+            i += 2;
+        } else if (strncmp(tok, "--format=", 9) == 0) {
+            format = tok + 9;
+            i++;
+        } else if (strncmp(tok, "-f=", 3) == 0) {
+            format = tok + 3;
+            i++;
+        } else {
+            /* -o/--output, unknown options, or positionals -> fail open */
+            return -1;
+        }
+    }
+
+    if (strcmp(format, "table") == 0) {
+        if (compact && frdc_stdout_is_tty()) return -1;
+        char key[64];
+        int n = snprintf(key, sizeof(key), "D:%s:table", tag);
+        if (n <= 0 || (size_t)n >= sizeof(key)) return -1;
+        uint8_t *buf = NULL;
+        size_t len = 0;
+        if (frdc_pack_read_entry(pack, key, (size_t)n, &buf, &len) != 0) return -1;
+        frdc_write_all_stdout(buf, len);
+        free(buf);
+        return 0;
+    }
+
+    if (strcmp(format, "csv") == 0) {
+        char key[64];
+        int n = snprintf(key, sizeof(key), "D:%s:csv", tag);
+        if (n <= 0 || (size_t)n >= sizeof(key)) return -1;
+        uint8_t *buf = NULL;
+        size_t len = 0;
+        if (frdc_pack_read_entry(pack, key, (size_t)n, &buf, &len) != 0) return -1;
+        frdc_write_all_stdout(buf, len);
+        free(buf);
+        return 0;
+    }
+
+    if (strcmp(format, "json") == 0) {
+        char key[64];
+        int n = snprintf(key, sizeof(key), "D:%s:json_data", tag);
+        if (n <= 0 || (size_t)n >= sizeof(key)) return -1;
+        uint8_t *data_json = NULL;
+        size_t data_len = 0;
+        if (frdc_pack_read_entry(pack, key, (size_t)n, &data_json, &data_len) != 0) return -1;
+
+        FrdcSlice cli_ver, jl_ver, mems_ver, deps_json, os_s, mach_s, git_sha;
+        if (frdc_pack_meta(pack, "cli_version", &cli_ver) != 0 ||
+            frdc_pack_meta(pack, "julia_version", &jl_ver) != 0 ||
+            frdc_pack_meta(pack, "mems_version", &mems_ver) != 0 ||
+            frdc_pack_meta(pack, "manifest_deps_json", &deps_json) != 0 ||
+            frdc_pack_meta(pack, "os", &os_s) != 0 ||
+            frdc_pack_meta(pack, "machine", &mach_s) != 0 ||
+            frdc_pack_meta(pack, "cli_git_sha", &git_sha) != 0) {
+            free(data_json);
+            return -1;
+        }
+
+        char ts[32];
+        format_utc_iso8601(ts);
+        uint64_t t1_ns = monotonic_ns();
+        double elapsed_ms = (t1_ns >= t0_ns) ? ((double)(t1_ns - t0_ns) / 1e6) : 0.0;
+        char seed_buf[64];
+        char ms_buf[64];
+        if (has_seed) {
+            snprintf(seed_buf, sizeof(seed_buf), "%" PRId64, seed_val);
+        } else {
+            strcpy(seed_buf, "null");
+        }
+        snprintf(ms_buf, sizeof(ms_buf), "%.6f", elapsed_ms);
+
+        FrdcBuf b;
+        buf_init(&b);
+        buf_append_str(&b, "{\"schema_version\":1,\"command\":");
+        buf_append_json_cstr(&b, cmd_label);
+        buf_append_str(&b, ",\"status\":\"ok\",\"meta\":{\"cli_version\":");
+        buf_append_json_str(&b, (const char *)cli_ver.ptr, cli_ver.len);
+        buf_append_str(&b, ",\"julia\":");
+        buf_append_json_str(&b, (const char *)jl_ver.ptr, jl_ver.len);
+        buf_append_str(&b, ",\"seed\":");
+        buf_append_str(&b, seed_buf);
+        buf_append_str(&b, ",\"argv\":");
+        buf_append_argv_array(&b, orig_argc, orig_argv);
+        buf_append_str(&b, ",\"mems_version\":");
+        buf_append_json_str(&b, (const char *)mems_ver.ptr, mems_ver.len);
+        buf_append_str(&b, ",\"manifest\":{\"seed\":");
+        buf_append_str(&b, seed_buf);
+        buf_append_str(&b, ",\"n_threads\":1,\"julia_version\":");
+        buf_append_json_str(&b, (const char *)jl_ver.ptr, jl_ver.len);
+        buf_append_str(&b, ",\"package_version\":");
+        buf_append_json_str(&b, (const char *)mems_ver.ptr, mems_ver.len);
+        buf_append_str(&b, ",\"dependency_versions\":");
+        buf_append_mem(&b, deps_json.ptr, deps_json.len);
+        buf_append_str(&b, ",\"os\":");
+        buf_append_json_str(&b, (const char *)os_s.ptr, os_s.len);
+        buf_append_str(&b, ",\"machine\":");
+        buf_append_json_str(&b, (const char *)mach_s.ptr, mach_s.len);
+        buf_append_str(&b, ",\"timestamp\":");
+        buf_append_json_cstr(&b, ts);
+        buf_append_str(&b, ",\"git_sha\":");
+        buf_append_json_str(&b, (const char *)git_sha.ptr, git_sha.len);
+        buf_append_str(&b, ",\"git_dirty\":false,\"settings\":{}},\"elapsed_ms\":");
+        buf_append_str(&b, ms_buf);
+        buf_append_str(&b, "},\"data\":");
+        buf_append_mem(&b, data_json, data_len);
+        buf_append_str(&b, ",\"warnings\":[],\"artifacts\":[],\"error\":null}\n");
+
+        free(data_json);
+        if (b.oom) { buf_free(&b); return -1; }
+        frdc_write_all_stdout((const uint8_t *)b.data, b.len);
+        buf_free(&b);
+        return 0;
+    }
+
+    return -1;
+}
+
 /* ── Main thin entry point ─────────────────────────────────────────────── */
 
 static int run_thin(int argc, char **argv) {
+    uint64_t t0_ns = monotonic_ns();
     frdc_setup_console();
 
     char exe_path[FRDC_PATH_MAX];
@@ -1047,6 +1546,18 @@ static int run_thin(int argc, char **argv) {
             if (rc == 0) return 0;
             return frdc_exec_core(exe_path, argc, argv);
         }
+        if (argc > 2) {
+            /* Tier 4 fast-fail: repl takes no positional arguments */
+            FrdcBuf msg;
+            buf_init(&msg);
+            buf_append_str(&msg, "frdc repl takes no positional arguments (got '");
+            buf_append_str(&msg, argv[2]);
+            buf_append_str(&msg, "'); run 'frdc repl --help'");
+            if (!msg.oom) emit_stderr_error(msg.data, 0, frdc_stderr_is_tty() && !env_no_color);
+            buf_free(&msg);
+            frdc_pack_free(&pack);
+            return 2;
+        }
         frdc_pack_free(&pack);
         return frdc_exec_core(exe_path, argc, argv);
     }
@@ -1057,6 +1568,7 @@ static int run_thin(int argc, char **argv) {
         if (strcmp(argv[i], "--") == 0) { dd = i; break; }
     }
     int stop_idx = dd;
+    int wants_json = argv_wants_json(argc, argv, stop_idx);
 
     ProbeResult probe;
     probe_target_command(&pack, argc, argv, stop_idx, &probe);
@@ -1159,12 +1671,8 @@ static int run_thin(int argc, char **argv) {
         }
     }
 
-    (void)quiet;
-    (void)compact;
-    (void)has_seed;
-    (void)seed_val;
-
     int use_color = frdc_stdout_is_tty() && !no_color;
+    int stderr_use_color = frdc_stderr_is_tty() && !no_color;
 
     /* 5. Tier 1: Leading-only --version/-V, --warranty, --conditions */
     if (rem_n >= 1) {
@@ -1204,12 +1712,14 @@ static int run_thin(int argc, char **argv) {
         return frdc_exec_core(exe_path, argc, argv);
     }
 
-    /* 7. Tier 2: Dedicated schema dispatcher */
+    /* 7. Tier 2 & 4: Dedicated schema dispatcher */
     if (strcmp(rem[0], "schema") == 0) {
-        int rc = handle_schema_cmd(&pack, rem + 1, rem_n - 1, use_color);
+        int rc = handle_schema_cmd(&pack, argc, argv, rem + 1, rem_n - 1,
+                                   use_color, quiet, stderr_use_color,
+                                   wants_json, has_seed, seed_val, t0_ns);
         free(rem);
         frdc_pack_free(&pack);
-        if (rc == 0) return 0;
+        if (rc >= 0) return rc;
         return frdc_exec_core(exe_path, argc, argv);
     }
 
@@ -1227,18 +1737,34 @@ static int run_thin(int argc, char **argv) {
 
         uint32_t fl = 0;
         if (frdc_pack_node(&pack, cand, (size_t)n, &fl) != 0) {
-            /* Unknown subcommand at cur_path: show node help if --help/-h appears later
-               (when cur_len > 0; at cur_len == 0 Julia prints NodeCommand root without footer,
-               so fail open to match byte-for-byte). */
-            if (cur_len > 0 && wants_help_in(rem, k, rem_n)) {
-                int rc = handle_help_key(&pack, cur_path, cur_len, use_color);
-                free(rem);
-                frdc_pack_free(&pack);
-                if (rc == 0) return 0;
-                return frdc_exec_core(exe_path, argc, argv);
+            if (wants_help_in(rem, k, rem_n)) {
+                /* When cur_len == 0 (e.g. `--quiet repl --help`), Julia prints NodeCommand
+                   root without Entry footer; fail open to match byte-for-byte. */
+                if (cur_len > 0) {
+                    int rc = handle_help_key(&pack, cur_path, cur_len, use_color);
+                    free(rem);
+                    frdc_pack_free(&pack);
+                    if (rc == 0) return 0;
+                    return frdc_exec_core(exe_path, argc, argv);
+                }
+                break;
             }
-            /* Otherwise fail open (Tier 4 fast-fail lands in #295) */
-            break;
+            /* Tier 4 fast-fail: unknown command with longest-prefix _PATH_REPLACEMENTS hint */
+            FrdcBuf msg;
+            buf_init(&msg);
+            build_unknown_cmd_msg(&pack, cur_path, rem[k],
+                                  (const char *const *)(rem + k + 1), rem_n - k - 1, &msg);
+            if (!msg.oom) {
+                emit_stderr_error(msg.data, quiet, stderr_use_color);
+                if (wants_json) {
+                    emit_error_envelope(&pack, argc, argv, "usage/unknown-command",
+                                        msg.data, NULL, 2, has_seed, seed_val, t0_ns);
+                }
+            }
+            buf_free(&msg);
+            free(rem);
+            frdc_pack_free(&pack);
+            return 2;
         }
 
         memcpy(cur_path, cand, (size_t)n + 1);
@@ -1280,6 +1806,37 @@ static int run_thin(int argc, char **argv) {
         } else if (strcmp(cur_path, "completions fish") == 0) {
             int rc = handle_completions_cmd(&pack, "fish", leaf_argc, force_json);
             if (rc == 0) { free(rem); frdc_pack_free(&pack); return 0; }
+        }
+
+        /* Tier 3: static offline catalogs (data list & io sources) */
+        if (strcmp(cur_path, "data list") == 0) {
+            int rc = handle_catalog_cmd(&pack, "data_list", "frdc data list",
+                                        argc, argv, rem + leaf_start, leaf_argc,
+                                        compact, has_seed, seed_val, t0_ns);
+            if (rc == 0) { free(rem); frdc_pack_free(&pack); return 0; }
+        } else if (strcmp(cur_path, "io sources") == 0) {
+            int rc = handle_catalog_cmd(&pack, "io_sources", "frdc io sources",
+                                        argc, argv, rem + leaf_start, leaf_argc,
+                                        compact, has_seed, seed_val, t0_ns);
+            if (rc == 0) { free(rem); frdc_pack_free(&pack); return 0; }
+        }
+
+        /* Tier 4: bare `serve` missing --mcp (and #299 lazy MCP proxy hook) */
+        if (strcmp(cur_path, "serve") == 0) {
+            if (leaf_argc == 0 && !force_json) {
+                const char *msg  = "serve requires --mcp (the only supported mode)";
+                const char *hint = "frdc serve --mcp speaks JSON-RPC 2.0 / Model Context Protocol on stdio";
+                const char *emsg = "usage/missing: serve requires --mcp (the only supported mode) "
+                                   "(hint: frdc serve --mcp speaks JSON-RPC 2.0 / Model Context Protocol on stdio)";
+                emit_stderr_error(emsg, quiet, stderr_use_color);
+                if (wants_json) {
+                    emit_error_envelope(&pack, argc, argv, "usage/missing",
+                                        msg, hint, 2, has_seed, seed_val, t0_ns);
+                }
+                free(rem);
+                frdc_pack_free(&pack);
+                return 2;
+            }
         }
         break;
     }
