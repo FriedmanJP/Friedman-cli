@@ -4120,11 +4120,13 @@ include(joinpath(@__DIR__, "test_repl.jl"))
     @test haskey(dsge_node.subcmds, "lifecycle")
     @test haskey(dsge_node.subcmds, "firm")
     @test haskey(dsge_node.subcmds, "bank")
-    @test length(dsge_node.subcmds) == 17
+    @test haskey(dsge_node.subcmds, "abcd")
+    @test haskey(dsge_node.subcmds, "var")
+    @test length(dsge_node.subcmds) == 19
 
     # Nested nodes vs remaining leaves
     for (name, cmd) in dsge_node.subcmds
-        if name in ("bayes", "ct", "olg", "dcegm", "lifecycle", "firm", "bank")
+        if name in ("bayes", "ct", "olg", "dcegm", "lifecycle", "firm", "bank", "abcd", "var")
             @test cmd isa NodeCommand
         else
             @test cmd isa LeafCommand
@@ -4289,9 +4291,9 @@ end
     @test "burn" in opt_names
     @test "config" in opt_names
 
-    # Same 76 estimate leaves, grouped under the eight family nodes.
+    # 87 estimate leaves (76 pre-v1.1.0 + 11 in MEMs v1.1.1 waves), grouped under eight family nodes.
     nleaves = sum(c isa NodeCommand ? length(c.subcmds) : 0 for c in values(est_node.subcmds))
-    @test nleaves == 76
+    @test nleaves == 87
     for key in ["var", "bvar", "lp", "arima", "arfima", "gmm", "static", "dynamic", "gdfm",
                  "arch", "garch", "egarch", "gjr-garch", "sv", "fastica", "ml",
                  "vecm", "pvar", "smm", "favar", "sdfm", "reg", "iv", "logit", "probit",
@@ -4405,9 +4407,9 @@ end
 end
 
 @testset "FAVAR/SDFM command structure across actions" begin
-    # IRF: 7 subcommands (5 original + favar + sdfm)
+    # IRF: 12 subcommands (8 pre-v1.1.0 + qvar, qfavar, gdfm-i1, ssvarma)
     irf_node = register_irf_commands!()
-    @test length(irf_node.subcmds) == 8
+    @test length(irf_node.subcmds) == 12
     @test haskey(irf_node.subcmds, "favar")
     @test haskey(irf_node.subcmds, "sdfm")
     @test irf_node.subcmds["favar"] isa LeafCommand
@@ -4431,9 +4433,9 @@ end
     @test "id" in irf_sdfm_opts
     @test "var-lags" in irf_sdfm_opts
 
-    # FEVD: 7 subcommands (5 original + favar + sdfm)
+    # FEVD: 9 subcommands (7 pre-v1.1.0 + gdfm-i1, ssvarma)
     fevd_node = register_fevd_commands!()
-    @test length(fevd_node.subcmds) == 7
+    @test length(fevd_node.subcmds) == 9
     @test haskey(fevd_node.subcmds, "favar")
     @test haskey(fevd_node.subcmds, "sdfm")
     @test fevd_node.subcmds["favar"] isa LeafCommand
@@ -4443,9 +4445,9 @@ end
     @test "key-vars" in fevd_favar_opts
     @test "horizons" in fevd_favar_opts
 
-    # HD: 6 subcommands (4 original + favar + sdfm)
+    # HD: 7 subcommands (6 pre-v1.1.0 + gdfm-i1)
     hd_node = register_hd_commands!()
-    @test length(hd_node.subcmds) == 6
+    @test length(hd_node.subcmds) == 7
     @test haskey(hd_node.subcmds, "favar")
     @test hd_node.subcmds["favar"] isa LeafCommand
     @test haskey(hd_node.subcmds, "sdfm")
@@ -4576,7 +4578,7 @@ end
 @testset "Spectral command structure" begin
     spectral_node = register_spectral_commands!()
     @test spectral_node isa NodeCommand
-    @test length(spectral_node.subcmds) == 5
+    @test length(spectral_node.subcmds) == 6
 
     @test haskey(spectral_node.subcmds, "acf")
     acf_cmd = spectral_node.subcmds["acf"]

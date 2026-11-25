@@ -68,6 +68,7 @@ include(joinpath(ROOT, "src", "commands", "hadsge.jl"))
 include(joinpath(ROOT, "src", "commands", "did.jl"))
 include(joinpath(ROOT, "src", "commands", "multipliers.jl"))
 include(joinpath(ROOT, "src", "commands", "policy.jl"))
+include(joinpath(ROOT, "src", "commands", "ri.jl"))
 include(joinpath(ROOT, "src", "commands", "spectral.jl"))
 include(joinpath(ROOT, "src", "commands", "schema.jl"))
 include(joinpath(ROOT, "src", "commands", "model.jl"))
@@ -179,11 +180,10 @@ function main()
         # message is cwd-stable (absolute mktemp paths would never match).
         cd(dir) do
             Random.seed!(42)
-            CSV.write("panel.csv", DataFrame(group=repeat(1:4, inner=10),
-                                             time=repeat(1:10, outer=4),
-                                             y=randn(40), x=randn(40)))
             save_model_dispatch("panel.jld2",
-                xtset(CSV.read("panel.csv", DataFrame), :group, :time))
+                xtset(DataFrame(group=repeat(1:4, inner=10),
+                                time=repeat(1:10, outer=4),
+                                y=randn(40), x=randn(40)), :group, :time))
             Y = reduce(hcat, (sin.(1:40) .+ 0.1 .* cos.((1:40) ./ i) for i in 1:3))
             save_model_dispatch("var.jld2", estimate_var(Y, 1; varnames=["y1", "y2", "y3"]))
             handle_err = [

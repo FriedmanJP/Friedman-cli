@@ -247,6 +247,51 @@ function _extract_dims(obj)::Dict{String,Any}
         elseif n in (:SpectralDensityResult, :CrossSpectrumResult, :TransferFunctionResult)
             hasproperty(obj, :freq) && (d["n_freq"] = length(obj.freq))
             !isempty(d) && return d
+        elseif n === :ABCDSystem
+            hasproperty(obj, :A) && obj.A isa AbstractMatrix && (d["n_states"] = size(obj.A, 1))
+            hasproperty(obj, :C) && obj.C isa AbstractMatrix && (d["n_obs"] = size(obj.C, 1))
+            hasproperty(obj, :B) && obj.B isa AbstractMatrix && (d["n_shocks"] = size(obj.B, 2))
+            !isempty(d) && return d
+        elseif n === :InnovationsRepresentation
+            hasproperty(obj, :K) && obj.K isa AbstractMatrix && (d["n_states"] = size(obj.K, 1); d["n_obs"] = size(obj.K, 2))
+            !isempty(d) && return d
+        elseif n === :InvertibilityResult
+            hasproperty(obj, :zero_re) && (d["n_zeros"] = length(obj.zero_re))
+            !isempty(d) && return d
+        elseif n === :DSGEVARPosterior
+            hasproperty(obj, :B_draws) && obj.B_draws isa AbstractArray && (d["k"] = size(obj.B_draws, 1); d["n"] = size(obj.B_draws, 2); d["draws"] = size(obj.B_draws, 3))
+            hasproperty(obj, :p) && obj.p isa Integer && (d["p"] = Int(obj.p))
+            !isempty(d) && return d
+        elseif n === :DSGEVARPrior
+            hasproperty(obj, :Phi_star) && obj.Phi_star isa AbstractMatrix && (d["k"] = size(obj.Phi_star, 1); d["n"] = size(obj.Phi_star, 2))
+            !isempty(d) && return d
+        elseif n === :DSGEVARLambdaProfile
+            hasproperty(obj, :lambdas) && (d["grid"] = length(obj.lambdas))
+            !isempty(d) && return d
+        elseif n === :SimsKalmanSolution
+            hasproperty(obj, :K_gain) && obj.K_gain isa AbstractMatrix && (d["n_states"] = size(obj.K_gain, 1); d["n_signals"] = size(obj.K_gain, 2))
+            hasproperty(obj, :signal_rank) && (d["rank"] = Int(obj.signal_rank))
+            !isempty(d) && return d
+        elseif n === :RationalInattentionProblem
+            hasproperty(obj, :A) && obj.A isa AbstractMatrix && (d["n_states"] = size(obj.A, 1))
+            hasproperty(obj, :B) && obj.B isa AbstractMatrix && (d["n_shocks"] = size(obj.B, 2))
+            !isempty(d) && return d
+        elseif n === :DynamicRISolution
+            hasproperty(obj, :T_path) && (d["T_path"] = Int(obj.T_path))
+            !isempty(d) && return d
+        elseif n === :SteadyStateKalman
+            hasproperty(obj, :K_gain) && obj.K_gain isa AbstractMatrix && (d["n_states"] = size(obj.K_gain, 1); d["n_obs"] = size(obj.K_gain, 2))
+            !isempty(d) && return d
+        elseif n === :RIDiscreteChoiceSolution
+            hasproperty(obj, :cond_probs) && obj.cond_probs isa AbstractMatrix && (d["n_actions"] = size(obj.cond_probs, 1); d["n_states"] = size(obj.cond_probs, 2))
+            !isempty(d) && return d
+        elseif n === :RILogitModel
+            hasproperty(obj, :beta) && (d["params"] = length(obj.beta))
+            hasproperty(obj, :n_obs) && (d["n_obs"] = Int(obj.n_obs))
+            !isempty(d) && return d
+        elseif n === :MWAttentionResult
+            hasproperty(obj, :agg_price_irf) && (d["horizon"] = length(obj.agg_price_irf))
+            !isempty(d) && return d
         end
         # Standard matrix/sample properties
         if hasproperty(obj, :Y) && obj.Y isa AbstractMatrix

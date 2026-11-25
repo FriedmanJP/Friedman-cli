@@ -13480,11 +13480,89 @@ function dgp_dsge_observed(rng::AbstractRNG, y_clean::AbstractMatrix;
     return (y_obs=Y + tr + sqrt.(reshape(Hv, 1, n)) .* randn(rng, Tn, n), H=Hv)
 end
 
+function dgp_quantile_factors(rng::AbstractRNG=Random.default_rng();
+                              T_obs::Int=200, N::Int=80,
+                              location_factors::Int=1,
+                              scale_factors::Int=1,
+                              asym_factors::Int=0,
+                              df_idio::Real=2.0,
+                              idio_scale::Real=1.0,
+                              loadings_scale::Real=1.0,
+                              r::Union{Int,Nothing}=nothing,
+                              seed::Union{Integer,Nothing}=nothing)
+    rng_use = seed === nothing ? rng : Random.Xoshiro(Int(seed))
+    n_loc = location_factors
+    n_scale = scale_factors
+    n_asym = asym_factors
+    r_tot = r === nothing ? (n_loc + n_scale + n_asym) : r
+    X = randn(rng_use, T_obs, N)
+    F_loc = randn(rng_use, T_obs, n_loc)
+    F_scale = randn(rng_use, T_obs, n_scale)
+    F_asym = randn(rng_use, T_obs, n_asym)
+    Lambda_loc = Float64(loadings_scale) .* randn(rng_use, N, n_loc)
+    Lambda_scale = Float64(loadings_scale) .* randn(rng_use, N, n_scale)
+    Lambda_asym = Float64(loadings_scale) .* randn(rng_use, N, n_asym)
+    return (X=X, F_loc=F_loc, F_scale=F_scale, F_asym=F_asym,
+            Lambda_loc=Lambda_loc, Lambda_scale=Lambda_scale, Lambda_asym=Lambda_asym,
+            tau_grid=[0.1, 0.25, 0.5, 0.75, 0.9],
+            df_idio=Float64(df_idio), idio_scale=Float64(idio_scale),
+            loadings_scale=Float64(loadings_scale), r=r_tot,
+            location_factors=n_loc, scale_factors=n_scale, asym_factors=n_asym,
+            seed=seed)
+end
+
+function dgp_qfavar(rng::AbstractRNG=Random.default_rng();
+                    T_obs::Int=250, N::Int=40, r::Int=2, p::Int=1, n_key::Int=1,
+                    df_idio::Real=4.0, tail_amplification::Real=1.5,
+                    burn::Int=100, seed::Union{Integer,Nothing}=nothing)
+    rng_use = seed === nothing ? rng : Random.Xoshiro(Int(seed))
+    n_aug = r + n_key
+    k_lag = 1 + n_aug * p
+    X_panel = randn(rng_use, T_obs, N)
+    Y_key = randn(rng_use, T_obs, n_key)
+    F = randn(rng_use, T_obs, r)
+    loadings = randn(rng_use, N, r)
+    Lambda_y = randn(rng_use, N, n_key)
+    A0 = Matrix{Float64}(I, n_aug, n_aug)
+    B_med = 0.2 .* randn(rng_use, k_lag, n_aug)
+    B_lo = B_med .- 0.05
+    B_hi = B_med .+ 0.05
+    return (X_panel=X_panel, X=X_panel, Y_key=Y_key, Y_key_indices=collect(1:n_key),
+            true_factors=F, F=F, loadings=loadings, Lambda=loadings, Lambda_y=Lambda_y,
+            A0=A0, B_median=B_med, B_lower=B_lo, B_upper=B_hi,
+            B_by_tau=Dict(0.1 => B_lo, 0.5 => B_med, 0.9 => B_hi),
+            taus=[0.1, 0.5, 0.9], true_qirf_impact=copy(A0),
+            r=r, p=p, n_key=n_key, df_idio=Float64(df_idio),
+            tail_amplification=Float64(tail_amplification), seed=seed)
+end
+
+function dgp_infinite_gdfm(rng::AbstractRNG=Random.default_rng();
+                           T_obs::Int=200, N::Int=50, q::Int=2,
+                           a_coef::Real=0.5, b_coef::Real=0.3,
+                           n_permanent::Int=0, signal_share::Real=0.75,
+                           idio_ar::Real=0.0, burn::Int=100,
+                           seed::Union{Integer,Nothing}=nothing)
+    rng_use = seed === nothing ? rng : Random.Xoshiro(Int(seed))
+    alpha = Float64(a_coef) .* (2.0 .* rand(rng_use, N, q) .- 1.0)
+    b = Float64(b_coef) .* randn(rng_use, N, q)
+    common = randn(rng_use, T_obs, N)
+    idio = 0.3 .* randn(rng_use, T_obs, N)
+    X = common .+ idio
+    innov = randn(rng_use, T_obs, q)
+    freqs = collect(range(0.0, Float64(pi); length=33))
+    return (X=X, common=common, idiosyncratic=idio, innovations=innov,
+            q=q, n_permanent=n_permanent,
+            irf_true=zeros(Float64, 41, N, q),
+            spectral_density=zeros(ComplexF64, N, N, 33),
+            spectral_density_common=zeros(ComplexF64, N, N, 33),
+            frequencies=freqs, alpha=alpha, b=b)
+end
+
 export dgp_var, dgp_nongaussian_var, dgp_heteroskedastic_var, dgp_arima,
        dgp_garch_family, dgp_sv, dgp_vecm, dgp_cointreg, dgp_ardl,
        dgp_dynamic_factors, dgp_lp_iv, dgp_panel, dgp_panel_var,
        dgp_staggered_did, dgp_gmm, dgp_regime_switching, dgp_cross_section,
-       dgp_dsge_observed
+       dgp_dsge_observed, dgp_quantile_factors, dgp_qfavar, dgp_infinite_gdfm
 
 # ── [MEM111-W1] #313 ──
 # Faithful mocks for QFM, Growth-at-Risk, interactive panel xtqreg, QVAR, QFAVAR.
@@ -15739,14 +15817,39 @@ function dgp_ssvarma(rng::AbstractRNG=Random.default_rng();
                      dist::Union{Symbol,AbstractVector{Symbol}}=:student_t,
                      nu::Real=5.0, skew::Real=0.0, burn::Int=200,
                      tol::Real=1e-8, seed::Union{Integer,Nothing}=nothing)
-    r = seed === nothing ? rng : MersenneTwister(Int(seed))
-    Phi3 = zeros(Float64, 2, 2, 1); Phi3[:, :, 1] = [0.4 0.1; -0.05 0.35]
-    Theta3 = zeros(Float64, 2, 2, 1); Theta3[:, :, 1] = [-0.5 0.0; 1.0 -2.0]
-    Cm = [1.0 0.3; -0.4 0.9]
-    Y = randn(r, T, 2)
-    eta = randn(r, T, 2)
-    return (Y=Y, eta=eta, shocks=eta, mu=[0.0, 0.0], Phi=Phi3, Theta=Theta3,
-            C=Cm, p=1, q=1, ma_eigenvalues=ComplexF64[0.5, 2.0],
+    r = seed === nothing ? rng : Random.Xoshiro(Int(seed))
+    n = if C !== nothing
+        size(C, 1)
+    elseif Phi !== nothing
+        size(Phi, 1)
+    elseif Theta !== nothing
+        size(Theta, 1)
+    elseif mu !== nothing
+        length(mu)
+    else
+        2
+    end
+    mu_v = mu === nothing ? zeros(Float64, n) : Vector{Float64}(mu)
+    Phi3 = if Phi === nothing
+        n == 2 ? reshape([0.4 0.1; -0.05 0.35], 2, 2, 1) : zeros(Float64, n, n, 1)
+    elseif ndims(Phi) == 2
+        reshape(Matrix{Float64}(Phi), n, n, 1)
+    else
+        Array{Float64,3}(Phi)
+    end
+    Theta3 = if Theta === nothing
+        n == 2 ? reshape([-0.5 0.0; 1.0 -2.0], 2, 2, 1) : zeros(Float64, n, n, 1)
+    elseif ndims(Theta) == 2
+        reshape(Matrix{Float64}(Theta), n, n, 1)
+    else
+        Array{Float64,3}(Theta)
+    end
+    Cm = C === nothing ? (n == 2 ? [1.0 0.3; -0.4 0.9] : Matrix{Float64}(I, n, n)) : Matrix{Float64}(C)
+    Y = randn(r, T, n)
+    eta = randn(r, T, n)
+    return (Y=Y, eta=eta, shocks=eta, mu=mu_v, Phi=Phi3, Theta=Theta3,
+            C=Cm, p=size(Phi3, 3), q=size(Theta3, 3),
+            ma_eigenvalues=ComplexF64[0.5 + 0.0im for _ in 1:n],
             regime=:mixed_nonfundamental)
 end
 

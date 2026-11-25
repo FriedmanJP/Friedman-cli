@@ -604,7 +604,7 @@ function load_data(path::String)
         obj = load_model_dispatch(full_ref)
         return _coerce_tabular_dataframe(obj, path)
     end
-    isfile(exp_base) || throw(CliError("data/file-not-found", "file not found: $path"; hint="check the path"))
+    isfile(exp_base) || throw(CliError("data/file-not-found", "file not found: $exp_base"; hint="check the path"))
     df = CSV.read(exp_base, DataFrame)
     nrow(df) == 0 && throw(CliError("data/empty", "empty dataset: $path"))
     return df

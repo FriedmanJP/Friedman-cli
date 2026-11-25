@@ -156,7 +156,7 @@ end
 @testset "Shared utilities" begin
 
     @testset "ID_METHOD_MAP" begin
-        @test length(ID_METHOD_MAP) == 23   # 18 + 5 kebab-case aliases (#282)
+        @test length(ID_METHOD_MAP) == 27   # 23 + cvm, mixture-normal-asym, mixture_normal_asym, lms (#315)
         @test ID_METHOD_MAP["cholesky"] == :cholesky
         @test ID_METHOD_MAP["sign"] == :sign
         @test ID_METHOD_MAP["narrative"] == :narrative
@@ -4518,8 +4518,8 @@ end  # Test handlers
         node = register_irf_commands!()
         @test node isa NodeCommand
         @test node.name == "irf"
-        # 7 + tvpvar (W7): the date-specific IRF is the point of a TVP-VAR
-        @test length(node.subcmds) == 8
+        # 8 pre-v1.1.0 + qvar, qfavar, gdfm-i1, ssvarma
+        @test length(node.subcmds) == 12
         for cmd in ["var", "bvar", "lp", "vecm", "pvar", "favar", "sdfm"]
             @test haskey(node.subcmds, cmd)
         end
@@ -5160,7 +5160,7 @@ end  # IRF handlers
         node = register_fevd_commands!()
         @test node isa NodeCommand
         @test node.name == "fevd"
-        @test length(node.subcmds) == 7
+        @test length(node.subcmds) == 9
         for cmd in ["var", "bvar", "lp", "vecm", "pvar", "favar", "sdfm"]
             @test haskey(node.subcmds, cmd)
         end
@@ -5267,7 +5267,7 @@ end  # FEVD handlers
         node = register_hd_commands!()
         @test node isa NodeCommand
         @test node.name == "hd"
-        @test length(node.subcmds) == 6
+        @test length(node.subcmds) == 7
         for cmd in ["var", "bvar", "lp", "vecm", "favar", "sdfm"]
             @test haskey(node.subcmds, cmd)
         end
@@ -5912,19 +5912,19 @@ end  # Forecast handlers
 
     @testset "register_irf_commands! includes vecm" begin
         node = register_irf_commands!()
-        @test length(node.subcmds) == 8
+        @test length(node.subcmds) == 12
         @test haskey(node.subcmds, "vecm")
     end
 
     @testset "register_fevd_commands! includes vecm" begin
         node = register_fevd_commands!()
-        @test length(node.subcmds) == 7
+        @test length(node.subcmds) == 9
         @test haskey(node.subcmds, "vecm")
     end
 
     @testset "register_hd_commands! includes vecm" begin
         node = register_hd_commands!()
-        @test length(node.subcmds) == 6
+        @test length(node.subcmds) == 7
         @test haskey(node.subcmds, "vecm")
     end
 
@@ -7653,7 +7653,7 @@ end  # Edge Cases
         node = register_filter_commands!()
         @test node isa NodeCommand
         @test node.name == "filter"
-        @test length(node.subcmds) == 6
+        @test length(node.subcmds) == 8
         for cmd in ["hp", "hamilton", "bn", "bk", "bhp", "x13"]
             @test haskey(node.subcmds, cmd)
         end
@@ -7870,14 +7870,14 @@ end  # Filter handlers
         node = register_irf_commands!()
         @test haskey(node.subcmds, "pvar")
         @test node.subcmds["pvar"] isa LeafCommand
-        @test length(node.subcmds) == 8
+        @test length(node.subcmds) == 12
     end
 
     @testset "register_fevd_commands! includes pvar" begin
         node = register_fevd_commands!()
         @test haskey(node.subcmds, "pvar")
         @test node.subcmds["pvar"] isa LeafCommand
-        @test length(node.subcmds) == 7
+        @test length(node.subcmds) == 9
     end
 
     @testset "register_test_commands! includes pvar, lr, lm" begin
@@ -8213,7 +8213,7 @@ end  # Enhanced Granger handlers
     @testset "option counts" begin
         node = register_data_commands!()
         @test length(node.subcmds["list"].options) == 2
-        @test length(node.subcmds["load"].options) == 6
+        @test length(node.subcmds["load"].options) == 7   # +1 in [STORAGE-W3] (#307: --save-data)
         @test length(node.subcmds["import"].options) == 10
         @test length(node.subcmds["export"].options) == 2
         @test length(node.subcmds["describe"].options) == 2
@@ -8224,7 +8224,7 @@ end  # Enhanced Granger handlers
         @test length(node.subcmds["validate"].options) == 3
         @test length(node.subcmds["balance"].options) == 5
         sim = node.subcmds["simulate"]
-        @test length(sim.subcmds) == 21
+        @test length(sim.subcmds) == 25
         @test sim.subcmds["var"] isa LeafCommand
         @test sim.subcmds["dsge"] isa LeafCommand
         @test sim.subcmds["ha"] isa LeafCommand
@@ -9115,7 +9115,7 @@ end  # Data handlers
         node = register_nowcast_commands!()
         @test node isa NodeCommand
         @test node.name == "nowcast"
-        @test length(node.subcmds) == 5
+        @test length(node.subcmds) == 6
         for cmd in ["dfm", "bvar", "bridge", "news", "forecast"]
             @test haskey(node.subcmds, cmd)
             @test node.subcmds[cmd] isa LeafCommand
@@ -9124,11 +9124,11 @@ end  # Data handlers
 
     @testset "option counts" begin
         node = register_nowcast_commands!()
-        @test length(node.subcmds["dfm"].options) == 10
-        @test length(node.subcmds["bvar"].options) == 12   # +6 in W1/#123 (prior, theta-cross, 4 hyperparameters)
-        @test length(node.subcmds["bridge"].options) == 8
-        @test length(node.subcmds["news"].options) == 12
-        @test length(node.subcmds["forecast"].options) == 10
+        @test length(node.subcmds["dfm"].options) == 14
+        @test length(node.subcmds["bvar"].options) == 16   # +6 in W1/#123 + 4 handle opts (#307)
+        @test length(node.subcmds["bridge"].options) == 12
+        @test length(node.subcmds["news"].options) == 16
+        @test length(node.subcmds["forecast"].options) == 14
     end
 
     @testset "_nowcast_dfm — basic" begin
@@ -10715,7 +10715,9 @@ end
         @test haskey(node.subcmds, "lifecycle")
         @test haskey(node.subcmds, "firm")
         @test haskey(node.subcmds, "bank")
-        @test length(node.subcmds) == 17
+        @test haskey(node.subcmds, "abcd")
+        @test haskey(node.subcmds, "var")
+        @test length(node.subcmds) == 19
         ha = register_hadsge_commands!()
         @test ha isa NodeCommand
         @test ha.name == "hadsge"
@@ -11425,8 +11427,8 @@ end
             end
             infcsv = joinpath(dir, "inf.csv")
             write(infcsv, "y,x1,x2\n1.0,2.0,3.0\nInf,4.0,5.0\n2.0,3.0,4.0\n3.0,5.0,6.0\n")
-            @test grab(() -> load_multivariate_data(infcsv)).code == "data/missing-values"
-            @test grab(() -> load_univariate_series(infcsv, 1)).code == "data/missing-values"
+            @test grab(() -> load_multivariate_data(infcsv)).code == "data/non-finite-values"
+            @test grab(() -> load_univariate_series(infcsv, 1)).code == "data/non-finite-values"
             # `data import` stays mechanically tolerant (pinned by test_handles.jl):
             # gaps reject on estimator read, not at conversion.
             @test _reject_missing_numeric(load_data(infcsv), ["y", "x1", "x2"]) === nothing
@@ -14258,11 +14260,10 @@ end  # Command Handlers
         # Wave 2 typed-handle error goldens (relative stems; cwd = dir)
         cd(dir) do
             Random.seed!(42)
-            CSV.write("panel.csv", DataFrame(group=repeat(1:4, inner=10),
-                                             time=repeat(1:10, outer=4),
-                                             y=randn(40), x=randn(40)))
             save_model_dispatch("panel.jld2",
-                xtset(CSV.read("panel.csv", DataFrame), :group, :time))
+                xtset(DataFrame(group=repeat(1:4, inner=10),
+                                time=repeat(1:10, outer=4),
+                                y=randn(40), x=randn(40)), :group, :time))
             Y = reduce(hcat, (sin.(1:40) .+ 0.1 .* cos.((1:40) ./ i) for i in 1:3))
             save_model_dispatch("var.jld2", estimate_var(Y, 1; varnames=["y1", "y2", "y3"]))
             handle_err = [
@@ -15837,8 +15838,8 @@ end
                                        ("estimate multivariate mfvar", "prior"),
                                        ("nowcast bvar", "prior")]
         # …and the repeatable set is non-empty, so neither walk above is vacuous.
-        @test length(repeatable) == 19      # 15 --priors leaves + 4 --constraints leaves
-        @test count(p -> last(p) == "prior", repeatable) == 15
+        @test length(repeatable) == 24      # 15 bayes + 5 dsge-var --priors leaves + 4 --constraints leaves
+        @test count(p -> last(p) == "prior", repeatable) == 20
         @test count(p -> last(p) == "constraint", repeatable) == 4
     end
 
@@ -16169,3 +16170,4 @@ include(joinpath(project_root, "test", "test_w2_gdfm.jl"))
 include(joinpath(project_root, "test", "test_w3_nongaussian.jl"))
 include(joinpath(project_root, "test", "test_w4_abcd_dsgevar.jl"))
 include(joinpath(project_root, "test", "test_w5_ri.jl"))
+include(joinpath(project_root, "test", "test_w6_dgp.jl"))

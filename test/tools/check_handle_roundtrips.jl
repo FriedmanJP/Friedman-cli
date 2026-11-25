@@ -355,6 +355,103 @@ function main()
             check!(kset == Set(["df1", "vec1"]), "model keys mismatch: $kset")
         end
         println("  [OK] spectral, did, nowcast, pvar, io, dsge olg, plain multi-key .jld2")
+
+        # ── Family 8: MEMs v1.1.1 Waves 1–5 (.jld2 round-trips) ──────────
+        # W1: QuantileFactorModel + QuantileVARModel
+        csv_qfm = joinpath(d, "qfm.csv")
+        CSV.write(csv_qfm, DataFrame(randn(40, 8), ["x$i" for i in 1:8]))
+        qfm_m = joinpath(d, "qfm.jld2")
+        parse_envelope(run_json(["estimate", "factor", "qfm", csv_qfm, "--factors", "2", "--tau", "0.5", "--save-model", qfm_m]), "estimate qfm")
+        assert_header_info!(qfm_m, "QuantileFactorModel", "QuantileFactorModel")
+        assert_bounded_show!(qfm_m, "QuantileFactorModel")
+        parse_envelope(run_json(["forecast", "factor", "qfm", "--model", qfm_m, "--horizons", "3"]), "forecast qfm --model")
+
+        qvar_m = joinpath(d, "qvar.jld2")
+        parse_envelope(run_json(["estimate", "multivariate", "qvar", ts_jld2, "--lags", "1", "--taus", "0.25,0.5,0.75", "--save-model", qvar_m]), "estimate qvar")
+        assert_header_info!(qvar_m, "QuantileVARModel", "QuantileVARModel")
+        parse_envelope(run_json(["irf", "qvar", "--model", qvar_m, "--horizons", "3", "--shock", "1"]), "irf qvar --model")
+
+        # W2: FHLZModel + OnatskiQTestResult
+        fhlz_m = joinpath(d, "fhlz.jld2")
+        parse_envelope(run_json(["estimate", "factor", "fhlz", csv_qfm, "--dynamic-rank", "1", "--p-max", "2", "--n-perm", "5", "--save-model", fhlz_m]), "estimate fhlz")
+        assert_header_info!(fhlz_m, "FHLZModel", "FHLZModel")
+        parse_envelope(run_json(["predict", "factor", "fhlz", "--model", fhlz_m]), "predict fhlz --model")
+
+        onq_r = joinpath(d, "onq.jld2")
+        assert_replay_parity!(
+            ["test", "factor", "onatski-q", csv_qfm, "--k-max", "3", "--save-result", onq_r],
+            ["test", "factor", "onatski-q", "--result", onq_r], onq_r, "test onatski-q")
+
+        # W3: LMSSVARResult + SVARMAModel
+        lms_m = joinpath(d, "lms.jld2")
+        parse_envelope(run_json(["estimate", "multivariate", "lms-svar", ts_jld2, "--lags", "1", "--save-model", lms_m]), "estimate lms-svar")
+        assert_header_info!(lms_m, "LMSSVARResult", "LMSSVARResult")
+        parse_envelope(run_json(["irf", "var", "--model", lms_m, "--horizons", "3"]), "irf var --model lms")
+
+        ssv_csv = joinpath(d, "ssv.csv")
+        ssv_sim = MacroEconometricModels.dgp_ssvarma(Xoshiro(123); T=80, burn=40)
+        CSV.write(ssv_csv, DataFrame(ssv_sim.Y, ["y1", "y2"]))
+        ssv_m = joinpath(d, "ssv.jld2")
+        parse_envelope(run_json(["estimate", "multivariate", "ssvarma", ssv_csv, "--ar-lags", "1", "--ma-lags", "1", "--max-iter", "20", "--save-model", ssv_m]), "estimate ssvarma")
+        assert_header_info!(ssv_m, "SVARMAModel", "SVARMAModel")
+        parse_envelope(run_json(["irf", "ssvarma", "--model", ssv_m, "--horizons", "3"]), "irf ssvarma --model")
+
+        # W4: ABCDSystem + DSGEVARPosterior
+        rbc_spec = joinpath(d, "rbc.jl")
+        write(rbc_spec, """
+        using .MacroEconometricModels
+        @dsge begin
+            parameters: α = 0.33, β = 0.99, δ = 0.025, ρ = 0.9
+            endogenous: k, c, z
+            exogenous: e
+            c[t]^(-1) = β * c[t+1]^(-1) * (α * exp(z[t+1]) * k[t]^(α-1) + 1 - δ)
+            k[t] = exp(z[t]) * k[t-1]^α + (1 - δ) * k[t-1] - c[t]
+            z[t] = ρ * z[t-1] + e[t]
+        end
+        """)
+        abcd_m = joinpath(d, "abcd.jld2")
+        parse_envelope(run_json(["dsge", "abcd", "extract", rbc_spec, "--observables", "c", "--save-model", abcd_m]), "dsge abcd extract")
+        assert_header_info!(abcd_m, "ABCDSystem", "ABCDSystem")
+        parse_envelope(run_json(["dsge", "abcd", "invertibility", "--model", abcd_m]), "dsge abcd invertibility --model")
+
+        dv_csv = joinpath(d, "dv.csv")
+        CSV.write(dv_csv, DataFrame(c=randn(60)))
+        dv_m = joinpath(d, "dsgevar.jld2")
+        parse_envelope(run_json(["dsge", "var", "estimate", rbc_spec, "--data", dv_csv, "--observables", "c", "--lags", "1", "--lambda", "1.0", "--draws", "20", "--seed", "7", "--save-model", dv_m]), "dsge var estimate")
+        assert_header_info!(dv_m, "DSGEVARPosterior", "DSGEVARPosterior")
+        parse_envelope(run_json(["dsge", "var", "irf", "--model", dv_m, "--horizons", "3"]), "dsge var irf --model")
+
+        # W5: SimsKalmanSolution + RILogitModel
+        ri_cfg = joinpath(d, "ri.toml")
+        write(ri_cfg, """
+        [ri]
+        A = [[0.8]]
+        B = [[1.0]]
+        H = [[1.0]]
+        M = [[1.0]]
+        beta = 0.99
+        capacity = 1.0
+        """)
+        ri_m = joinpath(d, "ri.jld2")
+        parse_envelope(run_json(["ri", "solve", "--config", ri_cfg, "--save-model", ri_m]), "ri solve")
+        assert_header_info!(ri_m, "SimsKalmanSolution", "SimsKalmanSolution")
+        parse_envelope(run_json(["ri", "irf", "--model", ri_m, "--horizons", "4"]), "ri irf --model")
+
+        ril_rows = DataFrame(env=Int[], state=Int[], alt=Int[], choice=Int[], x1=Float64[])
+        for m in 1:2, _ in 1:25
+            s = rand(1:2)
+            ch = rand() < (s == 1 ? 0.75 : 0.25) ? 1 : 2
+            for j in 1:2
+                push!(ril_rows, (m, s, j, j == ch ? 1 : 0, j == s ? Float64(m) : 0.0))
+            end
+        end
+        ril_csv = joinpath(d, "ril.csv")
+        CSV.write(ril_csv, ril_rows)
+        ril_m = joinpath(d, "ril.jld2")
+        parse_envelope(run_json(["estimate", "choice", "ri-logit", ril_csv, "--env-col", "env", "--choice-col", "choice", "--alt-col", "alt", "--state-col", "state", "--attr-cols", "x1", "--normalize", "omega-one", "--save-model", ril_m]), "estimate ri-logit")
+        assert_header_info!(ril_m, "RILogitModel", "RILogitModel")
+        parse_envelope(run_json(["predict", "choice", "ri-logit", "--model", ril_m]), "predict ri-logit --model")
+        println("  [OK] MEMs v1.1.1 W1–W5 .jld2 round-trips (QFM, QVAR, FHLZ, Onatski-q, LMS, SSVARMA, ABCD, DSGE-VAR, RI, RI-Logit)")
     end
 
     if !isempty(FAILURES)

@@ -46,6 +46,19 @@ const _XSEC_KINDS = ["ols", "hc", "cluster", "iv", "logit", "probit", "ordered",
                      "qreg", "rdd"]
 const _PANEL_KINDS = ["linear", "logit", "probit"]
 const _GMM_KINDS = ["ols", "iv"]
+const _SSVARMA_DISTS = ["student-t", "t", "laplace", "mixture", "mixture-normal-asym",
+                        "skew", "skew-normal", "ged", "gauss"]
+const _SSVARMA_DIST_MAP = Dict{String,Symbol}(
+    "student-t" => :student_t,
+    "t" => :t,
+    "laplace" => :laplace,
+    "mixture" => :mixture,
+    "mixture-normal-asym" => :mixture_normal_asym,
+    "skew" => :skew,
+    "skew-normal" => :skew_normal,
+    "ged" => :ged,
+    "gauss" => :gauss,
+)
 
 _opt_seed() = OptionSpec(name="seed", type=Int, default=0,
     description="RNG seed (0 defers to the global --seed, else Xoshiro(0))")
@@ -282,6 +295,76 @@ function data_simulate_specs()::Vector{CommandSpec}
                       OptionSpec(name="dt", type=Float64, default=0.25, description="Transition step"),
                       OptionSpec(name="periods", type=Int, default=12,
                                  description="Transition horizon in steps (deterministic; no burn-in)"),
+                      _opt_seed()]),
+        _sim_spec("qfm", "Quantile factor model panel (location, scale, and asymmetry factors)",
+                  _data_simulate_qfm;
+                  options=[
+                      _opt_periods(200),
+                      OptionSpec(name="series", type=Int, default=80,
+                                 description="Number of observed series N"),
+                      OptionSpec(name="location-factors", type=Int, default=1,
+                                 description="Number of location factors"),
+                      OptionSpec(name="scale-factors", type=Int, default=1,
+                                 description="Number of scale factors"),
+                      OptionSpec(name="asym-factors", type=Int, default=0,
+                                 description="Number of asymmetry factors"),
+                      OptionSpec(name="df-idio", type=Float64, default=2.0,
+                                 description="Idiosyncratic Student-t degrees of freedom"),
+                      OptionSpec(name="idio-scale", type=Float64, default=1.0,
+                                 description="Idiosyncratic shock scale"),
+                      OptionSpec(name="loadings-scale", type=Float64, default=1.0,
+                                 description="Factor loading scale"),
+                      _opt_seed()]),
+        _sim_spec("qfavar", "Quantile Factor-Augmented VAR panel with key observables",
+                  _data_simulate_qfavar;
+                  options=[
+                      _opt_periods(250),
+                      OptionSpec(name="series", type=Int, default=40,
+                                 description="Number of panel series N"),
+                      OptionSpec(name="factors", type=Int, default=2,
+                                 description="Number of latent factors r"),
+                      OptionSpec(name="lags", type=Int, default=1,
+                                 description="VAR lag order p"),
+                      OptionSpec(name="n-key", type=Int, default=1,
+                                 description="Number of key observable series"),
+                      OptionSpec(name="df-idio", type=Float64, default=4.0,
+                                 description="Idiosyncratic Student-t degrees of freedom"),
+                      OptionSpec(name="tail-amplification", type=Float64, default=1.5,
+                                 description="Tail amplification factor (> 0)"),
+                      _opt_burn(100), _opt_seed()]),
+        _sim_spec("gdfm-infinite", "Infinite-dimensional GDFM with rational transfer filters",
+                  _data_simulate_gdfm_infinite;
+                  options=[
+                      _opt_periods(200),
+                      OptionSpec(name="series", type=Int, default=50,
+                                 description="Number of observed series N"),
+                      OptionSpec(name="dynamic-rank", type=Int, default=2,
+                                 description="Dynamic factor rank q"),
+                      OptionSpec(name="a-coef", type=Float64, default=0.5,
+                                 description="Rational filter pole bound |a| < 1"),
+                      OptionSpec(name="b-coef", type=Float64, default=0.3,
+                                 description="Impact loading scale"),
+                      OptionSpec(name="n-permanent", type=Int, default=0,
+                                 description="Number of permanent I(1) shocks (0 <= n-permanent <= q)"),
+                      OptionSpec(name="signal-share", type=Float64, default=0.75,
+                                 description="Common-component variance share in (0, 1]"),
+                      OptionSpec(name="idio-ar", type=Float64, default=0.0,
+                                 description="Idiosyncratic AR(1) persistence in (-1, 1)"),
+                      _opt_burn(100), _opt_seed()]),
+        _sim_spec("ssvarma", "Strong Structural VARMA(p, q) with non-Gaussian independent shocks",
+                  _data_simulate_ssvarma;
+                  options=[
+                      _opt_periods(400),
+                      OptionSpec(name="dist", type=String, default="student-t",
+                                 description="student-t|t|laplace|mixture|mixture-normal-asym|skew|skew-normal|ged|gauss",
+                                 choices=_SSVARMA_DISTS),
+                      OptionSpec(name="nu", type=Float64, default=5.0,
+                                 description="Degrees of freedom / shape parameter"),
+                      OptionSpec(name="skew", type=Float64, default=0.0,
+                                 description="Skewness parameter"),
+                      _opt_burn(200),
+                      OptionSpec(name="config", type=String, default="",
+                                 description="Optional TOML file with [ssvarma] Phi, Theta, C, mu matrices"),
                       _opt_seed()]),
     ]
 end
@@ -1086,5 +1169,211 @@ function _data_simulate_ct(; alpha::Float64=0.36, rho::Float64=0.05, sigma::Floa
     _truth_push!(rows, "ss_converged", ss.converged ? 1.0 : 0.0)
     _truth_push!(rows, "transition_converged", tr.converged ? 1.0 : 0.0)
     _finish_sim(sample, rows, _settings("ct", eff; periods, grid_size, deterministic=true);
+                format, output, save_data)
+end
+
+# ── v1.1.0 DGPs ([MEM111-W6] #318) ───────────────────────────
+
+function _data_simulate_qfm(; periods::Int=200, series::Int=80,
+                            location_factors::Int=1, scale_factors::Int=1,
+                            asym_factors::Int=0, df_idio::Float64=2.0,
+                            idio_scale::Float64=1.0, loadings_scale::Float64=1.0,
+                            seed::Int=0, save_data::String="",
+                            format::String="table", output::String="")
+    _sim_ge("periods", periods, 2)
+    _sim_ge("series", series, 2)
+    _sim_ge("location-factors", location_factors, 0)
+    _sim_ge("scale-factors", scale_factors, 0)
+    _sim_ge("asym-factors", asym_factors, 0)
+    (location_factors + scale_factors + asym_factors) >= 1 || throw(CliError("usage/invalid",
+        "location-factors + scale-factors + asym-factors must be >= 1"))
+    _sim_pos("df-idio", df_idio)
+    _sim_pos("idio-scale", idio_scale)
+    _sim_pos("loadings-scale", loadings_scale)
+    eff, rng = _sim_rng(seed)
+    nt = _dgp(MacroEconometricModels.dgp_quantile_factors, rng;
+              T_obs=periods, N=series,
+              location_factors=location_factors, scale_factors=scale_factors,
+              asym_factors=asym_factors, df_idio=df_idio,
+              idio_scale=idio_scale, loadings_scale=loadings_scale)
+    rows = _truth_rows()
+    isempty(nt.Lambda_loc)   || _truth_push!(rows, "Lambda_loc", nt.Lambda_loc)
+    isempty(nt.Lambda_scale) || _truth_push!(rows, "Lambda_scale", nt.Lambda_scale)
+    isempty(nt.Lambda_asym)  || _truth_push!(rows, "Lambda_asym", nt.Lambda_asym)
+    _truth_push!(rows, "tau_grid", nt.tau_grid)
+    _truth_push!(rows, "r", nt.r)
+    _truth_push!(rows, "location_factors", nt.location_factors)
+    _truth_push!(rows, "scale_factors", nt.scale_factors)
+    _truth_push!(rows, "asym_factors", nt.asym_factors)
+    _truth_push!(rows, "df_idio", nt.df_idio)
+    _truth_push!(rows, "idio_scale", nt.idio_scale)
+    _truth_push!(rows, "loadings_scale", nt.loadings_scale)
+    sample = _indexed_sample(nt.X; names=["x$i" for i in 1:size(nt.X, 2)])
+    _finish_sim(sample, rows,
+                _settings("qfm", eff; periods, series, location_factors, scale_factors, asym_factors, df_idio);
+                format, output, save_data)
+end
+
+function _data_simulate_qfavar(; periods::Int=250, series::Int=40, factors::Int=2,
+                               lags::Int=1, n_key::Int=1, df_idio::Float64=4.0,
+                               tail_amplification::Float64=1.5, burn::Int=100,
+                               seed::Int=0, save_data::String="",
+                               format::String="table", output::String="")
+    _sim_ge("factors", factors, 1)
+    _sim_ge("lags", lags, 1)
+    _sim_ge("n-key", n_key, 1)
+    _sim_ge("periods", periods, lags + 5)
+    _sim_ge("series", series, factors + n_key + 1)
+    _sim_pos("df-idio", df_idio)
+    _sim_pos("tail-amplification", tail_amplification)
+    _sim_ge("burn", burn, 0)
+    eff, rng = _sim_rng(seed)
+    nt = _dgp(MacroEconometricModels.dgp_qfavar, rng;
+              T_obs=periods, N=series, r=factors, p=lags, n_key=n_key,
+              df_idio=df_idio, tail_amplification=tail_amplification, burn=burn)
+    rows = _truth_rows()
+    _truth_push!(rows, "loadings", nt.loadings)
+    _truth_push!(rows, "Lambda_y", nt.Lambda_y)
+    _truth_push!(rows, "A0", nt.A0)
+    _truth_push!(rows, "B_median", nt.B_median)
+    _truth_push!(rows, "B_lower", nt.B_lower)
+    _truth_push!(rows, "B_upper", nt.B_upper)
+    _truth_push!(rows, "true_qirf_impact", nt.true_qirf_impact)
+    _truth_push!(rows, "taus", nt.taus)
+    _truth_push!(rows, "r", nt.r)
+    _truth_push!(rows, "p", nt.p)
+    _truth_push!(rows, "n_key", nt.n_key)
+    _truth_push!(rows, "df_idio", nt.df_idio)
+    _truth_push!(rows, "tail_amplification", nt.tail_amplification)
+    names = vcat(["x$i" for i in 1:size(nt.X_panel, 2)],
+                 ["y_key$i" for i in 1:size(nt.Y_key, 2)])
+    sample = _indexed_sample(hcat(nt.X_panel, nt.Y_key); names=names)
+    _finish_sim(sample, rows,
+                _settings("qfavar", eff; periods, series, factors, lags, n_key, df_idio, tail_amplification, burn);
+                format, output, save_data)
+end
+
+function _data_simulate_gdfm_infinite(; periods::Int=200, series::Int=50,
+                                      dynamic_rank::Int=2, a_coef::Float64=0.5,
+                                      b_coef::Float64=0.3, n_permanent::Int=0,
+                                      signal_share::Float64=0.75, idio_ar::Float64=0.0,
+                                      burn::Int=100, seed::Int=0, save_data::String="",
+                                      format::String="table", output::String="")
+    _sim_ge("periods", periods, 2)
+    _sim_ge("series", series, 1)
+    _sim_ge("dynamic-rank", dynamic_rank, 1)
+    _sim_open_unit("a-coef", a_coef)
+    isfinite(b_coef) || throw(CliError("usage/invalid", "--b-coef must be finite (got $b_coef)"))
+    (0 <= n_permanent <= dynamic_rank) || throw(CliError("usage/invalid",
+        "--n-permanent must satisfy 0 <= n-permanent <= dynamic-rank ($dynamic_rank) (got $n_permanent)"))
+    (0.0 < signal_share <= 1.0) || throw(CliError("usage/invalid",
+        "--signal-share must lie in (0, 1] (got $signal_share)"))
+    _sim_open_unit("idio-ar", idio_ar)
+    _sim_ge("burn", burn, 0)
+    eff, rng = _sim_rng(seed)
+    nt = _dgp(MacroEconometricModels.dgp_infinite_gdfm, rng;
+              T_obs=periods, N=series, q=dynamic_rank, a_coef=a_coef, b_coef=b_coef,
+              n_permanent=n_permanent, signal_share=signal_share, idio_ar=idio_ar, burn=burn)
+    rows = _truth_rows()
+    _truth_push!(rows, "alpha", nt.alpha)
+    _truth_push!(rows, "b", nt.b)
+    _truth_push!(rows, "q", nt.q)
+    _truth_push!(rows, "n_permanent", nt.n_permanent)
+    _truth_push!(rows, "a_coef", a_coef)
+    _truth_push!(rows, "b_coef", b_coef)
+    _truth_push!(rows, "signal_share", signal_share)
+    _truth_push!(rows, "idio_ar", idio_ar)
+    sample = _indexed_sample(nt.X; names=["x$i" for i in 1:size(nt.X, 2)])
+    _finish_sim(sample, rows,
+                _settings("gdfm-infinite", eff; periods, series, dynamic_rank, n_permanent, signal_share, burn);
+                format, output, save_data)
+end
+
+function _parse_toml_matrix(raw, key::String)
+    raw isa AbstractVector && !isempty(raw) && all(r -> r isa AbstractVector, raw) ||
+        throw(CliError("usage/invalid", "[ssvarma] $key must be a non-empty 2D numeric array"))
+    nr = length(raw)
+    nc = length(raw[1])
+    nc >= 1 && all(r -> length(r) == nc, raw) ||
+        throw(CliError("usage/invalid", "[ssvarma] $key rows must have equal positive length"))
+    M = Matrix{Float64}(undef, nr, nc)
+    for i in 1:nr, j in 1:nc
+        v = raw[i][j]
+        (v isa Real && !(v isa Bool)) ||
+            throw(CliError("usage/invalid", "[ssvarma] $key[$i,$j] must be numeric"))
+        M[i, j] = Float64(v)
+    end
+    return M
+end
+
+function _parse_toml_lag_array(raw, key::String)
+    raw isa AbstractVector || throw(CliError("usage/invalid", "[ssvarma] $key must be a 2D matrix or list of 2D lag matrices"))
+    isempty(raw) && return nothing
+    if raw[1] isa AbstractVector && !isempty(raw[1]) && raw[1][1] isa AbstractVector
+        mats = [_parse_toml_matrix(m, "$(key)[$k]") for (k, m) in enumerate(raw)]
+        sz = size(mats[1])
+        all(m -> size(m) == sz, mats) ||
+            throw(CliError("usage/invalid", "[ssvarma] all lag matrices in $key must have identical dimensions"))
+        arr = Array{Float64,3}(undef, sz[1], sz[2], length(mats))
+        for (k, m) in enumerate(mats)
+            arr[:, :, k] .= m
+        end
+        return arr
+    end
+    return _parse_toml_matrix(raw, key)
+end
+
+function _load_ssvarma_dgp_config(path::String)
+    isempty(strip(path)) && return (mu=nothing, Phi=nothing, Theta=nothing, C=nothing)
+    isfile(path) || throw(CliError("io/not-found", "ssvarma config file not found: $path"))
+    cfg = load_config(path)
+    sec = haskey(cfg, "ssvarma") && cfg["ssvarma"] isa AbstractDict ? cfg["ssvarma"] : cfg
+    mu = if haskey(sec, "mu")
+        v = sec["mu"]
+        (v isa AbstractVector && !isempty(v) && all(x -> x isa Real && !(x isa Bool), v)) ||
+            throw(CliError("usage/invalid", "[ssvarma] mu must be a non-empty numeric vector"))
+        Float64[Float64(x) for x in v]
+    else
+        nothing
+    end
+    Phi = haskey(sec, "Phi") ? _parse_toml_lag_array(sec["Phi"], "Phi") : nothing
+    Theta = haskey(sec, "Theta") ? _parse_toml_lag_array(sec["Theta"], "Theta") : nothing
+    C = haskey(sec, "C") ? _parse_toml_matrix(sec["C"], "C") : nothing
+    return (mu=mu, Phi=Phi, Theta=Theta, C=C)
+end
+
+function _data_simulate_ssvarma(; periods::Int=400, dist::String="student-t",
+                                nu::Float64=5.0, skew::Float64=0.0,
+                                burn::Int=200, config::String="",
+                                seed::Int=0, save_data::String="",
+                                format::String="table", output::String="")
+    _one_of("dist", dist, _SSVARMA_DISTS)
+    dist in ("student-t", "t") ? _sim_pos("nu-2", nu - 2) : _sim_pos("nu", nu)
+    isfinite(skew) || throw(CliError("usage/invalid", "--skew must be finite (got $skew)"))
+    periods, burn = _sim_len(periods, burn)
+    eff, rng = _sim_rng(seed)
+    c = _load_ssvarma_dgp_config(config)
+    nt = _dgp(MacroEconometricModels.dgp_ssvarma, rng;
+              T=periods, mu=c.mu, Phi=c.Phi, Theta=c.Theta, C=c.C,
+              dist=_SSVARMA_DIST_MAP[dist], nu=nu, skew=skew, burn=burn)
+    rows = _truth_rows()
+    _truth_push!(rows, "mu", nt.mu)
+    for k in 1:size(nt.Phi, 3)
+        _truth_push!(rows, "Phi_$k", nt.Phi[:, :, k])
+    end
+    for j in 1:size(nt.Theta, 3)
+        _truth_push!(rows, "Theta_$j", nt.Theta[:, :, j])
+    end
+    _truth_push!(rows, "C", nt.C)
+    _truth_push!(rows, "p", nt.p)
+    _truth_push!(rows, "q", nt.q)
+    _truth_push!(rows, "ma_eig_abs", abs.(nt.ma_eigenvalues))
+    _truth_push!(rows, "ma_eig_real", real.(nt.ma_eigenvalues))
+    _truth_push!(rows, "ma_eig_imag", imag.(nt.ma_eigenvalues))
+    dist in ("student-t", "t", "ged") && _truth_push!(rows, "nu", nu)
+    skew != 0.0 && _truth_push!(rows, "skew", skew)
+    sample = _indexed_sample(nt.Y; names=_ynames(size(nt.Y, 2)))
+    _finish_sim(sample, rows,
+                _settings("ssvarma", eff; dist, periods, burn, regime=string(nt.regime));
                 format, output, save_data)
 end
