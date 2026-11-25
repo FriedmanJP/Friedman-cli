@@ -81,6 +81,7 @@ function _dispatch_via_app(args::Vector{String}; extra_kwargs...)
         "hadsge"    => register_hadsge_commands!(),
         "did"       => register_did_commands!(),
         "policy"    => register_policy_commands!(),
+        "ri"        => register_ri_commands!(),
         "spectral"  => register_spectral_commands!(),
         "model"     => register_model_commands!(),
         "show"      => register_show_commands!(),

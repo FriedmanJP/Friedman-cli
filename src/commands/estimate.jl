@@ -800,17 +800,23 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="kappa", type=Float64, default=1e6, description="Large-variance diffuse-init constant (init-mode=kappa)"),
                 # A [statespace] section switches to the GENERAL (multivariate, fixed-matrix)
                 # system and supersedes --model/--init-mode/--column.
-                OptionSpec(name="config", type=String, default="", description="TOML with [statespace] Z/H/T/Q (+ d, c, R, a1, P1, init_mode) for a general system"),
+                OptionSpec(name="config", type=String, default="", description="TOML with [statespace] Z/H/T/Q (+ d, c, R, G, a1, P1, init_mode) for a general system"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
-                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
+                OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
+                PLOT_OPTIONS...,
             ],
-            flags=FlagSpec[],
+            flags=[
+                FlagSpec(name="steady-state", description="Also compute SteadyStateKalman via steady_state_kalman (DARE gain, covariances, closed-loop eigenvalues)"),
+                PLOT_FLAGS...,
+            ],
             tables=[TableSpec(name=:state_space_hyper_parameters,
                               description="Estimated hyper-parameters of a canned local-level / local-linear-trend system"),
                     TableSpec(name=:state_space_system_general,
                               description="Dimensions of each system matrix for a --config general system"),
                     TableSpec(name=:state_space_diagnostics,
-                              description="Model kind, log-likelihood, state and period counts, and the estimation method")],
+                              description="Model kind, log-likelihood, state and period counts, and the estimation method"),
+                    TableSpec(name=:steady_state_kalman,
+                              description="Steady-state Kalman filter closed-loop eigenvalues and diagonal gain (only with --steady-state)")],
             category="estimate",
             handler=wrap_legacy(_estimate_statespace),
         ),
@@ -1905,13 +1911,14 @@ function estimate_specs()::Vector{CommandSpec}
         w1_estimate_specs()...,
         w2_estimate_specs()...,
         w3_estimate_specs()...,
+        w5_estimate_specs()...,
     ]
 end
 
 const _ESTIMATE_PANEL = Set(["pvar", "preg", "piv", "plogit", "pprobit", "pmg", "xtcointreg", "xtqreg"])
 const _ESTIMATE_XS = Set(["3sls", "elastic-net", "heckman", "iv", "kde", "kernel-reg",
     "lasso", "logit", "lowess", "ml", "mlogit", "nbreg", "ologit", "oprobit",
-    "poisson", "probit", "qreg", "rdd", "reg", "ridge", "robust", "select",
+    "poisson", "probit", "qreg", "rdd", "reg", "ri-logit", "ridge", "robust", "select",
     "sur", "tobit", "truncreg"])
 
 function _data_kinds_for_estimator(leaf::AbstractString)
@@ -6412,20 +6419,27 @@ render an empty table and silently look like a failed fit. This reports the syst
 declared instead — dimensions plus the matrices actually in force after MEMs applied its
 defaults (R = I, d = c = 0), which is the part a user most often gets wrong."""
 function _statespace_system_table(ssm)
-    DataFrame(
-        "matrix" => String["Z", "H", "T", "Q", "R", "d", "c"],
-        "role" => String["observation", "obs. noise cov", "transition", "state noise cov",
-                         "state-noise loading", "obs. intercept", "state intercept"],
-        "rows" => Int[size(ssm.Z, 1), size(ssm.H, 1), size(ssm.Tt, 1), size(ssm.Q, 1),
-                      size(ssm.R, 1), length(ssm.d), length(ssm.c)],
-        "cols" => Int[size(ssm.Z, 2), size(ssm.H, 2), size(ssm.Tt, 2), size(ssm.Q, 2),
-                      size(ssm.R, 2), 1, 1],
-    )
+    mats = String["Z", "H", "T", "Q", "R", "d", "c"]
+    roles = String["observation", "obs. noise cov", "transition", "state noise cov",
+                   "state-noise loading", "obs. intercept", "state intercept"]
+    rows = Int[size(ssm.Z, 1), size(ssm.H, 1), size(ssm.Tt, 1), size(ssm.Q, 1),
+               size(ssm.R, 1), length(ssm.d), length(ssm.c)]
+    cols = Int[size(ssm.Z, 2), size(ssm.H, 2), size(ssm.Tt, 2), size(ssm.Q, 2),
+               size(ssm.R, 2), 1, 1]
+    if hasproperty(ssm, :G) && ssm.G !== nothing
+        push!(mats, "G")
+        push!(roles, "state-obs noise cross-cov")
+        push!(rows, size(ssm.G, 1))
+        push!(cols, size(ssm.G, 2))
+    end
+    DataFrame("matrix" => mats, "role" => roles, "rows" => rows, "cols" => cols)
 end
 
 function _estimate_statespace(; data::String, column::Int=1, model::String="local-level",
                                init_mode::String="kappa", kappa::Float64=1e6,
-                               config::String="", output::String="", format::String="table")
+                               config::String="", steady_state::Bool=false,
+                               output::String="", format::String="table",
+                               plot::Bool=false, plot_save::String="")
     # ── GENERAL system from [statespace] in --config ────────────────────────────────────
     # This path is MULTIVARIATE (y is T_obs × n_obs), so it loads the whole numeric matrix
     # via the hardened `load_multivariate_data` rather than the canned path's single column.
@@ -6443,7 +6457,7 @@ function _estimate_statespace(; data::String, column::Int=1, model::String="loca
         # `get_statespace` has already checked them so a throw here is a genuine internal
         # inconsistency, but map it anyway rather than let it escape as exit 1.
         spec = try
-            StateSpaceModel(cfg.Z, cfg.H, cfg.T, cfg.Q; d=cfg.d, c=cfg.c, R=cfg.R,
+            StateSpaceModel(cfg.Z, cfg.H, cfg.T, cfg.Q; d=cfg.d, c=cfg.c, R=cfg.R, G=cfg.G,
                             a1=cfg.a1, P1=cfg.P1, init_mode=cfg.init_mode, kappa=kappa)
         catch e
             e isa ArgumentError && throw(CliError("config/shape",
@@ -6470,6 +6484,18 @@ function _estimate_statespace(; data::String, column::Int=1, model::String="loca
             "method"    => string(fitted_ss.method),
         ]; format=format, output=_per_var_output_path(output, "diagnostics"),
            title="State-Space Diagnostics")
+        if steady_state
+            ssk = try
+                steady_state_kalman(fitted_ss)
+            catch e
+                throw(_garch_variant_error(e, "Steady-state Kalman filter"))
+            end
+            _emit_result(ssk; title="Steady-State Kalman Filter", key="steady_state_kalman",
+                         format=format, output=_per_var_output_path(output, "steady_state"))
+            _maybe_plot(ssk; plot=plot, plot_save=plot_save)
+            return ssk
+        end
+        _maybe_plot(fitted_ss; plot=plot, plot_save=plot_save)
         return fitted_ss
     end
 
@@ -6502,6 +6528,18 @@ function _estimate_statespace(; data::String, column::Int=1, model::String="loca
         "method"    => string(ssm.method),
     ]; format=format, output=_per_var_output_path(output, "diagnostics"),
        title="State-Space Diagnostics")
+    if steady_state
+        ssk = try
+            steady_state_kalman(ssm)
+        catch e
+            throw(_garch_variant_error(e, "Steady-state Kalman filter"))
+        end
+        _emit_result(ssk; title="Steady-State Kalman Filter", key="steady_state_kalman",
+                     format=format, output=_per_var_output_path(output, "steady_state"))
+        _maybe_plot(ssk; plot=plot, plot_save=plot_save)
+        return ssk
+    end
+    _maybe_plot(ssm; plot=plot, plot_save=plot_save)
     return ssm
 end
 

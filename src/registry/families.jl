@@ -36,7 +36,7 @@ const _MODEL_FAMILY = Dict{String,String}(
     "pmg" => "panel", "pvar" => "panel", "xtcointreg" => "panel", "xtqreg" => "panel",
     "logit" => "choice", "probit" => "choice", "ologit" => "choice",
     "oprobit" => "choice", "mlogit" => "choice", "poisson" => "choice",
-    "nbreg" => "choice",
+    "nbreg" => "choice", "ri-logit" => "choice",
     "reg" => "regression", "iv" => "regression", "sur" => "regression",
     "3sls" => "regression", "elastic-net" => "regression", "heckman" => "regression",
     "lasso" => "regression", "ridge" => "regression", "robust" => "regression",

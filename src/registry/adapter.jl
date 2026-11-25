@@ -220,6 +220,9 @@ function wrap_legacy(handler::Function)
         # --save-model writes a newly derived model (e.g. DSGESolution -> ABCDSystem/DSGEVARPosterior).
         if !isempty(save_path) && !has_pos_model && _slot_set(get(kwargs, :model, ""))
             mp_raw = get(kwargs, :model, "")
+            has_handle_model_opt = !isempty(ctx.spec.model_types) ||
+                any(o -> o.name == "model" && o.handle, ctx.spec.options) ||
+                !(mp_raw isa AbstractString) || _is_handle_path(String(mp_raw))
             is_domain_choice = mp_raw isa AbstractString &&
                 ctx.spec.path == ["test", "multivariate", "granger"] &&
                 String(mp_raw) in ("var", "vecm")
@@ -229,8 +232,11 @@ function wrap_legacy(handler::Function)
                 ["dsge", "abcd", "population-var"],
                 ["dsge", "var", "prior"],
                 ["dsge", "var", "estimate"],
+                ["ri", "transition"],
+                ["ri", "statespace"],
+                ["ri", "estimate"],
             )
-            if !is_domain_choice && !is_model_transform
+            if has_handle_model_opt && !is_domain_choice && !is_model_transform
                 throw(CliError("usage/conflicting-options",
                     "$(join(ctx.spec.path, " ")): --save-model cannot be combined with --model (the model is already loaded from a handle)";
                     hint="omit --save-model when supplying --model, or estimate from <data>"))

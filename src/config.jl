@@ -999,6 +999,15 @@ function get_statespace(config::Dict)
             "[statespace] Q must be r×r with r = size(R,2) = $(size(R, 2)), got $(size(Q))"))
     end
 
+    r_shock = R === nothing ? size(Q, 1) : size(R, 2)
+    G = _optmat("G")
+    if G !== nothing
+        size(G) == (r_shock, n_obs) || throw(CliError("config/shape",
+            "[statespace] G must be r×n_obs = ($r_shock, $n_obs) to match Q/R and Z, got $(size(G))"))
+        all(isfinite, G) || throw(CliError("config/invalid",
+            "[statespace] G must contain only finite numbers"))
+    end
+
     d = _optvec("d"); c = _optvec("c")
     d === nothing || length(d) == n_obs || throw(CliError("config/shape",
         "[statespace] d must have length n_obs=$n_obs, got $(length(d))"))
@@ -1023,7 +1032,7 @@ function get_statespace(config::Dict)
     String(im) in ("kappa", "diffuse", "stationary") || throw(CliError("config/invalid",
         "[statespace] init_mode must be kappa|diffuse|stationary, got '$im'"))
 
-    return (Z=Z, H=H, T=Tm, Q=Q, R=R, d=d, c=c, a1=a1, P1=P1,
+    return (Z=Z, H=H, T=Tm, Q=Q, R=R, G=G, d=d, c=c, a1=a1, P1=P1,
             init_mode=Symbol(String(im)), n_obs=n_obs, n_state=n_state)
 end
 
@@ -1633,4 +1642,426 @@ function get_svar_hypothesis(config::Dict)
         return Dict{String,Any}("type" => "mixed", "ordering" => ord,
                                 "short_run" => sr, "long_run" => lr, "horizon" => hz)
     end
+end
+
+# ── Rational Inattention TOML parsers ([MEM111-W5] #317) ────────────────────
+
+function _ri_parse_mat(val, label::String; allow_scalar::Bool=true, allow_vec::Bool=false)
+    if allow_scalar && val isa Real
+        f = Float64(val)
+        isfinite(f) || throw(CliError("config/invalid", "$label must be finite, got $val"))
+        return fill(f, 1, 1)
+    elseif allow_vec && val isa AbstractVector && !isempty(val) && all(x -> x isa Real, val)
+        v = Float64[Float64(x) for x in val]
+        all(isfinite, v) || throw(CliError("config/invalid", "$label contains non-finite values"))
+        return reshape(v, :, 1)
+    elseif val isa AbstractVector && !isempty(val) && all(r -> r isa AbstractVector, val)
+        ncol = length(first(val))
+        (ncol >= 1 && all(r -> length(r) == ncol, val)) ||
+            throw(CliError("config/shape", "$label rows must all have equal length ≥ 1"))
+        mat = try
+            Float64[Float64(val[i][j]) for i in 1:length(val), j in 1:ncol]
+        catch
+            throw(CliError("config/type", "$label must contain only numbers"))
+        end
+        all(isfinite, mat) || throw(CliError("config/invalid", "$label contains non-finite values"))
+        return mat
+    end
+    throw(CliError("config/type",
+        "$label must be a row-major numeric matrix" *
+        (allow_scalar ? " (or scalar)" : "") *
+        (allow_vec ? " (or vector)" : "")))
+end
+
+function _ri_parse_vec(val, label::String)
+    (val isa AbstractVector && !isempty(val) && all(x -> x isa Real, val)) ||
+        throw(CliError("config/type", "$label must be a non-empty array of numbers"))
+    v = Float64[Float64(x) for x in val]
+    all(isfinite, v) || throw(CliError("config/invalid", "$label contains non-finite values"))
+    return v
+end
+
+function _ri_parse_strvec(val, label::String, expected_len::Int)
+    (val isa AbstractVector && all(x -> x isa AbstractString, val)) ||
+        throw(CliError("config/type", "$label must be an array of strings"))
+    length(val) == expected_len || throw(CliError("config/shape",
+        "$label must have length $expected_len, got $(length(val))"))
+    return String[String(x) for x in val]
+end
+
+function _ri_parse_units(sec::AbstractDict, prefix::String, default::Symbol=:bits)
+    haskey(sec, "units") || return default
+    u = sec["units"]
+    u isa AbstractString || throw(CliError("config/type", "$prefix units must be a string (bits|nats)"))
+    String(u) in ("bits", "nats") || throw(CliError("config/invalid",
+        "$prefix units must be bits or nats, got '$u'"))
+    return Symbol(String(u))
+end
+
+function _ri_parse_pos_opt(sec::AbstractDict, key::String, prefix::String; allow_zero::Bool=false)
+    haskey(sec, key) || return nothing
+    v = sec[key]
+    v isa Real || throw(CliError("config/type", "$prefix $key must be a number"))
+    f = Float64(v)
+    ok = allow_zero ? (isfinite(f) && f >= 0.0) : (isfinite(f) && f > 0.0)
+    ok || throw(CliError("config/invalid",
+        "$prefix $key must be finite and $(allow_zero ? "≥ 0" : "> 0"), got $f"))
+    return f
+end
+
+function _ri_parse_path_opt(sec::AbstractDict, key::String, prefix::String; allow_zero::Bool=false)
+    haskey(sec, key) || return nothing
+    raw = sec[key]
+    if raw isa Real
+        f = Float64(raw)
+        ok = allow_zero ? (isfinite(f) && f >= 0.0) : (isfinite(f) && f > 0.0)
+        ok || throw(CliError("config/invalid",
+            "$prefix $key must be finite and $(allow_zero ? "≥ 0" : "> 0"), got $f"))
+        return f
+    elseif raw isa AbstractVector && !isempty(raw) && all(x -> x isa Real, raw)
+        v = Float64[Float64(x) for x in raw]
+        ok = allow_zero ? all(x -> isfinite(x) && x >= 0.0, v) : all(x -> isfinite(x) && x > 0.0, v)
+        ok || throw(CliError("config/invalid",
+            "$prefix $key entries must be finite and $(allow_zero ? "≥ 0" : "> 0")"))
+        return v
+    end
+    throw(CliError("config/type", "$prefix $key must be a number or non-empty numeric array"))
+end
+
+"""
+    get_ri_problem(config::Dict) -> NamedTuple
+
+Parse a `[ri]` section describing an LQG Rational Inattention tracking problem
+(`A`, `B`, `H`, optional `M`, `B_u`, `beta`, `capacity`/`omega`, `units`,
+`state_names`, `action_names`, `shock_names`, and optional dynamic transition
+fields `Sigma_init`, `omega_path`, `capacity_path`).
+"""
+function get_ri_problem(config::Dict)
+    sec = get(config, "ri", nothing)
+    sec isa AbstractDict || throw(CliError("config/missing",
+        "RI command requires a [ri] section with A, B, and H"))
+
+    haskey(sec, "A") || throw(CliError("config/missing-key", "[ri] must define A (n×n transition matrix or scalar)"))
+    haskey(sec, "B") || throw(CliError("config/missing-key", "[ri] must define B (n×m shock loading matrix, vector, or scalar)"))
+    haskey(sec, "H") || throw(CliError("config/missing-key", "[ri] must define H (n×d action target loading matrix, vector, or scalar)"))
+
+    A = _ri_parse_mat(sec["A"], "[ri] A"; allow_scalar=true, allow_vec=false)
+    n = size(A, 1)
+    size(A, 2) == n || throw(CliError("config/shape",
+        "[ri] A must be square n×n, got $(size(A))"))
+
+    B = _ri_parse_mat(sec["B"], "[ri] B"; allow_scalar=true, allow_vec=true)
+    size(B, 1) == n || throw(CliError("config/shape",
+        "[ri] B must have n=$n rows to match A, got $(size(B))"))
+    m = size(B, 2)
+
+    H = _ri_parse_mat(sec["H"], "[ri] H"; allow_scalar=true, allow_vec=true)
+    size(H, 1) == n || throw(CliError("config/shape",
+        "[ri] H must have n=$n rows to match A, got $(size(H))"))
+    d = size(H, 2)
+
+    M = if haskey(sec, "M")
+        Mmat = _ri_parse_mat(sec["M"], "[ri] M"; allow_scalar=(d == 1), allow_vec=false)
+        size(Mmat) == (d, d) || throw(CliError("config/shape",
+            "[ri] M must be d×d = ($d, $d) to match H, got $(size(Mmat))"))
+        Mmat
+    else
+        nothing
+    end
+
+    B_u = if haskey(sec, "B_u")
+        Bumat = _ri_parse_mat(sec["B_u"], "[ri] B_u"; allow_scalar=(n == 1 && d == 1), allow_vec=(d == 1))
+        size(Bumat) == (n, d) || throw(CliError("config/shape",
+            "[ri] B_u must be n×d = ($n, $d) to match A and H, got $(size(Bumat))"))
+        Bumat
+    else
+        nothing
+    end
+
+    beta = if haskey(sec, "beta")
+        b = sec["beta"]
+        b isa Real || throw(CliError("config/type", "[ri] beta must be a number"))
+        bf = Float64(b)
+        (isfinite(bf) && 0.0 < bf <= 1.0) || throw(CliError("config/invalid",
+            "[ri] beta must lie in (0, 1], got $bf"))
+        bf
+    else
+        1.0
+    end
+
+    capacity = _ri_parse_pos_opt(sec, "capacity", "[ri]")
+    omega = _ri_parse_pos_opt(sec, "omega", "[ri]")
+    (capacity !== nothing && omega !== nothing) && throw(CliError("config/invalid",
+        "[ri] specify at most one of capacity or omega (mutually exclusive)"))
+
+    units = _ri_parse_units(sec, "[ri]")
+    state_names = haskey(sec, "state_names") ? _ri_parse_strvec(sec["state_names"], "[ri] state_names", n) : nothing
+    action_names = haskey(sec, "action_names") ? _ri_parse_strvec(sec["action_names"], "[ri] action_names", d) : nothing
+    shock_names = haskey(sec, "shock_names") ? _ri_parse_strvec(sec["shock_names"], "[ri] shock_names", m) : nothing
+
+    Sigma_init = if haskey(sec, "Sigma_init")
+        S0 = _ri_parse_mat(sec["Sigma_init"], "[ri] Sigma_init"; allow_scalar=(n == 1), allow_vec=false)
+        size(S0) == (n, n) || throw(CliError("config/shape",
+            "[ri] Sigma_init must be n×n = ($n, $n) to match A, got $(size(S0))"))
+        S0
+    else
+        nothing
+    end
+
+    omega_path = _ri_parse_path_opt(sec, "omega_path", "[ri]"; allow_zero=false)
+    capacity_path = _ri_parse_path_opt(sec, "capacity_path", "[ri]"; allow_zero=true)
+    (omega_path !== nothing && capacity_path !== nothing) && throw(CliError("config/invalid",
+        "[ri] omega_path and capacity_path are mutually exclusive"))
+
+    return (A=A, B=B, H=H, M=M, B_u=B_u, beta=beta,
+            capacity=capacity, omega=omega, units=units,
+            state_names=state_names, action_names=action_names, shock_names=shock_names,
+            Sigma_init=Sigma_init, omega_path=omega_path, capacity_path=capacity_path,
+            n=n, m=m, d=d)
+end
+
+function _ri_parse_mw_block(blk, label::String, default_units::Symbol)
+    blk isa AbstractDict || throw(CliError("config/type", "$label must be a TOML table"))
+    beta = if haskey(blk, "beta")
+        b = blk["beta"]
+        b isa Real || throw(CliError("config/type", "$label beta must be a number"))
+        bf = Float64(b)
+        (isfinite(bf) && 0.0 < bf <= 1.0) || throw(CliError("config/invalid",
+            "$label beta must lie in (0, 1], got $bf"))
+        bf
+    else
+        0.99
+    end
+    units = _ri_parse_units(blk, label, default_units)
+    if haskey(blk, "A")
+        A = _ri_parse_mat(blk["A"], "$label A"; allow_scalar=true, allow_vec=false)
+        n = size(A, 1)
+        size(A, 2) == n || throw(CliError("config/shape", "$label A must be square, got $(size(A))"))
+        haskey(blk, "H") || throw(CliError("config/missing-key", "$label matrix block must define H"))
+        H = _ri_parse_mat(blk["H"], "$label H"; allow_scalar=true, allow_vec=true)
+        size(H, 1) == n || throw(CliError("config/shape", "$label H must have n=$n rows, got $(size(H))"))
+        size(H, 2) == 1 || throw(CliError("config/shape", "$label H must have 1 column (scalar target), got $(size(H, 2))"))
+        M_val = if haskey(blk, "M")
+            _ri_parse_mat(blk["M"], "$label M"; allow_scalar=true, allow_vec=false)
+        elseif haskey(blk, "weight")
+            fill(_ri_parse_pos_opt(blk, "weight", label)::Float64, 1, 1)
+        else
+            ones(Float64, 1, 1)
+        end
+        if haskey(blk, "B")
+            B = _ri_parse_mat(blk["B"], "$label B"; allow_scalar=true, allow_vec=true)
+            size(B, 1) == n || throw(CliError("config/shape", "$label B must have n=$n rows, got $(size(B))"))
+            return (A=A, B=B, H=H, M=M_val, beta=beta, units=units)
+        elseif haskey(blk, "Q")
+            Q = _ri_parse_mat(blk["Q"], "$label Q"; allow_scalar=true, allow_vec=false)
+            if haskey(blk, "G")
+                G = _ri_parse_mat(blk["G"], "$label G"; allow_scalar=true, allow_vec=true)
+                size(G, 1) == n || throw(CliError("config/shape", "$label G must have n=$n rows, got $(size(G))"))
+                return (A=A, G=G, Q=Q, H=H, M=M_val, beta=beta, units=units)
+            end
+            size(Q) == (n, n) || throw(CliError("config/shape", "$label Q must be $n×$n, got $(size(Q))"))
+            return (A=A, Q=Q, H=H, M=M_val, beta=beta, units=units)
+        else
+            throw(CliError("config/missing-key", "$label matrix block must define B or Q"))
+        end
+    elseif haskey(blk, "rho") && haskey(blk, "sigma")
+        rho_raw = blk["rho"]
+        rho = if rho_raw isa Real
+            f = Float64(rho_raw)
+            isfinite(f) || throw(CliError("config/invalid", "$label rho must be finite"))
+            f
+        elseif rho_raw isa AbstractVector && length(rho_raw) == 2 && all(x -> x isa Real, rho_raw)
+            v = Float64[Float64(x) for x in rho_raw]
+            all(isfinite, v) || throw(CliError("config/invalid", "$label rho entries must be finite"))
+            v
+        else
+            throw(CliError("config/type", "$label rho must be a number or 2-element numeric array"))
+        end
+        sigma = _ri_parse_pos_opt(blk, "sigma", label)::Float64
+        weight = haskey(blk, "weight") ? _ri_parse_pos_opt(blk, "weight", label)::Float64 :
+                 (haskey(blk, "payoff_weight") ? _ri_parse_pos_opt(blk, "payoff_weight", label)::Float64 : 1.0)
+        proc_raw = get(blk, "process", "level")
+        proc_raw isa AbstractString || throw(CliError("config/type", "$label process must be a string (level|growth)"))
+        String(proc_raw) in ("level", "growth") || throw(CliError("config/invalid",
+            "$label process must be level or growth, got '$proc_raw'"))
+        return (rho=rho, sigma=sigma, weight=weight, process=Symbol(String(proc_raw)), beta=beta, units=units)
+    else
+        throw(CliError("config/missing-key",
+            "$label must define either (rho, sigma) or matrix fields (A, B|Q, H)"))
+    end
+end
+
+"""
+    get_ri_mw(config::Dict) -> NamedTuple
+
+Parse a `[ri.mw]` section for `ri mw` (Maćkowiak–Wiederholt 2009 multi-block
+attention allocation). Requires `[ri.mw.agg_block]` and `[ri.mw.idio_block]`.
+"""
+function get_ri_mw(config::Dict)
+    ri_sec = get(config, "ri", nothing)
+    sec = ri_sec isa AbstractDict ? get(ri_sec, "mw", nothing) : nothing
+    sec isa AbstractDict || throw(CliError("config/missing",
+        "ri mw requires a [ri.mw] section with agg_block and idio_block"))
+    haskey(sec, "agg_block") || throw(CliError("config/missing-key",
+        "[ri.mw] must define [ri.mw.agg_block]"))
+    haskey(sec, "idio_block") || throw(CliError("config/missing-key",
+        "[ri.mw] must define [ri.mw.idio_block]"))
+
+    units = _ri_parse_units(sec, "[ri.mw]")
+    agg_block = _ri_parse_mw_block(sec["agg_block"], "[ri.mw.agg_block]", units)
+    idio_block = _ri_parse_mw_block(sec["idio_block"], "[ri.mw.idio_block]", units)
+
+    capacity = _ri_parse_pos_opt(sec, "capacity", "[ri.mw]")
+    omega = _ri_parse_pos_opt(sec, "omega", "[ri.mw]")
+    (capacity !== nothing && omega !== nothing) && throw(CliError("config/invalid",
+        "[ri.mw] capacity and omega are mutually exclusive"))
+
+    sc = if haskey(sec, "strategic_complementarity")
+        v = sec["strategic_complementarity"]
+        v isa Real || throw(CliError("config/type", "[ri.mw] strategic_complementarity must be a number"))
+        f = Float64(v)
+        (isfinite(f) && 0.0 <= f < 1.0) || throw(CliError("config/invalid",
+            "[ri.mw] strategic_complementarity must lie in [0, 1), got $f"))
+        f
+    else
+        nothing
+    end
+
+    horizon = if haskey(sec, "horizon")
+        h = sec["horizon"]
+        h isa Integer || throw(CliError("config/type", "[ri.mw] horizon must be an integer"))
+        Int(h) >= 1 || throw(CliError("config/invalid", "[ri.mw] horizon must be ≥ 1, got $h"))
+        Int(h)
+    else
+        nothing
+    end
+
+    return (agg_block=agg_block, idio_block=idio_block,
+            capacity=capacity, omega=omega,
+            strategic_complementarity=sc, horizon=horizon)
+end
+
+"""
+    get_ri_discrete(config::Dict) -> NamedTuple
+
+Parse a `[ri.discrete]` section for `ri discrete` and `ri iia-test`
+(Matějka–McKay 2015 discrete-choice RI). Requires `U` (`J × S` payoff matrix)
+and `mu` (length-`S` prior vector); optional `new_option_payoffs` (length-`S`),
+`omega`/`capacity`, and `units`.
+"""
+function get_ri_discrete(config::Dict)
+    ri_sec = get(config, "ri", nothing)
+    sec = ri_sec isa AbstractDict ? get(ri_sec, "discrete", nothing) : nothing
+    sec isa AbstractDict || throw(CliError("config/missing",
+        "ri discrete / iia-test requires a [ri.discrete] section with U and mu"))
+    haskey(sec, "U") || throw(CliError("config/missing-key",
+        "[ri.discrete] must define U = [[...], [...]] (J×S payoff matrix)"))
+    haskey(sec, "mu") || throw(CliError("config/missing-key",
+        "[ri.discrete] must define mu = [...] (length-S prior vector)"))
+
+    U = _ri_parse_mat(sec["U"], "[ri.discrete] U"; allow_scalar=false, allow_vec=false)
+    J, S = size(U)
+    mu = _ri_parse_vec(sec["mu"], "[ri.discrete] mu")
+    length(mu) == S || throw(CliError("config/shape",
+        "[ri.discrete] mu must have length S=$S matching columns of U, got $(length(mu))"))
+    all(>=(0.0), mu) || throw(CliError("config/invalid",
+        "[ri.discrete] mu entries must be non-negative"))
+    sum(mu) > 0.0 || throw(CliError("config/invalid",
+        "[ri.discrete] mu must have positive sum"))
+
+    new_opt = if haskey(sec, "new_option_payoffs")
+        v = _ri_parse_vec(sec["new_option_payoffs"], "[ri.discrete] new_option_payoffs")
+        length(v) == S || throw(CliError("config/shape",
+            "[ri.discrete] new_option_payoffs must have length S=$S matching columns of U, got $(length(v))"))
+        v
+    else
+        nothing
+    end
+
+    omega = _ri_parse_pos_opt(sec, "omega", "[ri.discrete]")
+    capacity = _ri_parse_pos_opt(sec, "capacity", "[ri.discrete]")
+    (omega !== nothing && capacity !== nothing) && throw(CliError("config/invalid",
+        "[ri.discrete] omega and capacity are mutually exclusive"))
+    units = _ri_parse_units(sec, "[ri.discrete]")
+
+    return (U=U, mu=mu, new_option_payoffs=new_opt,
+            omega=omega, capacity=capacity, units=units, J=J, S=S)
+end
+
+"""
+    get_ri_logit_config(config::Dict, J::Int, S::Int, M::Int) -> NamedTuple
+
+Parse optional `[ri.logit]` (or `[ri_logit]`) config carrying `priors` (`S × M`
+matrix or `"empirical"`) and/or `base_payoff` (`M`-element array of `J × S`
+matrices, or `J × S` when `M == 1`) for `estimate/predict choice ri-logit`.
+"""
+function get_ri_logit_config(config::Dict, J::Int, S::Int, M::Int)
+    ri_sec = get(config, "ri", nothing)
+    sec = if ri_sec isa AbstractDict && haskey(ri_sec, "logit") && ri_sec["logit"] isa AbstractDict
+        ri_sec["logit"]
+    elseif haskey(config, "ri_logit") && config["ri_logit"] isa AbstractDict
+        config["ri_logit"]
+    elseif ri_sec isa AbstractDict
+        ri_sec
+    else
+        Dict{String,Any}()
+    end
+
+    priors = if haskey(sec, "priors")
+        pr = sec["priors"]
+        if pr isa AbstractString
+            String(pr) == "empirical" || throw(CliError("config/invalid",
+                "[ri.logit] string priors must be \"empirical\", got '$pr'"))
+            :empirical
+        elseif pr isa AbstractVector && !isempty(pr) && all(x -> x isa Real, pr)
+            v = _ri_parse_vec(pr, "[ri.logit] priors")
+            length(v) == S || throw(CliError("config/shape",
+                "[ri.logit] vector priors must have length S=$S, got $(length(v))"))
+            all(>=(0.0), v) && sum(v) > 0.0 || throw(CliError("config/invalid",
+                "[ri.logit] priors must be non-negative with positive sum"))
+            repeat(v ./ sum(v), 1, M)
+        else
+            pm = _ri_parse_mat(pr, "[ri.logit] priors"; allow_scalar=false, allow_vec=false)
+            size(pm) == (S, M) || throw(CliError("config/shape",
+                "[ri.logit] priors must be S×M = ($S, $M), got $(size(pm))"))
+            all(>=(0.0), pm) || throw(CliError("config/invalid",
+                "[ri.logit] priors entries must be non-negative"))
+            for m in 1:M
+                sum(@view pm[:, m]) > 0.0 || throw(CliError("config/invalid",
+                    "[ri.logit] column $m of priors must have positive sum"))
+            end
+            pm
+        end
+    else
+        nothing
+    end
+
+    base_payoff = if haskey(sec, "base_payoff")
+        bp = sec["base_payoff"]
+        bp isa AbstractVector && !isempty(bp) || throw(CliError("config/type",
+            "[ri.logit] base_payoff must be a J×S matrix (M=1) or length-M array of J×S matrices"))
+        if bp[1] isa AbstractVector && !isempty(bp[1]) && bp[1][1] isa AbstractVector
+            length(bp) == M || throw(CliError("config/shape",
+                "[ri.logit] base_payoff must have M=$M environment slices, got $(length(bp))"))
+            arr = Array{Float64,3}(undef, J, S, M)
+            for m in 1:M
+                mat = _ri_parse_mat(bp[m], "[ri.logit] base_payoff[$m]"; allow_scalar=false, allow_vec=false)
+                size(mat) == (J, S) || throw(CliError("config/shape",
+                    "[ri.logit] base_payoff[$m] must be J×S = ($J, $S), got $(size(mat))"))
+                arr[:, :, m] .= mat
+            end
+            arr
+        else
+            M == 1 || throw(CliError("config/shape",
+                "[ri.logit] 2D base_payoff only allowed for M=1 environment (got M=$M); pass array of $M J×S matrices"))
+            mat = _ri_parse_mat(bp, "[ri.logit] base_payoff"; allow_scalar=false, allow_vec=false)
+            size(mat) == (J, S) || throw(CliError("config/shape",
+                "[ri.logit] base_payoff must be J×S = ($J, $S), got $(size(mat))"))
+            reshape(mat, J, S, 1)
+        end
+    else
+        nothing
+    end
+
+    return (priors=priors, base_payoff=base_payoff)
 end

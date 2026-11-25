@@ -4615,6 +4615,7 @@ struct StateSpaceModel{T<:AbstractFloat}
     d::Vector{T}
     c::Vector{T}
     R::Matrix{T}
+    G::Union{Nothing,Matrix{T}}
     init_mode::Symbol
     theta::Vector{T}
     param_names::Vector{String}
@@ -4638,7 +4639,8 @@ supplying `a1` AND `P1` switches init_mode to `:explicit`. Dimension violations 
 `ArgumentError` real does, so the CLI's mapping is exercised identically at both tiers."""
 function StateSpaceModel(Z::AbstractMatrix, H::AbstractMatrix,
                          T_mat::AbstractMatrix, Q::AbstractMatrix;
-                         d=nothing, c=nothing, R=nothing, a1=nothing, P1=nothing,
+                         d=nothing, c=nothing, R=nothing, G=nothing,
+                         a1=nothing, P1=nothing,
                          init_mode::Symbol=:kappa, kappa::Real=1e6)
     Zm = Matrix{Float64}(Z); Hm = Matrix{Float64}(H)
     Tm = Matrix{Float64}(T_mat); Qm = Matrix{Float64}(Q)
@@ -4652,6 +4654,14 @@ function StateSpaceModel(Z::AbstractMatrix, H::AbstractMatrix,
         throw(ArgumentError("R must have n_state=$n_state rows, got $(size(Rm, 1))"))
     size(Qm) == (size(Rm, 2), size(Rm, 2)) ||
         throw(ArgumentError("Q must be r×r with r=size(R,2)=$(size(Rm, 2)), got $(size(Qm))"))
+    Gm = if G === nothing
+        nothing
+    else
+        Gm0 = Matrix{Float64}(G)
+        size(Gm0) == (size(Rm, 2), n_obs) ||
+            throw(ArgumentError("G must be r×n_obs = $((size(Rm, 2), n_obs)), got $(size(Gm0))"))
+        Gm0
+    end
     dv = d === nothing ? zeros(Float64, n_obs) : Vector{Float64}(d)
     cv = c === nothing ? zeros(Float64, n_state) : Vector{Float64}(c)
     length(dv) == n_obs || throw(ArgumentError("d must have length n_obs=$n_obs"))
@@ -4659,7 +4669,7 @@ function StateSpaceModel(Z::AbstractMatrix, H::AbstractMatrix,
     mode = (a1 !== nothing && P1 !== nothing) ? :explicit : init_mode
     mode in (:kappa, :diffuse, :stationary, :explicit) ||
         throw(ArgumentError("Unknown Kalman init mode :$mode"))
-    StateSpaceModel{Float64}(Zm, Hm, Tm, Qm, dv, cv, Rm, mode, Float64[], String[],
+    StateSpaceModel{Float64}(Zm, Hm, Tm, Qm, dv, cv, Rm, Gm, mode, Float64[], String[],
         Matrix{Float64}(undef, 0, n_state), Matrix{Float64}(undef, 0, n_state),
         Matrix{Float64}(undef, 0, n_obs), Matrix{Float64}(undef, 0, n_obs),
         NaN, false, :spec, n_state, n_obs, 0)
@@ -4678,10 +4688,10 @@ function estimate_statespace(ss::StateSpaceModel, y)
     # enough to give a finite, data-dependent loglik and correctly-shaped paths.
     state = zeros(n, ss.n_state)
     innov = Y .- (state * ss.Tt' * ss.Z')[:, 1:ss.n_obs]
-    F = [max(ss.H[j, j] + ss.Z[j, :]' * ss.Q * ss.Z[j, :], 1e-8) for j in 1:ss.n_obs]
+    F = [max(ss.H[j, j] + ss.Z[j, :]' * (ss.R * ss.Q * ss.R') * ss.Z[j, :], 1e-8) for j in 1:ss.n_obs]
     stdres = innov ./ sqrt.(reshape(F, 1, :))
     ll = -0.5 * sum(log(2π * F[j]) * n + sum(abs2, innov[:, j]) / F[j] for j in 1:ss.n_obs)
-    StateSpaceModel{Float64}(ss.Z, ss.H, ss.Tt, ss.Q, ss.d, ss.c, ss.R, ss.init_mode,
+    StateSpaceModel{Float64}(ss.Z, ss.H, ss.Tt, ss.Q, ss.d, ss.c, ss.R, ss.G, ss.init_mode,
         Float64[], String[], state, state, innov, stdres,
         ll, true, :filter, ss.n_state, ss.n_obs, n)
 end
@@ -4744,7 +4754,7 @@ function local_level(y; init_mode::Symbol=:kappa, kappa::Real=1e6)
     # path built it: y = μ + ε, μ' = μ + η.
     StateSpaceModel{Float64}(reshape([1.0], 1, 1), reshape([v0 / 2], 1, 1),
                              reshape([1.0], 1, 1), reshape([v0 / 2], 1, 1),
-                             [0.0], [0.0], reshape([1.0], 1, 1), init_mode,
+                             [0.0], [0.0], reshape([1.0], 1, 1), nothing, init_mode,
                              [v0 / 2, v0 / 2], ["σ²_ε", "σ²_η"], filtered, smoothed,
                              innov, stdres, ll, true, :mle, 1, 1, n)
 end
@@ -4763,7 +4773,7 @@ function local_linear_trend(y; init_mode::Symbol=:kappa, kappa::Real=1e6)
     # y = μ + ε; [μ, β]' = [1 1; 0 1] [μ, β] + η  (the canonical local linear trend)
     StateSpaceModel{Float64}([1.0 0.0], reshape([v0 / 2], 1, 1),
                              [1.0 1.0; 0.0 1.0], [v0/10 0.0; 0.0 v0/100],
-                             [0.0], [0.0, 0.0], Matrix{Float64}(I, 2, 2), init_mode,
+                             [0.0], [0.0, 0.0], Matrix{Float64}(I, 2, 2), nothing, init_mode,
                              [v0 / 2, v0 / 10, v0 / 100], ["σ²_ε", "σ²_ξ", "σ²_ζ"],
                              filtered, smoothed, innov, stdres, ll, true, :mle, 2, 1, n)
 end
@@ -4791,7 +4801,7 @@ function estimate_tvp_reg(y, X::AbstractMatrix; intercept::Bool=true,
     StateSpaceModel{Float64}(reshape(vec(mean(Xf, dims=1)), 1, k), reshape([v0], 1, 1),
                              Matrix{Float64}(I, k, k),
                              Matrix{Float64}(v0 / (100 * k) * I, k, k),
-                             [0.0], zeros(k), Matrix{Float64}(I, k, k), :kappa,
+                             [0.0], zeros(k), Matrix{Float64}(I, k, k), nothing, :kappa,
                              theta, names, smoothed, smoothed, innov,
                              innov ./ sqrt.(v0 .* (1 .+ 1 ./ (1:n))), ll, true, :mle, k, 1, n)
 end
@@ -9582,15 +9592,26 @@ function policy_news_matrix(spec::ModelSpec, policy_shock::Symbol,
         H, ["news $k" for k in 1:H], :dsge)
 end
 
-function behavioral(ce::PolicyCausalEffects{T}; m::Real=1.0, theta::Real=0.0) where T
+function behavioral(ce::PolicyCausalEffects{T}; m::Real=1.0, theta::Real=0.0,
+                    ri_gain::Union{Real,Nothing}=nothing, ri_rho::Real=0.8) where T
     (0 <= m <= 1 && 0 <= theta <= 1) || throw(ArgumentError(
         "behavioral: expected m and theta in [0, 1], got m=$m, theta=$theta"))
+    if ri_gain !== nothing
+        (!isnan(ri_gain) && 0 <= ri_gain <= 1) || throw(ArgumentError(
+            "ri_gain: expected 0 <= ri_gain <= 1, got $ri_gain"))
+    end
+    (!isnan(ri_rho) && 0 <= ri_rho <= 1) || throw(ArgumentError(
+        "ri_rho: expected 0 <= ri_rho <= 1, got $ri_rho"))
     is_square(ce) || throw(ArgumentError(
         "behavioral operators need a square (model news) container; empirical thin menus are already behavior-inclusive"))
-    scale = T(m) * (1 - T(theta) / 2)
+    ri_scale = ri_gain === nothing ? one(T) : (T(0.5) + T(0.5) * T(ri_gain) * (T(0.5) + T(0.5) * T(ri_rho)))
+    scale = T(m) * (1 - T(theta) / 2) * ri_scale
+    labels = ri_gain === nothing ?
+        [l * " (m=$(m), θ=$(theta))" for l in ce.shock_labels] :
+        [l * " (m=$(m), θ=$(theta), G_RI=$(ri_gain), ρ_RI=$(ri_rho))" for l in ce.shock_labels]
     PolicyCausalEffects{T}(copy(ce.outcomes), copy(ce.instruments),
         [scale .* M for M in ce.Theta_x], [scale .* M for M in ce.Theta_z],
-        nothing, nothing, ce.H, copy(ce.shock_labels), ce.source)
+        nothing, nothing, ce.H, labels, ce.source)
 end
 
 function counterfactual_history(mdl::Union{VARModel{T},BVARPosterior{T}},
@@ -16595,5 +16616,763 @@ export ABCDSystem, InvertibilityResult, InnovationsRepresentation,
        search_invertible_observables, dsge_var_prior, dsge_var_logml,
        select_dsge_var_lambda, estimate_dsge_var,
        point_estimate, uncertainty_bounds
+
+
+# ── [MEM111-W5] #317 ──
+# Rational Inattention (src/ri/), SteadyStateKalman, ABCDSystem (for to_abcd),
+# and RI behavioral Jacobian. Zero `; kwargs...)` absorbers; explicit keywords
+# matching real MacroEconometricModels v1.1.1.
+
+using LinearAlgebra: eigvals
+
+struct SteadyStateKalman{T<:AbstractFloat}
+    P_pred::Matrix{T}
+    P_filt::Matrix{T}
+    K_gain::Matrix{T}
+    F_innov::Matrix{T}
+    closed_loop_eigs::Vector{Complex{T}}
+end
+
+
+struct RationalInattentionProblem{T<:AbstractFloat}
+    A::Matrix{T}
+    B::Matrix{T}
+    H::Matrix{T}
+    M::Matrix{T}
+    B_u::Union{Nothing,Matrix{T}}
+    beta::T
+    capacity::Union{Nothing,T}
+    omega::Union{Nothing,T}
+    units::Symbol
+    state_names::Vector{String}
+    action_names::Vector{String}
+    shock_names::Vector{String}
+end
+
+struct SimsKalmanSolution{T<:AbstractFloat}
+    problem::RationalInattentionProblem{T}
+    Sigma_prior::Matrix{T}
+    Sigma_post::Matrix{T}
+    Omega_benefit::Matrix{T}
+    omega::T
+    capacity_bits::T
+    capacity_nats::T
+    signal_rank::Int
+    Y_signal::Matrix{T}
+    Sigma_psi::Matrix{T}
+    K_gain::Matrix{T}
+    F_policy::Matrix{T}
+    expected_loss::T
+    converged::Bool
+    iterations::Int
+    method::Symbol
+end
+
+struct DynamicRISolution{T<:AbstractFloat}
+    Sigma_prior_path::Array{T,3}
+    Sigma_post_path::Array{T,3}
+    Xi_path::Array{T,3}
+    K_gain_path::Array{T,3}
+    Y_terminal::Matrix{T}
+    Sigma_psi_terminal::Matrix{T}
+    omega_path::Vector{T}
+    capacity_bits_path::Vector{T}
+    capacity_nats_path::Vector{T}
+    signal_rank_path::Vector{Int}
+    Sigma_init::Matrix{T}
+    T_path::Int
+    converged::Bool
+    iterations::Int
+    residual::T
+    state_names::Vector{String}
+    action_names::Vector{String}
+    shock_names::Vector{String}
+end
+
+struct RIEstimationResult{T<:AbstractFloat}
+    params::Vector{T}
+    param_names::Vector{String}
+    vcov_mat::Matrix{T}
+    stderr::Vector{T}
+    capacity::T
+    omega::T
+    loglik::T
+    loglik_fullinfo::T
+    lr_stat::T
+    lr_pvalue::T
+    aic::T
+    bic::T
+    n_obs::Int
+    method::Symbol
+    estimate_param::Symbol
+    solution::SimsKalmanSolution{T}
+    draws::Matrix{T}
+    acceptance_rate::T
+    converged::Bool
+    manifest::Union{Nothing,ReproManifest}
+end
+
+struct CGTestResult{T<:AbstractFloat}
+    alpha::T
+    se_alpha::T
+    beta_cg::T
+    se_cg::T
+    t_stat::T
+    pvalue::T
+    n_obs::Int
+    hac_lags::Int
+    implied_gain::T
+    implied_capacity::T
+end
+
+struct MWAttentionResult{T<:AbstractFloat}
+    kappa_agg::T
+    kappa_idio::T
+    total_kappa::T
+    omega::T
+    strategic_complementarity::T
+    units::Symbol
+    agg_price_irf::Vector{T}
+    idio_price_irf::Vector{T}
+    real_output_irf::Vector{T}
+    agg_solution::SimsKalmanSolution{T}
+    idio_solution::SimsKalmanSolution{T}
+    converged::Bool
+    iterations::Int
+end
+
+struct RIDiscreteChoiceSolution{T<:AbstractFloat}
+    payoffs::Matrix{T}
+    prior::Vector{T}
+    cond_probs::Matrix{T}
+    uncond_probs::Vector{T}
+    consideration_set::Vector{Int}
+    kkt_multipliers::Vector{T}
+    omega::T
+    mutual_info_bits::T
+    mutual_info_nats::T
+    expected_utility::T
+    net_welfare::T
+    converged::Bool
+    iterations::Int
+end
+
+struct RIIIADiagnostic{T<:AbstractFloat}
+    base_solution::RIDiscreteChoiceSolution{T}
+    expanded_solution::RIDiscreteChoiceSolution{T}
+    uncond_odds_ratio_shift::Matrix{T}
+    cond_odds_ratio_max_diff::T
+    max_iia_violation::T
+end
+
+struct RILogitModel{T<:AbstractFloat}
+    choices::Vector{Int}
+    menu_attributes::Array{T,4}
+    base_payoff::Union{Nothing,Array{T,3}}
+    normalize::Symbol
+    env_id::Vector{Int}
+    state_id::Union{Nothing,Vector{Int}}
+    priors::Matrix{T}
+    beta::Vector{T}
+    omega::T
+    vcov_mat::Matrix{T}
+    solutions::Vector{RIDiscreteChoiceSolution{T}}
+    loglik::T
+    loglik_mnl::T
+    lr_vs_mnl::T
+    lr_pval::T
+    aic::T
+    bic::T
+    pseudo_r2::T
+    cov_type::Symbol
+    varnames::Vector{String}
+    converged::Bool
+    iterations::Int
+    n_obs::Int
+end
+
+function steady_state_kalman(Z::AbstractMatrix, H::AbstractMatrix,
+                             Tt::AbstractMatrix, RQR::AbstractMatrix;
+                             G::Union{Nothing,AbstractMatrix}=nothing)
+    Zm = Matrix{Float64}(Z); Hm = Matrix{Float64}(H)
+    Tm = Matrix{Float64}(Tt); Qm = Matrix{Float64}(RQR)
+    n_obs, n_state = size(Zm)
+    size(Hm) == (n_obs, n_obs) || throw(ArgumentError("H must be $n_obs×$n_obs"))
+    size(Tm) == (n_state, n_state) || throw(ArgumentError("Tt must be $n_state×$n_state"))
+    size(Qm) == (n_state, n_state) || throw(ArgumentError("RQR must be $n_state×$n_state"))
+    if G !== nothing
+        size(G) == (n_state, n_obs) || throw(ArgumentError("G must be $n_state×$n_obs"))
+    end
+    P_pred = Matrix{Float64}(I, n_state, n_state) .+ 0.25 .* Qm
+    F_innov = Zm * P_pred * Zm' + Hm + 1e-6 * Matrix{Float64}(I, n_obs, n_obs)
+    K_gain = P_pred * Zm' * pinv(F_innov)
+    P_filt = (Matrix{Float64}(I, n_state, n_state) - K_gain * Zm) * P_pred
+    K_dare = (Tm * P_pred * Zm' + (G === nothing ? zeros(n_state, n_obs) : Matrix{Float64}(G))) * pinv(F_innov)
+    eigs = Complex{Float64}.(eigvals(Tm - K_dare * Zm))
+    return SteadyStateKalman{Float64}(P_pred, P_filt, K_gain, F_innov, eigs)
+end
+
+function steady_state_kalman(ss::StateSpaceModel{T}) where {T<:AbstractFloat}
+    RQR = Matrix{Float64}(ss.R * ss.Q * ss.R')
+    Gk = ss.G === nothing ? nothing : Matrix{Float64}(ss.R * ss.G)
+    return steady_state_kalman(ss.Z, ss.H, ss.Tt, RQR; G=Gk)
+end
+
+function _mock_ri_mat(X::Real)
+    return fill(Float64(X), 1, 1)
+end
+function _mock_ri_mat(X::AbstractVector{<:Real})
+    return reshape(Float64[Float64(v) for v in X], :, 1)
+end
+function _mock_ri_mat(X::AbstractMatrix{<:Real})
+    return Matrix{Float64}(X)
+end
+
+function RationalInattentionProblem(
+    A::Union{Real,AbstractVecOrMat{<:Real}},
+    B::Union{Real,AbstractVecOrMat{<:Real}},
+    H::Union{Real,AbstractVecOrMat{<:Real}};
+    M::Union{Nothing,Real,AbstractMatrix{<:Real}}=nothing,
+    B_u::Union{Nothing,Real,AbstractVecOrMat{<:Real}}=nothing,
+    beta::Real=1.0,
+    capacity::Union{Nothing,Real}=nothing,
+    omega::Union{Nothing,Real}=nothing,
+    units::Symbol=:bits,
+    state_names::Union{Nothing,AbstractVector}=nothing,
+    action_names::Union{Nothing,AbstractVector}=nothing,
+    shock_names::Union{Nothing,AbstractVector}=nothing,
+)
+    Am = _mock_ri_mat(A); Bm = _mock_ri_mat(B); Hm = _mock_ri_mat(H)
+    n = size(Am, 1)
+    size(Am, 2) == n || throw(ArgumentError("A must be square, got $(size(Am))"))
+    size(Bm, 1) == n || throw(ArgumentError("B must have $n rows"))
+    size(Hm, 1) == n || throw(ArgumentError("H must have $n rows"))
+    m = size(Bm, 2); d = size(Hm, 2)
+    Mm = M === nothing ? Matrix{Float64}(I, d, d) : (M isa Real ? fill(Float64(M), 1, 1) : Matrix{Float64}(M))
+    size(Mm) == (d, d) || throw(ArgumentError("M must be $d×$d"))
+    Bum = B_u === nothing ? nothing : _mock_ri_mat(B_u)
+    if Bum !== nothing
+        size(Bum) == (n, d) || throw(ArgumentError("B_u must be $n×$d"))
+    end
+    (0 < beta <= 1) || throw(ArgumentError("beta must lie in (0, 1]"))
+    (capacity === nothing) != (omega === nothing) ||
+        throw(ArgumentError("Specify exactly one of capacity or omega"))
+    units in (:bits, :nats) || throw(ArgumentError("units must be :bits or :nats"))
+    sn = state_names === nothing ? ["x$i" for i in 1:n] : String[string(s) for s in state_names]
+    an = action_names === nothing ? ["u$i" for i in 1:d] : String[string(s) for s in action_names]
+    wn = shock_names === nothing ? ["w$i" for i in 1:m] : String[string(s) for s in shock_names]
+    return RationalInattentionProblem{Float64}(
+        Am, Bm, Hm, Mm, Bum, Float64(beta),
+        capacity === nothing ? nothing : Float64(capacity),
+        omega === nothing ? nothing : Float64(omega),
+        units, sn, an, wn,
+    )
+end
+
+function solve_ri_kalman(prob::RationalInattentionProblem{T};
+                         method::Symbol=:water_filling,
+                         tol::Real=1e-11,
+                         max_iter::Int=2000) where {T<:AbstractFloat}
+    method in (:water_filling, :logdet_barrier) ||
+        throw(ArgumentError("method must be :water_filling or :logdet_barrier"))
+    tol > 0 || throw(ArgumentError("tol must be > 0"))
+    max_iter >= 1 || throw(ArgumentError("max_iter must be >= 1"))
+    n = size(prob.A, 1)
+    d = size(prob.H, 2)
+    cap_bits = if prob.capacity !== nothing
+        prob.units === :bits ? Float64(prob.capacity) : Float64(prob.capacity) / log(2.0)
+    else
+        max(0.25, 1.0 / (1.0 + Float64(prob.omega)))
+    end
+    cap_nats = cap_bits * log(2.0)
+    om_val = prob.omega !== nothing ? Float64(prob.omega) : 1.0 / max(cap_nats, 0.1)
+    g_eff = 1.0 - exp2(-2.0 * cap_bits)
+    Q = prob.B * prob.B'
+    Sp = Q .+ 0.5 .* Matrix{Float64}(I, n, n)
+    Spost = (1.0 - g_eff) .* Sp
+    Ob = prob.H * prob.M * prob.H'
+    r_s = min(n, d)
+    Y_sig = Matrix{Float64}(I, n, r_s)
+    Spsi = Matrix{Float64}(((1.0 - g_eff) / max(g_eff, 1e-6)) * I, r_s, r_s)
+    K_gain = g_eff .* Matrix{Float64}(I, n, r_s)
+    F_pol = Matrix{Float64}(prob.H')
+    loss = sum(diag(Ob * Spost))
+    return SimsKalmanSolution{Float64}(
+        prob, Sp, Spost, Ob, om_val, cap_bits, cap_nats, r_s,
+        Y_sig, Spsi, K_gain, F_pol, loss, true, 5, method,
+    )
+end
+
+function solve_ri_transition(prob::RationalInattentionProblem{T},
+                             Sigma_init::AbstractMatrix{<:Real};
+                             T_path::Int=100,
+                             omega_path=nothing,
+                             capacity_path=nothing,
+                             tol::Real=1e-10,
+                             max_iter::Int=500,
+                             damping::Real=0.7) where {T<:AbstractFloat}
+    n = size(prob.A, 1)
+    size(Sigma_init) == (n, n) || throw(ArgumentError("Sigma_init must be $n×$n"))
+    T_path >= 1 || throw(ArgumentError("T_path must be >= 1"))
+    (0 < damping <= 1) || throw(ArgumentError("damping must be in (0, 1]"))
+    (omega_path !== nothing && capacity_path !== nothing) &&
+        throw(ArgumentError("omega_path and capacity_path are mutually exclusive"))
+    ss = solve_ri_kalman(prob)
+    Sp_path = zeros(Float64, n, n, T_path)
+    Spost_path = zeros(Float64, n, n, T_path)
+    Xi_path = zeros(Float64, n, n, T_path)
+    Kg_path = zeros(Float64, n, n, T_path)
+    om_p = fill(ss.omega, T_path)
+    cb_p = fill(ss.capacity_bits, T_path)
+    cn_p = fill(ss.capacity_nats, T_path)
+    rk_p = fill(ss.signal_rank, T_path)
+    if omega_path isa Real
+        fill!(om_p, Float64(omega_path))
+    elseif omega_path isa AbstractVector
+        length(omega_path) == T_path || throw(ArgumentError("omega_path must have length T_path"))
+        om_p .= Float64.(omega_path)
+    elseif capacity_path isa Real
+        cb_p .= (prob.units === :bits ? Float64(capacity_path) : Float64(capacity_path) / log(2.0))
+        cn_p .= cb_p .* log(2.0)
+    elseif capacity_path isa AbstractVector
+        length(capacity_path) == T_path || throw(ArgumentError("capacity_path must have length T_path"))
+        cb_p .= (prob.units === :bits ? Float64.(capacity_path) : Float64.(capacity_path) ./ log(2.0))
+        cn_p .= cb_p .* log(2.0)
+    end
+    for t in 1:T_path
+        w = (t - 1) / max(T_path - 1, 1)
+        Sp_path[:, :, t] = (1 - w) .* Matrix{Float64}(Sigma_init) .+ w .* ss.Sigma_prior
+        Spost_path[:, :, t] = 0.5 .* Sp_path[:, :, t]
+        Xi_path[:, :, t] = ss.Omega_benefit
+        Kg_path[:, :, t] = ss.signal_rank == 0 ? zeros(n, n) : ss.K_gain * ss.Y_signal'
+    end
+    return DynamicRISolution{Float64}(
+        Sp_path, Spost_path, Xi_path, Kg_path, ss.Y_signal, ss.Sigma_psi,
+        om_p, cb_p, cn_p, rk_p, Matrix{Float64}(Sigma_init),
+        T_path, true, 8, 1e-12,
+        copy(prob.state_names), copy(prob.action_names), copy(prob.shock_names),
+    )
+end
+
+function _mock_ri_obs(sol::SimsKalmanSolution, observables::Symbol)
+    observables in (:actions, :actions_and_states, :all) ||
+        throw(ArgumentError("observables must be :actions, :actions_and_states, or :all"))
+    prob = sol.problem
+    n = size(prob.A, 1); d = size(prob.H, 2)
+    In = Matrix{Float64}(I, n, n)
+    if observables === :actions
+        return (Z=hcat(zeros(d, n), sol.F_policy), obs_names=copy(prob.action_names))
+    elseif observables === :actions_and_states
+        return (Z=[In zeros(n, n); zeros(d, n) sol.F_policy],
+                obs_names=vcat(prob.state_names, prob.action_names))
+    else
+        return (Z=[In zeros(n, n); zeros(n, n) In; zeros(d, n) sol.F_policy],
+                obs_names=vcat(prob.state_names, [s * "_hat" for s in prob.state_names], prob.action_names))
+    end
+end
+
+function to_statespace(sol::SimsKalmanSolution{T};
+                       observables::Symbol=:all,
+                       init_mode::Union{Nothing,Symbol}=nothing,
+                       kappa::Real=1e6) where {T<:AbstractFloat}
+    prob = sol.problem
+    n = size(prob.A, 1); m = size(prob.B, 2); r_s = sol.signal_rank
+    obs = _mock_ri_obs(sol, observables)
+    k = size(obs.Z, 1)
+    KYt = r_s == 0 ? zeros(n, n) : sol.K_gain * sol.Y_signal'
+    T_joint = [prob.A zeros(n, n); KYt * prob.A (Matrix{Float64}(I, n, n) - KYt) * prob.A]
+    R_joint = [prob.B zeros(n, r_s); KYt * prob.B (r_s == 0 ? zeros(n, 0) : sol.K_gain)]
+    im = init_mode === nothing ? :stationary : init_mode
+    return StateSpaceModel(obs.Z, zeros(k, k), T_joint, Matrix{Float64}(I, m + r_s, m + r_s);
+                           R=R_joint, init_mode=im, kappa=kappa)
+end
+
+function to_abcd(sol::SimsKalmanSolution{T};
+                 observables::Symbol=:actions) where {T<:AbstractFloat}
+    prob = sol.problem
+    n = size(prob.A, 1); m = size(prob.B, 2); r_s = sol.signal_rank
+    obs = _mock_ri_obs(sol, observables)
+    KYt = r_s == 0 ? zeros(n, n) : sol.K_gain * sol.Y_signal'
+    A_j = [prob.A zeros(n, n); KYt * prob.A (Matrix{Float64}(I, n, n) - KYt) * prob.A]
+    B_j = [prob.B zeros(n, r_s); KYt * prob.B (r_s == 0 ? zeros(n, 0) : sol.K_gain)]
+    C_j = obs.Z * A_j
+    D_j = obs.Z * B_j
+    snames = vcat(prob.state_names, [s * "_hat" for s in prob.state_names])
+    shnames = vcat(["Fundamental: " * s for s in prob.shock_names],
+                   ["RI Noise: s$j" for j in 1:r_s])
+    return ABCDSystem{Float64}(A_j, B_j, C_j, D_j, zeros(2n), zeros(size(C_j, 1)),
+                               snames, obs.obs_names, shnames)
+end
+
+function irf(sol::SimsKalmanSolution{T}, H::Int=20;
+             observables::Symbol=:all, ci_type::Symbol=:none) where {T<:AbstractFloat}
+    H >= 1 || throw(ArgumentError("Horizon H must be >= 1"))
+    abcd = to_abcd(sol; observables=observables)
+    nv = size(abcd.C, 1); ns = size(abcd.B, 2)
+    vals = zeros(Float64, H, nv, ns)
+    for h in 1:H
+        M = h == 1 ? abcd.D : abcd.C * (abcd.A^(h - 2)) * abcd.B
+        vals[h, :, :] = M
+    end
+    return ImpulseResponse{Float64}(vals, nothing, nothing, H, abcd.obs_names, abcd.shock_names, ci_type, nothing, nothing)
+end
+
+function fevd(sol::SimsKalmanSolution{T}, H::Int=20;
+              observables::Symbol=:actions) where {T<:AbstractFloat}
+    H >= 1 || throw(ArgumentError("Horizon H must be >= 1"))
+    ir = irf(sol, H; observables=observables)
+    nv = length(ir.variables); ns = length(ir.shocks)
+    decomp = zeros(Float64, nv, ns, H)
+    props = zeros(Float64, nv, ns, H)
+    for v in 1:nv, h in 1:H
+        tot = 0.0
+        for s in 1:ns
+            acc = sum(abs2, ir.values[1:h, v, s])
+            decomp[v, s, h] = acc
+            tot += acc
+        end
+        for s in 1:ns
+            props[v, s, h] = tot > 0 ? decomp[v, s, h] / tot : 1.0 / ns
+        end
+    end
+    return FEVD{Float64}(decomp, props, ir.variables, ir.shocks)
+end
+
+function simulate(sol::SimsKalmanSolution{T}, T_sim::Int;
+                  burn::Int=100,
+                  x0::Union{Nothing,AbstractVector{<:Real}}=nothing,
+                  xhat0::Union{Nothing,AbstractVector{<:Real}}=nothing,
+                  rng::AbstractRNG=Random.default_rng(),
+                  seed::Union{Integer,Nothing}=nothing) where {T<:AbstractFloat}
+    T_sim >= 1 || throw(ArgumentError("T_sim must be >= 1"))
+    burn >= 0 || throw(ArgumentError("burn must be >= 0"))
+    r = seed === nothing ? rng : Random.Xoshiro(Int(seed))
+    prob = sol.problem
+    n = size(prob.A, 1); m = size(prob.B, 2); d = size(prob.H, 2); r_s = sol.signal_rank
+    return (
+        states = randn(r, T_sim, n),
+        beliefs = randn(r, T_sim, n),
+        signals = randn(r, T_sim, r_s),
+        actions = randn(r, T_sim, d),
+        fundamental_shocks = randn(r, T_sim, m),
+        ri_noise = randn(r, T_sim, r_s),
+    )
+end
+
+function estimate_ri(build_or_prob, data::AbstractMatrix{<:Real};
+                     method::Symbol=:mle,
+                     estimate_param::Symbol=:capacity,
+                     extra_params_init::AbstractVector{<:Real}=Float64[],
+                     extra_param_names::AbstractVector{<:AbstractString}=String[],
+                     priors=nothing,
+                     observables=nothing,
+                     cov_type::Symbol=:hessian,
+                     init_param::Union{Nothing,Real}=nothing,
+                     measurement_error::Union{Nothing,Real,AbstractVector{<:Real}}=nothing,
+                     n_draws::Int=1000,
+                     burnin::Int=250,
+                     step_scale::Real=0.1,
+                     rng::AbstractRNG=Random.default_rng(),
+                     seed::Union{Integer,Nothing}=nothing)
+    method in (:mle, :bayes) || throw(ArgumentError("method must be :mle or :bayes"))
+    estimate_param in (:capacity, :omega) || throw(ArgumentError("estimate_param must be :capacity or :omega"))
+    cov_type in (:hessian, :sandwich) || throw(ArgumentError("cov_type must be :hessian or :sandwich"))
+    T_obs = size(data, 1)
+    T_obs >= 2 || throw(ArgumentError("data must have at least 2 rows"))
+    prob = build_or_prob isa RationalInattentionProblem ? build_or_prob : build_or_prob(1.0)
+    sol = solve_ri_kalman(prob)
+    val = estimate_param === :capacity ? sol.capacity_bits : sol.omega
+    pname = estimate_param === :capacity ? "capacity" : "omega"
+    draws = method === :bayes ? fill(val, n_draws, 1) : zeros(Float64, 0, 0)
+    acc = method === :bayes ? 0.35 : NaN
+    man = method === :bayes ? capture_manifest(; seed=seed) : nothing
+    return RIEstimationResult{Float64}(
+        [val], [pname], fill(0.01, 1, 1), [0.1],
+        sol.capacity_bits, sol.omega, -50.0, -55.0, 10.0, 0.0015,
+        102.0, 104.0, T_obs, method, estimate_param, sol, draws, acc, true, man,
+    )
+end
+
+function coibion_gorodnichenko_test(realized::AbstractVector{<:Real},
+                                    forecast_now::AbstractVector{<:Real},
+                                    forecast_lag::AbstractVector{<:Real};
+                                    hac_lags::Union{Symbol,Integer}=:auto)
+    n = length(realized)
+    (length(forecast_now) == n && length(forecast_lag) == n) ||
+        throw(DimensionMismatch("input vectors must have equal length"))
+    n >= 4 || throw(ArgumentError("need at least 4 observations"))
+    bw = hac_lags === :auto ? 2 : Int(hac_lags)
+    bw >= 0 || throw(ArgumentError("hac_lags must be >= 0"))
+    beta_cg = 0.5
+    se_cg = 0.12
+    g = 1.0 / (1.0 + beta_cg)
+    cap = -0.5 * log2(1.0 - g)
+    return CGTestResult{Float64}(0.01, 0.05, beta_cg, se_cg, beta_cg / se_cg, 0.001, n, bw, g, cap)
+end
+
+function implied_cg_slope(sol::SimsKalmanSolution{T};
+                          horizon::Int=1,
+                          weights::Union{Nothing,AbstractVector{<:Real}}=nothing) where {T<:AbstractFloat}
+    horizon >= 1 || throw(ArgumentError("horizon must be >= 1"))
+    sol.signal_rank == 0 && return NaN
+    return 1.0 / max(exp2(2.0 * sol.capacity_bits) - 1.0, 1e-6)
+end
+
+function solve_mw_attention(agg_block, idio_block;
+                            capacity::Union{Nothing,Real}=nothing,
+                            omega::Union{Nothing,Real}=nothing,
+                            strategic_complementarity::Real=0.85,
+                            horizon::Int=40,
+                            tol::Real=1e-8,
+                            maxiter::Int=200)
+    (capacity === nothing) != (omega === nothing) ||
+        throw(ArgumentError("Exactly one of capacity or omega must be provided"))
+    (0 <= strategic_complementarity < 1) ||
+        throw(ArgumentError("strategic_complementarity must lie in [0, 1)"))
+    horizon >= 1 || throw(ArgumentError("horizon must be >= 1"))
+    tot = capacity !== nothing ? Float64(capacity) : 2.0 / max(Float64(omega), 0.1)
+    k_agg = 0.25 * tot
+    k_idio = 0.75 * tot
+    om = omega !== nothing ? Float64(omega) : 1.0 / max(tot, 0.1)
+    p_agg = solve_ri_kalman(RationalInattentionProblem([0.8;;], [0.1;;], [1.0;;]; capacity=max(k_agg, 0.05)))
+    p_idio = solve_ri_kalman(RationalInattentionProblem([0.5;;], [1.0;;], [1.0;;]; capacity=max(k_idio, 0.05)))
+    agg_irf = Float64[0.1 * (1 - 0.8^h) for h in 1:horizon]
+    idio_irf = Float64[0.6 * 0.5^(h - 1) for h in 1:horizon]
+    out_irf = Float64[0.8^(h - 1) - agg_irf[h] for h in 1:horizon]
+    return MWAttentionResult{Float64}(
+        k_agg, k_idio, tot, om, Float64(strategic_complementarity), :bits,
+        agg_irf, idio_irf, out_irf, p_agg, p_idio, true, 12,
+    )
+end
+
+function rational_inattention_jacobian(J::AbstractMatrix{T}, kalman_gain_or_kappa::Real;
+                                       mode::Symbol=:gain, rho_news::Real=0.8) where {T<:AbstractFloat}
+    size(J, 1) == size(J, 2) || throw(ArgumentError("J must be square"))
+    mode in (:gain, :capacity) || throw(ArgumentError("mode must be :gain or :capacity"))
+    (0 <= rho_news <= 1) || throw(ArgumentError("rho_news must lie in [0, 1]"))
+    G = mode === :gain ? Float64(kalman_gain_or_kappa) : 1.0 - exp2(-2.0 * Float64(kalman_gain_or_kappa))
+    (0 <= G <= 1) || throw(ArgumentError("gain must lie in [0, 1]"))
+    return Matrix{T}(G .* J)
+end
+
+function solve_ri_discrete(U::AbstractMatrix, mu::AbstractVector;
+                           omega=nothing, capacity=nothing,
+                           units::Symbol=:bits, tol::Real=1e-12, max_iter::Int=5000)
+    J, S = size(U)
+    length(mu) == S || throw(ArgumentError("mu must have length $S"))
+    (omega === nothing) != (capacity === nothing) ||
+        throw(ArgumentError("Provide exactly one of omega or capacity"))
+    units in (:bits, :nats) || throw(ArgumentError("units must be :bits or :nats"))
+    Um = Matrix{Float64}(U)
+    mu_n = Float64.(mu) ./ sum(mu)
+    om = omega !== nothing ? Float64(omega) : 0.5
+    cp = zeros(Float64, J, S)
+    for s in 1:S
+        w = exp.((Um[:, s] .- maximum(Um[:, s])) ./ om)
+        cp[:, s] .= w ./ sum(w)
+    end
+    up = cp * mu_n
+    mi_nats = capacity !== nothing ? (units === :bits ? Float64(capacity) * log(2.0) : Float64(capacity)) : 0.25
+    mi_bits = mi_nats / log(2.0)
+    eu = sum(mu_n[s] * sum(cp[j, s] * Um[j, s] for j in 1:J) for s in 1:S)
+    return RIDiscreteChoiceSolution{Float64}(
+        Um, mu_n, cp, up, collect(1:J), ones(Float64, J),
+        om, mi_bits, mi_nats, eu, eu - om * mi_nats, true, 10,
+    )
+end
+
+function ri_iia_diagnostic(U::AbstractMatrix, mu::AbstractVector,
+                           new_option_payoffs::AbstractVector;
+                           omega=nothing, capacity=nothing,
+                           units::Symbol=:bits, tol::Real=1e-12)
+    J, S = size(U)
+    length(new_option_payoffs) == S || throw(ArgumentError("new_option_payoffs must have length $S"))
+    base_sol = solve_ri_discrete(U, mu; omega=omega, capacity=capacity, units=units, tol=tol)
+    U_exp = vcat(base_sol.payoffs, reshape(Float64.(new_option_payoffs), 1, S))
+    exp_sol = solve_ri_discrete(U_exp, base_sol.prior; omega=omega, capacity=capacity, units=units, tol=tol)
+    shift = fill(0.05, J, J)
+    for j in 1:J; shift[j, j] = 0.0; end
+    return RIIIADiagnostic{Float64}(base_sol, exp_sol, shift, 0.04, 0.05)
+end
+
+function estimate_ri_logit(choices::AbstractVector{<:Integer},
+                           menu_attributes::AbstractArray{<:Real,4},
+                           env_id::AbstractVector{<:Integer};
+                           state_id::Union{Nothing,AbstractVector{<:Integer}}=nothing,
+                           priors::Union{Nothing,Symbol,AbstractMatrix}=nothing,
+                           base_payoff::Union{Nothing,AbstractArray{<:Real,3}}=nothing,
+                           normalize::Symbol=(base_payoff === nothing ? :omega_one : :none),
+                           cov_type::Symbol=:hessian,
+                           varnames::Union{Nothing,Vector{String}}=nothing,
+                           tol::Real=1e-10,
+                           max_iter::Int=400)
+    J, S, K, M = size(menu_attributes)
+    N = length(choices)
+    length(env_id) == N || throw(ArgumentError("env_id must have length $N"))
+    normalize in (:none, :omega_one, :first_coef) || throw(ArgumentError("invalid normalize"))
+    cov_type in (:hessian, :sandwich, :robust) || throw(ArgumentError("invalid cov_type"))
+    if base_payoff !== nothing
+        size(base_payoff) == (J, S, M) || throw(ArgumentError("base_payoff size mismatch"))
+        normalize === :none || throw(ArgumentError("normalize must be :none with base_payoff"))
+    else
+        K >= 1 || throw(ArgumentError("Need K >= 1 when base_payoff is nothing"))
+    end
+    vn = varnames === nothing ? ["x$k" for k in 1:K] : copy(varnames)
+    pmat = priors isa AbstractMatrix ? Matrix{Float64}(priors) : fill(1.0 / S, S, M)
+    beta_hat = fill(0.5, K)
+    om_hat = normalize === :omega_one ? 1.0 : 0.75
+    V = Matrix{Float64}(0.01 * I, K + 1, K + 1)
+    sols = [solve_ri_discrete(zeros(J, S), pmat[:, m]; omega=om_hat) for m in 1:M]
+    sv = state_id === nothing ? nothing : Vector{Int}(state_id)
+    bp = base_payoff === nothing ? nothing : Array{Float64,3}(base_payoff)
+    return RILogitModel{Float64}(
+        Vector{Int}(choices), Array{Float64,4}(menu_attributes), bp, normalize,
+        Vector{Int}(env_id), sv, pmat, beta_hat, om_hat, V, sols,
+        -20.0, -23.0, 6.0, 0.014, 44.0, 48.0, 0.15, cov_type, vn, true, 15, N,
+    )
+end
+
+function fitted(m::RILogitModel{T}) where {T}
+    N = m.n_obs
+    J = size(m.menu_attributes, 1)
+    P = Matrix{T}(undef, N, J)
+    for i in 1:N
+        sol = m.solutions[m.env_id[i]]
+        if m.state_id !== nothing
+            P[i, :] .= sol.cond_probs[:, m.state_id[i]]
+        else
+            P[i, :] .= sol.uncond_probs
+        end
+    end
+    return P
+end
+
+function predict(m::RILogitModel{T}; kind::Symbol=:auto) where {T}
+    kind in (:auto, :conditional, :unconditional) ||
+        throw(ArgumentError("kind must be :auto, :conditional, or :unconditional"))
+    if kind === :auto
+        return fitted(m)
+    elseif kind === :conditional
+        m.state_id === nothing && throw(ArgumentError("Conditional prediction requires state_id"))
+        return fitted(m)
+    else
+        N = m.n_obs; J = size(m.menu_attributes, 1)
+        P = Matrix{T}(undef, N, J)
+        for i in 1:N
+            P[i, :] .= m.solutions[m.env_id[i]].uncond_probs
+        end
+        return P
+    end
+end
+
+# Tables.jl / DataFrame / long_table mirrors for all 10 Wave-5 types + ABCDSystem
+function DataFrames.DataFrame(ssk::SteadyStateKalman)
+    n = length(ssk.closed_loop_eigs)
+    eigs = Complex{Float64}.(ssk.closed_loop_eigs)
+    DataFrame(
+        eigen_index=collect(1:n), re=real.(eigs), im=imag.(eigs), modulus=abs.(eigs),
+        mean_K_diag=[i <= size(ssk.K_gain, 1) && i <= size(ssk.K_gain, 2) ? Float64(ssk.K_gain[i, i]) : NaN for i in 1:n],
+    )
+end
+function DataFrames.DataFrame(prob::RationalInattentionProblem)
+    n = size(prob.A, 1)
+    DataFrame(
+        state=copy(prob.state_names),
+        A_diag=Float64[prob.A[i, i] for i in 1:n],
+        beta=fill(Float64(prob.beta), n),
+        capacity=Vector{Union{Missing,Float64}}(fill(prob.capacity === nothing ? missing : Float64(prob.capacity), n)),
+        omega=Vector{Union{Missing,Float64}}(fill(prob.omega === nothing ? missing : Float64(prob.omega), n)),
+        units=fill(string(prob.units), n),
+    )
+end
+function DataFrames.DataFrame(sol::SimsKalmanSolution)
+    m, k = size(sol.K_gain)
+    state = String[]; signal = Int[]; K_gain = Float64[]
+    for j in 1:k, i in 1:m
+        push!(state, sol.problem.state_names[i]); push!(signal, j); push!(K_gain, Float64(sol.K_gain[i, j]))
+    end
+    len = length(K_gain)
+    DataFrame(state=state, signal=signal, K_gain=K_gain,
+              omega=fill(Float64(sol.omega), len),
+              capacity_bits=fill(Float64(sol.capacity_bits), len),
+              signal_rank=fill(sol.signal_rank, len),
+              expected_loss=fill(Float64(sol.expected_loss), len))
+end
+function long_table(sol::DynamicRISolution)
+    DataFrame(
+        period=collect(1:sol.T_path),
+        omega=Float64.(sol.omega_path),
+        capacity_bits=Float64.(sol.capacity_bits_path),
+        capacity_nats=Float64.(sol.capacity_nats_path),
+        signal_rank=Int.(sol.signal_rank_path),
+        converged=fill(sol.converged, sol.T_path),
+    )
+end
+function DataFrames.DataFrame(r::RIEstimationResult)
+    _mock_coef_df_base(copy(r.param_names), Float64.(r.params))
+end
+function DataFrames.DataFrame(r::CGTestResult)
+    DataFrame(
+        parameter=["alpha", "beta_cg"],
+        estimate=[Float64(r.alpha), Float64(r.beta_cg)],
+        std_error=[Float64(r.se_alpha), Float64(r.se_cg)],
+        t_stat=[Float64(r.alpha / r.se_alpha), Float64(r.t_stat)],
+        p_value=[0.8, Float64(r.pvalue)],
+        implied_gain=[Float64(r.implied_gain), Float64(r.implied_gain)],
+        implied_capacity=[Float64(r.implied_capacity), Float64(r.implied_capacity)],
+    )
+end
+function DataFrames.DataFrame(r::MWAttentionResult)
+    H = length(r.agg_price_irf)
+    DataFrame(
+        horizon=collect(0:(H - 1)),
+        agg_price_irf=Float64.(r.agg_price_irf),
+        idio_price_irf=Float64.(r.idio_price_irf),
+        real_output_irf=Float64.(r.real_output_irf),
+        kappa_agg=fill(Float64(r.kappa_agg), H),
+        kappa_idio=fill(Float64(r.kappa_idio), H),
+        omega=fill(Float64(r.omega), H),
+    )
+end
+function long_table(sol::RIDiscreteChoiceSolution)
+    J, S = size(sol.cond_probs)
+    state = Int[]; action = Int[]; payoff = Float64[]; cond_prob = Float64[]; uncond_prob = Float64[]
+    for j in 1:J, s in 1:S
+        push!(state, s); push!(action, j)
+        push!(payoff, Float64(sol.payoffs[j, s]))
+        push!(cond_prob, Float64(sol.cond_probs[j, s]))
+        push!(uncond_prob, Float64(sol.uncond_probs[j]))
+    end
+    DataFrame(; state, action, payoff, cond_prob, uncond_prob)
+end
+function DataFrames.DataFrame(d::RIIIADiagnostic)
+    DataFrame(
+        diagnostic=["IIA Violation"],
+        max_iia_violation=[Float64(d.max_iia_violation)],
+        cond_odds_ratio_max_diff=[Float64(d.cond_odds_ratio_max_diff)],
+        base_info_bits=[Float64(d.base_solution.mutual_info_bits)],
+        expanded_info_bits=[Float64(d.expanded_solution.mutual_info_bits)],
+    )
+end
+function DataFrames.DataFrame(m::RILogitModel)
+    K = length(m.beta)
+    K == 0 && return DataFrame(term=["omega"], estimate=[Float64(m.omega)], std_error=[NaN],
+                               stat=[NaN], p_value=[NaN], ci_lower=[NaN], ci_upper=[NaN])
+    _mock_coef_df_base(copy(m.varnames), Float64.(m.beta))
+end
+
+for _w5_T in (SteadyStateKalman, RationalInattentionProblem, SimsKalmanSolution,
+              DynamicRISolution, RIEstimationResult, CGTestResult, MWAttentionResult,
+              RIDiscreteChoiceSolution, RIIIADiagnostic, RILogitModel)
+    _SERIALIZABLE_TYPES[string(nameof(_w5_T))] = _w5_T
+end
+
+export SteadyStateKalman, RationalInattentionProblem, SimsKalmanSolution,
+       DynamicRISolution, RIEstimationResult, CGTestResult, MWAttentionResult,
+       RIDiscreteChoiceSolution, RIIIADiagnostic, RILogitModel,
+       steady_state_kalman, solve_ri_kalman, solve_ri_transition,
+       to_statespace, to_abcd, estimate_ri, coibion_gorodnichenko_test,
+       implied_cg_slope, solve_mw_attention, rational_inattention_jacobian,
+       solve_ri_discrete, ri_iia_diagnostic, estimate_ri_logit, fitted
 
 end # module

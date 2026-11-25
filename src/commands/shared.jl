@@ -4227,7 +4227,9 @@ const _TIDY_COEF_TYPES = Union{RegModel,LogitModel,ProbitModel,PanelRegModel,Pan
     GMMMomentSelectionResult,SVARMAModel,FundamentalnessTestResult,
     SufficientInformationTestResult,
     ABCDSystem,InvertibilityResult,InnovationsRepresentation,ObservableSearchResult,
-    DSGEVARPrior,DSGEVARLambdaProfile,DSGEVARPosterior}
+    DSGEVARPrior,DSGEVARLambdaProfile,DSGEVARPosterior,
+    SteadyStateKalman,RationalInattentionProblem,SimsKalmanSolution,
+    RIEstimationResult,CGTestResult,MWAttentionResult,RIIIADiagnostic,RILogitModel}
 
 """Emit a coefficient-bearing result via upstream Tables.jl (`DataFrame(m)`).
 
@@ -4247,7 +4249,8 @@ const _TIDY_LONG_TYPES = Union{ImpulseResponse,BayesianImpulseResponse,FEVD,
     QuantileFactorModel,QuantileFactorGrid,GrowthAtRiskResult,
     QuantileImpulseResponse,QuantileFAVAR,VBQuantileFAVAR,
     FHLZModel,CointegratedGDFM,TimeVaryingGDFM,BandPassGDFMResult,SpectralFEVDResult,
-    ShockRecoverabilityResult,DSGEVARIRFAudit}
+    ShockRecoverabilityResult,DSGEVARIRFAudit,
+    DynamicRISolution,RIDiscreteChoiceSolution}
 
 """Emit an array-valued result via upstream `long_table`.
 
@@ -4262,7 +4265,27 @@ function _emit_result(r::_TIDY_LONG_TYPES; title::String="Results", key::Abstrac
                       format::Union{String,Symbol}=:table, output::String="",
                       shocks::Union{Nothing,AbstractString,AbstractVector}=nothing,
                       extra_cols::Vector{<:Pair{String,<:Any}}=Pair{String,Any}[])
-    df = long_table(r)
+    df = try
+        long_table(r)
+    catch e
+        # Guard upstream MEMs v1.1.1 `_coef_nt(::RIDiscreteChoiceSolution)` BoundsError
+        # when J < S (tables.jl swaps S, J = size(sol.cond_probs)).
+        if e isa BoundsError && r isa RIDiscreteChoiceSolution
+            J_alt, S_st = size(r.cond_probs)
+            st_col = Int[]; act_col = Int[]
+            pay_col = Float64[]; cp_col = Float64[]; up_col = Float64[]
+            for j in 1:J_alt, s in 1:S_st
+                push!(st_col, s); push!(act_col, j)
+                push!(pay_col, Float64(r.payoffs[j, s]))
+                push!(cp_col, Float64(r.cond_probs[j, s]))
+                push!(up_col, Float64(r.uncond_probs[j]))
+            end
+            DataFrame(state=st_col, action=act_col, payoff=pay_col,
+                      cond_prob=cp_col, uncond_prob=up_col)
+        else
+            rethrow()
+        end
+    end
     if shocks !== nothing && "shock" in names(df)
         keep = shocks isa AbstractString ? [String(shocks)] : String[string(s) for s in shocks]
         df = df[in.(df.shock, Ref(keep)), :]

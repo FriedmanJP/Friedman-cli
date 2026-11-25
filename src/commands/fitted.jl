@@ -2157,6 +2157,7 @@ function predict_specs()::Vector{CommandSpec}
         ),
         w1_predict_specs()...,
         w2_predict_specs()...,
+        w5_predict_specs()...,
     ])
 end
 
@@ -2511,6 +2512,7 @@ const _FITTED_MODEL_TYPES = Dict{String,Vector{Symbol}}(
     "setar" => [:ThresholdModel], "star" => [:STARModel],
     "lms-svar" => [:LMSSVARResult], "lanne-luoto" => [:LanneLuotoGMMResult],
     "ssvarma" => [:SVARMAModel],
+    "ri-logit" => [:RILogitModel],
 )
 
 function _wrap_fitted_specs(specs::Vector{CommandSpec})

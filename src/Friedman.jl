@@ -78,6 +78,7 @@ include("commands/hadsge.jl")
 include("commands/did.jl")
 include("commands/multipliers.jl")  # multipliers nardl helpers (folded into estimate univariate nardl)
 include("commands/policy.jl")       # policy counterfactuals — new top-level (W4/#126)
+include("commands/ri.jl")           # rational inattention — new top-level ([MEM111-W5] #317)
 include("commands/spectral.jl")
 include("commands/schema.jl")
 include("commands/model.jl")       # model info (C029)
@@ -118,6 +119,7 @@ function build_app()
         "hadsge"    => register_hadsge_commands!(),
         "did"       => register_did_commands!(),
         "policy"    => register_policy_commands!(),
+        "ri"        => register_ri_commands!(),
         "spectral"  => register_spectral_commands!(),
         "schema"    => register_schema_command!(),
         "model"     => register_model_commands!(),

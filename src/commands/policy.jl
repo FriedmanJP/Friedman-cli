@@ -1184,15 +1184,41 @@ end
 """Optional behavioral discounting on a SQUARE menu. Sentinel NaN defaults let
 the handler distinguish "not requested" from the identity values (m=1, θ=0 ARE
 the identity — a bare invocation would be a silent no-op otherwise)."""
-function _apply_behavioral(ce, m::Float64, theta::Float64)
-    isnan(m) && isnan(theta) && return ce, false
+function _validate_behavioral_args(m::Float64, theta::Float64,
+                                   ri_gain::Float64=NaN, ri_rho::Float64=NaN)
+    if !isnan(ri_rho) && isnan(ri_gain)
+        throw(CliError("usage/invalid",
+            "policy: --behavioral-ri-rho requires --behavioral-ri-gain";
+            hint="set --behavioral-ri-gain in [0, 1] alongside --behavioral-ri-rho"))
+    end
+    isnan(m) && isnan(theta) && isnan(ri_gain) && return false
     mm = isnan(m) ? 1.0 : m
     tt = isnan(theta) ? 0.0 : theta
     (0.0 <= mm <= 1.0) || throw(CliError("usage/invalid",
         "policy: --behavioral-m must be in [0, 1] (got $mm)"))
     (0.0 <= tt <= 1.0) || throw(CliError("usage/invalid",
         "policy: --behavioral-theta must be in [0, 1] (got $tt)"))
-    return behavioral(ce; m=mm, theta=tt), true
+    if !isnan(ri_gain)
+        (0.0 <= ri_gain <= 1.0) || throw(CliError("usage/invalid",
+            "policy: --behavioral-ri-gain must be in [0, 1] (got $ri_gain)"))
+        rr = isnan(ri_rho) ? 0.8 : ri_rho
+        (0.0 <= rr <= 1.0) || throw(CliError("usage/invalid",
+            "policy: --behavioral-ri-rho must be in [0, 1] (got $rr)"))
+    end
+    return true
+end
+
+function _apply_behavioral(ce, m::Float64, theta::Float64,
+                           ri_gain::Float64=NaN, ri_rho::Float64=NaN)
+    _validate_behavioral_args(m, theta, ri_gain, ri_rho) || return ce, false
+    mm = isnan(m) ? 1.0 : m
+    tt = isnan(theta) ? 0.0 : theta
+    if isnan(ri_gain)
+        return behavioral(ce; m=mm, theta=tt), true
+    else
+        rr = isnan(ri_rho) ? 0.8 : ri_rho
+        return behavioral(ce; m=mm, theta=tt, ri_gain=ri_gain, ri_rho=rr), true
+    end
 end
 
 function _policy_news(route::String; model="", result=nothing, policy_shock::String="",
@@ -1201,6 +1227,8 @@ function _policy_news(route::String; model="", result=nothing, policy_shock::Str
                       t_horizon::Int=300, rule_closure::String="administered",
                       dx::Float64=1e-4, behavioral_m::Float64=NaN,
                       behavioral_theta::Float64=NaN,
+                      behavioral_ri_gain::Float64=NaN,
+                      behavioral_ri_rho::Float64=NaN,
                       output::String="", format::String="table")
     if result !== nothing
         output_result(_policy_effects_table(result); format=Symbol(format), output=output,
@@ -1214,6 +1242,8 @@ function _policy_news(route::String; model="", result=nothing, policy_shock::Str
         "policy: --horizon must be ≥ 1 (got $horizon)"))
     chunk >= 0 || throw(CliError("usage/invalid",
         "policy news: --chunk must be ≥ 0 (got $chunk)"))
+    _validate_behavioral_args(behavioral_m, behavioral_theta,
+                              behavioral_ri_gain, behavioral_ri_rho)
     ce, applied = try
         if route == "dsge"
             solver in ("gensys", "klein", "blanchard-kahn") ||
@@ -1232,7 +1262,8 @@ function _policy_news(route::String; model="", result=nothing, policy_shock::Str
                              out_pairs, ins_pairs;
                              H=horizon, solver=Symbol(replace(solver, '-' => '_')),
                              chunk=chunk)
-            _apply_behavioral(ce0, behavioral_m, behavioral_theta)
+            _apply_behavioral(ce0, behavioral_m, behavioral_theta,
+                              behavioral_ri_gain, behavioral_ri_rho)
         else  # ha
             t_horizon >= horizon || throw(CliError("usage/invalid",
                 "policy news ha: --t-horizon ($t_horizon) must be ≥ --horizon ($horizon)"))
@@ -1261,7 +1292,8 @@ function _policy_news(route::String; model="", result=nothing, policy_shock::Str
                                         instruments=ins_pairs, H=horizon,
                                         T_horizon=t_horizon,
                                         rule_closure=Symbol(rule_closure), dx=dx)
-            _apply_behavioral(ce0, behavioral_m, behavioral_theta)
+            _apply_behavioral(ce0, behavioral_m, behavioral_theta,
+                              behavioral_ri_gain, behavioral_ri_rho)
         end
     catch e
         e isa CliError && rethrow()
@@ -1271,8 +1303,12 @@ function _policy_news(route::String; model="", result=nothing, policy_shock::Str
     output_result(_policy_effects_table(ce); format=Symbol(format), output=output,
                   title="Policy Causal Effects Menu")
     s = _policy_effects_summary(ce, :none)
-    applied && push!(s, "behavioral" =>
-        "m=$(isnan(behavioral_m) ? 1.0 : behavioral_m), theta=$(isnan(behavioral_theta) ? 0.0 : behavioral_theta) (approximation on a GE-closed menu — CMW apply per block before closure)")
+    if applied
+        ri_part = isnan(behavioral_ri_gain) ? "" :
+            ", ri_gain=$behavioral_ri_gain, ri_rho=$(isnan(behavioral_ri_rho) ? 0.8 : behavioral_ri_rho)"
+        push!(s, "behavioral" =>
+            "m=$(isnan(behavioral_m) ? 1.0 : behavioral_m), theta=$(isnan(behavioral_theta) ? 0.0 : behavioral_theta)$(ri_part) (approximation on a GE-closed menu — CMW apply per block before closure)")
+    end
     route == "ha" && t_horizon < horizon + 50 && push!(s, "truncation_warning" =>
         "T_horizon = $t_horizon < H + 50 — the sequence-space truncation may bite; grow --t-horizon")
     output_kv(s; format=format, output=_per_var_output_path(output, "summary"),
@@ -1903,6 +1939,10 @@ function register_policy_commands!()
                    description="Cognitive discounting m in [0,1] (behavioral operator; square menus only)");
         OptionSpec(name="behavioral-theta", type=Float64, default=NaN,
                    description="Sticky-expectations theta in [0,1]");
+        OptionSpec(name="behavioral-ri-gain", type=Float64, default=NaN,
+                   description="Rational-inattention Kalman gain G in [0,1] (sequence-space RI Jacobian; square menus only)");
+        OptionSpec(name="behavioral-ri-rho", type=Float64, default=NaN,
+                   description="RI anticipation news persistence rho in [0,1] (requires --behavioral-ri-gain; default 0.8)");
     ]
     push!(specs, CommandSpec(
         path=["policy", "news", "dsge"],

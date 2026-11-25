@@ -85,6 +85,7 @@ include(joinpath(project_root, "src", "commands", "hadsge.jl"))
 include(joinpath(project_root, "src", "commands", "did.jl"))
 include(joinpath(project_root, "src", "commands", "multipliers.jl"))
 include(joinpath(project_root, "src", "commands", "policy.jl"))
+include(joinpath(project_root, "src", "commands", "ri.jl"))
 include(joinpath(project_root, "src", "commands", "spectral.jl"))
 include(joinpath(project_root, "src", "commands", "model.jl"))
 include(joinpath(project_root, "src", "commands", "completions.jl"))
@@ -15107,6 +15108,7 @@ if !@isdefined(APP)
             "hadsge"    => register_hadsge_commands!(),
             "did"       => register_did_commands!(),
             "policy"    => register_policy_commands!(),
+            "ri"        => register_ri_commands!(),
             "spectral"  => register_spectral_commands!(),
             "model"     => register_model_commands!(),
             "completions" => register_completions_commands!(),
@@ -16166,3 +16168,4 @@ include(joinpath(project_root, "test", "test_w1_quantile.jl"))
 include(joinpath(project_root, "test", "test_w2_gdfm.jl"))
 include(joinpath(project_root, "test", "test_w3_nongaussian.jl"))
 include(joinpath(project_root, "test", "test_w4_abcd_dsgevar.jl"))
+include(joinpath(project_root, "test", "test_w5_ri.jl"))
