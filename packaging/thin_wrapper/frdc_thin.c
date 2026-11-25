@@ -969,7 +969,7 @@ static uint64_t monotonic_ns(void) {
 #endif
 }
 
-static void format_utc_iso8601(char out[32]) {
+static void format_utc_iso8601(char out[80]) {
     time_t now = time(NULL);
     struct tm gmt;
     memset(&gmt, 0, sizeof(gmt));
@@ -978,7 +978,7 @@ static void format_utc_iso8601(char out[32]) {
 #else
     gmtime_r(&now, &gmt);
 #endif
-    snprintf(out, 32, "%04d-%02d-%02dT%02d:%02d:%02dZ",
+    snprintf(out, 80, "%04d-%02d-%02dT%02d:%02d:%02dZ",
              gmt.tm_year + 1900, gmt.tm_mon + 1, gmt.tm_mday,
              gmt.tm_hour, gmt.tm_min, gmt.tm_sec);
 }
@@ -1426,7 +1426,7 @@ static int handle_catalog_cmd(const FrdcPack *pack, const char *tag, const char 
             return -1;
         }
 
-        char ts[32];
+        char ts[80];
         format_utc_iso8601(ts);
         uint64_t t1_ns = monotonic_ns();
         double elapsed_ms = (t1_ns >= t0_ns) ? ((double)(t1_ns - t0_ns) / 1e6) : 0.0;

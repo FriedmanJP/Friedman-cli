@@ -343,9 +343,9 @@ function main()
         assert_header_info!(olg_jld2, "BlanchardOLGSolution", "BlanchardOLGSolution")
         assert_bounded_show!(olg_jld2, "BlanchardOLGSolution")
 
-        # Plain multi-key .jld2 + model keys
+        # Plain multi-key .jld2 + model keys (NamedTuple for Julia 1.13 + 1.14 JLD2 compat)
         plain_jld2 = joinpath(d, "multi.jld2")
-        JLD2.jldsave(plain_jld2; df1=DataFrame(a=1:5, b=6:10), vec1=collect(1.0:5.0))
+        JLD2.jldsave(plain_jld2; df1=(a=collect(1:5), b=collect(6:10)), vec1=collect(1.0:5.0))
         Friedman._HANDLE_LOAD_COUNTER[] = 0
         parse_envelope(run_json(["model", "info", plain_jld2]), "plain .jld2 model info")
         check!(Friedman._HANDLE_LOAD_COUNTER[] == 0, "plain .jld2 model info loaded payload")

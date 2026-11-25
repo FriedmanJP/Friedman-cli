@@ -955,6 +955,7 @@ void *tinfl_decompress_mem_to_heap(const void *pSrc_buf, size_t src_buf_len, siz
     void *pBuf = NULL, *pNew_buf;
     size_t src_buf_ofs = 0, out_buf_capacity = 0;
     *pOut_len = 0;
+    memset(&decomp, 0, sizeof(decomp));
     tinfl_init(&decomp);
     for (;;)
     {
@@ -991,6 +992,7 @@ size_t tinfl_decompress_mem_to_mem(void *pOut_buf, size_t out_buf_len, const voi
 {
     tinfl_decompressor decomp;
     tinfl_status status;
+    memset(&decomp, 0, sizeof(decomp));
     tinfl_init(&decomp);
     status = tinfl_decompress(&decomp, (const mz_uint8 *)pSrc_buf, &src_buf_len, (mz_uint8 *)pOut_buf, (mz_uint8 *)pOut_buf, &out_buf_len, (flags & ~TINFL_FLAG_HAS_MORE_INPUT) | TINFL_FLAG_USING_NON_WRAPPING_OUTPUT_BUF);
     return (status != TINFL_STATUS_DONE) ? TINFL_DECOMPRESS_MEM_TO_MEM_FAILED : out_buf_len;
@@ -1005,6 +1007,7 @@ int tinfl_decompress_mem_to_callback(const void *pIn_buf, size_t *pIn_buf_size, 
     if (!pDict)
         return TINFL_STATUS_FAILED;
     memset(pDict,0,TINFL_LZ_DICT_SIZE);
+    memset(&decomp, 0, sizeof(decomp));
     tinfl_init(&decomp);
     for (;;)
     {

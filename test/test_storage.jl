@@ -38,12 +38,21 @@
         @test resolve_stem(amb_jld; slot=:data) == amb_jld
 
         # #key sub-entry syntax on plain multi-key .jld2
+        # Note: JLD2 v0.6.7 cannot reconstruct raw DataFrame structs on Julia 1.14+
+        # (`UnionAll has hidden fields`), so use NamedTuple payloads across all Julia
+        # versions and keep raw DataFrame-in-JLD2 coverage on Julia < 1.14.
         multi = joinpath(dir, "multi.jld2")
-        JLD2.jldsave(multi; df1=DataFrame(a=1.0:5.0, b=6.0:10.0), df2=DataFrame(x=1.0:3.0))
+        JLD2.jldsave(multi; df1=(a=collect(1.0:5.0), b=collect(6.0:10.0)), df2=(x=collect(1.0:3.0),))
         df1 = load_data(multi * "#df1")
         @test df1 isa DataFrame && names(df1) == ["a", "b"] && nrow(df1) == 5
         err_nokey = try; load_data(multi * "#nonexistent"); nothing; catch e; e; end
         @test err_nokey isa CliError && err_nokey.code == "data/key-not-found"
+        if VERSION < v"1.14.0-DEV"
+            multi_df = joinpath(dir, "multi_df.jld2")
+            JLD2.jldsave(multi_df; df1=DataFrame(a=1.0:5.0, b=6.0:10.0), df2=DataFrame(x=1.0:3.0))
+            df1_raw = load_data(multi_df * "#df1")
+            @test df1_raw isa DataFrame && names(df1_raw) == ["a", "b"] && nrow(df1_raw) == 5
+        end
     end
 end
 
@@ -91,7 +100,7 @@ end
         ]
         # Mismatched extensions: genuine HDF5 bytes named .jls, real JLS bytes named .jld2
         real_hdf5 = joinpath(dir, "real_hdf5.jld2")
-        JLD2.jldsave(real_hdf5; data=DataFrame(a=1:3))
+        JLD2.jldsave(real_hdf5; data=(a=[1, 2, 3],))
         real_jls = joinpath(dir, "real.jls")
         save_model_dispatch(real_jls, ts1)
         push!(corrupt_cases, "hdf5_named_jls.jls" => read(real_hdf5))
@@ -246,16 +255,22 @@ end
         err_inf = try; load_multivariate_data(inf_csv); nothing; catch e; e; end
         @test err_inf isa CliError && err_inf.code == "data/non-finite-values"
 
-        # Plain DataFrame stored in .jld2 / .jls into load_panel_data
+        # Plain tabular payload stored in .jld2 / .jls into load_panel_data
         pcsv = _make_panel_csv(dir; G=3, T_per=6, n=2)
         dfp = CSV.read(pcsv, DataFrame)
         pjld = joinpath(dir, "plain_panel.jld2")
         pjls = joinpath(dir, "plain_panel.jls")
-        JLD2.jldsave(pjld; df=dfp)
+        nt_p = NamedTuple{Tuple(Symbol.(names(dfp)))}(Tuple(collect(dfp[!, c]) for c in names(dfp)))
+        JLD2.jldsave(pjld; df=nt_p)
         save_model_dispatch(pjls, dfp)
         pd1 = load_panel_data(pjld * "#df", "group", "time")
         pd2 = load_panel_data(pjls, "group", "time")
         @test pd1 isa PanelData && pd2 isa PanelData
+        if VERSION < v"1.14.0-DEV"
+            pjld_df = joinpath(dir, "plain_panel_df.jld2")
+            JLD2.jldsave(pjld_df; df=dfp)
+            @test load_panel_data(pjld_df * "#df", "group", "time") isa PanelData
+        end
 
         # PanelData preservation in data dropna & TimeSeriesData return value in data balance
         p_typed = joinpath(dir, "typed_panel.jld2")
