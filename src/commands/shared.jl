@@ -4225,7 +4225,9 @@ const _TIDY_COEF_TYPES = Union{RegModel,LogitModel,ProbitModel,PanelRegModel,Pan
     OnatskiQTestResult,AhnHorensteinResult,OnatskiEDResult,EurocoinResult,GDFMNowcastResult,
     LMSSVARResult,SVARHypothesisTest,NonGaussianDiagnostics,LanneLuotoGMMResult,
     GMMMomentSelectionResult,SVARMAModel,FundamentalnessTestResult,
-    SufficientInformationTestResult}
+    SufficientInformationTestResult,
+    ABCDSystem,InvertibilityResult,InnovationsRepresentation,ObservableSearchResult,
+    DSGEVARPrior,DSGEVARLambdaProfile,DSGEVARPosterior}
 
 """Emit a coefficient-bearing result via upstream Tables.jl (`DataFrame(m)`).
 
@@ -4244,7 +4246,8 @@ const _TIDY_LONG_TYPES = Union{ImpulseResponse,BayesianImpulseResponse,FEVD,
     LPImpulseResponse,AbstractForecastResult,
     QuantileFactorModel,QuantileFactorGrid,GrowthAtRiskResult,
     QuantileImpulseResponse,QuantileFAVAR,VBQuantileFAVAR,
-    FHLZModel,CointegratedGDFM,TimeVaryingGDFM,BandPassGDFMResult,SpectralFEVDResult}
+    FHLZModel,CointegratedGDFM,TimeVaryingGDFM,BandPassGDFMResult,SpectralFEVDResult,
+    ShockRecoverabilityResult,DSGEVARIRFAudit}
 
 """Emit an array-valued result via upstream `long_table`.
 

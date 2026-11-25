@@ -215,13 +215,22 @@ function wrap_legacy(handler::Function)
         delete!(kwargs, :save_model)
         delete!(kwargs, :save_result)
 
-        # Reject --save-model when a pre-fitted --model handle was already supplied (#306).
+        # Reject --save-model when a pre-fitted --model handle was already supplied (#306),
+        # except on transform/estimation leaves where --model is an input model and
+        # --save-model writes a newly derived model (e.g. DSGESolution -> ABCDSystem/DSGEVARPosterior).
         if !isempty(save_path) && !has_pos_model && _slot_set(get(kwargs, :model, ""))
             mp_raw = get(kwargs, :model, "")
             is_domain_choice = mp_raw isa AbstractString &&
                 ctx.spec.path == ["test", "multivariate", "granger"] &&
                 String(mp_raw) in ("var", "vecm")
-            if !is_domain_choice
+            is_model_transform = ctx.spec.path in (
+                ["dsge", "abcd", "extract"],
+                ["dsge", "abcd", "innovations"],
+                ["dsge", "abcd", "population-var"],
+                ["dsge", "var", "prior"],
+                ["dsge", "var", "estimate"],
+            )
+            if !is_domain_choice && !is_model_transform
                 throw(CliError("usage/conflicting-options",
                     "$(join(ctx.spec.path, " ")): --save-model cannot be combined with --model (the model is already loaded from a handle)";
                     hint="omit --save-model when supplying --model, or estimate from <data>"))
@@ -275,17 +284,17 @@ function wrap_legacy(handler::Function)
                         resolved_mp = resolve_stem(mp_str; slot=:result)
                         kwargs[:model] = _load_typed_handle(resolved_mp, ctx.spec.model_types,
                             "model/wrong-kind"; slot="model")
-                        get!(kwargs, :data, "")
+                        _has_data_slot(ctx.spec) && get!(kwargs, :data, "")
                     elseif _is_handle_path(mp_str)
                         if !startswith(mp_str, ":") && !_is_session_uri(mp_str)
                             _validate_input_path(mp_str)
                         end
                         kwargs[:model] = load_model_dispatch(mp_str)
-                        get!(kwargs, :data, "")
+                        _has_data_slot(ctx.spec) && get!(kwargs, :data, "")
                     end
                 end
             else
-                get!(kwargs, :data, "")
+                _has_data_slot(ctx.spec) && get!(kwargs, :data, "")
             end
         end
 

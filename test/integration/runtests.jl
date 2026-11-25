@@ -10816,3 +10816,4 @@ include(joinpath(@__DIR__, "test_w1_quantile.jl"))
 # Real entry-point coverage (C036) — also on core/CI path
 include(joinpath(@__DIR__, "test_entry.jl"))
 include(joinpath(@__DIR__, "test_w2_gdfm.jl"))
+include(joinpath(@__DIR__, "test_w4_abcd_dsgevar.jl"))

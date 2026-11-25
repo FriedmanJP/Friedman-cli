@@ -91,6 +91,7 @@ const _PATH_REPLACEMENTS = Dict{Vector{String},Vector{String}}()
 # Human-readable summaries for all depth-2 NodeCommands created in `build_node`.
 const _NODE_DESCRIPTIONS = Dict{Tuple{String,String},String}(
     ("data", "simulate") => "Simulate synthetic datasets from econometric, panel, cross-section, and DSGE/OLG models",
+    ("dsge", "abcd") => "Canonical ABCD state-space extraction, FVRSW invertibility, innovations, recoverability, and DSGE-vs-SVAR IRF audits",
     ("dsge", "bank") => "Intermediary banking DSGE models: steady state, partial equilibrium, transition, and IRFs",
     ("dsge", "bayes") => "Bayesian DSGE estimation, posterior IRFs/FEVD/HD, marginal likelihood, and simulation",
     ("dsge", "ct") => "Continuous-time heterogeneous-agent models (Aiyagari, Poisson income, two-asset HANK)",
@@ -98,6 +99,7 @@ const _NODE_DESCRIPTIONS = Dict{Tuple{String,String},String}(
     ("dsge", "firm") => "Heterogeneous-firm dynamics (Khan-Thomas) steady state and transition paths",
     ("dsge", "lifecycle") => "Overlapping-generations life-cycle household steady state and transition dynamics",
     ("dsge", "olg") => "Blanchard perpetual-youth OLG solve, steady state, IRFs, and simulation",
+    ("dsge", "var") => "Del Negro-Schorfheide Bayesian DSGE-VAR(lambda) prior, marginal likelihood profiling, estimation, and innovation accounting",
     ("estimate", "choice") => "Discrete and limited dependent variable estimators (logit, probit, multinomial, ordered)",
     ("estimate", "factor") => "Static, dynamic, generalized dynamic, and Factor-Augmented VAR (FAVAR) factor models",
     ("estimate", "multivariate") => "Multivariate time-series estimators (VAR, BVAR, VECM, LP, FAVAR, MF-VAR, GVAR, SMM, GMM)",

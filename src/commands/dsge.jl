@@ -1633,6 +1633,7 @@ function dsge_specs()::Vector{CommandSpec}
             category="dsge",
             handler=wrap_legacy(_dsge_bank_irf),
         ),
+        w4_dsge_specs()...,
     ]
 end
 

@@ -15748,4 +15748,852 @@ export identify_cvm, LMSSVARResult, estimate_lms_svar, lms_project_B,
        test_fundamentalness, test_sufficient_information,
        dgp_ssvarma
 
+
+# ── [MEM111-W4] #316 ── Canonical ABCD Invertibility & Bayesian DSGE-VAR(λ) ──
+
+struct ABCDSystem{T<:AbstractFloat}
+    A::Matrix{T}
+    B::Matrix{T}
+    C::Matrix{T}
+    D::Matrix{T}
+    c_state::Vector{T}
+    d_obs::Vector{T}
+    state_names::Vector{String}
+    obs_names::Vector{String}
+    shock_names::Vector{String}
+end
+
+struct InvertibilityResult{T<:AbstractFloat}
+    invertible::Bool
+    status::Symbol
+    max_modulus::T
+    zero_re::Vector{T}
+    zero_im::Vector{T}
+    n_unstable::Int
+    n_infinite_zeros::Int
+    M::Matrix{T}
+    Omega::Matrix{T}
+    var_lag_matrices::Vector{Matrix{T}}
+    n_states::Int
+    n_obs::Int
+    n_shocks::Int
+    rank_D::Int
+    tol::T
+    obs_names::Vector{String}
+    shock_names::Vector{String}
+end
+
+struct InnovationsRepresentation{T<:AbstractFloat}
+    A::Matrix{T}
+    K::Matrix{T}
+    C::Matrix{T}
+    Sigma_u::Matrix{T}
+    Sigma_u_chol::Matrix{T}
+    P::Matrix{T}
+    dare_residual::T
+    invertible::Bool
+    information_loss::Vector{T}
+    state_names::Vector{String}
+    obs_names::Vector{String}
+end
+
+struct ShockRecoverabilityResult{T<:AbstractFloat}
+    r2_matrix::Matrix{T}
+    r2_contemp::Vector{T}
+    shock_names::Vector{String}
+    obs_names::Vector{String}
+    is_invertible::Bool
+    max_lead::Int
+end
+
+struct DSGEVARIRFAudit{T<:AbstractFloat}
+    irf_dsge::Array{T,3}
+    irf_wold_best::Array{T,3}
+    irf_wold_id::Array{T,3}
+    irf_svar::Array{T,3}
+    noninvertibility_wedge::T
+    truncation_wedge::T
+    identification_wedge::T
+    total_rmse::T
+    rmse_by_horizon::Vector{T}
+    noninv_by_horizon::Vector{T}
+    trunc_by_horizon::Vector{T}
+    id_by_horizon::Vector{T}
+    Q_best::Matrix{T}
+    Q_id_inf::Matrix{T}
+    Q_id_p::Matrix{T}
+    p::Int
+    horizon::Int
+    identification::Symbol
+    is_invertible::Bool
+    obs_names::Vector{String}
+    shock_names::Vector{String}
+end
+
+struct ObservableSearchResult{T<:AbstractFloat}
+    observables::Vector{Vector{Symbol}}
+    is_invertible::Vector{Bool}
+    rho::Vector{T}
+    min_R2::Vector{T}
+    mean_R2::Vector{T}
+    cond_D::Vector{T}
+    status::Vector{Symbol}
+    k::Int
+    n_evaluated::Int
+    total_combinations::Int
+    used_greedy::Bool
+    target_shocks::Vector{Int}
+    shock_names::Vector{String}
+end
+
+struct DSGEVARPrior{T<:AbstractFloat}
+    Gamma_yy::Matrix{T}
+    Gamma_xy::Matrix{T}
+    Gamma_xx::Matrix{T}
+    Phi_star::Matrix{T}
+    Sigma_u_star::Matrix{T}
+    Omega_star::Matrix{T}
+    lambda::T
+    lambda_min::T
+    T_obs::Int
+    p::Int
+    obs_names::Vector{String}
+    shock_names::Vector{String}
+end
+
+struct DSGEVARLambdaProfile{T<:AbstractFloat}
+    lambdas::Vector{T}
+    log_marginal_likelihoods::Vector{T}
+    lambda_hat::T
+    logml_hat::T
+    logml_inf::T
+    lambda_min::T
+    p::Int
+    T_obs::Int
+    obs_names::Vector{String}
+end
+
+struct DSGEVARPosterior{T<:AbstractFloat}
+    B_draws::Array{T,3}
+    Sigma_draws::Array{T,3}
+    B0_draws::Array{T,3}
+    lambda::T
+    log_marginal_likelihood::T
+    n_draws::Int
+    p::Int
+    n::Int
+    data::Matrix{T}
+    method::Symbol
+    varnames::Vector{String}
+    shock_names::Vector{String}
+    theta_draws::Union{Nothing,Matrix{T}}
+    param_names::Vector{Symbol}
+    log_posterior::Union{Nothing,Vector{T}}
+    acceptance_rate::T
+    dsge_prior::DSGEVARPrior{T}
+    manifest::Union{ReproManifest,Nothing}
+end
+
+import LinearAlgebra as _W4LA
+
+nstates(sys::ABCDSystem) = size(sys.A, 1)
+nobservables(sys::ABCDSystem) = size(sys.C, 1)
+nshocks(sys::ABCDSystem) = size(sys.B, 2)
+nvars(sys::ABCDSystem) = nobservables(sys)
+is_square(sys::ABCDSystem) = size(sys.C, 1) == size(sys.B, 2)
+is_stable(sys::ABCDSystem) = size(sys.A, 1) == 0 || maximum(abs.(_W4LA.eigvals(sys.A))) < 1.0
+
+is_invertible(r::InvertibilityResult) = r.invertible
+is_invertible(r::ShockRecoverabilityResult) = r.is_invertible
+is_invertible(a::DSGEVARIRFAudit) = a.is_invertible
+is_invertible(r::ObservableSearchResult) = any(r.is_invertible)
+is_invertible(sys::ABCDSystem; tol::Real=1e-8) = poor_mans_invertibility(sys; tol=tol, max_var_lags=0).invertible
+is_invertible(sol::Union{DSGESolution,PerturbationSolution,HADSGESolution}, observables::AbstractVector=Symbol[];
+              tol::Real=1e-8, measurement_error=nothing, reduction::Symbol=:predetermined,
+              abcd_tol::Real=1e-10) =
+    poor_mans_invertibility(sol, observables; measurement_error=measurement_error,
+                            reduction=reduction, abcd_tol=abcd_tol, tol=tol, max_var_lags=0).invertible
+is_invertible(ss::StateSpaceModel, observables::AbstractVector=Symbol[];
+              tol::Real=1e-8, reduction::Symbol=:none, abcd_tol::Real=1e-10) =
+    poor_mans_invertibility(ss, observables; reduction=reduction, abcd_tol=abcd_tol,
+                            tol=tol, max_var_lags=0).invertible
+
+function _w4_mock_select_obs(all_names::Vector{String}, observables)
+    if observables === nothing || isempty(observables)
+        return collect(1:length(all_names)), copy(all_names)
+    end
+    obs_vec = observables isa AbstractVector ? observables : [observables]
+    idx = Int[]
+    out = String[]
+    for o in obs_vec
+        if o isa Integer
+            1 <= o <= length(all_names) || throw(BoundsError(1:length(all_names), o))
+            push!(idx, Int(o))
+            push!(out, all_names[Int(o)])
+        else
+            s = string(o)
+            pos = findfirst(==(s), all_names)
+            pos === nothing && throw(ArgumentError("Observable :$s not found in $all_names"))
+            push!(idx, pos)
+            push!(out, s)
+        end
+    end
+    return idx, out
+end
+
+function _w4_mock_abcd(sol::Union{DSGESolution,PerturbationSolution};
+                       observables=nothing, measurement_error=nothing,
+                       reduction::Symbol=:predetermined, tol::Real=1e-10)
+    reduction in (:predetermined, :minimal, :none) ||
+        throw(ArgumentError("reduction must be :predetermined, :minimal, or :none; got :$reduction"))
+    all_v = copy(sol.spec.varnames)
+    obs_idx, obs_names = _w4_mock_select_obs(all_v, observables)
+    n = max(length(all_v), 1)
+    k = length(obs_names)
+    m = max(sol.spec.n_exog, 1)
+    A = Matrix{Float64}(I, n, n) * 0.5
+    B = zeros(Float64, n, m)
+    for j in 1:min(n, m); B[j, j] = 0.25; end
+    C = zeros(Float64, k, n)
+    for (i, oi) in enumerate(obs_idx); C[i, oi] = 0.5; end
+    D = zeros(Float64, k, m)
+    for i in 1:min(k, m); D[i, i] = 1.0; end
+    snames = isempty(sol.spec.exog) ? ["w_$j" for j in 1:m] : [string(s) for s in sol.spec.exog]
+    if measurement_error !== nothing
+        me = Float64.(measurement_error)
+        length(me) == k || throw(ArgumentError("measurement_error length must match observables ($k)"))
+        B = hcat(B, zeros(Float64, n, k))
+        D = hcat(D, Matrix{Float64}(Diagonal(me)))
+        snames = vcat(snames, ["me_" * nm for nm in obs_names])
+    end
+    return ABCDSystem{Float64}(A, B, C, D, zeros(n), zeros(k), all_v, obs_names, snames)
+end
+
+function _w4_mock_abcd(sol::HADSGESolution; observables=nothing, measurement_error=nothing,
+                       reduction::Symbol=:predetermined, tol::Real=1e-10)
+    n = 2
+    all_v = ["Y", "C"]
+    obs_idx, obs_names = _w4_mock_select_obs(all_v, observables)
+    k = length(obs_names)
+    m = 1
+    A = Matrix{Float64}(I, n, n) * 0.6
+    B = fill(0.2, n, m)
+    C = zeros(Float64, k, n)
+    for (i, oi) in enumerate(obs_idx); C[i, oi] = 0.5; end
+    D = ones(Float64, k, m)
+    snames = ["e_z"]
+    if measurement_error !== nothing
+        me = Float64.(measurement_error)
+        length(me) == k || throw(ArgumentError("measurement_error length must match observables ($k)"))
+        B = hcat(B, zeros(Float64, n, k))
+        D = hcat(D, Matrix{Float64}(Diagonal(me)))
+        snames = vcat(snames, ["me_" * nm for nm in obs_names])
+    end
+    return ABCDSystem{Float64}(A, B, C, D, zeros(n), zeros(k), ["x_1", "x_2"], obs_names, snames)
+end
+
+function _w4_mock_abcd(ss::StateSpaceModel; observables=nothing,
+                       reduction::Symbol=:none, tol::Real=1e-10)
+    all_v = ["obs_$i" for i in 1:ss.n_obs]
+    obs_idx, obs_names = _w4_mock_select_obs(all_v, observables)
+    n = ss.n_state
+    k = length(obs_names)
+    m = max(k, 1)
+    A = Matrix{Float64}(ss.Tt)
+    B = zeros(Float64, n, m)
+    for j in 1:min(n, m); B[j, j] = 0.2; end
+    C = Matrix{Float64}(ss.Z[obs_idx, :])
+    D = Matrix{Float64}(I, k, m)
+    return ABCDSystem{Float64}(A, B, C, D, copy(ss.c), Vector{Float64}(ss.d[obs_idx]),
+                               ["x_$i" for i in 1:n], obs_names, ["w_$j" for j in 1:m])
+end
+
+function _w4_mock_abcd(sys::ABCDSystem; observables=nothing, measurement_error=nothing,
+                       reduction::Symbol=:predetermined, tol::Real=1e-10)
+    obs_idx, obs_names = _w4_mock_select_obs(sys.obs_names, observables)
+    return ABCDSystem{Float64}(copy(sys.A), copy(sys.B),
+                               Matrix{Float64}(sys.C[obs_idx, :]),
+                               Matrix{Float64}(sys.D[obs_idx, :]),
+                               copy(sys.c_state), Vector{Float64}(sys.d_obs[obs_idx]),
+                               copy(sys.state_names), obs_names, copy(sys.shock_names))
+end
+
+function _w4_mock_abcd(spec::ModelSpec; observables=nothing, measurement_error=nothing,
+                       reduction::Symbol=:predetermined, tol::Real=1e-10)
+    sol = solve(compute_steady_state(spec); method=:gensys)
+    return _w4_mock_abcd(sol; observables=observables, measurement_error=measurement_error,
+                         reduction=reduction, tol=tol)
+end
+
+function abcd_representation(sol::Union{DSGESolution,PerturbationSolution,HADSGESolution},
+                             observables::AbstractVector=Symbol[];
+                             measurement_error=nothing, reduction::Symbol=:predetermined,
+                             tol::Real=1e-10)
+    return _w4_mock_abcd(sol; observables=observables, measurement_error=measurement_error,
+                         reduction=reduction, tol=tol)
+end
+
+function abcd_representation(ss::StateSpaceModel, observables::AbstractVector=Symbol[];
+                             reduction::Symbol=:none, tol::Real=1e-10)
+    return _w4_mock_abcd(ss; observables=observables, reduction=reduction, tol=tol)
+end
+
+function poor_mans_invertibility(sys::ABCDSystem{T}; tol::Real=1e-8, max_var_lags::Int=50) where {T}
+    n, k, m = nstates(sys), nobservables(sys), nshocks(sys)
+    if k < m
+        return InvertibilityResult{Float64}(false, :non_invertible_underdetermined, NaN,
+            Float64[], Float64[], 0, 0, zeros(n, n), zeros(m, k), Matrix{Float64}[],
+            n, k, m, min(k, m), Float64(tol), copy(sys.obs_names), copy(sys.shock_names))
+    end
+    M = n == 0 ? zeros(0, 0) : sys.A * 0.5
+    eigs = n == 0 ? ComplexF64[] : ComplexF64.(_W4LA.eigvals(M))
+    rho = isempty(eigs) ? 0.0 : maximum(abs, eigs)
+    inv_flag = rho < 1.0 - Float64(tol)
+    st = k > m ? (inv_flag ? :invertible_tall : :non_invertible_tall_zeros) :
+                 (inv_flag ? :invertible : :non_invertible_zeros)
+    Omega = Matrix{Float64}(I, m, k)
+    vlm = (inv_flag && k == m && max_var_lags > 0) ? [zeros(k, k) for _ in 1:min(max_var_lags, 5)] : Matrix{Float64}[]
+    return InvertibilityResult{Float64}(inv_flag, st, rho, real.(eigs), imag.(eigs),
+        count(z -> abs(z) > 1.0 + tol, eigs), 0, M, Omega, vlm,
+        n, k, m, min(k, m), Float64(tol), copy(sys.obs_names), copy(sys.shock_names))
+end
+
+function poor_mans_invertibility(sol::Union{DSGESolution,PerturbationSolution,HADSGESolution},
+                                 observables::AbstractVector=Symbol[];
+                                 measurement_error=nothing, reduction::Symbol=:predetermined,
+                                 abcd_tol::Real=1e-10, tol::Real=1e-8, max_var_lags::Int=50)
+    sys = abcd_representation(sol, observables; measurement_error=measurement_error,
+                              reduction=reduction, tol=abcd_tol)
+    return poor_mans_invertibility(sys; tol=tol, max_var_lags=max_var_lags)
+end
+
+function poor_mans_invertibility(ss::StateSpaceModel, observables::AbstractVector=Symbol[];
+                                 reduction::Symbol=:none, abcd_tol::Real=1e-10,
+                                 tol::Real=1e-8, max_var_lags::Int=50)
+    sys = abcd_representation(ss, observables; reduction=reduction, tol=abcd_tol)
+    return poor_mans_invertibility(sys; tol=tol, max_var_lags=max_var_lags)
+end
+
+function innovations_representation(sys::ABCDSystem{T}; rcond_tol::Real=1e-12) where {T}
+    n, k = nstates(sys), nobservables(sys)
+    K = zeros(Float64, n, k)
+    for i in 1:min(n, k); K[i, i] = 0.25; end
+    Su = Matrix{Float64}(I, k, k)
+    P = zeros(Float64, n, n)
+    inv_flag = is_invertible(sys)
+    return InnovationsRepresentation{Float64}(copy(sys.A), K, copy(sys.C), Su, copy(Su), P,
+        1e-14, inv_flag, zeros(k), copy(sys.state_names), copy(sys.obs_names))
+end
+
+function innovations_representation(sol::Union{DSGESolution,PerturbationSolution,HADSGESolution},
+                                    observables::AbstractVector=Symbol[];
+                                    measurement_error=nothing, reduction::Symbol=:predetermined,
+                                    abcd_tol::Real=1e-10, rcond_tol::Real=1e-12)
+    sys = abcd_representation(sol, observables; measurement_error=measurement_error,
+                              reduction=reduction, tol=abcd_tol)
+    return innovations_representation(sys; rcond_tol=rcond_tol)
+end
+
+function innovations_representation(ss::StateSpaceModel, observables::AbstractVector=Symbol[];
+                                    reduction::Symbol=:none, abcd_tol::Real=1e-10,
+                                    rcond_tol::Real=1e-12)
+    sys = abcd_representation(ss, observables; reduction=reduction, tol=abcd_tol)
+    return innovations_representation(sys; rcond_tol=rcond_tol)
+end
+
+function to_abcd(innov::InnovationsRepresentation{T}) where {T}
+    n, k = size(innov.A, 1), size(innov.C, 1)
+    return ABCDSystem{Float64}(copy(innov.A), innov.K * innov.Sigma_u_chol, copy(innov.C),
+        copy(innov.Sigma_u_chol), zeros(n), zeros(k), copy(innov.state_names),
+        copy(innov.obs_names), ["u_$j" for j in 1:k])
+end
+
+function shock_recoverability(sys::ABCDSystem{T}; max_lead::Int=12, observables=nothing,
+                              rcond_tol::Real=1e-12) where {T}
+    sub = _w4_mock_abcd(sys; observables=observables)
+    m = nshocks(sub)
+    inv_flag = is_invertible(sub)
+    r2_mat = ones(Float64, max_lead + 1, m)
+    if !inv_flag
+        for l in 0:max_lead, j in 1:m
+            r2_mat[l + 1, j] = min(1.0, 0.5 + 0.04 * l)
+        end
+    end
+    return ShockRecoverabilityResult{Float64}(r2_mat, vec(r2_mat[1, :]),
+        copy(sub.shock_names), copy(sub.obs_names), inv_flag, max_lead)
+end
+
+function shock_recoverability(sol::Union{DSGESolution,PerturbationSolution,HADSGESolution};
+                              max_lead::Int=12, observables=nothing, measurement_error=nothing,
+                              reduction::Symbol=:minimal, abcd_tol::Real=1e-10, rcond_tol::Real=1e-12)
+    sys = _w4_mock_abcd(sol; observables=observables, measurement_error=measurement_error,
+                        reduction=reduction, tol=abcd_tol)
+    return shock_recoverability(sys; max_lead=max_lead, rcond_tol=rcond_tol)
+end
+
+function shock_recoverability(ss::StateSpaceModel; max_lead::Int=12, observables=nothing,
+                              reduction::Symbol=:none, abcd_tol::Real=1e-10, rcond_tol::Real=1e-12)
+    sys = _w4_mock_abcd(ss; observables=observables, reduction=reduction, tol=abcd_tol)
+    return shock_recoverability(sys; max_lead=max_lead, rcond_tol=rcond_tol)
+end
+
+function population_var(sys::ABCDSystem{T}, p::Int; observables=nothing,
+                        n_obs_effective::Int=1000, unit_root_damping::Real=1e-5) where {T}
+    sub = _w4_mock_abcd(sys; observables=observables)
+    k = nobservables(sub)
+    Y = zeros(Float64, n_obs_effective + p, k)
+    for t in 1:size(Y, 1), j in 1:k
+        Y[t, j] = sin(t / (3.0 + j))
+    end
+    return _mock_var(Y, p; varnames=copy(sub.obs_names))
+end
+
+function population_var(sol::Union{DSGESolution,PerturbationSolution,HADSGESolution}, p::Int;
+                        observables=nothing, measurement_error=nothing,
+                        reduction::Symbol=:minimal, abcd_tol::Real=1e-10,
+                        n_obs_effective::Int=1000, unit_root_damping::Real=1e-5)
+    sys = _w4_mock_abcd(sol; observables=observables, measurement_error=measurement_error,
+                        reduction=reduction, tol=abcd_tol)
+    return population_var(sys, p; n_obs_effective=n_obs_effective, unit_root_damping=unit_root_damping)
+end
+
+function population_var(ss::StateSpaceModel, p::Int; observables=nothing,
+                        reduction::Symbol=:none, abcd_tol::Real=1e-10,
+                        n_obs_effective::Int=1000, unit_root_damping::Real=1e-5)
+    sys = _w4_mock_abcd(ss; observables=observables, reduction=reduction, tol=abcd_tol)
+    return population_var(sys, p; n_obs_effective=n_obs_effective, unit_root_damping=unit_root_damping)
+end
+
+function compare_dsge_svar_irf(sys::ABCDSystem{T}, p::Int=4, horizon::Int=20;
+                               identification::Symbol=:best_rotation, observables=nothing,
+                               n_obs_effective::Int=1000, unit_root_damping::Real=1e-5,
+                               rcond_tol::Real=1e-12, check_func=nothing, max_draws::Int=1000,
+                               rng::AbstractRNG=Random.default_rng(),
+                               seed::Union{Integer,Nothing}=nothing) where {T}
+    sub = _w4_mock_abcd(sys; observables=observables)
+    k, m = nobservables(sub), nshocks(sub)
+    if identification === :sign && check_func === nothing
+        throw(ArgumentError("identification=:sign requires check_func"))
+    end
+    ir_d = ones(Float64, horizon, k, m) * 0.5
+    ir_wb = ir_d .+ 0.01
+    ir_wi = ir_wb .+ 0.01
+    ir_sv = ir_wi .+ 0.02
+    Q = Matrix{Float64}(I, k, m)
+    return DSGEVARIRFAudit{Float64}(ir_d, ir_wb, ir_wi, ir_sv,
+        0.01, 0.02, 0.01, 0.04,
+        fill(0.04, horizon), fill(0.01, horizon), fill(0.02, horizon), fill(0.01, horizon),
+        Q, copy(Q), copy(Q), p, horizon, identification, is_invertible(sub),
+        copy(sub.obs_names), copy(sub.shock_names))
+end
+
+function compare_dsge_svar_irf(sol::Union{DSGESolution,PerturbationSolution,HADSGESolution},
+                               p::Int=4, horizon::Int=20;
+                               identification::Symbol=:best_rotation, observables=nothing,
+                               measurement_error=nothing, reduction::Symbol=:minimal,
+                               abcd_tol::Real=1e-10, n_obs_effective::Int=1000,
+                               unit_root_damping::Real=1e-5, rcond_tol::Real=1e-12,
+                               check_func=nothing, max_draws::Int=1000,
+                               rng::AbstractRNG=Random.default_rng(),
+                               seed::Union{Integer,Nothing}=nothing)
+    sys = _w4_mock_abcd(sol; observables=observables, measurement_error=measurement_error,
+                        reduction=reduction, tol=abcd_tol)
+    return compare_dsge_svar_irf(sys, p, horizon; identification=identification,
+        n_obs_effective=n_obs_effective, unit_root_damping=unit_root_damping,
+        rcond_tol=rcond_tol, check_func=check_func, max_draws=max_draws, rng=rng, seed=seed)
+end
+
+function compare_dsge_svar_irf(ss::StateSpaceModel, p::Int=4, horizon::Int=20;
+                               identification::Symbol=:best_rotation, observables=nothing,
+                               reduction::Symbol=:none, abcd_tol::Real=1e-10,
+                               n_obs_effective::Int=1000, unit_root_damping::Real=1e-5,
+                               rcond_tol::Real=1e-12, check_func=nothing, max_draws::Int=1000,
+                               rng::AbstractRNG=Random.default_rng(),
+                               seed::Union{Integer,Nothing}=nothing)
+    sys = _w4_mock_abcd(ss; observables=observables, reduction=reduction, tol=abcd_tol)
+    return compare_dsge_svar_irf(sys, p, horizon; identification=identification,
+        n_obs_effective=n_obs_effective, unit_root_damping=unit_root_damping,
+        rcond_tol=rcond_tol, check_func=check_func, max_draws=max_draws, rng=rng, seed=seed)
+end
+
+function search_invertible_observables(
+    sol::Union{ABCDSystem,DSGESolution,PerturbationSolution,HADSGESolution,StateSpaceModel},
+    k::Int=0;
+    candidates=nothing, must_include::AbstractVector=Symbol[],
+    target_shocks=nothing, max_combinations::Int=2000,
+    measurement_error=nothing, reduction::Symbol=:minimal,
+    abcd_tol::Real=1e-10, tol::Real=1e-8, rcond_tol::Real=1e-12)
+    sys = _w4_mock_abcd(sol; measurement_error=measurement_error, reduction=reduction, tol=abcd_tol)
+    cands = candidates === nothing ? Symbol.(sys.obs_names) : unique(Symbol.(collect(candidates)))
+    k_eff = k <= 0 ? min(nshocks(sys), length(cands)) : k
+    k_eff = max(1, min(k_eff, length(cands)))
+    must_s = unique(Symbol.(collect(must_include)))
+    rem_s = Symbol[s for s in cands if !(s in must_s)]
+    sub = vcat(must_s, rem_s[1:max(0, min(length(rem_s), k_eff - length(must_s)))])
+    m = nshocks(sys)
+    t_idx = target_shocks === nothing ? collect(1:m) :
+            (all(x -> x isa Integer, target_shocks) ? Int.(collect(target_shocks)) : [1])
+    t_names = [sys.shock_names[min(i, length(sys.shock_names))] for i in t_idx]
+    return ObservableSearchResult{Float64}(
+        Vector{Symbol}[sub], [true], [0.25], [1.0], [1.0], [1.0], [:invertible],
+        k_eff, 1, 1, false, t_idx, t_names)
+end
+
+function dsge_var_prior(
+    sys_or_sol::Union{ABCDSystem,DSGESolution,PerturbationSolution,HADSGESolution,StateSpaceModel,ModelSpec},
+    p::Int, lambda::Real, T_obs::Int;
+    observables=nothing, include_intercept::Bool=true, measurement_jitter::Real=1e-8)
+    sys = _w4_mock_abcd(sys_or_sol; observables=observables)
+    n = nobservables(sys)
+    m = nshocks(sys)
+    k = include_intercept ? 1 + n * p : n * p
+    lmin = (n + k + 1) / T_obs
+    if !isinf(lambda) && Float64(lambda) < lmin
+        throw(ArgumentError("lambda=$lambda < lambda_min=$lmin"))
+    end
+    return DSGEVARPrior{Float64}(
+        Matrix{Float64}(I, n, n), zeros(Float64, k, n), Matrix{Float64}(I, k, k),
+        fill(0.1, k, n), Matrix{Float64}(I, n, n) * 0.5, Matrix{Float64}(I, n, max(n, m))[:, 1:m],
+        Float64(lambda), Float64(lmin), T_obs, p, copy(sys.obs_names), copy(sys.shock_names))
+end
+
+function dsge_var_logml(prior::DSGEVARPrior, Y::AbstractMatrix)
+    return isinf(prior.lambda) ? -120.5 : -100.0 - 2.0 * abs(Float64(prior.lambda) - 1.0)
+end
+
+function dsge_var_logml(
+    sys_or_sol::Union{ABCDSystem,DSGESolution,PerturbationSolution,HADSGESolution,StateSpaceModel,ModelSpec},
+    Y::AbstractMatrix, p::Int, lambda::Real;
+    observables=nothing, include_intercept::Bool=true, measurement_jitter::Real=1e-8)
+    T_eff = size(Y, 1) - p
+    pr = dsge_var_prior(sys_or_sol, p, lambda, T_eff;
+                        observables=observables, include_intercept=include_intercept,
+                        measurement_jitter=measurement_jitter)
+    return dsge_var_logml(pr, Y)
+end
+
+function select_dsge_var_lambda(
+    sol_or_sys::Union{ABCDSystem,DSGESolution,PerturbationSolution,HADSGESolution,StateSpaceModel,ModelSpec},
+    Y::AbstractMatrix, p::Int;
+    lambda_grid=nothing, observables=nothing, refine::Bool=true,
+    include_intercept::Bool=true, measurement_jitter::Real=1e-8)
+    T_eff = size(Y, 1) - p
+    T_eff >= 1 || throw(ArgumentError("Not enough observations for p=$p lags"))
+    pr_inf = dsge_var_prior(sol_or_sys, p, Inf, T_eff;
+                            observables=observables, include_intercept=include_intercept,
+                            measurement_jitter=measurement_jitter)
+    lmin = pr_inf.lambda_min
+    lams = lambda_grid === nothing ? Float64[max(lmin * 1.1, 0.5), 1.0, 2.0, 5.0] :
+                                     sort!(unique!(Float64[Float64(v) for v in lambda_grid if isfinite(v) && v >= lmin]))
+    lmls = Float64[-100.0 - 2.0 * abs(l - 1.0) for l in lams]
+    if isempty(lams)
+        return DSGEVARLambdaProfile{Float64}(Float64[], Float64[], Inf, -120.5, -120.5,
+                                             lmin, p, T_eff, copy(pr_inf.obs_names))
+    end
+    idx = argmax(lmls)
+    return DSGEVARLambdaProfile{Float64}(lams, lmls, lams[idx], lmls[idx], -120.5,
+                                         lmin, p, T_eff, copy(pr_inf.obs_names))
+end
+
+function estimate_dsge_var(
+    sol_or_sys::Union{ABCDSystem,DSGESolution,PerturbationSolution,HADSGESolution,StateSpaceModel},
+    Y::AbstractMatrix, p::Int;
+    lambda::Union{Symbol,Real}=:auto, observables=nothing,
+    include_intercept::Bool=true, measurement_jitter::Real=1e-8,
+    n_draws::Int=1000, rng::AbstractRNG=Random.default_rng(),
+    seed::Union{Integer,Nothing}=nothing)
+    T_eff = size(Y, 1) - p
+    T_eff >= 2 || throw(ArgumentError("Not enough observations for p=$p lags"))
+    lam_val = lambda === :auto ? select_dsge_var_lambda(sol_or_sys, Y, p; observables=observables,
+                                                        include_intercept=include_intercept,
+                                                        measurement_jitter=measurement_jitter).lambda_hat :
+                                 Float64(lambda)
+    pr = dsge_var_prior(sol_or_sys, p, lam_val, T_eff;
+                        observables=observables, include_intercept=include_intercept,
+                        measurement_jitter=measurement_jitter)
+    n = length(pr.obs_names)
+    m = length(pr.shock_names)
+    k = size(pr.Gamma_xx, 1)
+    B_draws = fill(0.1, n_draws, k, n)
+    S_draws = zeros(Float64, n_draws, n, n)
+    B0_draws = zeros(Float64, n_draws, n, m)
+    for s in 1:n_draws
+        for i in 1:n; S_draws[s, i, i] = 0.5; end
+        for i in 1:min(n, m); B0_draws[s, i, i] = 0.7; end
+    end
+    meth = isinf(lam_val) ? :dogmatic : :direct
+    man = capture_manifest(; seed=seed, settings=Dict{String,Any}("mode" => "fixed", "lambda" => lam_val, "n_draws" => n_draws, "p" => p))
+    return DSGEVARPosterior{Float64}(B_draws, S_draws, B0_draws, lam_val, -100.0,
+        n_draws, p, n, Matrix{Float64}(Y), meth, copy(pr.obs_names), copy(pr.shock_names),
+        nothing, Symbol[], nothing, 1.0, pr, man)
+end
+
+function estimate_dsge_var(
+    spec::ModelSpec, Y::AbstractMatrix, p::Int;
+    priors, lambda::Union{Symbol,Real}=1.0, method::Symbol=:rwmh,
+    observables=nothing, include_intercept::Bool=true, measurement_jitter::Real=1e-8,
+    n_draws::Int=400, burnin::Int=150, n_particles::Int=150, step_scale::Real=0.05,
+    solver::Symbol=:gensys, solver_kwargs::NamedTuple=NamedTuple(),
+    rng::AbstractRNG=Random.default_rng(), seed::Union{Integer,Nothing}=nothing)
+    method in (:rwmh, :smc) || throw(ArgumentError("method must be :rwmh or :smc; got :$method"))
+    pnames = sort!(Symbol[Symbol(k) for k in keys(priors)])
+    d = length(pnames)
+    T_eff = size(Y, 1) - p
+    lam_val = lambda === :auto ? 1.0 : Float64(lambda)
+    pr = dsge_var_prior(spec, p, lam_val, T_eff;
+                        observables=observables, include_intercept=include_intercept,
+                        measurement_jitter=measurement_jitter)
+    n = length(pr.obs_names)
+    m = length(pr.shock_names)
+    k = size(pr.Gamma_xx, 1)
+    B_draws = fill(0.1, n_draws, k, n)
+    S_draws = zeros(Float64, n_draws, n, n)
+    B0_draws = zeros(Float64, n_draws, n, m)
+    for s in 1:n_draws
+        for i in 1:n; S_draws[s, i, i] = 0.5; end
+        for i in 1:min(n, m); B0_draws[s, i, i] = 0.7; end
+    end
+    td = fill(0.5, n_draws, d)
+    lp = fill(-50.0, n_draws)
+    man = capture_manifest(; seed=seed, settings=Dict{String,Any}("mode" => "joint", "method" => String(method), "lambda" => lam_val, "n_draws" => n_draws, "p" => p))
+    return DSGEVARPosterior{Float64}(B_draws, S_draws, B0_draws, lam_val, -105.0,
+        n_draws, p, n, Matrix{Float64}(Y), method, copy(pr.obs_names), copy(pr.shock_names),
+        td, pnames, lp, 0.35, pr, man)
+end
+
+point_estimate(post::DSGEVARPosterior) = dropdims(mean(post.B_draws; dims=1); dims=1)
+uncertainty_bounds(post::DSGEVARPosterior) = isinf(post.lambda) ? nothing : (point_estimate(post) .- 0.1, point_estimate(post) .+ 0.1)
+posterior_mean_model(post::DSGEVARPosterior; data=nothing) =
+    _mock_var(data === nothing || isempty(data) ? post.data : data, post.p; varnames=post.varnames)
+posterior_median_model(post::DSGEVARPosterior; data=nothing) =
+    _mock_var(data === nothing || isempty(data) ? post.data : data, post.p; varnames=post.varnames)
+
+function irf(post::DSGEVARPosterior, horizon::Int;
+             method::Symbol=:dsge_qr, quantiles::Vector{<:Real}=[0.16, 0.5, 0.84],
+             point_estimate::Symbol=:mean, shock_names::Union{Nothing,Vector{String}}=nothing,
+             threaded::Bool=false, normalize::Union{Nothing,Symbol}=nothing,
+             shock_size::Union{Nothing,Pair}=nothing)
+    n = post.n
+    m = method === :dsge_qr ? size(post.B0_draws, 3) : n
+    snames = shock_names !== nothing ? shock_names : (method === :dsge_qr ? copy(post.shock_names) : copy(post.varnames))
+    nq = length(quantiles)
+    pe = fill(0.1, horizon, n, m)
+    q = fill(0.1, horizon, n, m, nq)
+    return BayesianImpulseResponse{Float64}(q, pe, horizon, copy(post.varnames), snames,
+        Float64.(quantiles), zeros(Float64, post.n_draws, horizon, n, m), post.n_draws, post.n_draws, 0)
+end
+
+function fevd(post::DSGEVARPosterior, horizon::Int;
+              method::Symbol=:dsge_qr, quantiles::Vector{<:Real}=[0.16, 0.5, 0.84],
+              point_estimate::Symbol=:mean, shock_names::Union{Nothing,Vector{String}}=nothing,
+              threaded::Bool=false)
+    n = post.n
+    m = method === :dsge_qr ? size(post.B0_draws, 3) : n
+    snames = shock_names !== nothing ? shock_names : (method === :dsge_qr ? copy(post.shock_names) : copy(post.varnames))
+    nq = length(quantiles)
+    pe = fill(1.0 / m, n, m, horizon)
+    q = fill(1.0 / m, n, m, horizon, nq)
+    return BayesianFEVD{Float64}(q, pe, horizon, copy(post.varnames), snames,
+        Float64.(quantiles), post.n_draws, post.n_draws, 0)
+end
+
+function historical_decomposition(post::DSGEVARPosterior, horizon::Int=0;
+                                  method::Symbol=(size(post.B0_draws, 3) == post.n ? :dsge_qr : :cholesky),
+                                  data::AbstractMatrix=Matrix{Float64}(undef, 0, 0),
+                                  quantiles::Vector{<:Real}=[0.16, 0.5, 0.84],
+                                  point_estimate::Symbol=:mean,
+                                  shock_names::Union{Nothing,Vector{String}}=nothing,
+                                  seed::Union{Integer,Nothing}=nothing)
+    n = post.n
+    use_data = isempty(data) ? post.data : Matrix{Float64}(data)
+    T_eff = max(size(use_data, 1) - post.p, 1)
+    snames = shock_names !== nothing ? shock_names : copy(post.varnames)
+    nq = length(quantiles)
+    pe = fill(0.05, T_eff, n, n)
+    q = fill(0.05, T_eff, n, n, nq)
+    iq = fill(0.01, T_eff, n, nq)
+    im = fill(0.01, T_eff, n)
+    sm = fill(0.02, T_eff, n)
+    act = size(use_data, 1) > post.p ? Matrix{Float64}(use_data[(post.p + 1):end, :]) : zeros(T_eff, n)
+    return BayesianHistoricalDecomposition{Float64}(q, pe, iq, im, sm, act, T_eff,
+        copy(post.varnames), snames, Float64.(quantiles), method, post.n_draws, post.n_draws, 0)
+end
+
+function forecast(post::DSGEVARPosterior, h::Int;
+                  reps::Union{Nothing,Int}=nothing, conf_level::Real=0.95,
+                  point_estimate::Symbol=:mean, store_draws::Bool=false,
+                  rng::AbstractRNG=Random.default_rng(),
+                  seed::Union{Integer,Nothing}=nothing)
+    n = post.n
+    fc = fill(0.2, h, n)
+    return BVARForecast{Float64}(fc, fc .- 0.1, fc .+ 0.1, h, Float64(conf_level),
+        point_estimate, copy(post.varnames), nothing)
+end
+
+function reproduce(post::DSGEVARPosterior)
+    m = post.manifest
+    if m === nothing || m.seed === nothing
+        return ReproReport(missing, ReproFieldDiff[], nothing, 1, 1,
+                           "no recorded seed: estimate with seed=N")
+    end
+    if post.theta_draws !== nothing
+        return ReproReport(missing, ReproFieldDiff[], m.seed, m.n_threads, Threads.nthreads(),
+                           "reproducing a joint DSGEVARPosterior needs its source model")
+    end
+    diffs = [
+        ReproFieldDiff("B_draws", true, 0.0),
+        ReproFieldDiff("Sigma_draws", true, 0.0),
+        ReproFieldDiff("B0_draws", true, 0.0),
+    ]
+    return ReproReport(true, diffs, m.seed, m.n_threads, Threads.nthreads(), "")
+end
+
+report(::ABCDSystem) = nothing
+report(::InvertibilityResult) = nothing
+report(::InnovationsRepresentation) = nothing
+report(::ShockRecoverabilityResult) = nothing
+report(::DSGEVARIRFAudit) = nothing
+report(::ObservableSearchResult) = nothing
+report(::DSGEVARPrior) = nothing
+report(::DSGEVARLambdaProfile) = nothing
+report(::DSGEVARPosterior) = nothing
+
+function DataFrames.DataFrame(sys::ABCDSystem)
+    eigs = size(sys.A, 1) > 0 ? ComplexF64.(_W4LA.eigvals(sys.A)) : ComplexF64[]
+    n = length(eigs)
+    n == 0 && return DataFrames.DataFrame(eigen_index=[0], re=[NaN], im=[NaN], modulus=[NaN],
+        n_states=[size(sys.A, 1)], n_obs=[size(sys.C, 1)], n_shocks=[size(sys.B, 2)])
+    return DataFrames.DataFrame(eigen_index=collect(1:n), re=real.(eigs), im=imag.(eigs),
+        modulus=abs.(eigs), n_states=fill(size(sys.A, 1), n),
+        n_obs=fill(size(sys.C, 1), n), n_shocks=fill(size(sys.B, 2), n))
+end
+
+function DataFrames.DataFrame(r::InvertibilityResult)
+    n = length(r.zero_re)
+    n == 0 && return DataFrames.DataFrame(zero_index=[0], re=[NaN], im=[NaN], modulus=[NaN],
+        invertible=[r.invertible], status=[string(r.status)], max_modulus=[Float64(r.max_modulus)])
+    return DataFrames.DataFrame(zero_index=collect(1:n), re=Float64.(r.zero_re), im=Float64.(r.zero_im),
+        modulus=hypot.(Float64.(r.zero_re), Float64.(r.zero_im)),
+        invertible=fill(r.invertible, n), status=fill(string(r.status), n),
+        max_modulus=fill(Float64(r.max_modulus), n))
+end
+
+function DataFrames.DataFrame(innov::InnovationsRepresentation)
+    n_s, k = size(innov.K)
+    n_s == 0 && return DataFrames.DataFrame(state=["none"], obs=["none"], K_gain=[0.0],
+        invertible=[innov.invertible], dare_residual=[Float64(innov.dare_residual)])
+    st = String[]; ob = String[]; kg = Float64[]
+    for j in 1:k, i in 1:n_s
+        push!(st, innov.state_names[i]); push!(ob, innov.obs_names[j]); push!(kg, Float64(innov.K[i, j]))
+    end
+    m = length(kg)
+    return DataFrames.DataFrame(state=st, obs=ob, K_gain=kg,
+        invertible=fill(innov.invertible, m), dare_residual=fill(Float64(innov.dare_residual), m))
+end
+
+function long_table(r::ShockRecoverabilityResult)
+    L, m = size(r.r2_matrix)
+    lead = Int[]; shock = String[]; r2 = Float64[]
+    for l in 1:L, s in 1:m
+        push!(lead, l - 1); push!(shock, r.shock_names[s]); push!(r2, Float64(r.r2_matrix[l, s]))
+    end
+    return DataFrames.DataFrame(; lead, shock, r2)
+end
+
+function long_table(a::DSGEVARIRFAudit)
+    H, nv, ns = size(a.irf_dsge)
+    horizon = Int[]; variable = String[]; shock = String[]
+    dsge_irf = Float64[]; wold_best_irf = Float64[]; wold_id_irf = Float64[]; svar_irf = Float64[]
+    for h in 1:H, v in 1:nv, s in 1:ns
+        push!(horizon, h - 1); push!(variable, a.obs_names[v]); push!(shock, a.shock_names[s])
+        push!(dsge_irf, Float64(a.irf_dsge[h, v, s]))
+        push!(wold_best_irf, Float64(a.irf_wold_best[h, v, s]))
+        push!(wold_id_irf, Float64(a.irf_wold_id[h, v, s]))
+        push!(svar_irf, Float64(a.irf_svar[h, v, s]))
+    end
+    return DataFrames.DataFrame(; horizon, variable, shock, dsge_irf, wold_best_irf, wold_id_irf, svar_irf)
+end
+
+function DataFrames.DataFrame(a::DSGEVARIRFAudit)
+    H = a.horizon
+    return DataFrames.DataFrame(
+        horizon=collect(0:(H - 1)),
+        total_rmse=Float64.(a.rmse_by_horizon),
+        noninv_wedge=Float64.(a.noninv_by_horizon),
+        trunc_wedge=Float64.(a.trunc_by_horizon),
+        id_wedge=Float64.(a.id_by_horizon),
+        is_invertible=fill(a.is_invertible, H))
+end
+
+function DataFrames.DataFrame(r::ObservableSearchResult)
+    return DataFrames.DataFrame(
+        observables=[copy(o) for o in r.observables],
+        is_invertible=copy(r.is_invertible),
+        rho=Float64.(r.rho),
+        min_R2=Float64.(r.min_R2),
+        mean_R2=Float64.(r.mean_R2),
+        cond_D=Float64.(r.cond_D),
+        status=copy(r.status))
+end
+
+function DataFrames.DataFrame(p::DSGEVARPrior)
+    k, n = size(p.Phi_star)
+    eq = String[]; reg = Int[]; ps = Float64[]
+    for j in 1:n, i in 1:k
+        push!(eq, p.obs_names[j]); push!(reg, i); push!(ps, Float64(p.Phi_star[i, j]))
+    end
+    m = length(ps)
+    return DataFrames.DataFrame(equation=eq, regressor=reg, phi_star=ps,
+        lambda=fill(Float64(p.lambda), m), lambda_min=fill(Float64(p.lambda_min), m))
+end
+
+function DataFrames.DataFrame(pr::DSGEVARLambdaProfile)
+    m = length(pr.lambdas)
+    return DataFrames.DataFrame(
+        lambda=Float64.(pr.lambdas),
+        log_marginal_likelihood=Float64.(pr.log_marginal_likelihoods),
+        lambda_hat=fill(Float64(pr.lambda_hat), m),
+        logml_hat=fill(Float64(pr.logml_hat), m),
+        logml_inf=fill(Float64(pr.logml_inf), m))
+end
+
+function DataFrames.DataFrame(post::DSGEVARPosterior)
+    if post.theta_draws !== nothing && !isempty(post.param_names)
+        pnames = String[string(s) for s in post.param_names]
+        vals = [Float64.(vec(post.theta_draws[:, j])) for j in 1:length(pnames)]
+        return DataFrames.DataFrame(
+            parameter=pnames,
+            mean=Float64[mean(v) for v in vals],
+            std=Float64[std(v) for v in vals],
+            q05=Float64[quantile(v, 0.05) for v in vals],
+            median=Float64[quantile(v, 0.5) for v in vals],
+            q95=Float64[quantile(v, 0.95) for v in vals])
+    end
+    _, k, n = size(post.B_draws)
+    param = String[]; mn = Float64[]; sd = Float64[]; q05 = Float64[]; med = Float64[]; q95 = Float64[]
+    for j in 1:n, i in 1:k
+        v = Float64.(vec(post.B_draws[:, i, j]))
+        push!(param, "B[$i,$(post.varnames[j])]")
+        push!(mn, mean(v)); push!(sd, std(v))
+        push!(q05, quantile(v, 0.05)); push!(med, quantile(v, 0.5)); push!(q95, quantile(v, 0.95))
+    end
+    return DataFrames.DataFrame(parameter=param, mean=mn, std=sd, q05=q05, median=med, q95=q95)
+end
+
+for _T in (ABCDSystem, InvertibilityResult, InnovationsRepresentation,
+           ShockRecoverabilityResult, DSGEVARIRFAudit, ObservableSearchResult,
+           DSGEVARPrior, DSGEVARLambdaProfile, DSGEVARPosterior)
+    _SERIALIZABLE_TYPES[string(nameof(_T))] = _T
+end
+
+export ABCDSystem, InvertibilityResult, InnovationsRepresentation,
+       ShockRecoverabilityResult, DSGEVARIRFAudit, ObservableSearchResult,
+       DSGEVARPrior, DSGEVARLambdaProfile, DSGEVARPosterior,
+       nstates, nobservables, abcd_representation, to_abcd,
+       poor_mans_invertibility, is_invertible, innovations_representation,
+       shock_recoverability, population_var, compare_dsge_svar_irf,
+       search_invertible_observables, dsge_var_prior, dsge_var_logml,
+       select_dsge_var_lambda, estimate_dsge_var,
+       point_estimate, uncertainty_bounds
+
 end # module

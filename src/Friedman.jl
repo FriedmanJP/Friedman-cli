@@ -72,6 +72,7 @@ include("commands/data_simulate.jl")  # data simulate specs (#177); register_dat
 include("commands/data.jl")
 include("commands/io.jl")           # input-output analysis (C049)
 include("commands/nowcast.jl")
+include("commands/w4_abcd_dsgevar.jl") # Wave 4 (#316): dsge abcd & dsge var
 include("commands/dsge.jl")
 include("commands/hadsge.jl")
 include("commands/did.jl")

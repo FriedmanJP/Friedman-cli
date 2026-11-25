@@ -146,7 +146,7 @@ function _reproduce_from_source(obj, src, seed_val, tol::Float64)
             else
                 nothing
             end
-        elseif tn === :BayesianImpulseResponse && stn === :BVARPosterior
+        elseif tn === :BayesianImpulseResponse && stn in (:BVARPosterior, :DSGEVARPosterior)
             h = _model_horizon(obj)
             run_seeded(() -> irf(src, h))
         elseif tn === :FEVD
@@ -161,7 +161,7 @@ function _reproduce_from_source(obj, src, seed_val, tol::Float64)
         elseif tn === :LPFEVD && stn === :StructuralLP
             h = _model_horizon(obj)
             run_seeded(() -> lp_fevd(src, h))
-        elseif tn === :BayesianFEVD && stn === :BVARPosterior
+        elseif tn === :BayesianFEVD && stn in (:BVARPosterior, :DSGEVARPosterior)
             h = _model_horizon(obj)
             run_seeded(() -> fevd(src, h))
         elseif tn === :HistoricalDecomposition
@@ -174,7 +174,7 @@ function _reproduce_from_source(obj, src, seed_val, tol::Float64)
             else
                 nothing
             end
-        elseif tn === :BayesianHistoricalDecomposition && stn === :BVARPosterior
+        elseif tn === :BayesianHistoricalDecomposition && stn in (:BVARPosterior, :DSGEVARPosterior)
             run_seeded(() -> historical_decomposition(src))
         elseif tn === :VARForecast && stn === :VARModel
             h = _model_horizon(obj)
@@ -182,7 +182,7 @@ function _reproduce_from_source(obj, src, seed_val, tol::Float64)
             hasproperty(obj, :ci_method) && (kw[:ci_method] = obj.ci_method)
             hasproperty(obj, :conf_level) && (kw[:conf_level] = obj.conf_level)
             run_seeded(() -> forecast(src, h; kw...))
-        elseif tn === :BVARForecast && stn === :BVARPosterior
+        elseif tn === :BVARForecast && stn in (:BVARPosterior, :DSGEVARPosterior)
             h = _model_horizon(obj)
             kw = Dict{Symbol,Any}()
             hasproperty(obj, :conf_level) && (kw[:conf_level] = obj.conf_level)
