@@ -1148,7 +1148,7 @@ function irf(model::VARModel, horizon::Int; method=:cholesky, check_func=nothing
              instruments=nothing, target=nothing, restrictions=nothing,
              pattern=nothing, weighting=nothing, hetero=nothing,
              maxiter=nothing, gibbs_burn=nothing, gibbs_draws=nothing,
-             init=nothing)
+             init=nothing, _svar_Q=nothing, shock_names=nothing)
     bootstrap in (:iid, :wild, :block) || throw(ArgumentError(
         "bootstrap must be :iid, :wild, or :block; got :$bootstrap"))
     wild_dist in (:rademacher, :mammen) || throw(ArgumentError(
@@ -1165,8 +1165,9 @@ function irf(model::VARModel, horizon::Int; method=:cholesky, check_func=nothing
     drw = ci_type == :bootstrap ?
         reshape(vals, 1, horizon + 1, n, n) .+ 0.05 .* randn(reps, horizon + 1, n, n) :
         nothing
+    snames = shock_names === nothing ? copy(model.varnames) : Vector{String}(shock_names)
     ImpulseResponse{Float64}(vals, ci_lo, ci_hi, horizon, copy(model.varnames),
-                             copy(model.varnames), :cholesky, drw,
+                             snames, method, drw,
                              seed === nothing ? nothing : capture_manifest(; seed=seed))
 end
 function irf(chain::MockChains, p::Int, n::Int, horizon::Int;
@@ -1226,11 +1227,12 @@ end
 function fevd(model::VARModel, horizon::Int; method=:cholesky, check_func=nothing, narrative_check=nothing,
               instruments=nothing, target=nothing, restrictions=nothing, pattern=nothing,
               weighting=nothing, hetero=nothing, maxiter=nothing, gibbs_burn=nothing,
-              gibbs_draws=nothing, init=nothing)
+              gibbs_draws=nothing, init=nothing, _svar_Q=nothing, shock_names=nothing)
     n = size(model.Y, 2)
     props = ones(n, n, horizon) / n
+    snames = shock_names === nothing ? copy(model.varnames) : Vector{String}(shock_names)
     # Real carries model.varnames into the result (same gap as irf above).
-    FEVD(props, props, copy(model.varnames), copy(model.varnames))
+    FEVD(props, props, copy(model.varnames), snames)
 end
 function fevd(chain::MockChains, p::Int, n::Int, horizon::Int;
               data=nothing, quantiles=[0.16, 0.5, 0.84])
@@ -1260,7 +1262,8 @@ function historical_decomposition(model::VARModel, horizon::Int; method=:cholesk
                                    seed=nothing,
                                    weighting=nothing, hetero=nothing,
                                    maxiter=nothing, gibbs_burn=nothing,
-                                   gibbs_draws=nothing, init=nothing)
+                                   gibbs_draws=nothing, init=nothing,
+                                   _svar_Q=nothing, shock_names=nothing)
     n = size(model.Y, 2)
     T_eff = min(horizon, size(model.Y, 1) - model.p)
     contribs = ones(T_eff, n, n) * 0.1
@@ -2137,10 +2140,12 @@ function _mock_ngml(model::VARModel, dist::Symbol)
         dist, -200.0, -210.0, Dict{Symbol,Any}(:df => 5.0), ones(n,n)*0.01,
         ones(n*n)*0.05, -180.0, -175.0)
 end
-identify_nongaussian_ml(model::VARModel; distribution=:student_t, max_iter=500, tol=1e-6) = _mock_ngml(model, distribution)
-identify_mixture_normal(model::VARModel) = _mock_ngml(model, :mixture_normal)
-identify_pml(model::VARModel) = _mock_ngml(model, :pml)
-identify_skew_normal(model::VARModel) = _mock_ngml(model, :skew_normal)
+identify_nongaussian_ml(model::VARModel; distribution=:student_t, asymmetric=false, max_iter=500, tol=1e-6, vcov_type=:auto, n_starts=5, seed=nothing) =
+    _mock_ngml(model, (distribution === :mixture_normal && asymmetric) ? :mixture_normal_asym : distribution)
+identify_mixture_normal(model::VARModel; n_components=2, asymmetric=false, max_iter=500, tol=1e-6, vcov_type=:auto, n_starts=5, seed=nothing) =
+    _mock_ngml(model, asymmetric ? :mixture_normal_asym : :mixture_normal)
+identify_pml(model::VARModel; max_iter=500, tol=1e-6, vcov_type=:auto, n_starts=5, seed=nothing) = _mock_ngml(model, :pml)
+identify_skew_normal(model::VARModel; max_iter=500, tol=1e-6, vcov_type=:auto, n_starts=5, seed=nothing) = _mock_ngml(model, :skew_normal)
 
 identify_markov_switching(model::VARModel; n_regimes=2, max_iter=200, tol=1e-6) =
     MarkovSwitchingSVARResult(ones(size(model.Y,2), size(model.Y,2))*0.3)
@@ -14911,5 +14916,836 @@ export FHLZModel, CointegratedGDFM, TimeVaryingGDFM,
        estimate_gdfm_fhlz, estimate_gdfm_i1, estimate_tv_gdfm,
        onatski_q_test, onatski_q_select, ahn_horenstein, onatski_ed,
        bandpass_gdfm, eurocoin_indicator, spectral_fevd, nowcast_gdfm
+
+
+# ── [MEM111-W3] #315 ──
+# LMS non-Gaussian SVAR, 7-type hypothesis battery, non-Gaussian diagnostics,
+# Lanne-Luoto co-kurtosis GMM, moment selection, CvM ICA, non-fundamental
+# Strong SVARMA, and fundamentalness / sufficient-information tests.
+# Zero kwargs absorbers (`KWARGS_ABSORBER_BUDGET` is frozen at 29).
+
+stderror(r::ICASVARResult{T}) where {T} = fill(T(0.05), length(r.B0))
+
+function identify_cvm(model::VARModel; max_iter::Int=200, n_starts::Int=3,
+                      tol::Real=1e-6, rng::AbstractRNG=Random.default_rng(),
+                      seed::Union{Integer,Nothing}=nothing)
+    max_iter < 1 && throw(ArgumentError("max_iter must be ≥ 1, got $max_iter"))
+    n_starts < 1 && throw(ArgumentError("n_starts must be ≥ 1, got $n_starts"))
+    return _mock_ica(model, :cvm)
+end
+
+struct _SVARHypothesisSpec
+    kind::Symbol
+    n::Union{Nothing,Int}
+    df::Int
+    ordering::Union{Nothing,Symbol,Vector{Int}}
+    zeros_idx::Vector{Tuple{Int,Int}}
+    horizon_idx::Vector{Tuple{Int,Int,Int}}
+    R_beta::Union{Nothing,Matrix{Float64}}
+    r_beta::Union{Nothing,Vector{Float64}}
+    subspecs::Vector{_SVARHypothesisSpec}
+    g_func::Union{Nothing,Function}
+    description::String
+end
+
+struct LMSSVARResult{T<:AbstractFloat}
+    B0::Matrix{T}
+    B::Matrix{T}
+    sigma::Vector{T}
+    Q::Matrix{T}
+    Pi::Matrix{T}
+    var_ols::VARModel{T}
+    shocks::Matrix{T}
+    raw_shocks::Matrix{T}
+    distributions::Vector{Symbol}
+    dist_params::Vector{Vector{T}}
+    theta::Vector{T}
+    loglik::T
+    loglik_gaussian::T
+    vcov::Matrix{T}
+    se_B0::Matrix{T}
+    se_B::Matrix{T}
+    se_sigma::Vector{T}
+    se_Pi::Matrix{T}
+    method::Symbol
+    se_type::Symbol
+    converged::Bool
+    iterations::Int
+    aic::T
+    bic::T
+    shock_names::Vector{String}
+    manifest::Any
+end
+
+residuals(r::LMSSVARResult) = r.shocks
+report(r::LMSSVARResult) = nothing
+function DataFrames.DataFrame(m::LMSSVARResult)
+    n = size(m.B0, 1)
+    sn = length(m.shock_names) == n ? m.shock_names : ["shock_$j" for j in 1:n]
+    param = String[]; est = Float64[]; se = Float64[]
+    for j in 1:n, i in 1:n
+        push!(param, "B0[$i,$(sn[j])]")
+        push!(est, Float64(m.B0[i, j]))
+        push!(se, Float64(m.se_B0[i, j]))
+    end
+    for j in 1:length(m.sigma)
+        push!(param, "sigma[$(sn[j])]")
+        push!(est, Float64(m.sigma[j]))
+        push!(se, j <= length(m.se_sigma) ? Float64(m.se_sigma[j]) : NaN)
+    end
+    return DataFrames.DataFrame(parameter=param, estimate=est, std_error=se)
+end
+
+struct SVARHypothesisTest{T<:AbstractFloat}
+    hypothesis_kind::Symbol
+    test_type::Symbol
+    statistic::T
+    pvalue::T
+    df::Int
+    bootstrap_pvalue::Union{Nothing,T}
+    bootstrap_scheme::Symbol
+    n_boot::Int
+    loglik_unrestricted::T
+    loglik_restricted::Union{Nothing,T}
+    theta_unrestricted::Vector{T}
+    theta_restricted::Union{Nothing,Vector{T}}
+    g_value::Vector{T}
+    score_norm::Union{Nothing,T}
+    shock_permutation::Vector{Int}
+    vcov_type::Symbol
+    converged::Bool
+    iterations::Int
+    nobs::Int
+    nvars::Int
+    description::String
+    manifest::Any
+end
+
+report(r::SVARHypothesisTest) = nothing
+function DataFrames.DataFrame(t::SVARHypothesisTest)
+    return DataFrames.DataFrame(
+        test=[string(t.hypothesis_kind, " (", t.test_type, ")")],
+        statistic=[Float64(t.statistic)],
+        p_value=[Float64(t.pvalue)],
+        bootstrap_pvalue=[t.bootstrap_pvalue === nothing ? missing : Float64(t.bootstrap_pvalue)],
+        df=[t.df],
+        nobs=[t.nobs],
+        converged=[t.converged],
+    )
+end
+
+struct NonGaussianDiagnostics{T<:AbstractFloat}
+    jb_stats::Vector{T}
+    jb_pvals::Vector{T}
+    jb_pvals_holm::Vector{T}
+    skewness::Vector{T}
+    excess_kurtosis::Vector{T}
+    multivariate_jb_stat::T
+    multivariate_jb_pval::T
+    lb_levels_stats::Vector{T}
+    lb_levels_pvals::Vector{T}
+    lb_squares_stats::Vector{T}
+    lb_squares_pvals::Vector{T}
+    lb_abs_stats::Vector{T}
+    lb_abs_pvals::Vector{T}
+    portmanteau_stat::T
+    portmanteau_pval::T
+    portmanteau_df::Int
+    bds_stats::Vector{T}
+    bds_pvals::Vector{T}
+    cross_corr_matrix::Matrix{T}
+    cross_sq_corr_matrix::Matrix{T}
+    cross_moment_stat::T
+    cross_moment_pval::T
+    cross_moment_df::Int
+    n_gaussian_shocks::Int
+    weak_id_warning::Bool
+    lags::Int
+    nobs::Int
+    nvars::Int
+    shock_names::Vector{String}
+end
+
+report(d::NonGaussianDiagnostics) = nothing
+function DataFrames.DataFrame(d::NonGaussianDiagnostics)
+    n = length(d.jb_stats)
+    sn = length(d.shock_names) == n ? d.shock_names : ["shock_$j" for j in 1:n]
+    return DataFrames.DataFrame(
+        shock=sn,
+        jb_stat=Float64.(collect(d.jb_stats)),
+        jb_pval=Float64.(collect(d.jb_pvals)),
+        jb_pval_holm=Float64.(collect(d.jb_pvals_holm)),
+        skewness=Float64.(collect(d.skewness)),
+        excess_kurtosis=Float64.(collect(d.excess_kurtosis)),
+        lb_levels_pval=Float64.(collect(d.lb_levels_pvals)),
+        lb_squares_pval=Float64.(collect(d.lb_squares_pvals)),
+        bds_pval=Float64.(collect(d.bds_pvals)),
+    )
+end
+
+struct GMMMomentSelectionResult{T<:AbstractFloat}
+    asym_pairs::Vector{Tuple{Int,Int}}
+    sym_pairs::Vector{Tuple{Int,Int}}
+    msc_asym_pairs::Vector{Tuple{Int,Int}}
+    msc_sym_pairs::Vector{Tuple{Int,Int}}
+    msc_score::T
+    rmsc_score::T
+    J_stat::T
+    J_pvalue::T
+    df::Int
+    n_moments::Int
+    n_params::Int
+    bandwidth::Int
+    method::Symbol
+    candidates::Vector{Any}
+end
+
+report(r::GMMMomentSelectionResult) = nothing
+function DataFrames.DataFrame(r::GMMMomentSelectionResult)
+    if isempty(r.candidates)
+        return DataFrames.DataFrame(
+            n_asym=[length(r.msc_asym_pairs)], n_sym=[length(r.msc_sym_pairs)],
+            n_moments=[r.n_moments], df=[r.df],
+            J_stat=[Float64(r.J_stat)], J_pvalue=[Float64(r.J_pvalue)],
+            msc=[Float64(r.msc_score)], rmsc=[Float64(r.rmsc_score)],
+        )
+    end
+    return DataFrames.DataFrame(
+        n_asym=[length(c.asym_pairs) for c in r.candidates],
+        n_sym=[length(c.sym_pairs) for c in r.candidates],
+        n_moments=[c.n_moments for c in r.candidates],
+        df=[c.df for c in r.candidates],
+        J_stat=[Float64(c.J_stat) for c in r.candidates],
+        J_pvalue=[Float64(c.J_pvalue) for c in r.candidates],
+        msc=[Float64(c.msc) for c in r.candidates],
+        rmsc=[Float64(c.rmsc) for c in r.candidates],
+        rank_ok=[c.rank_ok for c in r.candidates],
+    )
+end
+
+struct LanneLuotoGMMResult{T<:AbstractFloat}
+    B0::Matrix{T}
+    A0::Matrix{T}
+    Q::Matrix{T}
+    sigma::Vector{T}
+    nu::Vector{T}
+    A::Vector{Matrix{T}}
+    Pi::Matrix{T}
+    Sigma::Matrix{T}
+    var_ols::VARModel{T}
+    shocks::Matrix{T}
+    theta::Vector{T}
+    vcov::Matrix{T}
+    se_B0::Matrix{T}
+    se_theta::Vector{T}
+    W::Matrix{T}
+    S_hac::Matrix{T}
+    G_jac::Matrix{T}
+    g_bar::Vector{T}
+    J_stat::T
+    J_pvalue::T
+    df::Int
+    n_moments::Int
+    n_params::Int
+    jacobian_rank::Int
+    rank_ok::Bool
+    asym_pairs::Vector{Tuple{Int,Int}}
+    sym_pairs::Vector{Tuple{Int,Int}}
+    selection::Union{Nothing,GMMMomentSelectionResult{T}}
+    form::Symbol
+    weighting::Symbol
+    kernel::Symbol
+    bandwidth::Int
+    converged::Bool
+    iterations::Int
+    varnames::Vector{String}
+    shock_names::Vector{String}
+    manifest::Any
+end
+
+residuals(r::LanneLuotoGMMResult) = r.shocks
+report(r::LanneLuotoGMMResult) = nothing
+function irf(r::LanneLuotoGMMResult, horizon::Int=20; ci_type=:none, reps=200,
+             conf_level=0.95, stationary_only=false, seed=nothing,
+             bootstrap::Symbol=:iid, block_length::Int=0,
+             wild_dist::Symbol=:rademacher, bias_correct::Bool=false,
+             bias_reps::Int=0, shock_names=nothing)
+    sn = shock_names === nothing ? r.shock_names : shock_names
+    return irf(r.var_ols, horizon; method=:svar, _svar_Q=r.Q, shock_names=sn,
+               ci_type=ci_type, reps=reps, conf_level=conf_level,
+               stationary_only=stationary_only, seed=seed,
+               bootstrap=bootstrap, block_length=block_length,
+               wild_dist=wild_dist, bias_correct=bias_correct,
+               bias_reps=bias_reps)
+end
+function fevd(r::LanneLuotoGMMResult, horizon::Int=20; shock_names=nothing)
+    sn = shock_names === nothing ? r.shock_names : shock_names
+    return fevd(r.var_ols, horizon; method=:svar, _svar_Q=r.Q, shock_names=sn)
+end
+function historical_decomposition(r::LanneLuotoGMMResult,
+                                  horizon::Int=size(r.shocks, 1);
+                                  shock_names=nothing)
+    sn = shock_names === nothing ? r.shock_names : shock_names
+    return historical_decomposition(r.var_ols, horizon; method=:svar, _svar_Q=r.Q,
+                                    shock_names=sn)
+end
+function DataFrames.DataFrame(m::LanneLuotoGMMResult)
+    n = size(m.B0, 1)
+    sn = length(m.shock_names) == n ? m.shock_names : ["shock_$j" for j in 1:n]
+    param = String[]; est = Float64[]; se = Float64[]
+    for j in 1:n, i in 1:n
+        push!(param, "B0[$i,$(sn[j])]")
+        push!(est, Float64(m.B0[i, j]))
+        push!(se, Float64(m.se_B0[i, j]))
+    end
+    return DataFrames.DataFrame(parameter=param, estimate=est, std_error=se,
+        J_stat=fill(Float64(m.J_stat), length(param)),
+        J_pvalue=fill(Float64(m.J_pvalue), length(param)))
+end
+
+struct SVARMAModel{T<:AbstractFloat}
+    Y::Matrix{T}
+    p::Int
+    q::Int
+    mu::Vector{T}
+    Phi::Array{T,3}
+    Theta::Array{T,3}
+    C::Matrix{T}
+    shocks::Matrix{T}
+    ma_eig_re::Vector{T}
+    ma_eig_im::Vector{T}
+    regime::Symbol
+    gmr_region::Symbol
+    distributions::Vector{Symbol}
+    dist_params::Vector{Vector{T}}
+    loglik::T
+    aic::T
+    bic::T
+    varnames::Vector{String}
+    shock_names::Vector{String}
+    converged::Bool
+    method::Symbol
+    vcov::Matrix{T}
+    se::Vector{T}
+end
+
+residuals(m::SVARMAModel) = m.shocks
+report(m::SVARMAModel) = nothing
+function irf(m::SVARMAModel{T}, H::Int=20) where {T}
+    n = size(m.C, 1)
+    vals = ones(T, H, n, n) .* T(0.1)
+    ci_zero = zeros(T, H, n, n)
+    return ImpulseResponse{T}(vals, ci_zero, copy(ci_zero), H,
+                              copy(m.varnames), copy(m.shock_names), :none, nothing, nothing)
+end
+function fevd(m::SVARMAModel{T}, H::Int=20) where {T}
+    n = size(m.C, 1)
+    props = fill(T(1) / T(n), n, n, H)
+    return FEVD(props, copy(props), copy(m.varnames), copy(m.shock_names))
+end
+function DataFrames.DataFrame(m::SVARMAModel)
+    n = length(m.mu)
+    vn = length(m.varnames) == n ? m.varnames : ["y_$i" for i in 1:n]
+    sn = length(m.shock_names) == n ? m.shock_names : ["shock_$j" for j in 1:n]
+    param = String[]; est = Float64[]
+    for i in 1:n
+        push!(param, "mu[$(vn[i])]")
+        push!(est, Float64(m.mu[i]))
+    end
+    for l in 1:size(m.Phi, 3), j in 1:n, i in 1:n
+        push!(param, "Phi$(l)[$(vn[i]),$(vn[j])]")
+        push!(est, Float64(m.Phi[i, j, l]))
+    end
+    for l in 1:size(m.Theta, 3), j in 1:n, i in 1:n
+        push!(param, "Theta$(l)[$(vn[i]),$(sn[j])]")
+        push!(est, Float64(m.Theta[i, j, l]))
+    end
+    for j in 1:n, i in 1:n
+        push!(param, "C[$(vn[i]),$(sn[j])]")
+        push!(est, Float64(m.C[i, j]))
+    end
+    return DataFrames.DataFrame(parameter=param, estimate=est,
+        regime=fill(string(m.regime), length(param)),
+        loglik=fill(Float64(m.loglik), length(param)))
+end
+
+struct FundamentalnessTestResult{T<:AbstractFloat}
+    statistic::T
+    pvalue::T
+    lag_statistics::Vector{T}
+    lag_pvalues::Vector{T}
+    moment_statistics::Dict{Symbol,T}
+    moment_pvalues::Dict{Symbol,T}
+    max_lag::Int
+    moments::Vector{Symbol}
+    n_boot::Int
+    n::Int
+    p::Int
+    nobs::Int
+    model_type::Symbol
+end
+
+report(r::FundamentalnessTestResult) = nothing
+function DataFrames.DataFrame(r::FundamentalnessTestResult)
+    k = length(r.lag_statistics)
+    k == 0 && return DataFrames.DataFrame(
+        lag=[0], statistic=[Float64(r.statistic)], p_value=[Float64(r.pvalue)],
+        overall_statistic=[Float64(r.statistic)], overall_pvalue=[Float64(r.pvalue)],
+    )
+    return DataFrames.DataFrame(
+        lag=collect(1:k),
+        statistic=Float64.(collect(r.lag_statistics)),
+        p_value=Float64.(collect(r.lag_pvalues)),
+        overall_statistic=fill(Float64(r.statistic), k),
+        overall_pvalue=fill(Float64(r.pvalue), k),
+    )
+end
+
+struct SufficientInformationTestResult{T<:AbstractFloat}
+    statistic::T
+    pvalue::T
+    wald_statistic::T
+    wald_pvalue::T
+    r_max::Int
+    p_f::Int
+    n::Int
+    nobs::Int
+    df::Int
+    r_grid::Vector{Int}
+    f_statistics::Vector{T}
+    f_pvalues::Vector{T}
+    wald_statistics::Vector{T}
+    wald_pvalues::Vector{T}
+end
+
+report(r::SufficientInformationTestResult) = nothing
+function DataFrames.DataFrame(r::SufficientInformationTestResult)
+    k = length(r.r_grid)
+    k == 0 && return DataFrames.DataFrame(
+        r=[0], f_statistic=[Float64(r.statistic)], f_pvalue=[Float64(r.pvalue)],
+        wald_statistic=[Float64(r.wald_statistic)], wald_pvalue=[Float64(r.wald_pvalue)],
+    )
+    return DataFrames.DataFrame(
+        r=Int.(collect(r.r_grid)),
+        f_statistic=Float64.(collect(r.f_statistics)),
+        f_pvalue=Float64.(collect(r.f_pvalues)),
+        wald_statistic=Float64.(collect(r.wald_statistics)),
+        wald_pvalue=Float64.(collect(r.wald_pvalues)),
+    )
+end
+
+function estimate_lms_svar(model::VARModel{T};
+                           distributions::Union{Symbol,AbstractVector{Symbol}}=:student_t,
+                           method::Symbol=:three_step,
+                           se::Symbol=:hessian,
+                           n_starts::Int=5,
+                           max_iter::Int=500,
+                           tol::Union{Nothing,Real}=nothing,
+                           shock_names::Union{Nothing,Vector{String}}=nothing,
+                           rng::AbstractRNG=Random.default_rng(),
+                           seed::Union{Integer,Nothing}=nothing) where {T<:AbstractFloat}
+    method in (:three_step, :full_ml) || throw(ArgumentError("method must be :three_step or :full_ml, got :$method"))
+    se in (:hessian, :sandwich, :opg) || throw(ArgumentError("se must be :hessian, :sandwich, or :opg, got :$se"))
+    n = size(model.Y, 2)
+    T_eff = size(model.U, 1)
+    dists = distributions isa Symbol ? fill(distributions, n) : Symbol[d for d in distributions]
+    length(dists) == n || throw(ArgumentError("distributions length must match n=$n"))
+    for d in dists
+        d in (:student_t, :skewed_t, :mixture_normal_asym, :pearson_iv, :pml, :skew_normal, :ged) ||
+            throw(ArgumentError("Unsupported LMS distribution :$d"))
+    end
+    snames = shock_names === nothing ? ["shock_$j" for j in 1:n] : Vector{String}(shock_names)
+    B = Matrix{T}(I, n, n)
+    sigma = ones(T, n)
+    B0 = copy(B)
+    Q = Matrix{T}(I, n, n)
+    Pi = copy(model.B)
+    shocks = ones(T, T_eff, n) .* T(0.1)
+    n_theta = length(Pi) + n * (n - 1) + n + n
+    theta = fill(T(0.1), n_theta)
+    vc = Matrix{T}(I, n_theta, n_theta) .* T(0.01)
+    return LMSSVARResult{T}(
+        B0, B, sigma, Q, Pi, model, shocks, copy(shocks),
+        dists, [T[5.0] for _ in 1:n], theta, T(-180.0), T(-195.0),
+        vc, fill(T(0.05), n, n), fill(T(0.05), n, n), fill(T(0.03), n),
+        fill(T(0.04), size(Pi)...), method, se, true, 12, T(380.0), T(405.0),
+        snames, nothing,
+    )
+end
+
+function lms_project_B(B::AbstractMatrix{<:Real}; tol::Real=1e-10)
+    return Matrix{Float64}(B)
+end
+
+function recursiveness_hypothesis(n::Int;
+                                  ordering::Union{Nothing,Symbol,AbstractVector{Int}}=nothing)
+    n >= 2 || throw(ArgumentError("recursiveness_hypothesis requires n ≥ 2, got n=$n"))
+    q = (n * (n - 1)) ÷ 2
+    ord = ordering === nothing ? collect(1:n) : (ordering isa Symbol ? ordering : Int.(collect(ordering)))
+    return _SVARHypothesisSpec(:recursiveness, n, q, ord, Tuple{Int,Int}[], Tuple{Int,Int,Int}[],
+                               nothing, nothing, _SVARHypothesisSpec[], nothing,
+                               "Recursive (lower-triangular) B (df=$q)")
+end
+
+function impact_zero_hypothesis(n::Int, zeros_idx::AbstractVector{<:Tuple{Int,Int}};
+                                ordering::Union{Nothing,Symbol,AbstractVector{Int}}=nothing)
+    isempty(zeros_idx) && throw(ArgumentError("zeros_idx must be non-empty"))
+    zlist = Tuple{Int,Int}[(Int(i), Int(j)) for (i, j) in zeros_idx]
+    for (i, j) in zlist
+        (1 <= i <= n && 1 <= j <= n) || throw(ArgumentError("restriction ($i, $j) out of bounds for n=$n"))
+        i == j && throw(ArgumentError("LMS B ∈ B interiority violation: cannot restrict diagonal ($i, $j)"))
+    end
+    ord = ordering === nothing ? collect(1:n) : (ordering isa Symbol ? ordering : Int.(collect(ordering)))
+    return _SVARHypothesisSpec(:impact_zero, n, length(zlist), ord, zlist, Tuple{Int,Int,Int}[],
+                               nothing, nothing, _SVARHypothesisSpec[], nothing,
+                               "Impact zero restrictions on B (df=$(length(zlist)))")
+end
+
+function impact_linear_hypothesis(R_beta::AbstractMatrix{<:Real},
+                                  r_beta::AbstractVector{<:Real}=zeros(Float64, size(R_beta, 1));
+                                  ordering::Union{Nothing,Symbol,AbstractVector{Int}}=nothing)
+    q, nb = size(R_beta)
+    q >= 1 || throw(ArgumentError("R_beta must have at least 1 row"))
+    length(r_beta) == q || throw(ArgumentError("r_beta length must match rows of R_beta"))
+    n = round(Int, (1 + sqrt(1 + 4 * nb)) / 2)
+    n * (n - 1) == nb || throw(ArgumentError("R_beta columns ($nb) must equal n*(n-1)"))
+    ord = ordering === nothing ? collect(1:n) : (ordering isa Symbol ? ordering : Int.(collect(ordering)))
+    return _SVARHypothesisSpec(:impact_linear, n, q, ord, Tuple{Int,Int}[], Tuple{Int,Int,Int}[],
+                               Matrix{Float64}(R_beta), Vector{Float64}(r_beta), _SVARHypothesisSpec[], nothing,
+                               "Linear impact hypothesis R_β β = r_β (df=$q)")
+end
+
+function long_run_hypothesis(n::Int, zeros_idx::AbstractVector{<:Tuple{Int,Int}};
+                             ordering::Union{Nothing,Symbol,AbstractVector{Int}}=nothing)
+    n >= 2 || throw(ArgumentError("long_run_hypothesis requires n ≥ 2"))
+    isempty(zeros_idx) && throw(ArgumentError("zeros_idx must be non-empty"))
+    zlist = Tuple{Int,Int}[(Int(i), Int(j)) for (i, j) in zeros_idx]
+    for (i, j) in zlist
+        (1 <= i <= n && 1 <= j <= n) || throw(ArgumentError("long-run restriction ($i, $j) out of bounds for n=$n"))
+    end
+    ord = ordering === nothing ? collect(1:n) : (ordering isa Symbol ? ordering : Int.(collect(ordering)))
+    return _SVARHypothesisSpec(:long_run, n, length(zlist), ord, zlist, Tuple{Int,Int,Int}[],
+                               nothing, nothing, _SVARHypothesisSpec[], nothing,
+                               "Blanchard-Quah long-run zero restrictions (df=$(length(zlist)))")
+end
+
+function horizon_irf_hypothesis(n::Int, restrictions::AbstractVector;
+                                ordering::Union{Nothing,Symbol,AbstractVector{Int}}=nothing)
+    isempty(restrictions) && throw(ArgumentError("restrictions must be non-empty"))
+    rlist = Tuple{Int,Int,Int}[(Int(r[1]), Int(r[2]), Int(r[3])) for r in restrictions]
+    for (h, i, j) in rlist
+        h >= 0 || throw(ArgumentError("horizon must be ≥ 0"))
+        (1 <= i <= n && 1 <= j <= n) || throw(ArgumentError("restriction ($h, $i, $j) out of bounds for n=$n"))
+        (h == 0 && i == j) && throw(ArgumentError("LMS B ∈ B interiority violation at h=0"))
+    end
+    ord = ordering === nothing ? collect(1:n) : (ordering isa Symbol ? ordering : Int.(collect(ordering)))
+    return _SVARHypothesisSpec(:horizon_irf, n, length(rlist), ord, Tuple{Int,Int}[], rlist,
+                               nothing, nothing, _SVARHypothesisSpec[], nothing,
+                               "Horizon IRF zero restrictions (df=$(length(rlist)))")
+end
+
+function mixed_svar_hypothesis(specs::AbstractVector)
+    isempty(specs) && throw(ArgumentError("specs must be non-empty"))
+    flat = _SVARHypothesisSpec[sp for sp in specs]
+    q_total = sum(sp -> sp.df, flat)
+    n_c = flat[1].n
+    return _SVARHypothesisSpec(:mixed, n_c, q_total, collect(1:(n_c === nothing ? 2 : n_c)),
+                               Tuple{Int,Int}[], Tuple{Int,Int,Int}[], nothing, nothing,
+                               flat, nothing, "Mixed SVAR restrictions (df=$q_total)")
+end
+
+function mixed_svar_hypothesis(; short_run=nothing, long_run=nothing, horizon=nothing)
+    specs = _SVARHypothesisSpec[]
+    short_run !== nothing && push!(specs, short_run)
+    long_run !== nothing && push!(specs, long_run)
+    horizon !== nothing && push!(specs, horizon)
+    isempty(specs) && throw(ArgumentError("Provide at least one hypothesis"))
+    return mixed_svar_hypothesis(specs)
+end
+
+function test_svar_hypothesis(res::LMSSVARResult{T}, hyp::_SVARHypothesisSpec;
+                              method::Symbol=:wald, bootstrap::Symbol=:none,
+                              n_boot::Int=499, rng::AbstractRNG=Random.default_rng(),
+                              seed::Union{Integer,Nothing}=nothing,
+                              max_iter::Int=500, g_tol::Real=1e-7,
+                              vcov_type::Union{Nothing,Symbol}=nothing) where {T<:AbstractFloat}
+    method in (:wald, :lr, :lm) || throw(ArgumentError("method must be :wald, :lr, or :lm"))
+    bootstrap in (:none, :iid, :wild) || throw(ArgumentError("bootstrap must be :none, :iid, or :wild"))
+    n = size(res.B0, 1)
+    T_eff = size(res.shocks, 1)
+    bp = bootstrap === :none ? nothing : T(0.18)
+    vt = vcov_type === nothing ? res.se_type : vcov_type
+    return SVARHypothesisTest{T}(
+        hyp.kind, method, T(3.42), T(0.181), hyp.df, bp, bootstrap,
+        bootstrap === :none ? 0 : n_boot, res.loglik,
+        method === :lr ? res.loglik - T(1.71) : nothing,
+        copy(res.theta), method === :wald ? nothing : copy(res.theta),
+        zeros(T, hyp.df), method === :lm ? T(0.05) : nothing,
+        collect(1:n), vt, true, 8, T_eff, n, hyp.description, nothing,
+    )
+end
+
+function test_svar_hypothesis(res::LanneLuotoGMMResult{T}, hyp::_SVARHypothesisSpec;
+                              method::Symbol=:gmm_lr, max_iter::Int=200,
+                              tol::Real=1e-8, rng::AbstractRNG=Random.default_rng(),
+                              seed::Union{Integer,Nothing}=nothing) where {T<:AbstractFloat}
+    method in (:gmm_lr, :wald) || throw(ArgumentError("method must be :gmm_lr or :wald"))
+    n = size(res.B0, 1)
+    T_eff = size(res.shocks, 1)
+    return SVARHypothesisTest{T}(
+        hyp.kind, method, T(2.85), T(0.240), hyp.df, nothing, :none, 0,
+        T(0.0), nothing, copy(res.theta), copy(res.theta), zeros(T, hyp.df),
+        nothing, collect(1:n), :hac, true, 6, T_eff, n, hyp.description, nothing,
+    )
+end
+
+function diagnose_nongaussian_svar(res::LMSSVARResult{T}; lags::Int=4) where {T<:AbstractFloat}
+    lags >= 1 || throw(ArgumentError("lags must be ≥ 1"))
+    n = size(res.B0, 1)
+    T_eff = size(res.shocks, 1)
+    return NonGaussianDiagnostics{T}(
+        fill(T(18.5), n), fill(T(0.0001), n), fill(T(0.0002), n),
+        fill(T(0.35), n), fill(T(2.10), n), T(37.0), T(0.0001),
+        fill(T(2.5), n), fill(T(0.64), n), fill(T(3.1), n), fill(T(0.54), n),
+        fill(T(2.9), n), fill(T(0.57), n), T(12.4), T(0.41), n * n * lags,
+        fill(T(0.8), n), fill(T(0.42), n), Matrix{T}(I, n, n), Matrix{T}(I, n, n),
+        T(1.9), T(0.59), max(1, (n * (n - 1)) ÷ 2), 0, false, lags, T_eff, n,
+        copy(res.shock_names),
+    )
+end
+
+function select_gmm_moments(model::VARModel{T};
+                            form::Symbol=:b_model, weighting::Symbol=:two_step,
+                            method::Symbol=:msc_rmsc, kernel::Symbol=:bartlett,
+                            bandwidth=:auto, alpha::Real=0.05,
+                            max_iter::Int=100, tol::Real=1e-7, n_starts::Int=5,
+                            rng::AbstractRNG=Random.default_rng(),
+                            seed::Union{Integer,Nothing}=nothing,
+                            fixed_sym_pairs=nothing, fixed_asym_pairs=nothing) where {T<:AbstractFloat}
+    form in (:b_model, :a_model) || throw(ArgumentError("form must be :b_model or :a_model"))
+    weighting in (:two_step, :iterated, :cue) || throw(ArgumentError("weighting must be :two_step, :iterated, or :cue"))
+    method in (:msc_rmsc, :rmsc_seq) || throw(ArgumentError("method must be :msc_rmsc or :rmsc_seq"))
+    n = size(model.Y, 2)
+    n >= 2 || throw(ArgumentError("n must be ≥ 2"))
+    ap = Tuple{Int,Int}[(i, j) for i in 1:n for j in 1:n if i != j]
+    sp = Tuple{Int,Int}[(i, j) for i in 1:(n - 1) for j in (i + 1):n]
+    k = n + (model.p + 1) * n * n
+    q = k + length(ap) + length(sp)
+    df = q - k
+    cand = (asym_pairs=ap, sym_pairs=sp, n_moments=q, df=df,
+            J_stat=T(2.4), J_pvalue=T(0.49), msc=T(-8.5), rmsc=T(-12.3), rank_ok=true)
+    return GMMMomentSelectionResult{T}(
+        ap, sp, ap, sp, T(-8.5), T(-12.3), T(2.4), T(0.49), df, q, k, 4,
+        method, Any[cand],
+    )
+end
+
+function estimate_lanne_luoto_gmm(model::VARModel{T};
+                                  form::Symbol=:b_model, weighting::Symbol=:two_step,
+                                  asym_pairs=:auto, sym_pairs=:auto,
+                                  moment_selection::Symbol=:msc_rmsc,
+                                  kernel::Symbol=:bartlett, bandwidth=:auto,
+                                  max_iter::Int=100, tol::Real=1e-7, n_starts::Int=5,
+                                  shock_names::Union{Nothing,Vector{String}}=nothing,
+                                  rng::AbstractRNG=Random.default_rng(),
+                                  seed::Union{Integer,Nothing}=nothing) where {T<:AbstractFloat}
+    form in (:b_model, :a_model) || throw(ArgumentError("form must be :b_model or :a_model"))
+    weighting in (:two_step, :iterated, :cue) || throw(ArgumentError("weighting must be :two_step, :iterated, or :cue"))
+    moment_selection in (:msc_rmsc, :rmsc_seq, :none) || throw(ArgumentError("moment_selection invalid"))
+    n = size(model.Y, 2)
+    p = model.p
+    T_eff = size(model.U, 1)
+    snames = shock_names === nothing ? ["shock_$j" for j in 1:n] : Vector{String}(shock_names)
+    sel = moment_selection === :none ? nothing :
+        select_gmm_moments(model; form=form, weighting=weighting, method=moment_selection,
+                           kernel=kernel, bandwidth=bandwidth, max_iter=max_iter, tol=tol,
+                           n_starts=n_starts, seed=seed)
+    ap = Tuple{Int,Int}[(i, j) for i in 1:n for j in 1:n if i != j]
+    sp = Tuple{Int,Int}[(i, j) for i in 1:(n - 1) for j in (i + 1):n]
+    k = n + (p + 1) * n * n
+    q = k + length(ap) + length(sp)
+    B0 = Matrix{T}(I, n, n)
+    A0 = Matrix{T}(I, n, n)
+    Q = Matrix{T}(I, n, n)
+    theta = fill(T(0.1), k)
+    return LanneLuotoGMMResult{T}(
+        B0, A0, Q, ones(T, n), zeros(T, n), [zeros(T, n, n) for _ in 1:p],
+        copy(model.B), Matrix{T}(I, n, n), model, ones(T, T_eff, n) .* T(0.1),
+        theta, Matrix{T}(I, k, k) .* T(0.01), fill(T(0.05), n, n), fill(T(0.05), k),
+        Matrix{T}(I, q, q), Matrix{T}(I, q, q), ones(T, q, k) .* T(0.1),
+        zeros(T, q), T(2.4), T(0.49), q - k, q, k, k, true, ap, sp, sel,
+        form, weighting, kernel, 4, true, 15, copy(model.varnames), snames, nothing,
+    )
+end
+
+function estimate_ssvarma(Y::AbstractMatrix, p::Int, q::Int=1;
+                          method::Symbol=:pml, distribution::Symbol=:student_t,
+                          k_iv::Int=p + 3, se::Symbol=:auto,
+                          max_iter::Int=500, tol::Real=1e-6, n_starts::Int=3,
+                          varnames::Union{Nothing,AbstractVector{<:AbstractString}}=nothing,
+                          shock_names::Union{Nothing,AbstractVector{<:AbstractString}}=nothing,
+                          rng::AbstractRNG=Random.default_rng(),
+                          seed::Union{Integer,Nothing}=nothing)
+    p >= 0 || throw(ArgumentError("p must be >= 0"))
+    q >= 0 || throw(ArgumentError("q must be >= 0"))
+    method in (:pml, :ml, :gmm) || throw(ArgumentError("method must be :pml, :ml, or :gmm"))
+    se in (:auto, :hessian, :sandwich, :opg) || throw(ArgumentError("se must be :auto, :hessian, :sandwich, or :opg"))
+    Ym = Matrix{Float64}(Y)
+    T_obs, n = size(Ym)
+    T_eff = max(1, T_obs - p)
+    vn = varnames === nothing ? ["y_$i" for i in 1:n] : String[string(v) for v in varnames]
+    sn = shock_names === nothing ? ["shock_$j" for j in 1:n] : String[string(s) for s in shock_names]
+    Phi = zeros(Float64, n, n, p)
+    for l in 1:p
+        for i in 1:n
+            Phi[i, i, l] = 0.3 / l
+        end
+    end
+    Theta = zeros(Float64, n, n, q)
+    for l in 1:q
+        for i in 1:n
+            Theta[i, i, l] = i == 1 ? -0.5 : -1.5
+        end
+    end
+    C = Matrix{Float64}(I, n, n)
+    eig_re = q == 0 ? Float64[] : Float64[i == 1 ? 0.5 : 1.5 for i in 1:(n * q)]
+    eig_im = zeros(Float64, length(eig_re))
+    reg = q == 0 ? :fundamental : (n >= 2 ? :mixed_nonfundamental : :fundamental)
+    gmr = (n == 2 && q == 1) ? :I3 : :none
+    k_tot = n + p * n * n + q * n * n + n * n
+    return SVARMAModel{Float64}(
+        Ym, p, q, zeros(Float64, n), Phi, Theta, C, ones(Float64, T_eff, n) .* 0.1,
+        eig_re, eig_im, reg, gmr, fill(distribution, n), [Float64[5.0] for _ in 1:n],
+        -210.0, 440.0, 470.0, vn, sn, true, method,
+        Matrix{Float64}(I, k_tot, k_tot) .* 0.01, fill(0.05, k_tot),
+    )
+end
+
+function ssvarma_filter_shocks(m::SVARMAModel{T}; tol::Real=1e-8) where {T}
+    eigs = Complex{T}.(m.ma_eig_re, m.ma_eig_im)
+    nf = count(e -> abs(e) < one(T), eigs)
+    nnf = count(e -> abs(e) > one(T), eigs)
+    return (
+        shocks = copy(m.shocks),
+        errors = copy(m.shocks),
+        residuals = copy(m.shocks),
+        log_jacobian = zero(T),
+        log_det_C = zero(T),
+        log_det_T22 = zero(T),
+        eigenvalues = eigs,
+        n_fundamental = nf,
+        n_nonfundamental = nnf,
+    )
+end
+
+function fundamentalness_regime(m::SVARMAModel{T}; tol::Real=1e-8) where {T}
+    eigs = Complex{T}.(m.ma_eig_re, m.ma_eig_im)
+    nf = count(e -> abs(e) < one(T), eigs)
+    nnf = count(e -> abs(e) > one(T), eigs)
+    return (
+        regime = m.regime,
+        n_fundamental = nf,
+        n_nonfundamental = nnf,
+        eigenvalues = eigs,
+        gmr_region = m.gmr_region,
+    )
+end
+
+function blaschke_representations(m::SVARMAModel{T}; tol::Real=1e-8) where {T}
+    eigs = Complex{T}.(m.ma_eig_re, m.ma_eig_im)
+    nnf = count(e -> abs(e) > one(T), eigs)
+    rep1 = (
+        Theta = copy(m.Theta), C = copy(m.C), Sigma = m.C * transpose(m.C),
+        regime = m.regime, n_nonfundamental = nnf, eigenvalues = eigs,
+        gmr_region = m.gmr_region,
+    )
+    if m.q == 0
+        return NamedTuple[rep1]
+    end
+    eigs_flip = [abs(e) > 0 ? inv(e) : e for e in eigs]
+    nnf2 = count(e -> abs(e) > one(T), eigs_flip)
+    reg2 = nnf2 == 0 ? :fundamental : (nnf2 == length(eigs_flip) ? :purely_nonfundamental : :mixed_nonfundamental)
+    rep2 = (
+        Theta = copy(m.Theta), C = copy(m.C), Sigma = m.C * transpose(m.C),
+        regime = reg2, n_nonfundamental = nnf2, eigenvalues = eigs_flip,
+        gmr_region = m.gmr_region,
+    )
+    return NamedTuple[rep1, rep2]
+end
+
+function test_fundamentalness(model::Union{VARModel,SVARMAModel,ARModel,MAModel,ARMAModel,ARIMAModel};
+                              max_lag::Int=6,
+                              moments::Vector{Symbol}=Symbol[:skew, :kurt],
+                              n_boot::Int=499,
+                              rng::AbstractRNG=Random.default_rng(),
+                              seed::Union{Integer,Nothing}=nothing)
+    max_lag >= 1 || throw(ArgumentError("max_lag must be ≥ 1"))
+    n_boot >= 1 || throw(ArgumentError("n_boot must be ≥ 1"))
+    n = model isa VARModel ? size(model.Y, 2) : (model isa SVARMAModel ? size(model.Y, 2) : 1)
+    p = model isa VARModel ? model.p : (model isa SVARMAModel ? model.p : 1)
+    nobs_v = model isa VARModel ? size(model.U, 1) : (model isa SVARMAModel ? size(model.shocks, 1) : 50)
+    mtype = model isa VARModel ? :var : (model isa SVARMAModel ? :svarma : :arima)
+    lag_s = Float64[1.2 + 0.1 * k for k in 1:max_lag]
+    lag_p = Float64[0.35 for _ in 1:max_lag]
+    ms = Dict{Symbol,Float64}(m => 1.5 for m in moments)
+    mp = Dict{Symbol,Float64}(m => 0.30 for m in moments)
+    return FundamentalnessTestResult{Float64}(
+        2.15, 0.28, lag_s, lag_p, ms, mp, max_lag, copy(moments),
+        n_boot, n, p, nobs_v, mtype,
+    )
+end
+
+function test_sufficient_information(model::Union{VARModel,SVARMAModel,LMSSVARResult,LanneLuotoGMMResult,ICASVARResult,NonGaussianMLResult},
+                                     X_panel::Union{AbstractMatrix,FactorModel};
+                                     r_max::Int=4, p_f::Int=4)
+    r_max >= 1 || throw(ArgumentError("r_max must be ≥ 1"))
+    p_f >= 1 || throw(ArgumentError("p_f must be ≥ 1"))
+    n = model isa VARModel ? size(model.Y, 2) :
+        model isa SVARMAModel ? size(model.Y, 2) : size(model.B0, 1)
+    rg = collect(1:r_max)
+    fs = Float64[1.1 + 0.05 * r for r in rg]
+    fp = Float64[0.32 for _ in rg]
+    ws = Float64[4.2 + 0.3 * r for r in rg]
+    wp = Float64[0.29 for _ in rg]
+    return SufficientInformationTestResult{Float64}(
+        fs[1], fp[1], ws[1], wp[1], r_max, p_f, n, 80, n * p_f,
+        rg, fs, fp, ws, wp,
+    )
+end
+
+function dgp_ssvarma(rng::AbstractRNG=Random.default_rng();
+                     T::Int=400, mu=nothing, Phi=nothing, Theta=nothing, C=nothing,
+                     dist::Union{Symbol,AbstractVector{Symbol}}=:student_t,
+                     nu::Real=5.0, skew::Real=0.0, burn::Int=200,
+                     tol::Real=1e-8, seed::Union{Integer,Nothing}=nothing)
+    r = seed === nothing ? rng : MersenneTwister(Int(seed))
+    Phi3 = zeros(Float64, 2, 2, 1); Phi3[:, :, 1] = [0.4 0.1; -0.05 0.35]
+    Theta3 = zeros(Float64, 2, 2, 1); Theta3[:, :, 1] = [-0.5 0.0; 1.0 -2.0]
+    Cm = [1.0 0.3; -0.4 0.9]
+    Y = randn(r, T, 2)
+    eta = randn(r, T, 2)
+    return (Y=Y, eta=eta, shocks=eta, mu=[0.0, 0.0], Phi=Phi3, Theta=Theta3,
+            C=Cm, p=1, q=1, ma_eigenvalues=ComplexF64[0.5, 2.0],
+            regime=:mixed_nonfundamental)
+end
+
+for _w3_T in (LMSSVARResult, SVARHypothesisTest, NonGaussianDiagnostics,
+              LanneLuotoGMMResult, GMMMomentSelectionResult, SVARMAModel,
+              FundamentalnessTestResult, SufficientInformationTestResult)
+    _SERIALIZABLE_TYPES[string(nameof(_w3_T))] = _w3_T
+end
+
+export identify_cvm, LMSSVARResult, estimate_lms_svar, lms_project_B,
+       SVARHypothesisTest, NonGaussianDiagnostics,
+       recursiveness_hypothesis, impact_zero_hypothesis, impact_linear_hypothesis,
+       long_run_hypothesis, horizon_irf_hypothesis, mixed_svar_hypothesis,
+       test_svar_hypothesis, diagnose_nongaussian_svar,
+       LanneLuotoGMMResult, GMMMomentSelectionResult,
+       estimate_lanne_luoto_gmm, select_gmm_moments,
+       SVARMAModel, estimate_ssvarma, ssvarma_filter_shocks,
+       fundamentalness_regime, blaschke_representations,
+       FundamentalnessTestResult, SufficientInformationTestResult,
+       test_fundamentalness, test_sufficient_information,
+       dgp_ssvarma
 
 end # module

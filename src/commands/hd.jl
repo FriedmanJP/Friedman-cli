@@ -32,7 +32,7 @@ function hd_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto)"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|proxy|max-share|gmm-moments|lewis-tvv|sv-em|fastica|jade|sobi|dcov|hsic|student-t|mixture-normal|pml|skew-normal|markov-switching|garch-id"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|proxy|max-share|gmm-moments|lewis-tvv|sv-em|fastica|jade|sobi|dcov|hsic|cvm|student-t|mixture-normal|mixture-normal-asym|pml|skew-normal|lms|markov-switching|garch-id"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
                 OptionSpec(name="instrument", type=String, default="", description="Proxy-instrument CSV column (only with --id proxy)"),
                 OptionSpec(name="target-var", type=String, default="", description="Max-share target: column name or 1-based index (only with --id max-share)"),
@@ -53,7 +53,7 @@ function hd_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="Lag order"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|fastica|jade|sobi|dcov|hsic|student-t|mixture-normal|pml|skew-normal|markov-switching|garch-id|uhlig|lewis-tvv|sv-em"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|fastica|jade|sobi|dcov|hsic|cvm|student-t|mixture-normal|mixture-normal-asym|pml|skew-normal|lms|markov-switching|garch-id|uhlig|lewis-tvv|sv-em"),
                 OptionSpec(name="draws", short="n", type=Int, default=2000, description="Posterior draws"),
                 OptionSpec(name="sampler", type=String, default="direct", description="direct|gibbs"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification/prior"),
@@ -75,7 +75,7 @@ function hd_specs()::Vector{CommandSpec}
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="LP control lags"),
                 OptionSpec(name="var-lags", type=Int, default=nothing, description="VAR lag order for identification (default: same as --lags)"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|fastica|jade|sobi|dcov|hsic|student-t|mixture-normal|pml|skew-normal|markov-switching|garch-id|uhlig|lewis-tvv|sv-em"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|fastica|jade|sobi|dcov|hsic|cvm|student-t|mixture-normal|mixture-normal-asym|pml|skew-normal|lms|markov-switching|garch-id|uhlig|lewis-tvv|sv-em"),
                 OptionSpec(name="vcov", type=String, default="newey_west", description="newey_west|white|driscoll_kraay"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -97,7 +97,7 @@ function hd_specs()::Vector{CommandSpec}
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels)"),
                 OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
                 OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|fastica|jade|sobi|dcov|hsic|student-t|mixture-normal|pml|skew-normal|markov-switching|garch-id|uhlig|lewis-tvv|sv-em|svec (uhlig: generic path)"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|fastica|jade|sobi|dcov|hsic|cvm|student-t|mixture-normal|mixture-normal-asym|pml|skew-normal|lms|markov-switching|garch-id|uhlig|lewis-tvv|sv-em|svec (uhlig: generic path)"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -167,7 +167,7 @@ function hd_specs()::Vector{CommandSpec}
 end
 
 const _HD_SLOT_TYPES = Dict{Vector{String},Tuple{Vector{Symbol},Vector{Symbol}}}(
-    ["hd", "var"]     => ([:VARModel, :SVARModel], [:HistoricalDecomposition]),
+    ["hd", "var"]     => ([:VARModel, :SVARModel, :LMSSVARResult, :LanneLuotoGMMResult], [:HistoricalDecomposition]),
     ["hd", "bvar"]    => ([:BVARPosterior], [:BayesianHistoricalDecomposition]),
     ["hd", "lp"]      => ([:StructuralLP], [:HistoricalDecomposition]),
     ["hd", "vecm"]    => ([:VECMModel, :SVECResult], [:HistoricalDecomposition]),
@@ -202,6 +202,9 @@ function _hd_var(; data::String="", result=nothing, model=nothing, lags=nothing,
                           key_prefix="historical_decomposition")
         _maybe_plot(loaded; plot=plot, plot_save=plot_save)
         return loaded
+    end
+    if model isa Union{LMSSVARResult,LanneLuotoGMMResult}
+        return _w3_preidentified_hd(model; id, format, output, plot, plot_save)
     end
     if model isa SVARModel
         id in ("cholesky", "svar") || throw(CliError("usage/invalid",

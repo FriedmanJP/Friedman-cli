@@ -25,7 +25,7 @@ function fevd_specs()::Vector{CommandSpec}
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto)"),
                 OptionSpec(name="horizons", type=Int, default=20, description="Forecast horizon"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|arias|uhlig|proxy|max-share|gmm-moments|narrative-adrr|lewis-tvv|sv-em|fastica|jade|sobi|dcov|hsic|student-t|mixture-normal|pml|skew-normal|markov-switching|garch-id"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|arias|uhlig|proxy|max-share|gmm-moments|narrative-adrr|lewis-tvv|sv-em|fastica|jade|sobi|dcov|hsic|cvm|student-t|mixture-normal|mixture-normal-asym|pml|skew-normal|lms|markov-switching|garch-id"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
                 OptionSpec(name="instrument", type=String, default="", description="Proxy-instrument CSV column (only with --id proxy)"),
                 OptionSpec(name="target-var", type=String, default="", description="Max-share target: column name or 1-based index (only with --id max-share)"),
@@ -51,7 +51,7 @@ function fevd_specs()::Vector{CommandSpec}
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="Lag order"),
                 OptionSpec(name="horizons", type=Int, default=20, description="Forecast horizon"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|fastica|jade|sobi|dcov|hsic|student-t|mixture-normal|pml|skew-normal|markov-switching|garch-id|uhlig|lewis-tvv|sv-em"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|fastica|jade|sobi|dcov|hsic|cvm|student-t|mixture-normal|mixture-normal-asym|pml|skew-normal|lms|markov-switching|garch-id|uhlig|lewis-tvv|sv-em"),
                 OptionSpec(name="draws", short="n", type=Int, default=2000, description="Posterior draws"),
                 OptionSpec(name="sampler", type=String, default="direct", description="direct|gibbs"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification/prior"),
@@ -74,7 +74,7 @@ function fevd_specs()::Vector{CommandSpec}
                 OptionSpec(name="horizons", type=Int, default=20, description="Forecast horizon"),
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="LP control lags"),
                 OptionSpec(name="var-lags", type=Int, default=nothing, description="VAR lag order for identification (default: same as --lags)"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|fastica|jade|sobi|dcov|hsic|student-t|mixture-normal|pml|skew-normal|markov-switching|garch-id|uhlig|lewis-tvv|sv-em"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|fastica|jade|sobi|dcov|hsic|cvm|student-t|mixture-normal|mixture-normal-asym|pml|skew-normal|lms|markov-switching|garch-id|uhlig|lewis-tvv|sv-em"),
                 OptionSpec(name="vcov", type=String, default="newey_west", description="newey_west|white|driscoll_kraay"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -97,7 +97,7 @@ function fevd_specs()::Vector{CommandSpec}
                 OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
                 OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
                 OptionSpec(name="horizons", type=Int, default=20, description="Forecast horizon"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|fastica|jade|sobi|dcov|hsic|student-t|mixture-normal|pml|skew-normal|markov-switching|garch-id|uhlig|lewis-tvv|sv-em|svec (uhlig: generic path)"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|fastica|jade|sobi|dcov|hsic|cvm|student-t|mixture-normal|mixture-normal-asym|pml|skew-normal|lms|markov-switching|garch-id|uhlig|lewis-tvv|sv-em|svec (uhlig: generic path)"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -181,11 +181,12 @@ function fevd_specs()::Vector{CommandSpec}
             handler=wrap_legacy(_fevd_sdfm),
         ),
         w2_fevd_specs()...,
+        w3_fevd_specs()...,
     ]
 end
 
 const _FEVD_SLOT_TYPES = Dict{Vector{String},Tuple{Vector{Symbol},Vector{Symbol}}}(
-    ["fevd", "var"]     => ([:VARModel, :SVARModel], [:FEVD, :AriasSVARResult, :UhligSVARResult]),
+    ["fevd", "var"]     => ([:VARModel, :SVARModel, :LMSSVARResult, :LanneLuotoGMMResult], [:FEVD, :AriasSVARResult, :UhligSVARResult]),
     ["fevd", "bvar"]    => ([:BVARPosterior], [:BayesianFEVD]),
     ["fevd", "lp"]      => ([:StructuralLP], [:LPFEVD]),
     ["fevd", "vecm"]    => ([:VECMModel, :SVECResult], [:FEVD]),
@@ -193,6 +194,7 @@ const _FEVD_SLOT_TYPES = Dict{Vector{String},Tuple{Vector{Symbol},Vector{Symbol}
     ["fevd", "favar"]   => ([:FAVARModel], [:FEVD]),
     ["fevd", "sdfm"]    => ([:StructuralDFM], [:FEVD]),
     ["fevd", "gdfm-i1"] => ([:CointegratedGDFM], [:FEVD]),
+    ["fevd", "ssvarma"] => ([:SVARMAModel], [:FEVD]),
 )
 
 function register_fevd_commands!()
@@ -221,6 +223,10 @@ function _fevd_var(; data::String="", result=nothing, model=nothing, lags=nothin
                             id, horizons, horizons_default=20)
     loaded === nothing || return _rerender_fevd_result(loaded; format, output,
         title="Forecast Error Variance Decomposition", key="fevd", plot, plot_save)
+    if model isa Union{LMSSVARResult,LanneLuotoGMMResult}
+        return _w3_preidentified_fevd(model; horizons, id, generalized,
+            format, output, plot, plot_save)
+    end
     if model isa SVARModel
         id in ("cholesky", "svar") || throw(CliError("usage/invalid",
             "fevd var: SVARModel is already structurally identified; omit --id (got --id $id)"))

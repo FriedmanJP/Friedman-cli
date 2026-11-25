@@ -2473,6 +2473,7 @@ function residuals_specs()::Vector{CommandSpec}
         ),
         w1_residuals_specs()...,
         w2_residuals_specs()...,
+        w3_residuals_specs()...,
     ])
 end
 
@@ -2508,6 +2509,8 @@ const _FITTED_MODEL_TYPES = Dict{String,Vector{Symbol}}(
     "aparch" => [:APARCHModel], "figarch" => [:FIGARCHModel],
     "fiegarch" => [:FIEGARCHModel], "garch-midas" => [:GarchMidasModel],
     "setar" => [:ThresholdModel], "star" => [:STARModel],
+    "lms-svar" => [:LMSSVARResult], "lanne-luoto" => [:LanneLuotoGMMResult],
+    "ssvarma" => [:SVARMAModel],
 )
 
 function _wrap_fitted_specs(specs::Vector{CommandSpec})

@@ -26,7 +26,7 @@ function irf_specs()::Vector{CommandSpec}
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto)"),
                 OptionSpec(name="shock", type=Int, default=1, description="Shock variable index (1-based)"),
                 OptionSpec(name="horizons", type=Int, default=20, description="IRF horizon"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|arias|uhlig|fastica|jade|sobi|dcov|hsic|student-t|mixture-normal|pml|skew-normal|markov-switching|garch-id|proxy|max-share|gmm-moments|narrative-adrr|lewis-tvv|sv-em"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|arias|uhlig|fastica|jade|sobi|dcov|hsic|cvm|student-t|mixture-normal|mixture-normal-asym|pml|skew-normal|lms|markov-switching|garch-id|proxy|max-share|gmm-moments|narrative-adrr|lewis-tvv|sv-em"),
                 OptionSpec(name="ci", type=String, default="bootstrap", description="none|bootstrap|theoretical (ignored with --id arias|uhlig|narrative-adrr and --identified-set)"),
                 OptionSpec(name="draws", aliases=["replications"], kwarg=:replications, type=Int, default=1000, description="Bootstrap replications (also the sign-draw cap with --identified-set; ignored with --id arias|uhlig)"),
                 OptionSpec(name="instrument", type=String, default="", description="Proxy-instrument CSV column (only with --id proxy)"),
@@ -71,7 +71,7 @@ function irf_specs()::Vector{CommandSpec}
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="Lag order"),
                 OptionSpec(name="shock", type=Int, default=1, description="Shock variable index (1-based)"),
                 OptionSpec(name="horizons", type=Int, default=20, description="IRF horizon"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|fastica|jade|sobi|dcov|hsic|student-t|mixture-normal|pml|skew-normal|markov-switching|garch-id|uhlig|lewis-tvv|sv-em|robust-bayes"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|fastica|jade|sobi|dcov|hsic|cvm|student-t|mixture-normal|mixture-normal-asym|pml|skew-normal|lms|markov-switching|garch-id|uhlig|lewis-tvv|sv-em|robust-bayes"),
                 OptionSpec(name="draws", short="n", type=Int, default=2000, description="Posterior draws"),
                 OptionSpec(name="sampler", type=String, default="direct", description="direct|gibbs"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification/prior"),
@@ -126,7 +126,7 @@ function irf_specs()::Vector{CommandSpec}
                 OptionSpec(name="horizons", type=Int, default=20, description="IRF horizon"),
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="LP control lags"),
                 OptionSpec(name="var-lags", type=Int, default=nothing, description="VAR lag order for identification (default: same as --lags)"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|fastica|jade|sobi|dcov|hsic|student-t|mixture-normal|pml|skew-normal|markov-switching|garch-id|uhlig|lewis-tvv|sv-em"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|fastica|jade|sobi|dcov|hsic|cvm|student-t|mixture-normal|mixture-normal-asym|pml|skew-normal|lms|markov-switching|garch-id|uhlig|lewis-tvv|sv-em"),
                 OptionSpec(name="ci", type=String, default="none", description="none|bootstrap"),
                 OptionSpec(name="draws", aliases=["replications"], kwarg=:replications, type=Int, default=200, description="Bootstrap replications"),
                 OptionSpec(name="conf-level", type=Float64, default=0.95, description="Confidence level"),
@@ -154,7 +154,7 @@ function irf_specs()::Vector{CommandSpec}
                 OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
                 OptionSpec(name="shock", type=Int, default=1, description="Shock variable index (1-based)"),
                 OptionSpec(name="horizons", type=Int, default=20, description="IRF horizon"),
-                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|fastica|jade|sobi|dcov|hsic|student-t|mixture-normal|pml|skew-normal|markov-switching|garch-id|uhlig|lewis-tvv|sv-em|svec (uhlig: generic path)"),
+                OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|fastica|jade|sobi|dcov|hsic|cvm|student-t|mixture-normal|mixture-normal-asym|pml|skew-normal|lms|markov-switching|garch-id|uhlig|lewis-tvv|sv-em|svec (uhlig: generic path)"),
                 OptionSpec(name="ci", type=String, default="bootstrap", description="none|bootstrap|theoretical"),
                 OptionSpec(name="draws", aliases=["replications"], kwarg=:replications, type=Int, default=1000, description="Bootstrap replications"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
@@ -251,11 +251,12 @@ function irf_specs()::Vector{CommandSpec}
         ),
         w1_irf_specs()...,
         w2_irf_specs()...,
+        w3_irf_specs()...,
     ]
 end
 
 const _IRF_SLOT_TYPES = Dict{Vector{String},Tuple{Vector{Symbol},Vector{Symbol}}}(
-    ["irf", "var"]    => ([:VARModel, :SVARModel],
+    ["irf", "var"]    => ([:VARModel, :SVARModel, :LMSSVARResult, :LanneLuotoGMMResult],
                           [:ImpulseResponse, :AriasSVARResult, :UhligSVARResult, :SignIdentifiedSet]),
     ["irf", "bvar"]   => ([:BVARPosterior], [:BayesianImpulseResponse, :RobustBayesResult]),
     ["irf", "tvpvar"] => ([:TVPVARPosterior], [:BayesianImpulseResponse]),
@@ -267,6 +268,7 @@ const _IRF_SLOT_TYPES = Dict{Vector{String},Tuple{Vector{Symbol},Vector{Symbol}}
     ["irf", "qvar"]   => ([:QuantileVARModel], [:QuantileImpulseResponse]),
     ["irf", "qfavar"] => ([:QuantileFAVAR, :VBQuantileFAVAR], [:QuantileImpulseResponse]),
     ["irf", "gdfm-i1"] => ([:CointegratedGDFM], [:ImpulseResponse]),
+    ["irf", "ssvarma"] => ([:SVARMAModel], [:ImpulseResponse]),
 )
 
 function register_irf_commands!()
@@ -300,6 +302,12 @@ function _irf_var(; data::String="", result=nothing, model=nothing, lags=nothing
                             id, horizons, horizons_default=20)
     loaded === nothing || return _rerender_irf_result(loaded; format, output,
         title="Impulse Responses", key="irf", plot, plot_save, shock)
+    if model isa Union{LMSSVARResult,LanneLuotoGMMResult}
+        return _w3_preidentified_irf(model; horizons, shock, id, ci, replications,
+            bootstrap, block_length, wild_dist, bias_correct, bias_reps,
+            stationary_only, cumulative, identified_set,
+            bootstrap_across_rotations, summary, format, output, plot, plot_save)
+    end
     if model isa SVARModel
         id in ("cholesky", "svar") || throw(CliError("usage/invalid",
             "irf var: SVARModel is already structurally identified; omit --id (got --id $id)"))

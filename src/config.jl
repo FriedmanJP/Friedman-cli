@@ -40,6 +40,8 @@ const CONFIG_SCHEMA = Dict{String,Vector{String}}(
     "solver" => ["method", "order", "degree", "grid"],
     "constraints" => ["bounds", "nonlinear"],
     "priors" => String[],  # free param names under [priors]
+    "svar_hypothesis" => ["type", "ordering", "zeros", "R", "r", "restrictions",
+                          "short_run", "long_run", "horizon"],
 )
 
 """Nested tables under known sections."""
@@ -53,6 +55,9 @@ const CONFIG_NESTED_SCHEMA = Dict{String,Vector{String}}(
     "identification.lewis_tvv" => ["weighting"],
     "identification.sv_svar" => ["hetero_shocks", "maxiter", "gibbs_burn",
                                  "gibbs_draws", "init"],
+    "svar_hypothesis.short_run" => ["type", "ordering", "zeros", "R", "r", "recursiveness"],
+    "svar_hypothesis.long_run" => ["ordering", "zeros"],
+    "svar_hypothesis.horizon" => ["ordering", "restrictions"],
 )
 
 """Enum-like string fields validated against allow-lists."""
@@ -61,15 +66,17 @@ const CONFIG_ENUMS = Dict{String,Vector{String}}(
     "identification.method" => ["cholesky", "sign", "narrative", "longrun", "arias", "uhlig",
                                 "narrative-adrr", "proxy", "max-share", "gmm-moments",
                                 "svec", "svar",
-                                "fastica", "jade", "sobi", "dcov", "hsic",
+                                "fastica", "jade", "sobi", "dcov", "hsic", "cvm",
                                 "student_t", "student-t",
                                 "mixture_normal", "mixture-normal",
+                                "mixture_normal_asym", "mixture-normal-asym",
                                 "pml",
                                 "skew_normal", "skew-normal",
+                                "lms",
                                 "markov_switching", "markov-switching",
                                 "garch_id", "garch-id",
                                 "lewis-tvv", "sv-em"],
-    "gmm.weighting" => ["identity", "optimal", "twostep", "iterated", "two_step"],
+    "gmm.weighting" => ["identity", "optimal", "twostep", "iterated", "two_step", "cue"],
     "smm.weighting" => ["identity", "optimal", "two_step", "iterated", "twostep"],
     "smm.model" => ["ar1", "arp", "var1", "iid_normal"],
     "nongaussian.method" => ["fastica", "jade", "ml", "markov", "garch",
@@ -77,6 +84,10 @@ const CONFIG_ENUMS = Dict{String,Vector{String}}(
     "nongaussian.contrast" => ["logcosh", "exp", "kurtosis"],
     "nongaussian.distribution" => ["student_t", "skew_t", "ghd"],
     "solver.method" => ["gensys", "klein", "perturbation", "projection", "pfi"],
+    "svar_hypothesis.type" => ["recursiveness", "impact_zero", "impact-zero",
+                               "impact_linear", "impact-linear",
+                               "long_run", "long-run",
+                               "horizon_irf", "horizon-irf", "mixed"],
 )
 
 # Thread/task-local strict flag set by wrap_legacy from --strict
@@ -1379,4 +1390,247 @@ function get_opp_constraints(config::Dict)
     isempty(out) && throw(CliError("config/invalid",
         "at least one [[constraint]] table is required"))
     return out
+end
+
+# ── [svar_hypothesis] TOML parser ([MEM111-W3] #315) ───────────────────────
+
+const _SVAR_HYP_TYPE_MAP = Dict{String,String}(
+    "recursiveness" => "recursiveness",
+    "impact_zero"   => "impact_zero",
+    "impact-zero"   => "impact_zero",
+    "impact_linear" => "impact_linear",
+    "impact-linear" => "impact_linear",
+    "long_run"      => "long_run",
+    "long-run"      => "long_run",
+    "horizon_irf"   => "horizon_irf",
+    "horizon-irf"   => "horizon_irf",
+    "mixed"         => "mixed",
+)
+
+function _parse_svar_hyp_ordering(raw, ctx::String)
+    raw === nothing && return nothing
+    if raw isa AbstractString
+        s = lowercase(strip(String(raw)))
+        s == "canonical" && return :canonical
+        (s == "best_match" || s == "best-match") && return :best_match
+        throw(CliError("config/invalid",
+            "$ctx.ordering must be \"canonical\", \"best_match\", or a permutation array of 1..n (got '$raw')"))
+    elseif raw isa Symbol
+        raw in (:canonical, :best_match) && return raw
+        throw(CliError("config/invalid",
+            "$ctx.ordering must be :canonical, :best_match, or a permutation array (got :$raw)"))
+    elseif raw isa AbstractVector
+        isempty(raw) && throw(CliError("config/invalid",
+            "$ctx.ordering permutation array must not be empty"))
+        ord = Int[]
+        for v in raw
+            (v isa Integer && !(v isa Bool) && v >= 1) || throw(CliError("config/invalid",
+                "$ctx.ordering must hold positive integers 1..n (got $v)"))
+            push!(ord, Int(v))
+        end
+        sort(ord) == collect(1:length(ord)) || throw(CliError("config/invalid",
+            "$ctx.ordering must be a permutation of 1:$(length(ord)) (got $ord)"))
+        return ord
+    end
+    throw(CliError("config/invalid",
+        "$ctx.ordering must be \"canonical\", \"best_match\", or a permutation array (got $(typeof(raw)))"))
+end
+
+function _parse_svar_hyp_pairs(raw, ctx::String)
+    (raw isa AbstractVector && !isempty(raw)) || throw(CliError("config/invalid",
+        "$ctx.zeros must be a non-empty array of [var, shock] index pairs"))
+    pairs = Tuple{Int,Int}[]
+    for (idx, item) in enumerate(raw)
+        (item isa AbstractVector && length(item) == 2) || throw(CliError("config/invalid",
+            "$ctx.zeros[$idx] must be a 2-element [var, shock] array (got $item)"))
+        a, b = item[1], item[2]
+        (a isa Integer && !(a isa Bool) && a >= 1 &&
+         b isa Integer && !(b isa Bool) && b >= 1) || throw(CliError("config/invalid",
+            "$ctx.zeros[$idx] must hold positive integers [var, shock] (got $item)"))
+        push!(pairs, (Int(a), Int(b)))
+    end
+    length(unique(pairs)) == length(pairs) || throw(CliError("config/invalid",
+        "$ctx.zeros contains duplicate [var, shock] entries"))
+    return pairs
+end
+
+function _parse_svar_hyp_linear(tbl::AbstractDict, ctx::String)
+    haskey(tbl, "R") || throw(CliError("config/invalid",
+        "$ctx requires matrix `R` for impact_linear hypothesis"))
+    raw_R = tbl["R"]
+    (raw_R isa AbstractVector && !isempty(raw_R)) || throw(CliError("config/invalid",
+        "$ctx.R must be a non-empty 2D array of finite numbers"))
+    nrows = length(raw_R)
+    first_row = raw_R[1]
+    (first_row isa AbstractVector && !isempty(first_row)) || throw(CliError("config/invalid",
+        "$ctx.R rows must be non-empty numeric arrays"))
+    ncols = length(first_row)
+    R = Matrix{Float64}(undef, nrows, ncols)
+    for (i, row) in enumerate(raw_R)
+        (row isa AbstractVector && length(row) == ncols) || throw(CliError("config/invalid",
+            "$ctx.R row $i has length $(row isa AbstractVector ? length(row) : -1), expected $ncols"))
+        for (j, v) in enumerate(row)
+            (v isa Real && !(v isa Bool) && isfinite(v)) || throw(CliError("config/invalid",
+                "$ctx.R[$i,$j] must be a finite number (got $v)"))
+            R[i, j] = Float64(v)
+        end
+    end
+    r = if haskey(tbl, "r") && tbl["r"] !== nothing
+        raw_r = tbl["r"]
+        (raw_r isa AbstractVector && length(raw_r) == nrows) || throw(CliError("config/invalid",
+            "$ctx.r must be a numeric array of length $nrows (matching rows of R)"))
+        out_r = Vector{Float64}(undef, nrows)
+        for (i, v) in enumerate(raw_r)
+            (v isa Real && !(v isa Bool) && isfinite(v)) || throw(CliError("config/invalid",
+                "$ctx.r[$i] must be a finite number (got $v)"))
+            out_r[i] = Float64(v)
+        end
+        out_r
+    else
+        zeros(Float64, nrows)
+    end
+    return R, r
+end
+
+function _parse_svar_hyp_horizon(raw, ctx::String)
+    (raw isa AbstractVector && !isempty(raw)) || throw(CliError("config/invalid",
+        "$ctx.restrictions must be a non-empty array of {horizon, var, shock} tables or [h, i, j] triples"))
+    out = Tuple{Int,Int,Int}[]
+    for (idx, item) in enumerate(raw)
+        if item isa AbstractDict
+            (haskey(item, "horizon") && haskey(item, "var") && haskey(item, "shock")) ||
+                throw(CliError("config/invalid",
+                    "$ctx.restrictions[$idx] must specify `horizon`, `var`, and `shock`"))
+            h, v, s = item["horizon"], item["var"], item["shock"]
+            if haskey(item, "value") && item["value"] !== nothing
+                val = item["value"]
+                (val isa Real && !(val isa Bool) && isfinite(val)) || throw(CliError("config/invalid",
+                    "$ctx.restrictions[$idx].value must be a finite number (got $val)"))
+                Float64(val) == 0.0 || throw(CliError("config/invalid",
+                    "$ctx.restrictions[$idx].value must be 0.0 (upstream horizon_irf_hypothesis imposes zero restrictions, got $val)"))
+            end
+        elseif item isa AbstractVector && length(item) == 3
+            h, v, s = item[1], item[2], item[3]
+        else
+            throw(CliError("config/invalid",
+                "$ctx.restrictions[$idx] must be a {horizon, var, shock} table or 3-element [h, i, j] array"))
+        end
+        (h isa Integer && !(h isa Bool) && h >= 0) || throw(CliError("config/invalid",
+            "$ctx.restrictions[$idx] horizon must be an integer ≥ 0 (got $h)"))
+        (v isa Integer && !(v isa Bool) && v >= 1) || throw(CliError("config/invalid",
+            "$ctx.restrictions[$idx] var must be an integer ≥ 1 (got $v)"))
+        (s isa Integer && !(s isa Bool) && s >= 1) || throw(CliError("config/invalid",
+            "$ctx.restrictions[$idx] shock must be an integer ≥ 1 (got $s)"))
+        push!(out, (Int(h), Int(v), Int(s)))
+    end
+    length(unique(out)) == length(out) || throw(CliError("config/invalid",
+        "$ctx.restrictions contains duplicate (horizon, var, shock) entries"))
+    return out
+end
+
+function _parse_svar_hyp_short_run(sr::AbstractDict, parent_ord, ctx::String)
+    ord = haskey(sr, "ordering") ? _parse_svar_hyp_ordering(sr["ordering"], ctx) : parent_ord
+    explicit_type = haskey(sr, "type") ? lowercase(strip(string(sr["type"]))) : ""
+    is_rec = get(sr, "recursiveness", false) === true || explicit_type == "recursiveness"
+    has_zeros = haskey(sr, "zeros")
+    has_R = haskey(sr, "R")
+    n_modes = Int(is_rec) + Int(has_zeros) + Int(has_R)
+    n_modes == 1 || throw(CliError("config/invalid",
+        "$ctx must specify exactly one of `recursiveness = true`, `zeros`, or `R`"))
+    if is_rec
+        return Dict{String,Any}("type" => "recursiveness", "ordering" => ord)
+    elseif has_zeros
+        return Dict{String,Any}("type" => "impact_zero", "ordering" => ord,
+                                "zeros" => _parse_svar_hyp_pairs(sr["zeros"], ctx))
+    else
+        R, r = _parse_svar_hyp_linear(sr, ctx)
+        return Dict{String,Any}("type" => "impact_linear", "ordering" => ord, "R" => R, "r" => r)
+    end
+end
+
+"""
+    get_svar_hypothesis(config::Dict) → Dict{String,Any}
+
+Parse a `[svar_hypothesis]` TOML stanza for `test multivariate svar-hypothesis`.
+Supports all 6 structured restriction types (`recursiveness`, `impact_zero`,
+`impact_linear`, `long_run`, `horizon_irf`, `mixed`), throwing typed
+`CliError("config/invalid", ...)` on any malformed specification.
+"""
+function get_svar_hypothesis(config::Dict)
+    haskey(config, "svar_hypothesis") || throw(CliError("config/invalid",
+        "TOML config must contain a [svar_hypothesis] table";
+        hint="add `[svar_hypothesis]` with `type = \"recursiveness\"|\"impact_zero\"|\"impact_linear\"|\"long_run\"|\"horizon_irf\"|\"mixed\"`"))
+    sh = config["svar_hypothesis"]
+    sh isa AbstractDict || throw(CliError("config/invalid",
+        "[svar_hypothesis] must be a table (got $(typeof(sh)))"))
+    haskey(sh, "type") || throw(CliError("config/invalid",
+        "[svar_hypothesis] missing required `type` key";
+        hint="set type = \"recursiveness\"|\"impact_zero\"|\"impact_linear\"|\"long_run\"|\"horizon_irf\"|\"mixed\""))
+    raw_type = lowercase(strip(string(sh["type"])))
+    haskey(_SVAR_HYP_TYPE_MAP, raw_type) || throw(CliError("config/invalid",
+        "[svar_hypothesis].type must be recursiveness|impact_zero|impact_linear|long_run|horizon_irf|mixed (got '$(sh["type"])')"))
+    htype = _SVAR_HYP_TYPE_MAP[raw_type]
+    ord = haskey(sh, "ordering") ? _parse_svar_hyp_ordering(sh["ordering"], "[svar_hypothesis]") : nothing
+
+    if htype == "recursiveness"
+        return Dict{String,Any}("type" => "recursiveness", "ordering" => ord)
+    elseif htype == "impact_zero"
+        haskey(sh, "zeros") || throw(CliError("config/invalid",
+            "[svar_hypothesis] impact_zero requires `zeros = [[i, j], ...]`"))
+        return Dict{String,Any}("type" => "impact_zero", "ordering" => ord,
+                                "zeros" => _parse_svar_hyp_pairs(sh["zeros"], "[svar_hypothesis]"))
+    elseif htype == "impact_linear"
+        R, r = _parse_svar_hyp_linear(sh, "[svar_hypothesis]")
+        return Dict{String,Any}("type" => "impact_linear", "ordering" => ord, "R" => R, "r" => r)
+    elseif htype == "long_run"
+        haskey(sh, "zeros") || throw(CliError("config/invalid",
+            "[svar_hypothesis] long_run requires `zeros = [[i, j], ...]`"))
+        return Dict{String,Any}("type" => "long_run", "ordering" => ord,
+                                "zeros" => _parse_svar_hyp_pairs(sh["zeros"], "[svar_hypothesis]"))
+    elseif htype == "horizon_irf"
+        haskey(sh, "restrictions") || throw(CliError("config/invalid",
+            "[svar_hypothesis] horizon_irf requires `restrictions = [{horizon=h, var=i, shock=j}, ...]`"))
+        return Dict{String,Any}("type" => "horizon_irf", "ordering" => ord,
+                                "restrictions" => _parse_svar_hyp_horizon(sh["restrictions"], "[svar_hypothesis]"))
+    else # "mixed"
+        sr_raw = get(sh, "short_run", nothing)
+        lr_raw = get(sh, "long_run", nothing)
+        hz_raw = get(sh, "horizon", nothing)
+        (sr_raw === nothing && lr_raw === nothing && hz_raw === nothing) && throw(CliError(
+            "config/invalid",
+            "[svar_hypothesis] mixed requires at least one of `short_run`, `long_run`, or `horizon` sub-tables"))
+        sr = if sr_raw === nothing
+            nothing
+        else
+            sr_raw isa AbstractDict || throw(CliError("config/invalid",
+                "[svar_hypothesis.short_run] must be a table"))
+            _parse_svar_hyp_short_run(sr_raw, ord, "[svar_hypothesis.short_run]")
+        end
+        lr = if lr_raw === nothing
+            nothing
+        else
+            lr_raw isa AbstractDict || throw(CliError("config/invalid",
+                "[svar_hypothesis.long_run] must be a table"))
+            haskey(lr_raw, "zeros") || throw(CliError("config/invalid",
+                "[svar_hypothesis.long_run] requires `zeros = [[i, j], ...]`"))
+            lr_ord = haskey(lr_raw, "ordering") ?
+                _parse_svar_hyp_ordering(lr_raw["ordering"], "[svar_hypothesis.long_run]") : ord
+            Dict{String,Any}("type" => "long_run", "ordering" => lr_ord,
+                             "zeros" => _parse_svar_hyp_pairs(lr_raw["zeros"], "[svar_hypothesis.long_run]"))
+        end
+        hz = if hz_raw === nothing
+            nothing
+        else
+            hz_raw isa AbstractDict || throw(CliError("config/invalid",
+                "[svar_hypothesis.horizon] must be a table"))
+            haskey(hz_raw, "restrictions") || throw(CliError("config/invalid",
+                "[svar_hypothesis.horizon] requires `restrictions`"))
+            hz_ord = haskey(hz_raw, "ordering") ?
+                _parse_svar_hyp_ordering(hz_raw["ordering"], "[svar_hypothesis.horizon]") : ord
+            Dict{String,Any}("type" => "horizon_irf", "ordering" => hz_ord,
+                             "restrictions" => _parse_svar_hyp_horizon(hz_raw["restrictions"], "[svar_hypothesis.horizon]"))
+        end
+        return Dict{String,Any}("type" => "mixed", "ordering" => ord,
+                                "short_run" => sr, "long_run" => lr, "horizon" => hz)
+    end
 end

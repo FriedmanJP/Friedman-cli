@@ -180,8 +180,9 @@ function test_specs()::Vector{CommandSpec}
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
                 OptionSpec(name="test", type=String, default="all", description="strength|gaussianity|independence|overidentification|lambda-distinct|gaussian-count|label-stability|all (the last three are opt-in only)"),
-                OptionSpec(name="method", type=String, default="fastica", description="fastica|jade|sobi|dcov|hsic (for gaussianity/independence/overidentification tests; label-stability bootstraps the chosen estimator)"),
+                OptionSpec(name="method", type=String, default="fastica", description="fastica|jade|sobi|dcov|hsic|cvm (for gaussianity/independence/overidentification tests; label-stability bootstraps the chosen estimator)", choices=["fastica", "jade", "sobi", "dcov", "hsic", "cvm"]),
                 OptionSpec(name="contrast", type=String, default="logcosh", description="logcosh|exp|kurtosis (for FastICA)"),
+                OptionSpec(name="n-starts", type=Int, default=3, description="Additional random starts (for --method cvm)"),
                 OptionSpec(name="n-bootstrap", type=Int, default=999, description="Bootstrap replications (for label-stability)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
@@ -1776,6 +1777,7 @@ function test_specs()::Vector{CommandSpec}
             handler=_test_hausman_iia,
         ),
         w1_test_specs()...,
+        w3_test_specs()...,
     ]
 end
 
@@ -1839,6 +1841,11 @@ const _TEST_RESULT_TYPES = Dict{String,Vector{Symbol}}(
     "hausman-iia" => Symbol[],
     "qfm-spanning" => [:QFMSpanningResult],
     "qfm-constancy" => [:QFMLoadingConstancyTest],
+    "svar-hypothesis" => [:SVARHypothesisTest],
+    "nongaussian-diag" => [:NonGaussianDiagnostics],
+    "gmm-moments" => [:GMMMomentSelectionResult],
+    "fundamentalness" => [:FundamentalnessTestResult],
+    "sufficient-info" => [:SufficientInformationTestResult],
 )
 
 const _SERIAL_RESIDUAL_MODELS = [
@@ -1865,6 +1872,11 @@ const _TEST_MODEL_TYPES = Dict{String,Vector{Symbol}}(
     "bartlett-wn"   => _SERIAL_RESIDUAL_MODELS,
     "qfm-spanning"  => [:QuantileFactorModel, :QuantileFactorGrid],
     "qfm-constancy" => [:QuantileFactorGrid],
+    "svar-hypothesis"  => [:LMSSVARResult, :LanneLuotoGMMResult],
+    "nongaussian-diag" => [:LMSSVARResult],
+    "gmm-moments"      => [:VARModel],
+    "fundamentalness"  => [:VARModel, :SVARMAModel, :ARIMAModel, :ARMAModel, :ARModel, :MAModel],
+    "sufficient-info"  => [:VARModel, :SVARMAModel, :LMSSVARResult, :LanneLuotoGMMResult, :ICASVARResult, :NonGaussianMLResult],
 )
 
 function _extract_residual_series(data::String, column::Int, model)
@@ -2342,8 +2354,10 @@ end
 
 function _test_identifiability(; data::String, lags=nothing, test::String="all",
                                   method::String="fastica", contrast::String="logcosh",
-                                  n_bootstrap::Int=999,
+                                  n_starts::Int=3, n_bootstrap::Int=999,
                                   output::String="", format::String="table")
+    n_starts >= 1 || throw(CliError("usage/invalid",
+        "test identifiability: --n-starts must be ≥ 1 (got $n_starts)"))
     n_bootstrap >= 1 || throw(CliError("usage/invalid",
         "test identifiability: --n-bootstrap must be ≥ 1 (got $n_bootstrap)"))
     model, Y, varnames, p = _load_and_estimate_var(data, lags)
@@ -2391,6 +2405,8 @@ function _test_identifiability(; data::String, lags=nothing, test::String="all",
             identify_dcov(model)
         elseif method == "hsic"
             identify_hsic(model; _fwd_seed()...)
+        elseif method == "cvm"
+            identify_cvm(model; n_starts=n_starts, _fwd_seed()...)
         else
             identify_fastica(model; contrast=Symbol(contrast), _fwd_seed()...)
         end
@@ -2453,6 +2469,8 @@ function _test_identifiability(; data::String, lags=nothing, test::String="all",
     end
 
     if run_labelstab
+        method == "cvm" && throw(CliError("usage/invalid",
+            "test identifiability: --test label-stability does not support --method cvm"))
         # Label stability carries no p-value (match fraction only); NaN renders
         # as null in JSON and never counts toward the 5% summary below.
         ls_result = test_label_stability(model; method=Symbol(method), n_bootstrap=n_bootstrap)

@@ -365,11 +365,11 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "gmm"],
-            summary="Estimate GMM from TOML moment conditions (identity/optimal/two-step/iterated)",
+            summary="Estimate GMM from TOML moment conditions (identity/optimal/two-step/iterated/cue)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="config", type=String, default="", description="Config file for moment conditions and instruments; TOML or a model card"),
-                OptionSpec(name="weighting", short="w", type=String, default="twostep", description="identity|optimal|twostep|iterated", choices=["identity", "optimal", "twostep", "iterated"]),
+                OptionSpec(name="weighting", short="w", type=String, default="twostep", description="identity|optimal|twostep|iterated|cue", choices=["identity", "optimal", "twostep", "iterated", "cue"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -1260,18 +1260,21 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["estimate", "fastica"],
-            summary="Non-Gaussian SVAR identification (fastica|jade|sobi|dcov|hsic) on a VAR",
+            summary="Non-Gaussian SVAR identification (fastica|jade|sobi|dcov|hsic|cvm) on a VAR",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
-                OptionSpec(name="method", type=String, default="fastica", description="fastica|jade|sobi|dcov|hsic", choices=["fastica", "jade", "sobi", "dcov", "hsic"]),
+                OptionSpec(name="method", type=String, default="fastica", description="fastica|jade|sobi|dcov|hsic|cvm", choices=["fastica", "jade", "sobi", "dcov", "hsic", "cvm"]),
                 OptionSpec(name="contrast", type=String, default="logcosh", description="logcosh|exp|kurtosis (for FastICA)"),
+                OptionSpec(name="n-starts", type=Int, default=3, description="Additional random starts (for --method cvm)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
             tables=[TableSpec(name=:structural_impact_matrix_b0,
                               description="Identified structural impact matrix B0, one row per equation"),
+                    TableSpec(name=:structural_impact_standard_errors,
+                              description="Asymptotic sandwich standard errors for B0 (emitted when available, e.g. --method cvm)"),
                     TableSpec(name=:structural_shocks,
                               description="First observations of the recovered structural shocks")],
             category="estimate",
@@ -1284,10 +1287,16 @@ function estimate_specs()::Vector{CommandSpec}
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
                 OptionSpec(name="distribution", type=String, default="student_t", description="student_t|mixture_normal|pml|skew_normal", choices=["student_t", "mixture_normal", "pml", "skew_normal"]),
+                OptionSpec(name="vcov-type", type=String, default="auto", description="Covariance estimator: auto|hessian|sandwich|opg|information", choices=["auto", "hessian", "sandwich", "opg", "information"]),
+                OptionSpec(name="n-starts", type=Int, default=5, description="Multi-start count for L-BFGS optimization"),
+                OptionSpec(name="max-iter", type=Int, default=500, description="Maximum L-BFGS iterations per start"),
+                OptionSpec(name="tol", type=Float64, default=1e-6, description="Gradient convergence tolerance"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
-            flags=FlagSpec[],
+            flags=[
+                FlagSpec(name="asymmetric", description="Use asymmetric 2-component Gaussian mixture (valid only with --distribution mixture_normal)")
+            ],
             tables=[TableSpec(name=:structural_impact_matrix_b0,
                               description="Identified structural impact matrix B0, one row per equation"),
                     TableSpec(name=:model_fit,
@@ -1895,6 +1904,7 @@ function estimate_specs()::Vector{CommandSpec}
         ),
         w1_estimate_specs()...,
         w2_estimate_specs()...,
+        w3_estimate_specs()...,
     ]
 end
 
@@ -2935,7 +2945,8 @@ function _estimate_gmm(; data::String, config::String="",
     gmm_cfg = get_gmm(cfg)
 
     weighting_map = Dict("identity" => :identity, "optimal" => :optimal,
-                         "twostep" => :two_step, "iterated" => :iterated)
+                         "twostep" => :two_step, "iterated" => :iterated,
+                         "cue" => :cue)
     w = get(weighting_map, lowercase(weighting), :two_step)
 
     has_dep = !isempty(gmm_cfg["dep"])
@@ -3262,7 +3273,10 @@ end
 # ── Non-Gaussian ICA ──────────────────────────────────────
 
 function _estimate_fastica(; data::String, lags=nothing, method::String="fastica",
-                             contrast::String="logcosh", output::String="", format::String="table")
+                             contrast::String="logcosh", n_starts::Int=3,
+                             output::String="", format::String="table")
+    n_starts >= 1 || throw(CliError("usage/invalid",
+        "estimate factor fastica: --n-starts must be ≥ 1 (got $n_starts)"))
     model, Y, varnames, p = _load_and_estimate_var(data, lags)
     n = length(varnames)
 
@@ -3277,6 +3291,8 @@ function _estimate_fastica(; data::String, lags=nothing, method::String="fastica
         identify_dcov(model)
     elseif method == "hsic"
         identify_hsic(model; _fwd_seed()...)
+    elseif method == "cvm"
+        identify_cvm(model; n_starts=n_starts, _fwd_seed()...)
     else
         identify_fastica(model; contrast=Symbol(contrast), _fwd_seed()...)
     end
@@ -3297,6 +3313,24 @@ function _estimate_fastica(; data::String, lags=nothing, method::String="fastica
                   title="Structural Impact Matrix (B0)")
     _status()
 
+    se_vals = try
+        stderror(result)
+    catch
+        Float64[]
+    end
+    if !isempty(se_vals) && any(isfinite, se_vals) && length(se_vals) >= n * n
+        se_df = DataFrame(
+            parameter=["B0[$i,$j]" for j in 1:n for i in 1:n],
+            estimate=vec(result.B0),
+            std_error=Float64.(vec(se_vals)[1:(n * n)]),
+        )
+        output_result(se_df; format=Symbol(format),
+                      output=_per_var_output_path(output, "se"),
+                      title="Structural Impact Standard Errors",
+                      key="structural_impact_standard_errors")
+        _status()
+    end
+
     shocks = result.shocks
     T_shocks = size(shocks, 1)
     n_show = min(T_shocks, 10)
@@ -3311,21 +3345,40 @@ end
 # ── Non-Gaussian ML ───────────────────────────────────────
 
 function _estimate_ml(; data::String, lags=nothing, distribution::String="student_t",
+                        asymmetric::Bool=false, vcov_type::String="auto",
+                        n_starts::Int=5, max_iter::Int=500, tol::Float64=1e-6,
                         output::String="", format::String="table")
+    dist_norm = replace(lowercase(strip(distribution)), "-" => "_")
+    if asymmetric && dist_norm != "mixture_normal"
+        throw(CliError("usage/invalid",
+            "estimate regression ml: --asymmetric is valid only with --distribution mixture_normal (got --distribution $distribution)"))
+    end
+    n_starts >= 1 || throw(CliError("usage/invalid",
+        "estimate regression ml: --n-starts must be ≥ 1 (got $n_starts)"))
+    max_iter >= 1 || throw(CliError("usage/invalid",
+        "estimate regression ml: --max-iter must be ≥ 1 (got $max_iter)"))
+    tol > 0 || throw(CliError("usage/invalid",
+        "estimate regression ml: --tol must be > 0 (got $tol)"))
+    vt_str = lowercase(strip(vcov_type))
+    vt_sym = vt_str == "information" ? :opg : Symbol(vt_str)
+    vt_sym in (:auto, :hessian, :sandwich, :opg) || throw(CliError("usage/invalid",
+        "estimate regression ml: --vcov-type must be auto|hessian|sandwich|opg|information (got '$vcov_type')"))
+
     model, Y, varnames, p = _load_and_estimate_var(data, lags)
     n = length(varnames)
 
-    _status("Non-Gaussian ML SVAR: distribution=$distribution, VAR($p), $n variables")
+    _status("Non-Gaussian ML SVAR: distribution=$dist_norm$(asymmetric ? " (asymmetric)" : ""), vcov=$vt_sym, VAR($p), $n variables")
     _status()
 
-    result = if distribution == "mixture_normal"
-        identify_mixture_normal(model)
-    elseif distribution == "pml"
-        identify_pml(model)
-    elseif distribution == "skew_normal"
-        identify_skew_normal(model)
+    ml_kw = (; max_iter=max_iter, tol=tol, vcov_type=vt_sym, n_starts=n_starts, _fwd_seed()...)
+    result = if dist_norm == "mixture_normal"
+        identify_mixture_normal(model; asymmetric=asymmetric, ml_kw...)
+    elseif dist_norm == "pml"
+        identify_pml(model; ml_kw...)
+    elseif dist_norm == "skew_normal"
+        identify_skew_normal(model; ml_kw...)
     else
-        identify_nongaussian_ml(model; distribution=Symbol(distribution))
+        identify_nongaussian_ml(model; distribution=Symbol(dist_norm), ml_kw...)
     end
 
     b0_df = DataFrame(result.B0, varnames)
@@ -3348,18 +3401,21 @@ function _estimate_ml(; data::String, lags=nothing, distribution::String="studen
         for (k, v) in pairs(result.dist_params)
             if v isa AbstractArray
                 _status("  $k = $(round.(v; digits=4))")
-            else
+            elseif v isa Real
                 _status("  $k = $(round(v; digits=4))")
+            else
+                _status("  $k = $v")
             end
         end
     end
 
     if !isnothing(result.se) && length(result.se) > 0
         _status()
+        se_vec = vec(result.se)
         se_df = DataFrame(
-            parameter=["B0[$i,$j]" for i in 1:n for j in 1:n],
+            parameter=["B0[$i,$j]" for j in 1:n for i in 1:n],
             estimate=vec(result.B0),
-            std_error=result.se[1:min(length(result.se), n*n)]
+            std_error=se_vec[1:min(length(se_vec), n*n)]
         )
         output_result(se_df; format=Symbol(format),
                       output=_per_var_output_path(output, "se"),

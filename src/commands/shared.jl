@@ -735,13 +735,17 @@ const ID_METHOD_MAP = Dict(
     "sobi"              => :sobi,
     "dcov"              => :dcov,
     "hsic"              => :hsic,
+    "cvm"               => :cvm,
     "student_t"         => :student_t,
     "student-t"         => :student_t,
     "mixture_normal"    => :mixture_normal,
     "mixture-normal"    => :mixture_normal,
+    "mixture_normal_asym" => :mixture_normal_asym,
+    "mixture-normal-asym" => :mixture_normal_asym,
     "pml"               => :pml,
     "skew_normal"       => :skew_normal,
     "skew-normal"       => :skew_normal,
+    "lms"               => :lms,
     "markov_switching"  => :markov_switching,
     "markov-switching"  => :markov_switching,
     "garch_id"          => :garch,
@@ -4218,7 +4222,10 @@ const _TIDY_COEF_TYPES = Union{RegModel,LogitModel,ProbitModel,PanelRegModel,Pan
     MultinomialLogitModel,VARModel,DIDResult,
     QFMICResult,QFMSpanningResult,QFMLoadingConstancyTest,QuantileFactorPanelModel,
     QuantileVARModel,
-    OnatskiQTestResult,AhnHorensteinResult,OnatskiEDResult,EurocoinResult,GDFMNowcastResult}
+    OnatskiQTestResult,AhnHorensteinResult,OnatskiEDResult,EurocoinResult,GDFMNowcastResult,
+    LMSSVARResult,SVARHypothesisTest,NonGaussianDiagnostics,LanneLuotoGMMResult,
+    GMMMomentSelectionResult,SVARMAModel,FundamentalnessTestResult,
+    SufficientInformationTestResult}
 
 """Emit a coefficient-bearing result via upstream Tables.jl (`DataFrame(m)`).
 

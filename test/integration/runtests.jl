@@ -10807,6 +10807,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         end
     end
 
+    include(joinpath(@__DIR__, "test_w3_nongaussian.jl"))
 end
 
 # Wave 1 ([MEM111-W1] #313): QFM, GaR, xtqreg, QVAR, QFAVAR & QReg IPM
