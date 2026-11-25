@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """Release latency budgets (C074/#79, wired by W6/#141).
 
-Agent-first mandate: per-call latency is a reliability property. Two cases,
+Agent-first mandate: per-call latency is a reliability property. Five cases,
 each run N times as a COLD process start (cold start IS the metric; the
 reported number is the minimum, which filters scheduler noise while keeping
 the full cold-start cost):
 
-    version:   $BIN --version                                      (default budget 3000 ms)
-    estimate:  $BIN --quiet estimate multivariate var <data> --lags 1
+    version:     $BIN --version                                    (default budget 50 ms)
+    help:        $BIN --help                                       (default budget 50 ms)
+    schema:      $BIN schema estimate multivariate var             (default budget 50 ms)
+    completions: $BIN completions bash                             (default budget 50 ms)
+    estimate:    $BIN --quiet estimate multivariate var <data> --lags 1
                                                                    (default budget 3500 ms)
 
 `estimate multivariate` is a family node. The timed command is the `var`
@@ -21,14 +24,13 @@ exits non-zero ONLY under --enforce (release CI enforces on ubuntu; macOS and
 Windows report). A case that FAILS to run exits non-zero regardless — a broken
 binary must never look like a slow one — and the CLI's stderr is printed.
 
-Budget calibration (2026-08, #79 measure-first baseline): the JuMP+Ipopt-bundled
-sysimage costs ~2.3 s of pure runtime boot per cold invocation on ubuntu-latest
-runners — for --version and real work alike — so the budgets are set to the
-measured floor (2259/2301 ms minimums) plus ~30% regression headroom. They exist
-to catch REGRESSION (a new heavyweight dep, broken sysimage baking), and from
-these calibrated numbers they are never relaxed to make a red run green: a real
-JIT-coverage breach is fixed by expanding the build_release.jl precompile
-workload; a floor change requires a new recorded calibration on #79.
+Budget calibration:
+- 2026-08 (#79 measure-first baseline): full PackageCompiler sysimage boot cost
+  ~2.3 s on ubuntu-latest runners, setting the compute floor at 3500 ms.
+- 2026-11 (#296 [FASTPATH-W4]): Pure C99 thin wrapper (`bin/frdc` -> `bin/frdc-core`
+  + `share/frdc/cli_cache.bin`) cuts `--version`, `--help`, `schema`, and
+  `completions` to 3–9 ms cold, recalibrating the metadata fast-path budget to
+  50 ms on Linux while retaining the 3500 ms compute budget for `frdc-core`.
 """
 
 import argparse
@@ -131,7 +133,7 @@ def main() -> int:
     ap.add_argument("--bin", required=True, help="path to the built frdc binary")
     ap.add_argument("--data", required=True, help="CSV fixture for the estimate case")
     ap.add_argument("--runs", type=int, default=3, help="cold runs per case (default 3)")
-    ap.add_argument("--budget-version-ms", type=float, default=3000.0)
+    ap.add_argument("--budget-version-ms", type=float, default=50.0)
     ap.add_argument("--budget-estimate-ms", type=float, default=3500.0)
     ap.add_argument("--enforce", action="store_true",
                     help="exit non-zero on budget breach (release CI: ubuntu only)")
@@ -156,6 +158,13 @@ def main() -> int:
 
     cases = [
         ("--version", prefix + [bin_path, "--version"], args.budget_version_ms),
+        ("--help", prefix + [bin_path, "--help"], args.budget_version_ms),
+        ("schema estimate multivariate var",
+         prefix + [bin_path, "schema", "estimate", "multivariate", "var"],
+         args.budget_version_ms),
+        ("completions bash",
+         prefix + [bin_path, "completions", "bash"],
+         args.budget_version_ms),
         ("estimate multivariate var",
          estimate_argv(prefix, bin_path, data_path),
          args.budget_estimate_ms),

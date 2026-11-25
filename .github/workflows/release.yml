@@ -11,9 +11,9 @@ on:
   workflow_dispatch:
     inputs:
       budget_version_ms:
-        description: "--version budget in ms (default 3000)"
+        description: "fast-path metadata budget in ms (default 50)"
         required: false
-        default: "3000"
+        default: "50"
       budget_estimate_ms:
         description: "first estimate multivariate var budget in ms (default 3500)"
         required: false
@@ -23,7 +23,7 @@ permissions:
   contents: write
 
 env:
-  BUDGET_VERSION_MS: ${{ github.event.inputs.budget_version_ms || '3000' }}
+  BUDGET_VERSION_MS: ${{ github.event.inputs.budget_version_ms || '50' }}
   BUDGET_ESTIMATE_MS: ${{ github.event.inputs.budget_estimate_ms || '3500' }}
 
 jobs:
@@ -206,11 +206,30 @@ jobs:
               "$@"
           }
 
-          # --version / --help must emit zero stderr bytes
-          run_isolated "$BIN" --version 2> ver_err.txt
-          test ! -s ver_err.txt || { echo "Unexpected stderr from --version:"; cat ver_err.txt >&2; exit 1; }
-          run_isolated "$BIN" --help > /dev/null 2> help_err.txt
-          test ! -s help_err.txt || { echo "Unexpected stderr from --help:"; cat help_err.txt >&2; exit 1; }
+          # Verify two-binary fastpath layout exists (#296)
+          test -x "$PWD/build/frdc/bin/frdc-core" || { echo "Missing build/frdc/bin/frdc-core" >&2; exit 1; }
+          test -s "$PWD/build/frdc/share/frdc/cli_cache.bin" || { echo "Missing cli_cache.bin" >&2; exit 1; }
+
+          # --version / --help / schema --docs / data list / io sources (fast path + FRDC_NO_FASTPATH=1)
+          run_isolated "$BIN" --version > ver_fp.txt 2> ver_err.txt
+          test ! -s ver_err.txt || { echo "Unexpected stderr from fast --version:"; cat ver_err.txt >&2; exit 1; }
+          run_isolated env FRDC_NO_FASTPATH=1 "$BIN" --version > ver_core.txt 2> ver_core_err.txt
+          test ! -s ver_core_err.txt || { echo "Unexpected stderr from core --version:"; cat ver_core_err.txt >&2; exit 1; }
+          diff -u ver_fp.txt ver_core.txt
+          run_isolated "$BIN" --help > help_fp.txt 2> help_err.txt
+          test ! -s help_err.txt || { echo "Unexpected stderr from fast --help:"; cat help_err.txt >&2; exit 1; }
+          run_isolated env FRDC_NO_FASTPATH=1 "$BIN" --help > help_core.txt 2> help_core_err.txt
+          test ! -s help_core_err.txt || { echo "Unexpected stderr from core --help:"; cat help_core_err.txt >&2; exit 1; }
+          diff -u help_fp.txt help_core.txt
+          run_isolated "$BIN" schema --docs > schema_docs.json 2> step_err.txt
+          test ! -s step_err.txt || { echo "Unexpected stderr from schema --docs:"; cat step_err.txt >&2; exit 1; }
+          python3 -c "import json; d=json.load(open('schema_docs.json')); assert 'docs' in d and len(d['docs'])>100"
+          run_isolated "$BIN" data list --format json > dl_fp.json 2> step_err.txt
+          test ! -s step_err.txt || { echo "Unexpected stderr from data list:"; cat step_err.txt >&2; exit 1; }
+          python3 -c "import json; d=json.load(open('dl_fp.json')); assert d.get('status')=='ok' and 'available_datasets' in d['data']"
+          run_isolated "$BIN" io sources --format json > ios_fp.json 2> step_err.txt
+          test ! -s step_err.txt || { echo "Unexpected stderr from io sources:"; cat step_err.txt >&2; exit 1; }
+          python3 -c "import json; d=json.load(open('ios_fp.json')); assert d.get('status')=='ok' and 'io_mrio_sources' in d['data']"
 
           # Hard gate: exactly one JSON document (no ::warning fallback)
           run_isolated "$BIN" --quiet estimate multivariate var smoke.csv --lags 1 --format json > smoke_out.json 2>> "$STDERR_LOG"
@@ -319,10 +338,12 @@ jobs:
           fi
           echo "zero-write offline depot check ok"
 
-          # Read-only depot (chmod 555) must exit 0 with empty stderr on --version
+          # Read-only depot (chmod 555) must exit 0 with empty stderr on BOTH fast-path and frdc-core
           chmod 555 "$RO_DEPOT"
           env -i PATH="/usr/bin:/bin" HOME="$EMPTY_HOME" JULIA_DEPOT_PATH="$RO_DEPOT" JULIA_PKG_OFFLINE="true" "$BIN" --version 2> ro_err.txt
-          test ! -s ro_err.txt || { echo "Unexpected stderr on read-only depot:"; cat ro_err.txt >&2; exit 1; }
+          test ! -s ro_err.txt || { echo "Unexpected stderr on read-only depot (fast):"; cat ro_err.txt >&2; exit 1; }
+          env -i PATH="/usr/bin:/bin" HOME="$EMPTY_HOME" JULIA_DEPOT_PATH="$RO_DEPOT" JULIA_PKG_OFFLINE="true" FRDC_NO_FASTPATH=1 "$BIN" --version 2> ro_core_err.txt
+          test ! -s ro_core_err.txt || { echo "Unexpected stderr on read-only depot (frdc-core):"; cat ro_core_err.txt >&2; exit 1; }
           env -i PATH="/usr/bin:/bin" HOME="$EMPTY_HOME" JULIA_DEPOT_PATH="$RO_DEPOT" JULIA_PKG_OFFLINE="true" "$BIN" --quiet estimate multivariate var smoke.csv --lags 1 --format json > /dev/null
           chmod 755 "$RO_DEPOT"
           echo "read-only depot ok"
@@ -474,13 +495,37 @@ jobs:
               throw "julia is still on PATH after stripping: $($RemainingJulia.Source)"
             }
 
-            # 1. Direct standalone binary checks (strict stdout + stderr + zero depot writes)
+            # Verify two-binary fastpath layout exists (#296)
+            if (-not (Test-Path (Join-Path $Root "build\frdc\bin\frdc-core.exe"))) {
+              throw "Missing build\frdc\bin\frdc-core.exe"
+            }
+            if (-not (Test-Path (Join-Path $Root "build\frdc\share\frdc\cli_cache.bin"))) {
+              throw "Missing build\frdc\share\frdc\cli_cache.bin"
+            }
+
+            # 1. Direct standalone binary checks (fast-path + FRDC_NO_FASTPATH=1 + zero depot writes)
             $verRes = Invoke-Friedman $Exe @("--version") -RequireEmptyStderr
             if ($verRes.Stdout.Trim() -notmatch [regex]::Escape("frdc v$Ver")) {
               throw "Unexpected --version output: $($verRes.Stdout)"
             }
             Write-Host $verRes.Stdout.Trim()
+            $env:FRDC_NO_FASTPATH = "1"
+            try {
+              $verCore = Invoke-Friedman $Exe @("--version") -RequireEmptyStderr
+              if ($verCore.Stdout.Trim() -ne $verRes.Stdout.Trim()) {
+                throw "Fast-path vs core --version mismatch: $($verRes.Stdout) != $($verCore.Stdout)"
+              }
+            } finally {
+              Remove-Item Env:FRDC_NO_FASTPATH -ErrorAction SilentlyContinue
+            }
             $null = Invoke-Friedman $Exe @("--help") -RequireEmptyStderr
+            $docsRes = Invoke-Friedman $Exe @("schema", "--docs") -RequireEmptyStderr
+            $docsObj = $docsRes.Stdout | ConvertFrom-Json
+            if (-not $docsObj.docs) { throw "schema --docs missing docs payload" }
+            $dlRes = Invoke-Friedman $Exe @("data", "list", "--format", "json") -RequireEmptyStderr
+            Assert-SingleJsonOk $dlRes.Stdout "direct data list JSON"
+            $iosRes = Invoke-Friedman $Exe @("io", "sources", "--format", "json") -RequireEmptyStderr
+            Assert-SingleJsonOk $iosRes.Stdout "direct io sources JSON"
 
             $varRes = Invoke-Friedman $Exe @("--quiet", "estimate", "multivariate", "var", $SmokeCsv, "--lags", "1", "--format", "json")
             Assert-SingleJsonOk $varRes.Stdout "direct VAR JSON"
@@ -584,6 +629,20 @@ jobs:
                 throw "Unexpected Alias --version output: $($aliasVer.Stdout)"
               }
               Write-Host "Alias: $($aliasVer.Stdout.Trim())"
+              $env:FRDC_NO_FASTPATH = "1"
+              try {
+                $aliasCoreVer = Invoke-Friedman $AliasExe @("--version") -RequireEmptyStderr
+                if ($aliasCoreVer.Stdout.Trim() -ne $aliasVer.Stdout.Trim()) {
+                  throw "Alias fast-path vs core --version mismatch"
+                }
+              } finally {
+                Remove-Item Env:FRDC_NO_FASTPATH -ErrorAction SilentlyContinue
+              }
+              $null = Invoke-Friedman $AliasExe @("--help") -RequireEmptyStderr
+              $null = (Invoke-Friedman $AliasExe @("schema", "--docs") -RequireEmptyStderr).Stdout | ConvertFrom-Json
+              $null = Invoke-Friedman $AliasExe @("completions", "bash") -RequireEmptyStderr
+              Assert-SingleJsonOk (Invoke-Friedman $AliasExe @("data", "list", "--format", "json") -RequireEmptyStderr).Stdout "alias data list JSON"
+              Assert-SingleJsonOk (Invoke-Friedman $AliasExe @("io", "sources", "--format", "json") -RequireEmptyStderr).Stdout "alias io sources JSON"
 
               $null = Invoke-Friedman $AliasExe @("--quiet", "estimate", "multivariate", "var", ".\smoke.csv", "--lags", "1", "--format", "json", "--output", ".\alias_out.json", "--save-model", ".\alias_var.jld2")
               if (-not (Test-Path ".\alias_out.json") -or -not (Test-Path ".\alias_var.jld2")) {

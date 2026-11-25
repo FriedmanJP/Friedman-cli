@@ -31,6 +31,8 @@ run_pair() {
 
 run_pair "--version" "$BIN" --version
 run_pair "--help" "$BIN" --help
+run_pair "schema estimate multivariate var" "$BIN" schema estimate multivariate var
+run_pair "completions bash" "$BIN" completions bash
 run_pair "estimate multivariate var <fixture> --lags 1" "$BIN" estimate multivariate var "$FIX" --lags 1
 run_pair "estimate multivariate var <fixture> --lags 1 --format json" "$BIN" estimate multivariate var "$FIX" --lags 1 --format json
 

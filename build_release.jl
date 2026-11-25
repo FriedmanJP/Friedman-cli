@@ -39,9 +39,14 @@ const _PROJECT_DIR = @__DIR__
 const _BUILD_PROJECT_DIR = joinpath(_PROJECT_DIR, "build_env")
 const _APP_DIR = joinpath(_PROJECT_DIR, "build", "frdc")
 const _C_DRIVER_PROGRAM = joinpath(_PROJECT_DIR, "packaging", "c_driver", "frdc_driver.c")
+const _THIN_WRAPPER_DIR = joinpath(_PROJECT_DIR, "packaging", "thin_wrapper")
+const _THIN_WRAPPER_SRC = joinpath(_THIN_WRAPPER_DIR, "frdc_thin.c")
+const _PACK_GEN_SCRIPT  = joinpath(_PROJECT_DIR, "tools", "gen_fastpath_pack.jl")
 const _LINEARSOLVE_UUID = Base.UUID("7ed4a6bd-45f5-4d41-b270-4a48e9bafcae")
 
 isfile(_C_DRIVER_PROGRAM) || error("Missing standalone C driver: $(_C_DRIVER_PROGRAM)")
+isfile(_THIN_WRAPPER_SRC) || error("Missing thin wrapper C source: $(_THIN_WRAPPER_SRC)")
+isfile(_PACK_GEN_SCRIPT)  || error("Missing fastpath pack generator: $(_PACK_GEN_SCRIPT)")
 
 # --- Step 1: Create build environment with all deps ---
 println("Setting up build environment...")
@@ -292,7 +297,7 @@ println("  This will take several minutes.")
 create_app(
     _BUILD_PROJECT_DIR,
     _APP_DIR;
-    executables = ["frdc" => "julia_main"],
+    executables = ["frdc-core" => "julia_main"],
     precompile_execution_file = _PRECOMPILE_SCRIPT,
     incremental = true,
     filter_stdlibs = false,
@@ -306,12 +311,58 @@ create_app(
     compress_sysimage = _COMPRESS_SYSIMAGE,
 )
 
+# --- Step 4b: Generate FRDCACHE v1 pack & compile pure C99 thin wrapper (#296) ---
+const _CACHE_PATH = joinpath(_APP_DIR, "share", "frdc", "cli_cache.bin")
+println("Generating FRDCACHE v1 metadata pack: $(_CACHE_PATH)...")
+withenv("JULIA_PKG_PRECOMPILE_AUTO" => "0") do
+    run(`$(Base.julia_cmd()) --project=$(_BUILD_PROJECT_DIR) $(_PACK_GEN_SCRIPT) --output $(_CACHE_PATH)`)
+end
+isfile(_CACHE_PATH) || error("Failed to generate cli_cache.bin at $(_CACHE_PATH)")
+
+const _EXE_EXT = Sys.iswindows() ? ".exe" : ""
+const _EXE_PATH = joinpath(_APP_DIR, "bin", "frdc" * _EXE_EXT)
+const _CORE_EXE_PATH = joinpath(_APP_DIR, "bin", "frdc-core" * _EXE_EXT)
+isfile(_CORE_EXE_PATH) || error("Expected PackageCompiler executable not found at $(_CORE_EXE_PATH)")
+
+function _compile_thin_wrapper(out_exe::String)
+    cc_cmd = if isdefined(PackageCompiler, :get_compiler_cmd)
+        PackageCompiler.get_compiler_cmd()
+    else
+        cc_bin = something(Sys.which("cc"), Sys.which("gcc"), Sys.which("clang"),
+                           error("No C compiler found to build thin wrapper"))
+        `$cc_bin`
+    end
+    flags = String["-std=c99", "-O2", "-Wall", "-Wextra", "-I$(_THIN_WRAPPER_DIR)"]
+    srcs = String[_THIN_WRAPPER_SRC]
+    mcp_src = joinpath(_THIN_WRAPPER_DIR, "mcp_proxy.c")
+    yy_src  = joinpath(_THIN_WRAPPER_DIR, "yyjson.c")
+    if isfile(mcp_src) && isfile(yy_src)
+        append!(flags, [
+            "-DFRDC_ENABLE_MCP_PROXY",
+            "-DYYJSON_DISABLE_UTILS=1",
+            "-DYYJSON_DISABLE_NON_STANDARD=1",
+            "-DYYJSON_DISABLE_INCR_READER=1",
+            "-DYYJSON_DISABLE_FAST_FP_CONV=1",
+        ])
+        push!(srcs, mcp_src, yy_src)
+    end
+    if Sys.iswindows()
+        push!(flags, "-municode")
+    end
+    base_cmd = `$(cc_cmd.exec) $flags $srcs -o $out_exe`
+    cmd = cc_cmd.env === nothing ? base_cmd : setenv(base_cmd, cc_cmd.env)
+    println("Compiling thin wrapper: $cmd")
+    run(cmd)
+end
+_compile_thin_wrapper(_EXE_PATH)
+
 # --- Step 5: Verify standalone outputs & clean up build env ---
-const _EXE_PATH = joinpath(_APP_DIR, "bin", Sys.iswindows() ? "frdc.exe" : "frdc")
 const _SYS_EXT = Sys.iswindows() ? "dll" : Sys.isapple() ? "dylib" : "so"
 const _SYS_PATH = joinpath(_APP_DIR, "lib", "julia", "sys.$(_SYS_EXT)")
 
-isfile(_EXE_PATH) || error("Expected standalone executable not found at $(_EXE_PATH)")
+isfile(_EXE_PATH) || error("Expected standalone thin wrapper not found at $(_EXE_PATH)")
+isfile(_CORE_EXE_PATH) || error("Expected standalone core executable not found at $(_CORE_EXE_PATH)")
+isfile(_CACHE_PATH) || error("Expected FRDCACHE pack not found at $(_CACHE_PATH)")
 isfile(_SYS_PATH) || error("Expected standalone sysimage not found at $(_SYS_PATH)")
 
 const _ARTIFACTS_DIR = joinpath(_APP_DIR, "share", "julia", "artifacts")
@@ -330,6 +381,8 @@ end
 rm(_BUILD_PROJECT_DIR; force=true, recursive=true)
 
 println()
-println("Done! Standalone app: $(_EXE_PATH)")
+println("Done! Standalone thin wrapper: $(_EXE_PATH) ($(round(filesize(_EXE_PATH) / 1024; digits=1)) KiB)")
+println("Core executable: $(_CORE_EXE_PATH) ($(round(filesize(_CORE_EXE_PATH) / 1024; digits=1)) KiB)")
+println("Metadata pack: $(_CACHE_PATH) ($(round(filesize(_CACHE_PATH) / 1024; digits=1)) KiB)")
 println("Sysimage: $(_SYS_PATH) ($(round(filesize(_SYS_PATH) / 1024^2; digits=1)) MiB)")
 println("Bundled artifacts: $(_ARTIFACT_COUNT) directories under $(_ARTIFACTS_DIR)")
