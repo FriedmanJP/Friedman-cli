@@ -29,7 +29,7 @@ In-sample fitted values (logit)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--threshold` | — | `Float64` | `0.5` | — | Classification threshold |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -56,7 +56,7 @@ In-sample fitted values (mlogit)
 | `--clusters` | — | `String` | `""` | — | Cluster variable column name |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -83,7 +83,7 @@ Fitted negative-binomial conditional means exp(x'b + offset)
 | `--tol` | — | `Float64` | `1.0e-10` | — | Convergence tolerance (> 0) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`; model types: `NegBinModel`
 
@@ -104,7 +104,7 @@ In-sample fitted values (ologit)
 | `--clusters` | — | `String` | `""` | — | Cluster variable column name |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -129,7 +129,7 @@ In-sample fitted values (oprobit)
 | `--clusters` | — | `String` | `""` | — | Cluster variable column name |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -158,7 +158,7 @@ Fitted Poisson conditional means exp(x'b + offset)
 | `--tol` | — | `Float64` | `1.0e-10` | — | Convergence tolerance (> 0) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`; model types: `PoissonModel`
 
@@ -180,7 +180,7 @@ In-sample fitted values (probit)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--threshold` | — | `Float64` | `0.5` | — | Classification threshold |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -214,7 +214,7 @@ In-sample fitted values (dynamic)
 | `--method` | — | `String` | `twostep` | — | twostep\|qml estimation method |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `DynamicFactorModel`
 
@@ -234,7 +234,7 @@ In-sample fitted values (gdfm)
 | `--dynamic-rank` | — | `Int64` | — | — | Dynamic rank (default: auto) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `GeneralizedDynamicFactorModel`
 
@@ -253,7 +253,7 @@ In-sample fitted values (static)
 | `--nfactors` | — | `Int64` | — | — | Number of factors (default: auto via IC) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `FactorModel`
 
@@ -283,7 +283,7 @@ In-sample fitted values (bvar)
 | `--config` | — | `String` | `""` | — | TOML prior config |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
@@ -310,7 +310,7 @@ In-sample fitted values (favar)
 | `--key-vars` | — | `String` | `""` | — | Key variables |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `FAVARModel`
 
@@ -329,7 +329,7 @@ In-sample fitted values (var)
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `VARModel`
 
@@ -350,7 +350,7 @@ In-sample fitted values (vecm)
 | `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `VECMModel`
 
@@ -384,7 +384,7 @@ In-sample fitted values (piv)
 | `--time-col` | — | `String` | `""` | — | Panel time column |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:panel`, `:csv`; model types: `PanelIVModel`
 
@@ -408,7 +408,7 @@ In-sample fitted values (plogit)
 | `--method` | `-m` | `String` | `pooled` | — | Estimation method |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:panel`, `:csv`; model types: `PanelLogitModel`
 
@@ -432,7 +432,7 @@ In-sample fitted values (pprobit)
 | `--method` | `-m` | `String` | `pooled` | — | Estimation method |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:panel`, `:csv`; model types: `PanelProbitModel`
 
@@ -456,7 +456,7 @@ In-sample fitted values (preg)
 | `--method` | `-m` | `String` | `fe` | — | Estimation method |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:panel`, `:csv`; model types: `PanelRegModel`
 
@@ -487,7 +487,7 @@ Regime-weighted Markov-switching regression fitted values (--probs smoothed|filt
 | `--probs` | — | `String` | `smoothed` | `smoothed`, `filtered` | Regime weighting: smoothed or filtered |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -515,7 +515,7 @@ Regime-weighted MS-AR in-sample fitted values (--probs smoothed|filtered)
 | `--probs` | — | `String` | `smoothed` | `smoothed`, `filtered` | Regime weighting: smoothed or filtered |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -548,7 +548,7 @@ Per-equation 3SLS in-sample fitted values (equations and instruments from --conf
 | `--instruments` | — | `String` | `common` | `common`, `perequation` | Instrument mode |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
@@ -577,7 +577,7 @@ In-sample fitted values (reg)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--weights` | — | `String` | `""` | — | Weights column |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`; model types: `RegModel`
 
@@ -600,7 +600,7 @@ State-space filtered/smoothed state paths (--state filtered|smoothed|both)
 | `--state` | — | `String` | `both` | `filtered`, `smoothed`, `both` | Which state path to emit |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `StateSpaceModel`
 
@@ -619,7 +619,7 @@ Per-equation SUR in-sample fitted values (equations from --config)
 | `--config` | — | `String` | `""` | — | System TOML or model card with [[equations]] blocks (required without --model) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
@@ -659,7 +659,7 @@ In-sample ARFIMA fitted values (fractional-d estimator --method css|mle)
 | `--max-iter` | — | `Int64` | `500` | — | Maximum optimizer iterations |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `ARFIMAModel`
 
@@ -682,7 +682,7 @@ In-sample fitted values (arima)
 | `--method` | `-m` | `String` | `css_mle` | — | ols\|css\|mle\|css_mle |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -719,7 +719,7 @@ In-sample SARIMA fitted values
 | `--max-iter` | — | `Int64` | `500` | — | Maximum optimiser iterations |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -755,7 +755,7 @@ APARCH in-sample conditional variance and volatility
 | `--fix-gamma` | — | `Float64` | — | — | Fix the asymmetry parameter gamma |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `APARCHModel`
 
@@ -775,7 +775,7 @@ In-sample fitted values (arch)
 | `--q` | — | `Int64` | `1` | — | ARCH order |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `ARCHModel`
 
@@ -794,7 +794,7 @@ Component-GARCH in-sample conditional variance and volatility
 | `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `CGARCHModel`
 
@@ -815,7 +815,7 @@ In-sample fitted values (egarch)
 | `--q` | — | `Int64` | `1` | — | ARCH order |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `EGARCHModel`
 
@@ -839,7 +839,7 @@ FIEGARCH in-sample conditional variance and volatility
 | `--dist` | — | `String` | `normal` | `normal` | Innovation distribution (Gaussian QMLE) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `FIEGARCHModel`
 
@@ -863,7 +863,7 @@ FIGARCH in-sample conditional variance and volatility
 | `--dist` | — | `String` | `normal` | `normal` | Innovation distribution (Gaussian QMLE) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `FIGARCHModel`
 
@@ -884,7 +884,7 @@ In-sample fitted values (garch)
 | `--q` | — | `Int64` | `1` | — | ARCH order |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `GARCHModel`
 
@@ -908,7 +908,7 @@ GARCH-MIDAS in-sample conditional variance and volatility
 | `--config` | — | `String` | `""` | — | TOML with [garch_midas] x_lf (required for --rv macro) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
@@ -935,7 +935,7 @@ In-sample fitted values (gjr-garch)
 | `--q` | — | `Int64` | `1` | — | ARCH order |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `GJRGARCHModel`
 
@@ -956,7 +956,7 @@ IGARCH in-sample conditional variance and volatility
 | `--q` | — | `Int64` | `1` | — | ARCH order q |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `IGARCHModel`
 
@@ -976,7 +976,7 @@ In-sample fitted values (sv)
 | `--draws` | `-n` | `Int64` | `5000` | — | MCMC draws |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `SVModel`
 

@@ -30,7 +30,7 @@ Boosted HP filter (Phillips & Shi 2021)
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -58,7 +58,7 @@ Baxter-King band-pass filter
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -86,7 +86,7 @@ Beveridge-Nelson decomposition
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -113,7 +113,7 @@ Hamilton (2018) regression filter
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -139,7 +139,7 @@ Hodrick-Prescott filter
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -169,7 +169,7 @@ X-13ARIMA-SEATS seasonal adjustment (X-11 / SEATS)
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|

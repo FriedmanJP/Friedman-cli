@@ -16157,3 +16157,4 @@ end
 end
 
 include(joinpath(project_root, "test", "test_handles.jl"))
+include(joinpath(project_root, "test", "test_storage.jl"))

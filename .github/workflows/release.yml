@@ -251,11 +251,42 @@ jobs:
 
           # .jld2 save + irf --plot-save (D3 bundle) + dsge solve + piped repl
           run_isolated "$BIN" --quiet estimate multivariate var smoke.csv --lags 1 --save-model smoke_var.jld2 --format json > /dev/null 2>> "$STDERR_LOG"
-          run_isolated "$BIN" --quiet irf var --model smoke_var.jld2 --horizons 4 --plot-save smoke_irf.html --format json > irf_out.json 2>> "$STDERR_LOG"
+          run_isolated "$BIN" --quiet irf var --model smoke_var.jld2 --horizons 4 --ci bootstrap --replications 30 --seed 77 --save-result smoke_irf.jld2 --plot-save smoke_irf.html --format json > irf_out.json 2>> "$STDERR_LOG"
           test -s smoke_irf.html
-          run_isolated "$BIN" --quiet dsge solve smoke_rbc.toml --format json > dsge_out.json 2> step_err.txt
+          # Cross-process storage round-trip smoke (#310): model info, reproduce (.jld2/.jls), convert (.fmod -> .jld2), ARIMA, DSGE, MCP session URIs
+          run_isolated "$BIN" --quiet model info smoke_var.jld2 --format json > info_out.json 2>> "$STDERR_LOG"
+          python3 -c "import json; d=json.load(open('info_out.json')); assert d.get('status')=='ok'"
+          run_isolated "$BIN" --quiet model reproduce smoke_irf.jld2 --format json > repro_out.json 2>> "$STDERR_LOG"
+          python3 -c "import json; d=json.load(open('repro_out.json')); m=dict(d['data']['model_reproduce_summary']['rows']); assert m.get('matched')=='true', m; print('reproduce .jld2 ok')"
+          run_isolated "$BIN" --quiet model convert smoke_irf.jld2 -o smoke_irf.jls --format json > /dev/null 2>> "$STDERR_LOG"
+          run_isolated "$BIN" --quiet model reproduce smoke_irf.jls --format json > repro_jls_out.json 2>> "$STDERR_LOG"
+          python3 -c "import json; d=json.load(open('repro_jls_out.json')); m=dict(d['data']['model_reproduce_summary']['rows']); assert m.get('matched')=='true', m; print('reproduce .jls ok')"
+          run_isolated "$BIN" --quiet irf var --model smoke_var.jld2 --horizons 4 --save-result smoke_leg.fmod --format json > /dev/null 2>> "$STDERR_LOG"
+          run_isolated "$BIN" --quiet model convert smoke_leg.fmod --to jld2 --note "ci-migrated" --format json > /dev/null 2>> "$STDERR_LOG"
+          test -s smoke_leg.jld2
+          run_isolated "$BIN" --quiet estimate univariate arima smoke.csv --column 1 --p 1 --d 0 --q 0 --save-model smoke_arima.jld2 --format json > /dev/null 2>> "$STDERR_LOG"
+          run_isolated "$BIN" --quiet forecast univariate arima --model smoke_arima.jld2 --horizons 4 --format json > arima_fc.json 2>> "$STDERR_LOG"
+          python3 -c "import json; assert json.load(open('arima_fc.json')).get('status')=='ok'; print('arima --model ok')"
+          run_isolated "$BIN" --quiet dsge solve smoke_rbc.toml --save-model smoke_dsge.jld2 --format json > dsge_out.json 2> step_err.txt
           test ! -s step_err.txt || { echo "Unexpected stderr from dsge solve:"; cat step_err.txt >&2; exit 1; }
           python3 -c "import json; d=json.load(open('dsge_out.json')); assert d.get('status')=='ok'; print('dsge solve ok')"
+          run_isolated "$BIN" --quiet model info smoke_dsge.jld2 --format json > dsge_info.json 2>> "$STDERR_LOG"
+          python3 -c "import json; assert json.load(open('dsge_info.json')).get('status')=='ok'; print('dsge model info ok')"
+          # serve --mcp session URIs (data:// -> model:// -> result://)
+          printf '%s\n%s\n%s\n%s\n' \
+            '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' \
+            "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"data_import\",\"arguments\":{\"data\":\"$PWD/smoke.csv\",\"kind\":\"timeseries\",\"output\":\"data://s1\"}}}" \
+            '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"estimate_multivariate_var","arguments":{"data":"data://s1","lags":1,"save-model":"model://m1"}}}' \
+            '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"irf_var","arguments":{"model":"model://m1","horizons":4,"save-result":"result://r1"}}}' \
+            | run_isolated "$BIN" serve --mcp --quiet > mcp_session_out.jsonl 2>> "$STDERR_LOG"
+          python3 - <<'PY'
+          import json
+          lines = [json.loads(l) for l in open("mcp_session_out.jsonl") if l.strip()]
+          assert len(lines) == 4, f"expected 4 MCP responses, got {len(lines)}"
+          for resp in lines[1:]:
+              assert not resp["result"].get("isError", False), resp
+          print("serve --mcp session URIs ok")
+          PY
           printf -- '--version\nexit\n' | run_isolated "$BIN" repl > repl_out.txt 2>> "$STDERR_LOG"
           echo "piped repl ok"
 
@@ -475,15 +506,46 @@ jobs:
             Assert-SingleJsonOk $wiotRes.Stdout "direct :wiot"
 
             $VarJld2 = Join-Path $CwdAliasDir "direct_var.jld2"
+            $IrfJld2 = Join-Path $CwdAliasDir "direct_irf.jld2"
+            $IrfJls  = Join-Path $CwdAliasDir "direct_irf.jls"
+            $IrfFmod = Join-Path $CwdAliasDir "direct_leg.fmod"
             $IrfHtml = Join-Path $CwdAliasDir "direct_irf.html"
             $null = Invoke-Friedman $Exe @("--quiet", "estimate", "multivariate", "var", $SmokeCsv, "--lags", "1", "--save-model", $VarJld2, "--format", "json")
             if (-not (Test-Path $VarJld2)) { throw "save-model .jld2 not created" }
-            $irfRes = Invoke-Friedman $Exe @("--quiet", "irf", "var", "--model", $VarJld2, "--horizons", "4", "--plot-save", $IrfHtml, "--format", "json")
+            $irfRes = Invoke-Friedman $Exe @("--quiet", "irf", "var", "--model", $VarJld2, "--horizons", "4", "--ci", "bootstrap", "--replications", "30", "--seed", "77", "--save-result", $IrfJld2, "--plot-save", $IrfHtml, "--format", "json")
             Assert-SingleJsonOk $irfRes.Stdout "direct irf"
             if (-not (Test-Path $IrfHtml) -or (Get-Item $IrfHtml).Length -eq 0) { throw "irf --plot-save empty/missing" }
+            $infoRes = Invoke-Friedman $Exe @("--quiet", "model", "info", $VarJld2, "--format", "json")
+            Assert-SingleJsonOk $infoRes.Stdout "direct model info"
+            $reproRes = Invoke-Friedman $Exe @("--quiet", "model", "reproduce", $IrfJld2, "--format", "json")
+            Assert-SingleJsonOk $reproRes.Stdout "direct model reproduce .jld2"
+            $null = Invoke-Friedman $Exe @("--quiet", "model", "convert", $IrfJld2, "-o", $IrfJls, "--format", "json")
+            $reproJlsRes = Invoke-Friedman $Exe @("--quiet", "model", "reproduce", $IrfJls, "--format", "json")
+            Assert-SingleJsonOk $reproJlsRes.Stdout "direct model reproduce .jls"
+            $null = Invoke-Friedman $Exe @("--quiet", "irf", "var", "--model", $VarJld2, "--horizons", "4", "--save-result", $IrfFmod, "--format", "json")
+            $null = Invoke-Friedman $Exe @("--quiet", "model", "convert", $IrfFmod, "--to", "jld2", "--format", "json")
+            if (-not (Test-Path (Join-Path $CwdAliasDir "direct_leg.jld2"))) { throw "model convert .fmod -> .jld2 failed" }
 
-            $dsgeRes = Invoke-Friedman $Exe @("--quiet", "dsge", "solve", $SmokeToml, "--format", "json") -RequireEmptyStderr
+            $DsgeJld2 = Join-Path $CwdAliasDir "direct_dsge.jld2"
+            $dsgeRes = Invoke-Friedman $Exe @("--quiet", "dsge", "solve", $SmokeToml, "--save-model", $DsgeJld2, "--format", "json") -RequireEmptyStderr
             Assert-SingleJsonOk $dsgeRes.Stdout "direct dsge solve"
+            $dsgeInfo = Invoke-Friedman $Exe @("--quiet", "model", "info", $DsgeJld2, "--format", "json")
+            Assert-SingleJsonOk $dsgeInfo.Stdout "direct dsge model info"
+
+            $csvJson = $SmokeCsv.Replace("\", "\\")
+            $mcpInput = (@(
+              '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}',
+              "{`"jsonrpc`":`"2.0`",`"id`":2,`"method`":`"tools/call`",`"params`":{`"name`":`"data_import`",`"arguments`":{`"data`":`"$csvJson`",`"kind`":`"timeseries`",`"output`":`"data://w1`"}}}",
+              '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"estimate_multivariate_var","arguments":{"data":"data://w1","lags":1,"save-model":"model://wm1"}}}',
+              '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"irf_var","arguments":{"model":"model://wm1","horizons":4,"save-result":"result://wr1"}}}'
+            ) -join "`n") + "`n"
+            $mcpRes = Invoke-Friedman $Exe @("serve", "--mcp", "--quiet") -StdInText $mcpInput
+            $mcpLines = @($mcpRes.Stdout.Split("`n") | Where-Object { $_.Trim().Length -gt 0 })
+            if ($mcpLines.Count -ne 4) { throw "Expected 4 MCP responses, got $($mcpLines.Count)" }
+            for ($mi = 1; $mi -lt 4; $mi++) {
+              $mobj = $mcpLines[$mi] | ConvertFrom-Json
+              if ($mobj.result.isError) { throw "MCP session URI call $($mi+1) returned isError: $($mcpLines[$mi])" }
+            }
 
             $null = Invoke-Friedman $Exe @("repl") -StdInText "--version`nexit`n"
             $null = Invoke-Friedman $Exe @("nosuchcmd") -ExpectedExit 2

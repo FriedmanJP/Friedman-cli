@@ -29,8 +29,12 @@ Nowcast via bridge equations
 | `--target-var` | — | `Int64` | `0` | — | Target variable index (0=last) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
-**Handles:** data kinds: `:timeseries`, `:csv`
+**Handles:** data kinds: `:timeseries`, `:csv`; model types: `NowcastBridge`; result types: `NowcastResult`
 
 **Output tables:** `nowcast_bridge` (Nowcast, forecast and number of bridge equations)
 
@@ -56,8 +60,12 @@ Nowcast via Bayesian VAR
 | `--alpha0` | — | `Float64` | `2.0` | — | Initial co-persistence weight α |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
-**Handles:** data kinds: `:timeseries`, `:csv`
+**Handles:** data kinds: `:timeseries`, `:csv`; model types: `NowcastBVAR`; result types: `NowcastResult`
 
 **Output tables:** `nowcast_bvar` (Nowcast, forecast and log-likelihood); `nowcast_bvar_hyperparameters` (Optimized prior hyperparameters (lambda, theta, miu, alpha, theta_cross))
 
@@ -81,12 +89,16 @@ Nowcast via Dynamic Factor Model (EM algorithm)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Handles:** data kinds: `:timeseries`, `:csv`
+**Handles:** data kinds: `:timeseries`, `:csv`; model types: `NowcastDFM`; result types: `NowcastResult`
 
 **Output tables:** `nowcast_dfm` (Nowcast, forecast, log-likelihood and EM iteration count)
 
@@ -110,12 +122,16 @@ Forecast from a nowcasting model
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Handles:** data kinds: `:timeseries`, `:csv`
+**Handles:** data kinds: `:timeseries`, `:csv`; model types: `NowcastDFM`, `NowcastBVAR`, `NowcastBridge`; result types: `NowcastForecast`, `Matrix`
 
 **Output tables:** `nowcast_forecast` (Forecast path by horizon, one column per variable)
 
@@ -137,12 +153,16 @@ Nowcast news decomposition (Banbura & Modugno 2014)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Handles:** data kinds: `:timeseries`, `:csv`
+**Handles:** data kinds: `:timeseries`, `:csv`; model types: `NowcastDFM`, `NowcastBVAR`; result types: `NowcastNews`
 
 **Output tables:** `nowcast_news_decomposition` (Per-variable news impact on the nowcast revision)
 

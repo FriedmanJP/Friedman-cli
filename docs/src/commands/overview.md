@@ -20,7 +20,7 @@ frdc
 ├── hd     bvar | favar | lp | sdfm | var | vecm
 ├── io     aggregate | balance | baqaee-farhi | bf elasticities | bf equilibrium | bf local | bf misallocation | bf network | bf shock-curve | bf wedges | bilateral-trade | download | export-decomposition | extract | footprint | ghosh | impact | key-sectors | leontief | linkages | load | multipliers | network-stats | price | sda | sources | vertical-specialization
 ├── irf     bvar | favar | lp | pvar | sdfm | tvpvar | var | vecm
-├── model     info | reproduce
+├── model     convert | info | keys | reproduce
 ├── nowcast     bridge | bvar | dfm | forecast | news
 ├── policy     counterfactual bvar | counterfactual lp | counterfactual var | effects bvar | effects lp | effects sign | effects var | history bvar | history var | jacobian ha | moments bvar | moments var | news dsge | news ha | opp bvar | opp var | opp-sequence bvar | opp-sequence var | optimal bvar | optimal lp | optimal var | spanning var | sufficiency dsge
 ├── predict     choice logit | choice mlogit | choice nbreg | choice ologit | choice oprobit | choice poisson | choice probit | factor dynamic | factor gdfm | factor static | multivariate bvar | multivariate favar | multivariate var | multivariate vecm | panel piv | panel plogit | panel pprobit | panel preg | regime ms | regime ms-ar | regression 3sls | regression reg | regression statespace | regression sur | univariate arfima | univariate arima | univariate sarima | volatility aparch | volatility arch | volatility cgarch | volatility egarch | volatility fiegarch | volatility figarch | volatility garch | volatility garch-midas | volatility gjr-garch | volatility igarch | volatility sv
@@ -30,7 +30,7 @@ frdc
 ├── spectral     acf | cross | density | periodogram | transfer
 └── test     brant | coint ardl-bounds | coint engle-granger | coint fisher-johansen | coint gregory-hansen | coint johansen | coint kao | coint pedroni | coint phillips-ouliaris | coint westerlund | did bacon | did honest | did negweight | did pretrend | dispersion | edf | fisher | gph | hansen-linearity | hausman-iia | identifiability | influence | iv anderson-rubin | iv weak-instrument | iv wild-cluster | local-whittle | multivariate granger | multivariate lagselect | multivariate lm | multivariate lr | multivariate stability | nardl-symmetry | normality | panel dh-causality | panel f-fe | panel hausman | panel modified-wald | panel panic | panel pesaran-cd | panel pmg-hausman | panel wooldridge-ar | park-added | pvar hansen-j | pvar lagselect | pvar mmsc | pvar stability | serial arch-lm | serial bartlett-wn | serial bds | serial box-pierce | serial breusch-pagan | serial durbin-watson | serial glejser | serial harvey | serial heteroskedasticity | serial ljung-box | serial sign-bias | serial white | stability andrews | stability bai-perron | stability chow | stability cusum | stability cusumsq | stability factor-break | stability gsadf | stability hansen-instability | stability nyblom | stability recursive-residuals | stability sadf | star-linearity | unit-root adf | unit-root adf-2break | unit-root breitung | unit-root cips | unit-root dfgls | unit-root ers | unit-root fourier-adf | unit-root fourier-kpss | unit-root hadri | unit-root hegy | unit-root ips | unit-root kpss | unit-root llc | unit-root lm-unitroot | unit-root moon-perron | unit-root np | unit-root pp | unit-root za | variance-ratio | vecm alpha | vecm beta | vecm joint | vecm known-beta | vecm weak-exog | vif
 
-Total: 21 top-level commands, 477 leaves (from registry).
+Total: 21 top-level commands, 479 leaves (from registry).
 ```
 
 Additionally, `frdc repl` launches an interactive REPL session ([Interactive REPL](@ref gs-repl)).
@@ -51,7 +51,7 @@ Additionally, `frdc repl` launches an interactive REPL session ([Interactive REP
 - [`hd`](@ref ref-hd) — 6 leaves
 - [`io`](@ref ref-io) — 27 leaves
 - [`irf`](@ref ref-irf) — 8 leaves
-- [`model`](@ref ref-model) — 2 leaves
+- [`model`](@ref ref-model) — 4 leaves
 - [`nowcast`](@ref ref-nowcast) — 5 leaves
 - [`policy`](@ref ref-policy) — 23 leaves
 - [`predict`](@ref ref-predict) — 38 leaves

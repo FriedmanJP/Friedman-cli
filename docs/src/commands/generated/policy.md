@@ -42,9 +42,9 @@ Rule counterfactual: enforce a PolicyRule on the menu with exact/ls projection
 | `--spanned-tol` | — | `Float64` | `0.05` | — | rel_residual threshold for the spanned flag |
 | `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -84,9 +84,9 @@ Rule counterfactual: enforce a PolicyRule on the menu with exact/ls projection
 | `--spanned-tol` | — | `Float64` | `0.05` | — | rel_residual threshold for the spanned flag |
 | `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none (the lp route keeps the estimator's scale; instrument-impact is var\|bvar\|sign only) |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -125,9 +125,9 @@ Rule counterfactual: enforce a PolicyRule on the menu with exact/ls projection
 | `--spanned-tol` | — | `Float64` | `0.05` | — | rel_residual threshold for the spanned flag |
 | `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -166,9 +166,9 @@ McKay-Wolf causal-effects menu (Theta_x/Theta_z) from an estimated IRF
 | `--draws` | `-n` | `Int64` | `2000` | — | Posterior draws |
 | `--config` | — | `String` | `""` | — | TOML prior config |
 | `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact (rescale so the first instrument's impact is +1) |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `BVARPosterior`; result types: `PolicyCausalEffects`
 
@@ -194,9 +194,9 @@ McKay-Wolf causal-effects menu (Theta_x/Theta_z) from an estimated IRF
 | `--draws` | — | `Int64` | `500` | — | Independent-normal N(value, se) draws (pointwise approximation, NOT a joint posterior) |
 | `--config` | — | `String` | `""` | — | TOML identification config |
 | `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none (the lp route keeps the estimator's scale; instrument-impact is var\|bvar\|sign only) |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `StructuralLP`, `LPModel`, `LPIVModel`; result types: `PolicyCausalEffects`
 
@@ -222,9 +222,9 @@ McKay-Wolf causal-effects menu (Theta_x/Theta_z) from an estimated IRF
 | `--draws` | — | `Int64` | `1000` | — | Candidate rotations |
 | `--config` | — | `String` | `""` | — | TOML sign-restriction config (REQUIRED) |
 | `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact (rescale so the first instrument's impact is +1) |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `VARModel`, `SignIdentifiedSet`; result types: `PolicyCausalEffects`
 
@@ -249,9 +249,9 @@ McKay-Wolf causal-effects menu (Theta_x/Theta_z) from an estimated IRF
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
 | `--draws` | — | `Int64` | `0` | — | Bootstrap draws for uncertainty bands (0 = point only) |
 | `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact (rescale so the first instrument's impact is +1) |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `VARModel`, `SVARModel`; result types: `PolicyCausalEffects`
 
@@ -292,9 +292,9 @@ Counterfactual history: re-run an observation window under the policy
 | `--quantiles` | — | `String` | `0.16,0.5,0.84` | — | Band quantiles in (0,1) |
 | `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -330,9 +330,9 @@ Counterfactual history: re-run an observation window under the policy
 | `--quantiles` | — | `String` | `0.16,0.5,0.84` | — | Band quantiles in (0,1) |
 | `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -366,8 +366,10 @@ Sequence-space household Jacobian d(output)/d(input) as a tidy T² table
 | `--dx` | — | `Float64` | `0.0001` | — | Finite-difference step |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
-**Handles:** model types: `HADSGESolution`
+**Handles:** model types: `HADSGESolution`; result types: `Matrix`, `SSJGEJacobian`
 
 **Output tables:** `sequence_space_jacobian` (Sequence-space household jacobian in tidy row/column/value form)
 
@@ -407,9 +409,9 @@ Counterfactual second moments (sd/corr), rule XOR loss
 | `--frequencies` | — | `String` | `none` | — | none \| business-cycle (2π/32..2π/6) \| lo,hi in radians (0 ≤ lo < hi ≤ π) |
 | `--plot-view` | — | `String` | `sd` | `sd`, `corr` | Plot panel: sd \| corr |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -446,9 +448,9 @@ Counterfactual second moments (sd/corr), rule XOR loss
 | `--frequencies` | — | `String` | `none` | — | none \| business-cycle (2π/32..2π/6) \| lo,hi in radians (0 ≤ lo < hi ≤ π) |
 | `--plot-view` | — | `String` | `sd` | `sd`, `corr` | Plot panel: sd \| corr |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -487,7 +489,7 @@ Square DSGE news menu (policy_news_matrix) for one exogenous shock
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 **Handles:** model types: `DSGESolution`, `PerturbationSolution`; result types: `PolicyCausalEffects`
 
@@ -514,7 +516,7 @@ Square HA sequence-space news menu under a rate-wedge closure
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 **Handles:** model types: `HADSGESolution`; result types: `PolicyCausalEffects`
 
@@ -563,9 +565,9 @@ Barnichon-Mesters optimal policy perturbation (unconstrained or constrained)
 | `--method` | — | `String` | `auto` | `auto`, `slsqp`, `projection` | Constrained solver: auto \| slsqp \| projection (crude floor-only fallback) |
 | `--plot-view` | — | `String` | `delta` | `delta`, `paths` | Plot panel: delta \| paths |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -611,9 +613,9 @@ Barnichon-Mesters optimal policy perturbation (unconstrained or constrained)
 | `--method` | — | `String` | `auto` | `auto`, `slsqp`, `projection` | Constrained solver: auto \| slsqp \| projection (crude floor-only fallback) |
 | `--plot-view` | — | `String` | `delta` | `delta`, `paths` | Plot panel: delta \| paths |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -661,9 +663,9 @@ OPP rerun over a sequence of dated gap forecasts with news/preference/aging spli
 | `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact |
 | `--plot-view` | — | `String` | `fan` | `fan`, `decomposition` | Plot panel: fan \| decomposition |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -701,9 +703,9 @@ OPP rerun over a sequence of dated gap forecasts with news/preference/aging spli
 | `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact |
 | `--plot-view` | — | `String` | `fan` | `fan`, `decomposition` | Plot panel: fan \| decomposition |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -748,9 +750,9 @@ Optimal policy: minimize a quadratic PolicyLoss over the menu (spanned_tol fixed
 | `--quantiles` | — | `String` | `0.16,0.5,0.84` | — | Band quantiles, comma-separated in (0,1) |
 | `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -787,9 +789,9 @@ Optimal policy: minimize a quadratic PolicyLoss over the menu (spanned_tol fixed
 | `--quantiles` | — | `String` | `0.16,0.5,0.84` | — | Band quantiles, comma-separated in (0,1) |
 | `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none (the lp route keeps the estimator's scale; instrument-impact is var\|bvar\|sign only) |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -825,9 +827,9 @@ Optimal policy: minimize a quadratic PolicyLoss over the menu (spanned_tol fixed
 | `--quantiles` | — | `String` | `0.16,0.5,0.84` | — | Band quantiles, comma-separated in (0,1) |
 | `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -877,7 +879,7 @@ Spanning diagnostic: thin empirical menu vs full DSGE news menu
 | `--quantiles` | — | `String` | `0.16,0.5,0.84` | — | Band quantiles in (0,1) |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -912,7 +914,7 @@ Forecast-sufficiency FEV ratios for an observable set (population laboratory, no
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|

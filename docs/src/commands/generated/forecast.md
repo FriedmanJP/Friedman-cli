@@ -182,9 +182,10 @@ Dynamic-factor observable forecast reconstructed from factors
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -212,9 +213,10 @@ GDFM observable forecast reconstructed from factors
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -248,11 +250,12 @@ SDFM observable forecast reconstructed from factors
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -280,9 +283,10 @@ Static-factor observable forecast reconstructed from factors
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -318,11 +322,12 @@ BVAR posterior-mean forecast with fixed 68% credible bands
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -350,9 +355,10 @@ FAVAR factor-level (or --panel-forecast panel-wide) forecast
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -384,9 +390,10 @@ Local-projection forecast along a fixed shock path
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -418,11 +425,12 @@ Waggoner-Zha conditional (scenario) forecast
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -450,9 +458,10 @@ Unconditional VAR forecast with analytical or bootstrap intervals
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -482,9 +491,10 @@ Level VECM forecast with optional bootstrap/parametric intervals
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -522,9 +532,10 @@ Switching-regression forecast over future regressors (or intercept-only horizons
 | `--conf-level` | — | `Float64` | `0.9` | — | Band coverage, 0 < level < 1 |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -554,9 +565,10 @@ Regime-averaged MS-AR forecast over simulated regime paths
 | `--conf-level` | — | `Float64` | `0.9` | — | Band coverage, 0 < level < 1 |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -585,9 +597,10 @@ Bootstrap-simulation threshold forecast for self-exciting models
 | `--conf-level` | — | `Float64` | `0.95` | `0.90`, `0.95`, `0.99` | Band coverage: 0.90\|0.95\|0.99 |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `ThresholdModel`; result types: `ThresholdForecast`
 
@@ -612,9 +625,10 @@ Bootstrap-simulation STAR forecast for self-exciting models
 | `--conf-level` | — | `Float64` | `0.95` | `0.90`, `0.95`, `0.99` | Band coverage: 0.90\|0.95\|0.99 |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `STARModel`; result types: `STARForecast`
 
@@ -650,9 +664,10 @@ ARFIMA forecast with fractional-filter truncation and interval bands
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -686,9 +701,10 @@ ARIMA point forecast with interval bands (auto or fixed order)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -721,9 +737,10 @@ Direct h-step ADL-MIDAS forecast from a high-frequency indicator block (horizon 
 | `--conf-level` | — | `Float64` | `0.95` | — | Prediction-interval level in (0,1) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `MidasModel`; result types: `MidasForecast`
 
@@ -759,9 +776,10 @@ SARIMA point forecast with interval bands (auto or fixed order)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -801,9 +819,10 @@ APARCH volatility forecast with interval level
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -829,9 +848,10 @@ ARCH(1) volatility forecast (no interval level; horizons only)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -857,9 +877,10 @@ CGARCH volatility forecast with interval level
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -887,9 +908,10 @@ EGARCH(1,1) volatility forecast (no interval level; horizons only)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -920,9 +942,10 @@ FIEGARCH volatility forecast with interval level
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -953,9 +976,10 @@ FIGARCH volatility forecast with interval level
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -983,9 +1007,10 @@ GARCH(1,1) volatility forecast (no interval level; horizons only)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -1014,9 +1039,10 @@ GARCH-MIDAS variance forecast split into long-run/short-run components (no inter
 | `--horizons` | `-H` | `Int64` | `10` | — | Forecast horizons (≥ 1) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -1044,9 +1070,10 @@ GJR-GARCH(1,1) volatility forecast (no interval level; horizons only)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -1074,9 +1101,10 @@ IGARCH volatility forecast with interval level
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -1102,9 +1130,10 @@ SV volatility forecast (no interval level; horizons only)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|

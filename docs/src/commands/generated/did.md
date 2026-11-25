@@ -37,12 +37,14 @@ Staggered-adoption DiD estimation (twfe|cs|sa|bjs|dcdh) with event-time and over
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Handles:** data kinds: `:panel`, `:csv`
+**Handles:** data kinds: `:panel`, `:csv`; result types: `DIDResult`
 
 **Output tables:** `did_estimation` (ATT with standard error and confidence band by event time); `group_time_att_callaway_sant_anna` (Cohort-by-calendar-period effects table (shown whenever the method reports group-time effects))
 
@@ -69,12 +71,14 @@ Local-projection event-study DiD with pre-trend leads and post-treatment horizon
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Handles:** data kinds: `:panel`, `:csv`
+**Handles:** data kinds: `:panel`, `:csv`; result types: `EventStudyLP`
 
 **Output tables:** `event_study_lp` (Local-projection event-study coefficient, SE and confidence band by event time)
 
@@ -105,6 +109,8 @@ LP-DiD estimation (Dube et al. 2023) with pre/post windows and clean-control opt
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -118,7 +124,7 @@ LP-DiD estimation (Dube et al. 2023) with pre/post windows and clean-control opt
 | `--only-pooled` | — | Only estimate pooled effects (the event-time table is still shown) |
 | `--only-event` | — | Only estimate event-time effects (the event-time table is still shown) |
 
-**Handles:** data kinds: `:panel`, `:csv`
+**Handles:** data kinds: `:panel`, `:csv`; result types: `LPDiDResult`
 
 **Output tables:** `lp_did_dube_et_al_2023` (LP-DiD coefficient, SE, confidence band and observation count by event time)
 

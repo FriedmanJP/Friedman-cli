@@ -113,5 +113,6 @@ In the captured `VAR(1)` fit, `information_criteria` records `AIC = -14.41023` a
 ## See Also
 
 - Full JSON envelope schema, error codes (`model/convergence`, `data/wrong-kind`, etc.), and `frdc serve --mcp`: [Agent Guide](../agent-guide.md)
+- Four-layer storage contract (`.jld2`/`.jls`/`.fmod`, `#key`, `data://`/`model://`/`result://`/`mem://`, atomic writes, `FRDC_DATA_ROOT`): [Storage & Handle Architecture](@ref int-storage)
 - Machine-readable draft-07 per-leaf schemas: `frdc schema <verb> [<family>] <model>`
-- Handle inspection and verification: [`frdc model`](@ref ref-model), [`frdc show`](@ref ref-show)
+- Handle inspection, key listing, conversion, and verification: [`frdc model`](@ref ref-model), [`frdc show`](@ref ref-show)

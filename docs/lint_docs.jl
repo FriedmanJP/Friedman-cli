@@ -39,6 +39,7 @@ const CONFIG = Set([
 ])
 const INTERNALS = Set([
     "internals/architecture.md",
+    "internals/storage.md",
     "internals/api.md",
     "internals/not-wrapped.md",
 ])

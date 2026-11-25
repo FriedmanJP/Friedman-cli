@@ -564,7 +564,10 @@ function _fevd_pvar(; data::String="", result=nothing, id_col::String="", time_c
         if loaded isa AbstractArray && ndims(loaded) == 3
             h_eff = size(loaded, 1) - 1
             n_v = size(loaded, 2)
-            vns = _model_varnames(loaded)
+            meta_vn = let m = (isdefined(@__MODULE__, :_lookup_handle_meta) ? _lookup_handle_meta(loaded) : nothing)
+                (m isa AbstractDict && haskey(m, "varnames") && !isempty(m["varnames"])) ? String.(m["varnames"]) : String[]
+            end
+            vns = !isempty(meta_vn) ? meta_vn : _model_varnames(loaded)
             length(vns) == n_v || (vns = String["var_$i" for i in 1:n_v])
             proportions = permutedims(loaded[2:end, :, :], (2, 3, 1))
             _output_fevd_tables(proportions, vns, h_eff;
@@ -602,6 +605,7 @@ function _fevd_pvar(; data::String="", result=nothing, id_col::String="", time_c
     _output_fevd_tables(proportions, varnames, horizons;
                         id="cholesky", title_prefix="Panel VAR FEVD",
                         format=format, output=output, key_prefix="panel_var_fevd")
+    isdefined(@__MODULE__, :_set_save_meta!) && _set_save_meta!(; varnames=varnames)
     return (; model, result=fevd_arr)
 end
 

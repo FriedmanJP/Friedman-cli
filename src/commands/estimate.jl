@@ -3492,12 +3492,14 @@ function _estimate_pvar(; data::String, id_col::String="", time_col::String="",
     validate_method(transformation, ["fd", "fod"], "PVAR transformation")
     validate_method(steps, ["onestep", "twostep"], "PVAR steps")
 
-    model, panel, varnames = _load_and_estimate_pvar(data, id_col, time_col, lags;
+    model, panel, all_varnames = _load_and_estimate_pvar(data, id_col, time_col, lags;
         method=method, transformation=transformation, steps=steps,
         system=system, collapse=collapse,
         dependent=dependent, predet=predet, exog=exog,
         min_lag_endo=min_lag_endo, max_lag_endo=max_lag_endo)
 
+    varnames = (hasproperty(model, :varnames) && !isempty(model.varnames)) ?
+               String.(model.varnames) : all_varnames
     n = length(varnames)
     p = lags
 

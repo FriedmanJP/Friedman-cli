@@ -13,14 +13,16 @@ Generated command reference for `frdc show` (`1` leaf). Back to [CLI Reference O
 
 ### [`frdc show`](@id ref-leaf-show)
 
-Render any loadable handle (data, model, or result)
+Render bounded structured summary of any loadable handle (data, model, result, archive#key, or session URI)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `path` | `String` | yes | — | Handle stem or path |
+| `path` | `String` | yes | — | Handle stem, path, archive.jld2#key, or session URI |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
+| `--max-rows` | — | `Int64` | `20` | — | Maximum preview rows to display (0 = unlimited; default: 20) |
+| `--max-cols` | — | `Int64` | `12` | — | Maximum preview columns to display (0 = unlimited; default: 12) |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
@@ -29,5 +31,5 @@ Render any loadable handle (data, model, or result)
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot if a recipe exists |
 
-**Output tables:** `show_payload` (Rendered payload of the handle)
+**Output tables:** `show_payload` (Bounded structured summary or preview of the handle)
 

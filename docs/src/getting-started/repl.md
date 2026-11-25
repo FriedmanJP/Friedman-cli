@@ -33,7 +33,7 @@ The REPL tracks an active dataset binding and a per-model-type session cache so 
 - `data current` — prints the currently active dataset, dimensions, variables, and type (supports `--json` and `--quiet`).
 - `data clear` — unloads the active session dataset and clears session model bindings (supports `--json` and `--quiet`).
 
-Once an estimator runs during a session (`estimate multivariate var`, `estimate panel preg`, etc.), post-estimation commands (`irf`, `fevd`, `hd`, `forecast`, `predict`, `residuals`) reuse the cached model object for that model type. Pass an explicit `<data>` path or `--model <handle>` at any prompt to override the session binding for that single call.
+Once an estimator runs during a session (`estimate multivariate var`, `estimate panel preg`, etc.), post-estimation commands (`irf`, `fevd`, `hd`, `forecast`, `predict`, `residuals`) reuse the cached model object for that model type. Pass an explicit `<data>` path or `--model <handle>` at any prompt to override the session binding for that single call. You can also address explicit in-memory session handles using `data://`, `model://`, `result://`, and `mem://` URIs (for example `--save-model model://m1`, `--save-result result://r1`, `model info model://m1`, or `model convert model://m1 -o saved.jld2`), documented in [Storage & Handle Architecture](@ref int-storage).
 
 ---
 

@@ -79,6 +79,7 @@ makedocs(;
         ],
         "Internals" => [
             "Architecture" => "internals/architecture.md",
+            "Storage & Handles" => "internals/storage.md",
             "API Reference" => "internals/api.md",
             "Unwrapped Upstream Surface" => "internals/not-wrapped.md",
         ],

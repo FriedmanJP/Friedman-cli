@@ -28,10 +28,14 @@ Bewley-bank MIT IRF (variable names from the ImpulseResponse)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser (ImpulseResponse) |
+
+**Handles:** result types: `ImpulseResponse`
 
 **Output tables:** `bewley_banks_irf_*` (MIT responses of the bank IRF variables to TFP)
 
@@ -58,6 +62,7 @@ Bewley-bank partial equilibrium at given (R, rᵏ)
 | `--tol` | — | `Float64` | `1.0e-6` | — | PE VFI tolerance |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
 
 **Output tables:** `bewley_banks_pe` (PE prices, convergence and iterations); `bewley_banks_pe_policy` (Lending and deposit policy over the net-worth grid)
 
@@ -83,6 +88,7 @@ Bewley-bank credit-market stationary equilibrium
 | `--max-iter` | — | `Int64` | `24` | — | Bisection cap |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
 
 **Output tables:** `bewley_banks_steady_state` (R, rk, L, N, B, leverage, Y, excess demand and convergence); `bewley_banks_steady_state_policy` (Lending and deposit policy over the net-worth grid at SS prices)
 
@@ -98,6 +104,10 @@ Bewley-bank MIT TFP path
 | `--z` | — | `Float64` | `0.25` | — | Steady-state TFP |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+
+**Handles:** result types: `IntermediaryTransition`
 
 **Output tables:** `bewley_banks_transition` (Path of t, Z, L, Y, K, rk); `bewley_banks_transition_diagnostics` (Method and convergence)
 
@@ -128,11 +138,15 @@ FEVD from the CT MIT impulse (single TFP shock)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--two-asset` | — | Two-asset GE FEVD |
 | `--plot` | — | Open interactive plot in browser |
+
+**Handles:** result types: `FEVD`
 
 **Output tables:** `ct_fevd_*` (Variance shares by shock across horizons, one table per variable)
 
@@ -155,11 +169,15 @@ MIT impulse response of CT Aiyagari or two-asset GE
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--two-asset` | — | Two-asset GE IRF (K, r_a, r_b, w, B, Z) |
 | `--plot` | — | Open interactive plot in browser |
+
+**Handles:** result types: `ImpulseResponse`
 
 **Output tables:** `ct_irf_*` (MIT responses of every variable to the TFP shock, one table per shock)
 
@@ -181,6 +199,7 @@ Continuous-time Aiyagari (or two-asset KMV) stationary equilibrium
 | `--tol` | — | `Float64` | `1.0e-6` | — | Convergence tolerance |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -211,11 +230,15 @@ MIT-shock perfect-foresight transition (ct_mit_shock; ct_two_asset_mit with --tw
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--z-path` | — | `String` | `""` | — | CSV of TFP path (required with --two-asset; ignored otherwise; length ≥ 2, all positive) |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--plot` | — | Plot the transition table in browser (one-asset only; --two-asset has no plot recipe) |
 | `--two-asset` | — | Two-asset MIT (ct_two_asset_mit; no plot) |
+
+**Handles:** result types: `CTTransition`, `CTTwoAssetTransition`
 
 **Output tables:** `ct_mit_shock_transition` (MIT-shock transition path of t, Z, K, r, w and C); `ct_two_asset_transition` (Two-asset MIT path of t, Z, K, r_a, r_b, w, B, C (--two-asset))
 
@@ -251,10 +274,14 @@ FEVD of a DCEGM equilibrium (single TFP shock)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
+
+**Handles:** result types: `FEVD`
 
 **Output tables:** `dcegm_fevd_*` (Variance shares by shock across horizons, one table per variable)
 
@@ -282,10 +309,14 @@ MIT IRF of a DCEGM equilibrium (needs GE, not DCEGMSolution)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
+
+**Handles:** result types: `ImpulseResponse`
 
 **Output tables:** `dcegm_irf_*` (MIT responses of K, r, w, Y, Z to TFP)
 
@@ -312,6 +343,10 @@ MIT simulation of a DCEGM equilibrium (levels)
 | `--persist` | — | `Float64` | `0.0` | — | AR(1) decay of the TFP impulse |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+
+**Handles:** result types: `Matrix`, `TimeSeriesData`
 
 **Output tables:** `dcegm_simulation` (Simulated path of K, r, w, Y, Z)
 
@@ -346,6 +381,7 @@ Discrete-continuous EGM household (builtin retirement or .jl DCEGMProblem/DCEGMS
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -389,6 +425,7 @@ DCEGM capital-market equilibrium (dcegm_steady_state)
 | `--max-iter` | — | `Int64` | `40` | — | Bisection cap |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -417,6 +454,10 @@ MIT TFP path of a DCEGM equilibrium
 | `--z` | — | `Float64` | `1.0` | — | Firm TFP |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+
+**Handles:** result types: `DCEGMTransition`
 
 **Output tables:** `dcegm_transition_path` (MIT path of t, Z, K, r, w, A, Y); `dcegm_transition_diagnostics` (Method and convergence)
 
@@ -444,10 +485,14 @@ Khan–Thomas MIT IRF of Y, I, K, N, C, Z
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser (ImpulseResponse) |
+
+**Handles:** result types: `ImpulseResponse`
 
 **Output tables:** `khan_thomas_irf_*` (MIT responses of Y, I, K, N, C, Z to TFP)
 
@@ -476,6 +521,7 @@ Khan–Thomas plant-level stationary equilibrium
 | `--max-iter` | — | `Int64` | `16` | — | Outer wage iterations |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
 
 **Output tables:** `khan_thomas_steady_state` (w, p, K, N, Y, I, C, inaction, convergence); `khan_thomas_policy` (k-grid × ε: unconstrained k*, constrained k' and adjustment probability)
 
@@ -492,6 +538,10 @@ Khan–Thomas MIT TFP path (--prices ss|ge)
 | `--z` | — | `Float64` | `1.0` | — | Steady-state TFP |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+
+**Handles:** result types: `KhanThomasTransition`
 
 **Output tables:** `khan_thomas_transition` (Path of t, Z, Y, I, K, N, C, w); `khan_thomas_transition_diagnostics` (Method and convergence)
 
@@ -519,10 +569,14 @@ FEVD of a life-cycle OLG steady state
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
+
+**Handles:** result types: `FEVD`
 
 **Output tables:** `lifecycle_fevd_*` (Variance shares by shock across horizons, one table per variable)
 
@@ -542,10 +596,14 @@ MIT IRF of a life-cycle OLG steady state
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
+
+**Handles:** result types: `ImpulseResponse`
 
 **Output tables:** `lifecycle_irf_*` (MIT responses of K, r, w, Y, Z to TFP)
 
@@ -564,6 +622,10 @@ MIT simulation of a life-cycle OLG steady state (levels)
 | `--persist` | — | `Float64` | `0.0` | — | AR(1) decay of the TFP impulse |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+
+**Handles:** result types: `Matrix`, `TimeSeriesData`
 
 **Output tables:** `lifecycle_simulation` (Simulated path of K, r, w, Y, Z)
 
@@ -598,6 +660,7 @@ Life-cycle OLG stationary equilibrium
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -634,6 +697,10 @@ Life-cycle OLG perfect-foresight transition (--k0 XOR --z-path)
 | `--relax` | — | `Float64` | `0.5` | — | Damping on the capital update |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+
+**Handles:** result types: `LifeCycleTransition`
 
 **Output tables:** `lifecycle_transition_path` (Path of t, K, r, w, Y, C, Z, pension, transfer); `lifecycle_transition_diagnostics` (tau, convergence and iterations)
 
@@ -669,11 +736,15 @@ Blanchard OLG FEVD via to_spec (TFP; NK adds monetary)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--nk` | — | NK perpetual-youth variant (adds π, i, rr and eps_i) |
 | `--plot` | — | Open interactive plot in browser |
+
+**Handles:** result types: `FEVD`
 
 **Output tables:** `blanchard_olg_fevd_*` (Variance shares by shock across horizons, one table per variable)
 
@@ -702,11 +773,15 @@ Blanchard OLG IRF via to_spec (TFP; NK adds monetary)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--nk` | — | NK perpetual-youth variant (adds π, i, rr and eps_i) |
 | `--plot` | — | Open interactive plot in browser |
+
+**Handles:** result types: `ImpulseResponse`
 
 **Output tables:** `blanchard_olg_irf_*` (Responses of every variable to one shock (eps_Z; NK also eps_i))
 
@@ -727,10 +802,14 @@ Blanchard OLG transitional dynamics from k0 along the saddle path
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
+
+**Handles:** result types: `Matrix`, `TimeSeriesData`
 
 **Output tables:** `blanchard_olg_transition` (Transition paths of k, C, r and w from the initial capital stock)
 
@@ -748,6 +827,7 @@ Blanchard perpetual-youth OLG: steady state + saddle path
 | `--debt` | — | `Float64` | `0.0` | — | Government debt b (see MEMs#237 if b≠0) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
 
 **Output tables:** `blanchard_olg_steady_state` (Steady-state k, C, r, w, human wealth, MPC, debt and convergence); `blanchard_olg_dynamics` (Stable eigenvalue, policy slope, determinacy verdict and both eigenvalue moduli)
 
@@ -827,7 +907,7 @@ Estimate a DSGE model with Bayesian sampling and report the posterior
 | `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -1329,12 +1409,16 @@ Map the DSGE determinacy region over two parameters
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--threaded` | — | Evaluate grid points on all available threads (results are identical to the serial sweep) |
 | `--verbose-solver` | — | Do NOT suppress per-grid-point solver warnings |
 | `--plot` | — | Open interactive plot in browser |
+
+**Handles:** result types: `DeterminacyMap`
 
 **Output tables:** `dsge_determinacy_map` (One row per grid cell: swept parameter values, verdict code/label and the Sims existence/uniqueness pair); `determinacy_region_summary` (Grid-point counts per determinacy region plus the solver settings); `determinacy_boundary` (Parameter values where the verdict changes (one-parameter sweeps only))
 
@@ -1360,7 +1444,7 @@ Estimate DSGE parameters by moment matching
 | `--bounds` | — | `String` | `""` | — | Path to parameter bounds TOML (currently not used) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
@@ -1396,13 +1480,15 @@ Decompose the DSGE forecast-error variance by shock
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--unconditional` | — | Unconditional (asymptotic) FEVD for order≥2 perturbation (Andreasen et al. 2018) |
 | `--plot` | — | Open interactive plot in browser |
 
-**Handles:** model types: `DSGESolution`, `PerturbationSolution`
+**Handles:** model types: `DSGESolution`, `PerturbationSolution`; result types: `FEVD`
 
 **Output tables:** `dsge_fevd_*` (Variance shares by shock across horizons, one table per variable)
 
@@ -1438,12 +1524,14 @@ Decompose DSGE observables into historical shock contributions
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Handles:** data kinds: `:timeseries`, `:csv`; model types: `DSGESolution`, `PerturbationSolution`
+**Handles:** data kinds: `:timeseries`, `:csv`; model types: `DSGESolution`, `PerturbationSolution`; result types: `HistoricalDecomposition`
 
 **Output tables:** `dsge_historical_decomposition_*` (Per-variable contribution path of one shock, one table per shock)
 
@@ -1481,12 +1569,14 @@ Compute DSGE impulse responses to each structural shock
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Handles:** model types: `DSGESolution`, `PerturbationSolution`, `ProjectionSolution`, `OccBinSolution`
+**Handles:** model types: `DSGESolution`, `PerturbationSolution`, `ProjectionSolution`, `OccBinSolution`; result types: `ImpulseResponse`, `OccBinIRF`
 
 **Output tables:** `dsge_irf_*` (Responses of every variable to one shock, one table per shock); `occbin_irf_*` (Linear vs piecewise OccBin response of one variable, one table per variable (--constraints))
 
@@ -1531,10 +1621,14 @@ Solve a DSGE model under perfect foresight along a shock path
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
+
+**Handles:** result types: `PerfectForesightPath`
 
 **Output tables:** `perfect_foresight_path` (Deterministic transition path of every endogenous variable)
 
@@ -1614,7 +1708,7 @@ Solve a DSGE model and report the policy solution
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim) |
+| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|

@@ -27,12 +27,14 @@ Autocorrelation / partial autocorrelation / cross-correlation
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Handles:** data kinds: `:timeseries`, `:csv`
+**Handles:** data kinds: `:timeseries`, `:csv`; result types: `ACFResult`
 
 **Output tables:** `acf_pacf` (Autocorrelation, partial autocorrelation, Ljung-Box Q and p-value by lag); `cross_correlation` (Cross-correlation by lag against --ccf-with (only with that option))
 
@@ -51,12 +53,14 @@ Cross-spectral analysis (coherence, phase, gain)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Handles:** data kinds: `:timeseries`, `:csv`
+**Handles:** data kinds: `:timeseries`, `:csv`; result types: `CrossSpectrumResult`
 
 **Output tables:** `cross_spectral_analysis` (Co-/quadrature spectrum, coherence, phase and gain by frequency)
 
@@ -76,13 +80,15 @@ Spectral density estimation
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 | `--log-scale` | — | Plot spectral density on a log10 vertical axis (default: linear) |
 
-**Handles:** data kinds: `:timeseries`, `:csv`
+**Handles:** data kinds: `:timeseries`, `:csv`; result types: `SpectralDensityResult`
 
 **Output tables:** `spectral_density` (Estimated spectral density with confidence band by frequency)
 
@@ -100,13 +106,15 @@ Raw periodogram
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 | `--log-scale` | — | Plot spectral density on a log10 vertical axis (default: linear) |
 
-**Handles:** data kinds: `:timeseries`, `:csv`
+**Handles:** data kinds: `:timeseries`, `:csv`; result types: `SpectralDensityResult`
 
 **Output tables:** `periodogram` (Raw periodogram power by Fourier frequency)
 
@@ -122,12 +130,14 @@ Filter transfer function (theoretical frequency response)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--plot` | — | Open interactive plot in browser |
 
-**Handles:** data kinds: `:timeseries`, `:csv`
+**Handles:** data kinds: `:timeseries`, `:csv`; result types: `TransferFunctionResult`
 
 **Output tables:** `filter_transfer_function` (Theoretical filter gain and phase by frequency)
 

@@ -8660,6 +8660,23 @@ function dropna(d::TimeSeriesData; vars::Union{Vector{String},Nothing}=nothing)
                    d.time_index[idx], d.desc, copy(d.vardesc))
 end
 
+function dropna(d::PanelData; vars::Union{Vector{String},Nothing}=nothing)
+    mat = d.data
+    if vars === nothing
+        good = [all(isfinite, mat[i, :]) for i in 1:size(mat, 1)]
+    else
+        col_idx = [findfirst(==(v), d.varnames) for v in vars]
+        any(isnothing, col_idx) && throw(ArgumentError(
+            "Variable(s) not found: $(vars[findall(isnothing, col_idx)])"))
+        cidx = Int[c for c in col_idx]
+        good = [all(isfinite, mat[i, cidx]) for i in 1:size(mat, 1)]
+    end
+    idx = findall(good)
+    isempty(idx) && throw(ArgumentError("All rows contain NaN or Inf — no data remaining"))
+    PanelData(mat[idx, :], copy(d.varnames), d.group_id[idx], d.time_id[idx],
+              d.n_groups, d.n_vars, length(idx), d.balanced)
+end
+
 function keeprows(d::TimeSeriesData, idx::Vector{Int})
     isempty(idx) && throw(ArgumentError("No rows selected — empty result"))
     all(i -> 1 <= i <= size(d.data, 1), idx) || throw(BoundsError(d, idx))

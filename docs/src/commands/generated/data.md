@@ -96,6 +96,10 @@ Export a typed handle to CSV/JLS/JLD2 (or stream to stdout without -o)
 | `--output` | `-o` | `String` | `""` | — | Output file path (.csv, .jld2, .jls, .fmod; streams to stdout if omitted) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--no-dates` | — | Omit date labels column when exporting TimeSeriesData |
+
 **Handles:** data kinds: `:timeseries`, `:panel`, `:cross_section`
 
 **Output tables:** `exported_data` (Exported dataset rows (streamed to stdout or included in JSON envelope))
@@ -162,6 +166,10 @@ Import CSV or :example to a typed .jld2 handle
 | `--output` | `-o` | `String` | `""` | — | Output stem or path (default: input basename) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--strict-missing` | — | Reject CSVs with blank/missing numeric cells (exit 3) instead of converting to NaN |
+
 **Handles:** data kinds: `:csv`, `:timeseries`, `:panel`, `:cross_section`
 
 **Output tables:** `imported_data` (Imported handle kind, dimensions, frequency and path)
@@ -211,12 +219,13 @@ Load a bundled example dataset or CSV file (stream to stdout, or write to -o)
 | `--country` | — | `String` | `""` | — | Country label in status line only (no filtering) (bundled datasets only; ignored with --path) |
 | `--dates` | — | `String` | `""` | — | CSV/--path and timeseries date-label column (ignored for panels) |
 | `--path` | — | `String` | `""` | — | Path to data file (.csv, .jld2, .jls; alternative to named dataset) |
+| `--kind` | — | `String` | `""` | `timeseries`, `panel`, `cross-section` | Optional container kind override when loading via --path |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--transform` | `-t` | Apply stored FRED tcodes (timeseries only) (bundled datasets only; ignored with --path) |
 
-**Handles:** data kinds: `:csv`
+**Handles:** data kinds: `:csv`, `:timeseries`, `:panel`, `:cross_section`
 
 **Output tables:** `loaded_data` (Loaded dataset rows (streamed to stdout or included in JSON envelope))
 

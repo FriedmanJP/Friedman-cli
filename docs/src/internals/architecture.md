@@ -164,6 +164,7 @@ Include order in `src/Friedman.jl` is load-bearing: `output/errors.jl`, `io.jl`,
 
 ## References
 
+- [Storage & Handle Architecture](@ref int-storage) — canonical `.jld2`/`.jls`/`.fmod` formats, URI grammar, atomic writes, and provenance
 - [CLI Reference Overview](@ref cli-overview) — generated command inventory and option schemas
 - [Automated Pipelines & JSON Envelopes](@ref gs-pipelines) — envelope structure and handle workflows
 - [API Reference](@ref int-api) — Julia entry points for embedding

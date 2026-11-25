@@ -505,6 +505,7 @@ function _irf_var(; data::String="", result=nothing, model=nothing, lags=nothing
     # #217: via the central helper (same long_table + shock filter, key frozen).
     _emit_result(irf_result; title="IRF to $shock_name shock ($id identification)", key="irf",
                  format=Symbol(format), output=output, shocks=shock_name)
+    isdefined(@__MODULE__, :_set_save_meta!) && _set_save_meta!(; varnames=varnames)
     return (; model, result=irf_result)
 end
 
@@ -909,7 +910,11 @@ function _irf_pvar(; data::String="", result=nothing, id_col::String="", time_co
                 key="panel_var_oirf", plot, plot_save)
         end
         n_v = size(loaded.irf, 2)
-        vns = _model_varnames(loaded)
+        meta_vn = let m = (isdefined(@__MODULE__, :_lookup_handle_meta) ? _lookup_handle_meta(loaded) : nothing)
+            (m isa AbstractDict && haskey(m, "varnames") && !isempty(m["varnames"])) ? String.(m["varnames"]) : String[]
+        end
+        vns = !isempty(meta_vn) ? meta_vn :
+              (hasproperty(loaded, :model) ? _model_varnames(loaded.model) : _model_varnames(loaded))
         length(vns) == n_v || (vns = String["var_$i" for i in 1:n_v])
         key_prefix = irf_type == "girf" ? "panel_var_girf" : "panel_var_oirf"
         for shock in 1:n_v
@@ -960,6 +965,7 @@ function _irf_pvar(; data::String="", result=nothing, id_col::String="", time_co
                       key=_table_key(key_prefix, shock_name))
         _status()
     end
+    isdefined(@__MODULE__, :_set_save_meta!) && _set_save_meta!(; varnames=varnames)
     return (; model, result=irf_result)
 end
 

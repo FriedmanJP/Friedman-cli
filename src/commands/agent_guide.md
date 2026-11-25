@@ -250,12 +250,13 @@ narrow the exposed catalog or omit verbose parameter descriptions:
   envelope. Unknown argument keys are forwarded so the strict parser answers
   with its typed did-you-mean usage error. Everything in this guide about
   envelopes applies unchanged.
-- **`model://` handles**: within a serve session, `--save-model model://name`
-  stores the fitted model **in memory** and `--model model://name` reuses it —
-  estimate once, then run irf/fevd/forecast against the handle with no
-  re-estimation and no files. Handles live exactly as long as the session;
-  file handles (`.jld2`/`.jls`/`.fmod`) also work as usual. Outside a serve session a
-  `model://` handle is a typed `usage/invalid` error.
+- **Session URIs (`data://`, `model://`, `result://`, `mem://`)**: within a `serve --mcp`
+  or `repl` session, `-o data://d1`, `--save-model model://m1`, `--save-result result://r1`,
+  and `mem://name` store typed objects **in memory** with full metadata and provenance —
+  estimate once, then run `irf`/`fevd`/`forecast`/`model info`/`show` against the URI with
+  no re-estimation and no disk files. Handles live for the duration of the session; file
+  handles (`.jld2`/`.jls`/`.fmod` and `archive.jld2#key`) also work as usual. Outside a
+  session, session URIs raise typed `usage/session-uri-requires-session` (exit `2`).
 - Requests are handled **serially** (handlers are not thread-audited); stdout
   carries only the JSON-RPC stream — status and library logs stay on stderr.
 
@@ -324,7 +325,10 @@ frdc show macro          # TimeSeriesData descriptive stats
 frdc show var            # fitted model table
 frdc show irf            # re-render the saved ImpulseResponse
 frdc forecast evaluate metrics macro --actual gdp --result fcst_var,fcst_bvar
-frdc model info var.jld2
+frdc model info var.jld2         # header-only (0 full loads); add --deep for legacy handles
+frdc model keys archive.jld2     # list #key entries in multi-key .jld2 / bundles
+frdc model convert old.fmod --to jld2 --note "migrated"  # atomic conversion preserving provenance
+frdc data import missing.csv --kind timeseries --strict-missing -o clean  # opt into missing rejection
 # CSV shortcut still works:
 frdc estimate multivariate var macro.csv --lags 2
 ```
