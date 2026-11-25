@@ -49,6 +49,21 @@ if (-not (Test-Path $ExePath)) {
     throw "Expected standalone executable not found: $ExePath"
 }
 
+# Hard GPL-3.0-only compliance gate (#289, #290): refuse to package any MSIX
+# missing LICENSE, SOURCE_OFFER.txt, THIRD_PARTY_LICENSES.md, or DATA_LICENSES.md.
+$RequiredLicenseFiles = @(
+    "LICENSE",
+    "SOURCE_OFFER.txt",
+    "share\licenses\THIRD_PARTY_LICENSES.md",
+    "share\licenses\DATA_LICENSES.md"
+)
+foreach ($RelLic in $RequiredLicenseFiles) {
+    $LicFull = Join-Path $ResolvedAppDir $RelLic
+    if (-not (Test-Path $LicFull) -or (Get-Item $LicFull).Length -eq 0) {
+        throw "GPL-3.0 compliance gate failed (#289): missing or empty required notice '$RelLic' in $ResolvedAppDir"
+    }
+}
+
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $TemplatePath = Join-Path $ScriptDir "AppxManifest.xml.in"
 $AssetsSrc = Join-Path $ScriptDir "Assets"
@@ -100,6 +115,14 @@ try {
     Write-Host "Staging app bundle into $StageDir (mode=$Mode, version=$MsixVersion)..."
     Copy-Item -Path (Join-Path $ResolvedAppDir "*") -Destination $StageDir -Recurse -Force
     Copy-Item -Path $AssetsSrc -Destination (Join-Path $StageDir "Assets") -Recurse -Force
+
+    # Double-check staged license notices before MakeAppx invocation (#289)
+    foreach ($RelLic in $RequiredLicenseFiles) {
+        $StagedLic = Join-Path $StageDir $RelLic
+        if (-not (Test-Path $StagedLic) -or (Get-Item $StagedLic).Length -eq 0) {
+            throw "GPL-3.0 compliance gate failed (#289): staged notice missing '$RelLic' in $StageDir"
+        }
+    }
 
     $ManifestText = [System.IO.File]::ReadAllText($TemplatePath, [System.Text.Encoding]::UTF8)
     $ManifestText = $ManifestText.Replace("{{IDENTITY_NAME}}", (Escape-Xml $IdentityName))

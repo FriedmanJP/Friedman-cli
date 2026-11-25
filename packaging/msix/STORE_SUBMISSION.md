@@ -27,6 +27,53 @@ Store MSIX package for **Friedman-cli** to Microsoft Partner Center.
 
 ---
 
+## Mandatory GPL-3.0-only Custom License Terms (Overriding Microsoft SALT, #289)
+
+> **CRITICAL FOR GPL-3.0 COMPLIANCE:** By default, apps published to the Microsoft Store
+> without custom license terms are governed by Microsoft's **Standard Application License
+> Terms (SALT)**, which impose proprietary restrictions conflicting with **GPL-3.0 §§ 7 & 10**
+> (including for bundled third-party GPL-2.0-or-later libraries `FFTW_jll`, `Rmath_jll`, and
+> `SuiteSparse_jll`). You **MUST** override SALT in Partner Center before publishing any release.
+
+### Partner Center Settings
+
+1. **Custom License Terms (Properties / Submission options → License terms):**
+   Paste the notice below followed by the verbatim contents of the repository root `LICENSE`
+   file (GNU General Public License, Version 3, 29 June 2007):
+
+   ```text
+   CUSTOM LICENSE TERMS — Friedman-cli (frdc)
+   This application is licensed exclusively under the GNU General Public License,
+   Version 3 (GPL-3.0-only). These terms supersede the Microsoft Standard Application
+   License Terms (SALT). Nothing in Microsoft Store distribution imposes any further
+   restriction on your rights under GPL-3.0 to run, copy, study, modify, or redistribute
+   this software.
+
+   Complete Corresponding Source (GPL-3.0 §6 and MPL-2.0 §3.2(b)), resolved Manifest.toml,
+   and third-party license notices are publicly hosted at:
+     https://github.com/FriedmanJP/Friedman-cli/releases
+   and bundled inside the installed package directory under LICENSE, SOURCE_OFFER.txt,
+   share\licenses\THIRD_PARTY_LICENSES.md, and share\licenses\DATA_LICENSES.md.
+   Run `frdc --conditions` or `frdc --warranty` for in-app license details.
+
+   [Append full verbatim text of LICENSE (GNU General Public License v3.0) here]
+   ```
+
+2. **Store DRM / App-Package Encryption (GPL-3.0 §§ 3 & 6):**
+   - Keep **Store DRM / package encryption DISABLED** (do not opt into encrypted package
+     licensing or locked S-Mode-only distribution).
+   - Confirm `TargetDeviceFamily` remains `Windows.Desktop` (`MinVersion="10.0.17763.0"`),
+     allowing users to build and run modified versions freely.
+
+3. **Store Listing & Support Links:**
+   - Include `https://github.com/FriedmanJP/Friedman-cli/releases` (Corresponding Source URL)
+     in the Microsoft Store **Description**, **Website**, and **Support contact info** fields.
+   - `pack_msix.ps1` enforces a hard gate refusing to build any `.msix` missing `LICENSE`,
+     `SOURCE_OFFER.txt`, `share\licenses\THIRD_PARTY_LICENSES.md`, or
+     `share\licenses\DATA_LICENSES.md`.
+
+---
+
 ## `runFullTrust` Restricted Capability Justification
 
 Copy and paste the following text into Partner Center under **Submission options → Restricted capabilities (`runFullTrust`)**:
@@ -70,9 +117,13 @@ Copy and paste the following text into Partner Center under **Submission options
 
 3. **Upload to Partner Center:**
    - Open the **Friedman-cli** product (`9NBBQSNP6W44`) in Microsoft Partner Center.
+   - Under **Properties / Submission options → License terms**, enable **Custom License Terms**
+     and paste the `GPL-3.0-only` SALT override notice + verbatim `LICENSE` text from above;
+     confirm Store DRM / package encryption is **OFF**.
    - Under **Packages**, upload `frdc-vX.Y.Z-windows-x86_64-store.msix` (x64, unsigned).
    - Under **Store listings**, attach `packaging/msix/store-assets/StoreListing300x300.png` (300×300),
-     terminal screenshots, GPL-3.0-only license note, and Privacy Policy URL:
+     terminal screenshots, `GPL-3.0-only` license & Corresponding Source link
+     (`https://github.com/FriedmanJP/Friedman-cli/releases`), and Privacy Policy URL:
      `https://friedmanjp.github.io/Friedman-cli/dev/getting-started/installation/#privacy-policy`.
    - Include the `runFullTrust` justification above under **Notes for certification**.
 

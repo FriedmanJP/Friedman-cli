@@ -69,12 +69,28 @@ jobs:
           $DummyApp = Join-Path $Tmp "app"
           $SideloadMsix = Join-Path $Tmp "sideload.msix"
           $StoreMsix = Join-Path $Tmp "store.msix"
-          New-Item -ItemType Directory -Path (Join-Path $DummyApp "bin") -Force | Out-Null
+          New-Item -ItemType Directory -Path (Join-Path $DummyApp "bin"), (Join-Path $DummyApp "share\licenses") -Force | Out-Null
           try {
-            # Copy a small x64 PE binary as placeholder so MakeAppx + Add-AppxPackage validate in seconds
+            # Copy a small x64 PE binary + repo license notices so MakeAppx + GPL-3.0 gate + Add-AppxPackage validate in seconds
             Copy-Item "$env:SystemRoot\System32\where.exe" (Join-Path $DummyApp "bin\frdc.exe")
+            Copy-Item "LICENSE" (Join-Path $DummyApp "LICENSE")
+            Copy-Item "SOURCE_OFFER.txt" (Join-Path $DummyApp "SOURCE_OFFER.txt")
+            Copy-Item "THIRD_PARTY_LICENSES.md" (Join-Path $DummyApp "share\licenses\THIRD_PARTY_LICENSES.md")
+            Copy-Item "DATA_LICENSES.md" (Join-Path $DummyApp "share\licenses\DATA_LICENSES.md")
             & packaging/msix/pack_msix.ps1 -AppDir $DummyApp -Version "$Ver" -OutputPath $SideloadMsix -Mode "sideload"
             & packaging/msix/pack_msix.ps1 -AppDir $DummyApp -Version "$Ver" -OutputPath $StoreMsix -Mode "store"
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            foreach ($Pkg in @($SideloadMsix, $StoreMsix)) {
+              $Zip = [System.IO.Compression.ZipFile]::OpenRead($Pkg)
+              try {
+                $Entries = @($Zip.Entries | ForEach-Object { $_.FullName.Replace('\', '/') })
+                foreach ($Req in @("LICENSE", "SOURCE_OFFER.txt", "share/licenses/THIRD_PARTY_LICENSES.md", "share/licenses/DATA_LICENSES.md")) {
+                  if ($Entries -notcontains $Req) { throw "Pre-flight MSIX '$Pkg' missing required license entry '$Req'" }
+                }
+              } finally {
+                $Zip.Dispose()
+              }
+            }
             $DevKey = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock"
             if (-not (Test-Path $DevKey)) { New-Item -Path $DevKey -Force | Out-Null }
             Set-ItemProperty -Path $DevKey -Name "AllowDevelopmentWithoutDevLicense" -Value 1 -Type DWord
@@ -150,6 +166,19 @@ jobs:
             -Version "$Ver" `
             -OutputPath "build\frdc-v$Ver-windows-x86_64-store.msix" `
             -Mode "store"
+          # Verify GPL-3.0 license notices are packed into both final MSIX archives (#289)
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          foreach ($Pkg in @("build\frdc-v$Ver-windows-x86_64.msix", "build\frdc-v$Ver-windows-x86_64-store.msix")) {
+            $Zip = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $Pkg).Path)
+            try {
+              $Entries = @($Zip.Entries | ForEach-Object { $_.FullName.Replace('\', '/') })
+              foreach ($Req in @("LICENSE", "SOURCE_OFFER.txt", "share/licenses/THIRD_PARTY_LICENSES.md", "share/licenses/DATA_LICENSES.md")) {
+                if ($Entries -notcontains $Req) { throw "Final MSIX '$Pkg' missing required license entry '$Req'" }
+              }
+            } finally {
+              $Zip.Dispose()
+            }
+          }
 
       - name: Smoke-test standalone Linux binary (offline, zero-Julia)
         if: runner.os == 'Linux'
