@@ -14541,9 +14541,14 @@ end
         err = nothing
         try; _capture() do; _dispatch_via_app(String["io", "download", "--source", "oecd", "--storage", "/tmp/x", "--offline"]); end; catch e; err = e; end
         @test err isa CliError && err.code == "env/network" && exit_class(err) == 6
-        # FRIEDMAN_OFFLINE env forces the same refusal
+        # FRDC_OFFLINE primary and FRIEDMAN_OFFLINE legacy fallback force the same refusal
         err = nothing
-        withenv("FRIEDMAN_OFFLINE" => "1") do
+        withenv("FRDC_OFFLINE" => "1", "FRIEDMAN_OFFLINE" => nothing) do
+            try; _capture() do; _dispatch_via_app(String["io", "download", "--source", "wiod", "--storage", "/tmp/x"]); end; catch e; err = e; end
+        end
+        @test err isa CliError && err.code == "env/network"
+        err = nothing
+        withenv("FRDC_OFFLINE" => nothing, "FRIEDMAN_OFFLINE" => "1") do
             try; _capture() do; _dispatch_via_app(String["io", "download", "--source", "wiod", "--storage", "/tmp/x"]); end; catch e; err = e; end
         end
         @test err isa CliError && err.code == "env/network"
@@ -15080,8 +15085,8 @@ end
 # registry populated; included here with a test APP so _schema_cmd resolves it.
 include(joinpath(project_root, "src", "commands", "schema.jl"))
 if !@isdefined(APP)
-    const APP = Entry("friedman",
-        NodeCommand("friedman", Dict{String,Union{NodeCommand,LeafCommand}}(
+    const APP = Entry("frdc",
+        NodeCommand("frdc", Dict{String,Union{NodeCommand,LeafCommand}}(
             "estimate" => register_estimate_commands!(),
             "test"     => register_test_commands!(),
             "irf"      => register_irf_commands!(),
@@ -15272,6 +15277,7 @@ include(joinpath(project_root, "src", "commands", "serve.jl"))
         @test length(rs) == 6            # notification got no response
         init = rs[1]
         @test init.id == 1
+        @test String(init.result.serverInfo.name) == "frdc"
         @test haskey(init.result, :protocolVersion)
         @test haskey(init.result.capabilities, :tools)
         tl = rs[2]
@@ -16136,10 +16142,13 @@ end
         b_bayes = bind_args(tokenize(["m.toml", "--n-draws", "20"]), bayes_leaf)
         @test b_bayes.n_draws == 20
 
-        # Dynamic depth-3 completions (#283)
+        # Dynamic depth-3 completions (#283, #300)
         bsh = generate_bash_completion(APP)
         zsh = generate_zsh_completion(APP)
         fsh = generate_fish_completion(APP)
+        @test occursin("complete -F _frdc frdc", bsh)
+        @test occursin("#compdef frdc", zsh)
+        @test occursin("complete -c frdc", fsh)
         for s in (bsh, zsh, fsh)
             @test occursin("schema", s) && occursin("serve", s) && occursin("show", s) && occursin("repl", s)
             @test occursin("bayes", s) && occursin(":fred_md", s)

@@ -130,7 +130,7 @@ jobs:
           '
       - name: Run integration-core
         env:
-          FRIEDMAN_T3_DUMP_ENVELOPES: ${{ runner.temp }}/envelopes
+          FRDC_T3_DUMP_ENVELOPES: ${{ runner.temp }}/envelopes
         run: julia --code-coverage=user --project=test/integration test/integration/runtests.jl
       - name: Conformant envelope validation (T3 dump)
         run: |
@@ -182,7 +182,7 @@ jobs:
         run: julia --project -e 'using Pkg; Pkg.instantiate()'
       - name: Run T4 E2E battery
         env:
-          FRIEDMAN_E2E: "1"
+          FRDC_E2E: "1"
           CI: "1"
         run: julia --project test/test_e2e.jl
 

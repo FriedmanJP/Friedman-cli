@@ -8,7 +8,7 @@ using Friedman
     @testset "build_app tree" begin
         app = Friedman.build_app()
         @test app isa Friedman.Entry
-        @test app.name == "friedman"
+        @test app.name == "frdc"
         @test app.version == Friedman.FRIEDMAN_VERSION
         expected = ["estimate", "test", "irf", "fevd", "hd", "forecast",
                     "predict", "residuals", "filter", "data", "nowcast",

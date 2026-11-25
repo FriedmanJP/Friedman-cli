@@ -24,7 +24,7 @@ include(joinpath(@__DIR__, "schema_validate.jl"))
 # stdout that parses as a JSON object is written there — the CI post-step
 # validates the whole dump with a CONFORMANT draft-07 validator
 # (test/tools/validate_envelopes.py), independent of the in-repo subset.
-const _T3_DUMP_DIR = get(ENV, "FRIEDMAN_T3_DUMP_ENVELOPES", "")
+const _T3_DUMP_DIR = get(ENV, "FRDC_T3_DUMP_ENVELOPES", get(ENV, "FRIEDMAN_T3_DUMP_ENVELOPES", ""))
 const _T3_DUMP_N = Ref(0)
 
 function _dump_envelope(raw::AbstractString, doc)
@@ -9745,7 +9745,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         ])
         @test length(rs) == 7
 
-        @test String(rs[1].result.serverInfo.name) == "friedman"
+        @test String(rs[1].result.serverInfo.name) == "frdc"
         tools = rs[2].result.tools
         @test length(tools) > 400
         @test any(t -> t.name == "estimate_multivariate_var", tools)

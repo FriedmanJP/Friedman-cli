@@ -24,6 +24,19 @@ module Friedman
         throw(CliError("data/unknown-dataset", "unknown dataset '$name'"))
     end
 
+    # Mirrors io.jl: dual-read FRDC_* with FRIEDMAN_* fallback (#300)
+    function _env_get(primary::String, legacy::String, default=nothing)
+        haskey(ENV, primary) && return ENV[primary]
+        haskey(ENV, legacy) && return ENV[legacy]
+        return default
+    end
+    function _env_get(keys::Tuple{Vararg{String}}, default=nothing)
+        for k in keys
+            haskey(ENV, k) && return ENV[k]
+        end
+        return default
+    end
+
     # Mirrors io.jl: Base.expanduser is a no-op on Windows, so repl.jl uses ours.
     function _expanduser(path::AbstractString)
         p = String(path)
@@ -125,7 +138,7 @@ module Friedman
         global _last_seen_seed = _SEED[]
         global _last_seen_quiet = _QUIET[]
         if !isempty(args) && startswith(args[1], "-")
-            throw(DispatchError("friedman: unknown command '$(args[1])'"))
+            throw(DispatchError("frdc: unknown command '$(args[1])'"))
         end
         # Return a mock result for estimate commands (model token: depth-3
         # family path, else the flat leaf)
@@ -891,14 +904,17 @@ end
 
 @testset "LineEdit arrow-key history, editing, completion & persistence (#241, #247)" begin
     @testset "_resolve_histfile env & defaults" begin
-        withenv("FRIEDMAN_HISTFILE" => nothing) do
-            @test Friedman._resolve_histfile() == joinpath(Friedman._expanduser("~"), ".friedman_history")
+        withenv("FRDC_HISTFILE" => nothing, "FRIEDMAN_HISTFILE" => nothing, "FRIEDMAN_HISTORY_FILE" => nothing) do
+            @test Friedman._resolve_histfile() == joinpath(Friedman._expanduser("~"), ".frdc_history")
         end
-        withenv("FRIEDMAN_HISTFILE" => "~/custom_friedman_hist") do
+        withenv("FRDC_HISTFILE" => "~/custom_frdc_hist", "FRIEDMAN_HISTFILE" => "~/ignored_legacy") do
+            @test Friedman._resolve_histfile() == joinpath(Friedman._expanduser("~"), "custom_frdc_hist")
+        end
+        withenv("FRDC_HISTFILE" => nothing, "FRIEDMAN_HISTFILE" => "~/custom_friedman_hist") do
             @test Friedman._resolve_histfile() == joinpath(Friedman._expanduser("~"), "custom_friedman_hist")
         end
         for disabled in ("", "none", "NONE", "off")
-            withenv("FRIEDMAN_HISTFILE" => disabled) do
+            withenv("FRDC_HISTFILE" => disabled, "FRIEDMAN_HISTFILE" => nothing) do
                 @test Friedman._resolve_histfile() == ""
             end
         end
@@ -910,7 +926,7 @@ end
         Friedman._init_completion_provider()
         prov = Friedman.FriedmanCompletionProvider(app, idx)
 
-        panel = REPL.LineEdit.Prompt("friedman> "; complete=prov)
+        panel = REPL.LineEdit.Prompt("frdc> "; complete=prov)
         term = _ReplFakeTerminal(IOBuffer(""), IOBuffer(), IOBuffer())
         pstate = REPL.LineEdit.init_state(term, panel)
 
@@ -973,7 +989,7 @@ end
             @test Friedman._last_injected_model == "mock_var_model"
             @test isfile(hist_path)
             hist_disk = read(hist_path, String)
-            @test occursin("# mode: friedman", hist_disk)
+            @test occursin("# mode: frdc", hist_disk)
             @test occursin("\tdata use :fred_md", hist_disk)
             @test occursin("\testimate multivariate var", hist_disk)
 
@@ -1039,17 +1055,17 @@ end
         Friedman.repl_dispatch(s, app, ["data", "use", ":fred_md", "--json", "--quiet"]; output=out_u, err=err_u)
         @test isempty(String(take!(err_u)))
         du = JSON3.read(String(take!(out_u)))
-        @test String(du.status) == "ok" && String(du.command) == "friedman data use"
+        @test String(du.status) == "ok" && String(du.command) == "frdc data use"
 
         out_c = IOBuffer(); err_c = IOBuffer()
         Friedman.repl_dispatch(s, app, ["data", "current", "--json"]; output=out_c, err=err_c)
         dc = JSON3.read(String(take!(out_c)))
-        @test String(dc.command) == "friedman data current" && String(dc.status) == "ok"
+        @test String(dc.command) == "frdc data current" && String(dc.status) == "ok"
 
         out_cl = IOBuffer(); err_cl = IOBuffer()
         Friedman.repl_dispatch(s, app, ["data", "clear", "--json"]; output=out_cl, err=err_cl)
         dcl = JSON3.read(String(take!(out_cl)))
-        @test String(dcl.command) == "friedman data clear" && !Friedman.session_has_data(s)
+        @test String(dcl.command) == "frdc data clear" && !Friedman.session_has_data(s)
     end
 
     @testset "REPL completions (exit/quit/data/:datasets/paths) & FRIEDMAN_HISTORY_FILE" begin
@@ -1069,7 +1085,7 @@ end
             end
         end
 
-        withenv("FRIEDMAN_HISTFILE" => nothing, "FRIEDMAN_HISTORY_FILE" => "/tmp/custom_hist_279") do
+        withenv("FRDC_HISTFILE" => nothing, "FRIEDMAN_HISTFILE" => nothing, "FRIEDMAN_HISTORY_FILE" => "/tmp/custom_hist_279") do
             @test Friedman._resolve_histfile() == "/tmp/custom_hist_279"
         end
     end

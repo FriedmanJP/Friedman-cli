@@ -2942,14 +2942,14 @@ end
         end
     end
 
-    @testset "path confinement under FRIEDMAN_DATA_ROOT (#83)" begin
+    @testset "path confinement under FRDC_DATA_ROOT & FRIEDMAN_DATA_ROOT fallback (#83, #300)" begin
         mktempdir() do root
             inside = joinpath(root, "ok.csv")
             CSV.write(inside, DataFrame(a=[1.0, 2.0]))
             outside = tempname() * ".csv"
             CSV.write(outside, DataFrame(a=[1.0, 2.0]))
             mkpath(joinpath(root, "sub"))   # a `..` only resolves through a real directory
-            withenv("FRIEDMAN_DATA_ROOT" => root) do
+            withenv("FRDC_DATA_ROOT" => root, "FRIEDMAN_DATA_ROOT" => nothing) do
                 # Inside the root loads, including via a `..` segment resolving back in
                 @test nrow(load_data(inside)) == 2
                 @test nrow(load_data(joinpath(root, "sub", "..", "ok.csv"))) == 2
@@ -2963,6 +2963,14 @@ end
                 output_result(df; format=:csv, output=ok_out)
                 @test isfile(ok_out)
             end
+            # Legacy FRIEDMAN_DATA_ROOT fallback still confines, and FRDC_DATA_ROOT takes precedence
+            withenv("FRDC_DATA_ROOT" => nothing, "FRIEDMAN_DATA_ROOT" => root) do
+                @test nrow(load_data(inside)) == 2
+                @test_throws CliError load_data(outside)
+            end
+            withenv("FRDC_DATA_ROOT" => root, "FRIEDMAN_DATA_ROOT" => "/nonexistent/legacy") do
+                @test nrow(load_data(inside)) == 2
+            end
             rm(outside; force=true)
         end
     end
@@ -2973,7 +2981,7 @@ end
             weird = joinpath(dir, "dotdot..name.csv")   # '..' inside an ordinary filename
             CSV.write(weird, DataFrame(a=[1.0, 2.0]))
             sub = joinpath(dir, "sub"); mkpath(sub)
-            withenv("FRIEDMAN_DATA_ROOT" => nothing) do
+            withenv("FRDC_DATA_ROOT" => nothing, "FRIEDMAN_DATA_ROOT" => nothing) do
                 @test nrow(load_data(weird)) == 2
                 @test nrow(load_data(joinpath(sub, "..", "dotdot..name.csv"))) == 2
                 df = DataFrame(a=[1, 2, 3])
@@ -4868,8 +4876,8 @@ end
         "serve"       => register_serve_commands!(),
         "show"        => register_show_commands!(),
     )
-    app = Entry("friedman",
-        NodeCommand("friedman", root_cmds,
+    app = Entry("frdc",
+        NodeCommand("frdc", root_cmds,
             "A macroeconometric analysis toolkit powered by MacroEconometricModels.jl");
         version=PROJECT_VERSION)
 
@@ -4881,12 +4889,12 @@ end
     @test !occursin("\nschema:\n", root_help)
     @test occursin("schema", root_help) && occursin("serve", root_help) && occursin("show", root_help)
 
-    # 2. print_repl_help renders concise REPL usage, keybindings, and FRIEDMAN_HISTFILE
+    # 2. print_repl_help renders concise REPL usage, keybindings, and FRDC_HISTFILE
     rbuf = IOBuffer()
     print_repl_help(rbuf)
     rtxt = String(take!(rbuf))
-    @test occursin("friedman repl", rtxt)
-    @test occursin("FRIEDMAN_HISTFILE", rtxt)
+    @test occursin("frdc repl", rtxt)
+    @test occursin("FRDC_HISTFILE", rtxt)
     @test occursin("data use", rtxt)
 
     # 3. Zero (default: NaN) / (default: Inf) sentinels across all 478 leaves,

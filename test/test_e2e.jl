@@ -1,15 +1,15 @@
 # T4 subprocess battery (TS-8 / C033).
-# Runs when CI=1 or FRIEDMAN_E2E=1 (dev-mode startup is slower).
+# Runs when CI=1, FRDC_E2E=1, or FRIEDMAN_E2E=1 (dev-mode startup is slower).
 #
-# Contract: `friedman … --format=json | jq .` — stdout is exactly one JSON document.
+# Contract: `frdc … --format=json | jq .` — stdout is exactly one JSON document.
 
 using Test
 using JSON3
 
-const _E2E = get(ENV, "CI", "") != "" || get(ENV, "FRIEDMAN_E2E", "") == "1"
+const _E2E = get(ENV, "CI", "") != "" || get(ENV, "FRDC_E2E", get(ENV, "FRIEDMAN_E2E", "")) == "1"
 const _ROOT = dirname(@__DIR__)
 const _JULIA = Base.julia_cmd()
-const _BIN = joinpath(_ROOT, "bin", "friedman")
+const _BIN = joinpath(_ROOT, "bin", "frdc")
 
 function _e2e_run(args::Vector{String})
     cmd = `$_JULIA --project=$_ROOT $_BIN $args`
@@ -47,14 +47,14 @@ end
 
 @testset "subprocess E2E contract (T4)" begin
     if !_E2E
-        @info "skipping E2E (set FRIEDMAN_E2E=1 or CI=1)"
+        @info "skipping E2E (set FRDC_E2E=1 or CI=1)"
         return
     end
 
     @testset "snapshots --version / --help / schema" begin
         r = _e2e_run(["--version"])
         @test r.code == 0
-        @test occursin(r"\d+\.\d+\.\d+", r.out)
+        @test occursin(r"^frdc v\d+\.\d+\.\d+", strip(r.out))
 
         r = _e2e_run(["--help"])
         @test r.code == 0
@@ -63,16 +63,26 @@ end
 
         r_repl = _e2e_run(["repl", "--help"])
         @test r_repl.code == 0
-        @test occursin("friedman repl", r_repl.out)
-        @test occursin("FRIEDMAN_HISTFILE", r_repl.out)
+        @test occursin("frdc repl", r_repl.out)
+        @test occursin("FRDC_HISTFILE", r_repl.out)
 
         r = _e2e_run(["schema", "estimate", "multivariate", "var"])
         @test r.code == 0
         @test _exactly_one_json(r.out) || occursin("{", r.out)
         if occursin("{", r.out)
             doc = JSON3.read(strip(r.out))
-            @test true
+            @test String(doc.input_schema.title) == "frdc estimate multivariate var"
         end
+
+        # MCP initialize reports serverInfo.name == "frdc"
+        mcp_cmd = `$_JULIA --project=$_ROOT $_BIN serve --mcp`
+        mcp_out = IOBuffer(); mcp_err = IOBuffer()
+        mcp_in = IOBuffer("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}\n")
+        mp = run(pipeline(mcp_cmd; stdin=mcp_in, stdout=mcp_out, stderr=mcp_err); wait=false)
+        wait(mp)
+        @test mp.exitcode == 0
+        mresp = JSON3.read(strip(String(take!(mcp_out))))
+        @test String(mresp.result.serverInfo.name) == "frdc"
     end
 
     @testset "exit codes 2/3/4/6" begin
@@ -188,7 +198,7 @@ end
             @test string(doc.status) == "error"
             @test string(doc.error.code) == "usage/parse"
             @test doc.error.exit_code == 2
-            @test string(doc.command) == "friedman estimate multivariate var"
+            @test string(doc.command) == "frdc estimate multivariate var"
 
             # unknown command → DispatchError → usage/unknown-command
             r = _e2e_run(["definitely-not-a-command", "--format", "json"])
@@ -227,10 +237,10 @@ end
 import os, pty, select, subprocess, sys, time
 master, slave = pty.openpty()
 env = os.environ.copy()
-env["FRIEDMAN_HISTFILE"] = sys.argv[3]
+env["FRDC_HISTFILE"] = sys.argv[3]
 env["TERM"] = "xterm-256color"
 p = subprocess.Popen(
-    [sys.argv[1], "--depwarn=error", f"--project={sys.argv[2]}", os.path.join(sys.argv[2], "bin", "friedman"), "repl"],
+    [sys.argv[1], "--depwarn=error", f"--project={sys.argv[2]}", os.path.join(sys.argv[2], "bin", "frdc"), "repl"],
     stdin=slave, stdout=slave, stderr=slave, env=env, close_fds=True
 )
 os.close(slave)
@@ -252,19 +262,19 @@ def wait_for(tok, timeout=90.0):
     assert tok in buf, f"missing {tok!r} in {buf.decode(errors='replace')}"
     buf = buf[buf.index(tok) + len(tok):]
 
-wait_for(b"friedman>")
+wait_for(b"frdc>")
 os.write(master, b"data use :fred_qd\\r")
 wait_for(b"Loaded :fred_qd")
-wait_for(b"friedman>")
+wait_for(b"frdc>")
 os.write(master, b"data clear\\r")
 wait_for(b"Data and results cleared")
-wait_for(b"friedman>")
+wait_for(b"frdc>")
 os.write(master, b"\\x1b[A\\x1b[A\\r")
 wait_for(b"Loaded :fred_qd")
-wait_for(b"friedman>")
+wait_for(b"frdc>")
 os.write(master, b"data use :denmark\\r")
 wait_for(b"Loaded :denmark")
-wait_for(b"friedman>")
+wait_for(b"frdc>")
 os.write(master, b"exit\\r")
 wait_for(b"Goodbye!")
 p.wait(timeout=15)
@@ -278,7 +288,7 @@ sys.exit(p.returncode)
                 @test isfile(hist)
                 hcontent = read(hist, String)
                 @test occursin("data use :fred_qd", hcontent)
-                @test occursin("# mode: friedman", hcontent)
+                @test occursin("# mode: frdc", hcontent)
             end
         end
     end

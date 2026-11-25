@@ -139,7 +139,7 @@ function check_envelope(file::String)
     (doc isa JSON3.Object && haskey(doc, :schema_version) && haskey(doc, :data)) || return
     data = doc.data
     isempty(data) && return  # error envelopes carry empty data
-    cmd = replace(string(doc.command), r"^friedman\s+" => "")
+    cmd = replace(string(doc.command), r"^(?:frdc|friedman)\s+" => "")
     spec = get(SPECS, cmd, nothing)
     if spec === nothing
         push!(violations, "$(basename(file)): command '$cmd' resolves to no registry leaf but carries data")

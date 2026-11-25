@@ -85,8 +85,8 @@ function _dispatch_via_app(args::Vector{String}; extra_kwargs...)
         "model"     => register_model_commands!(),
         "show"      => register_show_commands!(),
     )
-    root = NodeCommand("friedman", root_cmds, "test tree")
-    entry = Entry("friedman", root; version=v"0.4.3")
+    root = NodeCommand("frdc", root_cmds, "test tree")
+    entry = Entry("frdc", root; version=v"0.4.3")
     return dispatch(entry, args; extra_kwargs...)
 end
 
@@ -387,8 +387,8 @@ function _normalize_envelope_json(json_str::AbstractString)
         d["meta"] = _sort_keys(m)
     end
     if haskey(d, "command")
-        # strip leading "friedman " for stability across prog prefixes
-        d["command"] = replace(string(d["command"]), r"^friedman\s+" => "")
+        # strip leading "frdc " (or legacy "friedman ") for stability across prog prefixes
+        d["command"] = replace(string(d["command"]), r"^(?:frdc|friedman)\s+" => "")
     end
     return _stable_json(d)
 end
