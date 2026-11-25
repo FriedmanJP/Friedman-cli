@@ -95,7 +95,15 @@ jobs:
           python3 test/tools/validate_envelopes.py
       - name: Run engine/unit tests (T0/T1/T2)
         shell: bash
-        run: julia --code-coverage=user --project test/runtests.jl
+        run: |
+          if [ "${{ matrix.version }}" = "1.14+opt" ]; then
+            export JULIA_OBJCACHE=0
+          fi
+          if [ "${{ matrix.os }}" = "ubuntu-latest" ] && [ "${{ matrix.version }}" = "1.13" ]; then
+            julia --code-coverage=user --project test/runtests.jl
+          else
+            julia --project test/runtests.jl
+          fi
       - name: Process coverage
         if: matrix.os == 'ubuntu-latest' && matrix.version == '1.13'
         uses: julia-actions/julia-processcoverage@03114f09f119417c3242a9fb6e0b722676aedf38 # v1
@@ -114,6 +122,9 @@ jobs:
     name: Integration core (T3 / Julia ${{ matrix.version }})
     runs-on: ubuntu-latest
     timeout-minutes: 150
+    permissions:
+      actions: write
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -140,7 +151,14 @@ jobs:
       - name: Run integration-core
         env:
           FRDC_T3_DUMP_ENVELOPES: ${{ runner.temp }}/envelopes
-        run: julia --code-coverage=user --project=test/integration test/integration/runtests.jl
+        shell: bash
+        run: |
+          if [ "${{ matrix.version }}" = "1.14+opt" ]; then
+            export JULIA_OBJCACHE=0
+            julia --project=test/integration test/integration/runtests.jl
+          else
+            julia --code-coverage=user --project=test/integration test/integration/runtests.jl
+          fi
       - name: Conformant envelope validation (T3 dump)
         run: |
           pip install --quiet jsonschema
@@ -171,6 +189,9 @@ jobs:
     name: E2E subprocess (T4 / Julia ${{ matrix.version }})
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    permissions:
+      actions: write
+      contents: read
     if: github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
