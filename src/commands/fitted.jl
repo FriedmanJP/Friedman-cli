@@ -308,10 +308,37 @@ end
 
 # ── Regression Predict ────────────────────────────────────
 
+"""Extract out-of-sample regressor matrix X_new matching a fitted model's varnames/width (#306)."""
+function _load_oos_X(data::String, model)::Matrix{Float64}
+    df = load_data(data)
+    numcols = variable_names(df)
+    vns = hasproperty(model, :varnames) ? String[string(v) for v in model.varnames] : String[]
+    k = hasproperty(model, :X) ? size(model.X, 2) : length(vns)
+    cols = if !isempty(vns) && all(v -> v in numcols, vns)
+        vns
+    elseif length(numcols) == k
+        numcols
+    elseif !isempty(vns)
+        missing_c = filter(v -> !(v in numcols), vns)
+        throw(CliError("data/missing-column",
+            "out-of-sample data missing regressor column(s): $(join(missing_c, ", "))";
+            hint="available numeric columns: $(join(numcols, ", "))"))
+    else
+        throw(CliError("data/shape",
+            "out-of-sample data has $(length(numcols)) numeric column(s), model expects $k"))
+    end
+    for c in cols
+        any(_is_gap, df[!, c]) && throw(CliError("data/missing-values",
+            "column '$c' contains missing values; drop or impute them first"))
+    end
+    return Matrix{Float64}(df[!, cols])
+end
+
 function _predict_reg(; data::String="", dep::String="", cov_type::String="hc1",
                        weights::String="", clusters::String="",
                        output::String="", format::String="table",
                        model=nothing)
+    oos = !isnothing(model) && !isempty(data)
     if isnothing(model)
         y, X, xcols = _load_reg_data(data, dep; weights_col=weights, clusters_col=clusters)
         w = _load_weights(data, weights)
@@ -327,7 +354,7 @@ function _predict_reg(; data::String="", dep::String="", cov_type::String="hc1",
     _status("$wls_tag Fitted Values: $dep_name ~ $(join(xcols, " + "))")
     _status()
 
-    fitted = predict(model)
+    fitted = oos ? predict(model, _load_oos_X(data, model)) : predict(model)
     pred_df = DataFrame(observation=1:length(fitted), fitted_value=round.(fitted; digits=6))
     output_result(pred_df; format=Symbol(format), output=output, title="$wls_tag Fitted Values",
                   key="reg_fitted_values")
@@ -341,6 +368,7 @@ function _predict_logit(; data::String="", dep::String="", cov_type::String="hc1
                          classification_table::Bool=false,
                          output::String="", format::String="table",
                          model=nothing)
+    oos = !isnothing(model) && !isempty(data)
     if isnothing(model)
         y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
         cl = _load_clusters(data, clusters)
@@ -393,7 +421,7 @@ function _predict_logit(; data::String="", dep::String="", cov_type::String="hc1
     else
         _status("Logit Fitted Probabilities: $dep_name")
         _status()
-        fitted = predict(model)
+        fitted = oos ? predict(model, _load_oos_X(data, model)) : predict(model)
         pred_df = DataFrame(observation=1:length(fitted), fitted_prob=round.(fitted; digits=6))
         output_result(pred_df; format=Symbol(format), output=output,
                       title="Logit Fitted Probabilities")
@@ -408,6 +436,7 @@ function _predict_probit(; data::String="", dep::String="", cov_type::String="hc
                           classification_table::Bool=false,
                           output::String="", format::String="table",
                           model=nothing)
+    oos = !isnothing(model) && !isempty(data)
     if isnothing(model)
         y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
         cl = _load_clusters(data, clusters)
@@ -454,7 +483,7 @@ function _predict_probit(; data::String="", dep::String="", cov_type::String="hc
     else
         _status("Probit Fitted Probabilities: $dep_name")
         _status()
-        fitted = predict(model)
+        fitted = oos ? predict(model, _load_oos_X(data, model)) : predict(model)
         pred_df = DataFrame(observation=1:length(fitted), fitted_prob=round.(fitted; digits=6))
         output_result(pred_df; format=Symbol(format), output=output,
                       title="Probit Fitted Probabilities")
@@ -670,6 +699,7 @@ function _predict_ologit(; data::String="", dep::String="", cov_type::String="hc
                           clusters::String="", marginal_effects::Bool=false,
                           output::String="", format::String="table",
                           model=nothing)
+    oos = !isnothing(model) && !isempty(data)
     if isnothing(model)
         y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
         cl = _load_clusters(data, clusters)
@@ -687,7 +717,7 @@ function _predict_ologit(; data::String="", dep::String="", cov_type::String="hc
     _status("Ordered Logit Predicted Probabilities: $dep_name")
     _status()
 
-    fitted = predict(model)
+    fitted = oos ? predict(model, _load_oos_X(data, model)) : predict(model)
     pred_df = _choice_prob_table(fitted, model.categories)
     output_result(pred_df; format=Symbol(format), output=output,
                   title="Ordered Logit Predicted Probabilities")
@@ -699,6 +729,7 @@ function _predict_oprobit(; data::String="", dep::String="", cov_type::String="h
                            clusters::String="", marginal_effects::Bool=false,
                            output::String="", format::String="table",
                            model=nothing)
+    oos = !isnothing(model) && !isempty(data)
     if isnothing(model)
         y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
         cl = _load_clusters(data, clusters)
@@ -716,7 +747,7 @@ function _predict_oprobit(; data::String="", dep::String="", cov_type::String="h
     _status("Ordered Probit Predicted Probabilities: $dep_name")
     _status()
 
-    fitted = predict(model)
+    fitted = oos ? predict(model, _load_oos_X(data, model)) : predict(model)
     pred_df = _choice_prob_table(fitted, model.categories)
     output_result(pred_df; format=Symbol(format), output=output,
                   title="Ordered Probit Predicted Probabilities")
@@ -728,6 +759,7 @@ function _predict_mlogit(; data::String="", dep::String="", cov_type::String="ol
                           clusters::String="", marginal_effects::Bool=false,
                           output::String="", format::String="table",
                           model=nothing)
+    oos = !isnothing(model) && !isempty(data)
     if isnothing(model)
         y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
         cl = _load_clusters(data, clusters)
@@ -745,7 +777,7 @@ function _predict_mlogit(; data::String="", dep::String="", cov_type::String="ol
     _status("Multinomial Logit Predicted Probabilities: $dep_name")
     _status()
 
-    fitted = predict(model)
+    fitted = oos ? predict(model, _load_oos_X(data, model)) : predict(model)
     pred_df = _choice_prob_table(fitted, model.categories)
     output_result(pred_df; format=Symbol(format), output=output,
                   title="Multinomial Logit Predicted Probabilities")

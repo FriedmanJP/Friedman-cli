@@ -231,8 +231,12 @@ per-call global-stdout redirection can never swallow a response. The session
 """
 function _serve_loop(input::IO, output::IO; families::AbstractString="",
                      tools::AbstractString="", compact::Bool=false)
-    _SERVE_MODEL_STORE[] = Dict{String,Any}()
-    isdefined(@__MODULE__, :_SERVE_SOURCE_MODELS) && (_SERVE_SOURCE_MODELS[] = Dict{String,Any}())
+    if isdefined(@__MODULE__, :open_session_store!)
+        open_session_store!()
+    else
+        _SERVE_MODEL_STORE[] = Dict{String,Any}()
+        isdefined(@__MODULE__, :_SERVE_SOURCE_MODELS) && (_SERVE_SOURCE_MODELS[] = Dict{String,Any}())
+    end
     scoped_tools = _mcp_tools(; families=families, tools=tools)
     by_name = Dict{String,Tuple{LeafCommand,Vector{String}}}(
         n => (l, p) for (n, l, p) in scoped_tools)
@@ -306,8 +310,12 @@ function _serve_loop(input::IO, output::IO; families::AbstractString="",
             end
         end
     finally
-        _SERVE_MODEL_STORE[] = nothing
-        isdefined(@__MODULE__, :_SERVE_SOURCE_MODELS) && (_SERVE_SOURCE_MODELS[] = nothing)
+        if isdefined(@__MODULE__, :close_session_store!)
+            close_session_store!()
+        else
+            _SERVE_MODEL_STORE[] = nothing
+            isdefined(@__MODULE__, :_SERVE_SOURCE_MODELS) && (_SERVE_SOURCE_MODELS[] = nothing)
+        end
     end
     return nothing
 end

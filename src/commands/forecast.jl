@@ -1427,7 +1427,7 @@ function _fceval_load(data::String, actual::String, forecasts::String; leaf::Str
         names = String[]
         for stem in result_stems
             resolved = resolve_stem(stem; slot=:result)
-            if !startswith(resolved, ":") && !startswith(resolved, "model://")
+            if !startswith(resolved, ":") && !_is_session_uri(resolved)
                 _validate_input_path(resolved)
             end
             pts = _forecast_points(load_model_dispatch(resolved); actual)

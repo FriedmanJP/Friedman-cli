@@ -329,15 +329,29 @@ Unified atomic single-pass handle writer.
   `source_model` without ever overwriting `.jls` with HDF5).
 - `.fmod`: writes legacy `ModelHandleHeader` atomically for backwards compatibility.
 """
+function _artifact_kind_for(obj, override::String)::String
+    !isempty(override) && return override
+    tag = _storage_kind_tag(obj)
+    tag in ("timeseries", "panel", "cross_section", "io", "tabular") && return "data"
+    tag == "result" && return "result"
+    return "model"
+end
+
+function _register_handle_artifact!(obj, written_path::String, artifact_kind::String)
+    if isdefined(@__MODULE__, :envelope_active) && envelope_active() &&
+       isdefined(@__MODULE__, :_add_artifact_once!)
+        _add_artifact_once!(_ENVELOPE[], _artifact_kind_for(obj, artifact_kind), written_path)
+    end
+    return nothing
+end
+
 function save_handle!(ref::HandleRef, obj; note::String="", source_model=nothing,
-                      compress::Bool=false)::String
+                      source_model_path::String="", compress::Bool=false,
+                      artifact_kind::String="")::String
     if ref.scheme === :session
-        store = _serve_store_or_throw(ref.raw)
-        store[ref.raw] = obj
-        if source_model !== nothing && isdefined(@__MODULE__, :_SERVE_SOURCE_MODELS) &&
-           _SERVE_SOURCE_MODELS[] !== nothing
-            _SERVE_SOURCE_MODELS[][ref.raw] = source_model
-        end
+        session_store_put!(ref.raw, obj; note=note, source_model=source_model)
+        isdefined(@__MODULE__, :invalidate_handle_cache!) && invalidate_handle_cache!(ref)
+        _register_handle_artifact!(obj, ref.raw, artifact_kind)
         _status("Stored in session as $(ref.raw) ($(nameof(typeof(obj))))")
         return ref.raw
     end
@@ -357,8 +371,18 @@ function save_handle!(ref::HandleRef, obj; note::String="", source_model=nothing
         end
     end
 
-    meta = _build_frdc_meta(obj; note=note,
-        source_model=(source_model isa AbstractDict ? source_model : nothing))
+    src_meta = if source_model isa AbstractDict
+        Dict{String,Any}(String(k) => v for (k, v) in source_model)
+    else
+        Dict{String,Any}()
+    end
+    if !isempty(source_model_path)
+        src_meta["path"] = source_model_path
+    end
+    if source_model !== nothing && !(source_model isa AbstractDict)
+        src_meta["type_name"] = string(nameof(typeof(source_model)))
+    end
+    meta = _build_frdc_meta(obj; note=note, source_model=src_meta)
     cli_ver = _cli_version_string()
 
     if fmt === :jld2
@@ -444,6 +468,8 @@ function save_handle!(ref::HandleRef, obj; note::String="", source_model=nothing
                 end
             end
         end)
+        isdefined(@__MODULE__, :invalidate_handle_cache!) && (invalidate_handle_cache!(ref); invalidate_handle_cache!(dest))
+        _register_handle_artifact!(obj, dest, artifact_kind)
         _status("Model saved to $dest (native jld2, $(nameof(typeof(obj))))")
         return dest
     elseif fmt === :jls
@@ -466,6 +492,8 @@ function save_handle!(ref::HandleRef, obj; note::String="", source_model=nothing
                 serialize(io, env_obj)
             end
         end)
+        isdefined(@__MODULE__, :invalidate_handle_cache!) && (invalidate_handle_cache!(ref); invalidate_handle_cache!(dest))
+        _register_handle_artifact!(obj, dest, artifact_kind)
         _status("Serialized to $dest ($(nameof(typeof(obj))))")
         return dest
     else
@@ -481,6 +509,8 @@ function save_handle!(ref::HandleRef, obj; note::String="", source_model=nothing
                 serialize(io, (header, obj))
             end
         end)
+        isdefined(@__MODULE__, :invalidate_handle_cache!) && (invalidate_handle_cache!(ref); invalidate_handle_cache!(dest))
+        _register_handle_artifact!(obj, dest, artifact_kind)
         _status("Model handle written to $dest ($(typeof(obj)))")
         return dest
     end
@@ -504,11 +534,7 @@ Magic-byte-first handle loader with preflight corruption checks (zero
 """
 function load_handle(ref::HandleRef)
     if ref.scheme === :session
-        store = _serve_store_or_throw(ref.raw)
-        haskey(store, ref.raw) || throw(CliError("data/file-not-found",
-            "no session handle stored at $(ref.raw)";
-            hint="save one first with --save-model $(ref.raw) or -o $(ref.raw)"))
-        return store[ref.raw]
+        return session_store_get(ref.raw)
     end
 
     _enforce_data_root!(ref; kind="input")

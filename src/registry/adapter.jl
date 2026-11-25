@@ -50,8 +50,18 @@ function _kw_str(kwargs::Dict{Symbol,Any}, key::Symbol)
     return v isa AbstractString ? String(v) : ""
 end
 
+# Display / rendering options permitted alongside `--result` replay (#306).
+# Any other explicitly passed option/flag is a compute-only option and rejected
+# declaratively with exit-2 `usage/conflicting-options`.
+const _RESULT_REPLAY_ALLOWED_OPTS = Set([
+    "result", "format", "output", "plot-save", "plot",
+    "shock", "shocks", "summary", "emit-series",
+    "quiet", "no-color", "compact", "json", "seed",
+    "strict", "max-rows", "max-cols",
+])
+
 function _load_typed_handle(path::String, allowed::Vector{Symbol}, code::String; slot::String)
-    if !startswith(path, ":") && !startswith(path, "model://")
+    if !startswith(path, ":") && !_is_session_uri(path)
         _validate_input_path(path)
     end
     obj = load_model_dispatch(path)
@@ -65,7 +75,9 @@ function _load_typed_handle(path::String, allowed::Vector{Symbol}, code::String;
     return obj
 end
 
-function _nt_save_slot(nt, key::Symbol, path::String, flag::String)
+function _nt_save_slot(nt, key::Symbol, path::String, flag::String;
+                       source_model=nothing, source_model_path::String="",
+                       artifact_kind::String="")
     haskey(nt, key) || throw(CliError("model/no-result",
         "cannot $flag: handler NamedTuple has no $key field";
         hint="return (; model, result) or omit $flag"))
@@ -73,16 +85,16 @@ function _nt_save_slot(nt, key::Symbol, path::String, flag::String)
     isnothing(obj) && throw(CliError("model/no-result",
         "cannot $flag: handler returned nothing";
         hint="only estimate/solve commands produce savable models"))
-    save_model_dispatch(path, obj)
-    return nothing
+    return save_model_dispatch(path, obj; source_model=source_model,
+                               source_model_path=source_model_path,
+                               artifact_kind=artifact_kind)
 end
 
-function _save_bare(path::String, obj, flag::String)
+function _save_bare(path::String, obj, flag::String; artifact_kind::String="")
     isnothing(obj) && throw(CliError("model/no-result",
         "cannot $flag: handler returned nothing";
         hint="only estimate/solve commands produce savable models"))
-    save_model_dispatch(path, obj)
-    return nothing
+    return save_model_dispatch(path, obj; artifact_kind=artifact_kind)
 end
 
 """
@@ -118,12 +130,23 @@ function wrap_legacy(handler::Function)
                     "--result cannot be combined with --model or a data path";
                     hint="omit --result to compute, or pass only --result to re-render"))
             end
+            # Declarative compute-flag rejection for `--result` replay (#306).
+            if isdefined(@__MODULE__, :_CURRENT_EXPLICIT_OPTS) && !isempty(_CURRENT_EXPLICIT_OPTS[])
+                bad_opts = sort!(String[o for o in _CURRENT_EXPLICIT_OPTS[] if !(o in _RESULT_REPLAY_ALLOWED_OPTS)])
+                if !isempty(bad_opts)
+                    flags_str = join(["--" * o for o in bad_opts], ", ")
+                    throw(CliError("usage/conflicting-options",
+                        "$(join(ctx.spec.path, " ")): $flags_str cannot be combined with --result (the saved result is already computed)";
+                        hint="omit $flags_str to re-render the saved result, or omit --result to recompute"))
+                end
+            end
         end
 
         # Stem-resolve + type-check the data slot (or auto-route a model handle to kwargs[:model]).
         has_pos_model = any(a -> a.name == "model", ctx.spec.args)
         can_autoroute_model = !isempty(ctx.spec.model_types) && !has_pos_model
-        if can_autoroute_model && _slot_set(get(kwargs, :model, "")) && _slot_set(get(kwargs, :data, ""))
+        if can_autoroute_model && !ctx.spec.allow_data_with_model &&
+           _slot_set(get(kwargs, :model, "")) && _slot_set(get(kwargs, :data, ""))
             mp_raw = get(kwargs, :model, "")
             is_domain_choice = mp_raw isa AbstractString &&
                 ctx.spec.path == ["test", "multivariate", "granger"] &&
@@ -149,8 +172,8 @@ function wrap_legacy(handler::Function)
             kwargs[:data] = resolved
             kinds = ctx.spec.data_kinds
             if (!isempty(kinds) || can_autoroute_model) && _is_handle_path(resolved)
-                # Confine filesystem handles on the resolved path; skip :example and model://.
-                if !startswith(resolved, ":") && !startswith(resolved, "model://")
+                # Confine filesystem handles on the resolved path; skip :example and session URIs.
+                if !startswith(resolved, ":") && !_is_session_uri(resolved)
                     _validate_input_path(resolved)
                 end
                 obj = load_model_dispatch(resolved)
@@ -185,6 +208,19 @@ function wrap_legacy(handler::Function)
         save_result_path = resolve_save_path(string(get(kwargs, :save_result, "")))
         delete!(kwargs, :save_model)
         delete!(kwargs, :save_result)
+
+        # Reject --save-model when a pre-fitted --model handle was already supplied (#306).
+        if !isempty(save_path) && !has_pos_model && _slot_set(get(kwargs, :model, ""))
+            mp_raw = get(kwargs, :model, "")
+            is_domain_choice = mp_raw isa AbstractString &&
+                ctx.spec.path == ["test", "multivariate", "granger"] &&
+                String(mp_raw) in ("var", "vecm")
+            if !is_domain_choice
+                throw(CliError("usage/conflicting-options",
+                    "$(join(ctx.spec.path, " ")): --save-model cannot be combined with --model (the model is already loaded from a handle)";
+                    hint="omit --save-model when supplying --model, or estimate from <data>"))
+            end
+        end
 
         # --result STEM → loaded object when this leaf declares result_types.
         if haskey(kwargs, :result)
@@ -235,7 +271,7 @@ function wrap_legacy(handler::Function)
                             "model/wrong-kind"; slot="model")
                         get!(kwargs, :data, "")
                     elseif _is_handle_path(mp_str)
-                        if !startswith(mp_str, ":") && !startswith(mp_str, "model://")
+                        if !startswith(mp_str, ":") && !_is_session_uri(mp_str)
                             _validate_input_path(mp_str)
                         end
                         kwargs[:model] = load_model_dispatch(mp_str)
@@ -277,21 +313,22 @@ function wrap_legacy(handler::Function)
             nt_split = result isa NamedTuple &&
                 (haskey(result, :model) || haskey(result, :result))
             if nt_split
-                isempty(save_path) || _nt_save_slot(result, :model, save_path, "--save-model")
+                saved_m_path = isempty(save_path) ? "" :
+                    string(something(_nt_save_slot(result, :model, save_path, "--save-model";
+                                                   artifact_kind="model"), ""))
                 if !isempty(save_result_path)
-                    _nt_save_slot(result, :result, save_result_path, "--save-result")
-                    if haskey(result, :model) && haskey(result, :result) &&
-                       result.result isa ImpulseResponse && result.model isa VARModel
-                        attach_source_model!(save_result_path, result.model)
-                    end
+                    src_m = (haskey(result, :model) && result.model !== nothing) ? result.model : nothing
+                    _nt_save_slot(result, :result, save_result_path, "--save-result";
+                                  source_model=src_m, source_model_path=saved_m_path,
+                                  artifact_kind="result")
                 end
             elseif !isempty(save_path) && !isempty(save_result_path)
                 throw(CliError("usage/invalid",
                     "handler returned a single object; use a NamedTuple (; model, result)";
                     hint="pass only --save-model or only --save-result, or return (; model, result)"))
             else
-                isempty(save_path) || _save_bare(save_path, result, "--save-model")
-                isempty(save_result_path) || _save_bare(save_result_path, result, "--save-result")
+                isempty(save_path) || _save_bare(save_path, result, "--save-model"; artifact_kind="model")
+                isempty(save_result_path) || _save_bare(save_result_path, result, "--save-result"; artifact_kind="result")
             end
             return result
         finally

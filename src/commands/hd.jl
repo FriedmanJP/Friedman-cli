@@ -173,8 +173,9 @@ const _HD_SLOT_TYPES = Dict{Vector{String},Tuple{Vector{Symbol},Vector{Symbol}}}
 
 function register_hd_commands!()
     specs = _tag_slot_types(hd_specs(), _HD_SLOT_TYPES)
-    specs = with_result_handles(with_config_ergonomics(with_model_option(specs)))
+    specs = with_save_model(with_result_handles(with_config_ergonomics(with_model_option(specs))))
     specs = with_default_csv_kinds(with_data_kinds(specs, [:timeseries, :csv]))
+    specs = [s.path == ["hd", "var"] ? _copy_spec(s; allow_data_with_model=true) : s for s in specs]
     specs = register!(specs)
     return build_node("hd", specs; description="Historical Decomposition")
 end

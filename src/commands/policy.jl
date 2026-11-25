@@ -2085,6 +2085,8 @@ function register_policy_commands!()
     specs = _tag_slot_types(specs, _POLICY_SLOTS)
     specs = map(specs) do s
         s2 = _has_data_slot(s) ? _copy_spec(s; data_kinds=[:timeseries, :csv]) : s
+        s2 = (length(s2.path) >= 2 && s2.path[1] == "policy" && s2.path[2] == "history") ?
+            _copy_spec(s2; allow_data_with_model=true) : s2
         (!isempty(s2.model_types) && !any(a -> a.name == "model", s2.args)) ?
             with_model_option([s2])[1] : s2
     end

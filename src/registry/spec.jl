@@ -52,6 +52,7 @@ Base.@kwdef struct CommandSpec
     data_kinds::Vector{Symbol} = Symbol[]
     model_types::Vector{Symbol} = Symbol[]
     result_types::Vector{Symbol} = Symbol[]
+    allow_data_with_model::Bool = false
     # #199: help / schema / MCP grouping. Empty only for serve, show, completions, model.
     # Not a path segment until #202 promotes depth-2 leaves (family "other" stays flat).
     family::String = ""
@@ -85,14 +86,14 @@ const PLOT_OPTIONS = [
                description="Save interactive plot to HTML file"),
 ]
 
-# Model handles (P2-7 / C029) — compose onto estimate vs downstream specs
+# Model handles (P2-7 / C029, unified session URIs #306) — compose onto estimate vs downstream specs
 const SAVE_MODEL_OPTION = OptionSpec(
     name="save-model", type=String, default="",
-    description="Save estimated model to a handle file (.jld2 native, .jls serialized, .fmod interim)",
+    description="Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://)",
 )
 const MODEL_OPTION = OptionSpec(
     name="model", type=String, default="",
-    description="Load model from a handle file (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation)",
+    description="Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation)",
     handle=true,
 )
 
@@ -103,7 +104,7 @@ const RESULT_OPTION = OptionSpec(
 )
 const SAVE_RESULT_OPTION = OptionSpec(
     name="save-result", type=String, default="",
-    description="Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim)",
+    description="Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://)",
 )
 function with_result_handles(specs::Vector{CommandSpec})
     out = CommandSpec[]
@@ -138,6 +139,7 @@ function _copy_spec(s::CommandSpec; kwargs...)
         data_kinds   = get(kwargs, :data_kinds, s.data_kinds),
         model_types  = get(kwargs, :model_types, s.model_types),
         result_types = get(kwargs, :result_types, s.result_types),
+        allow_data_with_model = get(kwargs, :allow_data_with_model, s.allow_data_with_model),
         family       = get(kwargs, :family, s.family),
     )
 end
@@ -197,7 +199,10 @@ function _tag_slot_types(specs::Vector{CommandSpec},
     return out
 end
 
-with_save_model(specs::Vector{CommandSpec}) = with_options(specs, [SAVE_MODEL_OPTION])
+function with_save_model(specs::Vector{CommandSpec})
+    return [any(o -> o.name == "save-model", s.options) ? s :
+            _copy_spec(s; options=vcat(s.options, [SAVE_MODEL_OPTION])) for s in specs]
+end
 with_model_option(specs::Vector{CommandSpec}) = with_options(specs, [MODEL_OPTION])
 
 const PLOT_FLAGS = [

@@ -269,6 +269,7 @@ function _schema_flag(f::Flag)
 end
 
 function _schema_leaf(leaf::LeafCommand, path::Vector{String})
+    spec = _spec_for_path(path)
     return Dict{String,Any}(
         "path" => path,
         "name" => leaf.name,
@@ -280,6 +281,7 @@ function _schema_leaf(leaf::LeafCommand, path::Vector{String})
         "input_schema" => _input_schema(leaf, path),
         "tables" => _registry_tables(path, leaf),
         "family" => leaf.family,
+        "allow_data_with_model" => (spec !== nothing && spec.allow_data_with_model),
     )
 end
 

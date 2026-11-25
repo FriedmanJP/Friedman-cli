@@ -4,17 +4,17 @@ function _model_info(; path::String="", data::String="",
                       output::String="", format::String="table")
     # positional may bind as `path` or (legacy) first free; accept either
     p = !isempty(path) ? path : data
-    isempty(p) && throw(CliError("usage/missing-arg", "model info requires a .jld2, .fmod, or model:// path"))
-    info = if startswith(p, "model://")
-        # Serve-session handle: no on-disk header to read — describe the live
-        # object instead (load_model_dispatch throws data/file-not-found on a
-        # miss, usage/invalid outside a serve session).
-        obj = load_model_dispatch(p)
-        (path=p, magic="serve-session (model://)",
-         cli_version=_cli_version_string(), mems_version=_mems_version_string(),
-         model_type=string(nameof(typeof(obj))),
+    isempty(p) && throw(CliError("usage/missing-arg", "model info requires a .jld2, .jls, .fmod, or session URI path"))
+    info = if _is_session_uri(p)
+        entry = session_store_get_entry(p)
+        meta = entry.meta
+        (path=p, magic="session ($(entry.namespace)://)",
+         cli_version=string(get(meta, "cli_version", _cli_version_string())),
+         mems_version=string(get(meta, "mems_version", _mems_version_string())),
+         model_type=string(get(meta, "type_name", string(nameof(typeof(entry.payload))))),
          runtime_cli=_cli_version_string(), runtime_mems=_mems_version_string(),
-         dimensions=_model_dims(obj))
+         dimensions=get(meta, "dims", _model_dims(entry.payload)),
+         note=string(get(meta, "note", "")))
     else
         p = resolve_stem(p; slot=:model)
         lc = lowercase(p)
@@ -65,12 +65,12 @@ function _model_reproduce(; path::String="", data::String="", source_model::Stri
     p = !isempty(path) ? path : data
     isempty(p) && throw(CliError("usage/missing-arg",
         "model reproduce requires a handle path (.jld2, .jls, .fmod, or model://)"))
-    p = startswith(p, "model://") ? p : resolve_stem(p; slot=:model)
+    p = _is_session_uri(p) ? p : resolve_stem(p; slot=:model)
     obj = load_model_dispatch(p)
     rep = try
         if obj isa ImpulseResponse
             src = if !isempty(source_model)
-                sp = startswith(source_model, "model://") ? source_model :
+                sp = _is_session_uri(source_model) ? source_model :
                      resolve_stem(source_model; slot=:model)
                 m_obj = load_model_dispatch(sp)
                 m_obj isa VARModel || throw(CliError("model/wrong-kind",

@@ -83,6 +83,27 @@ end
 add_artifact!(env::Envelope, kind::String, path::String) =
     (push!(env.artifacts, Dict("kind" => kind, "path" => path)); env)
 
+"""
+    _add_artifact_once!(env, kind, path) → Envelope
+
+Register `(kind, path)` in `env.artifacts` without duplicating an already
+recorded path (upgrading generic `"file"` to a specific handle role such as
+`"model"`, `"result"`, or `"data"`). Strictly conforms to `envelope-v1.json`
+(`{"kind": string, "path": string}` with no extra keys).
+"""
+function _add_artifact_once!(env::Envelope, kind::String, path::String)
+    isempty(path) && return env
+    for a in env.artifacts
+        if get(a, "path", "") == path
+            if get(a, "kind", "") == "file" && kind != "file"
+                a["kind"] = kind
+            end
+            return env
+        end
+    end
+    return add_artifact!(env, kind, path)
+end
+
 function set_error!(env::Envelope, code::String, msg::String; hint::String="")
     env.status = :error
     # exit_code is derived from the code prefix by the SAME function that maps

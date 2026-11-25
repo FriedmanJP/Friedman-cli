@@ -249,18 +249,22 @@ function dispatch_leaf(leaf::LeafCommand, args::Vector{String}; prog::String=lea
         _IN_DISPATCH[] = true
         _ENVELOPE_JSON_TO_FILE[] = false
         try
-            result = if isempty(extra_dict)
-                leaf.handler(; bound...)
-            else
-                merged = Dict{Symbol,Any}(pairs(bound))
-                for (k, v) in extra_dict
-                    cur = get(merged, k, nothing)
-                    if !_slot_set_cli(cur)
-                        merged[k] = v
+            _run_leaf = () -> begin
+                if isempty(extra_dict)
+                    return leaf.handler(; bound...)
+                else
+                    merged = Dict{Symbol,Any}(pairs(bound))
+                    for (k, v) in extra_dict
+                        cur = get(merged, k, nothing)
+                        if !_slot_set_cli(cur)
+                            merged[k] = v
+                        end
                     end
+                    return leaf.handler(; merged...)
                 end
-                leaf.handler(; merged...)
             end
+            result = isdefined(@__MODULE__, :with_handle_cache) ?
+                with_handle_cache(_run_leaf) : _run_leaf()
             if use_json_env && _ENVELOPE[] !== nothing
                 _ENVELOPE[].meta["elapsed_ms"] = (time_ns() - t0) / 1e6
                 if _ENVELOPE_JSON_TO_FILE[] && !isempty(out_path)

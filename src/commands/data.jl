@@ -347,11 +347,11 @@ function _data_load(; name::String="", output::String="", format::String="table"
                 output = _validate_output_path(output; create_parents=true)
             end
             if _is_handle_path(output)
-                output = save_model_dispatch(output, ts)
+                output = save_model_dispatch(output, ts; artifact_kind="data")
             else
                 _atomic_write(output, tmp -> CSV.write(tmp, out_df))
+                envelope_active() && _add_artifact_once!(_ENVELOPE[], "file", output)
             end
-            envelope_active() && add_artifact!(_ENVELOPE[], "file", output)
             envelope_active() && output_result(out_df; format=Symbol(format), output="",
                                                title="Loaded Data ($(basename(path)))", key="loaded_data")
             _status("Loaded $(basename(path)): $n_obs × $n_vars")
@@ -405,11 +405,11 @@ function _data_load(; name::String="", output::String="", format::String="table"
                 else
                     xtset(df, :group, :time)
                 end
-                output = save_model_dispatch(output, out_pd)
+                output = save_model_dispatch(output, out_pd; artifact_kind="data")
             else
                 _atomic_write(output, tmp -> CSV.write(tmp, df))
+                envelope_active() && _add_artifact_once!(_ENVELOPE[], "file", output)
             end
-            envelope_active() && add_artifact!(_ENVELOPE[], "file", output)
             envelope_active() && output_result(df; format=Symbol(format), output="",
                                                title="Loaded Data ($name)", key="loaded_data")
             _status("Written to $output")
@@ -478,11 +478,11 @@ function _data_load(; name::String="", output::String="", format::String="table"
                 output = _validate_output_path(output; create_parents=true)
             end
             if _is_handle_path(output)
-                output = save_model_dispatch(output, dataset)
+                output = save_model_dispatch(output, dataset; artifact_kind="data")
             else
                 _atomic_write(output, tmp -> CSV.write(tmp, out_df))
+                envelope_active() && _add_artifact_once!(_ENVELOPE[], "file", output)
             end
-            envelope_active() && add_artifact!(_ENVELOPE[], "file", output)
             envelope_active() && output_result(out_df; format=Symbol(format), output="",
                                                title="Loaded Data ($name)", key="loaded_data")
             _status("Written to $output")
@@ -571,7 +571,7 @@ function _persist_edit(obj, data::String, output::String, suffix::String)
     isempty(output) && return nothing
     written = _write_macro_data(obj, output;
                                 input_path=data, default_stem=dataset_stem(data) * suffix)
-    envelope_active() && add_artifact!(_ENVELOPE[], "file", written)
+    envelope_active() && _add_artifact_once!(_ENVELOPE[], "file", written)
     return written
 end
 
@@ -899,7 +899,7 @@ function _data_import(; data::String, kind::String="", frequency::String="other"
     if !startswith(src, ":")
         src = resolve_stem(src; slot=:data)
         if _is_handle_path(src)
-            if !startswith(src, "model://")
+            if !_is_session_uri(src)
                 _validate_input_path(src)
             end
             loaded_raw = load_model_dispatch(src)
@@ -1014,23 +1014,25 @@ function _data_export(; data::String, output::String="", format::String="table")
                       title="Exported Data", key="exported_data")
         return obj
     end
-    ext = lowercase(splitext(output)[2])
-    out = isempty(ext) ? output * ".csv" : output
-    ext_eff = isempty(ext) ? ".csv" : ext
-    if ext_eff == ".csv"
-        _write_macro_data(obj, out; input_path=data, default_stem=dataset_stem(data),
-                          warn_metadata=true)
-    elseif ext_eff in (".jld2", ".jls", ".fmod") || _is_session_uri(output)
-        if !_is_session_uri(out)
-            out = _validate_output_path(out; create_parents=true)
-        end
-        out = save_model_dispatch(out, obj)
+    if _is_session_uri(output)
+        out = save_model_dispatch(output, obj; artifact_kind="data")
     else
-        throw(CliError("usage/invalid",
-            "unsupported export file extension '$ext_eff' for '$output'";
-            hint="use .csv, .jld2, .jls, or .fmod"))
+        ext = lowercase(splitext(output)[2])
+        out = isempty(ext) ? output * ".csv" : output
+        ext_eff = isempty(ext) ? ".csv" : ext
+        if ext_eff == ".csv"
+            _write_macro_data(obj, out; input_path=data, default_stem=dataset_stem(data),
+                              warn_metadata=true)
+            envelope_active() && _add_artifact_once!(_ENVELOPE[], "file", out)
+        elseif ext_eff in (".jld2", ".jls", ".fmod")
+            out = _validate_output_path(out; create_parents=true)
+            out = save_model_dispatch(out, obj; artifact_kind="data")
+        else
+            throw(CliError("usage/invalid",
+                "unsupported export file extension '$ext_eff' for '$output'";
+                hint="use .csv, .jld2, .jls, or .fmod"))
+        end
     end
-    envelope_active() && add_artifact!(_ENVELOPE[], "file", out)
     envelope_active() && output_result(out_df; format=Symbol(format), output="",
                                        title="Exported Data", key="exported_data")
     return obj

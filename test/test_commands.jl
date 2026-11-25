@@ -15244,7 +15244,7 @@ include(joinpath(project_root, "src", "commands", "serve.jl"))
         @test_throws CliError save_model_dispatch("model://m1", (a=1,))
         @test_throws CliError load_model_dispatch("model://m1")
         err = try; load_model_dispatch("model://m1"); catch e; e; end
-        @test err.code == "usage/invalid"
+        @test err.code == "usage/session-uri-requires-session" && exit_class(err) == 2
         # inside: round-trip + typed miss
         _SERVE_MODEL_STORE[] = Dict{String,Any}()
         try

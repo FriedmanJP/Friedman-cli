@@ -192,9 +192,13 @@ const _FEVD_SLOT_TYPES = Dict{Vector{String},Tuple{Vector{Symbol},Vector{Symbol}
 
 function register_fevd_commands!()
     specs = _tag_slot_types(fevd_specs(), _FEVD_SLOT_TYPES)
-    specs = with_result_handles(with_config_ergonomics(with_model_option(specs)))
+    specs = with_save_model(with_result_handles(with_config_ergonomics(with_model_option(specs))))
     specs = with_default_csv_kinds(with_data_kinds(specs, [:timeseries, :csv]))
-    specs = [s.path == ["fevd", "pvar"] ? _copy_spec(s; data_kinds=[:panel, :csv]) : s for s in specs]
+    specs = map(specs) do s
+        s = s.path == ["fevd", "pvar"] ? _copy_spec(s; data_kinds=[:panel, :csv]) : s
+        s = s.path == ["fevd", "var"] ? _copy_spec(s; allow_data_with_model=true) : s
+        s
+    end
     specs = register!(specs)
     return build_node("fevd", specs; description="Forecast Error Variance Decomposition")
 end

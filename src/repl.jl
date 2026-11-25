@@ -21,15 +21,25 @@ mutable struct Session
     varnames::Vector{String}
     results::Dict{Symbol,Any}
     last_model::Symbol
+    session_store::Any
+    legacy_store::Dict{String,Any}
+    source_models::Dict{String,Any}
 end
 
-Session() = Session("", nothing, nothing, String[], Dict{Symbol,Any}(), :none)
+Session() = Session("", nothing, nothing, String[], Dict{Symbol,Any}(), :none,
+                    nothing, Dict{String,Any}(), Dict{String,Any}())
+
+function _repl_is_session_uri(p::AbstractString)::Bool
+    return startswith(p, "model://") || startswith(p, "data://") ||
+           startswith(p, "result://") || startswith(p, "mem://")
+end
 
 function session_load_data!(s::Session, path::String)
     # `~` has no shell to expand it inside the REPL; store the expanded path so
     # every downstream command that receives it via inject_session_data resolves.
     # Stem `macro` injects `macro.jld2` when that file exists (resolve_stem).
-    path = startswith(path, ":") ? path : resolve_stem(_expanduser(path); slot=:data)
+    path = (startswith(path, ":") || _repl_is_session_uri(path)) ? path :
+           resolve_stem(_expanduser(path); slot=:data)
     df = load_data(path)
     Y = df_to_matrix(df)
     vnames = variable_names(df)
@@ -362,6 +372,17 @@ function repl_dispatch(s::Session, app::Entry, args::Vector{String};
     prev_color = @isdefined(_COLOR) ? _COLOR[] : true
     prev_seed  = @isdefined(_SEED)  ? _SEED[]  : nothing
     prev_fjson = @isdefined(_FORCE_JSON) ? _FORCE_JSON[] : false
+    prev_sstore = @isdefined(_SESSION_STORE) ? _SESSION_STORE[] : nothing
+    prev_mstore = @isdefined(_SERVE_MODEL_STORE) ? _SERVE_MODEL_STORE[] : nothing
+    prev_srcstore = @isdefined(_SERVE_SOURCE_MODELS) ? _SERVE_SOURCE_MODELS[] : nothing
+    if @isdefined(_SESSION_STORE) && @isdefined(SessionEntry)
+        if s.session_store === nothing
+            s.session_store = Dict{String,SessionEntry}()
+        end
+        _SESSION_STORE[] = s.session_store
+    end
+    @isdefined(_SERVE_MODEL_STORE) && (_SERVE_MODEL_STORE[] = s.legacy_store)
+    @isdefined(_SERVE_SOURCE_MODELS) && (_SERVE_SOURCE_MODELS[] = s.source_models)
     raw_args = copy(args)
     try
         args = _repl_extract_globals!(args)
@@ -504,6 +525,9 @@ function repl_dispatch(s::Session, app::Entry, args::Vector{String};
         @isdefined(_COLOR) && (_COLOR[] = prev_color)
         @isdefined(_SEED)  && (_SEED[] = prev_seed)
         @isdefined(_FORCE_JSON) && (_FORCE_JSON[] = prev_fjson)
+        @isdefined(_SESSION_STORE) && (_SESSION_STORE[] = prev_sstore)
+        @isdefined(_SERVE_MODEL_STORE) && (_SERVE_MODEL_STORE[] = prev_mstore)
+        @isdefined(_SERVE_SOURCE_MODELS) && (_SERVE_SOURCE_MODELS[] = prev_srcstore)
     end
 end
 
@@ -577,6 +601,9 @@ function start_repl()
     app = APP
     s = SESSION
     session_clear!(s)
+    s.session_store = nothing
+    empty!(s.legacy_store)
+    empty!(s.source_models)
     # F63: build completion candidates once at session start
     idx = _reset_completion_index!(app)
     lineedit_ready = try

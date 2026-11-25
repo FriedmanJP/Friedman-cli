@@ -339,6 +339,8 @@ end
 
 include("storage/ref.jl")
 include("storage/codec.jl")
+include("storage/session.jl")
+include("storage/cache.jl")
 
 _is_native_saveable(model) = is_mems_serializable(model)
 
@@ -366,9 +368,8 @@ const _SERVE_SOURCE_MODELS = Ref{Union{Nothing,Dict{String,Any}}}(nothing)
 
 function attach_source_model!(path::String, model)
     isempty(path) && return nothing
-    if startswith(path, "model://")
-        sm = _SERVE_SOURCE_MODELS[]
-        sm !== nothing && (sm[path] = model)
+    if _is_session_uri(path)
+        session_store_set_source_model!(path, model)
         return nothing
     end
     lc = lowercase(path)
@@ -377,8 +378,10 @@ function attach_source_model!(path::String, model)
         if _is_native_saveable(model) && isdefined(MacroEconometricModels, :_build_container)
             try
                 container = MacroEconometricModels._build_container(model)
-                JLD2.jldopen(path, "r+") do f
-                    f["_friedman_source_model"] = container
+                _with_quiet_jld2() do
+                    JLD2.jldopen(path, "r+") do f
+                        f["_friedman_source_model"] = container
+                    end
                 end
             catch
             end
@@ -399,20 +402,29 @@ end
 
 function load_source_model(path::String)
     isempty(path) && return nothing
-    if startswith(path, "model://")
-        sm = _SERVE_SOURCE_MODELS[]
-        return sm === nothing ? nothing : get(sm, path, nothing)
+    if _is_session_uri(path)
+        return session_store_source_model(path)
     end
     isfile(path) || return nothing
     lc = lowercase(path)
+    if endswith(lc, ".jls")
+        return try
+            payload = open(deserialize, path)
+            payload isa FrdcJlsEnvelope ? payload.source_model : nothing
+        catch
+            nothing
+        end
+    end
     endswith(lc, ".jld2") || return nothing
     if _is_hdf5_file(path)
         isdefined(MacroEconometricModels, :_reconstruct_from_container) || return nothing
         return try
-            JLD2.jldopen(path, "r") do f
-                haskey(f, "_friedman_source_model") ?
-                    MacroEconometricModels._reconstruct_from_container(f["_friedman_source_model"]) :
-                    nothing
+            _with_quiet_jld2() do
+                JLD2.jldopen(path, "r") do f
+                    haskey(f, "_friedman_source_model") ?
+                        MacroEconometricModels._reconstruct_from_container(f["_friedman_source_model"]) :
+                        nothing
+                end
             end
         catch
             nothing
@@ -428,29 +440,30 @@ function load_source_model(path::String)
 end
 
 function _serve_store_or_throw(path::String)
-    store = _SERVE_MODEL_STORE[]
-    store === nothing && throw(CliError("usage/invalid",
-        "$path: model:// handles are only available inside `frdc serve --mcp`";
-        hint="use a .jld2 or .fmod file path outside a serve session"))
-    return store
+    _require_session_store!(path)
+    return _SERVE_MODEL_STORE[]
 end
 
 function save_model_dispatch(path::String, model; note::String="", source_model=nothing,
-                             compress::Bool=false)
+                             source_model_path::String="", compress::Bool=false,
+                             artifact_kind::String="")
     isempty(path) && return nothing
     ref = resolve_write_ref(path; default_ext="", create_parents=true)
-    return save_handle!(ref, model; note=note, source_model=source_model, compress=compress)
+    return save_handle!(ref, model; note=note, source_model=source_model,
+                        source_model_path=source_model_path, compress=compress,
+                        artifact_kind=artifact_kind)
 end
 
 """
     load_model_dispatch(path) → model
 
-Unified handle load delegating to `src/storage/codec.jl` (`HandleRef` +
-magic-byte dispatch + `#key` extraction + `FRDC_DATA_ROOT` confinement).
+Unified handle load delegating to `src/storage/cache.jl` + `codec.jl`
+(`HandleRef` + request-scoped cache + magic-byte dispatch + `#key` extraction +
+`FRDC_DATA_ROOT` confinement).
 """
 function load_model_dispatch(path::String)
     ref = parse_handle_ref(path)
-    return load_handle(ref)
+    return load_handle_cached(ref)
 end
 
 """

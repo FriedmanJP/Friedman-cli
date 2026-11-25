@@ -263,10 +263,14 @@ function _prepared_estimate_specs()
     return with_default_csv_kinds(out)
 end
 
+const _OOS_PREDICT_TOKENS = Set(["reg", "logit", "probit", "ologit", "oprobit", "mlogit"])
+
 function _prepared_predict_specs()
-    return _overlay_estimator_data_kinds(
+    specs = _overlay_estimator_data_kinds(
         with_result_handles(with_config_ergonomics(with_model_option(
             _wrap_fitted_specs(predict_specs())))))
+    return [s.path[end] in _OOS_PREDICT_TOKENS ? _copy_spec(s; allow_data_with_model=true) : s
+            for s in specs]
 end
 
 function _prepared_residuals_specs()
@@ -280,7 +284,7 @@ function _prepared_forecast_model_specs()
     all_specs = forecast_specs()
     is_eval(s) = length(s.path) >= 2 && s.path[2] == "evaluate"
     producing = _tag_slot_types(filter(!is_eval, all_specs), _FORECAST_SLOT_TYPES)
-    specs = with_config_ergonomics(with_result_handles(with_model_option(producing)))
+    specs = with_save_model(with_config_ergonomics(with_result_handles(with_model_option(producing))))
     out = CommandSpec[]
     for s in specs
         push!(out, _copy_spec(s; data_kinds=[:timeseries, :csv]))

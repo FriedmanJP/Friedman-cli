@@ -174,12 +174,12 @@ end
         end
         h = joinpath(dir, "macro.jld2")
         _capture() do
-            _data_export(; data=joinpath(dir, "macro"), output=joinpath(dir, "round.csv"))
+            _data_export(; data=h, output=joinpath(dir, "round.csv"))
         end
         @test isfile(joinpath(dir, "round.csv"))
 
         _capture() do
-            _data_fix(; data=joinpath(dir, "macro"), method="listwise",
+            _data_fix(; data=h, method="listwise",
                       output=joinpath(dir, "macro_clean"))
         end
         @test isfile(joinpath(dir, "macro_clean.jld2"))
@@ -198,7 +198,7 @@ end
 
         dropna_csv = joinpath(dir, "dropna.csv")
         _capture() do
-            _data_dropna(; data=joinpath(dir, "macro"), output=dropna_csv)
+            _data_dropna(; data=h, output=dropna_csv)
         end
         dropna_df = CSV.read(dropna_csv, DataFrame)
         @test names(dropna_df) == ["y1", "y2"]
@@ -233,7 +233,7 @@ end
         outfile = joinpath(dir, "desc.json")
         result = Ref{Any}(nothing)
         _capture() do
-            result[] = _data_describe(; data=joinpath(dir, "panel"), format="json", output=outfile)
+            result[] = _data_describe(; data=h, format="json", output=outfile)
         end
         @test isfile(outfile)
         # After implementation, describe_data(::PanelData) is used. Force a CrossSectionData
@@ -246,7 +246,7 @@ end
         # Real describe_data(::PanelData) prints panel_summary to stdout. The
         # handler must capture that dump onto stderr so stdout stays data-only.
         streams = _capture_all() do
-            _data_describe(; data=joinpath(dir, "panel"), format="json")
+            _data_describe(; data=h, format="json")
         end
         @test !occursin("Panel Structure", streams.out)
         @test occursin("Panel Structure", streams.err)
@@ -261,7 +261,7 @@ end
         diag_out = joinpath(dir, "diag.json")
         diag = Ref{Any}(nothing)
         _capture() do
-            diag[] = _data_diagnose(; data=joinpath(dir, "panel"), format="json", output=diag_out)
+            diag[] = _data_diagnose(; data=h, format="json", output=diag_out)
         end
         @test isfile(diag_out)
         @test diag[] isa PanelData
@@ -282,7 +282,7 @@ end
             _data_import(; data=csv, kind="timeseries", output=joinpath(dir, "macro"))
         end
         Yc, nc = load_multivariate_data(csv)
-        Yh, nh = load_multivariate_data(joinpath(dir, "macro"))
+        Yh, nh = load_multivariate_data(joinpath(dir, "macro.jld2"))
         @test nc == nh
         @test Yc == Yh
     end
@@ -1190,7 +1190,7 @@ end
         save_model_dispatch(joinpath(dir, "panel.jld2"), pd)
         filt = register_data_commands!().subcmds["filter"]
         err = try
-            filt.handler(; data=joinpath(dir, "panel"), method="hp",
+            filt.handler(; data=joinpath(dir, "panel.jld2"), method="hp",
                          format="json", output="")
             nothing
         catch e; e; end
@@ -1292,7 +1292,7 @@ end
             nothing
         catch e; e; end
         @test err_bad_jls isa CliError
-        @test err_bad_jls.code == "data/serialization"
+        @test err_bad_jls.code == "data/corrupt-handle"
 
         amb_jld = joinpath(dir, "amb.jld2")
         JLD2.jldsave(amb_jld; a=[1.0, 2.0], b=[3.0, 4.0])
@@ -2396,19 +2396,19 @@ end
         @test any(r -> String(r[1]) == "model_type" && String(r[2]) == "VARModel",
                   d_info_jls.data.model_handle_info.rows)
 
-        # Corrupt serialized stream throws typed env/model-corrupt (model_handle_info) / data/serialization (_jls_model_info)
+        # Corrupt serialized stream throws typed data/corrupt-handle (model_handle_info & _jls_model_info)
         bad_jls = joinpath(dir, "corrupt.jls")
         write(bad_jls, UInt8[0x37, 0x4a, 0x4c, 0x0b])
         err_fmod = try
             model_handle_info(bad_jls)
             nothing
         catch e; e; end
-        @test err_fmod isa CliError && err_fmod.code == "env/model-corrupt"
+        @test err_fmod isa CliError && err_fmod.code == "data/corrupt-handle"
         err_jls = try
             _jls_model_info(bad_jls)
             nothing
         catch e; e; end
-        @test err_jls isa CliError && err_jls.code == "data/serialization"
+        @test err_jls isa CliError && err_jls.code == "data/corrupt-handle"
 
         # Seeded ImpulseResponse saved alongside VARModel via --save-result + --model reproduce
         ir = irf(m_var, 4; seed=17)
