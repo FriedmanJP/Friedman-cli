@@ -31,10 +31,10 @@ const RA_SOLVER_KNOB_OPTIONS = [
                description="VFI Bellman maximizer: auto (grid1d for 1 control, fminbox-nm for vectors)|grid1d|fminbox-nm|fminbox-lbfgs"),
     OptionSpec(name="smolyak-mu", type=String, default="",
                description="VFI Smolyak level: scalar μ ≥ 0 or comma-separated per-dimension levels (Smolyak path only; unset = default 2)"),
-    OptionSpec(name="n-quad", type=Int, default=0, description="VFI/PFI quadrature nodes per shock (0 = default 5)"),
-    OptionSpec(name="scale", type=Float64, default=0.0, description="VFI/PFI state-bound scale (0 = default 3.0)"),
-    OptionSpec(name="tol", type=Float64, default=0.0, description="VFI/PFI convergence tolerance (0 = default 1e-8)"),
-    OptionSpec(name="max-iter", type=Int, default=0, description="VFI/PFI max iterations (0 = default 500)"),
+    OptionSpec(name="n-quad", type=Int, default=0, description="Projection/VFI/PFI quadrature nodes per shock (0 = default 5)"),
+    OptionSpec(name="scale", type=Float64, default=0.0, description="Projection/VFI/PFI state-bound scale (0 = default 3.0)"),
+    OptionSpec(name="tol", type=Float64, default=0.0, description="Projection/VFI/PFI convergence tolerance (0 = default 1e-8)"),
+    OptionSpec(name="max-iter", type=Int, default=0, description="Projection/VFI/PFI max iterations (0 = method default: 100 projection, 500 vfi/pfi)"),
     OptionSpec(name="damping", type=Float64, default=0.0, description="VFI/PFI mixing factor (0 = default 1.0)"),
     OptionSpec(name="anderson-m", type=Int, default=0, description="PFI Anderson acceleration memory (PFI only)"),
 ]
@@ -581,8 +581,13 @@ function dsge_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="Path to DSGE model file (.toml or .jl)")],
             options=[
                 # no --data: prior_predictive draws from the PRIOR and needs none
-                with_default(select_options(BAYES_OPTIONS, "params", "priors", "prior", "observables", "solver",
-                               "order", "constraint-solver", "draws", "output", "format"), "draws", 500)...,
+                # #346 Landmine L2: alias --n-sim onto --draws on prior-predictive ONLY
+                # (dsge bayes predictive owns both --draws and --n-sim as distinct options).
+                select_options(BAYES_OPTIONS, "params", "priors", "prior", "observables", "solver",
+                               "order", "constraint-solver")...,
+                OptionSpec(name="draws", aliases=["n-draws", "n-sim"], kwarg=:n_draws, type=Int,
+                           default=500, description="Number of prior predictive draws"),
+                select_options(BAYES_OPTIONS, "output", "format")...,
                 OptionSpec(name="periods", type=Int, default=200, description="Periods to simulate per draw (≥ 1)"),
                 CONF_LEVEL_MACRO_OPTION,
                 QUANTILES_MACRO_OPTION,
@@ -610,7 +615,7 @@ function dsge_specs()::Vector{CommandSpec}
                            choices=["krusell-smith", "ssj", "reiter"]),
                 OptionSpec(name="n-reduced", type=Int, default=30, description="Reduced distribution states"),
                 OptionSpec(name="t-sim", type=Int, default=10000, description="Simulation length (must exceed --t-burn by >= 10)"),
-                OptionSpec(name="t-burn", type=Int, default=1000, description="Burn-in discarded before scoring"),
+                OptionSpec(name="t-burn", type=Int, default=-1, description="Burn-in discarded before scoring (-1 = auto: min(1000, t-sim ÷ 10))"),
                 OptionSpec(name="t-fit", type=Int, default=4000,
                            description="Fitting length for the implied law (> 100; ssj|reiter only)"),
                 OptionSpec(name="rho-z", type=Float64, default=0.95, description="Aggregate shock persistence, |rho| < 1"),
@@ -1341,7 +1346,7 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="income-states", type=Int, default=5, description="Income states"),
                 OptionSpec(name="config", type=String, default="", description="TOML with [lifecycle] survival/earnings vectors"),
                 OptionSpec(name="r-lo", type=Float64, default=-0.02, description="Net-return bracket lower end"),
-                OptionSpec(name="r-hi", type=Float64, default=0.10, description="Net-return bracket upper end"),
+                OptionSpec(name="r-hi", type=Float64, default=0.60, description="Net-return bracket upper end"),
                 OptionSpec(name="tol", type=Float64, default=1e-6, description="Excess-demand tolerance"),
                 OptionSpec(name="max-iter", type=Int, default=60, description="Bisection cap"),
                 OptionSpec(name="bequest-iter", type=Int, default=50, description="Inner bequest iterations"),
@@ -1469,7 +1474,7 @@ function dsge_specs()::Vector{CommandSpec}
             summary="Khan–Thomas plant-level stationary equilibrium",
             args=ArgSpec[],
             options=[
-                OptionSpec(name="n-k", type=Int, default=16, description="Capital-grid nodes (≥ 3)"),
+                OptionSpec(name="n-k", type=Int, default=32, description="Capital-grid nodes (≥ 3)"),
                 OptionSpec(name="n-eps", type=Int, default=3, description="Idiosyncratic productivity states"),
                 OptionSpec(name="alpha", type=Float64, default=0.256, description="Capital exponent (> 0; α+ν<1)"),
                 OptionSpec(name="nu", type=Float64, default=0.640, description="Labour exponent (> 0)"),
@@ -1485,7 +1490,8 @@ function dsge_specs()::Vector{CommandSpec}
                 OptionSpec(name="sigma-e", type=Float64, default=0.022, description="Idiosyncratic s.d."),
                 OptionSpec(name="z", type=Float64, default=1.0, description="TFP level (> 0)"),
                 OptionSpec(name="tol", type=Float64, default=1e-5, description="Wage fixed-point tolerance"),
-                OptionSpec(name="max-iter", type=Int, default=16, description="Outer wage iterations"),
+                OptionSpec(name="max-iter", type=Int, default=40, description="Outer wage iterations"),
+                OptionSpec(name="dampen", type=Float64, default=0.2, description="Relaxation on the outer wage update in (0, 1]"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table",
                            description="table|csv|json", choices=["table","csv","json"]),
@@ -4027,17 +4033,18 @@ end
 # (plotting/ha_dynamics.jl), so the plot flags are genuinely backed.
 function _dsge_ha_accuracy(; model="", method::String="krusell-smith",
                             n_reduced::Int=30,
-                            t_sim::Int=10000, t_burn::Int=1000, t_fit::Int=4000,
+                            t_sim::Int=10000, t_burn::Int=-1, t_fit::Int=4000,
                             rho_z::Float64=0.95, sigma_z::Float64=0.007,
                             seed::Int=98765,
                             hh_solver::String="egm", distribution::String="young",
                             plot::Bool=false, plot_save::String="",
                             output::String="", format::String="table")
-    t_sim > t_burn + 10 || throw(CliError("usage/invalid",
-        "hadsge accuracy: --t-sim must exceed --t-burn by at least 10 " *
-        "(got t_sim=$t_sim, t_burn=$t_burn)"))
-    t_burn >= 0 || throw(CliError("usage/invalid",
+    t_burn_eff = t_burn == -1 ? min(1000, max(0, div(t_sim, 10))) : t_burn
+    t_burn_eff >= 0 || throw(CliError("usage/invalid",
         "hadsge accuracy: --t-burn must be ≥ 0 (got $t_burn)"))
+    t_sim > t_burn_eff + 10 || throw(CliError("usage/invalid",
+        "hadsge accuracy: --t-sim must exceed --t-burn by at least 10 " *
+        "(got t_sim=$t_sim, t_burn=$t_burn_eff)"))
     sigma_z > 0 || throw(CliError("usage/invalid",
         "hadsge accuracy: --sigma-z must be > 0 (got $sigma_z)"))
     abs(rho_z) < 1 || throw(CliError("usage/invalid",
@@ -4078,8 +4085,8 @@ function _dsge_ha_accuracy(; model="", method::String="krusell-smith",
     end
 
     dh_kwargs = meth === :krusell_smith ?
-        (; T_sim=t_sim, T_burn=t_burn, rho_z=rho_z, sigma_z=sigma_z, seed=seed) :
-        (; T_sim=t_sim, T_burn=t_burn, T_fit=t_fit, rho_z=rho_z, sigma_z=sigma_z, seed=seed)
+        (; T_sim=t_sim, T_burn=t_burn_eff, rho_z=rho_z, sigma_z=sigma_z, seed=seed) :
+        (; T_sim=t_sim, T_burn=t_burn_eff, T_fit=t_fit, rho_z=rho_z, sigma_z=sigma_z, seed=seed)
     acc = try
         MacroEconometricModels.den_haan_test(sol; dh_kwargs...)
     catch e
@@ -5252,7 +5259,7 @@ function _dsge_lifecycle_steady_state(; j::Int=60, j_retire::Int=45, survival::F
                                        credit_limit::Float64=0.0,
                                        income_rho::Float64=0.95, income_sigma::Float64=0.2,
                                        income_states::Int=5, config::String="",
-                                       r_lo::Float64=-0.02, r_hi::Float64=0.10,
+                                       r_lo::Float64=-0.02, r_hi::Float64=0.60,
                                        tol::Float64=1e-6, max_iter::Int=60, bequest_iter::Int=50,
                                        no_annuities::Bool=false,
                                        output::String="", format::String="table",
@@ -5401,17 +5408,19 @@ function _khan_thomas_fs(; n_k=16, n_eps=3, alpha=0.256, nu=0.640, delta=0.069,
         sigma_e=sigma_e, Z=z)
 end
 
-function _dsge_firm_steady_state(; n_k::Int=16, n_eps::Int=3,
+function _dsge_firm_steady_state(; n_k::Int=32, n_eps::Int=3,
                                   alpha::Float64=0.256, nu::Float64=0.640,
                                   delta::Float64=0.069, beta::Float64=0.977, gamma::Float64=1.016,
                                   xi_bar::Float64=0.0083, b::Float64=0.011, phi::Float64=2.4,
                                   rho_z::Float64=0.859, sigma_z::Float64=0.014,
                                   rho_e::Float64=0.859, sigma_e::Float64=0.022, z::Float64=1.0,
-                                  tol::Float64=1e-5, max_iter::Int=16,
+                                  tol::Float64=1e-5, max_iter::Int=40, dampen::Float64=0.2,
                                   output::String="", format::String="table")
+    0 < dampen <= 1 || throw(CliError("usage/invalid",
+        "dsge firm steady-state: --dampen must lie in (0, 1] (got $dampen)"))
     fs = _khan_thomas_fs(; n_k, n_eps, alpha, nu, delta, beta, gamma, xi_bar, b, phi,
                           rho_z, sigma_z, rho_e, sigma_e, z)
-    ss = MacroEconometricModels.khan_thomas_steady_state(fs; tol=tol, max_iter=max_iter)
+    ss = MacroEconometricModels.khan_thomas_steady_state(fs; tol=tol, max_iter=max_iter, dampen=dampen)
     ss.converged || _cli_warn!("model/non-convergence",
         "Khan-Thomas steady state did not converge after $(ss.iterations) iteration(s)";
         always_stderr=true)

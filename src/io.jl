@@ -125,7 +125,7 @@ function _probe_target_command(args::Vector{String}, stop_idx::Int)
     i = 1
     while i <= stop_idx
         tok = args[i]
-        if tok == "--quiet" || tok == "--no-color" || tok == "--json" || tok == "--compact" ||
+        if tok == "--quiet" || tok == "--no-color" || tok == "--json" || tok == "-J" || tok == "--compact" ||
            startswith(tok, "--seed=") || startswith(tok, "--digits=") ||
            (tok == "-q" && isempty(path))
             i += 1
@@ -176,7 +176,7 @@ end
 """
     _extract_global_flags!(args) → remaining
 
-Scan argv before `--` for global flags (`--quiet`/`-q`, `--no-color`, `--json`,
+Scan argv before `--` for global flags (`--quiet`/`-q`, `--no-color`, `--json`/`-J`,
 `--compact`, `--seed`). Mutates global state and strips hoisted globals from the
 returned vector while preserving leaf-owned mid-argv `--seed`/`-q`/`--compact`.
 """
@@ -225,7 +225,7 @@ function _extract_global_flags!(args::Vector{String})
         elseif tok == "--compact" && (is_leading || !leaf_owns_compact)
             _COMPACT[] = true
             i += 1
-        elseif tok == "--json"
+        elseif tok == "--json" || tok == "-J"
             force_json = true
             i += 1
         elseif tok == "--digits"
@@ -302,7 +302,7 @@ end
     _argv_wants_json(args) → Bool
 
 True when the RAW argv (before `--`) asks for JSON output: an exact `--format json` /
-`--format=json` / `-f json` / `-f=json` / `--json` token (pair) anywhere before `--`.
+`--format=json` / `-f json` / `-f=json` / `--json` / `-J` token (pair) anywhere before `--`.
 Used by `run_cli`'s error net, which must decide BEFORE tokenize/bind_args run.
 """
 function _argv_wants_json(args::Vector{String})
@@ -310,7 +310,7 @@ function _argv_wants_json(args::Vector{String})
     stop_idx = dd === nothing ? length(args) : dd - 1
     for i in 1:stop_idx
         tok = args[i]
-        (tok == "--format=json" || tok == "-f=json" || tok == "--json") && return true
+        (tok == "--format=json" || tok == "-f=json" || tok == "--json" || tok == "-J") && return true
         (tok == "--format" || tok == "-f") && i + 1 <= stop_idx && args[i+1] == "json" && return true
     end
     return false

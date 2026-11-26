@@ -3388,8 +3388,8 @@ function _ra_solve_extra(meth::Symbol; order::Int=1, degree::Int=5, grid::String
     mu = _parse_smolyak_mu(smolyak_mu)
     vfi_exclusive = n_grid != 0 || n_choice != 0 || !isempty(os) || mu !== nothing
     pfi_exclusive = anderson_m != 0
-    shared_knobs = howard_steps != -1 || n_quad != 0 || scale != 0.0 ||
-                   tol != 0.0 || max_iter != 0 || damping != 0.0 || !isempty(ns)
+    proj_knobs = n_quad != 0 || scale != 0.0 || tol != 0.0 || max_iter != 0
+    vfi_pfi_only = howard_steps != -1 || damping != 0.0 || !isempty(ns)
 
     if meth === :vfi
         isempty(ns) || ns in ("auto", "linear", "residual") || throw(CliError("usage/invalid",
@@ -3431,7 +3431,12 @@ function _ra_solve_extra(meth::Symbol; order::Int=1, degree::Int=5, grid::String
             "not valid with --method pfi"))
         anderson_m >= 0 || throw(CliError("usage/invalid",
             "--anderson-m must be ≥ 0 (got $anderson_m)"))
-    elseif vfi_exclusive || pfi_exclusive || shared_knobs
+    elseif meth === :projection
+        if vfi_exclusive || pfi_exclusive || vfi_pfi_only
+            throw(CliError("usage/invalid",
+                "VFI/PFI knobs require --method vfi or pfi (got $(meth))"))
+        end
+    elseif vfi_exclusive || pfi_exclusive || vfi_pfi_only || proj_knobs
         throw(CliError("usage/invalid",
             "VFI/PFI knobs require --method vfi or pfi (got $(meth))"))
     end
@@ -3453,6 +3458,10 @@ function _ra_solve_extra(meth::Symbol; order::Int=1, degree::Int=5, grid::String
         extra = (; extra..., order=order)
     elseif meth === :projection
         extra = (; extra..., degree=degree, grid=Symbol(grid))
+        n_quad > 0 && (extra = (; extra..., n_quad=n_quad))
+        scale > 0 && (extra = (; extra..., scale=scale))
+        tol > 0 && (extra = (; extra..., tol=tol))
+        max_iter > 0 && (extra = (; extra..., max_iter=max_iter))
     elseif meth === :pfi
         extra = (; extra..., degree=degree, grid=Symbol(grid))
         isempty(ns) || (extra = (; extra..., next_state=Symbol(ns)))

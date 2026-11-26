@@ -16317,7 +16317,15 @@ end
             end
         end
         _walk_shorts(APP.root)
-        @test all(v -> length(v) == 1, values(short_meanings))
+        # #338 intentional synonym/disjoint pairs: -H (horizon/horizons), -B (burn/burnin),
+        # -t (time-col on 49 panel leaves vs disjoint `data load -t` --transform flag).
+        allowed_short_pairs = Dict(
+            "H" => Set(["horizon", "horizons"]),
+            "B" => Set(["burn", "burnin"]),
+            "t" => Set(["time-col", "transform"]),
+        )
+        @test all(((sh, names),) -> length(names) == 1 || names == get(allowed_short_pairs, sh, Set{String}()),
+                  pairs(short_meanings))
 
         # Kebab-case --id choices accepted
         for k in ("student-t", "mixture-normal", "skew-normal", "markov-switching", "garch-id")
@@ -18834,6 +18842,249 @@ end
             @test e isa DispatchError
             @test occursin(expected_target, e.message)
         end
+    end
+end
+
+@testset "[ABBREV-W3] canonical short flags, long aliases & DSGE/HA polish (#338, #346)" begin
+    # Walk full APP tree
+    all_leaves = Tuple{String, LeafCommand}[]
+    all_nodes = Tuple{String, NodeCommand}[]
+    function _walk_w3(node::NodeCommand, pref::String)
+        isempty(pref) || push!(all_nodes, (pref, node))
+        for k in sort!(collect(keys(node.subcmds)))
+            sub = node.subcmds[k]
+            p = isempty(pref) ? k : "$pref $k"
+            if sub isa LeafCommand
+                push!(all_leaves, (p, sub))
+            else
+                _walk_w3(sub, p)
+            end
+        end
+    end
+    _walk_w3(APP.root, "")
+
+    @testset "100% canonical short & long alias coverage with 0 collisions across all leaves" begin
+        @test length(all_leaves) >= 559
+        skipped_shorts = String[]
+        skipped_aliases = String[]
+        reserved_hits = String[]
+        for (p, lf) in all_leaves
+            _check_leaf_collisions(p, lf.options, lf.flags)
+            for o in lf.options
+                o.short in ("h", "V", "J") && push!(reserved_hits, "$p --$(o.name) -$(o.short)")
+                if haskey(_CANONICAL_SHORTS, o.name)
+                    o.short == _CANONICAL_SHORTS[o.name] ||
+                        push!(skipped_shorts, "$p --$(o.name): got -$(o.short)")
+                end
+                if haskey(_CANONICAL_OPTION_ALIASES, o.name)
+                    for al in _CANONICAL_OPTION_ALIASES[o.name]
+                        al in o.aliases || push!(skipped_aliases, "$p --$(o.name) missing --$al")
+                    end
+                end
+            end
+            for f in lf.flags
+                f.short in ("h", "V", "J") && push!(reserved_hits, "$p --$(f.name) -$(f.short)")
+                if haskey(_CANONICAL_FLAG_SHORTS, f.name)
+                    f.short == _CANONICAL_FLAG_SHORTS[f.name] ||
+                        push!(skipped_shorts, "$p --$(f.name): got -$(f.short)")
+                end
+                if haskey(_CANONICAL_FLAG_ALIASES, f.name)
+                    for al in _CANONICAL_FLAG_ALIASES[f.name]
+                        al in f.aliases || push!(skipped_aliases, "$p --$(f.name) missing --$al")
+                    end
+                end
+            end
+        end
+        @test isempty(reserved_hits)
+        @test isempty(skipped_shorts)
+        @test isempty(skipped_aliases)
+
+        # Landmine L4: GDFM leaves with both --nfactors and --dynamic-rank keep -q strictly on --factors
+        # and --drank strictly on --dynamic-rank.
+        gdfm_both = 0
+        for (_, lf) in all_leaves
+            has_nf = any(o -> o.name == "nfactors", lf.options)
+            has_dr = any(o -> o.name == "dynamic-rank", lf.options)
+            if has_nf && has_dr
+                gdfm_both += 1
+            end
+            for o in lf.options
+                o.name == "nfactors" && @test o.short != "q"
+                o.name == "factors" && @test o.short == "q" && !("drank" in o.aliases)
+                o.name == "dynamic-rank" && @test "drank" in o.aliases
+            end
+        end
+        @test gdfm_both >= 6
+
+        # Landmine L8: SARIMA single-letter --P/--Q/--s untouched; 4 5% hypothesis tests keep --level
+        sarima = APP.root.subcmds["estimate"].subcmds["univariate"].subcmds["sarima"]
+        @test any(o -> o.name == "P" && isempty(o.short), sarima.options)
+        @test any(o -> o.name == "Q" && isempty(o.short), sarima.options)
+        @test any(o -> o.name == "s" && isempty(o.short), sarima.options)
+        for p_arr in (["test", "coint", "ardl-bounds"], ["test", "stability", "chow"],
+                      ["test", "stability", "cusum"], ["test", "stability", "cusumsq"])
+            lf = APP.root.subcmds[p_arr[1]].subcmds[p_arr[2]].subcmds[p_arr[3]]
+            @test any(o -> o.name == "level" && o.default == 0.05, lf.options)
+        end
+
+        # All help pages stay <= 100 columns after adding short flags & aliases
+        over_100 = String[]
+        for (p, lf) in all_leaves
+            buf = IOBuffer()
+            print_help(buf, lf; prog="frdc $p")
+            for ln in split(String(take!(buf)), '\n')
+                length(ln) > 100 && push!(over_100, "$p: $(length(ln))")
+            end
+        end
+        @test isempty(over_100)
+    end
+
+    @testset "Global -J for --json (#338)" begin
+        @test _argv_wants_json(["-J", "data", "list"])
+        @test _argv_wants_json(["data", "list", "-J"])
+        @test !_argv_wants_json(["data", "list", "--", "-J"])
+
+        rem = _extract_global_flags!(["-J", "data", "list"])
+        @test _FORCE_JSON[] === true
+        @test "--format" in rem && "json" in rem
+
+        rem_mid = _extract_global_flags!(["data", "list", "-J"])
+        @test _FORCE_JSON[] === true
+        @test "--format" in rem_mid && "json" in rem_mid
+
+        @test_throws CliError _extract_global_flags!(["-J", "data", "list", "--format", "csv"])
+        had_serve = haskey(APP.root.subcmds, "serve")
+        had_serve || (APP.root.subcmds["serve"] = register_serve_commands!())
+        try
+            @test_throws CliError _extract_global_flags!(["-J", "serve"])
+        finally
+            had_serve || delete!(APP.root.subcmds, "serve")
+        end
+        @test_throws ErrorException _check_leaf_collisions("demo", [Option("junk"; short="J")], Flag[])
+
+        buf = IOBuffer()
+        print_help(buf, APP)
+        @test occursin("-J, --json", String(take!(buf)))
+        _extract_global_flags!(String[])  # reset global refs
+    end
+
+    @testset "Canonical short flags, long aliases, conflicts & handle relaxation" begin
+        irf_var = APP.root.subcmds["irf"].subcmds["var"]
+        b_short = bind_args(tokenize(["d.csv", "-p", "3", "-H", "12", "-i", "cholesky",
+                                      "-L", "0.9", "-S", "m.jld2", "-W", "r.jld2",
+                                      "-g", "-G", "p.html", "-C", "c.toml", "-X"], irf_var), irf_var)
+        b_long = bind_args(tokenize(["d.csv", "--lags", "3", "--hor", "12", "--id", "cholesky",
+                                     "--cl", "0.9", "--sm", "m.jld2", "--sr", "r.jld2",
+                                     "--plot", "--ps", "p.html", "--cfg", "c.toml", "--strict"], irf_var), irf_var)
+        @test b_short.lags == 3 && b_long.lags == 3
+        @test b_short.horizons == 12 && b_long.horizons == 12
+        @test b_short.id == "cholesky" && b_long.id == "cholesky"
+        @test b_short.conf_level == 0.9 && b_long.conf_level == 0.9
+        @test b_short.save_model == "m.jld2" && b_long.save_model == "m.jld2"
+        @test b_short.save_result == "r.jld2" && b_long.save_result == "r.jld2"
+        @test b_short.plot === true && b_long.plot === true
+        @test b_short.plot_save == "p.html" && b_long.plot_save == "p.html"
+        @test b_short.config == "c.toml" && b_long.config == "c.toml"
+        @test b_short.strict === true && b_long.strict === true
+
+        # Conflicting short + long or alias + long → ParseError (exit 2)
+        @test_throws ParseError bind_args(tokenize(["d.csv", "-H", "12", "--horizons", "8"], irf_var), irf_var)
+        @test_throws ParseError bind_args(tokenize(["d.csv", "--hor", "12", "--horizons", "8"], irf_var), irf_var)
+
+        # -M and -R relax required <data>
+        b_m = bind_args(tokenize(["-M", "mod.jld2", "-H", "8"], irf_var), irf_var)
+        @test b_m.data == "" && b_m.model == "mod.jld2" && b_m.horizons == 8
+        b_r = bind_args(tokenize(["-R", "res.jld2"], irf_var), irf_var)
+        @test b_r.data == "" && b_r.result == "res.jld2"
+
+        # Panel / IV / Logit / Factor shorts & aliases
+        preg = APP.root.subcmds["estimate"].subcmds["panel"].subcmds["preg"]
+        b_preg = bind_args(tokenize(["p.csv", "-y", "Y", "-x", "X1,X2", "-u", "id", "-t", "yr",
+                                     "-v", "cluster"], preg), preg)
+        @test b_preg.dep == "Y" && b_preg.indep == "X1,X2" && b_preg.id_col == "id" &&
+              b_preg.time_col == "yr" && b_preg.cov_type == "cluster"
+
+        piv = APP.root.subcmds["estimate"].subcmds["panel"].subcmds["piv"]
+        b_piv = bind_args(tokenize(["p.csv", "-y", "Y", "-u", "id", "-t", "yr",
+                                    "-Z", "Z1", "-v", "cluster"], piv), piv)
+        @test b_piv.dep == "Y" && b_piv.id_col == "id" &&
+              b_piv.time_col == "yr" && b_piv.instruments == "Z1" && b_piv.cov_type == "cluster"
+
+        b_piv_al = bind_args(tokenize(["p.csv", "--idcol", "id", "--tcol", "yr", "--iv", "Z1", "--cov", "cluster"], piv), piv)
+        @test b_piv_al.id_col == "id" && b_piv_al.time_col == "yr" &&
+              b_piv_al.instruments == "Z1" && b_piv_al.cov_type == "cluster"
+
+        logit_pred = APP.root.subcmds["predict"].subcmds["choice"].subcmds["logit"]
+        b_log = bind_args(tokenize(["c.csv", "-y", "Y", "-U", "grp", "--meff", "--or", "--ctab"], logit_pred), logit_pred)
+        @test b_log.dep == "Y" && b_log.clusters == "grp" &&
+              b_log.marginal_effects === true && b_log.odds_ratio === true && b_log.classification_table === true
+
+        # Mid-argv -q on a --factors leaf passes to leaf (not global --quiet)
+        rem_q = _extract_global_flags!(["estimate", "factor", "sdfm", "d.csv", "-q", "3"])
+        @test _QUIET[] === false
+        @test "-q" in rem_q
+        rem_lead = _extract_global_flags!(["-q", "estimate", "factor", "sdfm", "d.csv", "-q", "3"])
+        @test _QUIET[] === true
+        @test "-q" in rem_lead
+        _extract_global_flags!(String[])
+    end
+
+    @testset "#346 DSGE/HA code polish" begin
+        # Landmine L2: --n-sim aliased onto --draws on prior-predictive ONLY, NEVER predictive
+        pp = APP.root.subcmds["dsge"].subcmds["bayes"].subcmds["prior-predictive"]
+        pr = APP.root.subcmds["dsge"].subcmds["bayes"].subcmds["predictive"]
+        b_pp = bind_args(tokenize(["m.toml", "--n-sim", "25", "-N", "50", "-Q", "0.1,0.5,0.9"], pp), pp)
+        @test b_pp.n_draws == 25 && b_pp.periods == 50 && b_pp.quantiles == "0.1,0.5,0.9"
+        @test_throws ParseError bind_args(tokenize(["m.toml", "--n-sim", "25", "--draws", "10"], pp), pp)
+
+        # predictive accepts BOTH --draws and --n-sim simultaneously as distinct options
+        b_pr = bind_args(tokenize(["m.toml", "-n", "200", "--n-sim", "50", "-N", "30"], pr), pr)
+        @test b_pr.n_draws == 200 && b_pr.n_sim == 50 && b_pr.periods == 30
+
+        # Projection --max-iter / --tol / --scale / --n-quad accepted & forwarded; VFI/PFI-only knobs rejected
+        ex_proj = _ra_solve_extra(:projection; degree=3, grid="chebyshev",
+                                  max_iter=50, tol=1e-6, scale=2.5, n_quad=3)
+        @test ex_proj.max_iter == 50 && ex_proj.tol == 1e-6 && ex_proj.scale == 2.5 && ex_proj.n_quad == 3
+        @test_throws CliError _ra_solve_extra(:projection; damping=0.5)
+        @test_throws CliError _ra_solve_extra(:projection; howard_steps=5)
+        @test_throws CliError _ra_solve_extra(:projection; next_state="linear")
+        @test_throws CliError _ra_solve_extra(:projection; anderson_m=3)
+        @test_throws CliError _ra_solve_extra(:projection; n_grid=10)
+        @test_throws CliError _ra_solve_extra(:gensys; max_iter=50)
+
+        # hadsge accuracy auto --t-burn (-1 default → min(1000, t_sim ÷ 10))
+        ha_acc = APP.root.subcmds["hadsge"].subcmds["accuracy"]
+        tb_opt = first(filter(o -> o.name == "t-burn", ha_acc.options))
+        @test tb_opt.default == -1
+        prev_q = _QUIET[]
+        _QUIET[] = true
+        out_acc = try
+            _capture() do
+                _dispatch_via_app(String["hadsge", "accuracy", "krusell-smith", "-m", "ssj",
+                                         "--t-sim", "40", "-f", "json"])
+            end
+        finally
+            _QUIET[] = prev_q
+        end
+        doc_acc = JSON3.read(out_acc)
+        kv_acc = Dict(String(r[1]) => r[2] for r in doc_acc.data.den_haan_simulation_settings.rows)
+        @test Int(kv_acc["T_sim"]) == 40 && Int(kv_acc["T_burn"]) == 4
+        @test_throws CliError _dispatch_via_app(String["hadsge", "accuracy", "krusell-smith",
+                                                       "--t-sim", "100", "--t-burn", "200"])
+        @test_throws CliError _dispatch_via_app(String["hadsge", "accuracy", "krusell-smith",
+                                                       "--t-sim", "40", "--t-burn", "-2"])
+
+        # dsge firm steady-state tuned defaults & --dampen validation
+        firm_ss = APP.root.subcmds["dsge"].subcmds["firm"].subcmds["steady-state"]
+        @test first(filter(o -> o.name == "n-k", firm_ss.options)).default == 32
+        @test first(filter(o -> o.name == "max-iter", firm_ss.options)).default == 40
+        @test first(filter(o -> o.name == "dampen", firm_ss.options)).default == 0.2
+        @test_throws CliError _dispatch_via_app(String["dsge", "firm", "steady-state", "--dampen", "0"])
+        @test_throws CliError _dispatch_via_app(String["dsge", "firm", "steady-state", "--dampen", "1.5"])
+
+        # dsge lifecycle steady-state widened --r-hi default (0.60)
+        lc_ss = APP.root.subcmds["dsge"].subcmds["lifecycle"].subcmds["steady-state"]
+        @test first(filter(o -> o.name == "r-hi", lc_ss.options)).default == 0.60
     end
 end
 

@@ -6,7 +6,201 @@
 # shadowed on every invocation — refuse at registration (build_app), not in
 # production. 48 leaves shipped an unreachable `-h` horizon short this way.
 const _RESERVED_OPTION_NAMES = ("help", "version", "warranty", "conditions")
-const _RESERVED_SHORTS = ("h", "V")
+const _RESERVED_SHORTS = ("h", "V", "J")
+
+# Centralized canonical short flags & long option/flag abbreviations (#338 / [ABBREV-W3]).
+# Verified 0 intra-leaf collisions across all 560 leaves:
+# - `-h`/`-V`/`-J` stay reserved for global `--help`/`--version`/`--json`.
+# - `-g`/`-G` for `--plot`/`--plot-save` avoid SARIMA single-letter `--P`.
+# - `--seed` has no `-z` short (avoids DSGE `--z`).
+# - `-K` binds to `--shock` only (disjoint from `--shocks` on `irf lp`).
+# - `-q` binds to `--factors` only (never `--nfactors`; Landmine L4).
+# - `--drank` binds to `--dynamic-rank` only (never `--factors`; Landmine L4).
+const _CANONICAL_SHORTS = Dict{String,String}(
+    # I/O & handles
+    "output"      => "o",
+    "format"      => "f",
+    "model"       => "M",
+    "result"      => "R",
+    "save-model"  => "S",
+    "save-result" => "W",
+    "plot-save"   => "G",
+    "config"      => "C",
+    # Core econometrics
+    "lags"        => "p",
+    "horizons"    => "H",
+    "horizon"     => "H",
+    "method"      => "m",
+    "column"      => "c",
+    "data"        => "d",
+    "draws"       => "n",
+    "rank"        => "r",
+    "lambda"      => "l",
+    "weighting"   => "w",
+    "dep"         => "y",
+    "indep"       => "x",
+    "conf-level"  => "L",
+    "quantiles"   => "Q",
+    "factors"     => "q",
+    "id"          => "i",
+    "cov-type"    => "v",
+    "clusters"    => "U",
+    "id-col"      => "u",
+    "time-col"    => "t",
+    "instruments" => "Z",
+    "bandwidth"   => "b",
+    "kernel"      => "k",
+    "solver"      => "s",
+    "order"       => "O",
+    "periods"     => "N",
+    "max-iter"    => "I",
+    "tol"         => "T",
+    "burnin"      => "B",
+    "burn"        => "B",
+    "trend"       => "e",
+    "shock"       => "K",
+)
+
+const _CANONICAL_FLAG_SHORTS = Dict{String,String}(
+    "plot"   => "g",
+    "strict" => "X",
+)
+
+const _CANONICAL_OPTION_ALIASES = Dict{String,Vector{String}}(
+    "horizons"          => ["hor"],
+    "horizon"           => ["hor"],
+    "conf-level"        => ["cl", "ci-level"],
+    "save-model"        => ["sm"],
+    "save-result"       => ["sr"],
+    "save-data"         => ["sd"],
+    "plot-save"         => ["ps"],
+    "config"            => ["cfg"],
+    "config-json"       => ["cj"],
+    "max-iter"          => ["miter"],
+    "cov-type"          => ["cov"],
+    "time-col"          => ["tcol"],
+    "id-col"            => ["idcol"],
+    "observables"       => ["obs"],
+    "bandwidth"         => ["bw"],
+    "instruments"       => ["iv"],
+    "clusters"          => ["clst"],
+    "measurement-error" => ["me"],
+    "deterministic"     => ["det"],
+    "dynamic-rank"      => ["drank"],
+    "shock-size"        => ["ssize"],
+    "constraint-solver" => ["csolv"],
+    "distribution"      => ["dist"],
+    "n-particles"       => ["npart"],
+    "criterion"         => ["crit"],
+    "quantiles"         => ["qtl"],
+    "prefilter"         => ["pf"],
+    "hp-lambda"         => ["hplam"],
+    "max-lags"          => ["mlags"],
+)
+
+const _CANONICAL_FLAG_ALIASES = Dict{String,Vector{String}}(
+    "marginal-effects"     => ["meff"],
+    "odds-ratio"           => ["or"],
+    "classification-table" => ["ctab"],
+    "no-intercept"         => ["noint"],
+    "no-standardize"       => ["nostd"],
+    "delayed-acceptance"   => ["da"],
+    "cumulative"           => ["cum"],
+    "generalized"          => ["gen"],
+    "standardize"          => ["std"],
+    "allow-missing"        => ["amiss"],
+)
+
+"""Inject canonical short flags and long option/flag abbreviations onto a `CommandSpec`
+without mutating shared `OptionSpec`/`FlagSpec` instances or creating intra-leaf
+collisions or shadowing single-letter long options (`--P`, `--Q`, `--z`, `--s`, etc.) (#338)."""
+function _apply_canonical_abbrevs(spec::CommandSpec)::CommandSpec
+    claimed = Set{String}()
+    single_letter_longs = Set{String}()
+    for o in spec.options
+        push!(claimed, o.name)
+        ncodeunits(o.name) == 1 && push!(single_letter_longs, o.name)
+        isempty(o.short) || push!(claimed, o.short)
+        for a in o.aliases
+            push!(claimed, a)
+        end
+    end
+    for f in spec.flags
+        push!(claimed, f.name)
+        ncodeunits(f.name) == 1 && push!(single_letter_longs, f.name)
+        isempty(f.short) || push!(claimed, f.short)
+        for a in f.aliases
+            push!(claimed, a)
+        end
+    end
+
+    new_opts = OptionSpec[]
+    sizehint!(new_opts, length(spec.options))
+    for o in spec.options
+        sh = o.short
+        if isempty(sh) && haskey(_CANONICAL_SHORTS, o.name)
+            cand = _CANONICAL_SHORTS[o.name]
+            if !(cand in claimed) && !(cand in _RESERVED_SHORTS) &&
+               (!(cand in single_letter_longs) || cand == o.name)
+                sh = cand
+                push!(claimed, cand)
+            end
+        end
+        als = copy(o.aliases)
+        if haskey(_CANONICAL_OPTION_ALIASES, o.name)
+            for cand in _CANONICAL_OPTION_ALIASES[o.name]
+                if !(cand in als) && cand != o.name &&
+                   !(cand in claimed) && !(cand in _RESERVED_OPTION_NAMES)
+                    push!(als, cand)
+                    push!(claimed, cand)
+                end
+            end
+        end
+        if sh == o.short && als == o.aliases
+            push!(new_opts, o)
+        else
+            push!(new_opts, OptionSpec(
+                name=o.name, short=sh, type=o.type, default=o.default,
+                choices=o.choices, description=o.description, since=o.since,
+                handle=o.handle, repeatable=o.repeatable, aliases=als, kwarg=o.kwarg,
+            ))
+        end
+    end
+
+    new_flags = FlagSpec[]
+    sizehint!(new_flags, length(spec.flags))
+    for f in spec.flags
+        sh = f.short
+        if isempty(sh) && haskey(_CANONICAL_FLAG_SHORTS, f.name)
+            cand = _CANONICAL_FLAG_SHORTS[f.name]
+            if !(cand in claimed) && !(cand in _RESERVED_SHORTS) &&
+               (!(cand in single_letter_longs) || cand == f.name)
+                sh = cand
+                push!(claimed, cand)
+            end
+        end
+        als = copy(f.aliases)
+        if haskey(_CANONICAL_FLAG_ALIASES, f.name)
+            for cand in _CANONICAL_FLAG_ALIASES[f.name]
+                if !(cand in als) && cand != f.name &&
+                   !(cand in claimed) && !(cand in _RESERVED_OPTION_NAMES)
+                    push!(als, cand)
+                    push!(claimed, cand)
+                end
+            end
+        end
+        if sh == f.short && als == f.aliases
+            push!(new_flags, f)
+        else
+            push!(new_flags, FlagSpec(
+                name=f.name, short=sh, description=f.description,
+                aliases=als, kwarg=f.kwarg,
+            ))
+        end
+    end
+
+    return _copy_spec(spec; options=new_opts, flags=new_flags)
+end
 
 function _check_reserved(kind::String, name::String, short::String)
     name in _RESERVED_OPTION_NAMES && error(
@@ -469,6 +663,7 @@ const _DEFAULT_STATUS_FN = (parts...) -> _status(parts...)
 Bridge a declarative CommandSpec to the existing LeafCommand engine.
 """
 function to_leaf(spec::CommandSpec)
+    spec = _apply_canonical_abbrevs(spec)
     leaf_name = isempty(spec.path) ? "command" : spec.path[end]
     args = [_to_argument(a) for a in spec.args]
     options = [_to_option(o) for o in spec.options]

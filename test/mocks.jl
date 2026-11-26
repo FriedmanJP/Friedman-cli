@@ -11548,7 +11548,7 @@ struct KhanThomasTransition{T<:AbstractFloat}
     Z::Vector{T}; Y::Vector{T}; I::Vector{T}; K::Vector{T}; N::Vector{T}; C::Vector{T}
     w::Vector{T}; ss::KhanThomasSteadyState{T}; method::Symbol; converged::Bool
 end
-function khan_thomas_steady_state(fs::FirmSystem{T}; tol::Real=1e-5, max_iter::Int=16) where T
+function khan_thomas_steady_state(fs::FirmSystem{T}; tol::Real=1e-5, max_iter::Int=16, dampen::Real=0.5) where T
     n_k = length(fs.k_grid); n_e = length(fs.productivity.states)
     KhanThomasSteadyState{T}(fs, T(1.0), T(1.0), T(3.0), T(0.3), T(1.0), T(0.2), T(0.8),
                              T(0.5), ones(T, n_k, n_e) ./ T(n_k * n_e), ones(T, n_k, n_e),

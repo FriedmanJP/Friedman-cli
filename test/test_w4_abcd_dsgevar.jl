@@ -175,7 +175,9 @@ end
             end
         end
         _walk(dsge_node)
-        @test all(v -> length(v) == 1, values(short_map))
+        # #338: -B intentionally covers both --burn (dsge simulate) and --burnin (dsge bayes/var)
+        @test all(((sh, names),) -> length(names) == 1 || (sh == "B" && names == Set(["burn", "burnin"])),
+                  pairs(short_map))
 
         # All 9 new types registered in _TIDY_COEF_TYPES / _TIDY_LONG_TYPES with zero overlap
         coef_names = Set(Symbol[nameof(t) for t in Base.uniontypes(_TIDY_COEF_TYPES)])

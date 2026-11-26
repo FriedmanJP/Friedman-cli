@@ -42,7 +42,7 @@ function run_json(args::Vector{String}; quiet::Bool=true)
     argv = String[]
     quiet && push!(argv, "--quiet")
     append!(argv, args)
-    any(a -> startswith(a, "--format") || a == "-f" || startswith(a, "-f=") || a == "--json", argv) ||
+    any(a -> startswith(a, "--format") || a == "-f" || startswith(a, "-f=") || a == "--json" || a == "-J", argv) ||
         push!(argv, "--format", "json")
 
     out_path = tempname()
@@ -97,7 +97,7 @@ function run_cli_capture(args::Vector{String}; quiet::Bool=false)
     argv = String[]
     quiet && push!(argv, "--quiet")
     append!(argv, args)
-    any(a -> startswith(a, "--format") || a == "-f" || startswith(a, "-f=") || a == "--json", argv) ||
+    any(a -> startswith(a, "--format") || a == "-f" || startswith(a, "-f=") || a == "--json" || a == "-J", argv) ||
         push!(argv, "--format", "json")
 
     out_path = tempname()
@@ -11950,6 +11950,70 @@ capacity = 1.0
             assert_envelope_ok(r_cgdef; label="CI-W4 ri cg-test default")
             @test _ci_w(r_cgdef.doc.data.cg_test; row=2) ≈ _ci_w(r_cg68.doc.data.cg_test; row=2)
             @test _ci_w(r_cg68.doc.data.cg_test; row=2) < _ci_w(r_cg90.doc.data.cg_test; row=2) < _ci_w(r_cg95.doc.data.cg_test; row=2)
+        end
+
+        @testset "[ABBREV-W3] & #346 DSGE/HA polish & canonical abbrevs (real MEMs)" begin
+            # 1. 0-arg dsge firm steady-state converges cleanly with 0 non-convergence warnings + global -J
+            rf = run_json(["-J", "dsge", "firm", "steady-state"])
+            assert_envelope_ok(rf; label="#346 dsge firm steady-state default")
+            @test isempty(rf.doc.warnings)
+            kvf = collect_named_kv(rf.doc, "metric", "value")
+            @test lowercase(string(kvf["converged"])) in ("true", "1")
+
+            # 2. dsge lifecycle steady-state converges cleanly both at 0-arg default and short j=10, j-retire=7
+            rlc0 = run_json(["dsge", "lifecycle", "steady-state", "-J"])
+            assert_envelope_ok(rlc0; label="#346 dsge lifecycle steady-state default")
+            @test isempty(rlc0.doc.warnings)
+            kvlc0 = collect_named_kv(rlc0.doc, "metric", "value")
+            @test lowercase(string(kvlc0["converged"])) in ("true", "1")
+
+            rlc10 = run_json(["dsge", "lifecycle", "steady-state", "--j", "10", "--j-retire", "7", "-J"])
+            assert_envelope_ok(rlc10; label="#346 dsge lifecycle steady-state j=10")
+            @test isempty(rlc10.doc.warnings)
+            kvlc10 = collect_named_kv(rlc10.doc, "metric", "value")
+            @test lowercase(string(kvlc10["converged"])) in ("true", "1")
+
+            # 3. dsge solve --method projection --max-iter/-I & dsge bayes prior-predictive --n-sim
+            mktempdir() do d_dsge
+                mt = joinpath(d_dsge, "ar1.toml")
+                write(mt, """
+                [model]
+                parameters = { rho = 0.9, sigma = 0.01 }
+                endogenous = ["Y", "C"]
+                exogenous = ["e"]
+                linear = true
+                [[model.equations]]
+                expr = "Y[t] = rho * Y[t-1] + sigma * e[t]"
+                [[model.equations]]
+                expr = "C[t] = Y[t]"
+                """)
+                pr_toml = joinpath(d_dsge, "pri.toml")
+                write(pr_toml, """
+                [priors]
+                [priors.rho]
+                dist = "beta"
+                a = 0.5
+                b = 0.2
+                """)
+                rproj = run_json(["dsge", "solve", mt, "-m", "projection", "--degree", "3", "-I", "50", "-T", "1e-6"])
+                assert_envelope_ok(rproj; label="#346 dsge solve projection --max-iter")
+                kvp = collect_named_kv(rproj.doc, "metric", "value")
+                @test lowercase(string(kvp["converged"])) in ("true", "1")
+                @test run_json(["dsge", "solve", mt, "-m", "projection", "--damping", "0.5"]).code == 2
+
+                rpp = run_json(["dsge", "bayes", "prior-predictive", mt, "--params", "rho",
+                                "--priors", pr_toml, "--obs", "Y", "--n-sim", "10", "-N", "30"])
+                assert_envelope_ok(rpp; label="#346 prior-predictive --n-sim")
+                kvpp = collect_named_kv(rpp.doc, "metric", "value")
+                @test Int(kvpp["draws requested"]) == 10
+            end
+
+            # 4. hadsge accuracy --t-sim 40 without explicit --t-burn auto-scales T_burn=4
+            rha = run_json(["hadsge", "accuracy", "krusell-smith", "-m", "ssj",
+                            "--n-reduced", "6", "--t-sim", "40", "--t-fit", "200"])
+            assert_envelope_ok(rha; label="#346 hadsge accuracy --t-sim 40")
+            kvha = collect_named_kv(rha.doc, "metric", "value")
+            @test Int(kvha["T_sim"]) == 40 && Int(kvha["T_burn"]) == 4
         end
     end
 end
