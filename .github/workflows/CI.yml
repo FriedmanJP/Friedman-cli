@@ -76,6 +76,15 @@ jobs:
       - name: Live handle round-trip CI gate (#310)
         if: matrix.os == 'ubuntu-latest' && matrix.version == '1.13'
         run: julia --project test/tools/check_handle_roundtrips.jl
+      - name: Lossless handler precision gate (#328)
+        if: matrix.os == 'ubuntu-latest' && matrix.version == '1.13'
+        run: julia --project test/tools/check_lossless_handlers.jl
+      - name: CI defaults policy gate (68% macro / 90% micro, #334)
+        if: matrix.os == 'ubuntu-latest' && matrix.version == '1.13'
+        run: julia --project test/tools/check_ci_defaults.jl
+      - name: Coexisting abbreviations & short-flag uniformity gate (#340)
+        if: matrix.os == 'ubuntu-latest' && matrix.version == '1.13'
+        run: julia --project test/tools/check_abbreviations.jl
       - name: Fast-path metadata pack & thin wrapper parity (#293-#299)
         if: matrix.version == '1.13'
         shell: bash

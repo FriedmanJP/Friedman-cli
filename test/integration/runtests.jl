@@ -12015,6 +12015,118 @@ capacity = 1.0
             kvha = collect_named_kv(rha.doc, "metric", "value")
             @test Int(kvha["T_sim"]) == 40 && Int(kvha["T_burn"]) == 4
         end
+
+        @testset "[DISPLAY-W6] cross-family lossless precision & --digits (real MEMs, #328)" begin
+            function _run_raw_t3(argv::Vector{String})
+                out_p = tempname(); err_p = tempname()
+                code = open(out_p, "w") do oio
+                    open(err_p, "w") do eio
+                        redirect_stdout(oio) do
+                            redirect_stderr(eio) do
+                                Friedman.run_cli(vcat(["--quiet", "--no-color"], argv))
+                            end
+                        end
+                    end
+                end
+                out = read(out_p, String); err = read(err_p, String)
+                rm(out_p; force=true); rm(err_p; force=true)
+                return (code=Int(code), out=out, err=err)
+            end
+
+            # Cross-family JSON lossless check (values retain > 6 significant decimals, never pre-rounded)
+            for (lbl, argv) in (
+                ("data describe",    ["data", "describe", ":denmark"]),
+                ("estimate var",     ["estimate", "multivariate", "var", ":denmark", "--lags", "2"]),
+                ("estimate garch",   ["estimate", "volatility", "garch", ":nile"]),
+                ("test adf",         ["test", "unit-root", "adf", ":nile"]),
+                ("filter hp",        ["filter", "hp", ":nile"]),
+                ("spectral density", ["spectral", "density", ":nile"]),
+                ("io leontief",      ["io", "leontief"]),
+            )
+                rj = run_json(argv)
+                assert_envelope_ok(rj; label="DISPLAY-W6 $lbl json")
+                # Also verify --digits 2 does NOT alter JSON floats at all
+                rj2 = run_json(vcat(["--digits", "2"], argv))
+                assert_envelope_ok(rj2; label="DISPLAY-W6 $lbl json --digits 2")
+                @test JSON3.write(rj.doc.data) == JSON3.write(rj2.doc.data)
+            end
+
+            # Table display precision: default 3 decimals vs --digits 6 vs --digits full vs FRDC_DIGITS
+            rt3 = _run_raw_t3(["estimate", "multivariate", "var", ":denmark", "--lags", "1", "--format", "table"])
+            rt6 = _run_raw_t3(["--digits", "6", "estimate", "multivariate", "var", ":denmark", "--lags", "1", "--format", "table"])
+            rtf = _run_raw_t3(["--digits", "full", "estimate", "multivariate", "var", ":denmark", "--lags", "1", "--format", "table"])
+            r_csv = _run_raw_t3(["--digits", "1", "estimate", "multivariate", "var", ":denmark", "--lags", "1", "--format", "csv"])
+            r_csv_def = _run_raw_t3(["estimate", "multivariate", "var", ":denmark", "--lags", "1", "--format", "csv"])
+            @test rt3.code == 0 && rt6.code == 0 && rtf.code == 0
+            @test rt3.out != rt6.out && rt6.out != rtf.out
+            # CSV is lossless regardless of --digits
+            @test r_csv.code == 0 && r_csv.out == r_csv_def.out
+            # Default table rounds decimals to 3 places (no 7-decimal floats in table cells)
+            @test !occursin(r"\d+\.\d{7,}", rt3.out)
+            @test occursin(r"\d+\.\d{6}\b", rt6.out)
+            @test occursin(r"\d+\.\d{9,}", rtf.out)
+            # FRDC_DIGITS honored and overridden by explicit --digits
+            rt_env = withenv("FRDC_DIGITS" => "6") do
+                _run_raw_t3(["estimate", "multivariate", "var", ":denmark", "--lags", "1", "--format", "table"])
+            end
+            rt_ov = withenv("FRDC_DIGITS" => "6") do
+                _run_raw_t3(["--digits", "3", "estimate", "multivariate", "var", ":denmark", "--lags", "1", "--format", "table"])
+            end
+            @test rt_env.out == rt6.out
+            @test rt_ov.out == rt3.out
+        end
+
+        @testset "[ABBREV-W5] cross-family abbreviation equivalence & handle round-trips (real MEMs, #340)" begin
+            function _assert_abbrev_eq(lbl::String, full_argv::Vector{String}, short_argv::Vector{String})
+                rf = run_json(full_argv)
+                rs = run_json(short_argv)
+                assert_envelope_ok(rf; label="ABBREV-W5 full $lbl")
+                assert_envelope_ok(rs; label="ABBREV-W5 short $lbl")
+                @test rs.doc.status == rf.doc.status
+                @test rs.doc.command == rf.doc.command
+                @test JSON3.write(rs.doc.data) == JSON3.write(rf.doc.data)
+                @test JSON3.write(rs.doc.warnings) == JSON3.write(rf.doc.warnings)
+                @test JSON3.write(rs.doc.artifacts) == JSON3.write(rf.doc.artifacts)
+            end
+
+            _assert_abbrev_eq("var",
+                ["estimate", "multivariate", "var", ":denmark", "--lags", "2", "--format", "json"],
+                ["est", "mv", "var", ":denmark", "-p", "2", "-f", "json"])
+            _assert_abbrev_eq("arima forecast",
+                ["forecast", "univariate", "arima", ":nile", "--horizons", "6", "--conf-level", "0.68", "--format", "json"],
+                ["fc", "uv", "arima", ":nile", "-H", "6", "-L", "0.68", "-f", "json"])
+            _assert_abbrev_eq("adf",
+                ["test", "unit-root", "adf", ":nile", "--format", "json"],
+                ["t", "ur", "adf", ":nile", "-f", "json"])
+            _assert_abbrev_eq("data describe",
+                ["data", "describe", ":denmark", "--format", "json"],
+                ["d", "desc", ":denmark", "-f", "json"])
+            _assert_abbrev_eq("qreg",
+                ["estimate", "regression", "qreg", ":denmark", "--dep", "LRM", "--conf-level", "0.90", "--format", "json"],
+                ["est", "regr", "qreg", ":denmark", "-y", "LRM", "-L", "0.90", "-f", "json"])
+
+            # -M / -R / -S / -W / -J handle round-trip
+            mktempdir() do d_ab
+                mpath = joinpath(d_ab, "var_m.jld2")
+                rpath = joinpath(d_ab, "irf_r.jld2")
+                r1 = run_json(["-J", "est", "mv", "var", ":denmark", "-p", "2", "-S", mpath])
+                assert_envelope_ok(r1; label="ABBREV-W5 -S save-model")
+                @test isfile(mpath)
+                @test r1.doc.command == "frdc estimate multivariate var"
+
+                r2 = run_json(["-J", "irf", "var", "-M", mpath, "-H", "6", "--ci", "none", "-W", rpath])
+                assert_envelope_ok(r2; label="ABBREV-W5 -M/-W irf")
+                @test isfile(rpath)
+
+                r3 = run_json(["-J", "irf", "var", "-R", rpath])
+                assert_envelope_ok(r3; label="ABBREV-W5 -R replay")
+                @test JSON3.write(r3.doc.data) == JSON3.write(r2.doc.data)
+
+                r4 = run_json(["-J", "mod", "info", mpath])
+                assert_envelope_ok(r4; label="ABBREV-W5 mod info")
+                @test r4.doc.command == "frdc model info"
+            end
+        end
     end
 end
 
