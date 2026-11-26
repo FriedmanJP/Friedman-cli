@@ -369,11 +369,12 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                       "--config", adrr_toml])
         assert_envelope_ok(r; label="irf var narrative-adrr")
         # NOTE: select by key, never first_table (JSON3 object order is arbitrary).
-        # The Arias path renders wide (build_irf_table): horizon + one col per variable.
+        # The Arias path renders wide (build_irf_table): horizon + one col per variable
+        # plus weighted credible lower/upper band columns (#332).
         tbl = named_table(r.doc, :irf)
         @test tbl !== nothing
         if tbl !== nothing
-            @test table_cols(tbl) == ["horizon", "y1", "y2", "y3"]
+            @test table_cols(tbl) == ["horizon", "y1", "y2", "y3", "y1_lower", "y2_lower", "y3_lower", "y1_upper", "y2_upper", "y3_upper"]
         end
 
         # Uhlig penalty scale (#235 / MEMs#870): diff, residual, vector, and bad scale
@@ -4082,9 +4083,9 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                           "--horizons", "6", "--ci", "none", "--id", sid])
             assert_envelope_ok(r; label="irf sdfm $sid")
         end
-        # still-invalid --id stays data/invalid (exit 3), not exit 1
+        # invalid --id fails fast at parse time via --id choices= (exit 2, #344), not exit 1
         @test run_json(["irf", "sdfm", csv_id, "--factors", "2",
-                        "--id", "not-a-method"]).code == 3
+                        "--id", "not-a-method"]).code == 2
         @test run_json(["irf", "sdfm", csv_id, "--factors", "2",
                         "--id", "lewis-tvv", "--instrument", "y1"]).code == 2
         rm(csv_id; force=true)
@@ -7993,7 +7994,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                 @test me !== nothing
                 if me !== nothing
                     cols = table_cols(me)
-                    @test cols == ["variable", "category", "dydx", "se"]
+                    @test cols == ["variable", "category", "dydx", "se", "ci_lower", "ci_upper"]
                     rows = [collect(row) for row in table_rows(me)]
                     @test length(rows) == 6            # 2 vars × 3 categories
                     @test all(isfinite(numv(r_[4])) for r_ in rows)   # SEs are REAL now

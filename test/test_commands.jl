@@ -1918,7 +1918,8 @@ end  # Shared utilities
 
             @testset "guards — typed usage errors, builtin-rule contract" begin
                 @test (_perr([base..., "--rule", "rate-peg", "--horizon", "0"])).code == "usage/invalid"
-                @test (_perr([base..., "--rule", "bogus"])).code == "usage/invalid-option"
+                e_rule = _perr([base..., "--rule", "bogus"])
+                @test e_rule isa ParseError && occursin("bogus", e_rule.message)
                 # --rule + --rule-config together
                 @test (_perr([base..., "--rule", "rate-peg", "--rule-config", "x.toml"])).code == "usage/invalid"
                 # neither

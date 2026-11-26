@@ -2607,7 +2607,7 @@ function _plot_accepts_conf_level(result)::Bool
     end
     kws = Base.kwarg_decl(m)
     for kw in kws
-        (kw === :conf_level || endswith(String(kw), "...")) && return true
+        kw === :conf_level && return true
     end
     return false
 end
