@@ -756,6 +756,10 @@ jobs:
         run: |
           cd build
           tar -czf frdc-v${{ steps.version.outputs.version }}-${{ matrix.platform }}.tar.gz frdc/
+          cp frdc/SOURCE_OFFER.txt SOURCE_OFFER.txt
+          cp frdc/share/licenses/THIRD_PARTY_LICENSES.md THIRD_PARTY_LICENSES.md
+          cp frdc/share/licenses/sbom-licenses.json sbom-licenses.json
+          cp frdc/share/licenses/DATA_LICENSES.md DATA_LICENSES.md
 
       - name: Archive (zip)
         if: startsWith(github.ref, 'refs/tags/') && matrix.archive_ext == 'zip'
@@ -772,10 +776,10 @@ jobs:
           path: |
             build/frdc-v${{ steps.version.outputs.version }}-${{ matrix.platform }}.${{ matrix.archive_ext }}
             build/Manifest-release.toml
-            build/frdc/SOURCE_OFFER.txt
-            build/frdc/share/licenses/THIRD_PARTY_LICENSES.md
-            build/frdc/share/licenses/sbom-licenses.json
-            build/frdc/share/licenses/DATA_LICENSES.md
+            build/SOURCE_OFFER.txt
+            build/THIRD_PARTY_LICENSES.md
+            build/sbom-licenses.json
+            build/DATA_LICENSES.md
 
       - name: Upload Windows release artifacts
         if: startsWith(github.ref, 'refs/tags/') && runner.os == 'Windows'
@@ -801,8 +805,11 @@ jobs:
           path: artifacts
           merge-multiple: true
 
-      - name: List artifacts
-        run: ls -la artifacts/
+      - name: Flatten & list artifacts
+        run: |
+          find artifacts -mindepth 2 -type f -exec mv -t artifacts {} +
+          find artifacts -mindepth 1 -type d -empty -delete
+          ls -la artifacts/
 
       - name: Generate checksums
         run: |
