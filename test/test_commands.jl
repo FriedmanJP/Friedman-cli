@@ -17233,6 +17233,64 @@ end
     end
 end
 
+@testset "[CI-W1] canonical CI helpers, coef_table _emit_result & plot forwarding (#330)" begin
+    @test _DEFAULT_CI_MACRO == 0.68
+    @test _DEFAULT_CI_MICRO == 0.90
+    @test _DEFAULT_QUANTILES_MACRO == "0.16,0.5,0.84"
+    @test CONF_LEVEL_MACRO_OPTION.default == 0.68
+    @test CONF_LEVEL_MICRO_OPTION.default == 0.90
+    @test "ci-level" in CONF_LEVEL_MACRO_OPTION.aliases
+    @test "confidence" in CONF_LEVEL_MACRO_OPTION.aliases
+    @test "level" in CONF_LEVEL_MACRO_OPTION.aliases
+
+    # _validate_conf_level
+    @test _validate_conf_level(0.68, "test") == 0.68
+    @test _validate_conf_level(0.90, "test") == 0.90
+    for bad in (0.0, 1.0, -0.5, 1.2, NaN, Inf, true)
+        err = try; _validate_conf_level(bad, "test"); nothing; catch e; e; end
+        @test err isa CliError && err.code == "usage/invalid"
+    end
+
+    # _conf_level_to_quantiles
+    @test _conf_level_to_quantiles(0.68) ≈ [0.16, 0.5, 0.84]
+    @test _conf_level_to_quantiles(0.90) ≈ [0.05, 0.5, 0.95]
+    @test _conf_level_to_quantiles(0.95) ≈ [0.025, 0.5, 0.975]
+
+    # _resolve_band_quantiles precedence & conflict detection
+    prev_exp = _CURRENT_EXPLICIT_OPTS[]
+    try
+        _CURRENT_EXPLICIT_OPTS[] = Set{String}()
+        @test _resolve_band_quantiles("0.16,0.5,0.84", 0.68, "irf bvar") ≈ [0.16, 0.5, 0.84]
+        _CURRENT_EXPLICIT_OPTS[] = Set(["conf-level"])
+        @test _resolve_band_quantiles("0.16,0.5,0.84", 0.90, "irf bvar") ≈ [0.05, 0.5, 0.95]
+        _CURRENT_EXPLICIT_OPTS[] = Set(["quantiles"])
+        @test _resolve_band_quantiles("0.1,0.5,0.9", 0.68, "irf bvar") ≈ [0.1, 0.5, 0.9]
+        _CURRENT_EXPLICIT_OPTS[] = Set(["quantiles", "conf-level"])
+        err_both = try; _resolve_band_quantiles("0.1,0.5,0.9", 0.90, "irf bvar"); nothing; catch e; e; end
+        @test err_both isa CliError && err_both.code == "usage/conflicting-options"
+    finally
+        _CURRENT_EXPLICIT_OPTS[] = prev_exp
+    end
+
+    # _emit_result conf_level injection via coef_table (strict band monotonicity)
+    y_ci = collect(1.0:40.0) .+ 0.2 .* sin.(1:40)
+    X_ci = hcat(ones(40), collect(1.0:40.0))
+    m_reg = estimate_reg(y_ci, X_ci; varnames=["const", "x1"])
+    widths = Float64[]
+    for lv in (0.68, 0.90, 0.95)
+        env = Envelope(command="frdc estimate regression reg")
+        _ENVELOPE[] = env
+        try
+            _emit_result(m_reg; title="OLS", key="ols_coefficients", format=:json, conf_level=lv)
+        finally
+            _ENVELOPE[] = nothing
+        end
+        df_out = env.tables[1].second
+        push!(widths, df_out.ci_upper[1] - df_out.ci_lower[1])
+    end
+    @test widths[1] < widths[2] < widths[3]
+end
+
 include(joinpath(project_root, "test", "test_handles.jl"))
 include(joinpath(project_root, "test", "test_storage.jl"))
 include(joinpath(project_root, "test", "test_w1_quantile.jl"))

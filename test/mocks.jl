@@ -6437,8 +6437,10 @@ struct BaiPerronResult{T<:AbstractFloat}
     supf_stats::Vector{T}; supf_pvalues::Vector{T}
     sequential_stats::Vector{T}; sequential_pvalues::Vector{T}
     bic_values::Vector{T}; lwz_values::Vector{T}
-    trimming::T; nobs::Int
+    trimming::T; nobs::Int; conf_level::T
 end
+BaiPerronResult{T}(nb, bd, bc, rc, rs, ss, sp, sqs, sqp, bv, lv, tr, no) where {T<:AbstractFloat} =
+    BaiPerronResult{T}(nb, bd, bc, rc, rs, ss, sp, sqs, sqp, bv, lv, tr, no, T(0.68))
 
 function andrews_test(y::AbstractVector{T}, X::AbstractMatrix;
         test=:supwald, trimming=0.15) where T
@@ -6453,16 +6455,19 @@ function andrews_test(y::AbstractVector{T}, X::AbstractMatrix;
 end
 
 function bai_perron_test(y::AbstractVector{T}, X::AbstractMatrix;
-        max_breaks=5, trimming=0.15, criterion=:bic) where T
+        max_breaks=5, trimming=0.15, criterion=:bic, conf_level::Real=0.68) where T
+    lv = Float64(conf_level)
+    (isfinite(lv) && 0.0 < lv < 1.0) || throw(ArgumentError("conf_level must lie in (0, 1)"))
     n = length(y)
     k = size(X, 2)
+    half = max(1, round(Int, 5 * lv / 0.68))
     BaiPerronResult{T}(
-        1, [div(n, 2)], [(div(n, 2) - 5, div(n, 2) + 5)],
+        1, [div(n, 2)], [(max(1, div(n, 2) - half), min(n, div(n, 2) + half))],
         [ones(T, k) * T(2.0), ones(T, k) * T(5.0)],
         [ones(T, k) * T(0.3), ones(T, k) * T(0.4)],
         [T(15.0)], [T(0.01)], [T(12.0)], [T(0.03)],
         fill(T(-100.0), max_breaks + 1), fill(T(-98.0), max_breaks + 1),
-        T(trimming), n)
+        T(trimming), n, T(lv))
 end
 
 export AndrewsResult, BaiPerronResult, andrews_test, bai_perron_test
@@ -7782,9 +7787,11 @@ function simulate(result::BayesianDSGE{T}, T_periods::Int;
     BayesianDSGESimulation{T}(q, pe, ap, String.(result.param_names), T.(quantiles))
 end
 
-function posterior_summary(result::BayesianDSGE{T}) where T
+function posterior_summary(result::BayesianDSGE{T}; min_ess::Real=400, conf_level::Real=0.68) where T
+    lv = Float64(conf_level)
+    hw = T(0.1 * _mock_z_crit(lv))
     Dict(p => Dict(:mean => T(0.5), :median => T(0.49), :std => T(0.1),
-        :ci_lower => T(0.3), :ci_upper => T(0.7)) for p in result.param_names)
+        :ci_lower => T(0.5) - hw, :ci_upper => T(0.5) + hw) for p in result.param_names)
 end
 
 function bayes_factor(r1::BayesianDSGE, r2::BayesianDSGE)
@@ -7792,9 +7799,11 @@ function bayes_factor(r1::BayesianDSGE, r2::BayesianDSGE)
     r1.log_marginal_likelihood - r2.log_marginal_likelihood
 end
 
-function prior_posterior_table(result::BayesianDSGE{T}) where T
+function prior_posterior_table(result::BayesianDSGE{T}; min_ess::Real=400, conf_level::Real=0.68) where T
+    lv = Float64(conf_level)
+    hw = T(0.1 * _mock_z_crit(lv))
     [(param=p, prior_mean=T(0.5), prior_std=T(0.2),
-      post_mean=T(0.5), post_std=T(0.1), ci_lower=T(0.3), ci_upper=T(0.7))
+      post_mean=T(0.5), post_std=T(0.1), ci_lower=T(0.5) - hw, ci_upper=T(0.5) + hw)
      for p in result.param_names]
 end
 
@@ -12596,12 +12605,15 @@ struct QuantileRegModel{T<:AbstractFloat}
     se_type::Symbol
     n_obs::Int
     converged::Vector{Bool}
+    alpha::T
 end
+QuantileRegModel{T}(y, X, taus, beta, vm, se, res, fit, obj, pr2, vn, st, no, conv) where {T<:AbstractFloat} =
+    QuantileRegModel{T}(y, X, taus, beta, vm, se, res, fit, obj, pr2, vn, st, no, conv, T(0.10))
 
 function estimate_qreg(y::AbstractVector, X::AbstractMatrix, tau=0.5;
                        se::Symbol=:iid, solver::Symbol=:ipm,
                        varnames=nothing, n_boot::Int=500,
-                       rng=nothing, alpha::Real=0.05, seed=nothing)
+                       rng=nothing, alpha::Real=0.10, seed=nothing)
     n, k = length(y), size(X, 2)
     size(X, 1) == n || throw(ArgumentError("X must have $n rows (got $(size(X, 1)))"))
     n > k || throw(ArgumentError("Need n > k (n=$n, k=$k)"))
@@ -12620,7 +12632,7 @@ function estimate_qreg(y::AbstractVector, X::AbstractMatrix, tau=0.5;
     QuantileRegModel{Float64}(Float64.(y), Float64.(X), taus, beta,
         [Matrix{Float64}(I, k, k) for _ in 1:nt], fill(0.2, k, nt),
         fill(0.1, n, nt), fill(0.5, n, nt), fill(12.5, nt), fill(0.3, nt),
-        vn, se, n, fill(true, nt))
+        vn, se, n, fill(true, nt), Float64(alpha))
 end
 
 struct RDDResult{T<:AbstractFloat}
@@ -17874,5 +17886,80 @@ export SteadyStateKalman, RationalInattentionProblem, SimsKalmanSolution,
        to_statespace, to_abcd, estimate_ri, coibion_gorodnichenko_test,
        implied_cg_slope, solve_mw_attention, rational_inattention_jacobian,
        solve_ri_discrete, ri_iia_diagnostic, estimate_ri_logit, fitted
+
+# ── MEMs v1.1.2 CI defaults & coef_table / confint mirror (#330) ───────────
+const DEFAULT_CI_MACRO = 0.68
+const DEFAULT_CI_MICRO = 0.90
+const DEFAULT_QUANTILES_MACRO = [0.16, 0.5, 0.84]
+const DEFAULT_QUANTILES_MICRO = [0.05, 0.5, 0.95]
+
+function _mock_z_crit(level::Real)::Float64
+    lv = Float64(level)
+    (isfinite(lv) && 0.0 < lv < 1.0) || throw(ArgumentError("confidence level must lie strictly in (0, 1), got $level"))
+    # Acklam rational approximation for Φ⁻¹(1 - (1 - lv)/2)
+    p = 1.0 - (1.0 - lv) / 2.0
+    a = (-3.969683028665376e+01, 2.209460984245205e+02, -2.759285104469687e+02,
+          1.383577518672690e+02, -3.066479806614716e+01, 2.506628277459239e+00)
+    b = (-5.447609879822406e+01, 1.615858368580409e+02, -1.556989798598866e+02,
+          6.680131188771972e+01, -1.328068155288572e+01)
+    c = (-7.784894002430293e-03, -3.223964580411365e-01, -2.400758277161838e+00,
+         -2.549732539343734e+00, 4.374664141464968e+00, 2.938163982698783e+00)
+    d = (7.784695709041462e-03, 3.224671290700398e-01, 2.445134137142996e+00,
+         3.754408661907416e+00)
+    if p <= 0.97575
+        q = p - 0.5
+        r = q * q
+        return (((((a[1]*r + a[2])*r + a[3])*r + a[4])*r + a[5])*r + a[6]) * q /
+               (((((b[1]*r + b[2])*r + b[3])*r + b[4])*r + b[5])*r + 1.0)
+    else
+        q = sqrt(-2.0 * log(1.0 - p))
+        return -(((((c[1]*q + c[2])*q + c[3])*q + c[4])*q + c[5])*q + c[6]) /
+                ((((d[1]*q + d[2])*q + d[3])*q + d[4])*q + 1.0)
+    end
+end
+
+default_ci_level(m) = default_ci_level(typeof(m))
+default_ci_level(::Type) = DEFAULT_CI_MACRO
+const _MOCK_MICRO_CI_TYPE_NAMES = (
+    :RegModel, :RobustRegModel, :LogitModel, :ProbitModel, :OrderedLogitModel, :OrderedProbitModel,
+    :MultinomialLogitModel, :PoissonModel, :NegBinModel, :TobitModel, :TruncRegModel, :HeckmanModel,
+    :QuantileRegModel, :RDDResult, :MarginalEffects, :MultinomialMarginalEffects, :OddsRatio,
+    :RILogitModel, :WildClusterBootstrap, :AndersonRubinCI, :AndersonRubinTest, :KernelRegression,
+    :PanelRegModel, :PanelIVModel, :PanelLogitModel, :PanelProbitModel, :QuantileFactorPanelModel,
+    :SURModel, :ThreeSLSModel, :GMMModel, :SMMModel, :DIDResult, :EventStudyLP, :HonestDiDResult,
+    :PretrendTestResult,
+)
+for _MName in _MOCK_MICRO_CI_TYPE_NAMES
+    if isdefined(@__MODULE__, _MName)
+        _MT = getfield(@__MODULE__, _MName)
+        @eval default_ci_level(::Type{<:$_MT}) = DEFAULT_CI_MICRO
+    end
+end
+default_ci_level(r::RDDResult) = Float64(r.level)
+default_ci_level(m::QuantileRegModel) = Float64(1 - m.alpha)
+default_ci_level(r::BaiPerronResult) = Float64(r.conf_level)
+
+function coef_table(m; conf_level::Real=default_ci_level(m))
+    z = _mock_z_crit(conf_level)
+    df = copy(DataFrames.DataFrame(m))
+    if "estimate" in names(df) && "std_error" in names(df) &&
+       "ci_lower" in names(df) && "ci_upper" in names(df)
+        est = Float64.(df[!, "estimate"])
+        se = Float64.(df[!, "std_error"])
+        df[!, "ci_lower"] = est .- z .* se
+        df[!, "ci_upper"] = est .+ z .* se
+    end
+    return df
+end
+
+function confint(m; level::Real=default_ci_level(m))
+    z = _mock_z_crit(level)
+    b = Float64.(vec(collect(coef(m))))
+    s = Float64.(vec(collect(stderror(m))))
+    return hcat(b .- z .* s, b .+ z .* s)
+end
+
+export DEFAULT_CI_MACRO, DEFAULT_CI_MICRO, DEFAULT_QUANTILES_MACRO, DEFAULT_QUANTILES_MICRO,
+       default_ci_level, coef_table, confint
 
 end # module

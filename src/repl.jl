@@ -194,7 +194,7 @@ end
 # --draws/-n, --prior, --rank/-r, --column/-c, --dep, etc.) indicates an explicit handle or a
 # re-estimation specification and suppresses Session.results model-cache injection.
 const _DOWNSTREAM_ONLY_OPTS = Set([
-    "horizons", "ci", "ci-level", "ci-method", "conf-level", "confidence", "level",
+    "horizons", "ci", "ci-level", "ci-method", "conf-level", "confidence", "level", "quantiles",
     "replications", "reps", "boot-draws", "irf-draws",
     "id", "config-json", "set",
     "shock", "shock-size", "shocks", "irf-type", "summary",

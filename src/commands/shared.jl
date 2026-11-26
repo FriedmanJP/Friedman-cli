@@ -2522,7 +2522,21 @@ end
 Optionally plot a result using MacroEconometricModels' interactive D3.js plotting.
 If `plot` is true, opens in browser. If `plot_save` is non-empty, saves to HTML file.
 """
-function _maybe_plot(result; plot::Bool=false, plot_save::String="", kwargs...)
+function _plot_accepts_conf_level(result)::Bool
+    m = try
+        which(plot_result, Tuple{typeof(result)})
+    catch
+        return false
+    end
+    kws = Base.kwarg_decl(m)
+    for kw in kws
+        (kw === :conf_level || endswith(String(kw), "...")) && return true
+    end
+    return false
+end
+
+function _maybe_plot(result; plot::Bool=false, plot_save::String="",
+                     conf_level::Union{Nothing,Real}=nothing, kwargs...)
     !plot && isempty(plot_save) && return
     _validate_output_path(plot_save)
     if !isempty(_BUNDLED_D3_SOURCE) && isdefined(MacroEconometricModels, :_D3_SOURCE)
@@ -2530,6 +2544,11 @@ function _maybe_plot(result; plot::Bool=false, plot_save::String="", kwargs...)
         if d3_ref isa Base.RefValue{String} && isempty(d3_ref[])
             d3_ref[] = _BUNDLED_D3_SOURCE
         end
+    end
+    plot_kw = if conf_level !== nothing && _plot_accepts_conf_level(result)
+        merge((; conf_level=Float64(conf_level)), NamedTuple(kwargs))
+    else
+        NamedTuple(kwargs)
     end
     # W5/#95 — defence in depth. The rule is still "only advertise --plot when a real
     # plot_result(::that type) EXISTS" (grep the real plotting/ before adding the flags;
@@ -2539,7 +2558,7 @@ function _maybe_plot(result; plot::Bool=false, plot_save::String="", kwargs...)
     # the CLI for a missing upstream method. Map that ONE case to a typed refusal and let
     # every other failure (save/display) propagate untouched so real bugs stay visible.
     p = try
-        plot_result(result; kwargs...)
+        plot_result(result; plot_kw...)
     catch e
         e isa MethodError && (e.f === plot_result) && throw(CliError(
             "model/unsupported",
@@ -4265,13 +4284,90 @@ function _load_coords(data::String, lat_col::String, lon_col::String, metric::St
     return hcat(lat, lon)
 end
 
+# ── Standardized CI validation & quantile helpers ([CI-W1] #330) ──────────
+
+"""
+    _validate_conf_level(conf_level, leaf) → Float64
+
+Require finite `conf_level` strictly in `(0, 1)`; otherwise throw exit-2 `usage/invalid`.
+"""
+function _validate_conf_level(conf_level::Real, leaf::AbstractString)::Float64
+    conf_level isa Bool && throw(CliError("usage/invalid",
+        "$leaf: --conf-level must be a number in (0, 1) (got $conf_level)"))
+    lv = Float64(conf_level)
+    (isfinite(lv) && 0.0 < lv < 1.0) || throw(CliError("usage/invalid",
+        "$leaf: --conf-level must lie strictly in (0, 1) (got $conf_level)";
+        hint="pass a probability such as 0.68, 0.90, or 0.95"))
+    return lv
+end
+
+"""
+    _conf_level_to_quantiles(conf_level) → Vector{Float64}
+
+Map a symmetric confidence/credible level in `(0, 1)` to `[lo, 0.5, hi]`
+(e.g., `0.68 → [0.16, 0.5, 0.84]`, `0.90 → [0.05, 0.5, 0.95]`).
+"""
+function _conf_level_to_quantiles(conf_level::Real)::Vector{Float64}
+    lv = _validate_conf_level(conf_level, "quantiles")
+    tail = (1.0 - lv) / 2.0
+    lo = round(tail; digits=12) # lossless-ok: symmetric quantile endpoint cleanup
+    hi = round(1.0 - tail; digits=12) # lossless-ok: symmetric quantile endpoint cleanup
+    (0.0 < lo < 0.5) || (lo = tail)
+    (0.5 < hi < 1.0) || (hi = 1.0 - tail)
+    return Float64[lo, 0.5, hi]
+end
+
+"""
+    _parse_band_quantiles(raw, leaf) → Vector{Float64}
+
+Parse comma-separated band quantiles strictly in `(0, 1)` in ascending order.
+"""
+function _parse_band_quantiles(raw::AbstractString, leaf::AbstractString)::Vector{Float64}
+    parts = [strip(s) for s in split(String(raw), ",") if !isempty(strip(s))]
+    isempty(parts) && throw(CliError("usage/invalid", "$leaf: --quantiles must not be empty"))
+    qs = Float64[]
+    for p in parts
+        v = tryparse(Float64, p)
+        (v === nothing || !isfinite(v) || !(0.0 < v < 1.0)) && throw(CliError("usage/invalid",
+            "$leaf: --quantiles entries must lie strictly in (0, 1) (got '$p')"))
+        push!(qs, v)
+    end
+    issorted(qs) || throw(CliError("usage/invalid",
+        "$leaf: --quantiles must be sorted in ascending order (got '$raw')"))
+    return qs
+end
+
+"""
+    _resolve_band_quantiles(quantiles_str, conf_level, leaf) → Vector{Float64}
+
+Resolve `--quantiles` vs `--conf-level` consistently using `_CURRENT_EXPLICIT_OPTS[]`:
+- Both explicitly passed → `usage/conflicting-options` (exit 2).
+- Only `--conf-level` explicitly passed → symmetric `[lo, 0.5, hi]`.
+- Otherwise → parse `quantiles_str` (default `"0.16,0.5,0.84"` = 68% band).
+"""
+function _resolve_band_quantiles(quantiles_str::AbstractString, conf_level::Real,
+                                 leaf::AbstractString)::Vector{Float64}
+    explicit = isdefined(@__MODULE__, :_CURRENT_EXPLICIT_OPTS) ? _CURRENT_EXPLICIT_OPTS[] : Set{String}()
+    has_q = "quantiles" in explicit
+    has_c = "conf-level" in explicit
+    if has_q && has_c
+        throw(CliError("usage/conflicting-options",
+            "$leaf: cannot combine --quantiles with --conf-level";
+            hint="pass either --conf-level <0..1> or --quantiles <q1,q2,q3>, not both"))
+    elseif has_c
+        return _conf_level_to_quantiles(_validate_conf_level(conf_level, leaf))
+    else
+        return _parse_band_quantiles(quantiles_str, leaf)
+    end
+end
+
 """Build coefficient table DataFrame from a regression model."""
-function _reg_coef_table(model, varnames::Vector{String})
-    # C051: MEMs renders coefficient-bearing models (RegModel/Logit/Probit/IV, which the
-    # CLI estimates with varnames=xcols) as a tidy coef table via Tables.jl — term|estimate|
-    # std_error|stat|p_value|ci_lower|ci_upper. `varnames` is retained for the call sites
-    # but the names now come from the model itself.
-    DataFrame(model)
+function _reg_coef_table(model, varnames::Vector{String}; conf_level::Union{Nothing,Real}=nothing)
+    # C051 + [CI-W1] #330: delegate to upstream MEMs v1.1.2 `coef_table` when conf_level is specified.
+    if conf_level !== nothing && isdefined(MacroEconometricModels, :coef_table)
+        return DataFrame(MacroEconometricModels.coef_table(model; conf_level=_validate_conf_level(conf_level, "coef_table")))
+    end
+    return DataFrame(model)
 end
 
 # ── #215/#216: central tidy-result router ──────────────────────
@@ -4313,8 +4409,18 @@ silent hand-build.
 """
 function _emit_result(m::_TIDY_COEF_TYPES; title::String="Results", key::AbstractString="",
                       format::Union{String,Symbol}=:table, output::String="",
+                      conf_level::Union{Nothing,Real}=nothing,
                       extra_cols::Vector{<:Pair{String,<:Any}}=Pair{String,Any}[])
-    df = DataFrame(m)
+    df = if conf_level !== nothing && isdefined(MacroEconometricModels, :coef_table)
+        lv = _validate_conf_level(conf_level, title)
+        try
+            DataFrame(MacroEconometricModels.coef_table(m; conf_level=lv))
+        catch e
+            e isa MethodError ? DataFrame(m) : rethrow()
+        end
+    else
+        DataFrame(m)
+    end
     for (name, vals) in extra_cols
         name in names(df) && continue
         v = vals isa AbstractVector ? collect(vals) : fill(vals, nrow(df))
@@ -4416,9 +4522,10 @@ end
 _to_sym(s::String) = Symbol(replace(s, "-" => "_"))
 
 """Build coefficient table from panel regression model."""
-function _preg_coef_table(model, varnames::Vector{String})
-    # C051: MEMs renders panel coefficient models (PanelReg/IV/Logit/Probit) as a tidy
-    # coef table via Tables.jl (term|estimate|std_error|stat|p_value|ci_lower|ci_upper).
-    # `varnames` retained for the call sites; names now come from the model.
-    DataFrame(model)
+function _preg_coef_table(model, varnames::Vector{String}; conf_level::Union{Nothing,Real}=nothing)
+    # C051 + [CI-W1] #330: delegate to upstream MEMs v1.1.2 `coef_table` when conf_level is specified.
+    if conf_level !== nothing && isdefined(MacroEconometricModels, :coef_table)
+        return DataFrame(MacroEconometricModels.coef_table(model; conf_level=_validate_conf_level(conf_level, "coef_table")))
+    end
+    return DataFrame(model)
 end

@@ -106,6 +106,32 @@ const SAVE_RESULT_OPTION = OptionSpec(
     name="save-result", type=String, default="",
     description="Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://)",
 )
+
+# Standardized CI defaults ([CI-W1] #330, aligned with MacroEconometricModels v1.1.2)
+const _DEFAULT_CI_MACRO = 0.68
+const _DEFAULT_CI_MICRO = 0.90
+const _DEFAULT_QUANTILES_MACRO = "0.16,0.5,0.84"
+
+const CONF_LEVEL_MACRO_OPTION = OptionSpec(
+    name="conf-level",
+    aliases=["ci-level", "confidence", "level"],
+    type=Float64,
+    default=_DEFAULT_CI_MACRO,
+    description="Confidence/credible interval level in (0, 1) (default: 0.68)",
+)
+const CONF_LEVEL_MICRO_OPTION = OptionSpec(
+    name="conf-level",
+    aliases=["ci-level", "confidence", "level"],
+    type=Float64,
+    default=_DEFAULT_CI_MICRO,
+    description="Confidence interval level in (0, 1) (default: 0.90)",
+)
+const QUANTILES_MACRO_OPTION = OptionSpec(
+    name="quantiles",
+    type=String,
+    default=_DEFAULT_QUANTILES_MACRO,
+    description="Posterior/bootstrap band quantiles in (0, 1) (default: 0.16,0.5,0.84 = 68% band)",
+)
 function with_result_handles(specs::Vector{CommandSpec})
     out = CommandSpec[]
     for s in specs
