@@ -775,6 +775,31 @@ static int parse_strict_i64(const char *s, int64_t *out) {
     return 0;
 }
 
+static int parse_display_digits(const char *s) {
+    if (!s) return -1;
+    while (*s == ' ' || *s == '\t' || *s == '\n' || *s == '\r') s++;
+    size_t len = strlen(s);
+    while (len > 0 && (s[len - 1] == ' ' || s[len - 1] == '\t' ||
+                       s[len - 1] == '\n' || s[len - 1] == '\r')) {
+        len--;
+    }
+    if (len == 0) return -1;
+    if (len == 4 &&
+        tolower((unsigned char)s[0]) == 'f' &&
+        tolower((unsigned char)s[1]) == 'u' &&
+        tolower((unsigned char)s[2]) == 'l' &&
+        tolower((unsigned char)s[3]) == 'l') {
+        return 0;
+    }
+    int val = 0;
+    for (size_t i = 0; i < len; i++) {
+        if (s[i] < '0' || s[i] > '9') return -1;
+        val = val * 10 + (s[i] - '0');
+        if (val > 16) return -1;
+    }
+    return 0;
+}
+
 typedef struct {
     char cmd_path[256];
     size_t cmd_path_len;
@@ -791,11 +816,12 @@ static void probe_target_command(const FrdcPack *pack, int argc, char **argv, in
     while (i < stop_idx) {
         const char *tok = argv[i];
         if (strcmp(tok, "--quiet") == 0 || strcmp(tok, "--no-color") == 0 ||
-            strcmp(tok, "--json") == 0 || strcmp(tok, "--compact") == 0 ||
-            strncmp(tok, "--seed=", 7) == 0 ||
+            strcmp(tok, "--json") == 0 || strcmp(tok, "-J") == 0 ||
+            strcmp(tok, "--compact") == 0 ||
+            strncmp(tok, "--seed=", 7) == 0 || strncmp(tok, "--digits=", 9) == 0 ||
             (strcmp(tok, "-q") == 0 && res->cmd_path_len == 0)) {
             i++;
-        } else if (strcmp(tok, "--seed") == 0) {
+        } else if (strcmp(tok, "--seed") == 0 || strcmp(tok, "--digits") == 0) {
             i += 2;
         } else if (tok[0] == '-') {
             i++;
@@ -988,7 +1014,8 @@ static int argv_wants_json(int argc, char **argv, int stop_idx) {
         const char *tok = argv[i];
         if (strcmp(tok, "--format=json") == 0 ||
             strcmp(tok, "-f=json") == 0 ||
-            strcmp(tok, "--json") == 0) {
+            strcmp(tok, "--json") == 0 ||
+            strcmp(tok, "-J") == 0) {
             return 1;
         }
         if ((strcmp(tok, "--format") == 0 || strcmp(tok, "-f") == 0) &&
@@ -1592,6 +1619,7 @@ static int run_thin(int argc, char **argv) {
     int no_color = env_no_color;
     int compact = 0;
     int force_json = 0;
+    int explicit_digits = 0;
     int has_seed = 0;
     int64_t seed_val = 0;
 
@@ -1617,8 +1645,24 @@ static int run_thin(int argc, char **argv) {
         } else if (strcmp(tok, "--compact") == 0 && (is_leading || !leaf_owns_compact)) {
             compact = 1;
             i++;
-        } else if (strcmp(tok, "--json") == 0) {
+        } else if (strcmp(tok, "--json") == 0 || strcmp(tok, "-J") == 0) {
             force_json = 1;
+            i++;
+        } else if (strcmp(tok, "--digits") == 0) {
+            if (i + 1 >= stop_idx || parse_display_digits(argv[i + 1]) != 0) {
+                free(rem);
+                frdc_pack_free(&pack);
+                return frdc_exec_core(exe_path, argc, argv);
+            }
+            explicit_digits = 1;
+            i += 2;
+        } else if (strncmp(tok, "--digits=", 9) == 0) {
+            if (parse_display_digits(tok + 9) != 0) {
+                free(rem);
+                frdc_pack_free(&pack);
+                return frdc_exec_core(exe_path, argc, argv);
+            }
+            explicit_digits = 1;
             i++;
         } else if (strcmp(tok, "--seed") == 0) {
             if (i + 1 >= stop_idx || parse_strict_i64(argv[i + 1], &seed_val) != 0) {
@@ -1651,6 +1695,19 @@ static int run_thin(int argc, char **argv) {
     int rem_dd = rem_n;
     if (dd < argc) {
         for (int j = dd; j < argc; j++) rem[rem_n++] = argv[j];
+    }
+
+    if (!explicit_digits) {
+        const char *env_dig = getenv("FRDC_DIGITS");
+        if (env_dig) {
+            const char *p = env_dig;
+            while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r') p++;
+            if (*p != '\0' && parse_display_digits(env_dig) != 0) {
+                free(rem);
+                frdc_pack_free(&pack);
+                return frdc_exec_core(exe_path, argc, argv);
+            }
+        }
     }
 
     if (force_json) {
