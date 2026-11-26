@@ -11,6 +11,21 @@ module Friedman
     end
     CliError(code::String, message::String; hint::String="") = CliError(code, message, hint)
 
+    const _QUIET = Ref(false)
+    const _COLOR = Ref(true)
+    const _SEED = Ref{Union{Nothing,Int}}(nothing)
+    const _COMPACT = Ref(false)
+    const _DISPLAY_DIGITS = Ref{Union{Int,Nothing}}(3)
+    const _FORCE_JSON = Ref(false)
+    _default_display_digits() = 3
+    function _parse_display_digits(raw::AbstractString)
+        s = strip(String(raw))
+        lowercase(s) == "full" && return nothing
+        d = tryparse(Int, s)
+        (d === nothing || d < 0 || d > 16) && throw(CliError("usage/bad-digits", "invalid --digits value '$raw'"))
+        return d
+    end
+
     const EXAMPLE_DATASETS = (
         :fred_md, :fred_qd, :pwt, :mpdta, :ddcg,
         :denmark, :gnp_hamilton, :grunfeld, :mp_shocks, :mroz, :nile, :stackloss,

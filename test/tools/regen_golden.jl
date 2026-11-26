@@ -11,7 +11,7 @@ using Pkg
 Pkg.activate(joinpath(@__DIR__, "..", ".."))
 
 using Test
-using CSV, DataFrames, JSON3, PrettyTables, TOML, Random
+using CSV, DataFrames, JSON3, PrettyTables, Printf, TOML, Random, Serialization
 using LinearAlgebra: eigvals, diag, I, svd, diagm
 using Statistics: mean, median, var, quantile
 using Dates
