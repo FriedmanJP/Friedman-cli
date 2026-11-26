@@ -268,25 +268,87 @@ function _nearest(word::AbstractString, cands)
     return best_d <= 2 ? best : nothing
 end
 
+"""Nearest canonical option/flag name within distance 2, else `nothing` (Landmine L6 / #346).
+Suggests ONLY canonical names (never hidden/abbreviated aliases or 1-char shorts); if an unknown
+long option is within distance 2 of a full-word alias (length ≥ 5, e.g. `horizon`), maps back
+to its owning canonical name (`horizons`)."""
+function _nearest_canonical(word::AbstractString, cmd::LeafCommand)
+    ncodeunits(word) <= 1 && return nothing
+    canon = String["help"]
+    for o in cmd.options
+        push!(canon, o.name)
+    end
+    for f in cmd.flags
+        push!(canon, f.name)
+    end
+    sort!(unique!(canon))
+    best = nothing
+    best_d = 3
+    for c in canon
+        ncodeunits(c) <= 1 && continue
+        d = _levenshtein(word, c)
+        if d < best_d
+            best_d = d
+            best = c
+        end
+    end
+    # Also map long word-aliases (length ≥ 5) back to their canonical owner if strictly closer
+    for o in cmd.options
+        for a in o.aliases
+            ncodeunits(a) >= 5 || continue
+            d = _levenshtein(word, a)
+            if d < best_d
+                best_d = d
+                best = o.name
+            end
+        end
+    end
+    for f in cmd.flags
+        for a in f.aliases
+            ncodeunits(a) >= 5 || continue
+            d = _levenshtein(word, a)
+            if d < best_d
+                best_d = d
+                best = f.name
+            end
+        end
+    end
+    return best_d <= 2 ? best : nothing
+end
+
+"""True if option `canonical_name` was supplied with a non-empty value via its primary name,
+short flag, or any long alias (#336: ensures `-M`/`-R` relax `<data>`/`<model>` identically to `--model`/`--result`)."""
+function _option_present_nonempty(parsed::ParsedArgs, cmd::LeafCommand, canonical_name::String)::Bool
+    for o in cmd.options
+        o.name == canonical_name || continue
+        !isempty(get(parsed.options, o.name, "")) && return true
+        !isempty(o.short) && !isempty(get(parsed.options, o.short, "")) && return true
+        for a in o.aliases
+            !isempty(get(parsed.options, a, "")) && return true
+        end
+    end
+    return false
+end
+
 """
     bind_args(parsed, cmd) → NamedTuple
 
 Bind parsed tokens to a LeafCommand's declared arguments, options, and flags.
-Unknown options throw ParseError with a did-you-mean hint (F1).
+Unknown options throw ParseError with a canonical did-you-mean hint (F1 / #346).
 """
 function bind_args(parsed::ParsedArgs, cmd::LeafCommand; has_extra_model::Bool=false)
-    # Unknown option / flag detection (F1)
+    # Unknown option / flag detection (F1 / Landmine L6: canonical suggestions only)
     known = cmd.known_opts
     for k in keys(parsed.options)
         if !(k in known)
-            sugg = _nearest(k, known)
+            sugg = _nearest_canonical(k, cmd)
             hint = sugg === nothing ? "" : " — did you mean $(_fmt_opt_name(sugg))?"
             throw(ParseError("unknown option $(_fmt_opt_name(k))$hint"))
         end
     end
     for k in parsed.flags
         if !(k in known)
-            sugg = _nearest(k, known)
+            sugg = _nearest_canonical(k, cmd)
             hint = sugg === nothing ? "" : " — did you mean $(_fmt_opt_name(sugg))?"
             throw(ParseError("unknown option $(_fmt_opt_name(k))$hint"))
         end
@@ -294,7 +356,7 @@ function bind_args(parsed::ParsedArgs, cmd::LeafCommand; has_extra_model::Bool=f
     if !isempty(parsed.multi)
         for k in keys(parsed.multi)
             if !(k in known)
-                sugg = _nearest(k, known)
+                sugg = _nearest_canonical(k, cmd)
                 hint = sugg === nothing ? "" : " — did you mean $(_fmt_opt_name(sugg))?"
                 throw(ParseError("unknown option $(_fmt_opt_name(k))$hint"))
             end
@@ -305,13 +367,11 @@ function bind_args(parsed::ParsedArgs, cmd::LeafCommand; has_extra_model::Bool=f
     bound = Dict{Symbol,Any}()
     sizehint!(bound, length(cmd.args) + length(cmd.options) + length(cmd.flags))
 
-    # --model PATH.fmod (or REPL extra_kwargs model) makes <data> optional (C029 / #253):
+    # --model/-M PATH (or REPL extra_kwargs model) makes <data> optional (C029 / #253 / #336):
     # only handle-style --model options (no fixed choices, empty/nothing default) relax <data>.
     has_mod_handle = any(o -> o.name == "model" && (o.default === "" || o.default === nothing) && o.choices === nothing, cmd.options)
-    model_val = get(parsed.options, "model", "")
-    result_val = get(parsed.options, "result", "")
-    model_set = has_extra_model || (has_mod_handle && !isempty(model_val))
-    result_set = !isempty(result_val)
+    model_set = has_extra_model || (has_mod_handle && _option_present_nonempty(parsed, cmd, "model"))
+    result_set = _option_present_nonempty(parsed, cmd, "result")
 
     n_pos = length(parsed.positional)
     for (idx, arg) in enumerate(cmd.args)

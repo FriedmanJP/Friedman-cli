@@ -153,39 +153,63 @@ function dispatch(entry::Entry, args::Vector{String}=ARGS; extra_kwargs...)
 end
 
 """
-    dispatch_node(node, args; prog)
+    _resolve_subcmd(node, tok) → (canonical_name, subcmd_or_nothing)
 
-Walk into a NodeCommand, matching the first token as a subcommand name.
+Resolve a subcommand token through `node.aliases` before looking up `node.subcmds`.
+Always returns the canonical primary name alongside the resolved child (or `nothing`).
 """
-function dispatch_node(node::NodeCommand, args::Vector{String}; prog::String=node.name, extra_kwargs...)
+function _resolve_subcmd(node::NodeCommand, tok::AbstractString)
+    t = String(tok)
+    canon = get(node.aliases, t, t)
+    return canon, get(node.subcmds, canon, nothing)
+end
+
+"""Sorted alias tokens pointing to canonical subcommand `canon` on `node`."""
+function _aliases_for(node::NodeCommand, canon::AbstractString)
+    out = String[]
+    for (al, target) in node.aliases
+        target == canon && push!(out, al)
+    end
+    return sort!(out)
+end
+
+"""
+    dispatch_node(node, args; prog, aliases)
+
+Walk into a NodeCommand, matching the first token as a canonical subcommand or alias.
+"""
+function dispatch_node(node::NodeCommand, args::Vector{String};
+                       prog::String=node.name, aliases::Vector{String}=String[], extra_kwargs...)
     if isempty(args)
-        print_help(stdout, node; prog=prog)
+        print_help(stdout, node; prog=prog, aliases=aliases)
         return
     end
 
     subcmd_name = args[1]
     rest = args[2:end]
 
+    # Resolve aliases BEFORE checking special-cased subcommands like `schema` (Landmine L5)
+    canon, subcmd = _resolve_subcmd(node, subcmd_name)
+
     # schema takes a variable-length command path — dedicated dispatcher (P1-5)
-    if subcmd_name == "schema" && haskey(node.subcmds, "schema")
-        return dispatch_schema(rest; prog=prog * " schema")
+    if canon == "schema" && haskey(node.subcmds, "schema")
+        return dispatch_schema(rest; prog=prog * " schema", aliases=_aliases_for(node, "schema"))
     end
 
-    # If first arg is a known subcommand, recurse into it (carries --help through)
-    # F62: single get() instead of haskey+index pair
-    subcmd = get(node.subcmds, subcmd_name, nothing)
+    # If first arg is a known subcommand or alias, recurse with canonical prog (carries --help through)
     if subcmd !== nothing
-        subprog = prog * " " * subcmd_name
+        subprog = prog * " " * canon
+        sub_aliases = _aliases_for(node, canon)
         if subcmd isa NodeCommand
-            return dispatch_node(subcmd, rest; prog=subprog, extra_kwargs...)
+            return dispatch_node(subcmd, rest; prog=subprog, aliases=sub_aliases, extra_kwargs...)
         else
-            return dispatch_leaf(subcmd, rest; prog=subprog, extra_kwargs...)
+            return dispatch_leaf(subcmd, rest; prog=subprog, aliases=sub_aliases, extra_kwargs...)
         end
     end
 
     # First arg isn't a subcommand — show help if requested, otherwise error
     if _wants_help(args)
-        print_help(stdout, node; prog=prog)
+        print_help(stdout, node; prog=prog, aliases=aliases)
         return
     end
 
@@ -240,10 +264,11 @@ end
 
 Parse arguments for a LeafCommand and call its handler.
 """
-function dispatch_leaf(leaf::LeafCommand, args::Vector{String}; prog::String=leaf.name, extra_kwargs...)
+function dispatch_leaf(leaf::LeafCommand, args::Vector{String};
+                       prog::String=leaf.name, aliases::Vector{String}=String[], extra_kwargs...)
     # Handle --help or no arguments when required args exist
     if _wants_help(args)
-        print_help(stdout, leaf; prog=prog)
+        print_help(stdout, leaf; prog=prog, aliases=aliases)
         return
     end
 
@@ -251,7 +276,7 @@ function dispatch_leaf(leaf::LeafCommand, args::Vector{String}; prog::String=lea
     has_extra_model = haskey(extra_dict, :model) && _slot_set_cli(extra_dict[:model])
 
     if isempty(args) && any(a -> a.required, leaf.args) && !has_extra_model
-        print_help(stdout, leaf; prog=prog)
+        print_help(stdout, leaf; prog=prog, aliases=aliases)
         return
     end
 

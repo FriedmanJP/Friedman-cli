@@ -18398,6 +18398,174 @@ capacity = 1.0
     end
 end
 
+@testset "[ABBREV-W1] coexisting aliases, collision guards, canonical hints & wrapped help (#336, #346)" begin
+    @testset "NodeCommand alias dispatch, canonical envelope command & schema alias (L5)" begin
+        seen_cmd = Ref("")
+        seen_args = Ref{Any}(nothing)
+        leaf = LeafCommand("var", (; data="", lags=1, format="table", output="", kwargs...) -> begin
+            seen_cmd[] = envelope_active() ? _ENVELOPE[].command : ""
+            seen_args[] = (data=data, lags=lags)
+            if envelope_active()
+                add_table!(_ENVELOPE[], :demo, DataFrame(a=[1.0]))
+            end
+            return nothing
+        end;
+            args=[Argument("data"; required=true, description="Data file")],
+            options=[
+                Option("lags"; short="p", type=Int, default=1, description="Lag order"),
+                Option("model"; short="M", type=String, default="", description="Model handle"),
+                Option("result"; short="R", type=String, default="", description="Result handle"),
+                Option("format"; short="f", type=String, default="table", choices=["table", "json", "csv"]),
+                Option("output"; short="o", type=String, default=""),
+            ],
+            description="Estimate VAR")
+        mv = NodeCommand("multivariate", Dict{String,Union{NodeCommand,LeafCommand}}("var" => leaf),
+                         "Multivariate models", Dict("v" => "var"))
+        est = NodeCommand("estimate", Dict{String,Union{NodeCommand,LeafCommand}}("multivariate" => mv),
+                          "Estimate models", Dict("mv" => "multivariate"))
+        root = NodeCommand("frdc", Dict{String,Union{NodeCommand,LeafCommand}}(
+            "estimate" => est,
+            "schema" => register_schema_command!(),
+        ), "Root", Dict("est" => "estimate", "sch" => "schema"))
+        entry = Entry("frdc", root; version=v"1.2.0")
+
+        # Alias dispatch emits canonical envelope command string while preserving raw argv
+        prev_argv = _LAST_ARGV[]
+        _LAST_ARGV[] = ["est", "mv", "v", "x.csv", "-p", "3", "-f", "json"]
+        out = try
+            _capture() do
+                dispatch(entry, ["est", "mv", "v", "x.csv", "-p", "3", "-f", "json"])
+            end
+        finally
+            _LAST_ARGV[] = prev_argv
+        end
+        @test seen_cmd[] == "frdc estimate multivariate var"
+        @test seen_args[] == (data="x.csv", lags=3)
+        doc = JSON3.read(out)
+        @test string(doc.command) == "frdc estimate multivariate var"
+        @test collect(String.(doc.meta.argv)) == ["est", "mv", "v", "x.csv", "-p", "3", "-f", "json"]
+
+        # _resolve_schema_path resolves aliases to canonical path
+        tgt, rpath = _resolve_schema_path(root, ["est", "mv", "v"])
+        @test tgt === leaf
+        @test rpath == ["estimate", "multivariate", "var"]
+
+        # Node and leaf help show aliases cleanly (including alias dispatch --help)
+        hbuf = IOBuffer()
+        print_help(hbuf, root; prog="frdc")
+        ht = String(take!(hbuf))
+        @test occursin("estimate (est)", ht)
+        @test occursin("schema (sch)", ht)
+
+        est_help = _capture() do
+            dispatch(entry, ["est", "--help"])
+        end
+        @test occursin("Aliases: est", est_help)
+        sch_help = _capture() do
+            dispatch(entry, ["sch", "--help"])
+        end
+        @test occursin("Aliases: sch", sch_help)
+    end
+
+    @testset "bind_args -M/-R relaxation, duplicate conflict & canonical did-you-mean (L6 / #346)" begin
+        leaf = LeafCommand("irf", (; kwargs...) -> nothing;
+            args=[Argument("data"; required=true, description="Data file")],
+            options=[
+                Option("lags"; short="p", type=Int, default=2, aliases=["lag"], description="Lag order"),
+                Option("horizons"; short="H", type=Int, default=20, aliases=["horizon", "hor"], description="Horizon"),
+                Option("conf-level"; short="L", type=Float64, default=0.68, aliases=["cl", "ci-level"], description="CI level"),
+                Option("model"; short="M", type=String, default="", description="Model handle"),
+                Option("result"; short="R", type=String, default="", description="Result handle"),
+            ],
+            description="IRF")
+
+        # -M and -R relax required <data> identically to --model and --result
+        b_m = bind_args(tokenize(["-M", "m.jld2"], leaf), leaf)
+        @test b_m.data == "" && b_m.model == "m.jld2"
+        b_r = bind_args(tokenize(["-R", "r.jld2"], leaf), leaf)
+        @test b_r.data == "" && b_r.result == "r.jld2"
+
+        # Conflicting short + long spelling still rejected
+        e_dup = try; bind_args(tokenize(["x.csv", "--lags", "2", "-p", "3"], leaf), leaf); nothing; catch e; e; end
+        @test e_dup isa ParseError && occursin("conflicting options", e_dup.message)
+
+        # Canonical did-you-mean: --t-horizon suggests canonical --horizons, NOT alias --horizon
+        e_hor = try; bind_args(tokenize(["x.csv", "--t-horizon", "10"], leaf), leaf); nothing; catch e; e; end
+        @test e_hor isa ParseError
+        @test occursin("did you mean --horizons?", e_hor.message)
+        @test !occursin("--horizon?", e_hor.message)
+
+        # Short 2-char alias --cl does NOT pollute suggestions for unrelated 2-char typos
+        e_short = try; bind_args(tokenize(["x.csv", "--xy", "1"], leaf), leaf); nothing; catch e; e; end
+        @test e_short isa ParseError
+        @test !occursin("--cl", e_short.message)
+
+        # Real hadsge distribution-irf leaf suggests --horizons (not --horizon) for --t-horizon
+        ha_dist = APP.root.subcmds["hadsge"].subcmds["distribution-irf"]
+        e_ha = try; bind_args(tokenize(["--t-horizon", "10"], ha_dist), ha_dist); nothing; catch e; e; end
+        @test e_ha isa ParseError && occursin("did you mean --horizons?", e_ha.message)
+    end
+
+    @testset "Build-time collision guards (_check_leaf_collisions & _register_node_alias!)" begin
+        # Duplicate short flag on same leaf
+        @test_throws ErrorException _check_leaf_collisions("demo",
+            [Option("lags"; short="p"), Option("periods"; short="p")], Flag[])
+        # Short colliding with single-letter long option (SARIMA --P vs -P)
+        @test_throws ErrorException _check_leaf_collisions("demo",
+            [Option("P"; type=Int, default=0), Option("periods"; short="P")], Flag[])
+        # Duplicate long alias across two options
+        @test_throws ErrorException _check_leaf_collisions("demo",
+            [Option("conf-level"; aliases=["cl"]), Option("clusters"; aliases=["cl"])], Flag[])
+        # Reserved short -h
+        @test_throws ErrorException _check_leaf_collisions("demo",
+            [Option("horizons"; short="h")], Flag[])
+
+        # Node alias guards: sibling primary, duplicate alias, REPL built-in, _PATH_REPLACEMENTS
+        l1 = LeafCommand("a", (; kwargs...) -> nothing)
+        l2 = LeafCommand("b", (; kwargs...) -> nothing)
+        n = NodeCommand("data", Dict{String,Union{NodeCommand,LeafCommand}}("a" => l1, "b" => l2), "Data")
+        @test_throws ErrorException _register_node_alias!(n, "b", "a", ["data"])      # sibling primary
+        @test_throws ErrorException _register_node_alias!(n, "use", "a", ["data"])    # REPL built-in
+        @test_throws ErrorException _register_node_alias!(n, "x", "missing", ["data"]) # missing target
+        _register_node_alias!(n, "al", "a", ["data"])
+        @test_throws ErrorException _register_node_alias!(n, "al", "b", ["data"])     # sibling alias
+
+        # _PATH_REPLACEMENTS guard rejects shadowing removed v0.13 paths (estimate var, estimate reg)
+        est_n = NodeCommand("estimate", Dict{String,Union{NodeCommand,LeafCommand}}(
+            "multivariate" => NodeCommand("multivariate", Dict{String,Union{NodeCommand,LeafCommand}}(), "MV"),
+            "regression"   => NodeCommand("regression", Dict{String,Union{NodeCommand,LeafCommand}}(), "Regr"),
+        ), "Est")
+        @test_throws ErrorException _register_node_alias!(est_n, "var", "multivariate", ["estimate"])
+        @test_throws ErrorException _register_node_alias!(est_n, "reg", "regression", ["estimate"])
+    end
+
+    @testset "Help wrapping <= 100 columns (#346) & additive schema aliases (#336)" begin
+        for (label, target, prog) in (
+            ("root", APP, "frdc"),
+            ("irf var", APP.root.subcmds["irf"].subcmds["var"], "frdc irf var"),
+            ("serve", register_serve_commands!(), "frdc serve"),
+            ("dsge", APP.root.subcmds["dsge"], "frdc dsge"),
+        )
+            buf = IOBuffer()
+            if target isa Entry
+                print_help(buf, target)
+            else
+                print_help(buf, target; prog=prog)
+            end
+            txt = String(take!(buf))
+            max_len = maximum(length, split(txt, '\n'))
+            @test max_len <= 100
+        end
+
+        # Additive aliases metadata in _schema_node, _schema_leaf, and _input_schema x-cli
+        s_leaf = _schema_leaf(APP.root.subcmds["irf"].subcmds["var"], ["irf", "var"]; aliases=["v"])
+        @test s_leaf["aliases"] == ["v"]
+        cl_prop = s_leaf["input_schema"]["properties"]["conf-level"]
+        @test haskey(cl_prop["x-cli"], "aliases")
+        @test "--ci-level" in cl_prop["x-cli"]["aliases"]
+    end
+end
+
 include(joinpath(project_root, "test", "test_handles.jl"))
 include(joinpath(project_root, "test", "test_storage.jl"))
 include(joinpath(project_root, "test", "test_w1_quantile.jl"))

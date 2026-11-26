@@ -134,17 +134,18 @@ function _probe_target_command(args::Vector{String}, stop_idx::Int)
         elseif startswith(tok, "-")
             i += 1
         elseif isdefined(@__MODULE__, :NodeCommand) && node isa NodeCommand
-            if isempty(path) && tok == "schema"
+            canon = hasproperty(node, :aliases) ? get(node.aliases, tok, tok) : tok
+            if isempty(path) && canon == "schema"
                 first_cmd_idx == stop_idx + 1 && (first_cmd_idx = i)
                 push!(path, "schema")
                 return (nothing, path, first_cmd_idx)
             end
-            sub = get(node.subcmds, tok, nothing)
+            sub = get(node.subcmds, canon, nothing)
             if sub === nothing
                 break
             end
             first_cmd_idx == stop_idx + 1 && (first_cmd_idx = i)
-            push!(path, tok)
+            push!(path, canon)
             if isdefined(@__MODULE__, :LeafCommand) && sub isa LeafCommand
                 return (sub, path, first_cmd_idx)
             end

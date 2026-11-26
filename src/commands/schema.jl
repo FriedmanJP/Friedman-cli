@@ -131,6 +131,7 @@ function _input_schema(leaf::LeafCommand, path::Vector{String})
     for o in leaf.options
         xcli = Dict{String,Any}("kind" => "option", "long" => "--" * o.name)
         isempty(o.short) || (xcli["short"] = "-" * o.short)
+        isempty(o.aliases) || (xcli["aliases"] = ["--" * a for a in o.aliases])
         p = Dict{String,Any}("type" => _json_type(o.type), "x-cli" => xcli)
         isempty(o.description) || (p["description"] = o.description)
         (o.default === nothing || (o.default isa AbstractFloat && !isfinite(o.default))) ||
@@ -155,6 +156,7 @@ function _input_schema(leaf::LeafCommand, path::Vector{String})
     for f in leaf.flags
         xcli = Dict{String,Any}("kind" => "flag", "long" => "--" * f.name)
         isempty(f.short) || (xcli["short"] = "-" * f.short)
+        isempty(f.aliases) || (xcli["aliases"] = ["--" * a for a in f.aliases])
         p = Dict{String,Any}("type" => "boolean", "default" => false, "x-cli" => xcli)
         isempty(f.description) || (p["description"] = f.description)
         props[f.name] = p
@@ -260,6 +262,7 @@ function _schema_opt(o::Option)
     return Dict{String,Any}(
         "name" => o.name,
         "short" => o.short,
+        "aliases" => o.aliases,
         "type" => _type_str(o.type),
         "default" => _default_json(o.default),
         "choices" => o.choices,
@@ -271,15 +274,17 @@ function _schema_flag(f::Flag)
     return Dict{String,Any}(
         "name" => f.name,
         "short" => f.short,
+        "aliases" => f.aliases,
         "description" => f.description,
     )
 end
 
-function _schema_leaf(leaf::LeafCommand, path::Vector{String})
+function _schema_leaf(leaf::LeafCommand, path::Vector{String}; aliases::Vector{String}=String[])
     spec = _spec_for_path(path)
     return Dict{String,Any}(
         "path" => path,
         "name" => leaf.name,
+        "aliases" => aliases,
         "description" => leaf.description,
         "args" => [_schema_arg(a) for a in leaf.args],
         "options" => [_schema_opt(o) for o in leaf.options],
@@ -314,29 +319,35 @@ function _schema_families(node::NodeCommand, path::Vector{String})
             for fam in sort!(collect(keys(groups)))]
 end
 
-function _schema_node(node::NodeCommand, path::Vector{String})
+function _schema_node(node::NodeCommand, path::Vector{String}; aliases::Vector{String}=String[])
     cmds = Any[]
     for name in sort!(collect(keys(node.subcmds)))
         sub = node.subcmds[name]
         sp = vcat(path, [name])
+        sub_als = _aliases_for(node, name)
         if sub isa LeafCommand
-            push!(cmds, Dict{String,Any}(
+            entry = Dict{String,Any}(
                 "name" => name,
                 "kind" => "leaf",
                 "description" => sub.description,
-            ))
+            )
+            isempty(sub_als) || (entry["aliases"] = sub_als)
+            push!(cmds, entry)
         else
-            push!(cmds, Dict{String,Any}(
+            entry = Dict{String,Any}(
                 "name" => name,
                 "kind" => "node",
                 "description" => sub.description,
-                "commands" => _schema_node(sub, sp)["commands"],
-            ))
+                "commands" => _schema_node(sub, sp; aliases=sub_als)["commands"],
+            )
+            isempty(sub_als) || (entry["aliases"] = sub_als)
+            push!(cmds, entry)
         end
     end
     doc = Dict{String,Any}(
         "name" => node.name,
         "path" => path,
+        "aliases" => aliases,
         "description" => node.description,
         "commands" => cmds,
         "families" => _schema_families(node, path),
@@ -348,19 +359,30 @@ function _schema_node(node::NodeCommand, path::Vector{String})
     return doc
 end
 
+function _aliases_at_path(root::NodeCommand, path::Vector{String})::Vector{String}
+    isempty(path) && return String[]
+    node = root
+    for i in 1:(length(path) - 1)
+        sub = get(node.subcmds, path[i], nothing)
+        sub isa NodeCommand || return String[]
+        node = sub
+    end
+    return _aliases_for(node, path[end])
+end
+
 function _resolve_schema_path(root::NodeCommand, parts::Vector{String})
     isempty(parts) && return root, String[]
     node = root
     path = String[]
     for (i, p) in enumerate(parts)
-        haskey(node.subcmds, p) || throw(CliError("usage/unknown-command",
+        canon, sub = _resolve_subcmd(node, p)
+        sub !== nothing || throw(CliError("usage/unknown-command",
             _unknown_command_message(
                 join(vcat(["frdc"], path), " "), p, parts[i+1:end])))
-        sub = node.subcmds[p]
-        push!(path, p)
+        push!(path, canon)
         if sub isa LeafCommand
             i < length(parts) && throw(CliError("usage/unknown-command",
-                "schema: '$p' is a leaf; extra path $(join(parts[i+1:end], " "))"))
+                "schema: '$canon' is a leaf; extra path $(join(parts[i+1:end], " "))"))
             return sub, path
         end
         node = sub
@@ -372,10 +394,11 @@ function _schema_cmd(; path_parts::Vector{String}=String[], format::String="json
                        output::String="", docs::Bool=false, kwargs...)
     # path_parts injected by dispatch_schema (all positional tokens after `schema`)
     target, resolved = _resolve_schema_path(APP.root, path_parts)
+    als = _aliases_at_path(APP.root, resolved)
     doc = if target isa LeafCommand
-        _schema_leaf(target, resolved)
+        _schema_leaf(target, resolved; aliases=als)
     else
-        _schema_node(target, resolved)
+        _schema_node(target, resolved; aliases=als)
     end
     # --docs: embed the agent guide verbatim (root or any command path)
     docs && (doc["docs"] = _AGENT_GUIDE_MD)
@@ -395,10 +418,10 @@ function _schema_cmd(; path_parts::Vector{String}=String[], format::String="json
 end
 
 """Dispatch `schema [path…] [--docs] [--output=…]` without fixed arity (path is varargs)."""
-function dispatch_schema(args::Vector{String}; prog::String="frdc schema")
+function dispatch_schema(args::Vector{String}; prog::String="frdc schema", aliases::Vector{String}=String[])
     leaf = register_schema_command!()
     if _wants_help(args)
-        print_help(stdout, leaf; prog=prog)
+        print_help(stdout, leaf; prog=prog, aliases=aliases)
         return
     end
     # Split path tokens from options. FLAGS never consume the next token —

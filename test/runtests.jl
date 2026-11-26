@@ -4931,7 +4931,7 @@ end
     irf_buf = IOBuffer()
     print_help(irf_buf, app.root.subcmds["irf"].subcmds["var"]; prog="frdc irf var")
     irf_ht = String(take!(irf_buf))
-    @test occursin("optional when --model or --result", irf_ht)
+    @test occursin("optional when --model or --result", replace(irf_ht, r"\s+" => " "))
 
     # 4. Missing-option / invalid-choice checks throw typed CliError (exit_class == 2) (#256)
     err_dv = try; _data_validate(; data="x.csv", model=""); nothing; catch e; e; end

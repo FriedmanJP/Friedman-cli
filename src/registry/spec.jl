@@ -56,6 +56,8 @@ Base.@kwdef struct CommandSpec
     # #199: help / schema / MCP grouping. Empty only for serve, show, completions, model.
     # Not a path segment until #202 promotes depth-2 leaves (family "other" stays flat).
     family::String = ""
+    # #336: coexisting shorthand aliases for the leaf's final path segment
+    aliases::Vector{String} = String[]
 end
 
 """
@@ -167,6 +169,7 @@ function _copy_spec(s::CommandSpec; kwargs...)
         result_types = get(kwargs, :result_types, s.result_types),
         allow_data_with_model = get(kwargs, :allow_data_with_model, s.allow_data_with_model),
         family       = get(kwargs, :family, s.family),
+        aliases      = get(kwargs, :aliases, s.aliases),
     )
 end
 

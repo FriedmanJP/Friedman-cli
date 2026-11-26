@@ -18,6 +18,103 @@ function _check_reserved(kind::String, name::String, short::String)
     return nothing
 end
 
+# REPL built-ins that must never be shadowed by a command alias at their parent node (#336)
+const _REPL_BUILTIN_NAMES = Dict{Vector{String},Tuple{Vararg{String}}}(
+    String[] => ("repl", "exit", "quit"),
+    ["data"] => ("use", "current", "clear"),
+)
+
+"""Build-time intra-leaf collision guard (#336): reject any duplicate token across
+option/flag primary names, shorts, and aliases, including any short `-x` colliding
+with a single-letter long option `--x` (e.g. SARIMA `--P`/`--Q`/`--s`, DSGE `--z`)."""
+function _check_leaf_collisions(path_str::String, options::Vector{Option}, flags::Vector{Flag})
+    seen = Dict{String,String}()
+    single_letter_longs = Set{String}()
+    for o in options
+        ncodeunits(o.name) == 1 && push!(single_letter_longs, o.name)
+    end
+    for f in flags
+        ncodeunits(f.name) == 1 && push!(single_letter_longs, f.name)
+    end
+    function _claim!(tok::String, who::String; is_short::Bool=false, owner_name::String="")
+        isempty(tok) && return
+        if is_short && tok in single_letter_longs && tok != owner_name
+            error("registry: leaf '$path_str': $who collides with single-letter long option '--$tok'")
+        end
+        if haskey(seen, tok)
+            error("registry: leaf '$path_str': $who collides with $(seen[tok]) on token '$tok'")
+        end
+        seen[tok] = who
+    end
+    for o in options
+        _check_reserved("option", o.name, o.short)
+        _claim!(o.name, "option '--$(o.name)'")
+        isempty(o.short) || _claim!(o.short, "short '-$(o.short)' of option '--$(o.name)'";
+                                    is_short=true, owner_name=o.name)
+        for a in o.aliases
+            _check_reserved("option", a, "")
+            _claim!(a, "alias '--$a' of option '--$(o.name)'")
+        end
+    end
+    for f in flags
+        _check_reserved("flag", f.name, f.short)
+        _claim!(f.name, "flag '--$(f.name)'")
+        isempty(f.short) || _claim!(f.short, "short '-$(f.short)' of flag '--$(f.name)'";
+                                    is_short=true, owner_name=f.name)
+        for a in f.aliases
+            _check_reserved("flag", a, "")
+            _claim!(a, "alias '--$a' of flag '--$(f.name)'")
+        end
+    end
+    return nothing
+end
+
+"""Register a single coexisting alias `alias => target` on `node`, enforcing hard
+build-time collision guards against sibling primaries, sibling aliases, REPL built-ins,
+and removed-path entries in `_PATH_REPLACEMENTS` (#336)."""
+function _register_node_alias!(node::NodeCommand, alias::String, target::String,
+                               path_prefix::Vector{String})
+    ctx_path = isempty(path_prefix) ? "root" : join(path_prefix, " ")
+    isempty(alias) && error("registry: empty alias for '$target' under '$ctx_path'")
+    haskey(node.subcmds, target) || error(
+        "registry: alias '$alias' under '$ctx_path' points to unknown subcommand '$target'")
+    alias == target && error(
+        "registry: alias '$alias' under '$ctx_path' equals its own canonical target '$target'")
+    haskey(node.subcmds, alias) && error(
+        "registry: alias '$alias' (for '$target') under '$ctx_path' collides with sibling subcommand '$alias'")
+    if haskey(node.aliases, alias)
+        prev = node.aliases[alias]
+        prev == target && return node
+        error("registry: alias '$alias' under '$ctx_path' collides: claimed by both '$prev' and '$target'")
+    end
+    if alias in get(_REPL_BUILTIN_NAMES, path_prefix, ())
+        error("registry: alias '$alias' (for '$target') under '$ctx_path' collides with REPL built-in '$alias'")
+    end
+    if isdefined(@__MODULE__, :_PATH_REPLACEMENTS)
+        cand = vcat(path_prefix, [alias])
+        for old in keys(_PATH_REPLACEMENTS)
+            if length(old) >= length(cand) && old[1:length(cand)] == cand
+                error("registry: alias '$alias' (for '$target') under '$ctx_path' collides with " *
+                      "_PATH_REPLACEMENTS entry $(join(old, " ")) -> $(join(_PATH_REPLACEMENTS[old], " "))")
+            end
+        end
+    end
+    node.aliases[alias] = target
+    return node
+end
+
+"""Attach a `target => aliases` map to `node` through `_register_node_alias!`."""
+function _attach_node_aliases!(node::NodeCommand, target_to_aliases::AbstractDict{String,Vector{String}},
+                               path_prefix::Vector{String})
+    for (target, als) in target_to_aliases
+        haskey(node.subcmds, target) || continue
+        for al in als
+            _register_node_alias!(node, al, target, path_prefix)
+        end
+    end
+    return node
+end
+
 function _to_argument(a::ArgSpec)
     return Argument(a.name; type=a.type, required=a.required,
                     default=a.default, description=a.description)
@@ -388,6 +485,7 @@ function to_leaf(spec::CommandSpec)
         for f in spec.flags
     )
     cmd_str = join(spec.path, " ")
+    _check_leaf_collisions(cmd_str, options, flags)
     handler = spec.handler
 
     function wrapper(; kwargs...)
@@ -434,6 +532,7 @@ Supports depth-2 (`["estimate","var"]`) and depth-3 (`["dsge","bayes","irf"]`) p
 """
 function build_node(name::String, specs::Vector{CommandSpec}; description::String="")
     subcmds = Dict{String,Union{NodeCommand,LeafCommand}}()
+    direct_aliases = Tuple{String,String}[]
     # Group depth-3 specs by middle segment
     nested = Dict{String,Vector{CommandSpec}}()
     for spec in specs
@@ -442,6 +541,9 @@ function build_node(name::String, specs::Vector{CommandSpec}; description::Strin
         if length(spec.path) == 2
             leaf = to_leaf(spec)
             _register_leaf!(subcmds, spec.path[2], leaf)
+            for al in spec.aliases
+                push!(direct_aliases, (al, spec.path[2]))
+            end
         elseif length(spec.path) == 3
             mid = spec.path[2]
             push!(get!(nested, mid, CommandSpec[]), spec)
@@ -452,14 +554,43 @@ function build_node(name::String, specs::Vector{CommandSpec}; description::Strin
     for (mid, nspecs) in nested
         # child leaves: path[3] becomes leaf name under mid node
         child_cmds = Dict{String,Union{NodeCommand,LeafCommand}}()
+        child_aliases = Tuple{String,String}[]
         for spec in nspecs
             leaf = to_leaf(spec)
             _register_leaf!(child_cmds, spec.path[3], leaf)
+            for al in spec.aliases
+                push!(child_aliases, (al, spec.path[3]))
+            end
         end
-        subcmds[mid] = NodeCommand(
+        child_node = NodeCommand(
             mid, child_cmds,
             isdefined(@__MODULE__, :_node_description) ? _node_description(name, mid) : mid,
         )
+        for (al, target) in child_aliases
+            _register_node_alias!(child_node, al, target, [name, mid])
+        end
+        if isdefined(@__MODULE__, :_LEAF_ALIASES)
+            for (leaf_name, _) in child_cmds
+                als = get(_LEAF_ALIASES, (name, mid, leaf_name),
+                          get(_LEAF_ALIASES, ("*", "*", leaf_name), String[]))
+                for al in als
+                    _register_node_alias!(child_node, al, leaf_name, [name, mid])
+                end
+            end
+        end
+        subcmds[mid] = child_node
     end
-    return NodeCommand(name, subcmds, description)
+    node = NodeCommand(name, subcmds, description)
+    for (al, target) in direct_aliases
+        _register_node_alias!(node, al, target, [name])
+    end
+    if isdefined(@__MODULE__, :_FAMILY_ALIASES)
+        for (sub_name, _) in subcmds
+            als = get(_FAMILY_ALIASES, (name, sub_name), String[])
+            for al in als
+                _register_node_alias!(node, al, sub_name, [name])
+            end
+        end
+    end
+    return node
 end

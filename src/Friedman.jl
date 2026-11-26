@@ -130,6 +130,9 @@ function build_app()
 
     root = NodeCommand("frdc", root_cmds,
         "A macroeconometric analysis toolkit powered by MacroEconometricModels.jl")
+    if isdefined(@__MODULE__, :_TOP_ALIASES)
+        _attach_node_aliases!(root, _TOP_ALIASES, String[])
+    end
 
     return Entry("frdc", root; version=FRIEDMAN_VERSION)
 end
@@ -175,11 +178,15 @@ function _net_command(args::Vector{String})
     path = String["frdc"]
     for tok in args
         startswith(tok, "-") && continue
-        if node isa NodeCommand && haskey(node.subcmds, tok)
-            push!(path, tok)
-            sub = node.subcmds[tok]
-            sub isa LeafCommand && break
-            node = sub
+        if node isa NodeCommand
+            canon, sub = _resolve_subcmd(node, tok)
+            if sub !== nothing
+                push!(path, canon)
+                sub isa LeafCommand && break
+                node = sub
+            else
+                break
+            end
         else
             break
         end

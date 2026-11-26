@@ -156,18 +156,26 @@ LeafCommand(name::String, handler::Function;
     LeafCommand(name, handler, args, options, flags, description, family)
 
 """
-    NodeCommand(name, subcmds, description)
+    NodeCommand(name, subcmds, description[, aliases])
 
-A command group that dispatches to subcommands.
+A command group that dispatches to subcommands. `subcmds` holds canonical primary
+names only; `aliases` maps coexisting shorthand tokens to canonical keys in `subcmds`.
 """
 struct NodeCommand
     name::String
     subcmds::Dict{String,Union{NodeCommand,LeafCommand}}
     description::String
+    aliases::Dict{String,String}
 end
 
-NodeCommand(name::String; subcmds::Dict{String,Union{NodeCommand,LeafCommand}}=Dict{String,Union{NodeCommand,LeafCommand}}(), description::String="") =
-    NodeCommand(name, subcmds, description)
+NodeCommand(name::String, subcmds::Dict{String,Union{NodeCommand,LeafCommand}}, description::String) =
+    NodeCommand(name, subcmds, description, Dict{String,String}())
+
+NodeCommand(name::String;
+            subcmds::Dict{String,Union{NodeCommand,LeafCommand}}=Dict{String,Union{NodeCommand,LeafCommand}}(),
+            description::String="",
+            aliases::Dict{String,String}=Dict{String,String}()) =
+    NodeCommand(name, subcmds, description, aliases)
 
 """
     Entry(name, root, version)

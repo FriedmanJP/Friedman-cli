@@ -18,6 +18,90 @@
 
 const INDENT = "  "
 const COL_WIDTH = 24
+const HELP_MAX_WIDTH = 100
+
+"""Target wrap width for help prose (#346): deterministic 100 columns on non-TTY/cache,
+capped at 100 (floor 60) on narrow interactive TTYs."""
+function _help_width(io::IO)::Int
+    if io isa Base.TTY
+        cols = try displaysize(io)[2] catch; HELP_MAX_WIDTH end
+        return min(max(60, cols), HELP_MAX_WIDTH)
+    end
+    return HELP_MAX_WIDTH
+end
+
+"""Split an overlong whitespace-free pipe-list token cleanly AFTER `|` characters so
+no individual choice name is ever broken mid-token."""
+function _split_pipe_token(tok::AbstractString, width::Int)::Vector{String}
+    parts = split(tok, '|')
+    out = String[]
+    cur = ""
+    for (idx, part) in enumerate(parts)
+        seg = idx < length(parts) ? string(part, "|") : string(part)
+        if isempty(cur)
+            cur = seg
+        elseif length(cur) + length(seg) <= width
+            cur *= seg
+        else
+            push!(out, cur)
+            cur = seg
+        end
+    end
+    isempty(cur) || push!(out, cur)
+    return out
+end
+
+"""Word-wrap `text` to at most `width` display columns, preserving explicit newlines and
+never splitting choice names mid-token (#346)."""
+function _wrap_text(text::AbstractString, width::Int)::Vector{String}
+    lines = String[]
+    for para in split(String(text), '\n')
+        if isempty(para)
+            push!(lines, "")
+            continue
+        end
+        if length(para) <= width
+            push!(lines, String(para))
+            continue
+        end
+        cur = ""
+        for raw_word in split(para)
+            w = String(raw_word)
+            if length(w) > width && contains(w, '|')
+                sub_parts = _split_pipe_token(w, width)
+                for sp in sub_parts
+                    if isempty(cur)
+                        cur = sp
+                    elseif length(cur) + 1 + length(sp) <= width
+                        cur = cur * " " * sp
+                    else
+                        push!(lines, cur)
+                        cur = sp
+                    end
+                end
+            elseif isempty(cur)
+                cur = w
+            elseif length(cur) + 1 + length(w) <= width
+                cur = cur * " " * w
+            else
+                push!(lines, cur)
+                cur = w
+            end
+        end
+        isempty(cur) || push!(lines, cur)
+    end
+    return isempty(lines) ? String[""] : lines
+end
+
+function _subcmd_label(node::NodeCommand, name::String)::String
+    als = String[]
+    for (al, target) in node.aliases
+        target == name && push!(als, al)
+    end
+    isempty(als) && return name
+    sort!(als)
+    return "$name ($(join(als, ", ")))"
+end
 
 _has_printable_default(d) = d !== nothing &&
     !(d isa AbstractString && isempty(d)) &&
@@ -78,7 +162,10 @@ end
 
 Print help for a NodeCommand (command group).
 """
-function print_help(io::IO, node::NodeCommand; prog::String=node.name, version::Union{VersionNumber,Nothing}=nothing)
+function print_help(io::IO, node::NodeCommand; prog::String=node.name,
+                    version::Union{VersionNumber,Nothing}=nothing,
+                    aliases::Vector{String}=String[])
+    w = _help_width(io)
     # Header
     if !isnothing(version)
         printstyled(io, prog, " v", version, "\n"; bold=true)
@@ -87,7 +174,13 @@ function print_help(io::IO, node::NodeCommand; prog::String=node.name, version::
     end
     if !isempty(node.description)
         println(io)
-        println(io, node.description)
+        for ln in _wrap_text(node.description, w)
+            println(io, ln)
+        end
+    end
+    if !isempty(aliases)
+        println(io)
+        println(io, "Aliases: ", join(aliases, ", "))
     end
 
     # Usage
@@ -112,14 +205,14 @@ function print_help(io::IO, node::NodeCommand; prog::String=node.name, version::
         println(io)
         printstyled(io, "Commands:\n"; bold=true, color=:yellow)
         for name in sort!(collect(keys(node.subcmds)))
-            print_entry_line(io, name, node.subcmds[name].description)
+            print_entry_line(io, _subcmd_label(node, name), node.subcmds[name].description)
         end
     else
         if !isempty(nodes)
             println(io)
             printstyled(io, "Commands:\n"; bold=true, color=:yellow)
             for (name, cmd) in nodes
-                print_entry_line(io, name, cmd.description)
+                print_entry_line(io, _subcmd_label(node, name), cmd.description)
             end
         end
         if !isempty(leaves)
@@ -128,7 +221,7 @@ function print_help(io::IO, node::NodeCommand; prog::String=node.name, version::
                 println(io)
                 printstyled(io, "Commands:\n"; bold=true, color=:yellow)
                 for (name, cmd) in leaves
-                    print_entry_line(io, name, cmd.description)
+                    print_entry_line(io, _subcmd_label(node, name), cmd.description)
                 end
             else
                 fams = Dict{String,Vector{Pair{String,LeafCommand}}}()
@@ -140,7 +233,7 @@ function print_help(io::IO, node::NodeCommand; prog::String=node.name, version::
                     label = isempty(fam) ? "Commands" : fam
                     printstyled(io, label, ":\n"; bold=true, color=:yellow)
                     for (name, cmd) in fams[fam]
-                        print_entry_line(io, name, cmd.description)
+                        print_entry_line(io, _subcmd_label(node, name), cmd.description)
                     end
                 end
             end
@@ -153,16 +246,24 @@ function print_help(io::IO, node::NodeCommand; prog::String=node.name, version::
 end
 
 """
-    print_help(io, leaf; prog)
+    print_help(io, leaf; prog, aliases)
 
 Print help for a LeafCommand (terminal command).
 """
-function print_help(io::IO, leaf::LeafCommand; prog::String=leaf.name)
+function print_help(io::IO, leaf::LeafCommand; prog::String=leaf.name,
+                    aliases::Vector{String}=String[])
+    w = _help_width(io)
     # Header
     printstyled(io, prog, "\n"; bold=true)
     if !isempty(leaf.description)
         println(io)
-        println(io, leaf.description)
+        for ln in _wrap_text(leaf.description, w)
+            println(io, ln)
+        end
+    end
+    if !isempty(aliases)
+        println(io)
+        println(io, "Aliases: ", join(aliases, ", "))
     end
     if !isempty(leaf.family)
         println(io)
@@ -224,6 +325,9 @@ function print_help(io::IO, leaf::LeafCommand; prog::String=leaf.name)
             if _has_printable_default(opt.default) && !_desc_mentions_default(desc)
                 desc *= " (default: $(opt.default))"
             end
+            if !isempty(opt.aliases)
+                desc *= " [aliases: $(join(["--" * a for a in opt.aliases], ", "))]"
+            end
             print_entry_line(io, label, desc)
         end
     end
@@ -234,7 +338,11 @@ function print_help(io::IO, leaf::LeafCommand; prog::String=leaf.name)
         printstyled(io, "Flags:\n"; bold=true, color=:yellow)
         for flag in leaf.flags
             label = isempty(flag.short) ? "--$(flag.name)" : "-$(flag.short), --$(flag.name)"
-            print_entry_line(io, label, flag.description)
+            desc = flag.description
+            if !isempty(flag.aliases)
+                desc *= " [aliases: $(join(["--" * a for a in flag.aliases], ", "))]"
+            end
+            print_entry_line(io, label, desc)
         end
     end
 end
@@ -242,18 +350,25 @@ end
 """
     print_entry_line(io, label, description)
 
-Print a single help entry: `  label    description` with column alignment.
+Print a single help entry: `  label    description` with column alignment and
+hanging-indent word wrapping at `_help_width(io)` (≤ 100 cols) (#346).
 """
 function print_entry_line(io::IO, label::String, description::String)
+    cont_indent = INDENT * " "^COL_WIDTH
+    desc_width = max(30, _help_width(io) - length(cont_indent))
+    wrapped = _wrap_text(description, desc_width)
     print(io, INDENT)
     printstyled(io, label; color=:green)
-    if length(label) >= COL_WIDTH
-        # Label too long — wrap description to next line
+    if length(label) >= COL_WIDTH - 1
+        # Label too long (would leave <2 spaces before COL_WIDTH) — wrap description to next line
         println(io)
-        print(io, INDENT, " "^COL_WIDTH)
+        print(io, cont_indent)
     else
-        padding = max(2, COL_WIDTH - length(label))
+        padding = COL_WIDTH - length(label)
         print(io, " "^padding)
     end
-    println(io, description)
+    println(io, wrapped[1])
+    for i in 2:length(wrapped)
+        println(io, cont_indent, wrapped[i])
+    end
 end
