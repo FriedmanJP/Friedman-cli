@@ -16981,6 +16981,258 @@ end
     end
 end
 
+@testset "[DISPLAY-W4] lossless dsge, io, policy & show alignment (#326)" begin
+    mktempdir() do dir
+        # 1. IO: _io_matrix_df, io load (numeric total_output), io leontief (JSON/CSV full Float64 vs :table 3-dec)
+        @testset "io.jl lossless precision & 3-decimal table display" begin
+            M_raw = [1.1234567891 0.2345678912; 0.3456789123 1.4567891234]
+            mdf = _io_matrix_df(M_raw, ["s1", "s2"])
+            @test mdf[1, :s1] === 1.1234567891
+            @test mdf[2, :s2] === 1.4567891234
+
+            # 2-sector IO CSV with non-terminating Leontief entries & high-precision gross output
+            io_csv = joinpath(dir, "io_hi.csv")
+            write(io_csv,
+                "3.123456789,2.234567891,5.345678912\n" *
+                "1.456789123,2.567891234,7.678912345\n")
+            doc_load = _run_leaf(["io", "load", "--data", io_csv, "--n-sectors", "2", "--n-fd", "1", "--sectors", "s1,s2"])
+            @test string(doc_load.status) == "ok"
+            @test isempty(validate_envelope_json(JSON3.write(doc_load)))
+            sum_rows = Dict(String(r[1]) => r[2] for r in doc_load.data.io_table_summary.rows)
+            @test sum_rows["total_output"] isa Number
+            @test !(sum_rows["total_output"] isa AbstractString)
+            tot_val = Float64(sum_rows["total_output"])
+            @test abs(tot_val - round(tot_val; digits=4)) > 1e-8
+            sec_tbl = doc_load.data.sectors
+            go_idx = findfirst(==("gross_output"), String.(sec_tbl.columns))
+            go1 = Float64(sec_tbl.rows[1][go_idx])
+            @test abs(go1 - round(go1; digits=6)) > 1e-10
+
+            tbl_load = _capture() do
+                _dispatch_via_app(["io", "load", "--data", io_csv, "--n-sectors", "2", "--n-fd", "1", "--sectors", "s1,s2", "--format", "table"])
+            end
+            @test occursin(_format_display_float(tot_val, 3), tbl_load)
+            @test !occursin(string(tot_val), tbl_load)
+
+            doc_leo = _run_leaf(["io", "leontief", "--data", io_csv, "--n-sectors", "2", "--n-fd", "1", "--sectors", "s1,s2"])
+            @test string(doc_leo.status) == "ok"
+            leo_tbl = doc_leo.data.leontief_inverse_l
+            l11 = Float64(leo_tbl.rows[1][2])
+            @test abs(l11 - round(l11; digits=6)) > 1e-10
+            csv_leo = _capture() do
+                _dispatch_via_app(["io", "leontief", "--data", io_csv, "--n-sectors", "2", "--n-fd", "1", "--sectors", "s1,s2", "--format", "csv"])
+            end
+            @test occursin(string(l11), csv_leo)
+            tbl_leo = _capture() do
+                _dispatch_via_app(["io", "leontief", "--data", io_csv, "--n-sectors", "2", "--n-fd", "1", "--sectors", "s1,s2", "--format", "table"])
+            end
+            @test occursin(_format_display_float(l11, 3), tbl_leo)
+            @test !occursin(string(l11), tbl_leo)
+        end
+
+        # 2. DSGE: moments, estimate, bayes summary/identification/posterior-mode lossless in JSON/CSV, 3-dec in :table
+        @testset "dsge.jl lossless precision & 3-decimal table display" begin
+            model = joinpath(dir, "ar2_w4.toml")
+            write(model, """
+            [model]
+            parameters = { rho = 0.85, sigma = 0.02 }
+            endogenous = ["y", "c"]
+            exogenous = ["e"]
+            [[model.equations]]
+            expr = "y[t] = rho * y[t-1] + sigma * e[t]"
+            [[model.equations]]
+            expr = "c[t] = 0.8 * y[t]"
+            """)
+            doc_mom = _run_leaf(["dsge", "moments", model, "--order", "2", "--lags", "1"])
+            @test string(doc_mom.status) == "ok"
+            @test isempty(validate_envelope_json(JSON3.write(doc_mom)))
+            mtbl = doc_mom.data.dsge_theoretical_moments
+            sd_idx = findfirst(==("std_dev"), String.(mtbl.columns))
+            sd1 = Float64(mtbl.rows[1][sd_idx])
+            # Previously rounded to digits=8; must now carry full Float64 precision
+            @test abs(sd1 - round(sd1; digits=8)) > 1e-12
+            csv_mom = _capture() do
+                _dispatch_via_app(["dsge", "moments", model, "--order", "2", "--lags", "1", "--format", "csv"])
+            end
+            @test occursin(string(sd1), csv_mom)
+            tbl_mom = _capture() do
+                _dispatch_via_app(["dsge", "moments", model, "--order", "2", "--lags", "1", "--format", "table"])
+            end
+            @test occursin(_format_display_float(sd1, 3), tbl_mom)
+            @test !occursin(string(sd1), tbl_mom)
+
+            # Variance-covariance correlation is also irrational (1/sqrt(1.1*1.2)*0.1)
+            ctbl = doc_mom.data.variance_covariance
+            corr_idx = findfirst(==("correlation"), String.(ctbl.columns))
+            off_diag = [Float64(r[corr_idx]) for r in ctbl.rows if String(r[1]) != String(r[2])]
+            @test !isempty(off_diag)
+            @test abs(off_diag[1] - round(off_diag[1]; digits=8)) > 1e-12
+
+            # Bayesian DSGE posterior mode & identification (unrounded Float64)
+            priors = joinpath(dir, "priors_w4.toml")
+            write(priors, """
+            [priors]
+            [priors.rho]
+            dist = "beta"
+            a = 0.5
+            b = 0.2
+            [priors.sigma]
+            dist = "inv_gamma"
+            a = 2.0
+            b = 0.1
+            """)
+            obs_csv = joinpath(dir, "obs_w4.csv")
+            CSV.write(obs_csv, DataFrame(y=[0.02 * sin(0.3 * t) for t in 1:40]))
+            doc_pm = _run_leaf(["dsge", "bayes", "posterior-mode", model,
+                                "--data", obs_csv, "--params", "rho,sigma",
+                                "--priors", priors, "--observables", "y"])
+            @test string(doc_pm.status) == "ok"
+            @test isempty(validate_envelope_json(JSON3.write(doc_pm)))
+            pm_diag = Dict(String(r[1]) => r[2] for r in doc_pm.data.posterior_mode_diagnostics.rows)
+            @test pm_diag["log posterior"] isa Number
+            @test pm_diag["Laplace log ML"] isa Number
+        end
+
+        # 3. Policy: lossless DataFrames/kv, freq_band full precision, OPP band column names preserved
+        @testset "policy.jl lossless precision, freq_band & OPP band names" begin
+            ce_syn = (
+                outcomes = [:infl],
+                instruments = [:rate],
+                shock_labels = ["mp"],
+                H = 1,
+                Theta_x = [fill(0.123456789123, 1, 1)],
+                Theta_z = [fill(0.987654321987, 1, 1)],
+            )
+            eff_df = _policy_effects_table(ce_syn)
+            @test eff_df.value[1] === 0.123456789123
+            @test eff_df.value[2] === 0.987654321987
+
+            # Moments renderer with business-cycle freq_band and high-precision floats
+            fb = (2π / 32, 2π / 6)
+            mom_syn = (
+                varnames = [:infl, :rate],
+                sd_base = [1.1234567891, 0.9876543219],
+                sd_cf = [0.6543219876, 0.1111111111],
+                sd_cf_bands = [0.6012345678 0.7098765432; 0.1012345678 0.1298765432],
+                corr_base = [1.0 0.3141592653; 0.3141592653 1.0],
+                corr_cf = [1.0 -0.2718281828; -0.2718281828 1.0],
+                policy_name = "rate-peg",
+                H = 12,
+                tail_share = 0.001234567891,
+                freq_band = fb,
+            )
+            env_m = Envelope(command="frdc policy moments var")
+            _ENVELOPE[] = env_m
+            try
+                _render_policy_moments(mom_syn; format="json")
+            finally
+                _ENVELOPE[] = nothing
+            end
+            jdoc_m = JSON3.read(sprint(io -> render(env_m, :json, io)))
+            @test jdoc_m.data.counterfactual_standard_deviations.rows[1][2] === 1.1234567891
+            @test jdoc_m.data.counterfactual_standard_deviations.rows[1][4] === 0.6012345678
+            @test jdoc_m.data.counterfactual_correlations.rows[1][3] === 0.3141592653
+            ms_map = Dict(String(r[1]) => r[2] for r in jdoc_m.data.moments_summary.rows)
+            tail_k = first(k for k in keys(ms_map) if startswith(k, "tail_share"))
+            @test Float64(ms_map[tail_k]) === 0.001234567891
+            @test String(ms_map["freq_band"]) == "$(Float64(fb[1])):$(Float64(fb[2]))"
+            @test !occursin("0.1963:1.0472", String(ms_map["freq_band"]))
+
+            tstr_m = sprint(io -> render(env_m, :table, io))
+            @test occursin("1.123", tstr_m)
+            @test !occursin("1.1234567891", tstr_m)
+
+            # OPP renderer: preserve lo60/hi60/lo90/hi90/reject60/reject90 names + lossless Float64 values
+            opp_syn = (
+                shock_labels = ["mp"],
+                delta = [0.123456789123],
+                delta_plugin = [0.123456789000],
+                gradient = [-0.456789123456],
+                bands = Dict(0.6 => [0.1111111111 0.2222222222], 0.9 => [0.0555555555 0.3333333333]),
+                reject = Dict(0.6 => [true], 0.9 => [false]),
+                outcomes = [:infl],
+                instruments = [:rate],
+                H = 1,
+                Y_base = [[0.7777777777]],
+                Y_opp = [[0.6666666666]],
+                P_base = [[2.3456789123]],
+                P_opp = [[2.1234567891]],
+                loss_base = 1.987654321987,
+                loss_opp = 1.234567891234,
+                origin = "2026Q1",
+                n_failed = 0,
+            )
+            nt_syn = (method_used = :slsqp, binding = [true], kkt_residual = 1.23456789123e-9, warm_start_feasible = true)
+            env_o = Envelope(command="frdc policy opp var")
+            _ENVELOPE[] = env_o
+            try
+                _render_opp(opp_syn, nt_syn; format="json", constrained=true)
+            finally
+                _ENVELOPE[] = nothing
+            end
+            jdoc_o = JSON3.read(sprint(io -> render(env_o, :json, io)))
+            opp_cols = String.(jdoc_o.data.opp_recommendation_delta.columns)
+            for req_col in ("lo60", "hi60", "lo90", "hi90", "reject60", "reject90")
+                @test req_col in opp_cols
+            end
+            opp_row = jdoc_o.data.opp_recommendation_delta.rows[1]
+            @test Float64(opp_row[findfirst(==("delta"), opp_cols)]) === 0.123456789123
+            @test Float64(opp_row[findfirst(==("lo60"), opp_cols)]) === 0.1111111111
+            @test Float64(opp_row[findfirst(==("hi90"), opp_cols)]) === 0.3333333333
+            opp_sum = Dict(String(r[1]) => r[2] for r in jdoc_o.data.opp_summary.rows)
+            @test Float64(opp_sum["loss_base"]) === 1.987654321987
+            @test Float64(opp_sum["kkt_residual"]) === 1.23456789123e-9
+            tstr_o = sprint(io -> render(env_o, :table, io))
+            @test occursin("0.123", tstr_o)
+            @test !occursin("0.123456789123", tstr_o)
+        end
+
+        # 4. Show preview alignment with _DISPLAY_DIGITS[]
+        @testset "show.jl _format_field_preview respects _DISPLAY_DIGITS[]" begin
+            prev_dig = _DISPLAY_DIGITS[]
+            try
+                _DISPLAY_DIGITS[] = 3
+                @test _format_field_preview(3.1415926535) == "3.142"
+                @test _format_field_preview(-0.0001) == "0.000"
+                @test _format_field_preview(NaN) == "NaN"
+                @test _format_field_preview(Inf) == "Inf"
+                @test _format_field_preview(-Inf) == "-Inf"
+                @test _format_field_preview([0.123456789, 9.876543219]) == "Float64[2] (min=0.123, max=9.877)"
+
+                _DISPLAY_DIGITS[] = 5
+                @test _format_field_preview(3.1415926535) == "3.14159"
+                @test _format_field_preview([0.123456789, 9.876543219]) == "Float64[2] (min=0.12346, max=9.87654)"
+
+                _DISPLAY_DIGITS[] = nothing
+                @test _format_field_preview(3.1415926535) == "3.1415926535"
+                @test _format_field_preview([0.123456789, 9.876543219]) == "Float64[2] (min=0.123456789, max=9.876543219)"
+            finally
+                _DISPLAY_DIGITS[] = prev_dig
+            end
+        end
+
+        # 5. w3_nongaussian.jl: lms_svar_diagnostics emits unrounded Float64 in JSON
+        @testset "w3_nongaussian.jl lossless lms_svar_diagnostics" begin
+            csv_lms = joinpath(dir, "lms_w4.csv")
+            rng_lms = Random.MersenneTwister(42)
+            CSV.write(csv_lms, DataFrame(y1=randn(rng_lms, 60), y2=randn(rng_lms, 60), y3=randn(rng_lms, 60)))
+            doc_lms = _run_leaf(["estimate", "multivariate", "lms-svar", csv_lms, "--lags", "2"])
+            @test string(doc_lms.status) == "ok"
+            @test isempty(validate_envelope_json(JSON3.write(doc_lms)))
+            dmap = Dict(String(r[1]) => r[2] for r in doc_lms.data.lms_svar_diagnostics.rows)
+            for k in ("loglik", "loglik_gaussian", "aic", "bic")
+                @test dmap[k] isa Number
+            end
+            # Verify raw mock value matches bit-for-bit (no digits=4/6 rounding)
+            Y_l, vn_l = load_multivariate_data(csv_lms)
+            res_direct = estimate_lms_svar(estimate_var(Y_l, 2; varnames=vn_l))
+            @test Float64(dmap["loglik"]) === Float64(res_direct.loglik)
+            @test Float64(dmap["aic"]) === Float64(res_direct.aic)
+            @test Float64(dmap["bic"]) === Float64(res_direct.bic)
+        end
+    end
+end
+
 include(joinpath(project_root, "test", "test_handles.jl"))
 include(joinpath(project_root, "test", "test_storage.jl"))
 include(joinpath(project_root, "test", "test_w1_quantile.jl"))

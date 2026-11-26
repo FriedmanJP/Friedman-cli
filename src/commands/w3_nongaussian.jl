@@ -384,10 +384,10 @@ function _estimate_lms_svar(; data::String, lags=nothing,
         "method"          => string(res.method),
         "se_type"         => string(res.se_type),
         "nobs"            => size(res.shocks, 1),
-        "loglik"          => round(Float64(res.loglik); digits=6),
-        "loglik_gaussian" => round(Float64(res.loglik_gaussian); digits=6),
-        "aic"             => round(Float64(res.aic); digits=4),
-        "bic"             => round(Float64(res.bic); digits=4),
+        "loglik"          => Float64(res.loglik),
+        "loglik_gaussian" => Float64(res.loglik_gaussian),
+        "aic"             => Float64(res.aic),
+        "bic"             => Float64(res.bic),
         "converged"       => res.converged,
         "iterations"      => res.iterations,
     ]
@@ -397,16 +397,16 @@ function _estimate_lms_svar(; data::String, lags=nothing,
         dp = i <= length(res.dist_params) ? res.dist_params[i] : Float64[]
         push!(diag_pairs, "distribution[$sname]" => string(d))
         if d === :student_t && length(dp) >= 1
-            push!(diag_pairs, "nu[$sname]" => round(Float64(dp[1]); digits=6))
+            push!(diag_pairs, "nu[$sname]" => Float64(dp[1]))
         elseif d === :skewed_t && length(dp) >= 2
-            push!(diag_pairs, "nu[$sname]" => round(Float64(dp[1]); digits=6))
-            push!(diag_pairs, "eta[$sname]" => round(Float64(dp[2]); digits=6))
+            push!(diag_pairs, "nu[$sname]" => Float64(dp[1]))
+            push!(diag_pairs, "eta[$sname]" => Float64(dp[2]))
         elseif d === :ged && length(dp) >= 1
-            push!(diag_pairs, "kappa[$sname]" => round(Float64(dp[1]); digits=6))
+            push!(diag_pairs, "kappa[$sname]" => Float64(dp[1]))
         elseif d === :skew_normal && length(dp) >= 1
-            push!(diag_pairs, "alpha[$sname]" => round(Float64(dp[1]); digits=6))
+            push!(diag_pairs, "alpha[$sname]" => Float64(dp[1]))
         elseif !isempty(dp)
-            push!(diag_pairs, "dist_params[$sname]" => join([string(round(Float64(v); digits=6)) for v in dp], ", "))
+            push!(diag_pairs, "dist_params[$sname]" => join([string(Float64(v)) for v in dp], ", "))
         end
     end
     output_kv(diag_pairs; format=format,

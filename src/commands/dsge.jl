@@ -2223,11 +2223,11 @@ function _dsge_moments(; model="", method::String="perturbation", order::Int=2,
 
     mean_df = DataFrame(
         variable = names,
-        steady_state = round.(ss; digits=8),
-        mean = round.(E; digits=8),
+        steady_state = ss,
+        mean = E,
         # At order 1 this is identically zero; at order ≥ 2 it is the risk correction.
-        mean_minus_ss = round.(E .- ss; digits=8),
-        std_dev = round.(sqrt.(max.(diag(Var), 0.0)); digits=8),
+        mean_minus_ss = E .- ss,
+        std_dev = sqrt.(max.(diag(Var), 0.0)),
     )
     output_result(mean_df; format=Symbol(format), output=output,
                   title="DSGE Theoretical Moments (order=$order)",
@@ -2237,8 +2237,8 @@ function _dsge_moments(; model="", method::String="perturbation", order::Int=2,
     for i in 1:k, j in i:k
         sd = sqrt(max(Var[i, i], 0.0)) * sqrt(max(Var[j, j], 0.0))
         push!(cov_rows, (variable1 = names[i], variable2 = names[j],
-                         covariance = round(Var[i, j]; digits=8),
-                         correlation = sd > 0 ? round(Var[i, j] / sd; digits=8) : NaN))
+                         covariance = Var[i, j],
+                         correlation = sd > 0 ? Var[i, j] / sd : NaN))
     end
     output_result(DataFrame(cov_rows); format=Symbol(format),
                   output=_per_var_output_path(output, "covariance"),
@@ -2250,8 +2250,8 @@ function _dsge_moments(; model="", method::String="perturbation", order::Int=2,
         # Diagonal autocovariance, de-centred when unpacked from :gmm product moments.
         ac = ac_from_product ? (mv[pos] - E[i]^2) : Float64(mv[pos])
         push!(ac_rows, (variable = names[i], lag = lag,
-                        autocovariance = round(ac; digits=8),
-                        autocorrelation = Var[i, i] > 0 ? round(ac / Var[i, i]; digits=8) : NaN))
+                        autocovariance = ac,
+                        autocorrelation = Var[i, i] > 0 ? ac / Var[i, i] : NaN))
     end
     output_result(DataFrame(ac_rows); format=Symbol(format),
                   output=_per_var_output_path(output, "autocovariance"),
@@ -2551,10 +2551,10 @@ function _dsge_estimate(; model::String, data::String="", method::String="irf_ma
 
     est_df = DataFrame(
         parameter = est.param_names,
-        estimate = round.(est.theta; digits=6),
-        std_error = round.(se; digits=6),
-        t_stat = round.(t_stats; digits=4),
-        p_value = round.(p_vals; digits=4),
+        estimate = Float64.(est.theta),
+        std_error = Float64.(se),
+        t_stat = Float64.(t_stats),
+        p_value = Float64.(p_vals),
     )
     output_result(est_df; format=Symbol(format), output=output,
                   title="DSGE Estimation ($method)", key="dsge_estimation")
@@ -2937,11 +2937,11 @@ function _dsge_bayes_estimate(; model::String, data::String="", params::String="
     np = size(draws, 2)
     est_df = DataFrame(
         parameter = result.param_names,
-        mean = [round(mean(draws[:, i]); digits=6) for i in 1:np],
-        std = [round(sqrt(var(draws[:, i])); digits=6) for i in 1:np],
-        q05 = [round(quantile(draws[:, i], 0.05); digits=6) for i in 1:np],
-        median = [round(median(draws[:, i]); digits=6) for i in 1:np],
-        q95 = [round(quantile(draws[:, i], 0.95); digits=6) for i in 1:np],
+        mean = [Float64(mean(draws[:, i])) for i in 1:np],
+        std = [Float64(sqrt(var(draws[:, i]))) for i in 1:np],
+        q05 = [Float64(quantile(draws[:, i], 0.05)) for i in 1:np],
+        median = [Float64(median(draws[:, i])) for i in 1:np],
+        q95 = [Float64(quantile(draws[:, i], 0.95)) for i in 1:np],
     )
     output_result(est_df; format=Symbol(format), output=output,
                   title="Bayesian DSGE Posterior ($sampler)", key="bayesian_dsge_posterior")
@@ -3128,11 +3128,11 @@ function _dsge_bayes_summary(; model="", data::String="", params::String="",
 
     sum_df = DataFrame(
         parameter = pnames,
-        mean = [round(summary[p][:mean]; digits=6) for p in pnames],
-        median = [round(summary[p][:median]; digits=6) for p in pnames],
-        std = [round(summary[p][:std]; digits=6) for p in pnames],
-        q05 = [round(q05_vals[i]; digits=6) for i in eachindex(pnames)],
-        q95 = [round(q95_vals[i]; digits=6) for i in eachindex(pnames)],
+        mean = [Float64(summary[p][:mean]) for p in pnames],
+        median = [Float64(summary[p][:median]) for p in pnames],
+        std = [Float64(summary[p][:std]) for p in pnames],
+        q05 = [Float64(q05_vals[i]) for i in eachindex(pnames)],
+        q95 = [Float64(q95_vals[i]) for i in eachindex(pnames)],
     )
     output_result(sum_df; format=Symbol(format), output=output,
                   title="Bayesian DSGE Posterior Summary ($sampler)",
@@ -3141,15 +3141,15 @@ function _dsge_bayes_summary(; model="", data::String="", params::String="",
     # Prior-posterior comparison
     pp_df = DataFrame(
         parameter = [r.param for r in pp_table],
-        prior_mean = [round(r.prior_mean; digits=6) for r in pp_table],
-        prior_std = [round(r.prior_std; digits=6) for r in pp_table],
-        post_mean = [round(r.post_mean; digits=6) for r in pp_table],
-        post_std = [round(r.post_std; digits=6) for r in pp_table],
-        post_q05 = [round(get(q05_map, r.param,
-            hasproperty(r, :post_q05) ? r.post_q05 : (hasproperty(r, :ci_lower) ? r.ci_lower : NaN)); digits=6)
+        prior_mean = [Float64(r.prior_mean) for r in pp_table],
+        prior_std = [Float64(r.prior_std) for r in pp_table],
+        post_mean = [Float64(r.post_mean) for r in pp_table],
+        post_std = [Float64(r.post_std) for r in pp_table],
+        post_q05 = [Float64(get(q05_map, r.param,
+            hasproperty(r, :post_q05) ? r.post_q05 : (hasproperty(r, :ci_lower) ? r.ci_lower : NaN)))
             for r in pp_table],
-        post_q95 = [round(get(q95_map, r.param,
-            hasproperty(r, :post_q95) ? r.post_q95 : (hasproperty(r, :ci_upper) ? r.ci_upper : NaN)); digits=6)
+        post_q95 = [Float64(get(q95_map, r.param,
+            hasproperty(r, :post_q95) ? r.post_q95 : (hasproperty(r, :ci_upper) ? r.ci_upper : NaN)))
             for r in pp_table],
     )
     output_result(pp_df; format=Symbol(format),
@@ -3219,10 +3219,10 @@ function _dsge_bayes_compare(; model="", data::String="", params::String="",
 
     comp_df = DataFrame(
         model = ["Model 1", "Model 2"],
-        log_marginal_likelihood = [round(r1.log_marginal_likelihood; digits=4),
-                                   round(r2.log_marginal_likelihood; digits=4)],
-        acceptance_rate = [round(r1.acceptance_rate; digits=4),
-                          round(r2.acceptance_rate; digits=4)],
+        log_marginal_likelihood = Float64[r1.log_marginal_likelihood,
+                                          r2.log_marginal_likelihood],
+        acceptance_rate = Float64[r1.acceptance_rate,
+                                  r2.acceptance_rate],
     )
     output_result(comp_df; format=Symbol(format), output=output,
                   title="Bayesian Model Comparison")
@@ -3270,10 +3270,10 @@ function _dsge_bayes_predictive(; model="", data::String="", params::String="",
     varnames = result.param_names
     pp_df = DataFrame(
         variable = varnames[1:min(nv, length(varnames))],
-        mean = [round(mean(pp[:, :, vi]); digits=6) for vi in 1:min(nv, length(varnames))],
-        std = [round(sqrt(var(vec(pp[:, :, vi]))); digits=6) for vi in 1:min(nv, length(varnames))],
-        min = [round(minimum(pp[:, :, vi]); digits=6) for vi in 1:min(nv, length(varnames))],
-        max = [round(maximum(pp[:, :, vi]); digits=6) for vi in 1:min(nv, length(varnames))],
+        mean = [Float64(mean(pp[:, :, vi])) for vi in 1:min(nv, length(varnames))],
+        std = [Float64(sqrt(var(vec(pp[:, :, vi])))) for vi in 1:min(nv, length(varnames))],
+        min = [Float64(minimum(pp[:, :, vi])) for vi in 1:min(nv, length(varnames))],
+        max = [Float64(maximum(pp[:, :, vi])) for vi in 1:min(nv, length(varnames))],
     )
     output_result(pp_df; format=Symbol(format), output=output,
                   title="Posterior Predictive Summary ($sampler, n=$n_sim, T=$periods)",
@@ -3524,11 +3524,11 @@ function _dsge_bayes_mcmc_diag(; model="", data::String="", params::String="",
 
     diag_df = DataFrame(
         parameter = string.(d.param_names),
-        rhat = round.(d.rhat; digits=4),
-        ess_bulk = round.(d.ess_bulk; digits=1),
-        ess_tail = round.(d.ess_tail; digits=1),
-        geweke_z = round.(d.geweke_z; digits=4),
-        geweke_p = round.(d.geweke_p; digits=4),   # may be NaN — _json_safe sanitizes both paths
+        rhat = Float64.(d.rhat),
+        ess_bulk = Float64.(d.ess_bulk),
+        ess_tail = Float64.(d.ess_tail),
+        geweke_z = Float64.(d.geweke_z),
+        geweke_p = Float64.(d.geweke_p),   # may be NaN — _json_safe sanitizes both paths
     )
     output_result(diag_df; format=Symbol(format), output=output,
                   title="MCMC Convergence Diagnostics")
@@ -3600,12 +3600,12 @@ function _dsge_bayes_identification(; model::String, params::String="",
         "n_moments"  => idr.n_moments,
         "n_lags"     => idr.n_lags,
         "identified" => idr.identified,
-        "tol"        => round(idr.tol; sigdigits=6),
+        "tol"        => Float64(idr.tol),
     ]; format=format, output=output, title="Identification Diagnostics")
 
     sv_df = DataFrame(
         index = collect(1:length(idr.singular_values)),
-        singular_value = round.(idr.singular_values; sigdigits=6),
+        singular_value = Float64.(idr.singular_values),
     )
     output_result(sv_df; format=Symbol(format),
                   output=_per_var_output_path(output, "singular_values"),
@@ -3649,7 +3649,7 @@ function _dsge_bayes_learning_rate(; model="", data::String="", params::String="
 
     lr_df = DataFrame(
         parameter = string.(lr.param_names),
-        learning_rate = round.(lr.learning_rate; digits=4),
+        learning_rate = Float64.(lr.learning_rate),
         flagged = lr.flagged,
     )
     output_result(lr_df; format=Symbol(format), output=output,
@@ -3687,7 +3687,7 @@ function _dsge_bayes_overlap(; model="", data::String="", params::String="",
 
     ov_df = DataFrame(
         parameter = string.(ov.param_names),
-        overlap = round.(ov.overlap; digits=4),
+        overlap = Float64.(ov.overlap),
         flagged = ov.flagged,
     )
     output_result(ov_df; format=Symbol(format), output=output,
@@ -3746,13 +3746,13 @@ function _dsge_bayes_posterior_mode(; model::String, data::String="", params::St
     se = [sqrt(abs(Float64(res.inv_hessian[i, i]))) for i in 1:length(md)]
     output_result(DataFrame(
             parameter = String.(res.param_names),
-            mode = round.(md; digits=6),
-            std_error = round.(se; digits=6));
+            mode = md,
+            std_error = se);
         format=Symbol(format), output=output, title="Posterior Mode")
     output_kv(Pair{String,Any}[
-        "log posterior" => round(Float64(res.log_posterior); digits=6),
-        "log likelihood" => round(Float64(res.log_likelihood); digits=6),
-        "Laplace log ML" => round(Float64(res.laplace_log_ml); digits=6),
+        "log posterior" => Float64(res.log_posterior),
+        "log likelihood" => Float64(res.log_likelihood),
+        "Laplace log ML" => Float64(res.laplace_log_ml),
         "converged" => res.converged,
         "iterations" => res.n_iterations];
         format=format, output=_per_var_output_path(output, "diagnostics"),
@@ -3792,11 +3792,11 @@ function _dsge_bayes_prior_predictive(; model::String, params::String="",
     nstat = size(S, 2)
     output_result(DataFrame(
             statistic = String.(res.stat_names),
-            mean = [round(mean(view(S, :, j)); digits=6) for j in 1:nstat],
-            std = [round(sqrt(var(view(S, :, j))); digits=6) for j in 1:nstat],
-            q05 = [round(quantile(view(S, :, j), 0.05); digits=6) for j in 1:nstat],
-            median = [round(median(view(S, :, j)); digits=6) for j in 1:nstat],
-            q95 = [round(quantile(view(S, :, j), 0.95); digits=6) for j in 1:nstat]);
+            mean = [Float64(mean(view(S, :, j))) for j in 1:nstat],
+            std = [Float64(sqrt(var(view(S, :, j)))) for j in 1:nstat],
+            q05 = [Float64(quantile(view(S, :, j), 0.05)) for j in 1:nstat],
+            median = [Float64(median(view(S, :, j))) for j in 1:nstat],
+            q95 = [Float64(quantile(view(S, :, j), 0.95)) for j in 1:nstat]);
         format=Symbol(format), output=output, title="Prior Predictive Distribution")
     output_kv(Pair{String,Any}[
         "draws requested" => res.n_draws,
@@ -3837,8 +3837,8 @@ function _dsge_bayes_marginal_lik(; model="", data::String="", params::String=""
     logml_smc = result.log_marginal_likelihood
 
     output_kv(Pair{String,Any}[
-        "log_marginal_likelihood_bridge" => (isfinite(logml) ? round(logml; digits=4) : string(logml)),
-        "log_marginal_likelihood_smc"    => (isfinite(logml_smc) ? round(logml_smc; digits=4) : string(logml_smc)),
+        "log_marginal_likelihood_bridge" => (isfinite(logml) ? Float64(logml) : string(logml)),
+        "log_marginal_likelihood_smc"    => (isfinite(logml_smc) ? Float64(logml_smc) : string(logml_smc)),
         "proposal"                       => proposal,
         "df"                             => df,
     ]; format=format, output=output, title="Marginal Likelihood (Bridge Sampling)")
@@ -4032,15 +4032,15 @@ function _dsge_ha_accuracy(; model="", method::String="krusell-smith",
             "T_burn=$(acc.T_burn)"); _status()
     output_result(DataFrame(
         metric=["dh_max", "dh_mean", "sigma_ref", "sigma_plm"],
-        value=round.(Float64[acc.dh_max, acc.dh_mean, acc.sigma_ref, acc.sigma_plm]; digits=6),
+        value=Float64[acc.dh_max, acc.dh_mean, acc.sigma_ref, acc.sigma_plm],
     ); format=Symbol(format), output=output,
        title="Den Haan Accuracy (% deviation, $(acc.aggregate), $(meth))",
        key="den_haan_accuracy")
     # The two simulated aggregate paths, tidy and long, under a distinct output path.
     n = min(length(acc.ref_path), length(acc.plm_path))
     output_result(DataFrame(t=1:n,
-                            reference=round.(Float64.(acc.ref_path[1:n]); digits=6),
-                            plm_only=round.(Float64.(acc.plm_path[1:n]); digits=6));
+                            reference=Float64.(acc.ref_path[1:n]),
+                            plm_only=Float64.(acc.plm_path[1:n]));
                   format=Symbol(format), output=_per_var_output_path(output, "paths"),
                   title="Reference vs PLM-only Aggregate Path")
     settings = Pair{String,Any}[
@@ -4090,7 +4090,7 @@ function _dsge_ha_solve(; model::String, method::String="ssj",
         plm_df = DataFrame(plm_rows)
         diag_df = DataFrame(
             aggregate = String.(r2_keys),
-            r_squared = [round(Float64(r2[k]); digits=4) for k in r2_keys],
+            r_squared = [Float64(r2[k]) for k in r2_keys],
             converged = fill(sol.converged, length(r2_keys)),
             iterations = fill(sol.iterations, length(r2_keys)),
         )
@@ -4455,11 +4455,11 @@ function _dsge_ha_estimate(; model::String, data::String="", priors::String="",
     np = size(draws, 2)
     est_df = DataFrame(
         parameter = String.(result.param_names),
-        mean = [round(mean(draws[:, i]); digits=6) for i in 1:np],
-        std = [round(sqrt(var(draws[:, i])); digits=6) for i in 1:np],
-        q05 = [round(quantile(draws[:, i], 0.05); digits=6) for i in 1:np],
-        median = [round(median(draws[:, i]); digits=6) for i in 1:np],
-        q95 = [round(quantile(draws[:, i], 0.95); digits=6) for i in 1:np],
+        mean = [Float64(mean(draws[:, i])) for i in 1:np],
+        std = [Float64(sqrt(var(draws[:, i]))) for i in 1:np],
+        q05 = [Float64(quantile(draws[:, i], 0.05)) for i in 1:np],
+        median = [Float64(median(draws[:, i])) for i in 1:np],
+        q95 = [Float64(quantile(draws[:, i], 0.95)) for i in 1:np],
     )
     output_result(est_df; format=Symbol(format), output=output,
                   title="HA-DSGE Bayesian Posterior ($sampler_label, method=$meth)",

@@ -700,7 +700,7 @@ _split_csv(s::AbstractString) = String[strip(t) for t in split(s, ",") if !isemp
     _io_matrix_df(M, rowlabels, collabels=rowlabels) → DataFrame
 
 Render a matrix WIDE: first column `sector` holds the row labels, then one
-numeric column per `collabels` entry (rounded). Columns are made unique if the
+numeric column per `collabels` entry (full precision; `:table` formats on display). Columns are made unique if the
 labels collide (real MRIO tables occasionally repeat sector names across regions).
 """
 function _io_matrix_df(M::AbstractMatrix, rowlabels::Vector{String},
@@ -715,7 +715,7 @@ function _io_matrix_df(M::AbstractMatrix, rowlabels::Vector{String},
             col = "$(c)_$(k)"
         end
         push!(used, col)
-        df[!, Symbol(col)] = round.(M[:, j]; digits=6)
+        df[!, Symbol(col)] = Float64.(M[:, j])
     end
     return df
 end
@@ -817,7 +817,7 @@ function _io_load(; data::String="", n_sectors::Int=0, n_fd::Int=1, sectors::Str
     n_reg = length(io.regions)
     n_sec = length(io.sectors) ÷ max(1, n_reg)
 
-    output_kv([
+    output_kv(Pair{String,Any}[
         "sectors" => string(n_sec),
         "regions" => string(n_reg),
         "fd_categories" => string(length(io.fd_cats)),
@@ -826,16 +826,16 @@ function _io_load(; data::String="", n_sectors::Int=0, n_fd::Int=1, sectors::Str
         "unit" => isempty(io.unit) ? "—" : io.unit,
         "source" => isempty(io.source) ? "—" : io.source,
         "extensions" => isempty(io.extensions) ? "—" : join(sort(collect(keys(io.extensions))), ", "),
-        "total_output" => string(round(sum(io.x); digits=4)),
+        "total_output" => Float64(sum(io.x)),
     ]; format=Symbol(format), output=_per_var_output_path(output, "summary"), title="IO Table Summary")
 
     fd_tot = vec(sum(io.Y, dims=2))
     va_tot = vec(sum(io.va, dims=1))
     df = DataFrame(sector=io.sectors,
                    region=_io_sector_regions(io),
-                   gross_output=round.(io.x; digits=6),
-                   final_demand=round.(fd_tot; digits=6),
-                   value_added=round.(va_tot; digits=6))
+                   gross_output=Float64.(io.x),
+                   final_demand=Float64.(fd_tot),
+                   value_added=Float64.(va_tot))
     output_result(df; format=Symbol(format), output=output, title="Sectors")
     return io
 end
@@ -1003,15 +1003,15 @@ function _io_extract(; data::String="", n_sectors::Int=0, n_fd::Int=1, sectors::
     _status("Extracted sector(s): $(join(extracted_labels, ", "))")
     _status("Total output loss: $(round(r.total_loss; digits=6))")
     _status()
-    df = DataFrame(sector=io.sectors, output_loss=round.(r.sector_loss; digits=6))
+    df = DataFrame(sector=io.sectors, output_loss=Float64.(r.sector_loss))
     output_result(df; format=Symbol(format), output=output,
                   title="Hypothetical Extraction (loss)")
     pct_go = hasproperty(r, :loss_pct_go) ? r.loss_pct_go : NaN
     pct_gdp = hasproperty(r, :loss_pct_gdp) ? r.loss_pct_gdp : NaN
-    output_kv([
-        "total_loss" => round(r.total_loss; digits=6),
-        "loss_pct_go" => isfinite(pct_go) ? round(Float64(pct_go); digits=6) : string(pct_go),
-        "loss_pct_gdp" => isfinite(pct_gdp) ? round(Float64(pct_gdp); digits=6) : string(pct_gdp),
+    output_kv(Pair{String,Any}[
+        "total_loss" => Float64(r.total_loss),
+        "loss_pct_go" => isfinite(pct_go) ? Float64(pct_go) : string(pct_go),
+        "loss_pct_gdp" => isfinite(pct_gdp) ? Float64(pct_gdp) : string(pct_gdp),
         "mode" => String(hasproperty(r, :mode) ? r.mode : Symbol(mode)),
         "share" => hasproperty(r, :share) ? r.share : share,
     ]; format=format, output=_per_var_output_path(output, "summary"),
@@ -1071,10 +1071,10 @@ function _io_baqaee_farhi(; data::String="", n_sectors::Int=0, n_fd::Int=1, sect
     io = _load_io(data; n_sectors=n_sectors, n_fd=n_fd, sectors=sectors)
     bf = baqaee_farhi(io; theta=theta, sigma=sigma)
     df = DataFrame(sector=bf.sectors,
-                   domar=round.(bf.domar; digits=6),
-                   influence=round.(bf.influence; digits=6),
-                   upstreamness=round.(bf.upstreamness; digits=6),
-                   downstreamness=round.(bf.downstreamness; digits=6))
+                   domar=Float64.(bf.domar),
+                   influence=Float64.(bf.influence),
+                   upstreamness=Float64.(bf.upstreamness),
+                   downstreamness=Float64.(bf.downstreamness))
     output_result(df; format=Symbol(format), output=output,
                   title="Baqaee & Farhi (2019) decomposition")
     if second_order
@@ -1228,7 +1228,7 @@ end
 function _io_emit_iodata(io; format::String="table", output::String="")
     n_reg = length(io.regions)
     n_sec = length(io.sectors) ÷ max(1, n_reg)
-    output_kv([
+    output_kv(Pair{String,Any}[
         "sectors" => string(n_sec),
         "regions" => string(n_reg),
         "fd_categories" => string(length(io.fd_cats)),
@@ -1237,15 +1237,15 @@ function _io_emit_iodata(io; format::String="table", output::String="")
         "unit" => isempty(io.unit) ? "—" : io.unit,
         "source" => isempty(io.source) ? "—" : io.source,
         "extensions" => isempty(io.extensions) ? "—" : join(sort(collect(keys(io.extensions))), ", "),
-        "total_output" => string(round(sum(io.x); digits=4)),
+        "total_output" => Float64(sum(io.x)),
     ]; format=Symbol(format), output=_per_var_output_path(output, "summary"), title="IO Table Summary")
     fd_tot = vec(sum(io.Y, dims=2))
     va_tot = vec(sum(io.va, dims=1))
     df = DataFrame(sector=io.sectors,
                    region=_io_sector_regions(io),
-                   gross_output=round.(io.x; digits=6),
-                   final_demand=round.(fd_tot; digits=6),
-                   value_added=round.(va_tot; digits=6))
+                   gross_output=Float64.(io.x),
+                   final_demand=Float64.(fd_tot),
+                   value_added=Float64.(va_tot))
     output_result(df; format=Symbol(format), output=output, title="Sectors")
     return io
 end
@@ -1271,9 +1271,9 @@ function _io_bf_network(; data::String="", n_sectors::Int=0, n_fd::Int=1, sector
     λr = [net.lambda_rev[g] for g in net.outer_nodes]
     μ = [net.mu[g - 1] for g in net.outer_nodes]
     df = DataFrame(sector=net.io.sectors,
-                   lambda=round.(λ; digits=6),
-                   lambda_rev=round.(λr; digits=6),
-                   mu=round.(μ; digits=6))
+                   lambda=Float64.(λ),
+                   lambda_rev=Float64.(λr),
+                   mu=Float64.(μ))
     output_result(df; format=Symbol(format), output=output,
                   title="Production Network Sectors", key="production_network_sectors")
     _maybe_plot(net; plot=plot, plot_save=plot_save)
@@ -1310,19 +1310,19 @@ function _io_bf_equilibrium(; data::String="", n_sectors::Int=0, n_fd::Int=1, se
         throw(_domain_or_data_error(e, "bf_equilibrium"))
     end
     # Non-convergence is a result, not exit 5: surface `converged` in the kv table.
-    output_kv([
-        "dlogY" => round(eq.dlogY; digits=6),
-        "hulten" => round(eq.hulten; digits=6),
-        "technology" => round(eq.technology; digits=6),
-        "allocative" => round(eq.allocative; digits=6),
-        "profit_share" => round(eq.profit_share; digits=6),
+    output_kv(Pair{String,Any}[
+        "dlogY" => Float64(eq.dlogY),
+        "hulten" => Float64(eq.hulten),
+        "technology" => Float64(eq.technology),
+        "allocative" => Float64(eq.allocative),
+        "profit_share" => Float64(eq.profit_share),
         "converged" => string(eq.converged),
         "iterations" => eq.iterations,
-        "residual" => round(eq.residual; digits=8),
+        "residual" => Float64(eq.residual),
     ]; format=Symbol(format), output=_per_var_output_path(output, "summary"), title="BF Equilibrium Summary")
     df = DataFrame(sector=eq.sectors,
-                   dlog_x=round.(eq.dlog_x; digits=6),
-                   dlog_p=round.(eq.dlog_p; digits=6))
+                   dlog_x=Float64.(eq.dlog_x),
+                   dlog_p=Float64.(eq.dlog_p))
     output_result(df; format=Symbol(format), output=output,
                   title="BF Equilibrium Sectors", key="bf_equilibrium_sectors")
     _maybe_plot(eq; plot=plot, plot_save=plot_save)
@@ -1346,7 +1346,7 @@ function _io_bf_local(; data::String="", n_sectors::Int=0, n_fd::Int=1, sectors:
     catch e
         throw(_domain_or_data_error(e, "baqaee_farhi"))
     end
-    df = DataFrame(sector=loc.sectors, first_order=round.(loc.first_order; digits=6))
+    df = DataFrame(sector=loc.sectors, first_order=Float64.(loc.first_order))
     output_result(df; format=Symbol(format), output=output,
                   title="BF Local Hulten", key="bf_local_hulten")
     if !isempty(loc.second_order)
@@ -1419,10 +1419,10 @@ function _io_bf_shock_curve(; data::String="", n_sectors::Int=0, n_fd::Int=1, se
     catch e
         throw(_domain_or_data_error(e, "bf_shock_curve"))
     end
-    df = DataFrame(shock=round.(sc.shocks; digits=6),
-                   exact=round.(sc.exact; digits=6),
-                   hulten=round.(sc.hulten; digits=6),
-                   second_order=round.(sc.second_order; digits=6))
+    df = DataFrame(shock=Float64.(sc.shocks),
+                   exact=Float64.(sc.exact),
+                   hulten=Float64.(sc.hulten),
+                   second_order=Float64.(sc.second_order))
     output_result(df; format=Symbol(format), output=output,
                   title="BF Shock Curve ($(sc.sector))", key="bf_shock_curve")
     _maybe_plot(sc; plot=plot, plot_save=plot_save)
@@ -1449,18 +1449,18 @@ function _io_bf_wedges(; data::String="", n_sectors::Int=0, n_fd::Int=1, sectors
     catch e
         throw(_domain_or_data_error(e, "bf_wedge_decomp"))
     end
-    output_kv([
-        "dlogY" => round(w.dlogY; digits=6),
-        "technology" => round(w.technology; digits=6),
-        "allocative" => round(w.allocative; digits=6),
-        "allocative_mu" => round(w.allocative_mu; digits=6),
-        "allocative_factor" => round(w.allocative_factor; digits=6),
-        "factor_supply" => round(w.factor_supply; digits=6),
+    output_kv(Pair{String,Any}[
+        "dlogY" => Float64(w.dlogY),
+        "technology" => Float64(w.technology),
+        "allocative" => Float64(w.allocative),
+        "allocative_mu" => Float64(w.allocative_mu),
+        "allocative_factor" => Float64(w.allocative_factor),
+        "factor_supply" => Float64(w.factor_supply),
     ]; format=Symbol(format), output=_per_var_output_path(output, "summary"), title="BF Wedge Decomp")
     df = DataFrame(sector=w.sectors,
-                   lambda_cost=round.(w.lambda_cost; digits=6),
-                   lambda_rev=round.(w.lambda_rev; digits=6),
-                   mu=round.(w.mu; digits=6))
+                   lambda_cost=Float64.(w.lambda_cost),
+                   lambda_rev=Float64.(w.lambda_rev),
+                   mu=Float64.(w.mu))
     output_result(df; format=Symbol(format), output=output,
                   title="BF Wedge Domar", key="bf_wedge_domar")
     _maybe_plot(w; plot=plot, plot_save=plot_save)
@@ -1484,16 +1484,16 @@ function _io_bf_misallocation(; data::String="", n_sectors::Int=0, n_fd::Int=1, 
     catch e
         throw(_domain_or_data_error(e, "bf_misallocation"))
     end
-    output_kv([
-        "distance" => round(m.distance; digits=6),
-        "first_order" => round(m.first_order; digits=6),
-        "second_order" => round(m.second_order; digits=6),
+    output_kv(Pair{String,Any}[
+        "distance" => Float64(m.distance),
+        "first_order" => Float64(m.first_order),
+        "second_order" => Float64(m.second_order),
         "point" => string(m.point),
     ]; format=Symbol(format), output=_per_var_output_path(output, "summary"), title="BF Misallocation Summary")
     df = DataFrame(sector=m.sectors,
-                   delta_logmu=round.(m.delta_logmu; digits=6),
-                   lambda=round.(m.lambda; digits=6),
-                   mu=round.(m.mu; digits=6))
+                   delta_logmu=Float64.(m.delta_logmu),
+                   lambda=Float64.(m.lambda),
+                   mu=Float64.(m.mu))
     output_result(df; format=Symbol(format), output=output,
                   title="BF Misallocation Sectors", key="bf_misallocation_sectors")
     _maybe_plot(m; plot=plot, plot_save=plot_save)
@@ -1515,9 +1515,9 @@ function _io_price(; data::String="", n_sectors::Int=0, n_fd::Int=1, sectors::St
         throw(_domain_or_data_error(e, "price_model"))
     end
     df = DataFrame(sector=r.sectors,
-                   dp=round.(r.dp; digits=6),
-                   p=round.(r.p; digits=6),
-                   dv=round.(r.dv; digits=6))
+                   dp=Float64.(r.dp),
+                   p=Float64.(r.p),
+                   dv=Float64.(r.dv))
     output_result(df; format=Symbol(format), output=output,
                   title="Price Model ($mode)", key="price_model")
     _maybe_plot(r; plot=plot, plot_save=plot_save)
@@ -1538,12 +1538,12 @@ function _io_impact(; data::String="", n_sectors::Int=0, n_fd::Int=1, sectors::S
     catch e
         throw(_domain_or_data_error(e, "impact"))
     end
-    output_kv([
-        "total" => round(r.total; digits=6),
+    output_kv(Pair{String,Any}[
+        "total" => Float64(r.total),
         "kind" => string(r.kind),
         "type" => string(r.type),
     ]; format=Symbol(format), output=_per_var_output_path(output, "summary"), title="Impact Summary")
-    df = DataFrame(sector=r.sectors, impact=round.(r.by_sector; digits=6))
+    df = DataFrame(sector=r.sectors, impact=Float64.(r.by_sector))
     output_result(df; format=Symbol(format), output=output,
                   title="Impact by Sector", key="impact_by_sector")
     _maybe_plot(r; plot=plot, plot_save=plot_save)
@@ -1560,17 +1560,17 @@ function _io_network_stats(; data::String="", n_sectors::Int=0, n_fd::Int=1, sec
     catch e
         throw(_domain_or_data_error(e, "network_stats"))
     end
-    output_kv([
-        "herfindahl" => round(r.herfindahl; digits=6),
-        "multiplier_dispersion" => round(r.multiplier_dispersion; digits=6),
+    output_kv(Pair{String,Any}[
+        "herfindahl" => Float64(r.herfindahl),
+        "multiplier_dispersion" => Float64(r.multiplier_dispersion),
     ]; format=Symbol(format), output=_per_var_output_path(output, "summary"), title="Network Stats Summary")
     df = DataFrame(sector=r.sectors,
-                   domar=round.(r.domar; digits=6),
-                   multiplier=round.(r.multipliers; digits=6),
-                   in_degree=round.(r.in_degree; digits=6),
-                   out_degree=round.(r.out_degree; digits=6),
-                   upstreamness=round.(r.upstreamness; digits=6),
-                   downstreamness=round.(r.downstreamness; digits=6))
+                   domar=Float64.(r.domar),
+                   multiplier=Float64.(r.multipliers),
+                   in_degree=Float64.(r.in_degree),
+                   out_degree=Float64.(r.out_degree),
+                   upstreamness=Float64.(r.upstreamness),
+                   downstreamness=Float64.(r.downstreamness))
     output_result(df; format=Symbol(format), output=output,
                   title="Network Stats Sectors", key="network_stats_sectors")
     _maybe_plot(r; plot=plot, plot_save=plot_save)
@@ -1628,13 +1628,13 @@ function _io_vertical_specialization(; data::String="", n_sectors::Int=0, n_fd::
                 hint="pass --region <name|index> (table has $(length(io.regions)) regions)"))
         throw(_domain_or_data_error(e, "vertical_specialization"))
     end
-    output_kv([
-        "vs" => round(vs.vs; digits=6),
-        "vs_share" => round(vs.vs_share; digits=6),
-        "vs1" => round(vs.vs1; digits=6),
-        "domestic_content" => round(vs.domestic_content; digits=6),
-        "dc_share" => round(vs.dc_share; digits=6),
-        "gross_exports" => round(vs.gross_exports; digits=6),
+    output_kv(Pair{String,Any}[
+        "vs" => Float64(vs.vs),
+        "vs_share" => Float64(vs.vs_share),
+        "vs1" => Float64(vs.vs1),
+        "domestic_content" => Float64(vs.domestic_content),
+        "dc_share" => Float64(vs.dc_share),
+        "gross_exports" => Float64(vs.gross_exports),
         "region" => vs.region,
     ]; format=Symbol(format), output=_per_var_output_path(output, "summary"), title="Vertical Specialization")
     # by_sector is length nsectors (one region's industries), not full n.
@@ -1650,7 +1650,7 @@ function _io_vertical_specialization(; data::String="", n_sectors::Int=0, n_fd::
         end
         length(idxs) == ns ? io.sectors[idxs] : ["sector$i" for i in 1:ns]
     end
-    df = DataFrame(sector=labs, foreign_content=round.(vs.by_sector; digits=6))
+    df = DataFrame(sector=labs, foreign_content=Float64.(vs.by_sector))
     output_result(df; format=Symbol(format), output=output,
                   title="Vertical Specialization by Sector",
                   key="vertical_specialization_by_sector")
@@ -1675,21 +1675,21 @@ function _io_export_decomposition(; data::String="", n_sectors::Int=0, n_fd::Int
     end
     # Distinctive columns dva/rdv/fva/pdc live on this one-row aggregates table.
     df = DataFrame(region=[ed.region],
-                   dva=round.([ed.dva]; digits=6),
-                   rdv=round.([ed.rdv]; digits=6),
-                   fva=round.([ed.fva]; digits=6),
-                   pdc=round.([ed.pdc]; digits=6),
-                   gross_exports=round.([ed.gross_exports]; digits=6),
-                   vax_ratio=round.([ed.vax_ratio]; digits=6))
+                   dva=Float64[ed.dva],
+                   rdv=Float64[ed.rdv],
+                   fva=Float64[ed.fva],
+                   pdc=Float64[ed.pdc],
+                   gross_exports=Float64[ed.gross_exports],
+                   vax_ratio=Float64[ed.vax_ratio])
     output_result(df; format=Symbol(format), output=output,
                   title="KWW Export Aggregates", key="kww_export_aggregates")
     ns = size(ed.by_sector, 1)
     labs = length(ed.sectors) == ns ? ed.sectors : ["sector$i" for i in 1:ns]
     sdf = DataFrame(sector=labs,
-                    dva=round.(ed.by_sector[:, 1]; digits=6),
-                    rdv=round.(ed.by_sector[:, 2]; digits=6),
-                    fva=round.(ed.by_sector[:, 3]; digits=6),
-                    pdc=round.(ed.by_sector[:, 4]; digits=6))
+                    dva=Float64.(ed.by_sector[:, 1]),
+                    rdv=Float64.(ed.by_sector[:, 2]),
+                    fva=Float64.(ed.by_sector[:, 3]),
+                    pdc=Float64.(ed.by_sector[:, 4]))
     output_result(sdf; format=Symbol(format), output=_per_var_output_path(output, "sectors"),
                   title="KWW Export by Sector", key="kww_export_by_sector")
     _maybe_plot(ed; plot=plot, plot_save=plot_save)
@@ -1713,10 +1713,10 @@ function _io_bilateral_trade(; data::String="", n_sectors::Int=0, n_fd::Int=1,
     catch e
         throw(_domain_or_data_error(e, "bilateral_trade"))
     end
-    output_kv([
-        "intermediate" => round(bt.intermediate; digits=6),
-        "final" => round(bt.final; digits=6),
-        "total" => round(bt.total; digits=6),
+    output_kv(Pair{String,Any}[
+        "intermediate" => Float64(bt.intermediate),
+        "final" => Float64(bt.final),
+        "total" => Float64(bt.total),
         "exporter" => string(ex),
         "importer" => string(im),
         "kind" => kind,
@@ -1728,7 +1728,7 @@ function _io_bilateral_trade(; data::String="", n_sectors::Int=0, n_fd::Int=1,
     catch
         ["sector$i" for i in 1:ns]
     end
-    df = DataFrame(sector=labs, by_sector=round.(bt.by_sector; digits=6))
+    df = DataFrame(sector=labs, by_sector=Float64.(bt.by_sector))
     output_result(df; format=Symbol(format), output=output,
                   title="Bilateral Trade by Sector", key="bilateral_trade_by_sector")
     return bt

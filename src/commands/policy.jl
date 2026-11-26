@@ -279,12 +279,12 @@ function _policy_effects_table(ce)
     for (i, sym) in enumerate(ce.outcomes), (k, lab) in enumerate(ce.shock_labels), h in 1:ce.H
         push!(rows_var, String(sym)); push!(rows_role, "outcome")
         push!(rows_shock, lab); push!(rows_h, h)
-        push!(rows_v, round(Float64(ce.Theta_x[i][h, k]); digits=6))
+        push!(rows_v, Float64(ce.Theta_x[i][h, k]))
     end
     for (i, sym) in enumerate(ce.instruments), (k, lab) in enumerate(ce.shock_labels), h in 1:ce.H
         push!(rows_var, String(sym)); push!(rows_role, "instrument")
         push!(rows_shock, lab); push!(rows_h, h)
-        push!(rows_v, round(Float64(ce.Theta_z[i][h, k]); digits=6))
+        push!(rows_v, Float64(ce.Theta_z[i][h, k]))
     end
     DataFrame(variable=rows_var, role=rows_role, shock=rows_shock,
               horizon=rows_h, value=rows_v)
@@ -631,11 +631,11 @@ function _render_policy_moments(m; format::String="table", output::String="",
     nv = length(m.varnames)
     # 1. Standard deviations, baseline vs counterfactual (+ draw bands).
     sd = DataFrame(variable=String.(m.varnames),
-                   sd_base=round.(Float64.(m.sd_base); digits=6),
-                   sd_cf=round.(Float64.(m.sd_cf); digits=6))
+                   sd_base=Float64.(m.sd_base),
+                   sd_cf=Float64.(m.sd_cf))
     if m.sd_cf_bands !== nothing
         for q in 1:size(m.sd_cf_bands, 2)
-            sd[!, Symbol("sd_cf_q$q")] = round.(Float64.(m.sd_cf_bands[:, q]); digits=6)
+            sd[!, Symbol("sd_cf_q$q")] = Float64.(m.sd_cf_bands[:, q])
         end
     end
     output_result(sd; format=Symbol(format), output=output,
@@ -645,8 +645,8 @@ function _render_policy_moments(m; format::String="table", output::String="",
     v1 = String[]; v2 = String[]; cb = Float64[]; cc = Float64[]
     for i in 1:nv, j in (i+1):nv
         push!(v1, String(m.varnames[i])); push!(v2, String(m.varnames[j]))
-        push!(cb, round(Float64(m.corr_base[i, j]); digits=6))
-        push!(cc, round(Float64(m.corr_cf[i, j]); digits=6))
+        push!(cb, Float64(m.corr_base[i, j]))
+        push!(cc, Float64(m.corr_cf[i, j]))
     end
     isempty(v1) || output_result(
         DataFrame(var1=v1, var2=v2, corr_base=cb, corr_cf=cc);
@@ -658,10 +658,10 @@ function _render_policy_moments(m; format::String="table", output::String="",
         "policy"      => m.policy_name,
         "H"           => m.H,
         "tail_share (VMA truncation; > 0.01 means grow --horizon)" =>
-            round(Float64(m.tail_share); digits=6),
+            Float64(m.tail_share),
         "draw_source" => draw_source,
         "freq_band"   => m.freq_band === nothing ? "full spectrum" :
-                         "$(round(Float64(m.freq_band[1]); digits=4)):$(round(Float64(m.freq_band[2]); digits=4))",
+                         "$(Float64(m.freq_band[1])):$(Float64(m.freq_band[2]))",
     ]
     output_kv(pairs; format=format, output=_per_var_output_path(output, "summary"),
               title="Moments Summary")
@@ -674,7 +674,7 @@ function _render_policy_counterfactual(r; format::String="table", output::String
                  format=Symbol(format), output=output)
 
     # 2. The enforcing date-0 policy-shock vector ν*.
-    nu_df = DataFrame(shock=r.shock_labels, nu=round.(Float64.(r.nu); digits=6))
+    nu_df = DataFrame(shock=r.shock_labels, nu=Float64.(r.nu))
     output_result(nu_df; format=Symbol(format),
                   output=_per_var_output_path(output, "nu"),
                   title="Enforcing Policy Shocks (nu)")
@@ -683,7 +683,7 @@ function _render_policy_counterfactual(r; format::String="table", output::String
     # indexed by horizon: optimal_policy stacks the outcome+instrument FOC
     # blocks, so the path can be a multiple of H — index it by component.
     err_df = DataFrame(index=1:length(r.error_path),
-                       error=round.(Float64.(r.error_path); digits=6))
+                       error=Float64.(r.error_path))
     output_result(err_df; format=Symbol(format),
                   output=_per_var_output_path(output, "error"),
                   title="Implementation Error Path")
@@ -692,7 +692,7 @@ function _render_policy_counterfactual(r; format::String="table", output::String
     pairs = Pair{String,Any}[
         "rule"            => r.rule_name,
         "H"               => r.H,
-        "rel_residual"    => round(Float64(r.rel_residual); digits=6),
+        "rel_residual"    => Float64(r.rel_residual),
         "spanned"         => r.spanned,
         "n_draws_used"    => r.n_draws_used,
         "n_draws_failed"  => r.n_draws_failed,
@@ -700,15 +700,15 @@ function _render_policy_counterfactual(r; format::String="table", output::String
     ]
     if r.rel_residual_bands !== nothing
         pairs = vcat(pairs, Pair{String,Any}[
-            "rel_residual_bands" => join(round.(Float64.(r.rel_residual_bands); digits=6), ", ")])
+            "rel_residual_bands" => join(Float64.(r.rel_residual_bands), ", ")])
     end
     # Loss accounting — populated by optimal_policy (W5), NaN on plain rule
     # counterfactuals. foc_norm ≈ 0 is the optimality check.
     if isfinite(r.loss_base)
         append!(pairs, Pair{String,Any}[
-            "loss_base" => round(Float64(r.loss_base); digits=6),
-            "loss_cf"   => round(Float64(r.loss_cf); digits=6),
-            "foc_norm (≈0 at the optimum)" => round(Float64(r.foc_norm); digits=8),
+            "loss_base" => Float64(r.loss_base),
+            "loss_cf"   => Float64(r.loss_cf),
+            "foc_norm (≈0 at the optimum)" => Float64(r.foc_norm),
         ])
         # Upstream warns "loss increased" on a kernel/sign bug — that is a
         # RESULT, so it must be data, not a swallowed stderr line.
@@ -929,14 +929,14 @@ function _render_opp(r, nt; format::String="table", output::String="",
     # 1. The recommendation per identified shock direction. delta is the draw
     # MEDIAN after estimate_opp (BM convention); delta_plugin keeps the point.
     dd = DataFrame(shock=r.shock_labels,
-                   delta=round.(Float64.(r.delta); digits=6),
-                   delta_plugin=round.(Float64.(r.delta_plugin); digits=6),
-                   gradient=round.(Float64.(r.gradient); digits=6))
+                   delta=Float64.(r.delta),
+                   delta_plugin=Float64.(r.delta_plugin),
+                   gradient=Float64.(r.gradient))
     if r.bands !== nothing
         for lev in sort(collect(keys(r.bands)))
             B = r.bands[lev]
-            dd[!, Symbol("lo", round(Int, 100lev))] = round.(Float64.(B[:, 1]); digits=6)
-            dd[!, Symbol("hi", round(Int, 100lev))] = round.(Float64.(B[:, 2]); digits=6)
+            dd[!, Symbol("lo", round(Int, 100lev))] = Float64.(B[:, 1])
+            dd[!, Symbol("hi", round(Int, 100lev))] = Float64.(B[:, 2])
         end
     end
     if r.reject !== nothing
@@ -951,8 +951,8 @@ function _render_opp(r, nt; format::String="table", output::String="",
     gv = String[]; gh = Int[]; gb = Float64[]; go = Float64[]
     for (i, sym) in enumerate(r.outcomes), h in 1:r.H
         push!(gv, String(sym)); push!(gh, h)
-        push!(gb, round(Float64(r.Y_base[i][h]); digits=6))
-        push!(go, round(Float64(r.Y_opp[i][h]); digits=6))
+        push!(gb, Float64(r.Y_base[i][h]))
+        push!(go, Float64(r.Y_opp[i][h]))
     end
     output_result(DataFrame(variable=gv, horizon=gh, gap_base=gb, gap_opp=go);
                   format=Symbol(format), output=_per_var_output_path(output, "gaps"),
@@ -961,8 +961,8 @@ function _render_opp(r, nt; format::String="table", output::String="",
         pv = String[]; ph = Int[]; pb = Float64[]; po = Float64[]
         for (k, sym) in enumerate(r.instruments), h in 1:r.H
             push!(pv, String(sym)); push!(ph, h)
-            push!(pb, round(Float64(r.P_base[k][h]); digits=6))
-            push!(po, round(Float64(r.P_opp[k][h]); digits=6))
+            push!(pb, Float64(r.P_base[k][h]))
+            push!(po, Float64(r.P_opp[k][h]))
         end
         output_result(DataFrame(instrument=pv, horizon=ph,
                                 announced=pb, recommended=po);
@@ -973,8 +973,8 @@ function _render_opp(r, nt; format::String="table", output::String="",
 
     # 3. Summary — reversed-polarity note is an envelope FIELD, not stderr.
     pairs = Pair{String,Any}[
-        "loss_base" => round(Float64(r.loss_base); digits=6),
-        "loss_opp"  => round(Float64(r.loss_opp); digits=6),
+        "loss_base" => Float64(r.loss_base),
+        "loss_opp"  => Float64(r.loss_opp),
         "H"         => r.H,
         "origin"    => isempty(r.origin) ? "(unset)" : r.origin,
         "n_failed"  => r.n_failed,
@@ -987,7 +987,7 @@ function _render_opp(r, nt; format::String="table", output::String="",
             "binding" => isempty(nt.binding) ? "none" :
                          join(string.(nt.binding), ","),
             "kkt_residual" => isfinite(nt.kkt_residual) ?
-                              round(Float64(nt.kkt_residual); digits=8) : "n/a",
+                              Float64(nt.kkt_residual) : "n/a",
             "warm_start_feasible" => nt.warm_start_feasible,
         ])
         nt.method_used === :projection && push!(pairs, "warning" =>
@@ -1106,11 +1106,11 @@ function _render_opp_sequence(s; format::String="table", output::String="")
     nw = Float64[]; pf = Float64[]; ag = Float64[]
     for d in 1:nd, k in 1:ns
         push!(dv, s.dates[d]); push!(sv, s.shock_labels[k])
-        push!(dl, round(Float64(s.delta[k, d]); digits=6))
-        push!(dtc, round(Float64(s.delta_tc[k, d]); digits=6))
-        push!(nw, round(Float64(s.news_part[k, d]); digits=6))
-        push!(pf, round(Float64(s.pref_part[k, d]); digits=6))
-        push!(ag, round(Float64(s.aging_part[k, d]); digits=6))
+        push!(dl, Float64(s.delta[k, d]))
+        push!(dtc, Float64(s.delta_tc[k, d]))
+        push!(nw, Float64(s.news_part[k, d]))
+        push!(pf, Float64(s.pref_part[k, d]))
+        push!(ag, Float64(s.aging_part[k, d]))
     end
     output_result(DataFrame(date=dv, shock=sv, delta=dl, delta_tc=dtc);
                   format=Symbol(format), output=output,
@@ -1300,7 +1300,7 @@ function _policy_jacobian(; model="", result=nothing, input::String="r", jac_out
         rows = Int[]; cols = Int[]; vals = Float64[]
         for j in axes(J, 2), i in axes(J, 1)
             push!(rows, i); push!(cols, j)
-            push!(vals, round(Float64(J[i, j]); digits=8))
+            push!(vals, Float64(J[i, j]))
         end
         output_result(DataFrame(row=rows, col=cols, value=vals);
                       format=Symbol(format), output=output,
@@ -1336,7 +1336,7 @@ function _policy_jacobian(; model="", result=nothing, input::String="r", jac_out
     rows = Int[]; cols = Int[]; vals = Float64[]
     for j in axes(J, 2), i in axes(J, 1)
         push!(rows, i); push!(cols, j)
-        push!(vals, round(Float64(J[i, j]); digits=8))
+        push!(vals, Float64(J[i, j]))
     end
     output_result(DataFrame(row=rows, col=cols, value=vals);
                   format=Symbol(format), output=output,
@@ -1469,8 +1469,8 @@ function _render_policy_spanning(sp; format::String="table", output::String="")
     gv = String[]; gh = Int[]; ge = Float64[]; gf = Float64[]
     for (i, sym) in enumerate(sp.outcomes), h in 1:length(sp.x_cf_emp[i])
         push!(gv, String(sym)); push!(gh, h)
-        push!(ge, round(Float64(sp.x_cf_emp[i][h]); digits=6))
-        push!(gf, round(Float64(sp.x_cf_full[i][h]); digits=6))
+        push!(ge, Float64(sp.x_cf_emp[i][h]))
+        push!(gf, Float64(sp.x_cf_full[i][h]))
     end
     output_result(DataFrame(variable=gv, horizon=gh, cf_thin=ge, cf_full=gf);
                   format=Symbol(format), output=output,
@@ -1478,9 +1478,9 @@ function _render_policy_spanning(sp; format::String="table", output::String="")
     output_kv(Pair{String,Any}[
         # The verdict is a convenience; the raw numbers are the result.
         "spanned" => sp.spanned,
-        "gap_rel (max)" => round(maximum(Float64.(sp.gap_rel)); digits=6),
-        "loading_inside" => round(Float64(sp.loading_inside); digits=6),
-        "rel_residual_emp" => round(Float64(sp.rel_residual_emp); digits=6),
+        "gap_rel (max)" => maximum(Float64.(sp.gap_rel)),
+        "loading_inside" => Float64(sp.loading_inside),
+        "rel_residual_emp" => Float64(sp.rel_residual_emp),
         "interpretation" => "does the model choice matter for THIS counterfactual? spanned=true → the thin empirical menu already carries it",
     ]; format=format, output=_per_var_output_path(output, "verdict"),
        title="Spanning Verdict")
@@ -1563,7 +1563,7 @@ function _render_policy_sufficiency(fs; format::String="table", output::String="
                  format=Symbol(format), output=output)
     output_kv(Pair{String,Any}[
         "invertible" => fs.invertible,
-        "one_step_ratio" => join(round.(Float64.(fs.one_step_ratio); digits=6), ", "),
+        "one_step_ratio" => join(Float64.(fs.one_step_ratio), ", "),
         "H" => fs.H,
         "note" => "fev_ratio ≥ 1 = Wold-info FEV over full-info FEV; invertibility is SUFFICIENT for forecast sufficiency, not necessary",
     ]; format=format, output=_per_var_output_path(output, "summary"),

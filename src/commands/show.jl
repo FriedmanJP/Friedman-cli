@@ -1,6 +1,16 @@
 # Top-level `show` — render bounded structured summaries for any loadable handle
 # (data, model, result, archive, or session URI) ([STORAGE-W5] #309)
 
+"""Format a scalar float for fallback struct previews using `_DISPLAY_DIGITS[]`
+(default 3 decimal places via `_format_display_float`, or exact `string(Float64(x))`
+under `--digits full`)."""
+function _format_preview_float(x::Real)::String
+    xf = Float64(x)
+    isfinite(xf) || return string(xf)
+    d = isdefined(@__MODULE__, :_DISPLAY_DIGITS) ? _DISPLAY_DIGITS[] : _DEFAULT_DISPLAY_DIGITS
+    return d === nothing ? string(xf) : _format_display_float(xf, d)
+end
+
 """Format an arbitrary Julia field value concisely so `frdc show` never dumps
 megabytes of raw matrix text to stdout."""
 function _format_field_preview(v; max_chars::Int=80)::String
@@ -13,7 +23,7 @@ function _format_field_preview(v; max_chars::Int=80)::String
     elseif v isa Integer
         return string(v)
     elseif v isa AbstractFloat
-        return isfinite(v) ? string(round(Float64(v); digits=6)) : string(v)
+        return _format_preview_float(v)
     elseif v isa Symbol
         return ":" * string(v)
     elseif v isa AbstractString
@@ -29,8 +39,8 @@ function _format_field_preview(v; max_chars::Int=80)::String
         if v isa AbstractArray{<:Real} && !isempty(v)
             fin = filter(isfinite, vec(v))
             if !isempty(fin)
-                lo = round(Float64(minimum(fin)); digits=4)
-                hi = round(Float64(maximum(fin)); digits=4)
+                lo = _format_preview_float(minimum(fin))
+                hi = _format_preview_float(maximum(fin))
                 return "$(el)[$shp] (min=$lo, max=$hi)"
             end
         end
