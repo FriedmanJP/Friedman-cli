@@ -235,7 +235,7 @@ function _policy_menu(route::String; data::String="", model=nothing, lags, horiz
         if model === nothing
             slp, Y, varnames = _load_and_structural_lp(data, horizon,
                 lags === nothing ? 4 : lags, nothing, "cholesky", "newey_west", config;
-                ci_type=:none, reps=200, conf_level=0.95)
+                ci_type=:none, reps=200, conf_level=0.68)
             # LP draws are an INDEPENDENT-NORMAL N(value, se) approximation — fine
             # for pointwise bands, not a joint posterior (documented + settings row).
             ce = policy_causal_effects(slp, shocks, outcomes, instruments;
@@ -372,12 +372,14 @@ function _policy_counterfactual(route::String; data::String="", model=nothing, r
                                 normalize::String="none", rule::String="",
                                 rule_config::String="", method::String="auto",
                                 use_draws::String="auto", baseline_draws::String="fixed",
+                                conf_level::Float64=0.68,
                                 quantiles::String="0.16,0.5,0.84",
                                 spanned_tol::Float64=0.05, negate::Bool=false,
                                 output::String="", format::String="table",
                                 plot::Bool=false, plot_save::String="")
+    conf_level = _validate_conf_level(conf_level, "policy counterfactual")
     if result !== nothing
-        _maybe_plot(result; plot=plot, plot_save=plot_save)
+        _maybe_plot(result; plot=plot, plot_save=plot_save, conf_level=conf_level)
         _render_policy_counterfactual(result; format=format, output=output)
         return result
     end
@@ -400,7 +402,7 @@ function _policy_counterfactual(route::String; data::String="", model=nothing, r
     normalize in ("none", "instrument-impact") || throw(CliError("usage/invalid-option",
         "invalid --normalize '$normalize'; must be none or instrument-impact"))
     norm_sym = normalize == "none" ? :none : :instrument_impact
-    qs = _parse_cf_quantiles(quantiles)
+    qs = _resolve_band_quantiles(quantiles, conf_level, "policy counterfactual")
     isempty(strip(nonpolicy_shock)) && throw(CliError("usage/missing",
         "policy counterfactual: --nonpolicy-shock is required (the disturbance the rule responds to)";
         hint="a shock index or name, distinct from the policy --shocks"))
@@ -437,7 +439,7 @@ function _policy_counterfactual(route::String; data::String="", model=nothing, r
         throw(_domain_or_data_error(e, "policy counterfactual"))
     end
 
-    _maybe_plot(result; plot=plot, plot_save=plot_save)
+    _maybe_plot(result; plot=plot, plot_save=plot_save, conf_level=conf_level)
     _render_policy_counterfactual(result; format=format, output=output)
     return result
 end
@@ -452,11 +454,13 @@ function _policy_optimal(route::String; data::String="", model=nothing, result=n
                          outcomes::String="", instruments::String="",
                          normalize::String="none", loss_config::String="",
                          use_draws::String="auto", baseline_draws::String="fixed",
+                         conf_level::Float64=0.68,
                          quantiles::String="0.16,0.5,0.84", negate::Bool=false,
                          output::String="", format::String="table",
                          plot::Bool=false, plot_save::String="")
+    conf_level = _validate_conf_level(conf_level, "policy optimal")
     if result !== nothing
-        _maybe_plot(result; plot=plot, plot_save=plot_save)
+        _maybe_plot(result; plot=plot, plot_save=plot_save, conf_level=conf_level)
         _render_policy_counterfactual(result; format=format, output=output)
         return result
     end
@@ -475,7 +479,7 @@ function _policy_optimal(route::String; data::String="", model=nothing, result=n
     normalize in ("none", "instrument-impact") || throw(CliError("usage/invalid-option",
         "invalid --normalize '$normalize'; must be none or instrument-impact"))
     norm_sym = normalize == "none" ? :none : :instrument_impact
-    qs = _parse_cf_quantiles(quantiles)
+    qs = _resolve_band_quantiles(quantiles, conf_level, "policy optimal")
     isempty(strip(nonpolicy_shock)) && throw(CliError("usage/missing",
         "policy optimal: --nonpolicy-shock is required (the disturbance the optimal policy responds to)"))
     np_shock = (v = tryparse(Int, strip(nonpolicy_shock)); v === nothing ?
@@ -508,7 +512,7 @@ function _policy_optimal(route::String; data::String="", model=nothing, result=n
         throw(_domain_or_data_error(e, "optimal policy"))
     end
 
-    _maybe_plot(result; plot=plot, plot_save=plot_save)
+    _maybe_plot(result; plot=plot, plot_save=plot_save, conf_level=conf_level)
     _render_policy_counterfactual(result; format=format, output=output)
     return result
 end
@@ -539,15 +543,17 @@ function _policy_moments(route::String; data::String="", model=nothing, result=n
                          normalize::String="none", rule::String="",
                          rule_config::String="", loss_config::String="",
                          use_draws::String="auto", draw_source::String="ce",
+                         conf_level::Float64=0.68,
                          quantiles::String="0.16,0.5,0.84",
                          frequencies::String="none",
                          output::String="", format::String="table",
                          plot::Bool=false, plot_save::String="",
                          plot_view::String="sd")
+    conf_level = _validate_conf_level(conf_level, "policy moments")
     plot_view in ("sd", "corr") || throw(CliError("usage/invalid-option",
         "invalid --plot-view '$plot_view'; must be sd or corr"))
     if result !== nothing
-        _maybe_plot(result; plot=plot, plot_save=plot_save, view=Symbol(plot_view))
+        _maybe_plot(result; plot=plot, plot_save=plot_save, view=Symbol(plot_view), conf_level=conf_level)
         _render_policy_moments(result; format=format, output=output, draw_source=draw_source)
         return result
     end
@@ -564,7 +570,7 @@ function _policy_moments(route::String; data::String="", model=nothing, result=n
     normalize in ("none", "instrument-impact") || throw(CliError("usage/invalid-option",
         "invalid --normalize '$normalize'; must be none or instrument-impact"))
     norm_sym = normalize == "none" ? :none : :instrument_impact
-    qs = _parse_cf_quantiles(quantiles)
+    qs = _resolve_band_quantiles(quantiles, conf_level, "policy moments")
     freq = _parse_cf_frequencies(frequencies)
     shock_list = _parse_cf_shocks(shocks)
     out_pairs = _parse_cf_pairs(outcomes, "--outcomes")
@@ -621,7 +627,7 @@ function _policy_moments(route::String; data::String="", model=nothing, result=n
         throw(_domain_or_data_error(e, "counterfactual moments"))
     end
 
-    _maybe_plot(mom; plot=plot, plot_save=plot_save, view=Symbol(plot_view))
+    _maybe_plot(mom; plot=plot, plot_save=plot_save, view=Symbol(plot_view), conf_level=conf_level)
     _render_policy_moments(mom; format=format, output=output, draw_source=draw_source)
     return mom
 end
@@ -1367,11 +1373,13 @@ function _policy_history(route::String; data::String="", model=nothing, result=n
                          rule::String="", rule_config::String="",
                          loss_config::String="", t_range::String="",
                          use_draws::String="auto",
+                         conf_level::Float64=0.68,
                          quantiles::String="0.16,0.5,0.84",
                          output::String="", format::String="table",
                          plot::Bool=false, plot_save::String="")
+    conf_level = _validate_conf_level(conf_level, "policy history")
     if result !== nothing
-        _maybe_plot(result; plot=plot, plot_save=plot_save)
+        _maybe_plot(result; plot=plot, plot_save=plot_save, conf_level=conf_level)
         _render_policy_history(result, result.n_draws_used, result.n_draws_failed;
                                format=format, output=output)
         return result
@@ -1383,7 +1391,7 @@ function _policy_history(route::String; data::String="", model=nothing, result=n
     normalize in ("none", "instrument-impact") || throw(CliError("usage/invalid-option",
         "invalid --normalize '$normalize'; must be none or instrument-impact"))
     norm_sym = normalize == "none" ? :none : :instrument_impact
-    qs = _parse_cf_quantiles(quantiles)
+    qs = _resolve_band_quantiles(quantiles, conf_level, "policy history")
     m = match(r"^(\d+):(\d+)$", strip(t_range))
     m === nothing && throw(CliError("usage/missing",
         "policy history: --t-range lo:hi is required (the observation window to re-run under the counterfactual rule)"))
@@ -1460,7 +1468,7 @@ function _policy_history(route::String; data::String="", model=nothing, result=n
         throw(_domain_or_data_error(e, "counterfactual history"))
     end
 
-    _maybe_plot(hist; plot=plot, plot_save=plot_save)
+    _maybe_plot(hist; plot=plot, plot_save=plot_save, conf_level=conf_level)
     _render_policy_history(hist, n_used, n_failed; format=format, output=output)
     return hist
 end
@@ -1493,11 +1501,13 @@ function _policy_spanning(; data::String="", model="", result=nothing, lags=noth
                           model_outcomes::String="", model_instruments::String="",
                           policy_shock::String="", solver::String="gensys",
                           rule::String="", rule_config::String="", tol::Float64=0.1,
-                          n_sim::Int=200, quantiles::String="0.16,0.5,0.84",
+                          n_sim::Int=200, conf_level::Float64=0.68,
+                          quantiles::String="0.16,0.5,0.84",
                           output::String="", format::String="table",
                           plot::Bool=false, plot_save::String="")
+    conf_level = _validate_conf_level(conf_level, "policy spanning")
     if result !== nothing
-        _maybe_plot(result; plot=plot, plot_save=plot_save)
+        _maybe_plot(result; plot=plot, plot_save=plot_save, conf_level=conf_level)
         _render_policy_spanning(result; format=format, output=output)
         return result
     end
@@ -1507,7 +1517,7 @@ function _policy_spanning(; data::String="", model="", result=nothing, lags=noth
         "policy spanning: --tol must be > 0 (got $tol)"))
     n_sim >= 0 || throw(CliError("usage/invalid",
         "policy spanning: --n-sim must be ≥ 0 (got $n_sim)"))
-    qs = _parse_cf_quantiles(quantiles)
+    qs = _resolve_band_quantiles(quantiles, conf_level, "policy spanning")
     isempty(strip(nonpolicy_shock)) && throw(CliError("usage/missing",
         "policy spanning: --nonpolicy-shock is required"))
     isempty(strip(policy_shock)) && throw(CliError("usage/missing",
@@ -1552,7 +1562,7 @@ function _policy_spanning(; data::String="", model="", result=nothing, lags=noth
         throw(_domain_or_data_error(e, "spanning diagnostic"))
     end
 
-    _maybe_plot(sp; plot=plot, plot_save=plot_save)
+    _maybe_plot(sp; plot=plot, plot_save=plot_save, conf_level=conf_level)
     _render_policy_spanning(sp; format=format, output=output)
     return sp
 end
@@ -1653,8 +1663,8 @@ const _POLICY_CF_OPTIONS = [
     OptionSpec(name="baseline-draws", type=String, default="fixed",
                choices=["fixed", "match"],
                description="fixed (MW convention, separate estimations) | match (pair draw d with draw d; equal counts enforced)"),
-    OptionSpec(name="quantiles", type=String, default="0.16,0.5,0.84",
-               description="Band quantiles, comma-separated in (0,1)"),
+    CONF_LEVEL_MACRO_OPTION,
+    QUANTILES_MACRO_OPTION,
     OptionSpec(name="spanned-tol", type=Float64, default=0.05,
                description="rel_residual threshold for the spanned flag"),
 ]
@@ -1727,8 +1737,8 @@ function register_policy_commands!()
                      OptionSpec(name="baseline-draws", type=String, default="fixed",
                                 choices=["fixed", "match"],
                                 description="fixed | match (equal draw counts enforced)");
-                     OptionSpec(name="quantiles", type=String, default="0.16,0.5,0.84",
-                                description="Band quantiles, comma-separated in (0,1)");
+                     CONF_LEVEL_MACRO_OPTION;
+                     QUANTILES_MACRO_OPTION;
                      # NO --spanned-tol: optimal_policy hardcodes 0.05 upstream.
                      OptionSpec(name="normalize", type=String, default="none",
                                 choices=["none", "instrument-impact"],
@@ -1768,8 +1778,8 @@ function register_policy_commands!()
                      OptionSpec(name="draw-source", type=String, default="ce",
                                 choices=["ce", "wold", "both"],
                                 description="Uncertainty source: ce | wold | both (matching counts enforced)");
-                     OptionSpec(name="quantiles", type=String, default="0.16,0.5,0.84",
-                                description="Band quantiles, comma-separated in (0,1)");
+                     CONF_LEVEL_MACRO_OPTION;
+                     QUANTILES_MACRO_OPTION;
                      OptionSpec(name="frequencies", type=String, default="none",
                                 description="none | business-cycle (2π/32..2π/6) | lo,hi in radians (0 ≤ lo < hi ≤ π)");
                      OptionSpec(name="plot-view", type=String, default="sd",
@@ -1995,8 +2005,8 @@ function register_policy_commands!()
                      OptionSpec(name="use-draws", type=String, default="auto",
                                 choices=["auto", "on", "off"],
                                 description="Propagate draws into bands");
-                     OptionSpec(name="quantiles", type=String, default="0.16,0.5,0.84",
-                                description="Band quantiles in (0,1)");
+                     CONF_LEVEL_MACRO_OPTION;
+                     QUANTILES_MACRO_OPTION;
                      OptionSpec(name="normalize", type=String, default="none",
                                 choices=["none", "instrument-impact"],
                                 description="none | instrument-impact");
@@ -2041,8 +2051,8 @@ function register_policy_commands!()
                             description="Spanned-verdict tolerance on gap_rel and the loading share");
                  OptionSpec(name="n-sim", type=Int, default=200,
                             description="Draw propagation for gap bands");
-                 OptionSpec(name="quantiles", type=String, default="0.16,0.5,0.84",
-                            description="Band quantiles in (0,1)");
+                 CONF_LEVEL_MACRO_OPTION;
+                 QUANTILES_MACRO_OPTION;
                  PLOT_OPTIONS...],
         flags=[FlagSpec(name="plot", description="Open interactive plot in browser")],
         tables=[TableSpec(name=:spanning_thin_vs_full_counterfactual_paths,

@@ -42,7 +42,7 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="d0", type=Float64, default=nothing, description="Starting value for d (default: GPH pre-estimate)"),
                 OptionSpec(name="max-iter", type=Int, default=500, description="Maximum optimizer iterations"),
                 OptionSpec(name="horizons", short="H", type=Int, default=12, description="Forecast horizons (≥ 1)"),
-                OptionSpec(name="conf-level", aliases=["confidence"], kwarg=:confidence, type=Float64, default=0.95, description="Interval level in (0,1)"),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="trunc-lag", type=Int, default=200, description="AR(inf) truncation lag for the fractional filter (≥ 1)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -73,7 +73,7 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="poly-degree", type=Int, default=2, description="Almon polynomial degree (≥ 0)"),
                 OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=1, description="Direct forecast horizon, fixed at estimation"),
                 OptionSpec(name="max-iter", type=Int, default=500, description="Maximum optimizer iterations"),
-                OptionSpec(name="conf-level", aliases=["level"], kwarg=:level, type=Float64, default=0.95, description="Prediction-interval level in (0,1)"),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -104,7 +104,7 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="p", type=Int, default=1, description="GARCH order p"),
                 OptionSpec(name="q", type=Int, default=1, description="ARCH order q"),
                 OptionSpec(name="horizons", short="H", type=Int, default=10, description="Forecast horizons (≥ 1)"),
-                OptionSpec(name="conf-level", type=Float64, default=0.95, description="Forecast interval level in (0,1)"),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 # plot-save is an OPTION (a String path), NOT a flag — a FlagSpec here
@@ -113,7 +113,7 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="plot-save", type=String, default="", description="Save interactive plot to HTML file")
             ],
             flags=[FlagSpec(name="plot", description="Display an interactive plot")],
-            tables=[TableSpec(name=:igarch_volatility_forecast, description="Conditional variance path: horizon | variance | volatility")],
+            tables=[TableSpec(name=:igarch_volatility_forecast, description="Conditional variance path with interval bounds: horizon | variance | volatility | lower | upper")],
             category="forecast",
             handler=wrap_legacy(_forecast_igarch),
         ),
@@ -124,7 +124,7 @@ function forecast_specs()::Vector{CommandSpec}
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
                 OptionSpec(name="horizons", short="H", type=Int, default=10, description="Forecast horizons (≥ 1)"),
-                OptionSpec(name="conf-level", type=Float64, default=0.95, description="Forecast interval level in (0,1)"),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 # plot-save is an OPTION (a String path), NOT a flag — a FlagSpec here
@@ -133,7 +133,7 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="plot-save", type=String, default="", description="Save interactive plot to HTML file")
             ],
             flags=[FlagSpec(name="plot", description="Display an interactive plot")],
-            tables=[TableSpec(name=:cgarch_volatility_forecast, description="Conditional variance path: horizon | variance | volatility")],
+            tables=[TableSpec(name=:cgarch_volatility_forecast, description="Conditional variance path with interval bounds: horizon | variance | volatility | lower | upper")],
             category="forecast",
             handler=wrap_legacy(_forecast_cgarch),
         ),
@@ -148,7 +148,7 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="fix-delta", type=Float64, default=nothing, description="Fix the power parameter delta"),
                 OptionSpec(name="fix-gamma", type=Float64, default=nothing, description="Fix the asymmetry parameter gamma"),
                 OptionSpec(name="horizons", short="H", type=Int, default=10, description="Forecast horizons (≥ 1)"),
-                OptionSpec(name="conf-level", type=Float64, default=0.95, description="Forecast interval level in (0,1)"),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 # plot-save is an OPTION (a String path), NOT a flag — a FlagSpec here
@@ -157,7 +157,7 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="plot-save", type=String, default="", description="Save interactive plot to HTML file")
             ],
             flags=[FlagSpec(name="plot", description="Display an interactive plot")],
-            tables=[TableSpec(name=:aparch_volatility_forecast, description="Conditional variance path: horizon | variance | volatility")],
+            tables=[TableSpec(name=:aparch_volatility_forecast, description="Conditional variance path with interval bounds: horizon | variance | volatility | lower | upper")],
             category="forecast",
             handler=wrap_legacy(_forecast_aparch),
         ),
@@ -173,7 +173,7 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="truncation", type=Int, default=1000, description="Truncation lag for the ARCH(inf) expansion"),
                 OptionSpec(name="dist", type=String, default="normal", description="Innovation distribution (only normal is accepted; use garch|egarch|gjr-garch for Student-t or GED)", choices=["normal"]),
                 OptionSpec(name="horizons", short="H", type=Int, default=10, description="Forecast horizons (≥ 1)"),
-                OptionSpec(name="conf-level", type=Float64, default=0.95, description="Forecast interval level in (0,1)"),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 # plot-save is an OPTION (a String path), NOT a flag — a FlagSpec here
@@ -182,7 +182,7 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="plot-save", type=String, default="", description="Save interactive plot to HTML file")
             ],
             flags=[FlagSpec(name="plot", description="Display an interactive plot")],
-            tables=[TableSpec(name=:figarch_volatility_forecast, description="Conditional variance path: horizon | variance | volatility")],
+            tables=[TableSpec(name=:figarch_volatility_forecast, description="Conditional variance path with interval bounds: horizon | variance | volatility | lower | upper")],
             category="forecast",
             handler=wrap_legacy(_forecast_figarch),
         ),
@@ -198,7 +198,7 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="truncation", type=Int, default=1000, description="Truncation lag for the ARCH(inf) expansion"),
                 OptionSpec(name="dist", type=String, default="normal", description="Innovation distribution (only normal is accepted; use garch|egarch|gjr-garch for Student-t or GED)", choices=["normal"]),
                 OptionSpec(name="horizons", short="H", type=Int, default=10, description="Forecast horizons (≥ 1)"),
-                OptionSpec(name="conf-level", type=Float64, default=0.95, description="Forecast interval level in (0,1)"),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 # plot-save is an OPTION (a String path), NOT a flag — a FlagSpec here
@@ -207,7 +207,7 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="plot-save", type=String, default="", description="Save interactive plot to HTML file")
             ],
             flags=[FlagSpec(name="plot", description="Display an interactive plot")],
-            tables=[TableSpec(name=:fiegarch_volatility_forecast, description="Conditional variance path: horizon | variance | volatility")],
+            tables=[TableSpec(name=:fiegarch_volatility_forecast, description="Conditional variance path with interval bounds: horizon | variance | volatility | lower | upper")],
             category="forecast",
             handler=wrap_legacy(_forecast_fiegarch),
         ),
@@ -241,7 +241,7 @@ function forecast_specs()::Vector{CommandSpec}
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto)"),
                 OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon"),
-                OptionSpec(name="conf-level", aliases=["confidence"], kwarg=:confidence, type=Float64, default=0.95, description="Confidence level for intervals"),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="ci-method", type=String, default="analytical", description="Interval method: analytical|bootstrap|none (none = point forecast)", choices=["analytical","bootstrap","none"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -264,7 +264,7 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto for var, 4 for bvar)"),
                 OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon"),
                 OptionSpec(name="replications", type=Int, default=1000, description="Draws used for the conditional bands"),
-                OptionSpec(name="conf-level", aliases=["confidence"], kwarg=:confidence, type=Float64, default=0.95, description="Confidence level in (0, 1)"),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="draws", short="n", type=Int, default=2000, description="MCMC draws (--method bvar)"),
                 OptionSpec(name="sampler", type=String, default="direct", description="direct|gibbs (--method bvar)"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for the BVAR prior (--method bvar; ignored with --method var)"),
@@ -281,20 +281,21 @@ function forecast_specs()::Vector{CommandSpec}
         ),
         CommandSpec(
             path=["forecast", "bvar"],
-            summary="BVAR posterior-mean forecast with fixed 68% credible bands",
+            summary="BVAR posterior-mean forecast with credible bands (default 68%)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="Lag order"),
                 OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon"),
                 OptionSpec(name="draws", short="n", type=Int, default=2000, description="MCMC draws"),
                 OptionSpec(name="sampler", type=String, default="direct", description="direct|gibbs"),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="config", type=String, default="", description="TOML config for prior hyperparameters"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save interactive plot to HTML file")
             ],
             flags=[FlagSpec(name="plot", description="Display an interactive plot")],
-            tables=[TableSpec(name=:bvar_forecast, description="Posterior-mean forecasts with 68% credible bands, tidy long form: horizon | variable | value | lower | upper")],
+            tables=[TableSpec(name=:bvar_forecast, description="Posterior-mean forecasts with credible bands (default 68%), tidy long form: horizon | variable | value | lower | upper")],
             category="forecast",
             handler=wrap_legacy(_forecast_bvar),
         ),
@@ -309,7 +310,7 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="LP control lags"),
                 OptionSpec(name="vcov", type=String, default="newey_west", description="newey_west|white|driscoll_kraay"),
                 OptionSpec(name="ci-method", type=String, default="analytical", description="analytical|bootstrap|none"),
-                OptionSpec(name="conf-level", type=Float64, default=0.95, description="Confidence level"),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="n-boot", type=Int, default=500, description="Bootstrap replications"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -336,7 +337,7 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="max-q", type=Int, default=5, description="Max MA order for auto selection"),
                 OptionSpec(name="criterion", type=String, default="bic", description="aic|bic"),
                 OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon"),
-                OptionSpec(name="conf-level", aliases=["confidence"], kwarg=:confidence, type=Float64, default=0.95, description="Confidence level"),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="method", short="m", type=String, default="css_mle", description="ols|css|mle|css_mle"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -353,12 +354,9 @@ function forecast_specs()::Vector{CommandSpec}
         # `forecast(::ThresholdModel, h)` → ThresholdForecast (AbstractForecastResult → tidy
         # long_table). `forecast` is SETAR-only upstream, but `estimate_setar` always sets
         # is_setar=true, so no extra guard; `--transition-col` is NOT offered (that path exists
-        # only for STAR external-s models, which are not forecastable). `--ci-level` MUST be
-        # exactly 0.90/0.95/0.99 (Hansen 2000 tabulation used by the re-estimated threshold CI).
-        # NO `--plot`/`--plot-save`: MEMs 0.7.0 ships NO `plot_result(::ThresholdForecast)` recipe
-        # (only `ThresholdModel`/`STARModel` + the 8 registered forecast types are plottable), so
-        # advertising the flag would drive `_maybe_plot` into an uncaught MethodError → exit 1. Per
-        # the C051 convention only plot-capable leaves add the flags; revisit if MEMs adds one.
+        # only for STAR external-s models, which are not forecastable). Upstream
+        # `forecast(::ThresholdModel; level=...)` supports any level in (0, 1) (default 0.68).
+        # NO `--plot`/`--plot-save`: MEMs ships NO `plot_result(::ThresholdForecast)` recipe.
         CommandSpec(
             path=["forecast", "setar"],
             summary="Bootstrap-simulation threshold forecast for self-exciting models",
@@ -369,7 +367,7 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="d", type=String, default="1", description="Delay lag: an integer ≥ 1, or 'auto' (=1:p grid)"),
                 OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon (≥ 1)"),
                 OptionSpec(name="draws", aliases=["reps"], kwarg=:reps, type=Int, default=1000, description="Bootstrap simulation paths (≥ 1)"),
-                OptionSpec(name="conf-level", aliases=["ci-level"], kwarg=:ci_level, type=Float64, default=0.95, description="Band coverage: 0.90|0.95|0.99", choices=["0.90", "0.95", "0.99"]),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table", "csv", "json"])
             ],
@@ -382,11 +380,7 @@ function forecast_specs()::Vector{CommandSpec}
         # simulates `forecast(::STARModel, h)` → STARForecast (AbstractForecastResult → tidy
         # long_table). `--transition-col` is NOT offered: `forecast(::STARModel)` throws unless
         # the model is self-exciting (sₜ = y[t-d]), so external-s STARs are not forecastable.
-        # NO `--plot`/`--plot-save`: MEMs 0.7.0 ships NO `plot_result(::STARForecast)` recipe
-        # (only `ThresholdModel`/`STARModel` + the 8 registered forecast types are plottable), so
-        # advertising the flag would drive `_maybe_plot` into an uncaught MethodError → exit 1
-        # (the identical gap fixed for `forecast setar`). Per the C051 convention only plot-capable
-        # leaves add the flags; revisit if MEMs adds a STARForecast recipe.
+        # NO `--plot`/`--plot-save`: MEMs ships NO `plot_result(::STARForecast)` recipe.
         CommandSpec(
             path=["forecast", "star"],
             summary="Bootstrap-simulation STAR forecast for self-exciting models",
@@ -398,7 +392,7 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="type", type=String, default="auto", description="Transition shape: lstr1|lstr2|estr|auto", choices=["lstr1", "lstr2", "estr", "auto"]),
                 OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon (≥ 1)"),
                 OptionSpec(name="draws", aliases=["reps"], kwarg=:reps, type=Int, default=1000, description="Bootstrap simulation paths (≥ 1)"),
-                OptionSpec(name="conf-level", aliases=["ci-level"], kwarg=:ci_level, type=Float64, default=0.95, description="Band coverage: 0.90|0.95|0.99", choices=["0.90", "0.95", "0.99"]),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table", "csv", "json"])
             ],
@@ -410,13 +404,14 @@ function forecast_specs()::Vector{CommandSpec}
         # W6/#108: SARIMA forecast. `forecast(::SARIMAModel, h)` returns an ARIMAForecast,
         # which DOES have a plot_result recipe — unlike the threshold/STAR/MS forecast types
         # — so this leaf legitimately carries the plot flags.
+        # Note (L8): NEVER add --quantiles (-Q) here — SARIMA owns --Q seasonal MA order.
         CommandSpec(
             path=["forecast", "sarima"],
             summary="SARIMA point forecast with interval bands (auto or fixed order)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[SARIMA_OPTIONS...,
                 OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon (>= 1)"),
-                OptionSpec(name="conf-level", aliases=["ci-level"], kwarg=:ci_level, type=Float64, default=0.95, description="Band coverage, 0 < level < 1"),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 PLOT_OPTIONS...],
@@ -443,7 +438,7 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="max-iter", type=Int, default=1000, description="Max EM iterations (≥ 1)"),
                 OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon (≥ 1)"),
                 OptionSpec(name="draws", aliases=["reps"], kwarg=:reps, type=Int, default=1000, description="Simulated regime paths for the bands (≥ 1)"),
-                OptionSpec(name="conf-level", aliases=["ci-level"], kwarg=:ci_level, type=Float64, default=0.90, description="Band coverage, 0 < level < 1"),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -466,7 +461,7 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon (intercept-only models; else use --x-future)"),
                 OptionSpec(name="x-future", type=String, default="", description="CSV of future regressors: h rows x k columns (required unless intercept-only)"),
                 OptionSpec(name="draws", aliases=["reps"], kwarg=:reps, type=Int, default=1000, description="Simulated regime paths for the bands (≥ 1)"),
-                OptionSpec(name="conf-level", aliases=["ci-level"], kwarg=:ci_level, type=Float64, default=0.90, description="Band coverage, 0 < level < 1"),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -485,7 +480,7 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="nfactors", type=Int, default=nothing, description="Number of factors (default: auto via IC)"),
                 OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon"),
                 OptionSpec(name="ci-method", type=String, default="none", description="none|bootstrap|parametric"),
-                OptionSpec(name="conf-level", type=Float64, default=0.95, description="Confidence level for intervals"),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
@@ -506,6 +501,7 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon"),
                 OptionSpec(name="factor-lags", type=Int, default=1, description="Factor VAR lag order"),
                 OptionSpec(name="method", type=String, default="twostep", description="twostep|em"),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
@@ -528,6 +524,7 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="method", type=String, default="ar", description="Factor projection: ar (two-sided)|one-sided|spectral (FHLR 2005)", choices=["ar","one-sided","spectral"]),
                 OptionSpec(name="spectral", type=String, default="lag-window", description="GDFM spectrum: lag-window (FHLR)|smoothed-periodogram", choices=["lag-window","smoothed-periodogram"]),
                 OptionSpec(name="n-lags-proj", type=Int, default=nothing, description="Lag depth for stacked FHLR one-sided/spectral projection"),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
@@ -558,6 +555,7 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="config", type=String, default="", description="TOML config for sign restrictions"),
                 OptionSpec(name="ci", type=String, default="none", description="Interval method: none|bootstrap", choices=["none","bootstrap"]),
                 OptionSpec(name="draws", aliases=["reps"], kwarg=:reps, type=Int, default=200, description="Bootstrap replications (with --ci bootstrap)"),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
@@ -582,7 +580,7 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon"),
                 OptionSpec(name="ci-method", type=String, default="none", description="none|bootstrap|parametric"),
                 OptionSpec(name="draws", aliases=["replications"], kwarg=:replications, type=Int, default=500, description="Bootstrap replications"),
-                OptionSpec(name="conf-level", aliases=["confidence"], kwarg=:confidence, type=Float64, default=0.95, description="Confidence level for intervals"),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
@@ -603,6 +601,7 @@ function forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="VAR lag order"),
                 OptionSpec(name="key-vars", type=String, default="", description="Key variable names or indices (comma-separated)"),
                 OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon"),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
@@ -771,12 +770,13 @@ end
 # ── VAR Forecast ─────────────────────────────────────────
 
 function _forecast_var(; data::String="", result=nothing, model=nothing, lags=nothing, horizons::Int=12,
-                        confidence::Float64=0.95, ci_method::String="analytical",
+                        conf_level::Float64=0.68, ci_method::String="analytical",
                         output::String="", format::String="table",
                         plot::Bool=false, plot_save::String="")
     loaded = _loaded_result(result; data, model, lags, check_lags=true, leaf="forecast multivariate var")
     loaded === nothing || return _rerender_long_table(loaded; format, output,
         title="VAR Forecast", key="var_forecast", plot, plot_save)
+    conf_level = _validate_conf_level(conf_level, "forecast multivariate var")
     if isnothing(model)
         model, _, _, p = _load_and_estimate_var(data, lags)
     else
@@ -789,21 +789,21 @@ function _forecast_var(; data::String="", result=nothing, model=nothing, lags=no
     ci_sym = ci_method == "bootstrap" ? :bootstrap :
              ci_method == "none"      ? :none : :analytic
 
-    _status("Computing VAR($p) forecast: horizons=$horizons, confidence=$confidence, ci=$ci_method")
+    _status("Computing VAR($p) forecast: horizons=$horizons, conf_level=$conf_level, ci=$ci_method")
     _status()
 
     fc_kw = ci_sym == :bootstrap ?
-        (; ci_method=:bootstrap, reps=500, conf_level=confidence) :
-        (; ci_method=ci_sym, conf_level=confidence)
+        (; ci_method=:bootstrap, reps=500, conf_level=conf_level) :
+        (; ci_method=ci_sym, conf_level=conf_level)
     fc_result = forecast(model, horizons; fc_kw...)
 
-    ci_label = ci_sym == :bootstrap ? "bootstrap $(Int(round(confidence*100)))% CI" :
+    ci_label = ci_sym == :bootstrap ? "bootstrap $(Int(round(conf_level*100)))% CI" :
                ci_sym == :none      ? "point forecast" :
-               "$(Int(round(confidence*100)))% CI"
+               "$(Int(round(conf_level*100)))% CI"
     # #217: via the central helper (same long_table, key frozen).
     _emit_result(fc_result; title="VAR($p) Forecast (h=$horizons, $ci_label)", key="var_forecast",
                  format=Symbol(format), output=output)
-    _maybe_plot(fc_result; plot=plot, plot_save=plot_save)
+    _maybe_plot(fc_result; plot=plot, plot_save=plot_save, conf_level=conf_level)
     return (; model, result=fc_result)
 end
 
@@ -822,6 +822,7 @@ end
 
 function _forecast_bvar(; data::String="", result=nothing, lags::Int=4, horizons::Int=12,
                          draws::Int=2000, sampler::String="direct",
+                         conf_level::Float64=0.68,
                          config::String="",
                          output::String="", format::String="table",
                          plot::Bool=false, plot_save::String="",
@@ -829,6 +830,7 @@ function _forecast_bvar(; data::String="", result=nothing, lags::Int=4, horizons
     loaded = _loaded_result(result; data, model, leaf="forecast multivariate bvar")
     loaded === nothing || return _rerender_long_table(loaded; format, output,
         title="Bayesian VAR Forecast", key="bvar_forecast", plot, plot_save)
+    conf_level = _validate_conf_level(conf_level, "forecast multivariate bvar")
     if isnothing(model)
         post, Y, varnames, p, n = _load_and_estimate_bvar(data, lags, config, draws, sampler)
     else
@@ -846,12 +848,12 @@ function _forecast_bvar(; data::String="", result=nothing, lags::Int=4, horizons
     # C051: route the posterior forecast through MEMs (→ BVARForecast with the posterior
     # mean + credible bands) and render its tidy long_table (horizon|variable|value|lower|
     # upper), replacing the hand-rolled per-draw simulation and quantile computation.
-    fc = forecast(post, horizons; conf_level=0.68)
+    fc = forecast(post, horizons; conf_level=conf_level)
     # #95: BVARForecast has a real plot_result recipe upstream — this leaf simply never
     # advertised it.
-    _maybe_plot(fc; plot=plot, plot_save=plot_save)
+    _maybe_plot(fc; plot=plot, plot_save=plot_save, conf_level=conf_level)
     # #217: via the central helper (same long_table, key frozen).
-    _emit_result(fc; title="Bayesian VAR($p) Forecast (h=$horizons, 68% credible interval)",
+    _emit_result(fc; title="Bayesian VAR($p) Forecast (h=$horizons, $(round(Int, conf_level*100))% credible interval)",
                  key="bvar_forecast", format=Symbol(format), output=output)
     return (; model=post, result=fc)
 end
@@ -861,7 +863,7 @@ end
 function _forecast_lp(; data::String="", result=nothing, shock::Int=1, horizons::Int=12,
                        shock_size::Float64=1.0, lags::Int=4,
                        vcov::String="newey_west",
-                       ci_method::String="analytical", conf_level::Float64=0.95,
+                       ci_method::String="analytical", conf_level::Float64=0.68,
                        n_boot::Int=500,
                        output::String="", format::String="table",
                        plot::Bool=false, plot_save::String="",
@@ -869,6 +871,7 @@ function _forecast_lp(; data::String="", result=nothing, shock::Int=1, horizons:
     loaded = _loaded_result(result; data, model, leaf="forecast multivariate lp")
     loaded === nothing || return _rerender_long_table(loaded; format, output,
         title="LP Forecast", key="lp_forecast", plot, plot_save)
+    conf_level = _validate_conf_level(conf_level, "forecast multivariate lp")
     if isnothing(model)
         Y, varnames = load_multivariate_data(data)
         model = estimate_lp(Y, shock, horizons;
@@ -885,7 +888,7 @@ function _forecast_lp(; data::String="", result=nothing, shock::Int=1, horizons:
     fc = forecast(model, shock_path;
         ci_method=Symbol(ci_method), conf_level=conf_level, n_boot=n_boot)
 
-    _maybe_plot(fc; plot=plot, plot_save=plot_save)
+    _maybe_plot(fc; plot=plot, plot_save=plot_save, conf_level=conf_level)
 
     shock_name = _shock_name(varnames, shock)
     # C051: MEMs tidy long_table (horizon|variable|value|lower|upper).
@@ -900,13 +903,14 @@ end
 function _forecast_arima(; data::String="", result=nothing, column::Int=1, p=nothing, d::Int=0, q::Int=0,
                            max_p::Int=5, max_d::Int=2, max_q::Int=5,
                            criterion::String="bic", horizons::Int=12,
-                           confidence::Float64=0.95, method::String="css_mle",
+                           conf_level::Float64=0.68, method::String="css_mle",
                            format::String="table", output::String="",
                            plot::Bool=false, plot_save::String="",
                            model=nothing)
     loaded = _loaded_result(result; data, model, leaf="forecast univariate arima")
     loaded === nothing || return _rerender_long_table(loaded; format, output,
         title="ARIMA Forecast", key="arima_forecast", plot, plot_save)
+    conf_level = _validate_conf_level(conf_level, "forecast univariate arima")
     if isnothing(model)
         y, vname = load_univariate_series(data, column)
         method_sym = Symbol(method)
@@ -932,9 +936,9 @@ function _forecast_arima(; data::String="", result=nothing, column::Int=1, p=not
         vname = _model_series_name(model)
     end
 
-    fc = forecast(model, horizons; conf_level=confidence)
+    fc = forecast(model, horizons; conf_level=conf_level)
 
-    _maybe_plot(fc; plot=plot, plot_save=plot_save)
+    _maybe_plot(fc; plot=plot, plot_save=plot_save, conf_level=conf_level)
 
     p_sel = ar_order(model)
     d_sel = diff_order(model)
@@ -943,7 +947,7 @@ function _forecast_arima(; data::String="", result=nothing, column::Int=1, p=not
 
     # C051: MEMs tidy long_table (horizon|variable|value|lower|upper).
     # #217: via the central helper (same long_table, key frozen).
-    _emit_result(fc; title="$label Forecast for $vname (h=$horizons, $(Int(round(confidence*100)))% CI)",
+    _emit_result(fc; title="$label Forecast for $vname (h=$horizons, $(Int(round(conf_level*100)))% CI)",
                  key="arima_forecast", format=Symbol(format), output=output)
     return (; model, result=fc)
 end
@@ -954,38 +958,37 @@ end
 # the shared `_nonlinear_error`; every option is guarded up-front → usage/invalid. The
 # ThresholdForecast is an AbstractForecastResult, so it renders via the generic long_table.
 function _forecast_setar(; data::String="", result=nothing, column::Int=1, p::Int=1, d::String="1",
-                          horizons::Int=12, reps::Int=1000, ci_level::Float64=0.95,
+                          horizons::Int=12, reps::Int=1000, conf_level::Float64=0.68,
                           format::String="table", output::String="", model=nothing)
     loaded = _loaded_result(result; data, model, leaf="forecast regime setar")
     loaded === nothing || return _rerender_long_table(loaded; format, output,
         title="SETAR Forecast", key="setar_forecast")
     p >= 1 || throw(CliError("usage/invalid", "forecast regime setar: --p must be ≥ 1 (got $p)"))
-    (ci_level == 0.90 || ci_level == 0.95 || ci_level == 0.99) || throw(CliError("usage/invalid",
-        "forecast regime setar: --ci-level must be exactly 0.90, 0.95, or 0.99 (got $ci_level)"))
+    conf_level = _validate_conf_level(conf_level, "forecast regime setar")
     horizons >= 1 || throw(CliError("usage/invalid", "forecast regime setar: --horizons must be ≥ 1 (got $horizons)"))
     reps >= 1 || throw(CliError("usage/invalid", "forecast regime setar: --reps must be ≥ 1 (got $reps)"))
     d_arg = _parse_setar_delay(d)
     vname = "y"
     if isnothing(model)
         y, vname = load_univariate_series(data, column)
-        _status("SETAR forecast (h=$horizons): variable=$vname, obs=$(length(y)), d=$d, ci=$ci_level"); _status()
+        _status("SETAR forecast (h=$horizons): variable=$vname, obs=$(length(y)), d=$d, ci=$conf_level"); _status()
         model = try
-            estimate_setar(y, p, d_arg; reps=reps, ci_level=ci_level, linearity=false, _fwd_seed()...)
+            estimate_setar(y, p, d_arg; reps=reps, ci_level=0.90, linearity=false, _fwd_seed()...)
         catch e
             throw(_nonlinear_error(e, "SETAR forecast"))
         end
     else
-        _status("SETAR forecast (h=$horizons): loaded model, ci=$ci_level"); _status()
+        _status("SETAR forecast (h=$horizons): loaded model, ci=$conf_level"); _status()
     end
     fc = try
-        forecast(model, horizons; reps=reps, level=ci_level, _fwd_seed()...)
+        forecast(model, horizons; reps=reps, level=conf_level, _fwd_seed()...)
     catch e
         throw(_nonlinear_error(e, "SETAR forecast"))
     end
     # ThresholdForecast <: AbstractForecastResult → MEMs tidy long_table (horizon|variable|value|lower|upper).
     # No _maybe_plot: MEMs ships no plot_result(::ThresholdForecast) recipe (see the CommandSpec note).
     # #217: via the central helper (same long_table, key frozen).
-    _emit_result(fc; title="SETAR Forecast for $vname (h=$horizons, $(Int(round(ci_level*100)))% CI)",
+    _emit_result(fc; title="SETAR Forecast for $vname (h=$horizons, $(Int(round(conf_level*100)))% CI)",
                  key="setar_forecast", format=Symbol(format), output=output)
     return (; model, result=fc)
 end
@@ -997,7 +1000,7 @@ end
 # guarded up-front → usage/invalid. STARForecast <: AbstractForecastResult → generic long_table.
 function _forecast_star(; data::String="", result=nothing, column::Int=1, p::Int=1, d::Int=1,
                          type::String="auto", horizons::Int=12, reps::Int=1000,
-                         ci_level::Float64=0.95, format::String="table", output::String="",
+                         conf_level::Float64=0.68, format::String="table", output::String="",
                          model=nothing)
     loaded = _loaded_result(result; data, model, leaf="forecast regime star")
     loaded === nothing || return _rerender_long_table(loaded; format, output,
@@ -1006,32 +1009,31 @@ function _forecast_star(; data::String="", result=nothing, column::Int=1, p::Int
     d >= 1 || throw(CliError("usage/invalid", "forecast regime star: --d must be ≥ 1 (got $d)"))
     horizons >= 1 || throw(CliError("usage/invalid", "forecast regime star: --horizons must be ≥ 1 (got $horizons)"))
     reps >= 1 || throw(CliError("usage/invalid", "forecast regime star: --reps must be ≥ 1 (got $reps)"))
-    (ci_level == 0.90 || ci_level == 0.95 || ci_level == 0.99) || throw(CliError("usage/invalid",
-        "forecast regime star: --ci-level must be exactly 0.90, 0.95, or 0.99 (got $ci_level)"))
+    conf_level = _validate_conf_level(conf_level, "forecast regime star")
     ttype = Symbol(type)
     ttype in (:lstr1, :lstr2, :estr, :auto) || throw(CliError("usage/invalid",
         "forecast regime star: --type must be one of lstr1|lstr2|estr|auto (got '$type')"))
     vname = "y"
     if isnothing(model)
         y, vname = load_univariate_series(data, column)
-        _status("STAR forecast (h=$horizons) [$type]: variable=$vname, obs=$(length(y)), d=$d, ci=$ci_level"); _status()
+        _status("STAR forecast (h=$horizons) [$type]: variable=$vname, obs=$(length(y)), d=$d, ci=$conf_level"); _status()
         model = try
             estimate_star(y, p; d=d, type=ttype)
         catch e
             throw(_nonlinear_error(e, "STAR forecast"))
         end
     else
-        _status("STAR forecast (h=$horizons) [$type]: loaded model, ci=$ci_level"); _status()
+        _status("STAR forecast (h=$horizons) [$type]: loaded model, ci=$conf_level"); _status()
     end
     fc = try
-        forecast(model, horizons; reps=reps, level=ci_level, _fwd_seed()...)
+        forecast(model, horizons; reps=reps, level=conf_level, _fwd_seed()...)
     catch e
         throw(_nonlinear_error(e, "STAR forecast"))
     end
     # STARForecast <: AbstractForecastResult → MEMs tidy long_table (horizon|variable|value|lower|upper).
     # No _maybe_plot: MEMs ships no plot_result(::STARForecast) recipe (see the CommandSpec note).
     # #217: via the central helper (same long_table, key frozen).
-    _emit_result(fc; title="STAR Forecast for $vname (h=$horizons, $(Int(round(ci_level*100)))% CI)",
+    _emit_result(fc; title="STAR Forecast for $vname (h=$horizons, $(Int(round(conf_level*100)))% CI)",
                  key="star_forecast", format=Symbol(format), output=output)
     return (; model, result=fc)
 end
@@ -1039,13 +1041,14 @@ end
 # ── Factor Model Forecasts ───────────────────────────────
 
 function _forecast_static(; data::String="", result=nothing, nfactors=nothing, horizons::Int=12,
-                            ci_method::String="none", conf_level::Float64=0.95,
+                            ci_method::String="none", conf_level::Float64=0.68,
                             output::String="", format::String="table",
                             plot::Bool=false, plot_save::String="",
                             model=nothing)
     loaded = _loaded_result(result; data, model, leaf="forecast factor static")
     loaded === nothing || return _rerender_long_table(loaded; format, output,
         title="Static Factor Forecast", key="static_factor_forecast", plot, plot_save)
+    conf_level = _validate_conf_level(conf_level, "forecast factor static")
     if isnothing(model)
         X, varnames = load_multivariate_data(data)
 
@@ -1069,7 +1072,7 @@ function _forecast_static(; data::String="", result=nothing, nfactors=nothing, h
     end
     fc = forecast(fm, horizons; ci_method=Symbol(ci_method), conf_level=conf_level)
 
-    _maybe_plot(fc; plot=plot, plot_save=plot_save)
+    _maybe_plot(fc; plot=plot, plot_save=plot_save, conf_level=conf_level)
 
     # C051: MEMs tidy long_table (horizon|variable|value|lower|upper).
     # #217: via the central helper (same long_table, key frozen).
@@ -1089,12 +1092,14 @@ end
 
 function _forecast_dynamic(; data::String="", result=nothing, nfactors=nothing, horizons::Int=12,
                              factor_lags::Int=1, method::String="twostep",
+                             conf_level::Float64=0.68,
                              output::String="", format::String="table",
                              plot::Bool=false, plot_save::String="",
                              model=nothing)
     loaded = _loaded_result(result; data, model, leaf="forecast factor dynamic")
     loaded === nothing || return _rerender_long_table(loaded; format, output,
         title="Dynamic Factor Forecast", key="dynamic_factor_forecast", plot, plot_save)
+    conf_level = _validate_conf_level(conf_level, "forecast factor dynamic")
     if isnothing(model)
         X, varnames = load_multivariate_data(data)
 
@@ -1116,9 +1121,9 @@ function _forecast_dynamic(; data::String="", result=nothing, nfactors=nothing, 
         fm = model
         varnames = _model_varnames(fm)
     end
-    fc = forecast(fm, horizons)
+    fc = forecast(fm, horizons; conf_level=conf_level)
 
-    _maybe_plot(fc; plot=plot, plot_save=plot_save)
+    _maybe_plot(fc; plot=plot, plot_save=plot_save, conf_level=conf_level)
 
     # C051: render the FactorForecast's observable forecasts through MEMs' tidy
     # long_table (horizon|variable|value|lower|upper), replacing the hand-rolled
@@ -1138,7 +1143,7 @@ const _GDFM_FORECAST_METHODS = Dict(
 function _forecast_gdfm(; data::String="", result=nothing, nfactors=nothing, dynamic_rank=nothing,
                           horizons::Int=12, method::String="ar",
                           spectral::String="lag-window",
-                          n_lags_proj=nothing,
+                          n_lags_proj=nothing, conf_level::Float64=0.68,
                           output::String="", format::String="table",
                           plot::Bool=false, plot_save::String="",
                           model=nothing)
@@ -1151,6 +1156,7 @@ function _forecast_gdfm(; data::String="", result=nothing, nfactors=nothing, dyn
         "forecast factor gdfm: --spectral must be lag-window|smoothed-periodogram (got '$spectral')"))
     n_lags_proj === nothing || Int(n_lags_proj) >= 0 || throw(CliError("usage/invalid",
         "forecast factor gdfm: --n-lags-proj must be >= 0 (got $n_lags_proj)"))
+    conf_level = _validate_conf_level(conf_level, "forecast factor gdfm")
     if isnothing(model)
         X, varnames = load_multivariate_data(data)
 
@@ -1189,11 +1195,12 @@ function _forecast_gdfm(; data::String="", result=nothing, nfactors=nothing, dyn
     # the factor projection; --n-lags-proj forwards stacked projection lag depth.
     fc = try
         forecast(fm, horizons; method=_GDFM_FORECAST_METHODS[method],
-                 n_lags_proj=n_lags_proj === nothing ? nothing : Int(n_lags_proj))
+                 n_lags_proj=n_lags_proj === nothing ? nothing : Int(n_lags_proj),
+                 conf_level=conf_level)
     catch e
         throw(_domain_or_data_error(e, "GDFM forecast"))
     end
-    _maybe_plot(fc; plot=plot, plot_save=plot_save)
+    _maybe_plot(fc; plot=plot, plot_save=plot_save, conf_level=conf_level)
     # #217: via the central helper (same long_table, key frozen).
     _emit_result(fc; title="GDFM Forecast (h=$horizons, $(length(varnames)) variables)",
                  key="gdfm_forecast", format=Symbol(format), output=output)
@@ -1210,7 +1217,7 @@ function _forecast_sdfm(; data::String="", result=nothing, factors=nothing, id::
                          spectral::String="lag-window", instrument::String="",
                          q_method::String="hallin-liska",
                          n_perm::Int=30, p_max=nothing, target::String="",
-                         ci::String="none", reps::Int=200,
+                         ci::String="none", reps::Int=200, conf_level::Float64=0.68,
                          output::String="", format::String="table",
                          plot::Bool=false, plot_save::String="",
                          model=nothing)
@@ -1221,6 +1228,7 @@ function _forecast_sdfm(; data::String="", result=nothing, factors=nothing, id::
         "forecast factor sdfm: --ci must be none|bootstrap (got '$ci')"))
     reps >= 1 || throw(CliError("usage/invalid",
         "forecast factor sdfm: --reps must be ≥ 1 (got $reps)"))
+    conf_level = _validate_conf_level(conf_level, "forecast factor sdfm")
     if isnothing(model)
         # W1/#165 + W2/#314: same estimation surface as `estimate sdfm` (--method
         # is fglr|fhlz|gdfm-var; forecast itself takes --ci/--reps).
@@ -1235,9 +1243,9 @@ function _forecast_sdfm(; data::String="", result=nothing, factors=nothing, id::
     end
 
     fc = ci == "bootstrap" ?
-        forecast(sdfm, horizons; ci_method=:bootstrap, reps=reps) :
-        forecast(sdfm, horizons)
-    _maybe_plot(fc; plot=plot, plot_save=plot_save)
+        forecast(sdfm, horizons; ci_method=:bootstrap, reps=reps, conf_level=conf_level) :
+        forecast(sdfm, horizons; conf_level=conf_level)
+    _maybe_plot(fc; plot=plot, plot_save=plot_save, conf_level=conf_level)
     # #217: via the central helper (same long_table, key frozen).
     _emit_result(fc; title="SDFM Forecast (h=$horizons, $(length(varnames)) variables)",
                  key="sdfm_forecast", format=Symbol(format), output=output)
@@ -1251,13 +1259,14 @@ end
 function _forecast_vecm(; data::String="", result=nothing, lags::Int=2, rank::String="auto",
                           deterministic::String="constant", horizons::Int=12,
                           ci_method::String="none", replications::Int=500,
-                          confidence::Float64=0.95,
+                          conf_level::Float64=0.68,
                           output::String="", format::String="table",
                           plot::Bool=false, plot_save::String="",
                           model=nothing)
     loaded = _loaded_result(result; data, model, leaf="forecast multivariate vecm")
     loaded === nothing || return _rerender_long_table(loaded; format, output,
         title="VECM Forecast", key="vecm_forecast", plot, plot_save)
+    conf_level = _validate_conf_level(conf_level, "forecast multivariate vecm")
     if isnothing(model)
         vecm, Y, varnames, p = _load_and_estimate_vecm(data, lags, rank, deterministic, "johansen", 0.05)
     else
@@ -1270,11 +1279,11 @@ function _forecast_vecm(; data::String="", result=nothing, lags::Int=2, rank::St
     _status("Computing VECM forecast: rank=$r, horizons=$horizons, CI=$ci_method")
     _status()
 
-    fc = forecast(vecm, horizons; ci_method=Symbol(ci_method), reps=replications, conf_level=confidence)
+    fc = forecast(vecm, horizons; ci_method=Symbol(ci_method), reps=replications, conf_level=conf_level)
 
-    _maybe_plot(fc; plot=plot, plot_save=plot_save)
+    _maybe_plot(fc; plot=plot, plot_save=plot_save, conf_level=conf_level)
 
-    ci_label = ci_method == "none" ? "" : ", $(Int(round(confidence*100)))% CI"
+    ci_label = ci_method == "none" ? "" : ", $(Int(round(conf_level*100)))% CI"
     # C051: MEMs tidy long_table (horizon|variable|value|lower|upper).
     # #217: via the central helper (same long_table, key frozen).
     _emit_result(fc; title="VECM Forecast (rank=$r, h=$horizons$ci_label)", key="vecm_forecast",
@@ -1286,6 +1295,7 @@ end
 
 function _forecast_favar(; data::String="", result=nothing, factors=nothing, lags::Int=2,
                           key_vars::String="", horizons::Int=12,
+                          conf_level::Float64=0.68,
                           panel_forecast::Bool=false,
                           output::String="", format::String="table",
                           plot::Bool=false, plot_save::String="",
@@ -1293,6 +1303,7 @@ function _forecast_favar(; data::String="", result=nothing, factors=nothing, lag
     loaded = _loaded_result(result; data, model, leaf="forecast multivariate favar")
     loaded === nothing || return _rerender_long_table(loaded; format, output,
         title="FAVAR Forecast", key="favar_forecast", plot, plot_save)
+    conf_level = _validate_conf_level(conf_level, "forecast multivariate favar")
     if isnothing(model)
         favar, Y, varnames = _load_and_estimate_favar(data, factors, lags, key_vars, "two_step", 5000)
     else
@@ -1303,13 +1314,13 @@ function _forecast_favar(; data::String="", result=nothing, factors=nothing, lag
     _status("FAVAR Forecast: horizon=$horizons" * (panel_forecast ? ", panel-wide" : ""))
     _status()
 
-    fc = forecast(favar, horizons)
+    fc = forecast(favar, horizons; conf_level=conf_level)
 
     if panel_forecast
         fc = favar_panel_forecast(favar, fc)
     end
 
-    _maybe_plot(fc; plot=plot, plot_save=plot_save)
+    _maybe_plot(fc; plot=plot, plot_save=plot_save, conf_level=conf_level)
 
     # C051: MEMs tidy long_table (horizon|variable|value|lower|upper).
     # #217: via the central helper (same long_table, key frozen).
@@ -1726,7 +1737,7 @@ end
 function _forecast_scenario(; data::String="", result=nothing, conditions_file::String="", lags=nothing,
                              horizons::Int=12, method::String="var",
                              draws::Int=2000, sampler::String="direct",
-                             replications::Int=1000, confidence::Float64=0.95,
+                             replications::Int=1000, conf_level::Float64=0.68,
                              config::String="",
                              output::String="", format::String="table",
                              plot::Bool=false, plot_save::String="",
@@ -1744,8 +1755,7 @@ function _forecast_scenario(; data::String="", result=nothing, conditions_file::
     horizons >= 1 || throw(CliError("usage/invalid", "--horizons must be ≥ 1 (got $horizons)"))
     replications >= 1 || throw(CliError("usage/invalid",
         "--replications must be ≥ 1 (got $replications)"))
-    0 < confidence < 1 || throw(CliError("usage/invalid",
-        "--confidence must be in (0, 1) (got $confidence)"))
+    conf_level = _validate_conf_level(conf_level, "forecast multivariate scenario")
     meth = lowercase(strip(method))
     meth in ("var", "bvar") || throw(CliError("usage/invalid-option",
         "invalid --method '$method'; must be var or bvar"))
@@ -1774,14 +1784,14 @@ function _forecast_scenario(; data::String="", result=nothing, conditions_file::
     end
 
     fc = try
-        conditional_forecast(obj, conds, horizons; reps=replications, conf_level=confidence,
+        conditional_forecast(obj, conds, horizons; reps=replications, conf_level=conf_level,
                              _fwd_seed()...)
     catch e
         e isa CliError && rethrow()
         throw(_domain_or_data_error(e, "forecast multivariate scenario"))
     end
 
-    _maybe_plot(fc; plot=plot, plot_save=plot_save)
+    _maybe_plot(fc; plot=plot, plot_save=plot_save, conf_level=conf_level)
     _status_report(() -> report(fc))
 
     # The UNCONDITIONAL path rides alongside: the scenario is only interpretable

@@ -56,6 +56,8 @@ function hd_specs()::Vector{CommandSpec}
                 OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|fastica|jade|sobi|dcov|hsic|cvm|student-t|mixture-normal|mixture-normal-asym|pml|skew-normal|lms|markov-switching|garch-id|uhlig|lewis-tvv|sv-em"),
                 OptionSpec(name="draws", short="n", type=Int, default=2000, description="Posterior draws"),
                 OptionSpec(name="sampler", type=String, default="direct", description="direct|gibbs"),
+                CONF_LEVEL_MACRO_OPTION,
+                QUANTILES_MACRO_OPTION,
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification/prior"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -64,7 +66,7 @@ function hd_specs()::Vector{CommandSpec}
             flags=[
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:bayesian_hd, family=true, description="One table per variable: period | initial | posterior-mean contribution of each shock")],
+            tables=[TableSpec(name=:bayesian_hd, family=true, description="One table per variable: period | initial | posterior-mean contribution and credible band of each shock")],
             category="hd",
             handler=wrap_legacy(_hd_bvar),
         ),
@@ -344,6 +346,7 @@ end
 
 function _hd_bvar(; data::String="", result=nothing, lags::Int=4, id::String="cholesky",
                    draws::Int=2000, sampler::String="direct",
+                   conf_level::Float64=0.68, quantiles::String="0.16,0.5,0.84",
                    config::String="",
                    output::String="", format::String="table",
                    plot::Bool=false, plot_save::String="",
@@ -352,14 +355,20 @@ function _hd_bvar(; data::String="", result=nothing, lags::Int=4, id::String="ch
     if loaded !== nothing
         mean_contrib = loaded.point_estimate
         T_eff = size(mean_contrib, 1)
+        has_q = hasproperty(loaded, :quantiles) && loaded.quantiles isa AbstractArray &&
+                ndims(loaded.quantiles) == 4 && size(loaded.quantiles, 4) >= 2
         _output_hd_tables((vi, si) -> mean_contrib[:, vi, si], loaded.variables, T_eff;
                           id="", title_prefix="Bayesian HD",
                           format=format, output=output,
                           initial=loaded.initial_point_estimate,
-                          key_prefix="bayesian_hd")
+                          key_prefix="bayesian_hd",
+                          get_lower=has_q ? ((vi, si) -> loaded.quantiles[:, vi, si, 1]) : nothing,
+                          get_upper=has_q ? ((vi, si) -> loaded.quantiles[:, vi, si, end]) : nothing)
         _maybe_plot(loaded; plot=plot, plot_save=plot_save)
         return loaded
     end
+    conf_level = _validate_conf_level(conf_level, "hd bvar")
+    qs = _resolve_band_quantiles(quantiles, conf_level, "hd bvar")
     _require_sign_narrative_config(id, config, "hd bvar")
     if isnothing(model)
         post, Y, varnames, p, n = _load_and_estimate_bvar(data, lags, config, draws, sampler)
@@ -385,22 +394,26 @@ function _hd_bvar(; data::String="", result=nothing, lags::Int=4, id::String="ch
     !isnothing(narrative_check) && (bhd_kwargs[:narrative_check] = narrative_check)
     bhd = try
         historical_decomposition(post, horizon;
-            method=method, quantiles=[0.16, 0.5, 0.84], bhd_kwargs..., _fwd_seed()...)
+            method=method, quantiles=qs, bhd_kwargs..., _fwd_seed()...)
     catch e
         throw(_domain_or_data_error(e, "BVAR historical decomposition"))
     end
 
     _status_report(() -> report(bhd))
-    _maybe_plot(bhd; plot=plot, plot_save=plot_save)
+    _maybe_plot(bhd; plot=plot, plot_save=plot_save, conf_level=conf_level)
 
     mean_contrib = bhd.point_estimate
     T_eff = size(mean_contrib, 1)
+    has_q = hasproperty(bhd, :quantiles) && bhd.quantiles isa AbstractArray &&
+            ndims(bhd.quantiles) == 4 && size(bhd.quantiles, 4) >= 2
 
     _output_hd_tables((vi, si) -> mean_contrib[:, vi, si], varnames, T_eff;
                       id=id, title_prefix="Bayesian HD",
                       format=format, output=output,
                       initial=bhd.initial_point_estimate,
-                      key_prefix="bayesian_hd")
+                      key_prefix="bayesian_hd",
+                      get_lower=has_q ? ((vi, si) -> bhd.quantiles[:, vi, si, 1]) : nothing,
+                      get_upper=has_q ? ((vi, si) -> bhd.quantiles[:, vi, si, end]) : nothing)
     return (; model=post, result=bhd)
 end
 

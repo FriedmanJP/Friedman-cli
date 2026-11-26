@@ -144,7 +144,7 @@ function _did_lp_did(; data::String, outcome::String, treatment::String,
         horizon::Int=5, pre_window::Int=3, post_window::Int=0,
         ylags::Int=0, dylags::Int=0,
         covariates::String="", cluster::String="unit",
-        conf_level::Float64=0.95,
+        conf_level::Float64=0.68,
         pmd::String="", nonabsorbing::String="",
         reweight::Bool=false, nocomp::Bool=false,
         notyet::Bool=false, nevertreated::Bool=false,
@@ -155,6 +155,7 @@ function _did_lp_did(; data::String, outcome::String, treatment::String,
 
     isempty(outcome) && throw(CliError("usage/missing-option", "--outcome is required"))
     isempty(treatment) && throw(CliError("usage/missing-option", "--treatment is required"))
+    conf_level = _validate_conf_level(conf_level, "did lp-did")
 
     df = load_data(data)
     id, tc = _did_panel_cols(df, id_col, time_col)
@@ -224,7 +225,7 @@ function _did_lp_did(; data::String, outcome::String, treatment::String,
         _status("coef=$(round(pp.coef; digits=6))  SE=$(round(pp.se; digits=6))  CI=[$(round(pp.ci_lower; digits=6)), $(round(pp.ci_upper; digits=6))]")
     end
 
-    _maybe_plot(result; plot=plot, plot_save=plot_save)
+    _maybe_plot(result; plot=plot, plot_save=plot_save, conf_level=conf_level)
     return result
 end
 
@@ -449,7 +450,7 @@ function did_specs()::Vector{CommandSpec}
                 OptionSpec(name="dylags", type=Int, default=0, description="Differenced outcome lags"),
                 OptionSpec(name="covariates", type=String, default="", description="Comma-separated covariate column names"),
                 OptionSpec(name="cluster", type=String, default="unit", description="unit|time|twoway"),
-                OptionSpec(name="conf-level", type=Float64, default=0.95, description="Confidence level"),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="pmd", type=String, default="", description="Pre-treatment matching: ccs|ipw|<integer>"),
                 OptionSpec(name="nonabsorbing", type=String, default="", description="Non-absorbing treatment (integer periods)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),

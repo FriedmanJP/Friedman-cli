@@ -1770,8 +1770,9 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                 @test isfinite(v) && isfinite(lo) && isfinite(hi)
                 @test lo <= v <= hi
             end
-            # --ci-level 0.8 → usage error (exit 2), not a Hansen-crit crash
-            @test run_json(["forecast", "regime", "setar", csv, "--horizons", "4", "--ci-level", "0.8"]).code == 2
+            # [CI-W3] #332: MEMs v1.1.2 supports any level in (0, 1) on SETAR forecast; out-of-range → exit 2
+            @test run_json(["forecast", "regime", "setar", csv, "--horizons", "4", "--reps", "40", "--ci-level", "0.8"]).code == 0
+            @test run_json(["forecast", "regime", "setar", csv, "--horizons", "4", "--ci-level", "1.5"]).code == 2
             rm(csv; force=true)
         end
     end
@@ -1854,8 +1855,9 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
                 # assert only the guaranteed invariant (lower percentile ≤ upper percentile).
                 @test lo <= hi
             end
-            # --ci-level 0.8 → usage error (exit 2)
-            @test run_json(["forecast", "regime", "star", csv, "--horizons", "4", "--ci-level", "0.8"]).code == 2
+            # [CI-W3] #332: MEMs v1.1.2 supports any level in (0, 1) on STAR forecast; out-of-range → exit 2
+            @test run_json(["forecast", "regime", "star", csv, "--horizons", "4", "--reps", "40", "--ci-level", "0.8"]).code == 0
+            @test run_json(["forecast", "regime", "star", csv, "--horizons", "4", "--ci-level", "1.5"]).code == 2
             rm(csv; force=true)
         end
     end
@@ -11204,6 +11206,156 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             irf_h1 = Float64[Float64(r[4]) for r in r_lms_irf.doc.data.irf.rows if Int(r[1]) == 1]
             @test length(irf_h1) == 2
             @test isapprox(irf_h1, b0_s1; atol=1e-5, rtol=1e-5)
+        end
+    end
+
+    @testset "[CI-W3] macro 68% CI defaults & band monotonicity Batch 1 (#332)" begin
+        # Extract average finite interval width (upper - lower) from the first band-bearing table
+        function _mean_band_width(doc; table_key::Union{Nothing,Symbol}=nothing)
+            tbls = table_key !== nothing ?
+                [named_table(doc, table_key)] :
+                [v for (_, v) in pairs(doc.data) if v isa JSON3.Object && haskey(v, :columns) && haskey(v, :rows)]
+            for tbl in tbls
+                tbl === nothing && continue
+                cols = table_cols(tbl)
+                pairs_idx = Tuple{Int,Int}[]
+                if "lower" in cols && "upper" in cols
+                    push!(pairs_idx, (col_index(tbl, "lower"), col_index(tbl, "upper")))
+                elseif "ci_lower" in cols && "ci_upper" in cols
+                    push!(pairs_idx, (col_index(tbl, "ci_lower"), col_index(tbl, "ci_upper")))
+                else
+                    for (i, c) in enumerate(cols)
+                        if endswith(c, "_lower")
+                            uc = replace(c, "_lower" => "_upper")
+                            if uc in cols
+                                push!(pairs_idx, (i, col_index(tbl, uc)))
+                            end
+                        end
+                    end
+                end
+                isempty(pairs_idx) && continue
+                widths = Float64[]
+                for row in table_rows(tbl)
+                    r = collect(row)
+                    for (li, ui) in pairs_idx
+                        lo = r[li]; hi = r[ui]
+                        (lo === nothing || hi === nothing) && continue
+                        lv = Float64(lo); uv = Float64(hi)
+                        (isfinite(lv) && isfinite(uv)) || continue
+                        push!(widths, uv - lv)
+                    end
+                end
+                !isempty(widths) && return mean(widths)
+            end
+            error("No band-bearing table found in envelope keys=$(collect(keys(doc.data)))")
+        end
+
+        function _check_macro_ci_monotonic(label::String, base_args::Vector{String};
+                                           table_key::Union{Nothing,Symbol}=nothing,
+                                           seeded::Bool=true)
+            prefix = seeded ? String["--seed", "332"] : String[]
+            r_def = run_json(vcat(prefix, base_args))
+            r_68  = run_json(vcat(prefix, base_args, String["--conf-level", "0.68"]))
+            r_90  = run_json(vcat(prefix, base_args, String["--conf-level", "0.90"]))
+            r_95  = run_json(vcat(prefix, base_args, String["--conf-level", "0.95"]))
+            assert_envelope_ok(r_def; label="$label (default)")
+            assert_envelope_ok(r_68;  label="$label (0.68)")
+            assert_envelope_ok(r_90;  label="$label (0.90)")
+            assert_envelope_ok(r_95;  label="$label (0.95)")
+            w_def = _mean_band_width(r_def.doc; table_key=table_key)
+            w_68  = _mean_band_width(r_68.doc;  table_key=table_key)
+            w_90  = _mean_band_width(r_90.doc;  table_key=table_key)
+            w_95  = _mean_band_width(r_95.doc;  table_key=table_key)
+            @test isapprox(w_def, w_68; atol=1e-6, rtol=1e-5)
+            @test w_68 > 0.0
+            @test w_68 < w_90 < w_95
+        end
+
+        mv_csv    = dgp_var2(; T=160, seed=33201)
+        ar_csv    = dgp_ar1(; T=180, φ=0.65, seed=33202)
+        garch_csv = dgp_garch(; T=350, seed=33203)
+        setar_csv = dgp_setar(; n=320, seed=33204)
+        star_csv  = dgp_star(; n=320, seed=33205)
+        panel_csv = dgp_did_panel(; N=40, T=10, treat_start=6, att=2.0, seed=33206)
+
+        try
+            @testset "did lp-did" begin
+                _check_macro_ci_monotonic("did lp-did",
+                    ["did", "lp-did", panel_csv, "--outcome", "y", "--treatment", "d",
+                     "--id-col", "id", "--time-col", "time"]; seeded=false)
+            end
+
+            @testset "irf var / bvar / lp" begin
+                _check_macro_ci_monotonic("irf var",
+                    ["irf", "var", mv_csv, "--lags", "2", "--horizons", "6",
+                     "--ci", "bootstrap", "--replications", "60"])
+                _check_macro_ci_monotonic("irf bvar",
+                    ["irf", "bvar", mv_csv, "--lags", "2", "--horizons", "6", "--draws", "120"])
+                # Explicit --quantiles works & combining with --conf-level fails with exit 2
+                rq = run_json(["--seed", "332", "irf", "bvar", mv_csv, "--lags", "2",
+                               "--horizons", "6", "--draws", "80", "--quantiles", "0.05,0.5,0.95"])
+                assert_envelope_ok(rq; label="irf bvar --quantiles")
+                @test run_json(["irf", "bvar", mv_csv, "--lags", "2", "--draws", "40",
+                                "--conf-level", "0.90", "--quantiles", "0.1,0.5,0.9"]).code == 2
+
+                _check_macro_ci_monotonic("irf lp",
+                    ["irf", "lp", mv_csv, "--lags", "2", "--horizons", "6",
+                     "--ci", "bootstrap", "--replications", "50"])
+            end
+
+            @testset "fevd bvar / lp and hd bvar" begin
+                _check_macro_ci_monotonic("fevd bvar",
+                    ["fevd", "bvar", mv_csv, "--lags", "2", "--horizons", "6", "--draws", "120"])
+                _check_macro_ci_monotonic("fevd lp",
+                    ["fevd", "lp", mv_csv, "--lags", "2", "--horizons", "4"])
+                _check_macro_ci_monotonic("hd bvar",
+                    ["hd", "bvar", mv_csv, "--lags", "1", "--draws", "120"])
+            end
+
+            @testset "forecast multivariate var / bvar / lp" begin
+                _check_macro_ci_monotonic("forecast multivariate var",
+                    ["forecast", "multivariate", "var", mv_csv, "--lags", "2",
+                     "--horizons", "6", "--ci-method", "analytical"]; seeded=false)
+                _check_macro_ci_monotonic("forecast multivariate bvar",
+                    ["forecast", "multivariate", "bvar", mv_csv, "--lags", "2",
+                     "--horizons", "6", "--draws", "120"])
+                _check_macro_ci_monotonic("forecast multivariate lp",
+                    ["forecast", "multivariate", "lp", mv_csv, "--shock", "1", "--horizons", "6"];
+                    seeded=false)
+            end
+
+            @testset "forecast univariate arima & volatility garch" begin
+                _check_macro_ci_monotonic("forecast univariate arima",
+                    ["forecast", "univariate", "arima", ar_csv, "--p", "1", "--d", "0", "--q", "0",
+                     "--horizons", "6"]; seeded=false)
+                _check_macro_ci_monotonic("forecast volatility garch",
+                    ["forecast", "volatility", "garch", garch_csv, "--p", "1", "--q", "1",
+                     "--horizons", "6"]; seeded=true)
+            end
+
+            @testset "forecast regime setar / star / ms" begin
+                _check_macro_ci_monotonic("forecast regime setar",
+                    ["forecast", "regime", "setar", setar_csv, "--column", "1",
+                     "--p", "1", "--d", "1", "--horizons", "5", "--reps", "80"])
+                _check_macro_ci_monotonic("forecast regime star",
+                    ["forecast", "regime", "star", star_csv, "--column", "1",
+                     "--p", "1", "--d", "1", "--horizons", "5", "--reps", "80"])
+                _check_macro_ci_monotonic("forecast regime ms",
+                    ["forecast", "regime", "ms", ar_csv, "--horizons", "5", "--reps", "80"])
+            end
+
+            @testset "policy counterfactual var" begin
+                _check_macro_ci_monotonic("policy counterfactual var",
+                    ["policy", "counterfactual", "var", mv_csv, "--lags", "2",
+                     "--shocks", "3", "--nonpolicy-shock", "1",
+                     "--outcomes", "y1=1,y2=2", "--instruments", "r=3",
+                     "--rule", "rate-peg", "--horizon", "6", "--replications", "50"];
+                    table_key=:policy_counterfactual_paths)
+            end
+        finally
+            for p in (mv_csv, ar_csv, garch_csv, setar_csv, star_csv, panel_csv)
+                rm(p; force=true)
+            end
         end
     end
 end

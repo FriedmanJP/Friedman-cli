@@ -219,6 +219,7 @@ end
 function _w3_preidentified_irf(model::Union{LMSSVARResult,LanneLuotoGMMResult};
                                horizons::Int, shock::Int, id::String,
                                ci::String, replications::Int,
+                               conf_level::Float64=0.68,
                                bootstrap::String, block_length::Int,
                                wild_dist::String, bias_correct::Bool,
                                bias_reps::Int, stationary_only::Bool,
@@ -243,11 +244,12 @@ function _w3_preidentified_irf(model::Union{LMSSVARResult,LanneLuotoGMMResult};
         "invalid --wild-dist '$wild_dist'; must be rademacher or mammen"))
     block_length >= 0 || throw(CliError("usage/invalid", "--block-length must be ≥ 0 (got $block_length)"))
     bias_reps >= 0 || throw(CliError("usage/invalid", "--bias-reps must be ≥ 0 (got $bias_reps)"))
+    conf_level = _validate_conf_level(conf_level, "irf var")
     n = size(model.B0, 1)
     1 <= shock <= n || throw(CliError("usage/invalid",
         "irf var: --shock index $shock out of 1:$n"))
 
-    kw = Dict{Symbol,Any}(:ci_type => Symbol(ci), :reps => replications)
+    kw = Dict{Symbol,Any}(:ci_type => Symbol(ci), :reps => replications, :conf_level => conf_level)
     if ci == "bootstrap"
         kw[:bootstrap] = Symbol(boot)
         kw[:block_length] = block_length
@@ -270,7 +272,7 @@ function _w3_preidentified_irf(model::Union{LMSSVARResult,LanneLuotoGMMResult};
         throw(_domain_or_data_error(e, "$(uppercase(label)) IRF"))
     end
     cumulative && (irf_result = cumulative_irf(irf_result))
-    _maybe_plot(irf_result; plot=plot, plot_save=plot_save)
+    _maybe_plot(irf_result; plot=plot, plot_save=plot_save, conf_level=conf_level)
     _status_report(() -> report(irf_result))
     shock_name = irf_result.shocks[shock]
     _emit_result(irf_result; title="IRF to $shock_name shock ($label identification)", key="irf",

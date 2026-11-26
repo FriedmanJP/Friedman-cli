@@ -1340,6 +1340,12 @@ using Statistics: mean as _mean
 function irf_mean(result::AriasSVARResult)
     dropdims(_mean(result.irf_draws; dims=1); dims=1)
 end
+function irf_bounds(result::AriasSVARResult; quantiles=[0.16, 0.84])
+    m = irf_mean(result)
+    q_lo = Float64(first(quantiles))
+    q_hi = Float64(last(quantiles))
+    return (m .- abs(0.5 - q_lo), m .+ abs(q_hi - 0.5))
+end
 
 function identify_uhlig(model::VARModel, restrictions::SVARRestrictions, horizon::Int;
                         n_starts=50, n_refine=10, max_iter_coarse=500, max_iter_fine=2000,
@@ -1565,7 +1571,7 @@ function identify_robust_bayes(post::BVARPosterior, restrictions::SVARRestrictio
     lo = fill(0.05, horizon, n, n)
     hi = fill(0.15, horizon, n, n)
     RobustBayesResult(lo, hi, lo .- 0.05, hi .+ 0.05, lo .+ 0.01, hi .- 0.01,
-                      0.2, 0.0, 0.68)
+                      0.2, 0.0, Float64(level))
 end
 label_shocks(result; by=:restrictions, restrictions=nothing, variables=nothing,
              convention=:unit_effect) = (collect(1:size(result.B0, 2)), ones(Int, size(result.B0, 2)))
@@ -2009,8 +2015,11 @@ coef(m::SVModel) = [mean(m.mu_post), mean(m.phi_post), mean(m.sigma_eta_post)]
 persistence(m::Union{ARCHModel,GARCHModel,EGARCHModel,GJRGARCHModel,SVModel}) = 0.85
 halflife(m::Union{GARCHModel,GJRGARCHModel}) = 4.3
 unconditional_variance(m::Union{ARCHModel,GARCHModel}) = 0.02
-function forecast(m::Union{ARCHModel,GARCHModel,EGARCHModel,GJRGARCHModel,SVModel}, h::Int)
-    VolatilityForecast(ones(h) * 0.01, h)
+function forecast(m::Union{ARCHModel,GARCHModel,EGARCHModel,GJRGARCHModel,SVModel}, h::Int;
+                  conf_level::Real=0.68)
+    f = ones(h) * 0.01
+    w = 0.005 * Float64(conf_level)
+    VolatilityForecast{Float64}(f, max.(0.0, f .- w), f .+ w, f .* 0.1, h, Float64(conf_level), :garch)
 end
 
 # VAR forecast with bootstrap CI
@@ -12394,7 +12403,7 @@ function volatility_path(post::TVPVARPosterior; quantile_levels::Vector{<:Real}=
 end
 
 function irf(post::TVPVARPosterior, horizon::Int; t::Int=post.T_eff, n_draws::Int=500,
-             quantile_levels::Vector{<:Real}=[0.05,0.16,0.84,0.95],
+             quantile_levels::Vector{<:Real}=[0.16,0.5,0.84],
              stationary_only::Bool=true)
     horizon >= 1 || throw(ArgumentError("horizon must be positive"))
     1 <= t <= post.T_eff || throw(ArgumentError("t must be in 1:$(post.T_eff), got $t"))

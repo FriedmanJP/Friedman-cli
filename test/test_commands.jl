@@ -5418,7 +5418,9 @@ end  # HD handlers
                 @test _err([csv, "--horizons", "0"]).code == "usage/invalid"
                 @test _err([csv, "--reps", "0"]).code == "usage/invalid"
                 @test _err([csv, "--d", "foo"]).code == "usage/invalid"
-                eci = _err([csv, "--ci-level", "0.8"])
+                # [CI-W3] #332: MEMs v1.1.2 supports any level in (0, 1) on SETAR forecast
+                @test _doc([csv, "--column", "1", "--p", "1", "--horizons", "4", "--reps", "30", "--ci-level", "0.8"]).status == "ok"
+                eci = _err([csv, "--ci-level", "1.5"])
                 @test eci isa ParseError || (eci isa CliError && exit_class(eci) == 2)
             end
 
@@ -5469,7 +5471,9 @@ end  # HD handlers
                 @test _err([csv, "--horizons", "0"]).code == "usage/invalid"
                 @test _err([csv, "--reps", "0"]).code == "usage/invalid"
                 @test _err([csv, "--d", "0"]).code == "usage/invalid"
-                eci = _err([csv, "--ci-level", "0.8"])
+                # [CI-W3] #332: MEMs v1.1.2 supports any level in (0, 1) on STAR forecast
+                @test _doc([csv, "--column", "1", "--p", "1", "--horizons", "4", "--reps", "30", "--ci-level", "0.8"]).status == "ok"
+                eci = _err([csv, "--ci-level", "1.5"])
                 @test eci isa ParseError || (eci isa CliError && exit_class(eci) == 2)
                 et = _err([csv, "--type", "bogus"])
                 @test et isa ParseError || (et isa CliError && exit_class(et) == 2)
@@ -5623,7 +5627,7 @@ end  # HD handlers
             csv = _make_csv(dir; T=100, n=3)
             out = cd(dir) do
                 _capture() do
-                    _forecast_var(; data=csv, lags=2, horizons=5, confidence=0.95, format="table")
+                    _forecast_var(; data=csv, lags=2, horizons=5, conf_level=0.95, format="table")
                 end
             end
         end
@@ -5634,7 +5638,7 @@ end  # HD handlers
             csv = _make_csv(dir; T=100, n=3)
             out = cd(dir) do
                 _capture() do
-                    _forecast_var(; data=csv, lags=2, horizons=5, confidence=0.90, format="table")
+                    _forecast_var(; data=csv, lags=2, horizons=5, conf_level=0.90, format="table")
                 end
             end
         end
@@ -5656,7 +5660,7 @@ end  # HD handlers
             csv = _make_csv(dir; T=100, n=3)
             out = cd(dir) do
                 _capture() do
-                    _forecast_var(; data=csv, lags=2, horizons=5, confidence=0.95,
+                    _forecast_var(; data=csv, lags=2, horizons=5, conf_level=0.95,
                                    ci_method="bootstrap", format="table")
                 end
             end
@@ -5733,7 +5737,7 @@ end  # HD handlers
             out = cd(dir) do
                 _capture() do
                     _forecast_arima(; data=csv, column=1, p=nothing, d=0, q=0,
-                                     horizons=5, confidence=0.95, method="css_mle", format="table")
+                                     horizons=5, conf_level=0.95, method="css_mle", format="table")
                 end
             end
         end
@@ -5745,7 +5749,7 @@ end  # HD handlers
             out = cd(dir) do
                 _capture() do
                     _forecast_arima(; data=csv, column=1, p=2, d=0, q=0,
-                                     horizons=5, confidence=0.90, method="ols", format="table")
+                                     horizons=5, conf_level=0.90, method="ols", format="table")
                 end
             end
         end
@@ -6204,7 +6208,7 @@ end  # Forecast handlers
             out = cd(dir) do
                 _capture() do
                     _forecast_vecm(; data=csv, lags=2, rank="auto", horizons=8,
-                                    ci_method="bootstrap", replications=100, confidence=0.90,
+                                    ci_method="bootstrap", replications=100, conf_level=0.90,
                                     format="table")
                 end
             end
@@ -6863,7 +6867,7 @@ end
 
         @testset "bad input → typed CliError" begin
             err(f) = try; _capture() do; f(); end; nothing; catch e; e end
-            e = err(() -> _forecast_midas(; data=lf, hf_data=hf, m=3, k=6, level=1.5,
+            e = err(() -> _forecast_midas(; data=lf, hf_data=hf, m=3, k=6, conf_level=1.5,
                                             format="table", output=""))
             @test e isa CliError && e.code == "usage/invalid" && exit_class(e) == 2
             e = err(() -> _forecast_midas(; data=lf, hf_data=hf, m=3, k=6, poly_degree=-1,
@@ -7021,7 +7025,7 @@ end
             e = err(() -> _forecast_arfima(; data=csv, column=1, horizons=0,
                                              format="table", output=""))
             @test e isa CliError && e.code == "usage/invalid" && exit_class(e) == 2
-            e = err(() -> _forecast_arfima(; data=csv, column=1, confidence=1.5,
+            e = err(() -> _forecast_arfima(; data=csv, column=1, conf_level=1.5,
                                              format="table", output=""))
             @test e isa CliError && e.code == "usage/invalid"
             e = err(() -> _forecast_arfima(; data=csv, column=1, trunc_lag=0,
@@ -9606,7 +9610,7 @@ end  # Nowcast handlers
                 html_path = joinpath(dir, "arima_fc.html")
                 out = _capture() do
                     _forecast_arima(; data=csv, p=0, d=0, q=0,
-                        horizons=12, column=1, confidence=0.95,
+                        horizons=12, column=1, conf_level=0.95,
                         format="table", output="",
                         plot=false, plot_save=html_path)
                 end
@@ -9625,7 +9629,7 @@ end  # Nowcast handlers
                     _forecast_vecm(; data=csv, lags=2, rank="auto",
                         horizons=12,
                         deterministic="constant",
-                        ci_method="bootstrap", replications=100, confidence=0.95,
+                        ci_method="bootstrap", replications=100, conf_level=0.95,
                         format="table", output="",
                         plot=false, plot_save=html_path)
                 end
@@ -16343,10 +16347,10 @@ end
         @test b_dsge_irf.horizon == 10
         fc_var_leaf = APP.root.subcmds["forecast"].subcmds["multivariate"].subcmds["var"]
         b_fc_var = bind_args(tokenize(["x.csv", "--confidence", "0.9"]), fc_var_leaf)
-        @test b_fc_var.confidence ≈ 0.9
+        @test b_fc_var.conf_level ≈ 0.9
         setar_leaf = APP.root.subcmds["forecast"].subcmds["regime"].subcmds["setar"]
         b_setar = bind_args(tokenize(["x.csv", "--reps", "40", "--ci-level", "0.90"]), setar_leaf)
-        @test b_setar.reps == 40 && b_setar.ci_level ≈ 0.90
+        @test b_setar.reps == 40 && b_setar.conf_level ≈ 0.90
         bayes_leaf = APP.root.subcmds["dsge"].subcmds["bayes"].subcmds["estimate"]
         b_bayes = bind_args(tokenize(["m.toml", "--n-draws", "20"]), bayes_leaf)
         @test b_bayes.n_draws == 20
@@ -17289,6 +17293,225 @@ end
         push!(widths, df_out.ci_upper[1] - df_out.ci_lower[1])
     end
     @test widths[1] < widths[2] < widths[3]
+end
+
+@testset "[CI-W3] macro 68% CI defaults Batch 1 (#332)" begin
+    _leaf(parts::Vector{String}) = begin
+        node = APP.root
+        for p in parts
+            @test haskey(node.subcmds, p)
+            node = node.subcmds[p]
+        end
+        node
+    end
+    _opt(node, name::String) = begin
+        idx = findfirst(o -> o.name == name, node.options)
+        idx === nothing ? nothing : node.options[idx]
+    end
+    _run_doc(argv::Vector{String}) = begin
+        out = _capture() do
+            _dispatch_via_app(vcat(argv, String["--format", "json"]))
+        end
+        JSON3.read(out[findfirst('{', out):end])
+    end
+    _run_err(argv::Vector{String}) = begin
+        e = nothing
+        try
+            _capture() do
+                _dispatch_via_app(argv)
+            end
+        catch ex
+            e = ex
+        end
+        e
+    end
+
+    @testset "OptionSpec defaults (0.68 / 0.16,0.5,0.84) & aliases across all Batch 1 leaves" begin
+        macro_conf_leaves = Vector{String}[
+            # LP-DiD
+            ["did", "lp-did"],
+            # IRF family
+            ["irf", "var"], ["irf", "bvar"], ["irf", "tvpvar"], ["irf", "lp"],
+            ["irf", "vecm"], ["irf", "pvar"], ["irf", "favar"], ["irf", "sdfm"],
+            ["irf", "qvar"], ["irf", "qfavar"],
+            # FEVD & HD
+            ["fevd", "bvar"], ["fevd", "lp"], ["hd", "bvar"],
+            # Forecast family (all 30 CI-capable leaves)
+            ["forecast", "multivariate", "var"], ["forecast", "multivariate", "bvar"],
+            ["forecast", "multivariate", "vecm"], ["forecast", "multivariate", "lp"],
+            ["forecast", "multivariate", "favar"], ["forecast", "multivariate", "scenario"],
+            ["forecast", "factor", "static"], ["forecast", "factor", "dynamic"],
+            ["forecast", "factor", "gdfm"], ["forecast", "factor", "sdfm"],
+            ["forecast", "factor", "qfm"], ["forecast", "factor", "gdfm-i1"],
+            ["forecast", "univariate", "arima"], ["forecast", "univariate", "sarima"],
+            ["forecast", "univariate", "arfima"], ["forecast", "univariate", "midas"],
+            ["forecast", "volatility", "arch"], ["forecast", "volatility", "garch"],
+            ["forecast", "volatility", "egarch"], ["forecast", "volatility", "gjr-garch"],
+            ["forecast", "volatility", "sv"], ["forecast", "volatility", "igarch"],
+            ["forecast", "volatility", "cgarch"], ["forecast", "volatility", "aparch"],
+            ["forecast", "volatility", "figarch"], ["forecast", "volatility", "fiegarch"],
+            ["forecast", "regime", "ms"], ["forecast", "regime", "ms-ar"],
+            ["forecast", "regime", "setar"], ["forecast", "regime", "star"],
+            # Policy family (11 band-bearing leaves)
+            ["policy", "counterfactual", "var"], ["policy", "counterfactual", "bvar"], ["policy", "counterfactual", "lp"],
+            ["policy", "optimal", "var"], ["policy", "optimal", "bvar"], ["policy", "optimal", "lp"],
+            ["policy", "moments", "var"], ["policy", "moments", "bvar"],
+            ["policy", "history", "var"], ["policy", "history", "bvar"],
+            ["policy", "spanning", "var"],
+        ]
+        for path in macro_conf_leaves
+            node = _leaf(path)
+            co = _opt(node, "conf-level")
+            @test co !== nothing
+            @test co.default === 0.68
+            @test "ci-level" in co.aliases && "confidence" in co.aliases && "level" in co.aliases
+        end
+
+        quantile_leaves = Vector{String}[
+            ["irf", "bvar"], ["irf", "tvpvar"], ["fevd", "bvar"], ["hd", "bvar"],
+            ["policy", "counterfactual", "var"], ["policy", "counterfactual", "bvar"], ["policy", "counterfactual", "lp"],
+            ["policy", "optimal", "var"], ["policy", "optimal", "bvar"], ["policy", "optimal", "lp"],
+            ["policy", "moments", "var"], ["policy", "moments", "bvar"],
+            ["policy", "history", "var"], ["policy", "history", "bvar"],
+            ["policy", "spanning", "var"],
+        ]
+        for path in quantile_leaves
+            node = _leaf(path)
+            qo = _opt(node, "quantiles")
+            @test qo !== nothing
+            @test qo.default == "0.16,0.5,0.84"
+        end
+
+        # Landmine L8: SARIMA owns --Q (seasonal MA) — MUST NOT have --quantiles
+        sarima = _leaf(["forecast", "univariate", "sarima"])
+        @test _opt(sarima, "Q") !== nothing
+        @test _opt(sarima, "quantiles") === nothing
+        @test _opt(sarima, "conf-level").default === 0.68
+
+        # Point-only upstream leaves (MEMs v1.1.2 verified zero-kwarg) & untouched micro/GaR leaves
+        for path in (["irf", "gdfm-i1"], ["irf", "ssvarma"],
+                     ["forecast", "volatility", "garch-midas"], ["forecast", "multivariate", "qfavar"])
+            @test _opt(_leaf(path), "conf-level") === nothing
+        end
+        gar = _leaf(["forecast", "factor", "growth-at-risk"])
+        @test _opt(gar, "conf-level") === nothing
+        @test _opt(gar, "alpha").default === 0.05
+
+        # Micro leaves owned by #331 remain untouched on this branch
+        for path in (["did", "estimate"], ["did", "event-study"], ["test", "did", "honest"])
+            @test _opt(_leaf(path), "conf-level").default === 0.95
+        end
+    end
+
+    @testset "Alias binding, invalid --conf-level & --quantiles conflict guards" begin
+        for alias in ("--conf-level", "--ci-level", "--confidence", "--level")
+            b1 = bind_args(tokenize(["x.csv", alias, "0.90"]), _leaf(["irf", "var"]))
+            @test b1.conf_level ≈ 0.90
+            b2 = bind_args(tokenize(["x.csv", alias, "0.80"]), _leaf(["forecast", "volatility", "garch"]))
+            @test b2.conf_level ≈ 0.80
+            b3 = bind_args(tokenize(["x.csv", alias, "0.85"]), _leaf(["policy", "counterfactual", "var"]))
+            @test b3.conf_level ≈ 0.85
+        end
+
+        mktempdir() do dir
+            d3 = mkpath(joinpath(dir, "c3"))
+            d1 = mkpath(joinpath(dir, "c1"))
+            csv = _make_csv(d3; T=80, n=3)
+            csv1 = _make_csv(d1; T=120, n=1, colnames=["y"])
+
+            # Invalid --conf-level rejected (exit 2)
+            for bad in ("0.0", "1.0", "1.5", "-0.1")
+                for cmd in (
+                    String["irf", "var", csv, "--conf-level", bad],
+                    String["irf", "bvar", csv, "--draws", "20", "--conf-level", bad],
+                    String["fevd", "bvar", csv, "--draws", "20", "--conf-level", bad],
+                    String["fevd", "lp", csv, "--horizons", "4", "--conf-level", bad],
+                    String["hd", "bvar", csv, "--draws", "20", "--conf-level", bad],
+                    String["forecast", "multivariate", "bvar", csv, "--draws", "20", "--conf-level", bad],
+                    String["forecast", "volatility", "garch", csv1, "--conf-level", bad],
+                    String["forecast", "regime", "setar", csv1, "--conf-level", bad],
+                    String["forecast", "regime", "star", csv1, "--conf-level", bad],
+                )
+                    e = _run_err(cmd)
+                    @test e isa CliError && e.code == "usage/invalid" && exit_class(e) == 2
+                end
+            end
+
+            # Combining --conf-level (or alias) with --quantiles → usage/conflicting-options (exit 2)
+            for cmd in (
+                String["irf", "bvar", csv, "--draws", "20", "--conf-level", "0.90", "--quantiles", "0.1,0.5,0.9"],
+                String["irf", "bvar", csv, "--draws", "20", "--ci-level", "0.90", "--quantiles", "0.1,0.5,0.9"],
+                String["fevd", "bvar", csv, "--draws", "20", "--conf-level", "0.90", "--quantiles", "0.1,0.5,0.9"],
+                String["hd", "bvar", csv, "--draws", "20", "--conf-level", "0.90", "--quantiles", "0.1,0.5,0.9"],
+                String["irf", "tvpvar", csv, "--draws", "20", "--conf-level", "0.90", "--quantiles", "0.1,0.5,0.9"],
+                String["policy", "counterfactual", "var", csv, "--shocks", "1", "--nonpolicy-shock", "2",
+                       "--outcomes", "y1=1", "--instruments", "r=3", "--rule", "rate-peg",
+                       "--conf-level", "0.90", "--quantiles", "0.1,0.5,0.9"],
+            )
+                e = _run_err(cmd)
+                @test e isa CliError && e.code == "usage/conflicting-options" && exit_class(e) == 2
+            end
+        end
+    end
+
+    @testset "Live mock dispatch & emitted band columns (garch, hd bvar, irf/fevd/forecast/policy)" begin
+        mktempdir() do dir
+            d3 = mkpath(joinpath(dir, "c3"))
+            d5 = mkpath(joinpath(dir, "c5"))
+            d1 = mkpath(joinpath(dir, "c1"))
+            csv = _make_csv(d3; T=80, n=3, colnames=["y1", "y2", "y3"])
+            csv5 = _make_csv(d5; T=100, n=5)
+            csv1 = _make_csv(d1; T=120, n=1, colnames=["y"])
+
+            # Volatility forecast emits lower/upper columns and widens with conf-level
+            d68 = _run_doc(String["forecast", "volatility", "garch", csv1, "--horizons", "4"])
+            d95 = _run_doc(String["forecast", "volatility", "garch", csv1, "--horizons", "4", "--conf-level", "0.95"])
+            @test d68.status == "ok" && d95.status == "ok"
+            t68 = first(values(d68.data)); t95 = first(values(d95.data))
+            cols68 = String.(t68.columns)
+            @test "lower" in cols68 && "upper" in cols68
+            li = findfirst(==("lower"), cols68); ui = findfirst(==("upper"), cols68)
+            w68 = Float64(t68.rows[1][ui]) - Float64(t68.rows[1][li])
+            w95 = Float64(t95.rows[1][ui]) - Float64(t95.rows[1][li])
+            @test w68 > 0 && w68 < w95
+
+            # hd bvar emits contrib_*_lower / contrib_*_upper columns and accepts --conf-level & --quantiles
+            dh = _run_doc(String["hd", "bvar", csv, "--lags", "2", "--draws", "20", "--conf-level", "0.90"])
+            @test dh.status == "ok"
+            th = first(values(dh.data))
+            hcols = String.(th.columns)
+            @test any(c -> startswith(c, "contrib_") && endswith(c, "_lower"), hcols)
+            @test any(c -> startswith(c, "contrib_") && endswith(c, "_upper"), hcols)
+            dhq = _run_doc(String["hd", "bvar", csv, "--lags", "2", "--draws", "20", "--quantiles", "0.1,0.5,0.9"])
+            @test dhq.status == "ok"
+
+            # Representative newly-wired Batch 1 leaves dispatch cleanly with --conf-level 0.90 (zero MethodErrors)
+            for argv in (
+                String["irf", "var", csv, "--lags", "2", "--horizons", "4", "--ci", "bootstrap", "--replications", "20", "--conf-level", "0.90"],
+                String["irf", "bvar", csv, "--lags", "2", "--horizons", "4", "--draws", "20", "--conf-level", "0.90"],
+                String["irf", "lp", csv, "--lags", "2", "--horizons", "4", "--conf-level", "0.90"],
+                String["irf", "vecm", csv, "--lags", "2", "--horizons", "4", "--conf-level", "0.90"],
+                String["irf", "favar", csv5, "--factors", "2", "--key-vars", "1,2", "--lags", "1", "--horizons", "4", "--conf-level", "0.90"],
+                String["irf", "sdfm", csv5, "--factors", "1", "--horizons", "4", "--conf-level", "0.90"],
+                String["irf", "tvpvar", csv, "--date", "10", "--lags", "1", "--horizons", "4", "--draws", "20", "--conf-level", "0.90"],
+                String["fevd", "bvar", csv, "--lags", "2", "--horizons", "4", "--draws", "20", "--conf-level", "0.90"],
+                String["fevd", "lp", csv, "--lags", "2", "--horizons", "4", "--conf-level", "0.90"],
+                String["forecast", "multivariate", "bvar", csv, "--lags", "2", "--horizons", "4", "--draws", "20", "--conf-level", "0.90"],
+                String["forecast", "multivariate", "favar", csv5, "--factors", "2", "--key-vars", "1,2", "--lags", "1", "--horizons", "4", "--conf-level", "0.90"],
+                String["forecast", "factor", "dynamic", csv5, "--nfactors", "1", "--horizons", "4", "--conf-level", "0.90"],
+                String["forecast", "factor", "gdfm", csv5, "--nfactors", "1", "--horizons", "4", "--conf-level", "0.90"],
+                String["forecast", "factor", "sdfm", csv5, "--factors", "1", "--horizons", "4", "--conf-level", "0.90"],
+                String["forecast", "volatility", "arch", csv1, "--horizons", "4", "--conf-level", "0.90"],
+                String["forecast", "univariate", "sarima", csv1, "--p", "1", "--d", "0", "--q", "0", "--horizons", "4", "--conf-level", "0.90"],
+                String["policy", "counterfactual", "var", csv, "--lags", "2", "--horizons", "4",
+                       "--shocks", "1", "--nonpolicy-shock", "2", "--outcomes", "y1=1",
+                       "--instruments", "r=3", "--rule", "rate-peg", "--conf-level", "0.90"],
+            )
+                doc = _run_doc(argv)
+                @test doc.status == "ok"
+            end
+        end
+    end
 end
 
 include(joinpath(project_root, "test", "test_handles.jl"))

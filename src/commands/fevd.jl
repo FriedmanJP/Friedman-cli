@@ -54,6 +54,8 @@ function fevd_specs()::Vector{CommandSpec}
                 OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|fastica|jade|sobi|dcov|hsic|cvm|student-t|mixture-normal|mixture-normal-asym|pml|skew-normal|lms|markov-switching|garch-id|uhlig|lewis-tvv|sv-em"),
                 OptionSpec(name="draws", short="n", type=Int, default=2000, description="Posterior draws"),
                 OptionSpec(name="sampler", type=String, default="direct", description="direct|gibbs"),
+                CONF_LEVEL_MACRO_OPTION,
+                QUANTILES_MACRO_OPTION,
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification/prior"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -76,6 +78,7 @@ function fevd_specs()::Vector{CommandSpec}
                 OptionSpec(name="var-lags", type=Int, default=nothing, description="VAR lag order for identification (default: same as --lags)"),
                 OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|fastica|jade|sobi|dcov|hsic|cvm|student-t|mixture-normal|mixture-normal-asym|pml|skew-normal|lms|markov-switching|garch-id|uhlig|lewis-tvv|sv-em"),
                 OptionSpec(name="vcov", type=String, default="newey_west", description="newey_west|white|driscoll_kraay"),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -398,6 +401,7 @@ end
 
 function _fevd_bvar(; data::String="", result=nothing, lags::Int=4, horizons::Int=20,
                      id::String="cholesky", draws::Int=2000, sampler::String="direct",
+                     conf_level::Float64=0.68, quantiles::String="0.16,0.5,0.84",
                      config::String="",
                      output::String="", format::String="table",
                      plot::Bool=false, plot_save::String="",
@@ -407,6 +411,8 @@ function _fevd_bvar(; data::String="", result=nothing, lags::Int=4, horizons::In
     loaded === nothing || return _rerender_fevd_result(loaded; format, output,
         title="Bayesian FEVD", key="bayesian_fevd", plot, plot_save,
         key_prefix="bayesian_fevd")
+    conf_level = _validate_conf_level(conf_level, "fevd bvar")
+    qs = _resolve_band_quantiles(quantiles, conf_level, "fevd bvar")
     _require_sign_narrative_config(id, config, "fevd bvar")
     if isnothing(model)
         post, Y, varnames, p, n = _load_and_estimate_bvar(data, lags, config, draws, sampler)
@@ -432,14 +438,14 @@ function _fevd_bvar(; data::String="", result=nothing, lags::Int=4, horizons::In
     !isnothing(narrative_check) && (bfevd_kwargs[:narrative_check] = narrative_check)
     bfevd = try
         fevd(post, horizons;
-            method=method, quantiles=[0.16, 0.5, 0.84], bfevd_kwargs...)
+            method=method, quantiles=qs, bfevd_kwargs...)
     catch e
         throw(_domain_or_data_error(e, "BVAR FEVD"))
     end
 
     _status_report(() -> report(bfevd))
 
-    _maybe_plot(bfevd; plot=plot, plot_save=plot_save)
+    _maybe_plot(bfevd; plot=plot, plot_save=plot_save, conf_level=conf_level)
 
     _emit_result(bfevd; title="Bayesian FEVD ($id identification)", key="bayesian_fevd",
                  format=Symbol(format), output=output)
@@ -449,7 +455,8 @@ end
 # ── LP FEVD ──────────────────────────────────────────────
 
 function _fevd_lp(; data::String="", result=nothing, horizons::Int=20, lags::Int=4, var_lags=nothing,
-                   id::String="cholesky", vcov::String="newey_west", config::String="",
+                   id::String="cholesky", vcov::String="newey_west",
+                   conf_level::Float64=0.68, config::String="",
                    output::String="", format::String="table",
                    plot::Bool=false, plot_save::String="",
                    model=nothing)
@@ -457,9 +464,10 @@ function _fevd_lp(; data::String="", result=nothing, horizons::Int=20, lags::Int
                             id, horizons, horizons_default=20)
     loaded === nothing || return _rerender_fevd_result(loaded; format, output,
         title="LP FEVD", key="lp_fevd", plot, plot_save, key_prefix="lp_fevd")
+    conf_level = _validate_conf_level(conf_level, "fevd lp")
     if isnothing(model)
         slp, Y, varnames = _load_and_structural_lp(data, horizons, lags, var_lags,
-            id, vcov, config)
+            id, vcov, config; conf_level=conf_level)
         n = size(Y, 2)
     else
         slp = model
@@ -475,12 +483,12 @@ function _fevd_lp(; data::String="", result=nothing, horizons::Int=20, lags::Int
     _status()
 
     fevd_result = try
-        lp_fevd(slp, horizons)
+        lp_fevd(slp, horizons; conf_level=conf_level)
     catch e
         throw(_domain_or_data_error(e, "LP FEVD"))
     end
 
-    _maybe_plot(fevd_result; plot=plot, plot_save=plot_save)
+    _maybe_plot(fevd_result; plot=plot, plot_save=plot_save, conf_level=conf_level)
 
     _emit_result(fevd_result; title="LP FEVD ($id identification)", key="lp_fevd",
                  format=Symbol(format), output=output)

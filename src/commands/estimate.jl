@@ -74,6 +74,7 @@ function _vol_specs(verb::Symbol)::Vector{CommandSpec}
         ]
         if with_horizons
             push!(opts, OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon"))
+            push!(opts, CONF_LEVEL_MACRO_OPTION)
         end
         # W11/#113: only the three estimators that actually take a conditional distribution
         # upstream get --dist. arch/sv have no `dist` kwarg at all, so declaring it there
@@ -86,7 +87,7 @@ function _vol_specs(verb::Symbol)::Vector{CommandSpec}
         append!(opts, out_opts)
         cli_name = get(_VOL_CLI_NAMES, vol.name, vol.name)
         label = vol.label(1, 1)
-        summary = verb === :forecast ? "$label volatility forecast (no interval level; horizons only)" : est_summaries[vol.name]
+        summary = verb === :forecast ? "$label volatility forecast with interval bands" : est_summaries[vol.name]
         # W3/#138: the four verbs share the shared.jl emitters, so their keys are
         # `<vol.name>_<what>` — `<label>` (which carries p/q) stays in the title only.
         tables = if verb === :estimate
@@ -99,7 +100,7 @@ function _vol_specs(verb::Symbol)::Vector{CommandSpec}
             t
         elseif verb === :forecast
             [TableSpec(name=Symbol("$(vol.name)_volatility_forecast"),
-                       description="Per-horizon forecast conditional variance and volatility")]
+                       description="Per-horizon forecast conditional variance, volatility, and confidence bounds")]
         elseif verb === :predict
             [TableSpec(name=Symbol("$(vol.name)_conditional_variance"),
                        description="In-sample conditional variance and volatility, one row per period")]
@@ -2673,7 +2674,7 @@ function _forecast_sarima(; data::String="", result=nothing, column::Int=1, p=no
                            max_p::Int=2, max_q::Int=2, max_P::Int=1, max_Q::Int=1,
                            criterion::String="aic", method::String="css_mle",
                            max_iter::Int=500, no_intercept::Bool=false,
-                           horizons::Int=12, ci_level::Float64=0.95,
+                           horizons::Int=12, conf_level::Float64=0.68,
                            plot::Bool=false, plot_save::String="",
                            output::String="", format::String="table", model=nothing)
     loaded = _loaded_result(result; data, model, leaf="forecast univariate sarima")
@@ -2681,8 +2682,7 @@ function _forecast_sarima(; data::String="", result=nothing, column::Int=1, p=no
         title="SARIMA Forecast", key="sarima_forecast", plot, plot_save)
     horizons >= 1 || throw(CliError("usage/invalid",
         "forecast univariate sarima: --horizons must be ≥ 1 (got $horizons)"))
-    (0 < ci_level < 1) || throw(CliError("usage/invalid",
-        "forecast univariate sarima: --ci-level must satisfy 0 < level < 1 (got $ci_level)"))
+    conf_level = _validate_conf_level(conf_level, "forecast univariate sarima")
     if isnothing(model)
         model, vname, _ = _sarima_fit(data, column, p, d, q, P, D, Q, s, auto,
                                       max_p, max_q, max_P, max_Q, criterion, method,
@@ -2691,16 +2691,16 @@ function _forecast_sarima(; data::String="", result=nothing, column::Int=1, p=no
         vname = _model_series_name(model)
     end
     lbl = _sarima_label(model)
-    _status("$lbl forecast (h=$horizons): variable=$vname, ci=$ci_level"); _status()
+    _status("$lbl forecast (h=$horizons): variable=$vname, ci=$conf_level"); _status()
     fc = try
-        forecast(model, horizons; conf_level=ci_level)
+        forecast(model, horizons; conf_level=conf_level)
     catch e
         throw(_domain_or_data_error(e, "SARIMA forecast"))
     end
     # #217: via the central helper (same long_table, key frozen).
-    _emit_result(fc; title="$lbl Forecast for $vname (h=$horizons, $(Int(round(ci_level*100)))% CI)",
+    _emit_result(fc; title="$lbl Forecast for $vname (h=$horizons, $(Int(round(conf_level*100)))% CI)",
                  key="sarima_forecast", format=Symbol(format), output=output)
-    _maybe_plot(fc; plot=plot, plot_save=plot_save)
+    _maybe_plot(fc; plot=plot, plot_save=plot_save, conf_level=conf_level)
     return (; model, result=fc)
 end
 
@@ -2832,25 +2832,24 @@ end
 
 function _forecast_arfima(; data::String="", result=nothing, column::Int=1, p::Int=0, q::Int=0,
         method::String="css", d0=nothing, max_iter::Int=500,
-        horizons::Int=12, confidence::Float64=0.95, trunc_lag::Int=200,
+        horizons::Int=12, conf_level::Float64=0.68, trunc_lag::Int=200,
         output::String="", format::String="table",
         plot::Bool=false, plot_save::String="", model=nothing)
     loaded = _loaded_result(result; data, model, leaf="forecast univariate arfima")
     loaded === nothing || return _rerender_long_table(loaded; format, output,
         title="ARFIMA Forecast", key="arfima_forecast", plot, plot_save)
     horizons >= 1 || throw(CliError("usage/invalid", "forecast univariate arfima: --horizons must be ≥ 1 (got $horizons)"))
-    (0.0 < confidence < 1.0) || throw(CliError("usage/invalid",
-        "forecast univariate arfima: --confidence must be in (0, 1) (got $confidence)"))
+    conf_level = _validate_conf_level(conf_level, "forecast univariate arfima")
     trunc_lag >= 1 || throw(CliError("usage/invalid",
         "forecast univariate arfima: --trunc-lag must be ≥ 1 (got $trunc_lag)"))
     m, vname = _arfima_refit(data, column, p, q, method, d0, max_iter, model)
     _status("ARFIMA($p,d,$q) Forecast: variable=$vname, horizons=$horizons"); _status()
     fc = try
-        forecast(m, horizons; conf_level=confidence, trunc_lag=trunc_lag)
+        forecast(m, horizons; conf_level=conf_level, trunc_lag=trunc_lag)
     catch e
         throw(_long_memory_error(e, "ARFIMA forecast"))
     end
-    _maybe_plot(fc; plot=plot, plot_save=plot_save)
+    _maybe_plot(fc; plot=plot, plot_save=plot_save, conf_level=conf_level)
     # #220: forecast(::ARFIMAModel) returns ARIMAForecast — route via the central
     # helper (was a same-grain hand-build with renamed columns). Columns change
     # horizon|forecast|lower|upper → horizon|variable|value|lower|upper
@@ -5329,7 +5328,7 @@ _vol_variant_cond_var(m) = hasmethod(predict, Tuple{typeof(m)}) ? predict(m) :
 # helpers above.
 
 function _forecast_igarch(; data::String="", result=nothing, column::Int=1, p::Int=1, q::Int=1, horizons::Int=10,
-        conf_level::Float64=0.95, model=nothing, output::String="", format::String="table",
+        conf_level::Float64=0.68, model=nothing, output::String="", format::String="table",
         plot::Bool=false, plot_save::String="")
     loaded = _loaded_result(result; data, model, leaf="forecast volatility igarch")
     if loaded !== nothing
@@ -5340,8 +5339,7 @@ function _forecast_igarch(; data::String="", result=nothing, column::Int=1, p::I
         return loaded
     end
     horizons >= 1 || throw(CliError("usage/invalid", "forecast volatility igarch: --horizons must be ≥ 1 (got $horizons)"))
-    (0.0 < conf_level < 1.0) || throw(CliError("usage/invalid",
-        "forecast volatility igarch: --conf-level must be in (0, 1) (got $conf_level)"))
+    conf_level = _validate_conf_level(conf_level, "forecast volatility igarch")
     m, vname = if model === nothing
         y, vn = load_univariate_series(data, column)
         (try; estimate_igarch(y, p, q); catch e; throw(_garch_variant_error(e, "IGARCH")); end), vn
@@ -5354,7 +5352,7 @@ function _forecast_igarch(; data::String="", result=nothing, column::Int=1, p::I
     catch e
         throw(_garch_variant_error(e, "IGARCH forecast"))
     end
-    _maybe_plot(fc; plot=plot, plot_save=plot_save)
+    _maybe_plot(fc; plot=plot, plot_save=plot_save, conf_level=conf_level)
     _vol_forecast_output(fc, vname, "IGARCH($p,$q)", horizons; format=format, output=output,
                          key="igarch_volatility_forecast")
     return (; model=m, result=fc)
@@ -5387,7 +5385,7 @@ function _residuals_igarch(; data::String="", column::Int=1, p::Int=1, q::Int=1,
 end
 
 function _forecast_cgarch(; data::String="", result=nothing, column::Int=1, horizons::Int=10,
-        conf_level::Float64=0.95, model=nothing, output::String="", format::String="table",
+        conf_level::Float64=0.68, model=nothing, output::String="", format::String="table",
         plot::Bool=false, plot_save::String="")
     loaded = _loaded_result(result; data, model, leaf="forecast volatility cgarch")
     if loaded !== nothing
@@ -5398,8 +5396,7 @@ function _forecast_cgarch(; data::String="", result=nothing, column::Int=1, hori
         return loaded
     end
     horizons >= 1 || throw(CliError("usage/invalid", "forecast volatility cgarch: --horizons must be ≥ 1 (got $horizons)"))
-    (0.0 < conf_level < 1.0) || throw(CliError("usage/invalid",
-        "forecast volatility cgarch: --conf-level must be in (0, 1) (got $conf_level)"))
+    conf_level = _validate_conf_level(conf_level, "forecast volatility cgarch")
     m, vname = if model === nothing
         y, vn = load_univariate_series(data, column)
         (try; estimate_cgarch(y); catch e; throw(_garch_variant_error(e, "Component-GARCH")); end), vn
@@ -5412,7 +5409,7 @@ function _forecast_cgarch(; data::String="", result=nothing, column::Int=1, hori
     catch e
         throw(_garch_variant_error(e, "Component-GARCH forecast"))
     end
-    _maybe_plot(fc; plot=plot, plot_save=plot_save)
+    _maybe_plot(fc; plot=plot, plot_save=plot_save, conf_level=conf_level)
     _vol_forecast_output(fc, vname, "Component-GARCH(1,1)", horizons; format=format, output=output,
                          key="cgarch_volatility_forecast")
     return (; model=m, result=fc)
@@ -5445,7 +5442,7 @@ function _residuals_cgarch(; data::String="", column::Int=1, model=nothing, outp
 end
 
 function _forecast_aparch(; data::String="", result=nothing, column::Int=1, p::Int=1, q::Int=1, fix_delta=nothing, fix_gamma=nothing, horizons::Int=10,
-        conf_level::Float64=0.95, model=nothing, output::String="", format::String="table",
+        conf_level::Float64=0.68, model=nothing, output::String="", format::String="table",
         plot::Bool=false, plot_save::String="")
     loaded = _loaded_result(result; data, model, leaf="forecast volatility aparch")
     if loaded !== nothing
@@ -5456,8 +5453,7 @@ function _forecast_aparch(; data::String="", result=nothing, column::Int=1, p::I
         return loaded
     end
     horizons >= 1 || throw(CliError("usage/invalid", "forecast volatility aparch: --horizons must be ≥ 1 (got $horizons)"))
-    (0.0 < conf_level < 1.0) || throw(CliError("usage/invalid",
-        "forecast volatility aparch: --conf-level must be in (0, 1) (got $conf_level)"))
+    conf_level = _validate_conf_level(conf_level, "forecast volatility aparch")
     m, vname = if model === nothing
         y, vn = load_univariate_series(data, column)
         (try; estimate_aparch(y, p, q; fix_delta=(fix_delta === nothing ? nothing : Float64(fix_delta)), fix_gamma=(fix_gamma === nothing ? nothing : Float64(fix_gamma))); catch e; throw(_garch_variant_error(e, "APARCH")); end), vn
@@ -5470,7 +5466,7 @@ function _forecast_aparch(; data::String="", result=nothing, column::Int=1, p::I
     catch e
         throw(_garch_variant_error(e, "APARCH forecast"))
     end
-    _maybe_plot(fc; plot=plot, plot_save=plot_save)
+    _maybe_plot(fc; plot=plot, plot_save=plot_save, conf_level=conf_level)
     _vol_forecast_output(fc, vname, "APARCH($p,$q)", horizons; format=format, output=output,
                          key="aparch_volatility_forecast")
     return (; model=m, result=fc)
@@ -5503,7 +5499,7 @@ function _residuals_aparch(; data::String="", column::Int=1, p::Int=1, q::Int=1,
 end
 
 function _forecast_figarch(; data::String="", result=nothing, column::Int=1, p::Int=1, q::Int=1, d0::Float64=0.4, truncation::Int=1000, dist::String="normal", horizons::Int=10,
-        conf_level::Float64=0.95, model=nothing, output::String="", format::String="table",
+        conf_level::Float64=0.68, model=nothing, output::String="", format::String="table",
         plot::Bool=false, plot_save::String="")
     loaded = _loaded_result(result; data, model, leaf="forecast volatility figarch")
     if loaded !== nothing
@@ -5514,8 +5510,7 @@ function _forecast_figarch(; data::String="", result=nothing, column::Int=1, p::
         return loaded
     end
     horizons >= 1 || throw(CliError("usage/invalid", "forecast volatility figarch: --horizons must be ≥ 1 (got $horizons)"))
-    (0.0 < conf_level < 1.0) || throw(CliError("usage/invalid",
-        "forecast volatility figarch: --conf-level must be in (0, 1) (got $conf_level)"))
+    conf_level = _validate_conf_level(conf_level, "forecast volatility figarch")
     m, vname = if model === nothing
         y, vn = load_univariate_series(data, column)
         (try; estimate_figarch(y; p=p, q=q, d0=d0, truncation=truncation, dist=Symbol(dist)); catch e; throw(_garch_variant_error(e, "FIGARCH")); end), vn
@@ -5528,7 +5523,7 @@ function _forecast_figarch(; data::String="", result=nothing, column::Int=1, p::
     catch e
         throw(_garch_variant_error(e, "FIGARCH forecast"))
     end
-    _maybe_plot(fc; plot=plot, plot_save=plot_save)
+    _maybe_plot(fc; plot=plot, plot_save=plot_save, conf_level=conf_level)
     _vol_forecast_output(fc, vname, "FIGARCH($p,d,$q)", horizons; format=format, output=output,
                          key="figarch_volatility_forecast")
     return (; model=m, result=fc)
@@ -5561,7 +5556,7 @@ function _residuals_figarch(; data::String="", column::Int=1, p::Int=1, q::Int=1
 end
 
 function _forecast_fiegarch(; data::String="", result=nothing, column::Int=1, p::Int=1, q::Int=1, d0::Float64=0.4, truncation::Int=1000, dist::String="normal", horizons::Int=10,
-        conf_level::Float64=0.95, model=nothing, output::String="", format::String="table",
+        conf_level::Float64=0.68, model=nothing, output::String="", format::String="table",
         plot::Bool=false, plot_save::String="")
     loaded = _loaded_result(result; data, model, leaf="forecast volatility fiegarch")
     if loaded !== nothing
@@ -5572,8 +5567,7 @@ function _forecast_fiegarch(; data::String="", result=nothing, column::Int=1, p:
         return loaded
     end
     horizons >= 1 || throw(CliError("usage/invalid", "forecast volatility fiegarch: --horizons must be ≥ 1 (got $horizons)"))
-    (0.0 < conf_level < 1.0) || throw(CliError("usage/invalid",
-        "forecast volatility fiegarch: --conf-level must be in (0, 1) (got $conf_level)"))
+    conf_level = _validate_conf_level(conf_level, "forecast volatility fiegarch")
     m, vname = if model === nothing
         y, vn = load_univariate_series(data, column)
         (try; estimate_fiegarch(y; p=p, q=q, d0=d0, truncation=truncation, dist=Symbol(dist)); catch e; throw(_garch_variant_error(e, "FIEGARCH")); end), vn
@@ -5586,7 +5580,7 @@ function _forecast_fiegarch(; data::String="", result=nothing, column::Int=1, p:
     catch e
         throw(_garch_variant_error(e, "FIEGARCH forecast"))
     end
-    _maybe_plot(fc; plot=plot, plot_save=plot_save)
+    _maybe_plot(fc; plot=plot, plot_save=plot_save, conf_level=conf_level)
     _vol_forecast_output(fc, vname, "FIEGARCH($p,d,$q)", horizons; format=format, output=output,
                          key="fiegarch_volatility_forecast")
     return (; model=m, result=fc)
@@ -7127,13 +7121,12 @@ end
 # target values, which is exactly what forecasting the next period means here.
 function _forecast_midas(; data::String="", result=nothing, column::Int=1, hf_data::String="", hf_column::Int=1,
         m::Int=0, k::Int=0, weights::String="expalmon", p_ar::Int=0,
-        poly_degree::Int=2, horizon::Int=1, max_iter::Int=500, level::Float64=0.95,
+        poly_degree::Int=2, horizon::Int=1, max_iter::Int=500, conf_level::Float64=0.68,
         output::String="", format::String="table", model=nothing)
     loaded = _loaded_result(result; data, model, leaf="forecast univariate midas")
     loaded === nothing || return _rerender_long_table(loaded; format, output,
         title="MIDAS Forecast", key="midas_forecast")
-    (0.0 < level < 1.0) || throw(CliError("usage/invalid",
-        "forecast univariate midas: --level must be in (0, 1) (got $level)"))
+    conf_level = _validate_conf_level(conf_level, "forecast univariate midas")
     if model === nothing
         isempty(hf_data) && throw(CliError("usage/missing-option",
             "forecast univariate midas requires --hf-data <csv> (the high-frequency indicator series)"))
@@ -7177,7 +7170,7 @@ function _forecast_midas(; data::String="", result=nothing, column::Int=1, hf_da
     _status("MIDAS Forecast: target=$ynm, indicator=$xnm, h=$(mdl.h) (fixed at estimation), K=$(mdl.K)")
     _status()
     fc = try
-        forecast(mdl, x_new; level=level)
+        forecast(mdl, x_new; level=conf_level)
     catch e
         throw(_midas_error(e, "MIDAS forecast"))
     end
@@ -7971,7 +7964,7 @@ end
 
 function _forecast_ms_ar(; data::String="", result=nothing, column::Int=1, p::Int=1, k_regimes::Int=2,
         switching_variance::Bool=false, no_switching_variance::Bool=false, max_iter::Int=1000, horizons::Int=12,
-        reps::Int=1000, ci_level::Float64=0.90,
+        reps::Int=1000, conf_level::Float64=0.68,
         output::String="", format::String="table", model=nothing)
     loaded = _loaded_result(result; data, model, leaf="forecast regime ms-ar")
     loaded === nothing || return _rerender_long_table(loaded; format, output,
@@ -7979,26 +7972,25 @@ function _forecast_ms_ar(; data::String="", result=nothing, column::Int=1, p::In
     horizons >= 1 || throw(CliError("usage/invalid",
         "forecast regime ms-ar: --horizons must be ≥ 1 (got $horizons)"))
     reps >= 1 || throw(CliError("usage/invalid", "forecast regime ms-ar: --reps must be ≥ 1 (got $reps)"))
-    (0 < ci_level < 1) || throw(CliError("usage/invalid",
-        "forecast regime ms-ar: --ci-level must satisfy 0 < level < 1 (got $ci_level)"))
+    conf_level = _validate_conf_level(conf_level, "forecast regime ms-ar")
     sv = _resolve_switching_variance(switching_variance, no_switching_variance;
                                      default=false, leaf="forecast regime ms-ar")
     m, vname = model === nothing ?
         _ms_ar_refit(data, column, p, k_regimes, sv, max_iter) : (model, "model")
-    _status("MS-AR($p) forecast (h=$horizons): variable=$vname, ci=$ci_level"); _status()
+    _status("MS-AR($p) forecast (h=$horizons): variable=$vname, ci=$conf_level"); _status()
     fc = try
-        forecast(m, horizons; reps=reps, level=ci_level, _fwd_seed()...)
+        forecast(m, horizons; reps=reps, level=conf_level, _fwd_seed()...)
     catch e
         throw(_nonlinear_error(e, "MS-AR forecast"))
     end
-    _ms_forecast_output(fc, "MS-AR($p)", vname, horizons, ci_level, format, output;
+    _ms_forecast_output(fc, "MS-AR($p)", vname, horizons, conf_level, format, output;
                         key_prefix="ms_ar")
     return (; model=m, result=fc)
 end
 
 function _forecast_ms(; data::String="", result=nothing, dep::String="", k_regimes::Int=2,
         switching_variance::Bool=false, no_switching_variance::Bool=false, max_iter::Int=500, tol::Float64=1e-8,
-        horizons::Int=12, x_future::String="", reps::Int=1000, ci_level::Float64=0.90,
+        horizons::Int=12, x_future::String="", reps::Int=1000, conf_level::Float64=0.68,
         output::String="", format::String="table", model=nothing)
     loaded = _loaded_result(result; data, model, leaf="forecast regime ms")
     loaded === nothing || return _rerender_long_table(loaded; format, output,
@@ -8006,8 +7998,7 @@ function _forecast_ms(; data::String="", result=nothing, dep::String="", k_regim
     horizons >= 1 || throw(CliError("usage/invalid",
         "forecast regime ms: --horizons must be ≥ 1 (got $horizons)"))
     reps >= 1 || throw(CliError("usage/invalid", "forecast regime ms: --reps must be ≥ 1 (got $reps)"))
-    (0 < ci_level < 1) || throw(CliError("usage/invalid",
-        "forecast regime ms: --ci-level must satisfy 0 < level < 1 (got $ci_level)"))
+    conf_level = _validate_conf_level(conf_level, "forecast regime ms")
     sv = _resolve_switching_variance(switching_variance, no_switching_variance;
                                      default=true, leaf="forecast regime ms")
     m, intercept_only = if model === nothing
@@ -8040,13 +8031,13 @@ function _forecast_ms(; data::String="", result=nothing, dep::String="", k_regim
                  "(only an intercept-only model can be projected from --horizons alone)"))
     end
 
-    _status("MS regression forecast (h=$(size(X_new,1))): ci=$ci_level"); _status()
+    _status("MS regression forecast (h=$(size(X_new,1))): ci=$conf_level"); _status()
     fc = try
-        forecast(m, X_new; reps=reps, level=ci_level, _fwd_seed()...)
+        forecast(m, X_new; reps=reps, level=conf_level, _fwd_seed()...)
     catch e
         throw(_nonlinear_error(e, "MS regression forecast"))
     end
-    _ms_forecast_output(fc, "MS Regression", vname, size(X_new, 1), ci_level,
+    _ms_forecast_output(fc, "MS Regression", vname, size(X_new, 1), conf_level,
                         format, output; key_prefix="ms_regression")
     return (; model=m, result=fc)
 end
@@ -8172,6 +8163,7 @@ function _irf_tvpvar(; data::String="", result=nothing, date::Int=0, horizons::I
                       k_q::Float64=0.01, k_s::Float64=0.1, k_w::Float64=0.01,
                       no_tvp::Bool=false, no_sv::Bool=false,
                       irf_draws::Int=500, shock::Int=1, no_stationary_only::Bool=false,
+                      conf_level::Float64=0.68, quantiles::String="0.16,0.5,0.84",
                       output::String="", format::String="table", model=nothing)
     loaded = _loaded_result(result; data, model, leaf="irf tvpvar",
                             horizons, horizons_default=20)
@@ -8179,6 +8171,8 @@ function _irf_tvpvar(; data::String="", result=nothing, date::Int=0, horizons::I
         title="Impulse Responses", key="tvpvar_irf", shock)
     horizons >= 1 || throw(CliError("usage/invalid", "--horizons must be ≥ 1 (got $horizons)"))
     irf_draws >= 1 || throw(CliError("usage/invalid", "--irf-draws must be ≥ 1 (got $irf_draws)"))
+    conf_level = _validate_conf_level(conf_level, "irf tvpvar")
+    qs = _resolve_band_quantiles(quantiles, conf_level, "irf tvpvar")
     # The date-t IRF is the entire point of a TVP model, so --date is required rather than
     # silently defaulting to the end of the sample. Check it BEFORE the Gibbs sampler runs —
     # the upper bound needs T_eff and so cannot be known until after estimation, but a
@@ -8207,7 +8201,7 @@ function _irf_tvpvar(; data::String="", result=nothing, date::Int=0, horizons::I
     _status("Computing TVP-VAR IRF at date $date (horizon $horizons)")
     birf = try
         irf(post, horizons; t=date, n_draws=irf_draws,
-            stationary_only=!no_stationary_only)
+            quantile_levels=qs, stationary_only=!no_stationary_only)
     catch e
         e isa CliError && rethrow()
         # Every draw explosive at this date is a bare error() upstream. It is a real
@@ -8219,8 +8213,9 @@ function _irf_tvpvar(; data::String="", result=nothing, date::Int=0, horizons::I
     end
 
     shock_name = birf.shocks[shock]
+    pct = length(qs) >= 2 ? round(Int, (qs[end] - qs[1]) * 100) : round(Int, conf_level * 100)
     # #217: via the central helper (same long_table + shock filter, key frozen).
-    _emit_result(birf; title="TVP-VAR IRF at date $date to $shock_name (90% credible interval)",
+    _emit_result(birf; title="TVP-VAR IRF at date $date to $shock_name ($(pct)% credible interval)",
                  key="tvpvar_irf", format=Symbol(format), output=output, shocks=shock_name)
     return (; model=post, result=birf)
 end

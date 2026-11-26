@@ -492,7 +492,7 @@ function _forecast_qfm(; data::String="", result=nothing, model=nothing,
                        tau::Float64=0.5, taus::String="", factors::String="auto",
                        horizons::Int=12, lags::Int=1, no_rearrange::Bool=false,
                        ci_method::String="none", n_boot::Int=299,
-                       conf_level::Float64=0.95, standardize::Bool=false,
+                       conf_level::Float64=0.68, standardize::Bool=false,
                        output::String="", format::String="table",
                        plot::Bool=false, plot_save::String="")
     leaf = "forecast factor qfm"
@@ -505,8 +505,7 @@ function _forecast_qfm(; data::String="", result=nothing, model=nothing,
     ci_l = lowercase(strip(ci_method))
     ci_l in ("none", "bootstrap") || throw(CliError("usage/invalid-option",
         "$leaf: --ci-method must be none|bootstrap (got '$ci_method')"))
-    (isfinite(conf_level) && 0.0 < conf_level < 1.0) || throw(CliError("usage/invalid",
-        "$leaf: --conf-level must lie strictly in (0, 1) (got $conf_level)"))
+    conf_level = _validate_conf_level(conf_level, leaf)
     n_boot >= (ci_l == "bootstrap" ? 2 : 1) || throw(CliError("usage/invalid",
         "$leaf: --n-boot must be ≥ $(ci_l == "bootstrap" ? 2 : 1) (got $n_boot)"))
 
@@ -553,7 +552,7 @@ function _forecast_qfm(; data::String="", result=nothing, model=nothing,
                       title="QFM Grid Forecast (h=$horizons, $(length(fm.taus)) quantiles)",
                       key="qfm_forecast")
         med_idx = argmin(abs.(Float64.(fm.taus) .- 0.5))
-        _maybe_plot(fcs[med_idx]; plot=plot, plot_save=plot_save)
+        _maybe_plot(fcs[med_idx]; plot=plot, plot_save=plot_save, conf_level=conf_level)
         return (; model=fm, result=fcs[med_idx])
     else
         _status("Forecasting Quantile Factor Model: r=$(fm.r), τ=$(fm.tau), h=$horizons, p=$lags, CI=$ci_l")
@@ -567,7 +566,7 @@ function _forecast_qfm(; data::String="", result=nothing, model=nothing,
         end
         _emit_result(fc; title="QFM Forecast (r=$(fm.r), τ=$(fm.tau), h=$horizons)",
                      key="qfm_forecast", format=Symbol(format), output=output)
-        _maybe_plot(fc; plot=plot, plot_save=plot_save)
+        _maybe_plot(fc; plot=plot, plot_save=plot_save, conf_level=conf_level)
         return (; model=fm, result=fc)
     end
 end
@@ -951,7 +950,7 @@ function _irf_qvar(; data::String="", result=nothing, model=nothing,
                    horizons::Int=20, shock::Int=0, shock_size::Float64=1.0,
                    tau_profile::String="0.1", baseline_tau::Float64=0.5,
                    method::String="analytical", ci_type::String="none",
-                   n_boot::Int=199, conf_level::Float64=0.95,
+                   n_boot::Int=199, conf_level::Float64=0.68,
                    output::String="", format::String="table",
                    plot::Bool=false, plot_save::String="")
     leaf = "irf qvar"
@@ -971,8 +970,7 @@ function _irf_qvar(; data::String="", result=nothing, model=nothing,
         "$leaf: --ci-type must be none|bootstrap (got '$ci_type')"))
     n_boot >= (ci_l == "bootstrap" ? 2 : 1) || throw(CliError("usage/invalid",
         "$leaf: --n-boot must be ≥ $(ci_l == "bootstrap" ? 2 : 1) (got $n_boot)"))
-    (isfinite(conf_level) && 0.0 < conf_level < 1.0) || throw(CliError("usage/invalid",
-        "$leaf: --conf-level must lie strictly in (0, 1) (got $conf_level)"))
+    conf_level = _validate_conf_level(conf_level, leaf)
 
     qv = if isnothing(model)
         m, _ = _w1_load_and_estimate_qvar(data, lags, taus, ordering, "none", 1, leaf)
@@ -1001,7 +999,7 @@ function _irf_qvar(; data::String="", result=nothing, model=nothing,
 
     _emit_result(irf_res; title="Quantile VAR Impulse Responses (H=$horizons, $meth_sym)",
                  key="qvar_irf", format=Symbol(format), output=output)
-    _maybe_plot(irf_res; plot=plot, plot_save=plot_save)
+    _maybe_plot(irf_res; plot=plot, plot_save=plot_save, conf_level=conf_level)
     return (; model=qv, result=irf_res)
 end
 
@@ -1030,7 +1028,7 @@ function _irf_qfavar(; data::String="", result=nothing, model=nothing,
                      horizons::Int=20, shock::Int=0, shock_size::Float64=1.0,
                      tau_profile::String="0.1", baseline_tau::Float64=0.5,
                      method::String="analytical", ci_type::String="none",
-                     n_boot::Int=199, conf_level::Float64=0.95,
+                     n_boot::Int=199, conf_level::Float64=0.68,
                      output::String="", format::String="table",
                      plot::Bool=false, plot_save::String="")
     leaf = "irf qfavar"
@@ -1050,8 +1048,7 @@ function _irf_qfavar(; data::String="", result=nothing, model=nothing,
         "$leaf: --ci-type must be none|bootstrap|credible (got '$ci_type')"))
     n_boot >= (ci_l == "bootstrap" ? 2 : 1) || throw(CliError("usage/invalid",
         "$leaf: --n-boot must be ≥ $(ci_l == "bootstrap" ? 2 : 1) (got $n_boot)"))
-    (isfinite(conf_level) && 0.0 < conf_level < 1.0) || throw(CliError("usage/invalid",
-        "$leaf: --conf-level must lie strictly in (0, 1) (got $conf_level)"))
+    conf_level = _validate_conf_level(conf_level, leaf)
 
     qf = if isnothing(model)
         m, _ = _w1_load_and_estimate_qfavar(
@@ -1086,7 +1083,7 @@ function _irf_qfavar(; data::String="", result=nothing, model=nothing,
 
     _emit_result(irf_res; title="Quantile FAVAR Panel Impulse Responses (H=$horizons)",
                  key="qfavar_irf", format=Symbol(format), output=output)
-    _maybe_plot(irf_res; plot=plot, plot_save=plot_save)
+    _maybe_plot(irf_res; plot=plot, plot_save=plot_save, conf_level=conf_level)
     return (; model=qf, result=irf_res)
 end
 
@@ -1352,7 +1349,7 @@ function w1_forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="lags", short="p", type=Int, default=1, description="QAR/QVAR lag order on quantile factors (>= 1)"),
                 OptionSpec(name="ci-method", type=String, default="none", description="Interval method: none|bootstrap", choices=["none", "bootstrap"]),
                 OptionSpec(name="n-boot", type=Int, default=299, description="Bootstrap replications for --ci-method bootstrap"),
-                OptionSpec(name="conf-level", type=Float64, default=0.95, description="Confidence level in (0, 1)"),
+                CONF_LEVEL_MACRO_OPTION,
                 OUTPUT_OPTIONS...,
                 PLOT_OPTIONS...,
             ],
@@ -1433,7 +1430,7 @@ function w1_irf_specs()::Vector{CommandSpec}
                 OptionSpec(name="method", type=String, default="analytical", description="Propagation method: analytical|simulation|monte-carlo", choices=["analytical", "simulation", "monte-carlo"]),
                 OptionSpec(name="ci-type", type=String, default="none", description="Interval type: none|bootstrap", choices=["none", "bootstrap"]),
                 OptionSpec(name="n-boot", type=Int, default=199, description="Bootstrap replications (also simulation draws)"),
-                OptionSpec(name="conf-level", type=Float64, default=0.95, description="Confidence level in (0, 1)"),
+                CONF_LEVEL_MACRO_OPTION,
                 OUTPUT_OPTIONS...,
                 PLOT_OPTIONS...,
             ],
@@ -1460,7 +1457,7 @@ function w1_irf_specs()::Vector{CommandSpec}
                 OptionSpec(name="method", type=String, default="analytical", description="Propagation method: analytical|simulation|monte-carlo", choices=["analytical", "simulation", "monte-carlo"]),
                 OptionSpec(name="ci-type", type=String, default="none", description="Interval type: none|bootstrap|credible (credible for VBQuantileFAVAR only)", choices=["none", "bootstrap", "credible"]),
                 OptionSpec(name="n-boot", type=Int, default=199, description="Bootstrap replications"),
-                OptionSpec(name="conf-level", type=Float64, default=0.95, description="Confidence / credible level in (0, 1)"),
+                CONF_LEVEL_MACRO_OPTION,
                 OUTPUT_OPTIONS...,
                 PLOT_OPTIONS...,
             ],

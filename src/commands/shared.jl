@@ -257,7 +257,9 @@ function _output_hd_tables(get_contrib::Function, varnames::Vector{String},
                             format::String="table", output::String="",
                             actual=nothing, initial=nothing,
                             key_prefix::String="",
-                            shock_names::Vector{String}=String[])
+                            shock_names::Vector{String}=String[],
+                            get_lower::Union{Nothing,Function}=nothing,
+                            get_upper::Union{Nothing,Function}=nothing)
     n = length(varnames)
     # Rectangular decompositions (SDFM panel: N variables x q+1 shocks) pass
     # explicit shock names; the default keeps the square VAR convention where
@@ -276,6 +278,10 @@ function _output_hd_tables(get_contrib::Function, varnames::Vector{String},
             col = isempty(shock_names) ? "contrib_$(_shock_name(varnames, si))" :
                                          "contrib_$(shock_names[si])"
             hd_df[!, col] = get_contrib(vi, si)
+            if get_lower !== nothing && get_upper !== nothing
+                hd_df[!, "$(col)_lower"] = get_lower(vi, si)
+                hd_df[!, "$(col)_upper"] = get_upper(vi, si)
+            end
         end
         vname = _var_name(varnames, vi)
         output_result(hd_df; format=Symbol(format),
@@ -395,7 +401,7 @@ function _vol_estimate_output(model, vname::String, param_names::Vector{String},
     _status("Persistence: $(round(p_val; digits=4))")
 end
 
-"""Shared volatility forecast output: horizon/variance/volatility table."""
+"""Shared volatility forecast output: horizon/variance/volatility (plus lower/upper CI bands when present)."""
 function _vol_forecast_output(fc, vname::String, model_label::String,
                                horizons::Int; format::String="table", output::String="",
                                key::String="")
@@ -404,6 +410,12 @@ function _vol_forecast_output(fc, vname::String, model_label::String,
         variance=fc.forecast,
         volatility=sqrt.(fc.forecast)
     )
+    if hasproperty(fc, :ci_lower) && hasproperty(fc, :ci_upper) &&
+       !isnothing(fc.ci_lower) && !isnothing(fc.ci_upper) &&
+       length(fc.ci_lower) == horizons && length(fc.ci_upper) == horizons
+        fc_df[!, :lower] = fc.ci_lower
+        fc_df[!, :upper] = fc.ci_upper
+    end
     output_result(fc_df; format=Symbol(format), output=output,
                   title="$model_label Volatility Forecast ($vname, h=$horizons)", key=key)
 end
@@ -559,10 +571,11 @@ end
 
 function _make_forecast_vol(vol)
     return function (; data::String="", result=nothing, column::Int=1, p::Int=1, q::Int=1, draws::Int=5000,
-                      dist::String="normal", horizons::Int=12,
+                      dist::String="normal", horizons::Int=12, conf_level::Float64=0.68,
                       output::String="", format::String="table",
                       plot::Bool=false, plot_save::String="", model=nothing)
-        loaded = _loaded_result(result; data, model, leaf="forecast volatility $(replace(vol.name, '_' => '-'))")
+        leaf = "forecast volatility $(replace(vol.name, '_' => '-'))"
+        loaded = _loaded_result(result; data, model, leaf=leaf)
         if loaded !== nothing
             h = hasproperty(loaded, :horizon) ? Int(loaded.horizon) : horizons
             _vol_forecast_output(loaded, "result", vol.label(p, q), h; format=format, output=output,
@@ -570,7 +583,8 @@ function _make_forecast_vol(vol)
             _maybe_plot(loaded; plot=plot, plot_save=plot_save)
             return loaded
         end
-        dsym = _vol_dist_symbol(vol, dist, "forecast volatility $(replace(vol.name, '_' => '-'))")
+        conf_level = _validate_conf_level(conf_level, leaf)
+        dsym = _vol_dist_symbol(vol, dist, leaf)
         m, vname = _vol_resolve_model(vol, data, column; p=p, q=q, draws=draws,
                                       dist=dsym, model=model)
         label = vol.label(p, q)
@@ -580,8 +594,8 @@ function _make_forecast_vol(vol)
             _status("$label Volatility Forecast: variable=$vname, horizons=$horizons")
         end
         _status()
-        fc = forecast(m, horizons)
-        _maybe_plot(fc; plot=plot, plot_save=plot_save)
+        fc = forecast(m, horizons; conf_level=conf_level)
+        _maybe_plot(fc; plot=plot, plot_save=plot_save, conf_level=conf_level)
         _vol_forecast_output(fc, vname, label, horizons; format=format, output=output,
                              key="$(vol.name)_volatility_forecast")
         if vol.post_fc !== :none
@@ -1364,7 +1378,7 @@ end
 
 """
     _load_and_structural_lp(data, horizons, lags, var_lags, id, vcov, config;
-                            ci_type=:none, reps=200, conf_level=0.95)
+                            ci_type=:none, reps=200, conf_level=0.68)
 
 Load data, build identification kwargs, and compute structural LP.
 Returns `(slp, Y, varnames)`.
@@ -1373,7 +1387,7 @@ function _load_and_structural_lp(data::String, horizons::Int, lags::Int,
                                   var_lags, id::String, vcov::String,
                                   config::String;
                                   ci_type::Symbol=:none, reps::Int=200,
-                                  conf_level::Float64=0.95)
+                                  conf_level::Float64=0.68)
     horizons >= 1 || throw(CliError("usage/invalid", "structural lp: --horizons must be ≥ 1 (got $horizons)"))
     lags >= 0 || throw(CliError("usage/invalid", "structural lp: --lags must be ≥ 0 (got $lags)"))
     vp = isnothing(var_lags) ? lags : var_lags

@@ -512,7 +512,7 @@ function _forecast_gdfm_i1(; data::String="", result=nothing, dynamic_rank=nothi
                            config::String="", instrument::String="",
                            no_standardize::Bool=false, seed=nothing,
                            horizons::Int=12, ci::String="none", reps::Int=200,
-                           conf_level::Float64=0.95,
+                           conf_level::Float64=0.68,
                            output::String="", format::String="table",
                            plot::Bool=false, plot_save::String="", model=nothing)
     loaded = _loaded_result(result; data, model, leaf="forecast factor gdfm-i1")
@@ -524,8 +524,7 @@ function _forecast_gdfm_i1(; data::String="", result=nothing, dynamic_rank=nothi
         "forecast factor gdfm-i1: --ci must be none|theoretical|bootstrap (got '$ci')"))
     reps >= 1 || throw(CliError("usage/invalid",
         "forecast factor gdfm-i1: --draws must be >= 1 (got $reps)"))
-    (0.0 < conf_level < 1.0) || throw(CliError("usage/invalid",
-        "forecast factor gdfm-i1: --conf-level must lie in (0, 1) (got $conf_level)"))
+    conf_level = _validate_conf_level(conf_level, "forecast factor gdfm-i1")
 
     if isnothing(model)
         m, _, varnames, q = _w2_load_and_estimate_gdfm_i1(
@@ -547,7 +546,7 @@ function _forecast_gdfm_i1(; data::String="", result=nothing, dynamic_rank=nothi
     catch e
         throw(_domain_or_data_error(e, "I(1) GDFM forecast"))
     end
-    _maybe_plot(fc; plot=plot, plot_save=plot_save)
+    _maybe_plot(fc; plot=plot, plot_save=plot_save, conf_level=conf_level)
     _emit_result(fc; title="Cointegrated I(1) GDFM Forecast (h=$horizons, $(length(varnames)) variables)",
                  key="gdfm_i1_forecast", format=Symbol(format), output=output)
     return (; model=m, result=fc)
@@ -1277,7 +1276,7 @@ function w2_forecast_specs()::Vector{CommandSpec}
                 OptionSpec(name="horizons", type=Int, default=12, description="Forecast horizon"),
                 OptionSpec(name="ci", type=String, default="none", description="Interval method: none|theoretical|bootstrap", choices=["none", "theoretical", "bootstrap"]),
                 OptionSpec(name="draws", aliases=["reps"], kwarg=:reps, type=Int, default=200, description="Bootstrap replications (with --ci bootstrap)"),
-                OptionSpec(name="conf-level", type=Float64, default=0.95, description="Confidence level in (0, 1)"),
+                CONF_LEVEL_MACRO_OPTION,
                 OUTPUT_OPTIONS..., PLOT_OPTIONS...,
             ],
             flags=[FlagSpec(name="no-standardize", description="Do not scale series by first-difference standard deviation"); PLOT_FLAGS],
