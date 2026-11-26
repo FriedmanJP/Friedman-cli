@@ -4,6 +4,105 @@ All notable changes to Friedman-cli are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to
 Semantic Versioning. Releases before v0.6.0 are recorded in the git tag history.
 
+## [1.2.0] — 2026-11-27 — MacroEconometricModels v1.1.2, presentation-only 3-decimal display, 68%/90% CI defaults, zero-collision abbreviations, FRDCACHE v2 & MCP/DSGE UX overhaul (#322–#348)
+
+Major UX, precision, statistical-defaults, abbreviation, and MCP hardening release
+upgrading to `MacroEconometricModels =1.1.2` and resolving the entire `#348`
+master roadmap (`#322`–`#347`) while keeping `schema/envelope-v1.json` frozen at
+v1 (additive metadata only).
+
+### Test Hygiene & Runtime Bug Fixes (`#322`, `[UX-W1]` `#342`, `[UX-W4]` `#345`, `[UX-W5]` `#346`)
+
+- **Synthetic fixture cleanup (`#322`):** Replaced remaining synthetic `friedman`
+  strings across test suites and stale comments in command handlers while
+  preserving compatibility keys (`_friedman_source_model`, `FRIEDMAN_*`), and
+  captured stdout during CLI parser tests.
+- **DSGE Bayesian & solver bug fixes (`#342`):** Fixed `dsge bayes hd --mode-only`
+  `FieldError` across both `BayesianHistoricalDecomposition.point_estimate` and
+  `HistoricalDecomposition.contributions` and eliminated the 5,000-particle SMC
+  hang on `--mode-only`; aligned `dsge bayes *` `--observables` column subsetting
+  with DSGE-VAR; routed `dsge bayes posterior-mode` `StochasticSingularityError`
+  to typed `model/stochastic-singularity` (exit `5`) with `--measurement-error`;
+  mapped VFI errors cleanly to `model/solve` / `config/invalid`; added additive
+  `dsge_shock_impact` and ABCD `D`-matrix diagnostics.
+- **Structural ID & handle guardrails (`#345`):** Fail-fast `usage/missing` (exit
+  `2`) before estimation when `--id sign|narrative` omits `--config`/`--config-json`;
+  fixed `_load_typed_handle` `--model` vs `--result` hint precision; unified
+  `longrun` and `long-run` across all structural/DSGE/GDFM leaves via parser
+  choice aliases; emitted warning when explicit `--ci` is ignored under
+  `--id arias|uhlig|narrative-adrr`; clarified `--instrument` vs `--instruments`;
+  reconciled LMS-SVAR `B0`/`irf_var` normalization and exposed additive
+  `lms_svar_diagnostics`.
+- **Help wrapping & DSGE/HA polish (`#346`):** Word-wrapped all `--help` output
+  to `<= 100` columns across all 560 leaves + 84 nodes; enabled `--max-iter`,
+  `--tol`, `--scale`, and `--n-quad` on `dsge solve --method projection`; tuned
+  built-in defaults for `dsge firm steady-state` and `dsge lifecycle steady-state`
+  to converge cleanly; auto-scaled `hadsge accuracy` `--t-burn` for short
+  `--t-sim`; corrected DSGE `--config` documentation in `agent_guide.md` and
+  `docs/src/chapters/dsge.md`.
+
+### Presentation-Only 3-Decimal Display & Lossless Storage (`[DISPLAY]`, `#323`–`#329`)
+
+- **Presentation-only formatter (`#323`):** Promoted stdlib `Printf` to `[deps]`,
+  implemented non-mutating `_render_table` / `_format_display_float` (3 decimals
+  default, `-0.000 → 0.000`, `>= 1e9` scientific guard, `Int`/`Bool`/`Missing`/
+  `String` verbatim), retired mutating `_compact_df` (`--compact` is TTY-fit
+  only), and added global `--digits <0..16|full>` and `FRDC_DIGITS` (typed
+  `usage/bad-digits`, exit `2`, with `contract.display_precision` in `frdc schema`).
+- **Lossless handlers & C99/CI parity (`#324`–`#328`):** Stripped all lossy
+  handler-side `round()` / `round.()` calls and 7 rounding helpers across all
+  command modules so `--format json`, `--format csv`, MCP payloads, and
+  `.jld2`/`.jls` handles preserve exact IEEE-754 `Float64`; added `--digits` /
+  `FRDC_DIGITS` / `-J` support in `frdc_thin.c` and shell completions; added
+  permanent CI gate `test/tools/check_lossless_handlers.jl`.
+
+### Standardized 68% Macro / 90% Micro CI Defaults (`[CI]`, `#330`–`#335`, `MEMs =1.1.2`)
+
+- **Upstream adoption (`#330`):** Upgraded exact pin to
+  `MacroEconometricModels = "=1.1.2"` across root and `test/integration`
+  environments, unlocking native `conf_level` / `ci_level` / `quantiles`
+  plumbing on SETAR, STAR, Bai–Perron, spectral, and DSGE-VAR leaves.
+- **Universal `--conf-level` & domain defaults (`#331`–`#334`):** Standardized
+  **90%** default CIs across all **39** microeconometric leaves (`did estimate`,
+  `did event-study`, `test did honest|pretrend`, cross-sectional regressions,
+  discrete choice & choice `predict`, micro panels, IV confidence sets,
+  `estimate regime threshold`) and **68%** default CIs / `"0.16,0.5,0.84"`
+  credible bands across all **111** macroeconometric leaves (including
+  `did lp-did`, `estimate regime setar`, `test stability bai-perron`,
+  `dsge bayes|var *`, `spectral *`, `ri *`), while keeping 5% hypothesis tests
+  and SARIMA `--Q` untouched. Added permanent CI gate `test/tools/check_ci_defaults.jl`.
+
+### Zero-Collision Coexisting Abbreviations & `FRDCACHE` v2 (`[ABBREV]`, `#336`–`#341`)
+
+- **Command/family/leaf & option abbreviations (`#336`–`#338`):** Added
+  single-source coexisting alias tables (`199` command/family/leaf aliases — e.g.
+  `est mv var`, `est regr qreg`, `fc uv arima`, `t ur adf`, `d desc`, `sch`),
+  uniform canonical option/flag shorts (`3,915` option + `272` flag slots at
+  100% uniformity, global `-J` for `--json`), canonical did-you-mean suggestions,
+  hard build-time collision guards (zero overlap with sibling primaries, REPL
+  built-ins, or `_PATH_REPLACEMENTS`), and canonical `command` emission in JSON
+  envelopes.
+- **`FRDCACHE` v2, REPL, completions & CI gate (`#339`–`#340`):** Cut over
+  `cli_cache.bin` and C99 `frdc_thin.c` to `FRDCACHE` v2 with sorted binary-search
+  `alias_tbl`; added alias dispatch, caching, and tab completion in `src/repl.jl`
+  and `bash`/`zsh`/`fish` completions; added permanent CI gate
+  `test/tools/check_abbreviations.jl` and surfaced aliases in generated CLI docs.
+
+### MCP Proxy Scoping & Schema Slimming (`[UX-W2]` `#343`, `[UX-W3]` `#344`)
+
+- **Strict proxy scoping & instructions (`#343`):** Enforced startup `--families`
+  / `--tools` scope intersection on `tools/list` in both `src/commands/serve.jl`
+  and `packaging/thin_wrapper/mcp_proxy.c`, rejected global `--seed` on `serve`
+  with exit `2` + per-call hint, and added byte-identical
+  `initialize.result.instructions` across Julia, `cli_cache.bin`, and C99 proxy.
+- **Draft-07 `anyOf`, `enum`, & schema slimming (`#344`):** Fixed all 26 missing
+  `anyOf` schemas (`dsge abcd`, `dsge var`, `io bf`, `ri`, `nowcast news`),
+  added `x-handle` on `model reproduce`, advertised `data://` URIs, populated
+  discrete `enum` (`choices=`) across all 21 `--id` leaves and ~110 sibling
+  options, stripped ignored `format`, interactive `plot`, and CLI-only
+  `x-cli.aliases` from MCP tool schemas, and fixed `--compact` description
+  truncation (zero mid-choice-list cuts).
+
 ## [1.1.0] — 2026-11-26 — `frdc` command rename, MacroEconometricModels v1.1.1, 4-layer storage overhaul, <10 ms C99 thin wrapper & lazy MCP proxy, GPL-3.0-only licensing (#219, #287–#321)
 
 Major econometric, architectural, performance, and licensing release upgrading

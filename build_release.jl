@@ -377,9 +377,9 @@ create_app(
     compress_sysimage = _COMPRESS_SYSIMAGE,
 )
 
-# --- Step 4b: Generate FRDCACHE v1 pack & compile pure C99 thin wrapper (#296) ---
+# --- Step 4b: Generate FRDCACHE v2 pack & compile pure C99 thin wrapper (#296, #339) ---
 const _CACHE_PATH = joinpath(_APP_DIR, "share", "frdc", "cli_cache.bin")
-println("Generating FRDCACHE v1 metadata pack: $(_CACHE_PATH)...")
+println("Generating FRDCACHE v2 metadata pack: $(_CACHE_PATH)...")
 withenv("JULIA_PKG_PRECOMPILE_AUTO" => "0") do
     run(`$(Base.julia_cmd()) --project=$(_BUILD_PROJECT_DIR) $(_PACK_GEN_SCRIPT) --output $(_CACHE_PATH)`)
 end

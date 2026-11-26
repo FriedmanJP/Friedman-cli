@@ -3,7 +3,7 @@
 [![CI](https://github.com/FriedmanJP/Friedman-cli/actions/workflows/CI.yml/badge.svg)](https://github.com/FriedmanJP/Friedman-cli/actions/workflows/CI.yml)
 [![Documentation](https://github.com/FriedmanJP/Friedman-cli/actions/workflows/Documentation.yml/badge.svg)](https://friedmanjp.github.io/Friedman-cli/stable/)
 
-`frdc` is a command-line interface for [MacroEconometricModels.jl](https://github.com/FriedmanJP/MacroEconometricModels.jl) (pinned to `=1.1.1` in [Project.toml](Project.toml)). It wraps the package's estimation, testing, structural identification, forecasting, and equilibrium-solving routines as standalone shell commands that read CSV files or saved `.jld2`/`.jls` handles and write formatted tables, CSV, JSON, or self-contained HTML plots.
+`frdc` (**v1.2.0**) is a command-line interface for [MacroEconometricModels.jl](https://github.com/FriedmanJP/MacroEconometricModels.jl) (pinned to `=1.1.2` in [Project.toml](Project.toml)). It wraps the package's estimation, testing, structural identification, forecasting, and equilibrium-solving routines as standalone shell commands that read CSV files or saved `.jld2`/`.jls` handles and write formatted tables, CSV, JSON, or self-contained HTML plots.
 
 Full documentation and the generated command reference live at [friedmanjp.github.io/Friedman-cli/stable/](https://friedmanjp.github.io/Friedman-cli/stable/).
 
@@ -181,7 +181,7 @@ frdc irf var --model var --shock 1 --horizons 8
 frdc model reproduce var
 ```
 
-Passing `--seed N` fixes the random seed for samplers and simulators. With `--format json`, every response includes a `meta.manifest` record containing the seed, thread count, OS, CLI version, and package versions. Output format is controlled with `--format table|csv|json` and `--output <path>`. Progress messages go to stderr and results go to stdout, so stdout can be redirected or piped without stripping log lines.
+Passing `--seed N` fixes the random seed for samplers and simulators. With `--format json` (or `-J`/`--json`), every response includes a `meta.manifest` record containing the seed, thread count, OS, CLI version, and package versions. Output format is controlled with `--format table|csv|json` (`-f`) and `--output <path>` (`-o`). Human `--format table` output displays 3 decimal places by default (configurable via `--digits <0..16|full>` or `FRDC_DIGITS`), while `--format json`, `--format csv`, MCP payloads, and `.jld2`/`.jls` handles always store exact unrounded IEEE-754 floats. Confidence and credible intervals default to **68%** (`-L`/`--conf-level 0.68`, `-Q`/`--quantiles 0.16,0.5,0.84`) for macroeconometric leaves (including `did lp-did`) and **90%** for microeconometric leaves, while hypothesis-test significance levels remain 5%. Coexisting short abbreviations (`frdc est mv var :denmark -p 2 -J`, `frdc fc uv arima`, `frdc t ur adf`, `frdc d desc`, `-M`/`-R`/`-S`/`-W`) dispatch identically to canonical names and always emit canonical `command` strings in JSON envelopes. Progress messages go to stderr and results go to stdout, so stdout can be redirected or piped without stripping log lines.
 
 See the [pipelines and handles guide](https://friedmanjp.github.io/Friedman-cli/stable/getting-started/pipelines/) for multi-key handle addressing, session URIs (`data://`, `model://`, `result://`), and `model info`/`reproduce`.
 
@@ -194,7 +194,7 @@ Programmatic callers can inspect command interfaces without parsing help text:
 - `frdc schema <command...>` prints a JSON Schema (draft-07) description of the command's inputs and declared output table keys.
 - `frdc serve --mcp` runs a Model Context Protocol server over stdio (supporting `--families`, `--tools`, and `--compact` to narrow the exposed tool list).
 
-In standalone builds, a small C wrapper handles `--version`, `--help`, `schema`, `completions`, and MCP discovery (`initialize`, `ping`, `tools/list`) directly from a pre-built metadata cache in a few milliseconds, spawning `frdc-core` only when a command or MCP `tools/call` needs the Julia runtime. Setting `FRDC_NO_FASTPATH=1` bypasses the wrapper. For multi-step sessions, keeping a single `frdc repl` or `frdc serve --mcp` process open avoids repeated startup costs and allows in-memory handle reuse. Further details are in the [Agent Guide](https://friedmanjp.github.io/Friedman-cli/stable/agent-guide/).
+In standalone builds, a small C wrapper (`FRDCACHE` v2) handles `--version`, `--help` (including aliased paths), `schema`, `completions`, and MCP discovery (`initialize` with concise agent instructions, `ping`, strictly scoped `tools/list`) directly from a pre-built metadata cache in a few milliseconds, spawning `frdc-core` only when a command or MCP `tools/call` needs the Julia runtime. Setting `FRDC_NO_FASTPATH=1` bypasses the wrapper. For multi-step sessions, keeping a single `frdc repl` or `frdc serve --mcp` process open avoids repeated startup costs and allows in-memory handle reuse. Further details are in the [Agent Guide](https://friedmanjp.github.io/Friedman-cli/stable/agent-guide/).
 
 ## License
 
