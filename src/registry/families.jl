@@ -360,3 +360,229 @@ function catalog_specs(verb::String)
     end
     return out
 end
+
+# ── Coexisting command, family & long-leaf abbreviation tables (#337) ───
+# Single-source alias dicts consumed by `build_app()` (`_TOP_ALIASES`) and
+# `build_node()` (`_FAMILY_ALIASES`, `_LEAF_ALIASES`) through the hard
+# build-time collision guard `_register_node_alias!`:
+#   1. zero sibling primary collisions,
+#   2. zero sibling alias collisions,
+#   3. zero REPL built-in collisions (`repl`/`exit`/`quit`; `data use|current|clear`),
+#   4. zero `_PATH_REPLACEMENTS` overlaps (notably `<verb> regression` uses
+#      `"regr"`, keeping removed `<verb> reg` as a migration hint).
+
+const _TOP_ALIASES = Dict{String,Vector{String}}(
+    "estimate"    => ["est", "e"],
+    "forecast"    => ["fc", "fcst"],
+    "predict"     => ["pred", "pr"],
+    "residuals"   => ["resid", "res"],
+    "test"        => ["t"],
+    "data"        => ["d"],
+    "model"       => ["mod", "m"],
+    "filter"      => ["flt"],
+    "spectral"    => ["spec", "sp"],
+    "policy"      => ["pol"],
+    "nowcast"     => ["nc"],
+    "hadsge"      => ["ha"],
+    "completions" => ["comp"],
+    "schema"      => ["sch"],
+    "serve"       => ["srv"],
+    "show"        => ["sh"],
+)
+
+const _MODEL_FAMILY_SHORTS = (
+    "multivariate" => ["mv"],
+    "univariate"   => ["uv"],
+    "regression"   => ["regr"],  # avoids `_PATH_REPLACEMENTS` collision with removed `<verb> reg`
+    "volatility"   => ["vol"],
+    "factor"       => ["fac"],
+    "panel"        => ["pan"],
+    "choice"       => ["ch"],
+    "regime"       => ["rgm"],
+)
+
+const _FAMILY_ALIASES = let d = Dict{Tuple{String,String},Vector{String}}(
+    # Forecast-specific families (no regression/panel/choice; adds evaluate)
+    ("forecast", "multivariate") => ["mv"],
+    ("forecast", "univariate")   => ["uv"],
+    ("forecast", "volatility")   => ["vol"],
+    ("forecast", "factor")       => ["fac"],
+    ("forecast", "regime")       => ["rgm"],
+    ("forecast", "evaluate")     => ["eval"],
+    # Test families (did/iv/pvar/vecm already short)
+    ("test", "unit-root")    => ["ur"],
+    ("test", "coint")        => ["ci"],
+    ("test", "stability")    => ["stab"],
+    ("test", "serial")       => ["ser"],
+    ("test", "multivariate") => ["mv"],
+    ("test", "factor")       => ["fac"],
+    ("test", "panel")        => ["pan"],
+    # Data subcommands (disjoint from REPL `use`, `current`, `clear`)
+    ("data", "describe")  => ["desc"],
+    ("data", "diagnose")  => ["diag"],
+    ("data", "simulate")  => ["sim"],
+    ("data", "transform") => ["tr"],
+    ("data", "validate")  => ["val"],
+    ("data", "balance")   => ["bal"],
+    ("data", "export")    => ["exp"],
+    ("data", "import")    => ["imp"],
+    ("data", "list")      => ["ls"],
+    # DSGE depth-2 subgroups & direct leaves
+    ("dsge", "bayes")             => ["b"],
+    ("dsge", "steady-state")      => ["ss"],
+    ("dsge", "perfect-foresight") => ["pf"],
+    ("dsge", "determinacy-map")   => ["detmap"],
+    ("dsge", "lifecycle")         => ["lc"],
+    ("dsge", "simulate")          => ["sim"],
+    ("dsge", "estimate")          => ["est"],
+    # HADSGE depth-2 leaves
+    ("hadsge", "steady-state")     => ["ss"],
+    ("hadsge", "distribution-irf") => ["dist-irf"],
+    ("hadsge", "inequality-irf")   => ["ineq-irf"],
+    ("hadsge", "simulate-panel")   => ["sim-panel"],
+    ("hadsge", "accuracy")         => ["acc"],
+    ("hadsge", "simulate")         => ["sim"],
+    ("hadsge", "estimate")         => ["est"],
+    # Policy depth-2 subgroups
+    ("policy", "counterfactual") => ["cf"],
+    ("policy", "effects")        => ["eff"],
+    ("policy", "history")        => ["hist"],
+    ("policy", "jacobian")       => ["jac"],
+    ("policy", "moments")        => ["mom"],
+    ("policy", "optimal")        => ["opt"],
+    ("policy", "opp-sequence")   => ["opp-seq"],
+    ("policy", "spanning")       => ["span"],
+    ("policy", "sufficiency")    => ["suff"],
+    # DiD, Model, Spectral, Filter, RI, IO depth-2 subcommands
+    ("did", "event-study") => ["es"],
+    ("did", "lp-did")      => ["lp"],
+    ("did", "estimate")    => ["est"],
+    ("model", "convert")   => ["conv"],
+    ("model", "reproduce") => ["repro"],
+    ("spectral", "periodogram") => ["pgram"],
+    ("spectral", "density")     => ["dens"],
+    ("spectral", "transfer")    => ["tf"],
+    ("filter", "bandpass-gdfm") => ["bp-gdfm"],
+    ("ri", "transition") => ["trans"],
+    ("ri", "statespace") => ["ss"],
+    ("ri", "discrete")   => ["disc"],
+    ("ri", "estimate")   => ["est"],
+    ("ri", "simulate")   => ["sim"],
+    ("io", "baqaee-farhi")            => ["bf-full"],  # preserves sibling `io bf`
+    ("io", "bilateral-trade")         => ["bilat"],
+    ("io", "export-decomposition")    => ["exp-decomp"],
+    ("io", "key-sectors")             => ["keys"],
+    ("io", "linkages")                => ["link"],
+    ("io", "multipliers")             => ["mult"],
+    ("io", "network-stats")           => ["net"],
+    ("io", "vertical-specialization") => ["vs"],
+    ("io", "footprint")               => ["fp"],
+    ("io", "download")                => ["dl"],
+    ("io", "aggregate")               => ["agg"],
+    ("io", "extract")                 => ["ext"],
+)
+    for verb in ("estimate", "predict", "residuals")
+        for (fam, als) in _MODEL_FAMILY_SHORTS
+            d[(verb, fam)] = copy(als)
+        end
+    end
+    d
+end
+
+const _LEAF_ALIASES = Dict{Tuple{String,String,String},Vector{String}}(
+    # Test cointegration
+    ("test", "coint", "engle-granger")     => ["eg"],
+    ("test", "coint", "phillips-ouliaris") => ["po"],
+    ("test", "coint", "gregory-hansen")    => ["gh"],
+    ("test", "coint", "fisher-johansen")   => ["fj"],
+    ("test", "coint", "ardl-bounds")       => ["bounds"],
+    ("test", "coint", "westerlund")        => ["west"],
+    # Test stability
+    ("test", "stability", "bai-perron")          => ["bp"],
+    ("test", "stability", "factor-break")        => ["fbreak"],
+    ("test", "stability", "hansen-instability")  => ["hansen"],
+    ("test", "stability", "recursive-residuals") => ["rec-resid"],
+    # Test serial / heteroskedasticity
+    ("test", "serial", "durbin-watson")      => ["dw"],
+    ("test", "serial", "breusch-pagan")      => ["bp"],
+    ("test", "serial", "ljung-box")          => ["lb"],
+    ("test", "serial", "box-pierce")         => ["boxp"],
+    ("test", "serial", "bartlett-wn")        => ["bwn"],
+    ("test", "serial", "heteroskedasticity") => ["het"],
+    # Test IV
+    ("test", "iv", "anderson-rubin")  => ["ar"],
+    ("test", "iv", "weak-instrument") => ["weak-iv"],
+    ("test", "iv", "wild-cluster")    => ["wc"],
+    # Test panel
+    ("test", "panel", "wooldridge-ar") => ["war"],
+    ("test", "panel", "pesaran-cd")    => ["pcd"],
+    ("test", "panel", "modified-wald") => ["mwald"],
+    ("test", "panel", "pmg-hausman")   => ["pmgh"],
+    ("test", "panel", "dh-causality")  => ["dh"],
+    # Test unit-root
+    ("test", "unit-root", "adf-2break")   => ["adf2"],
+    ("test", "unit-root", "fourier-adf")  => ["fadf"],
+    ("test", "unit-root", "fourier-kpss") => ["fkpss"],
+    ("test", "unit-root", "moon-perron")  => ["mp"],
+    ("test", "unit-root", "lm-unitroot")  => ["lm"],
+    # Test VECM
+    ("test", "vecm", "known-beta") => ["kbeta"],
+    # Test factor
+    ("test", "factor", "ahn-horenstein") => ["ah"],
+    ("test", "factor", "onatski-ed")     => ["oed"],
+    ("test", "factor", "qfm-spanning")   => ["qspan"],
+    ("test", "factor", "qfm-constancy")  => ["qconst"],
+    # Test multivariate
+    ("test", "multivariate", "svar-hypothesis")  => ["svar-hyp"],
+    ("test", "multivariate", "nongaussian-diag") => ["ng-diag"],
+    ("test", "multivariate", "gmm-moments")      => ["gmm-mom"],
+    ("test", "multivariate", "fundamentalness")  => ["fund"],
+    ("test", "multivariate", "sufficient-info")  => ["suff-info"],
+    # Estimators, forecasts, predict & residuals long leaves
+    ("forecast", "factor", "growth-at-risk")     => ["gar"],
+    ("estimate", "regression", "elastic-net")    => ["enet"],
+    ("estimate", "regression", "kernel-reg")     => ["kreg"],
+    ("estimate", "regression", "statespace")     => ["ss"],
+    ("predict", "regression", "statespace")      => ["ss"],
+    ("residuals", "regression", "statespace")    => ["ss"],
+    ("estimate", "volatility", "garch-midas")    => ["gm"],
+    ("forecast", "volatility", "garch-midas")    => ["gm"],
+    ("predict", "volatility", "garch-midas")     => ["gm"],
+    ("residuals", "volatility", "garch-midas")   => ["gm"],
+    ("estimate", "multivariate", "lanne-luoto")  => ["ll"],
+    ("residuals", "multivariate", "lanne-luoto") => ["ll"],
+    ("estimate", "panel", "xtcointreg")          => ["xtcr"],
+    ("forecast", "evaluate", "mincer-zarnowitz") => ["mz"],
+    ("forecast", "evaluate", "clark-west")       => ["cw"],
+    ("forecast", "evaluate", "encompassing")     => ["enc"],
+    # Data simulate long leaves
+    ("data", "simulate", "cross-section")       => ["cs"],
+    ("data", "simulate", "gdfm-infinite")       => ["gdfm-inf"],
+    ("data", "simulate", "heteroskedastic-var") => ["het-var"],
+    # DSGE depth-3 long leaves
+    ("dsge", "bank", "steady-state")       => ["ss"],
+    ("dsge", "dcegm", "steady-state")      => ["ss"],
+    ("dsge", "firm", "steady-state")       => ["ss"],
+    ("dsge", "lifecycle", "steady-state")  => ["ss"],
+    ("dsge", "bank", "transition")         => ["tr"],
+    ("dsge", "ct", "transition")           => ["tr"],
+    ("dsge", "dcegm", "transition")        => ["tr"],
+    ("dsge", "firm", "transition")         => ["tr"],
+    ("dsge", "lifecycle", "transition")    => ["tr"],
+    ("dsge", "bayes", "posterior-mode")    => ["mode"],
+    ("dsge", "bayes", "marginal-lik")      => ["mlik"],
+    ("dsge", "bayes", "identification")    => ["id"],
+    ("dsge", "bayes", "learning-rate")     => ["lr"],
+    ("dsge", "bayes", "predictive")        => ["pred"],
+    ("dsge", "bayes", "prior-predictive")  => ["prior-pred"],
+    ("dsge", "abcd", "innovations")        => ["innov"],
+    ("dsge", "abcd", "invertibility")      => ["inv"],
+    ("dsge", "abcd", "recoverability")     => ["rec"],
+    ("dsge", "abcd", "population-var")     => ["pop-var"],
+    ("dsge", "abcd", "search-observables") => ["search"],
+    # IO Baqaee-Farhi depth-3 long leaves
+    ("io", "bf", "equilibrium")   => ["eq"],
+    ("io", "bf", "elasticities")  => ["elast"],
+    ("io", "bf", "misallocation") => ["misalloc"],
+    ("io", "bf", "shock-curve")   => ["scurve"],
+)

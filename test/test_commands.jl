@@ -15125,6 +15125,7 @@ if !@isdefined(APP)
             "schema"    => register_schema_command!(),
             "show"      => register_show_commands!(),
         ), "test tree"); version=v"0.0.0-test")
+    _attach_node_aliases!(APP.root, _TOP_ALIASES, String[])
 end
 
 @testset "W5/#140: schema — input_schema, tables, contract, --docs" begin
@@ -18563,6 +18564,276 @@ end
         cl_prop = s_leaf["input_schema"]["properties"]["conf-level"]
         @test haskey(cl_prop["x-cli"], "aliases")
         @test "--ci-level" in cl_prop["x-cli"]["aliases"]
+    end
+end
+
+@testset "[ABBREV-W2] command, family & long-leaf alias tables (#337)" begin
+    full_root = NodeCommand("frdc", Dict{String,Union{NodeCommand,LeafCommand}}(
+        "estimate"    => register_estimate_commands!(),
+        "test"        => register_test_commands!(),
+        "irf"         => register_irf_commands!(),
+        "fevd"        => register_fevd_commands!(),
+        "hd"          => register_hd_commands!(),
+        "forecast"    => register_forecast_commands!(),
+        "predict"     => register_predict_commands!(),
+        "residuals"   => register_residuals_commands!(),
+        "filter"      => register_filter_commands!(),
+        "data"        => register_data_commands!(),
+        "io"          => register_io_commands!(),
+        "nowcast"     => register_nowcast_commands!(),
+        "dsge"        => register_dsge_commands!(),
+        "hadsge"      => register_hadsge_commands!(),
+        "did"         => register_did_commands!(),
+        "policy"      => register_policy_commands!(),
+        "ri"          => register_ri_commands!(),
+        "spectral"    => register_spectral_commands!(),
+        "schema"      => register_schema_command!(),
+        "model"       => register_model_commands!(),
+        "completions" => register_completions_commands!(),
+        "serve"       => register_serve_commands!(),
+        "show"        => register_show_commands!(),
+    ), "A macroeconometric analysis toolkit powered by MacroEconometricModels.jl")
+    _attach_node_aliases!(full_root, _TOP_ALIASES, String[])
+    full_app = Entry("frdc", full_root; version=FRIEDMAN_VERSION)
+
+    @testset "Single-source alias counts, zero orphans, zero collisions & <=100-col help" begin
+        # Zero orphan keys in _TOP_ALIASES, _FAMILY_ALIASES, _LEAF_ALIASES
+        @test all(k -> haskey(full_root.subcmds, k), keys(_TOP_ALIASES))
+        @test all(((t, s),) -> haskey(full_root.subcmds, t) &&
+                               full_root.subcmds[t] isa NodeCommand &&
+                               haskey(full_root.subcmds[t].subcmds, s), keys(_FAMILY_ALIASES))
+        @test all(((t, m, l),) -> haskey(full_root.subcmds, t) &&
+                                  full_root.subcmds[t] isa NodeCommand &&
+                                  haskey(full_root.subcmds[t].subcmds, m) &&
+                                  full_root.subcmds[t].subcmds[m] isa NodeCommand &&
+                                  haskey(full_root.subcmds[t].subcmds[m].subcmds, l), keys(_LEAF_ALIASES))
+
+        @test length(_TOP_ALIASES) == 16
+        @test sum(length, values(_TOP_ALIASES)) == 22
+        @test length(_FAMILY_ALIASES) == 95
+        @test length(_LEAF_ALIASES) == 82
+        @test length(unique(last.(collect(keys(_LEAF_ALIASES))))) == 69
+
+        # Regression family uses `regr` (never `reg`) across estimate/predict/residuals
+        for verb in ("estimate", "predict", "residuals")
+            vnode = full_root.subcmds[verb]
+            @test get(vnode.aliases, "regr", "") == "regression"
+            @test !haskey(vnode.aliases, "reg")
+            @test !haskey(vnode.aliases, "var")
+        end
+
+        # Sibling preservation & parent-scoped disambiguation
+        @test full_root.subcmds["io"].aliases["bf-full"] == "baqaee-farhi"
+        @test haskey(full_root.subcmds["io"].subcmds, "bf")
+        @test full_root.subcmds["test"].subcmds["stability"].aliases["bp"] == "bai-perron"
+        @test full_root.subcmds["test"].subcmds["serial"].aliases["bp"] == "breusch-pagan"
+        @test full_root.subcmds["test"].subcmds["unit-root"].aliases["lm"] == "lm-unitroot"
+        @test haskey(full_root.subcmds["test"].subcmds["multivariate"].subcmds, "lm")
+
+        # Exhaustive tree walk: 0 REPL collisions, 0 _PATH_REPLACEMENTS overlaps, 0 help lines > 100
+        d1_cnt = Ref(0); d2_cnt = Ref(0); d3_cnt = Ref(0)
+        over_100 = String[]
+        repl_hits = String[]
+        pr_hits = String[]
+
+        _chk_w(lbl, txt) = for (ln, line) in enumerate(split(txt, '\n'))
+            length(line) > 100 && push!(over_100, "$lbl:$ln (len=$(length(line)))")
+        end
+        let b = IOBuffer(); print_help(b, full_app); _chk_w("root", String(take!(b))); end
+
+        function _audit(node::NodeCommand, prefix::Vector{String})
+            for (al, tgt) in node.aliases
+                @test haskey(node.subcmds, tgt)
+                @test !haskey(node.subcmds, al)
+                @test al != tgt
+                al in get(_REPL_BUILTIN_NAMES, prefix, ()) && push!(repl_hits, "$prefix:$al")
+                cand = vcat(prefix, [al])
+                for old in keys(_PATH_REPLACEMENTS)
+                    if (length(old) >= length(cand) && old[1:length(cand)] == cand) ||
+                       (length(cand) >= length(old) && cand[1:length(old)] == old)
+                        push!(pr_hits, "$(join(cand, " ")) vs $(join(old, " "))")
+                    end
+                end
+                if isempty(prefix); d1_cnt[] += 1
+                elseif length(prefix) == 1; d2_cnt[] += 1
+                elseif length(prefix) == 2; d3_cnt[] += 1
+                end
+            end
+            for name in sort!(collect(keys(node.subcmds)))
+                sub = node.subcmds[name]
+                p = vcat(prefix, [name])
+                als = _aliases_for(node, name)
+                prog = "frdc " * join(p, " ")
+                b = IOBuffer()
+                if sub isa NodeCommand
+                    print_help(b, sub; prog=prog, aliases=als)
+                    _chk_w(prog, String(take!(b)))
+                    _audit(sub, p)
+                else
+                    print_help(b, sub; prog=prog, aliases=als)
+                    _chk_w(prog, String(take!(b)))
+                end
+            end
+        end
+        _audit(full_root, String[])
+
+        @test d1_cnt[] == 22
+        @test d2_cnt[] == 95
+        @test d3_cnt[] == 82
+        @test isempty(repl_hits)
+        @test isempty(pr_hits)
+        @test isempty(over_100)
+    end
+
+    @testset "Canonical equivalence & envelope command strings across abbreviated paths" begin
+        _dispatch_json(argv::Vector{String}) = begin
+            full_argv = any(a -> a == "--format" || startswith(a, "--format="), argv) ?
+                argv : vcat(argv, String["--format", "json"])
+            prev_argv = _LAST_ARGV[]
+            _LAST_ARGV[] = copy(full_argv)
+            out = try
+                _capture() do
+                    dispatch(full_app, full_argv)
+                end
+            finally
+                _LAST_ARGV[] = prev_argv
+            end
+            js = _extract_json_object(out)
+            @assert js !== nothing "no JSON output for $argv:\n$out"
+            JSON3.read(js)
+        end
+
+        function _assert_equiv(full_argv::Vector{String}, short_argv::Vector{String}, expected_cmd::String)
+            d_full = _dispatch_json(full_argv)
+            d_short = _dispatch_json(short_argv)
+            @test string(d_full.status) == "ok"
+            @test string(d_short.status) == "ok"
+            @test string(d_full.command) == expected_cmd
+            @test string(d_short.command) == expected_cmd
+            @test _normalize_envelope_json(JSON3.write(d_full)) ==
+                  _normalize_envelope_json(JSON3.write(d_short))
+        end
+
+        mktempdir() do dir
+            rng = MersenneTwister(337)
+            mv_csv = joinpath(dir, "mv.csv")
+            CSV.write(mv_csv, DataFrame(
+                y1 = cumsum(0.2 .* randn(rng, 80)) .+ 1.0,
+                y2 = cumsum(0.2 .* randn(rng, 80)) .+ 2.0,
+                y3 = cumsum(0.2 .* randn(rng, 80)) .+ 3.0,
+            ))
+            reg_csv = joinpath(dir, "reg.csv")
+            x1 = randn(rng, 80); x2 = randn(rng, 80)
+            CSV.write(reg_csv, DataFrame(y = 1.0 .+ 0.5 .* x1 .- 0.3 .* x2 .+ 0.2 .* randn(rng, 80),
+                                         x1 = x1, x2 = x2))
+            m_path = joinpath(dir, "var_m.jld2")
+            save_model_dispatch(m_path, estimate_bvar(randn(rng, 60, 2), 1))
+
+            # 1. est mv var & e mv var
+            _assert_equiv(["estimate", "multivariate", "var", mv_csv, "--lags", "1"],
+                          ["est", "mv", "var", mv_csv, "--lags", "1"],
+                          "frdc estimate multivariate var")
+            _assert_equiv(["estimate", "multivariate", "var", mv_csv, "--lags", "1"],
+                          ["e", "mv", "var", mv_csv, "--lags", "1"],
+                          "frdc estimate multivariate var")
+
+            # 2. fc uv arima & fcst uv arima
+            _assert_equiv(["forecast", "univariate", "arima", mv_csv, "--column", "1", "--p", "1", "--d", "0", "--q", "0", "--horizons", "4"],
+                          ["fc", "uv", "arima", mv_csv, "--column", "1", "--p", "1", "--d", "0", "--q", "0", "--horizons", "4"],
+                          "frdc forecast univariate arima")
+            _assert_equiv(["forecast", "univariate", "arima", mv_csv, "--column", "1", "--p", "1", "--d", "0", "--q", "0", "--horizons", "4"],
+                          ["fcst", "uv", "arima", mv_csv, "--column", "1", "--p", "1", "--d", "0", "--q", "0", "--horizons", "4"],
+                          "frdc forecast univariate arima")
+
+            # 3. t ur adf
+            _assert_equiv(["test", "unit-root", "adf", mv_csv, "--column", "1"],
+                          ["t", "ur", "adf", mv_csv, "--column", "1"],
+                          "frdc test unit-root adf")
+
+            # 4. t coint eg & t ci eg
+            _assert_equiv(["test", "coint", "engle-granger", mv_csv],
+                          ["t", "coint", "eg", mv_csv],
+                          "frdc test coint engle-granger")
+            _assert_equiv(["test", "coint", "engle-granger", mv_csv],
+                          ["t", "ci", "eg", mv_csv],
+                          "frdc test coint engle-granger")
+
+            # 5. d desc
+            _assert_equiv(["data", "describe", mv_csv],
+                          ["d", "desc", mv_csv],
+                          "frdc data describe")
+
+            # 6. m info & mod info
+            _assert_equiv(["model", "info", m_path],
+                          ["m", "info", m_path],
+                          "frdc model info")
+            _assert_equiv(["model", "info", m_path],
+                          ["mod", "info", m_path],
+                          "frdc model info")
+
+            # 7. pol cf var
+            pol_tail = [mv_csv, "--lags", "2", "--horizons", "4",
+                        "--shocks", "1", "--nonpolicy-shock", "2",
+                        "--outcomes", "y1=1", "--instruments", "r=3", "--rule", "rate-peg"]
+            _assert_equiv(vcat(["policy", "counterfactual", "var"], pol_tail),
+                          vcat(["pol", "cf", "var"], pol_tail),
+                          "frdc policy counterfactual var")
+
+            # 8. ha ss
+            _assert_equiv(["hadsge", "steady-state", "two-asset-hank"],
+                          ["ha", "ss", "two-asset-hank"],
+                          "frdc hadsge steady-state")
+
+            # 9. sch est mv var (schema resolves aliases at every depth to canonical path)
+            sch_full = JSON3.read(strip(_capture() do
+                dispatch(full_app, ["schema", "estimate", "multivariate", "var"])
+            end))
+            sch_short = JSON3.read(strip(_capture() do
+                dispatch(full_app, ["sch", "est", "mv", "var"])
+            end))
+            @test String.(sch_short.path) == ["estimate", "multivariate", "var"]
+            @test JSON3.write(sch_short) == JSON3.write(sch_full)
+
+            # 10. est regr reg (plus pred regr reg & res regr reg)
+            _assert_equiv(["estimate", "regression", "reg", reg_csv, "--dep", "y"],
+                          ["est", "regr", "reg", reg_csv, "--dep", "y"],
+                          "frdc estimate regression reg")
+            _assert_equiv(["predict", "regression", "reg", reg_csv, "--dep", "y"],
+                          ["pred", "regr", "reg", reg_csv, "--dep", "y"],
+                          "frdc predict regression reg")
+            _assert_equiv(["residuals", "regression", "reg", reg_csv, "--dep", "y"],
+                          ["res", "regr", "reg", reg_csv, "--dep", "y"],
+                          "frdc residuals regression reg")
+        end
+    end
+
+    @testset "Removed v0.13 paths still hit _PATH_REPLACEMENTS (never shadowed by aliases)" begin
+        _disp_err(argv::Vector{String}) = try
+            _capture() do
+                dispatch(full_app, argv)
+            end
+            nothing
+        catch e
+            e
+        end
+
+        for (argv, expected_target) in (
+            (["estimate", "var", "x.csv"],        "estimate multivariate var"),
+            (["est", "var", "x.csv"],             "estimate multivariate var"),
+            (["estimate", "reg", "x.csv"],        "estimate regression reg"),
+            (["est", "reg", "x.csv"],             "estimate regression reg"),
+            (["predict", "reg", "x.csv"],         "predict regression reg"),
+            (["pred", "reg", "x.csv"],            "predict regression reg"),
+            (["residuals", "reg", "x.csv"],       "residuals regression reg"),
+            (["res", "reg", "x.csv"],             "residuals regression reg"),
+            (["dsge", "ha", "steady-state"],      "hadsge steady-state"),
+            (["did", "test", "pretrend"],         "test did pretrend"),
+            (["multipliers"],                     "estimate univariate nardl"),
+        )
+            e = _disp_err(argv)
+            @test e isa DispatchError
+            @test occursin(expected_target, e.message)
+        end
     end
 end
 
