@@ -1,24 +1,62 @@
-# Friedman-cli : macroeconometrics from the terminal
+# Friedman-cli (`frdc`)
 
 [![CI](https://github.com/FriedmanJP/Friedman-cli/actions/workflows/CI.yml/badge.svg)](https://github.com/FriedmanJP/Friedman-cli/actions/workflows/CI.yml)
-[![Documentation](https://github.com/FriedmanJP/Friedman-cli/actions/workflows/Documentation.yml/badge.svg)](https://friedmanjp.github.io/Friedman-cli/dev/)
+[![Documentation](https://github.com/FriedmanJP/Friedman-cli/actions/workflows/Documentation.yml/badge.svg)](https://friedmanjp.github.io/Friedman-cli/stable/)
 
-Estimate, test, and simulate macro models without leaving the shell.
-`frdc` v1.1.0 wraps [MacroEconometricModels.jl](https://github.com/FriedmanJP/MacroEconometricModels.jl)
-(`=1.1.1`, exact pin in `Project.toml`) as action-first commands —
-`estimate`, `test`, `irf`, `fevd`, `forecast`, `dsge`, `hadsge`, `did`, `policy`, `ri`, … —
-that read CSV or `.jld2`/`.jls` handles, print tables, generate interactive plots across 278 plot-capable types, and reproduce bit-for-bit.
+`frdc` is a command-line interface for [MacroEconometricModels.jl](https://github.com/FriedmanJP/MacroEconometricModels.jl) (pinned to `=1.1.1` in [Project.toml](Project.toml)). It wraps the package's estimation, testing, structural identification, forecasting, and equilibrium-solving routines as standalone shell commands that read CSV files or saved `.jld2`/`.jls` handles and write formatted tables, CSV, JSON, or self-contained HTML plots.
 
-Built for applied economists and researchers who live in the terminal;
-equally callable from scripts and AI agents (see [For agents](#for-agents)).
+Full documentation and the generated command reference live at [friedmanjp.github.io/Friedman-cli/stable/](https://friedmanjp.github.io/Friedman-cli/stable/).
 
-## 60 seconds: VAR end-to-end
+## Installation
+
+Pre-built Linux and Windows distributions include a private Julia runtime, so you do not need a separate Julia installation or network access at runtime. Constrained nonlinear problems default to `MadNLP` and `NLPModels`, which ship inside the bundle under GPL-3.0-compatible terms; `Ipopt` and `PATHSolver` remain optional weak dependencies when running from source.
+
+### Windows (x86_64)
+
+The Microsoft Store package is signed by Microsoft, places `frdc` on `PATH` through an `AppExecutionAlias`, and receives updates automatically:
+
+```powershell
+winget install 9NBBQSNP6W44 --source msstore
+```
+
+If you prefer GitHub Releases (either sideloading the `.msix` or extracting the `.zip` archive into `%USERPROFILE%\.frdc`), run:
+
+```powershell
+irm https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.ps1 | iex
+```
+
+### Linux (x86_64)
+
+The install script downloads the standalone `.tar.gz` bundle into `~/.frdc/` and links `~/.local/bin/frdc`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.sh | bash
+```
+
+### macOS and source installs
+
+Pre-built macOS binaries are not distributed at present because notarized builds require an Apple Developer certificate. On macOS, or anywhere you already have Julia 1.13 or newer, clone the repository and run from source:
+
+```bash
+git clone https://github.com/FriedmanJP/Friedman-cli.git
+cd Friedman-cli
+julia --project -e 'using Pkg; Pkg.instantiate()'
+julia --project bin/frdc --help
+```
+
+Manual archive downloads, MSIX sideloading, local standalone builds (`build_release.jl`), and notes on moving from the older `friedman` binary name to `frdc` are covered in the [installation guide](https://friedmanjp.github.io/Friedman-cli/stable/getting-started/installation/).
+
+## Quick start
+
+### VAR estimation and impulse responses
+
+Estimate a two-lag VAR from a CSV file:
 
 ```bash
 frdc estimate multivariate var macro.csv --lags 2
 ```
 
-```
+```text
 Estimating VAR(2) with 2 variables: y1, y2
 Trend: constant, Observations: 200
 
@@ -49,13 +87,13 @@ Trend: constant, Observations: 200
   y2.L2          0.0248     0.0705    0.3521   0.7251    -0.1143     0.1640
 ```
 
-Impulse responses, with bootstrap bands and a plot:
+Compute impulse responses and write an interactive HTML figure:
 
 ```bash
 frdc irf var macro.csv --shock 1 --horizons 8 --plot-save irf.html
 ```
 
-```
+```text
 Impulse Response Functions
 
   Variables           2
@@ -71,10 +109,11 @@ Impulse Response Functions
   y2   0.5209*   0.1859*   0.0282*
 ```
 
-(`*` = band excludes zero. `irf.html` is a self-contained interactive chart —
-no separate `plot` command; any plot-capable leaf takes `--plot` / `--plot-save`.)
+An asterisk indicates that the bootstrap band excludes zero. There is no separate plotting subcommand; commands whose upstream return type supports plotting accept `--plot` and `--plot-save`.
 
-## …and equilibrium: DSGE in four lines
+### Solving a DSGE model
+
+Model specifications can be written in TOML and passed directly to `dsge`:
 
 ```bash
 cat > rbc.toml <<'EOF'
@@ -88,10 +127,11 @@ expr = "Y[t] = rho * Y[t-1] + sigma * e[t]"
 [[model.equations]]
 expr = "C[t] = Y[t]"
 EOF
+
 frdc dsge solve rbc.toml
 ```
 
-```
+```text
   Determinacy: unique
   Stability: stable
                  Determinacy Verdict
@@ -114,102 +154,48 @@ frdc dsge solve rbc.toml
 └──────────┴─────────┴─────────┘
 ```
 
-From here: `dsge irf`, `dsge estimate`, full Bayesian workflow
-(`dsge bayes estimate`), heterogeneous-agent models (`hadsge solve ha_huggett.jl`),
-OccBin constraints for the ZLB — same verbs, same tables.
+The same command structure extends to `dsge irf`, `dsge estimate`, `dsge bayes estimate`, canonical ABCD invertibility (`dsge abcd`), Bayesian DSGE-VAR (`dsge var`), OccBin occasionally binding constraints, and heterogeneous-agent models (`hadsge solve ha_huggett.jl`).
 
-## What you can do
+## Scope
 
-Commands are organized by **action**, not model type — learn `estimate` once,
-apply it everywhere. (Full tree: [CLI reference overview](https://friedmanjp.github.io/Friedman-cli/dev/commands/overview/).)
+Commands are grouped by action (`estimate`, `test`, `irf`, `fevd`, `hd`, `forecast`, `predict`, `residuals`, `dsge`, `hadsge`, `did`, `policy`, `ri`, `io`, `filter`, `spectral`, `nowcast`, `data`, `model`) rather than by individual estimator. See the [command overview](https://friedmanjp.github.io/Friedman-cli/stable/commands/overview/) for the full tree.
 
-- **Time series** — VAR/BVAR, VECM, local projections (incl. IV/smooth/state-dependent),
-  FAVAR, quantile factors/VAR/FAVAR & Growth-at-Risk (`qfm`, `qvar`, `qfavar`, `growth-at-risk`),
-  DFM/GDFM/FHLZ/GDFM-I(1)/TV-GDFM/SDFM, ARIMA/ARDL/MIDAS, regime switching (SETAR/STAR/MS):
-  `estimate multivariate var`, `estimate factor qfm`, `irf lp`, `forecast`, [guide](https://friedmanjp.github.io/Friedman-cli/dev/chapters/multivariate/)
-- **Volatility** — ARCH/GARCH/EGARCH/GJR, stochastic volatility, CCC/DCC/BEKK:
-  `estimate volatility garch`, `forecast volatility garch`, [guide](https://friedmanjp.github.io/Friedman-cli/dev/chapters/volatility/)
-- **Micro & panels** — OLS/IV/choice models (incl. RI-logit `ri-logit`), panel regression & interactive-factor panel quantile (`xtqreg`), DiD suite
-  (TWFE, Callaway-Sant'Anna, event studies, HonestDiD):
-  `estimate choice logit`, `estimate panel xtqreg`, `did estimate`, [guide](https://friedmanjp.github.io/Friedman-cli/dev/chapters/panel/)
-- **Equilibrium & Rational Inattention** — RA/HA/OLG models, perturbation/projection/VFI, OccBin (`madnlp` GPL-3.0 default), canonical ABCD invertibility (`dsge abcd`), Bayesian DSGE & DSGE-VAR (`dsge var`), plus full LQG / Maćkowiak–Wiederholt / Matějka–McKay Rational Inattention (`ri`):
-  `dsge solve`, `dsge abcd invertibility`, `ri solve`, `hadsge solve ha_huggett.jl`, [DSGE guide](https://friedmanjp.github.io/Friedman-cli/dev/chapters/dsge/) · [RI guide](https://friedmanjp.github.io/Friedman-cli/dev/chapters/rational-inattention/)
-- **Identification & diagnostics** — Cholesky/sign/narrative/long-run/Arias/Uhlig, LMS-SVAR, Lanne–Luoto GMM, SSVARMA, Cramér–von Mises ICA, spectral FEVD,
-  unit-root, cointegration, factor-rank, SVAR hypothesis & fundamentalness batteries, breaks, Granger, weak instruments:
-  `irf var --id sign --config sign.toml`, `test unit-root adf`, `test multivariate svar-hypothesis`, [guide](https://friedmanjp.github.io/Friedman-cli/dev/chapters/tests/)
-- **Policy & IO** — causal-effect menus, optimal policy, behavioral RI policy news, counterfactuals,
-  Leontief/Ghosh multipliers, SDA, Baqaee-Farhi:
-  `policy effects var`, `io multipliers`, [guide](https://friedmanjp.github.io/Friedman-cli/dev/chapters/policy/)
+| Area | Examples | Guide |
+|---|---|---|
+| Time series and factors | VAR, BVAR, VECM, local projections, FAVAR, quantile factors/VAR/FAVAR and Growth-at-Risk (`qfm`, `qvar`, `qfavar`), DFM/GDFM/FHLZ/I(1)/TV-GDFM, ARIMA, ARDL, MIDAS, SETAR/STAR/Markov switching | [Multivariate](https://friedmanjp.github.io/Friedman-cli/stable/chapters/multivariate/), [Nonlinear](https://friedmanjp.github.io/Friedman-cli/stable/chapters/nonlinear/) |
+| Volatility | ARCH, GARCH, EGARCH, GJR-GARCH, stochastic volatility, CCC, DCC, BEKK | [Volatility](https://friedmanjp.github.io/Friedman-cli/stable/chapters/volatility/) |
+| Micro and panel data | OLS, IV, quantile regression, discrete choice (including RI-logit), panel regression, interactive-factor panel quantile (`xtqreg`), panel VAR, DiD (TWFE, Callaway-Sant'Anna, event studies, HonestDiD) | [Regression](https://friedmanjp.github.io/Friedman-cli/stable/chapters/regression/), [Panel](https://friedmanjp.github.io/Friedman-cli/stable/chapters/panel/) |
+| Equilibrium and rational inattention | Perturbation, projection, VFI, OccBin, canonical ABCD invertibility, Bayesian DSGE and DSGE-VAR, HANK/Huggett/OLG (`hadsge`), LQG / Maćkowiak-Wiederholt / Matějka-McKay rational inattention (`ri`) | [DSGE](https://friedmanjp.github.io/Friedman-cli/stable/chapters/dsge/), [HADSGE](https://friedmanjp.github.io/Friedman-cli/stable/chapters/hadsge/), [Rational Inattention](https://friedmanjp.github.io/Friedman-cli/stable/chapters/rational-inattention/) |
+| Identification and diagnostics | Cholesky, sign, narrative, long-run, Arias, Uhlig, LMS-SVAR, Lanne-Luoto GMM, SSVARMA, ICA, spectral FEVD, unit-root, cointegration, factor-rank, SVAR hypothesis, break, Granger, and weak-instrument tests | [Structural](https://friedmanjp.github.io/Friedman-cli/stable/chapters/structural/), [Tests](https://friedmanjp.github.io/Friedman-cli/stable/chapters/tests/) |
+| Policy and input-output | Causal-effect menus, optimal policy, behavioral RI policy news, counterfactuals, Leontief and Ghosh multipliers, structural decomposition, Baqaee-Farhi | [Policy](https://friedmanjp.github.io/Friedman-cli/stable/chapters/policy/), [Input-Output](https://friedmanjp.github.io/Friedman-cli/stable/chapters/io/) |
 
-Data handling (`data describe/diagnose/transform/validate`), filters
-(`filter hp/hamilton/bk`), spectral analysis, nowcasting, and an interactive
-REPL (`frdc repl`, [guide](https://friedmanjp.github.io/Friedman-cli/dev/getting-started/repl/))
-round it out.
+Data utilities (`data describe`, `diagnose`, `transform`, `validate`, `simulate`), filters (`filter hp`, `hamilton`, `bk`, `eurocoin`), spectral tools, nowcasting, and an interactive shell (`frdc repl`) follow the same conventions.
 
-## Reproducibility
+## Data, handles, and reproducibility
 
-- **Same command, same numbers.** `--seed N` is forwarded to samplers/simulators
-  and every `--format json` envelope carries a manifest (seed, threads, OS,
-  package versions) under `meta.manifest`.
-- **Typed handles, zero-hassle reuse.** Save data or fitted models to `.jld2` or `.jls`,
-  reuse them without re-estimating:
-  `estimate multivariate var macro.csv --save-model var` →
-  `irf var var.jld2` (or `irf var --model var`) → `model reproduce var` to verify against a fresh run.
-- **Scriptable output.** Every leaf speaks `--format table|csv|json`
-  and `--output <path>`; status goes to stderr, data to stdout — pipes compose.
+Fitted models, datasets, and post-estimation objects can be saved to `.jld2` or `.jls` handles and passed into downstream commands without re-estimating:
 
-## For agents
+```bash
+frdc estimate multivariate var macro.csv --lags 2 --seed 42 --save-model var
+frdc irf var --model var --shock 1 --horizons 8
+frdc model reproduce var
+```
 
-If you are wiring an LLM to economic analysis: with `--format json`, stdout is
-exactly one versioned JSON envelope with stable, registry-declared table keys;
-exit codes are `0 ok · 2 usage · 3 data · 4 config · 5 model · 6 env · 1 internal`,
-and every JSON failure carries a matching `error.code`/`error.exit_code`.
-`frdc schema <path…>` returns a draft-07 input schema plus result-table keys
-for any command in **< 10 ms** via the native thin wrapper (set `FRDC_NO_FASTPATH=1`
-to bypass); `serve --mcp` exposes all 558 leaf commands as Model Context Protocol
-tools over stdio — answering `initialize`, `ping`, and `tools/list` in **< 10 ms**
-from the embedded `FRDCACHE` pack and spawning `frdc-core` lazily on the first
-`tools/call` (supporting `--families`, `--tools`, and `--compact` scoping).
-For multi-command pipelines and heavy DSGE / Bayesian / volatility workflows, keep a
-persistent `frdc serve --mcp` (or `frdc repl`) session open to amortize Julia/JIT
-startup and share `model://` handles in memory. Start at the
-[Agent Guide](https://friedmanjp.github.io/Friedman-cli/dev/agent-guide/).
+Passing `--seed N` fixes the random seed for samplers and simulators. With `--format json`, every response includes a `meta.manifest` record containing the seed, thread count, OS, CLI version, and package versions. Output format is controlled with `--format table|csv|json` and `--output <path>`. Progress messages go to stderr and results go to stdout, so stdout can be redirected or piped without stripping log lines.
 
-Full command reference:
-[docs](https://friedmanjp.github.io/Friedman-cli/dev/).
+See the [pipelines and handles guide](https://friedmanjp.github.io/Friedman-cli/stable/getting-started/pipelines/) for multi-key handle addressing, session URIs (`data://`, `model://`, `result://`), and `model info`/`reproduce`.
 
-## Installation
+## Scripting and MCP
 
-Pre-built standalone binaries are **zero-Julia** (no Julia installation or network artifact fetch required; GPL-3.0-compatible `MadNLP` + `NLPModels` constrained NLP solvers ship bundled; optional `Ipopt` and `PATHSolver` remain source-only weak dependencies):
+For automated workflows and tool-calling agents, `--format json` emits a single schema-versioned JSON object on stdout with declared table keys and structured errors (`error.code`, `error.exit_code`). Exit codes distinguish error classes: `0` success, `2` usage, `3` data, `4` config, `5` model, `6` environment, and `1` internal error.
 
-- **Windows (x86_64) — Microsoft Store (recommended):** Microsoft-signed MSIX with auto-updates and `frdc` on `PATH`:
+Programmatic callers can inspect command interfaces without parsing help text:
 
-  ```powershell
-  winget install 9NBBQSNP6W44 --source msstore
-  ```
+- `frdc schema <command...>` prints a JSON Schema (draft-07) description of the command's inputs and declared output table keys.
+- `frdc serve --mcp` runs a Model Context Protocol server over stdio (supporting `--families`, `--tools`, and `--compact` to narrow the exposed tool list).
 
-  Or via GitHub Releases (`.msix` sideload or standalone `.zip` into `%USERPROFILE%\.frdc`):
-
-  ```powershell
-  irm https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.ps1 | iex
-  ```
-
-- **Linux (x86_64):** Standalone bundle (private Julia `1.14+opt` runtime included) installed to `~/.frdc/` and symlinked at `~/.local/bin/frdc`:
-
-  ```bash
-  curl -fsSL https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.sh | bash
-  ```
-
-- **macOS:** Pre-built macOS binaries are not distributed (requires Apple Developer code signing/notarization). Run or build locally from source with Julia 1.13+:
-
-  ```bash
-  git clone https://github.com/FriedmanJP/Friedman-cli.git && cd Friedman-cli
-  julia --project -e 'using Pkg; Pkg.instantiate()'
-  julia --project bin/frdc --help
-  ```
-
-Details (manual `.tar.gz`/`.zip`/`.msix` archives, sideloading, local `build_release.jl` builds, migrating from legacy `friedman` to `frdc`): [Installation docs](https://friedmanjp.github.io/Friedman-cli/dev/getting-started/installation/).
+In standalone builds, a small C wrapper handles `--version`, `--help`, `schema`, `completions`, and MCP discovery (`initialize`, `ping`, `tools/list`) directly from a pre-built metadata cache in a few milliseconds, spawning `frdc-core` only when a command or MCP `tools/call` needs the Julia runtime. Setting `FRDC_NO_FASTPATH=1` bypasses the wrapper. For multi-step sessions, keeping a single `frdc repl` or `frdc serve --mcp` process open avoids repeated startup costs and allows in-memory handle reuse. Further details are in the [Agent Guide](https://friedmanjp.github.io/Friedman-cli/stable/agent-guide/).
 
 ## License
 
-GNU General Public License v3.0 (`GPL-3.0-only`). See [LICENSE](LICENSE), [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md), [DATA_LICENSES.md](DATA_LICENSES.md), and [SOURCE_OFFER.txt](SOURCE_OFFER.txt).
+Friedman-cli is distributed under the GNU General Public License, version 3 (`GPL-3.0-only`). See [LICENSE](LICENSE), [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md), [DATA_LICENSES.md](DATA_LICENSES.md), and [SOURCE_OFFER.txt](SOURCE_OFFER.txt).
