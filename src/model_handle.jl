@@ -390,7 +390,7 @@ reloaded solution computes IRFs), `SVARModel`, `HASteadyState`, `KrusellSmithSol
 (incl. `manifest.seed`). `.fmod` remains for genuinely unregistered payloads (bundles
 are explicit no-surface) and backward-compatible old handles.
 """
-# W7/#142: in-memory model handles for `friedman serve --mcp`. Semantics match
+# W7/#142: in-memory model handles for `frdc serve --mcp`. Semantics match
 # `.fmod` (any model type; no type registry), but the store lives exactly as
 # long as the serve session (`_serve_loop` sets and clears it) — outside serve,
 # a `model://` path is a typed usage error, never a filesystem access.

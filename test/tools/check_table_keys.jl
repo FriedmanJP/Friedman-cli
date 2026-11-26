@@ -7,7 +7,7 @@
 # Always validates every golden envelope under test/golden/; each extra
 # argument is a directory of raw envelope dumps (the FRIEDMAN_T3_DUMP_ENVELOPES
 # export from a T3 run). For every envelope with a non-empty `data`:
-#   - resolve `command` (leading "friedman " stripped) to its registry leaf;
+#   - resolve `command` (leading "frdc " stripped) to its registry leaf;
 #   - every `data` key must EQUAL a declared TableSpec name, or — when the
 #     declaration carries `family=true` — start with "<name>_" (the family
 #     prefix rule: `<declared>_<variable-slug>`).

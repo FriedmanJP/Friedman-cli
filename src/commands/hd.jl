@@ -15,7 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 # Historical Decomposition commands: var, bvar, lp, vecm, favar, sdfm
-# (action-first: friedman hd var ...)
+# (action-first: frdc hd var ...)
 #
 # Coverage audit (re-audited at MEMs 1.0.0):
 #   historical_decomposition is exported for VAR, BVAR, LP, VECM, FAVAR,

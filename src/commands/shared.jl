@@ -3840,7 +3840,7 @@ text is kept verbatim underneath — it names the equation to use and the
 alternative to write — so wrapping costs the user no detail.
 
 The collision case gets a lead sentence because upstream's text answers a Julia
-caller ("pass alternative regimes via the Dict overload") that no `friedman` user
+caller ("pass alternative regimes via the Dict overload") that no `frdc` user
 can act on; the plain statement is the same fact in the user's terms.
 """
 function _occbin_error(e, label::String)

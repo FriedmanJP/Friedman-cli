@@ -466,7 +466,7 @@ end  # Shared utilities
         node = register_estimate_commands!()
         # Help lists kebab only
         help_io = IOBuffer()
-        print_help(help_io, node.subcmds["volatility"]; prog="friedman estimate volatility")
+        print_help(help_io, node.subcmds["volatility"]; prog="frdc estimate volatility")
         help_text = String(take!(help_io))
         @test contains(help_text, "gjr-garch")
         @test !contains(help_text, "gjr_garch")
@@ -15088,7 +15088,7 @@ end
     @test _domain_or_data_error(ErrorException("boom"), "x").code == "model/error"
 end
 
-# W5/#140: `friedman schema` — machine-actionable self-description (closes #63).
+# W5/#140: `frdc schema` — machine-actionable self-description (closes #63).
 # schema.jl is NOT in the standard include block above because it needs the full
 # registry populated; included here with a test APP so _schema_cmd resolves it.
 include(joinpath(project_root, "src", "commands", "schema.jl"))

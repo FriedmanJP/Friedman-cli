@@ -37,7 +37,7 @@ function _dump_envelope(raw::AbstractString, doc)
     return
 end
 
-"""Run friedman args with --quiet --format=json; return (code, doc, raw)."""
+"""Run frdc args with --quiet --format=json; return (code, doc, raw)."""
 function run_json(args::Vector{String}; quiet::Bool=true)
     argv = String[]
     quiet && push!(argv, "--quiet")
@@ -87,7 +87,7 @@ function _head(verb::AbstractString, token::AbstractString)
     return String[String(verb), String(token)]
 end
 
-"""Run friedman args capturing (code, out, err) separately.
+"""Run frdc args capturing (code, out, err) separately.
 
 `run_json` drops stderr, but the J-test verdicts render on stderr via
 `_status` (suppressed under `--quiet`) — identity-weighting cases need the

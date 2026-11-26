@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# FEVD commands: var, bvar, lp, vecm, pvar, favar, sdfm (action-first: friedman fevd var ...)
+# FEVD commands: var, bvar, lp, vecm, pvar, favar, sdfm (action-first: frdc fevd var ...)
 
 function fevd_specs()::Vector{CommandSpec}
     return [

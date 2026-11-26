@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# IRF commands: var, bvar, lp, vecm, pvar, favar, sdfm (action-first: friedman irf var ...)
+# IRF commands: var, bvar, lp, vecm, pvar, favar, sdfm (action-first: frdc irf var ...)
 
 function irf_specs()::Vector{CommandSpec}
     return [

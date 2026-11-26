@@ -74,8 +74,8 @@ using .MacroEconometricModels
             description="VAR commands")
         @test haskey(node.subcmds, "estimate")
 
-        entry = Entry("friedman", node; version=v"0.1.0")
-        @test entry.name == "friedman"
+        entry = Entry("frdc", node; version=v"0.1.0")
+        @test entry.name == "frdc"
         @test entry.version == v"0.1.0"
     end
 
@@ -444,17 +444,17 @@ using .MacroEconometricModels
             subcmds=Dict{String,Union{NodeCommand,LeafCommand}}("estimate" => leaf),
             description="VAR commands")
 
-        entry = Entry("friedman", node; version=v"0.1.0")
+        entry = Entry("frdc", node; version=v"0.1.0")
 
         # Help should not error
         buf = IOBuffer()
         print_help(buf, entry)
         help_text = String(take!(buf))
-        @test contains(help_text, "friedman")
+        @test contains(help_text, "frdc")
         @test contains(help_text, "estimate")
 
         buf = IOBuffer()
-        print_help(buf, leaf; prog="friedman var estimate")
+        print_help(buf, leaf; prog="frdc var estimate")
         help_text = String(take!(buf))
         @test contains(help_text, "estimate")
         @test contains(help_text, "<data>")
@@ -476,7 +476,7 @@ using .MacroEconometricModels
             description="VAR analysis commands")
 
         buf = IOBuffer()
-        print_help(buf, node; prog="friedman var")
+        print_help(buf, node; prog="frdc var")
         help_text = String(take!(buf))
         @test contains(help_text, "estimate")
         @test contains(help_text, "lagselect")
@@ -484,10 +484,10 @@ using .MacroEconometricModels
 
         # NodeCommand help includes "Use ... --help" footer
         @test contains(help_text, "--help")
-        @test contains(help_text, "friedman var")
+        @test contains(help_text, "frdc var")
 
         # Entry help includes version number
-        entry = Entry("friedman", node; version=PROJECT_VERSION)
+        entry = Entry("frdc", node; version=PROJECT_VERSION)
         buf = IOBuffer()
         print_help(buf, entry)
         help_text = String(take!(buf))
@@ -498,7 +498,7 @@ using .MacroEconometricModels
             args=[Argument("data"; required=false, default="data.csv", description="Data file")],
             description="Test command")
         buf = IOBuffer()
-        print_help(buf, leaf_opt_arg; prog="friedman test")
+        print_help(buf, leaf_opt_arg; prog="frdc test")
         help_text = String(take!(buf))
         @test contains(help_text, "[data]")
         @test !contains(help_text, "<data>")
@@ -511,7 +511,7 @@ using .MacroEconometricModels
             ],
             description="Test command")
         buf = IOBuffer()
-        print_help(buf, leaf_defaults; prog="friedman test")
+        print_help(buf, leaf_defaults; prog="frdc test")
         help_text = String(take!(buf))
         @test contains(help_text, "default: 4")
         @test contains(help_text, "default: table")
@@ -521,7 +521,7 @@ using .MacroEconometricModels
             args=[Argument("data"; description="Data file")],
             description="Simple command")
         buf = IOBuffer()
-        print_help(buf, leaf_no_opts; prog="friedman test")
+        print_help(buf, leaf_no_opts; prog="frdc test")
         help_text = String(take!(buf))
         @test contains(help_text, "Arguments:")
         @test !contains(help_text, "Options:")
@@ -531,7 +531,7 @@ using .MacroEconometricModels
         leaf_desc = LeafCommand("estimate", handler;
             description="Estimate a Bayesian VAR model")
         buf = IOBuffer()
-        print_help(buf, leaf_desc; prog="friedman bvar estimate")
+        print_help(buf, leaf_desc; prog="frdc bvar estimate")
         help_text = String(take!(buf))
         @test contains(help_text, "Estimate a Bayesian VAR model")
 
@@ -542,7 +542,7 @@ using .MacroEconometricModels
             ],
             description="Test")
         buf = IOBuffer()
-        print_help(buf, leaf_no_default; prog="friedman test")
+        print_help(buf, leaf_no_default; prog="frdc test")
         help_text = String(take!(buf))
         @test contains(help_text, "--config")
         @test !contains(help_text, "default:")
@@ -563,13 +563,15 @@ using .MacroEconometricModels
             description="VAR")
 
         # Test dispatch through node to leaf
-        dispatch_node(node, ["estimate", "test.csv", "--lags=2"]; prog="friedman var")
+        dispatch_node(node, ["estimate", "test.csv", "--lags=2"]; prog="frdc var")
         @test called_with[][:data] == "test.csv"
         @test called_with[][:lags] == 2
 
         # Test help doesn't error
-        dispatch_node(node, ["--help"]; prog="friedman var")
-        dispatch_leaf(leaf, ["--help"]; prog="friedman var estimate")
+        node_help_out = mktemp() do p, io; redirect_stdout(io) do; dispatch_node(node, ["--help"]; prog="frdc var"); end; close(io); read(p, String); end
+        @test contains(node_help_out, "frdc var")
+        leaf_help_out = mktemp() do p, io; redirect_stdout(io) do; dispatch_leaf(leaf, ["--help"]; prog="frdc var estimate"); end; close(io); read(p, String); end
+        @test contains(leaf_help_out, "frdc var estimate")
     end
 
     @testset "Dispatch edge cases" begin
@@ -602,24 +604,24 @@ using .MacroEconometricModels
             subcmds=Dict{String,Union{NodeCommand,LeafCommand}}("sub" => inner_node),
             description="Top group")
 
-        dispatch_node(outer_node, ["sub", "run", "test.csv"]; prog="friedman top")
+        dispatch_node(outer_node, ["sub", "run", "test.csv"]; prog="frdc top")
         @test called_with[][:data] == "test.csv"
 
         # dispatch() with ["--version"] prints version
-        entry = Entry("friedman", outer_node; version=PROJECT_VERSION)
+        entry = Entry("frdc", outer_node; version=PROJECT_VERSION)
         version_output = strip(capture_stdout(() -> dispatch(entry, ["--version"])))
         @test contains(version_output, string(PROJECT_VERSION))
 
         # dispatch() with [] shows help (no error)
         help_output = capture_stdout(() -> dispatch(entry, String[]))
-        @test contains(help_output, "friedman")
+        @test contains(help_output, "frdc")
 
         # dispatch() with ["--help"] shows help
         help_output2 = capture_stdout(() -> dispatch(entry, ["--help"]))
-        @test contains(help_output2, "friedman")
+        @test contains(help_output2, "frdc")
 
         # dispatch_node with ["--help"] shows node help
-        node_help = capture_stdout(() -> dispatch_node(outer_node, ["--help"]; prog="friedman top"))
+        node_help = capture_stdout(() -> dispatch_node(outer_node, ["--help"]; prog="frdc top"))
         @test contains(node_help, "sub")
 
         # dispatch_leaf with ["--help"] shows leaf help, handler NOT called
@@ -627,7 +629,7 @@ using .MacroEconometricModels
         leaf_for_help = LeafCommand("check", handler;
             args=[Argument("data"; description="Data")],
             description="Check something")
-        leaf_help = capture_stdout(() -> dispatch_leaf(leaf_for_help, ["--help"]; prog="friedman check"))
+        leaf_help = capture_stdout(() -> dispatch_leaf(leaf_for_help, ["--help"]; prog="frdc check"))
         @test contains(leaf_help, "check")
         @test isnothing(called_with[])  # handler was NOT called
 
@@ -640,7 +642,7 @@ using .MacroEconometricModels
             flags=[
                 Flag("verbose"; description="Verbose"),
             ])
-        dispatch_leaf(cmd_defaults, String[]; prog="friedman test")
+        dispatch_leaf(cmd_defaults, String[]; prog="frdc test")
         @test called_with[][:lags] == 4
         @test called_with[][:format] == "table"
         @test called_with[][:verbose] == false
@@ -648,10 +650,10 @@ using .MacroEconometricModels
         # Non-ParseError exceptions from handler are rethrown
         error_handler = (; kwargs...) -> error("custom error")
         cmd_error = LeafCommand("fail", error_handler; description="Will fail")
-        @test_throws ErrorException dispatch_leaf(cmd_error, String[]; prog="friedman fail")
+        @test_throws ErrorException dispatch_leaf(cmd_error, String[]; prog="frdc fail")
 
         # -h short flag also triggers help
-        h_help = capture_stdout(() -> dispatch_leaf(leaf_for_help, ["-h"]; prog="friedman check"))
+        h_help = capture_stdout(() -> dispatch_leaf(leaf_for_help, ["-h"]; prog="frdc check"))
         @test contains(h_help, "check")
 
         # -V short flag triggers version
@@ -687,15 +689,15 @@ using .MacroEconometricModels
             description="Top group")
 
         # Unknown subcommand throws DispatchError
-        @test_throws DispatchError dispatch_node(node, ["nonexistent"]; prog="friedman top")
+        @test_throws DispatchError dispatch_node(node, ["nonexistent"]; prog="frdc top")
 
         # Verify error message includes prog and bad command
         try
-            dispatch_node(node, ["nonexistent"]; prog="friedman top")
+            dispatch_node(node, ["nonexistent"]; prog="frdc top")
         catch e
             @test e isa DispatchError
             @test contains(e.message, "nonexistent")
-            @test contains(e.message, "friedman top")
+            @test contains(e.message, "frdc top")
         end
 
         # Empty args on leaf with required argument shows help (not ParseError)
@@ -705,7 +707,7 @@ using .MacroEconometricModels
         helpout = let (tmppath, tmpio) = mktemp()
             try
                 redirect_stdout(tmpio) do
-                    dispatch_leaf(cmd_req, String[]; prog="friedman check")
+                    dispatch_leaf(cmd_req, String[]; prog="frdc check")
                 end
                 close(tmpio)
                 read(tmppath, String)
@@ -972,7 +974,7 @@ using .MacroEconometricModels
 
         # Help text contains key subcmd names
         buf = IOBuffer()
-        print_help(buf, estimate_node; prog="friedman estimate")
+        print_help(buf, estimate_node; prog="frdc estimate")
         help_text = String(take!(buf))
         @test contains(help_text, "var")
         @test contains(help_text, "bvar")
@@ -1023,7 +1025,7 @@ using .MacroEconometricModels
         est_dispatch = NodeCommand("estimate",
             Dict{String,Union{NodeCommand,LeafCommand}}("var" => est_var_d),
             "Estimate")
-        dispatch_node(est_dispatch, ["var", "test.csv", "--lags=4"]; prog="friedman estimate")
+        dispatch_node(est_dispatch, ["var", "test.csv", "--lags=4"]; prog="frdc estimate")
         @test called_with[][:data] == "test.csv"
         @test called_with[][:lags] == 4
 
@@ -1035,7 +1037,7 @@ using .MacroEconometricModels
         est_dispatch2 = NodeCommand("estimate",
             Dict{String,Union{NodeCommand,LeafCommand}}("lp" => est_lp_d),
             "Estimate")
-        dispatch_node(est_dispatch2, ["lp", "test.csv", "--method=iv"]; prog="friedman estimate")
+        dispatch_node(est_dispatch2, ["lp", "test.csv", "--method=iv"]; prog="frdc estimate")
         @test called_with[][:data] == "test.csv"
         @test called_with[][:method] == "iv"
     end
@@ -1333,7 +1335,7 @@ using .MacroEconometricModels
 
         # Help text
         buf = IOBuffer()
-        print_help(buf, test_node; prog="friedman test")
+        print_help(buf, test_node; prog="frdc test")
         help_text = String(take!(buf))
         @test contains(help_text, "adf")
         @test contains(help_text, "kpss")
@@ -1361,7 +1363,7 @@ using .MacroEconometricModels
         @test bound.lags == 4
         @test bound.trend == "none"
 
-        # Dispatch through nested var node: friedman test multivariate lagselect test.csv
+        # Dispatch through nested var node: frdc test multivariate lagselect test.csv
         called_with = Ref{Any}(nothing)
         dispatch_handler = (; kwargs...) -> begin called_with[] = Dict(kwargs) end
 
@@ -1375,7 +1377,7 @@ using .MacroEconometricModels
         test_d = NodeCommand("test",
             Dict{String,Union{NodeCommand,LeafCommand}}("var" => var_d),
             "Tests")
-        dispatch_node(test_d, ["var", "lagselect", "test.csv", "--max-lags=8"]; prog="friedman test")
+        dispatch_node(test_d, ["var", "lagselect", "test.csv", "--max-lags=8"]; prog="frdc test")
         @test called_with[][:data] == "test.csv"
         @test called_with[][:max_lags] == 8
     end
@@ -1601,14 +1603,14 @@ using .MacroEconometricModels
             "Historical Decomposition")
 
         # Build root with all top-level commands
-        root = NodeCommand("friedman",
+        root = NodeCommand("frdc",
             Dict{String,Union{NodeCommand,LeafCommand}}(
                 "estimate" => NodeCommand("estimate", Dict{String,Union{NodeCommand,LeafCommand}}(), "Est"),
                 "test" => NodeCommand("test", Dict{String,Union{NodeCommand,LeafCommand}}(), "Test"),
                 "irf" => irf_node, "fevd" => fevd_node, "hd" => hd_node,
                 "forecast" => NodeCommand("forecast", Dict{String,Union{NodeCommand,LeafCommand}}(), "Forecast")),
             "Friedman CLI")
-        entry = Entry("friedman", root; version=PROJECT_VERSION)
+        entry = Entry("frdc", root; version=PROJECT_VERSION)
 
         # Top level HAS irf, fevd, hd (action-first)
         @test haskey(root.subcmds, "irf")
@@ -1657,7 +1659,7 @@ using .MacroEconometricModels
 
         # Help text for IRF
         buf = IOBuffer()
-        print_help(buf, irf_node; prog="friedman irf")
+        print_help(buf, irf_node; prog="frdc irf")
         help_text = String(take!(buf))
         @test contains(help_text, "var")
         @test contains(help_text, "bvar")
@@ -1666,7 +1668,7 @@ using .MacroEconometricModels
 
         # Help text for FEVD
         buf = IOBuffer()
-        print_help(buf, fevd_node; prog="friedman fevd")
+        print_help(buf, fevd_node; prog="frdc fevd")
         help_text = String(take!(buf))
         @test contains(help_text, "var")
         @test contains(help_text, "bvar")
@@ -1675,13 +1677,13 @@ using .MacroEconometricModels
 
         # Help text for HD
         buf = IOBuffer()
-        print_help(buf, hd_node; prog="friedman hd")
+        print_help(buf, hd_node; prog="frdc hd")
         help_text = String(take!(buf))
         @test contains(help_text, "var")
         @test contains(help_text, "bvar")
         @test contains(help_text, "lp")
 
-        # Dispatch: friedman irf var test.csv --id=sign --shock=2
+        # Dispatch: frdc irf var test.csv --id=sign --shock=2
         called_with = Ref{Any}(nothing)
         dispatch_handler = (; kwargs...) -> begin called_with[] = Dict(kwargs) end
 
@@ -1695,12 +1697,12 @@ using .MacroEconometricModels
         irf_d = NodeCommand("irf",
             Dict{String,Union{NodeCommand,LeafCommand}}("var" => irf_var_d),
             "IRF")
-        dispatch_node(irf_d, ["var", "test.csv", "--id=sign", "--shock=2"]; prog="friedman irf")
+        dispatch_node(irf_d, ["var", "test.csv", "--id=sign", "--shock=2"]; prog="frdc irf")
         @test called_with[][:data] == "test.csv"
         @test called_with[][:id] == "sign"
         @test called_with[][:shock] == 2
 
-        # Dispatch: friedman hd lp test.csv --id=longrun
+        # Dispatch: frdc hd lp test.csv --id=longrun
         hd_lp_d = LeafCommand("lp", dispatch_handler;
             args=[Argument("data"; description="Data file")],
             options=[Option("id"; type=String, default="cholesky", description="ID")],
@@ -1708,7 +1710,7 @@ using .MacroEconometricModels
         hd_d = NodeCommand("hd",
             Dict{String,Union{NodeCommand,LeafCommand}}("lp" => hd_lp_d),
             "HD")
-        dispatch_node(hd_d, ["lp", "test.csv", "--id=longrun"]; prog="friedman hd")
+        dispatch_node(hd_d, ["lp", "test.csv", "--id=longrun"]; prog="frdc hd")
         @test called_with[][:data] == "test.csv"
         @test called_with[][:id] == "longrun"
     end
@@ -1928,7 +1930,7 @@ using .MacroEconometricModels
 
         # Help text
         buf = IOBuffer()
-        print_help(buf, forecast_node; prog="friedman forecast")
+        print_help(buf, forecast_node; prog="frdc forecast")
         help_text = String(take!(buf))
         @test contains(help_text, "var")
         @test contains(help_text, "bvar")
@@ -1956,7 +1958,7 @@ using .MacroEconometricModels
         @test bound.horizons == 24
         @test bound.confidence == 0.95  # default
 
-        # Dispatch: friedman forecast multivariate var test.csv --horizons=24
+        # Dispatch: frdc forecast multivariate var test.csv --horizons=24
         called_with = Ref{Any}(nothing)
         dispatch_handler = (; kwargs...) -> begin called_with[] = Dict(kwargs) end
 
@@ -1967,11 +1969,11 @@ using .MacroEconometricModels
         fc_dispatch = NodeCommand("forecast",
             Dict{String,Union{NodeCommand,LeafCommand}}("var" => fc_var_d),
             "Forecast")
-        dispatch_node(fc_dispatch, ["var", "test.csv", "--horizons=24"]; prog="friedman forecast")
+        dispatch_node(fc_dispatch, ["var", "test.csv", "--horizons=24"]; prog="frdc forecast")
         @test called_with[][:data] == "test.csv"
         @test called_with[][:horizons] == 24
 
-        # Dispatch: friedman forecast univariate arima test.csv --column=1
+        # Dispatch: frdc forecast univariate arima test.csv --column=1
         fc_arima_d = LeafCommand("arima", dispatch_handler;
             args=[Argument("data"; description="Data file")],
             options=[Option("column"; short="c", type=Int, default=1, description="Column")],
@@ -1979,7 +1981,7 @@ using .MacroEconometricModels
         fc_dispatch2 = NodeCommand("forecast",
             Dict{String,Union{NodeCommand,LeafCommand}}("arima" => fc_arima_d),
             "Forecast")
-        dispatch_node(fc_dispatch2, ["arima", "test.csv", "--column=2"]; prog="friedman forecast")
+        dispatch_node(fc_dispatch2, ["arima", "test.csv", "--column=2"]; prog="frdc forecast")
         @test called_with[][:data] == "test.csv"
         @test called_with[][:column] == 2
     end
@@ -2161,7 +2163,7 @@ using .MacroEconometricModels
 
         # Help text
         buf = IOBuffer()
-        print_help(buf, predict_node; prog="friedman predict")
+        print_help(buf, predict_node; prog="frdc predict")
         help_text = String(take!(buf))
         for key in ["var", "bvar", "arima", "vecm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr_garch", "sv"]
@@ -2174,7 +2176,7 @@ using .MacroEconometricModels
         @test bound.data == "data.csv"
         @test bound.lags == 3
 
-        # Dispatch: friedman predict multivariate var test.csv --lags=2
+        # Dispatch: frdc predict multivariate var test.csv --lags=2
         called_with = Ref{Any}(nothing)
         dispatch_handler = (; kwargs...) -> begin called_with[] = Dict(kwargs) end
 
@@ -2185,7 +2187,7 @@ using .MacroEconometricModels
         pred_dispatch = NodeCommand("predict",
             Dict{String,Union{NodeCommand,LeafCommand}}("var" => pred_var_d),
             "Predict")
-        dispatch_node(pred_dispatch, ["var", "test.csv", "--lags=2"]; prog="friedman predict")
+        dispatch_node(pred_dispatch, ["var", "test.csv", "--lags=2"]; prog="frdc predict")
         @test called_with[][:data] == "test.csv"
         @test called_with[][:lags] == 2
     end
@@ -2367,14 +2369,14 @@ using .MacroEconometricModels
 
         # Help text
         buf = IOBuffer()
-        print_help(buf, residuals_node; prog="friedman residuals")
+        print_help(buf, residuals_node; prog="frdc residuals")
         help_text = String(take!(buf))
         for key in ["var", "bvar", "arima", "vecm", "static", "dynamic", "gdfm",
                      "arch", "garch", "egarch", "gjr_garch", "sv"]
             @test contains(help_text, key)
         end
 
-        # Dispatch: friedman residuals multivariate var test.csv
+        # Dispatch: frdc residuals multivariate var test.csv
         called_with = Ref{Any}(nothing)
         dispatch_handler = (; kwargs...) -> begin called_with[] = Dict(kwargs) end
 
@@ -2385,7 +2387,7 @@ using .MacroEconometricModels
         res_dispatch = NodeCommand("residuals",
             Dict{String,Union{NodeCommand,LeafCommand}}("var" => res_var_d),
             "Residuals")
-        dispatch_node(res_dispatch, ["var", "test.csv"]; prog="friedman residuals")
+        dispatch_node(res_dispatch, ["var", "test.csv"]; prog="frdc residuals")
         @test called_with[][:data] == "test.csv"
     end
 
@@ -2487,7 +2489,7 @@ using .MacroEconometricModels
 
         # Help text
         buf = IOBuffer()
-        print_help(buf, filter_node; prog="friedman filter")
+        print_help(buf, filter_node; prog="frdc filter")
         help_text = String(take!(buf))
         @test contains(help_text, "hp")
         @test contains(help_text, "hamilton")
@@ -2525,7 +2527,7 @@ using .MacroEconometricModels
         filt_dispatch = NodeCommand("filter",
             Dict{String,Union{NodeCommand,LeafCommand}}("hp" => filt_dispatch_hp),
             "Filters")
-        dispatch_node(filt_dispatch, ["hp", "test.csv"]; prog="friedman filter")
+        dispatch_node(filt_dispatch, ["hp", "test.csv"]; prog="frdc filter")
         @test called_with[][:data] == "test.csv"
     end
 
@@ -2646,7 +2648,7 @@ using .MacroEconometricModels
 
         # Help text
         buf = IOBuffer()
-        print_help(buf, data_node; prog="friedman data")
+        print_help(buf, data_node; prog="frdc data")
         help_text = String(take!(buf))
         for cmd in ["list", "load", "describe", "diagnose", "fix", "transform", "filter", "validate", "balance"]
             @test contains(help_text, cmd)
@@ -2687,7 +2689,7 @@ using .MacroEconometricModels
         data_dispatch = NodeCommand("data",
             Dict{String,Union{NodeCommand,LeafCommand}}("load" => data_load_d),
             "Data")
-        dispatch_node(data_dispatch, ["load", "fred_md"]; prog="friedman data")
+        dispatch_node(data_dispatch, ["load", "fred_md"]; prog="frdc data")
         @test called_with[][:name] == "fred_md"
     end
 
@@ -4715,8 +4717,8 @@ end
         "serve"       => register_serve_commands!(),
         "show"        => register_show_commands!(),
     )
-    app = Entry("friedman",
-        NodeCommand("friedman", root_cmds,
+    app = Entry("frdc",
+        NodeCommand("frdc", root_cmds,
             "A macroeconometric analysis toolkit powered by MacroEconometricModels.jl");
         version=PROJECT_VERSION)
 
@@ -4846,7 +4848,7 @@ end
                            [Option("tag"; type=String, default="", description="Filter tag", repeatable=true)],
                            Flag[], "Repeatable option check")
     io_rep = IOBuffer()
-    print_help(io_rep, leaf_rep; prog="friedman rep")
+    print_help(io_rep, leaf_rep; prog="frdc rep")
     @test occursin("(repeatable)", String(take!(io_rep)))
 
     pa_multi = ParsedArgs(String[], Dict{String,String}(), Set{String}(), Dict("coun" => ["1"]))
@@ -4927,7 +4929,7 @@ end
     @test count(==('('), frac_opt.description) == count(==(')'), frac_opt.description)
 
     irf_buf = IOBuffer()
-    print_help(irf_buf, app.root.subcmds["irf"].subcmds["var"]; prog="friedman irf var")
+    print_help(irf_buf, app.root.subcmds["irf"].subcmds["var"]; prog="frdc irf var")
     irf_ht = String(take!(irf_buf))
     @test occursin("optional when --model or --result", irf_ht)
 
@@ -4942,7 +4944,7 @@ end
     err_dsge = try; _dsge_estimate(; model="m.toml", data="", params="alpha"); nothing; catch e; e; end
     @test err_dsge isa CliError && exit_class(err_dsge) == 2
 
-    err_mh = try; load_model_dispatch("/nonexistent/friedman_missing_handle_xyz.jld2"); nothing; catch e; e; end
+    err_mh = try; load_model_dispatch("/nonexistent/frdc_missing_handle_xyz.jld2"); nothing; catch e; e; end
     @test err_mh isa CliError && occursin("handle", err_mh.hint) && !occursin("--model", err_mh.hint)
 end
 

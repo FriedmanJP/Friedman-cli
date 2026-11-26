@@ -196,7 +196,7 @@ module Friedman
             "multivariate" => test_mvar
         ), "Tests")
 
-        root = NodeCommand("friedman", Dict{String,Union{NodeCommand,LeafCommand}}(
+        root = NodeCommand("frdc", Dict{String,Union{NodeCommand,LeafCommand}}(
             "estimate" => estimate_node,
             "irf" => irf_node,
             "data" => data_node,
@@ -204,7 +204,7 @@ module Friedman
             "test" => test_node,
         ), "Main")
 
-        Entry("friedman", root, v"0.4.1")
+        Entry("frdc", root, v"0.4.1")
     end
 
     # Precomputed completion index uses APP when present; tests call build_completion_index(app).

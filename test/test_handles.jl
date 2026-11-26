@@ -763,7 +763,7 @@ end
     @test !any(==("y1"), _result_varnames(lp, n))
 end
 
-@testset "friedman show renders any handle" begin
+@testset "frdc show renders any handle" begin
     leaf = register_show_commands!()
     @test leaf isa LeafCommand
     @test leaf.name == "show"
