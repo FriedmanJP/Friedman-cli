@@ -31,7 +31,7 @@ function nowcast_specs()::Vector{CommandSpec}
                 OptionSpec(name="quarterly-vars", type=Int, default=0, description="Number of quarterly variables (remaining columns)"),
                 OptionSpec(name="factors", type=Int, default=2, description="Number of factors"),
                 OptionSpec(name="lags", short="p", type=Int, default=1, description="Factor VAR lags"),
-                OptionSpec(name="idio", type=String, default="ar1", description="Idiosyncratic component: ar1|iid"),
+                OptionSpec(name="idio", type=String, default="ar1", choices=["ar1", "iid"], description="Idiosyncratic component: ar1|iid"),
                 OptionSpec(name="max-iter", type=Int, default=100, description="Maximum EM iterations"),
                 OptionSpec(name="target-var", type=Int, default=0, description="Target variable index (0=last)"),
                 out_fmt..., PLOT_OPTIONS...,

@@ -19088,6 +19088,106 @@ end
     end
 end
 
+@testset "[UX-W3] slim MCP inputSchema, 26 anyOf, discrete enums, --compact & data:// (#344)" begin
+    tools = _mcp_tools()
+    @test length(tools) >= 550
+
+    # 1. 0 tools advertise ignored `format`, interactive `plot`, or CLI-only `x-cli.aliases` (L7)
+    fmt_hits = 0
+    plot_hits = 0
+    alias_hits = 0
+    compact_pipe_truncs = String[]
+    for (tname, leaf, path) in tools
+        sf = _mcp_input_schema(leaf, path; compact=false)
+        sc = _mcp_input_schema(leaf, path; compact=true)
+        haskey(sf["properties"], "format") && (fmt_hits += 1)
+        haskey(sc["properties"], "format") && (fmt_hits += 1)
+        haskey(sf["properties"], "plot") && (plot_hits += 1)
+        haskey(sc["properties"], "plot") && (plot_hits += 1)
+        for (_, pv) in sf["properties"]
+            pv isa AbstractDict || continue
+            xcli = get(pv, "x-cli", nothing)
+            xcli isa AbstractDict && haskey(xcli, "aliases") && (alias_hits += 1)
+        end
+        for (pk, pv) in sc["properties"]
+            pv isa AbstractDict || continue
+            d = get(pv, "description", "")
+            # Mid-token truncation inside a pipe-separated choice list ends with `|...` or `foo|ba...`
+            if endswith(d, "...") && occursin(r"\|[a-zA-Z0-9_-]*\.\.\.$", d)
+                push!(compact_pipe_truncs, "$tname.$pk: $d")
+            end
+        end
+    end
+    @test fmt_hits == 0
+    @test plot_hits == 0
+    @test alias_hits == 0
+    @test isempty(compact_pipe_truncs)
+
+    # 2. All 26 previously unconstrained tools emit accurate Draft-07 `anyOf`
+    expected_26 = [
+        ["dsge", "abcd", "audit-irf"], ["dsge", "abcd", "extract"],
+        ["dsge", "abcd", "innovations"], ["dsge", "abcd", "invertibility"],
+        ["dsge", "abcd", "population-var"], ["dsge", "abcd", "recoverability"],
+        ["dsge", "abcd", "search-observables"],
+        ["dsge", "var", "estimate"], ["dsge", "var", "fevd"],
+        ["dsge", "var", "forecast"], ["dsge", "var", "hd"],
+        ["dsge", "var", "irf"], ["dsge", "var", "lambda"], ["dsge", "var", "prior"],
+        ["io", "bf", "elasticities"], ["io", "bf", "equilibrium"],
+        ["io", "bf", "local"], ["io", "bf", "misallocation"],
+        ["io", "bf", "shock-curve"], ["io", "bf", "wedges"],
+        ["ri", "fevd"], ["ri", "irf"], ["ri", "simulate"],
+        ["ri", "statespace"], ["ri", "transition"],
+        ["nowcast", "news"],
+    ]
+    @test length(expected_26) == 26
+    for p in expected_26
+        node = APP.root
+        for seg in p; node = node.subcmds[seg]; end
+        s = _input_schema(node, p)
+        @test haskey(s, "anyOf")
+        @test length(s["anyOf"]) >= 2
+    end
+    # Specifically verify nowcast news requires (data-new & data-old) OR result
+    nn = _input_schema(APP.root.subcmds["nowcast"].subcmds["news"], ["nowcast", "news"])
+    @test nn["anyOf"] == [Dict{String,Any}("required" => ["data-new", "data-old"]),
+                          Dict{String,Any}("required" => ["result"])]
+
+    # 3. All 21 `--id` options across structural/factor/spectral leaves emit JSON Schema `enum`
+    id_leaves = [
+        ["irf", "var"], ["irf", "bvar"], ["irf", "lp"], ["irf", "vecm"],
+        ["irf", "favar"], ["irf", "sdfm"],
+        ["fevd", "var"], ["fevd", "bvar"], ["fevd", "lp"], ["fevd", "vecm"],
+        ["fevd", "favar"], ["fevd", "sdfm"],
+        ["hd", "var"], ["hd", "bvar"], ["hd", "lp"], ["hd", "vecm"],
+        ["hd", "favar"], ["hd", "sdfm"],
+        ["estimate", "factor", "sdfm"], ["forecast", "factor", "sdfm"],
+        ["spectral", "fevd"],
+    ]
+    @test length(id_leaves) == 21
+    for p in id_leaves
+        node = APP.root
+        for seg in p; node = node.subcmds[seg]; end
+        s = _input_schema(node, p)
+        @test haskey(s["properties"]["id"], "enum")
+        @test "longrun" in s["properties"]["id"]["enum"]
+        # Landmine L1: both longrun and long-run pass parse validation
+        b1 = bind_args(tokenize(["x.csv", "--id", "longrun"], node), node)
+        b2 = bind_args(tokenize(["x.csv", "--id", "long-run"], node), node)
+        @test b1.id == "longrun" && b2.id == "longrun"
+    end
+
+    # 4. data:// URIs advertised on data and save-data slots; model_reproduce x-handle
+    s_var = _input_schema(APP.root.subcmds["estimate"].subcmds["multivariate"].subcmds["var"],
+                          ["estimate", "multivariate", "var"])
+    @test occursin("data://", s_var["properties"]["data"]["description"])
+    s_sim = _input_schema(APP.root.subcmds["data"].subcmds["simulate"].subcmds["var"],
+                          ["data", "simulate", "var"])
+    @test occursin("data://", s_sim["properties"]["save-data"]["description"])
+    s_mr = _input_schema(APP.root.subcmds["model"].subcmds["reproduce"], ["model", "reproduce"])
+    @test haskey(s_mr["properties"]["path"], "x-handle")
+    @test haskey(s_mr["properties"]["model"], "x-handle")
+end
+
 include(joinpath(project_root, "test", "test_handles.jl"))
 include(joinpath(project_root, "test", "test_storage.jl"))
 include(joinpath(project_root, "test", "test_w1_quantile.jl"))

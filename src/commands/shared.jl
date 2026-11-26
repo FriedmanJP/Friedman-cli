@@ -805,6 +805,38 @@ const _ID_METHODS_VECM = merge(ID_METHOD_MAP, Dict(
     "svec" => :svec,
 ))
 
+# Canonical discrete `--id` choices lists for Draft-07 schema `enum` & parse validation (#344).
+# Landmine L1: `_choice_match` normalizes `_`↔`-` and `longrun`↔`long-run` seamlessly.
+const _ID_CHOICES_BASE = [
+    "cholesky", "sign", "narrative", "longrun", "fastica", "jade", "sobi",
+    "dcov", "hsic", "cvm", "student-t", "mixture-normal", "mixture-normal-asym",
+    "pml", "skew-normal", "lms", "markov-switching", "garch-id", "uhlig",
+    "lewis-tvv", "sv-em",
+]
+const _ID_CHOICES_VAR = [
+    "cholesky", "sign", "narrative", "longrun", "arias", "uhlig", "proxy",
+    "max-share", "gmm-moments", "narrative-adrr", "lewis-tvv", "sv-em",
+    "fastica", "jade", "sobi", "dcov", "hsic", "cvm", "student-t",
+    "mixture-normal", "mixture-normal-asym", "pml", "skew-normal", "lms",
+    "markov-switching", "garch-id",
+]
+const _ID_CHOICES_HD_VAR = [
+    "cholesky", "sign", "narrative", "longrun", "proxy", "max-share",
+    "gmm-moments", "lewis-tvv", "sv-em", "fastica", "jade", "sobi", "dcov",
+    "hsic", "cvm", "student-t", "mixture-normal", "mixture-normal-asym",
+    "pml", "skew-normal", "lms", "markov-switching", "garch-id",
+]
+const _ID_CHOICES_BVAR_IRF = vcat(_ID_CHOICES_BASE, ["robust-bayes"])
+const _ID_CHOICES_VECM = vcat(_ID_CHOICES_BASE, ["svec"])
+const _ID_CHOICES_SDFM = [
+    "cholesky", "sign", "longrun", "max-share", "proxy",
+    "lewis-tvv", "sv-em", "gmm-moments",
+]
+const _CONSTRAINT_SOLVER_CHOICES = ["nonlinearsolve", "optim", "nlopt", "madnlp", "ipopt", "path"]
+const _VCOV_LP_CHOICES = ["newey_west", "white", "driscoll_kraay"]
+const _DET_CHOICES = ["none", "constant", "trend"]
+const _BVAR_SAMPLER_CHOICES = ["direct", "gibbs"]
+
 """
     _identification_method(id, methods, leaf) → Symbol
 

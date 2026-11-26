@@ -1651,6 +1651,7 @@ const _POLICY_CF_OPTIONS = [
     OptionSpec(name="nonpolicy-shock", type=String, default="",
                description="The ONE non-policy shock the rule responds to (index or name; REQUIRED)"),
     OptionSpec(name="rule", type=String, default="",
+               choices=["rate-peg", "inflation-target", "output-gap", "ngdp", "taylor"],
                description="Builtin rule: rate-peg|inflation-target|output-gap|ngdp|taylor (taylor = TEXTBOOK rho/phi, not CMW — use --rule-config for that)"),
     OptionSpec(name="rule-config", type=String, default="",
                description="TOML [rule] section (rate-target paths, CMW taylor, custom pi_var/y_var)"),

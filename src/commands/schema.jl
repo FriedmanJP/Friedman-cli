@@ -66,6 +66,13 @@ function _x_handle_dict(spec::CommandSpec, name::String; is_arg::Bool=false)
             "types" => String[],
         )
     end
+    if spec.path == ["model", "reproduce"]
+        if is_arg && name == "path"
+            return Dict{String,Any}("role" => "any", "kinds" => String[], "types" => String[])
+        elseif !is_arg && name == "model"
+            return Dict{String,Any}("role" => "model", "kinds" => String[], "types" => String[])
+        end
+    end
     if name == "data"
         return Dict{String,Any}(
             "role" => "data",
@@ -99,6 +106,19 @@ function _x_handle_dict(spec::CommandSpec, name::String; is_arg::Bool=false)
     return nothing
 end
 
+"""Ensure `data` / `save-data` schema descriptions advertise `data://` session URIs (#344)."""
+function _with_data_uri_hint(name::String, desc::String)::String
+    (name == "data" || name == "save-data") || return desc
+    occursin("data://", desc) && return desc
+    if occursin("(.csv, .jld2, .jls)", desc)
+        return replace(desc, "(.csv, .jld2, .jls)" => "(.csv, .jld2, .jls, or data://)")
+    elseif occursin("handle", lowercase(desc))
+        return desc * " (supports data:// session URIs)"
+    else
+        return desc * " (.csv, .jld2, .jls, :example, or data://)"
+    end
+end
+
 """
     _input_schema(leaf, path) → Dict
 
@@ -118,7 +138,7 @@ function _input_schema(leaf::LeafCommand, path::Vector{String})
             "type" => _json_type(a.type),
             "x-cli" => Dict{String,Any}("kind" => "argument", "position" => i),
         )
-        isempty(a.description) || (p["description"] = a.description)
+        isempty(a.description) || (p["description"] = _with_data_uri_hint(a.name, a.description))
         (a.default === nothing || (a.default isa AbstractFloat && !isfinite(a.default))) ||
             (p["default"] = _default_json(a.default))
         if spec !== nothing
@@ -133,8 +153,9 @@ function _input_schema(leaf::LeafCommand, path::Vector{String})
         isempty(o.short) || (xcli["short"] = "-" * o.short)
         isempty(o.aliases) || (xcli["aliases"] = ["--" * a for a in o.aliases])
         p = Dict{String,Any}("type" => _json_type(o.type), "x-cli" => xcli)
-        isempty(o.description) || (p["description"] = o.description)
-        (o.default === nothing || (o.default isa AbstractFloat && !isfinite(o.default))) ||
+        isempty(o.description) || (p["description"] = _with_data_uri_hint(o.name, o.description))
+        (o.default === nothing || (o.default isa AbstractFloat && !isfinite(o.default)) ||
+         (o.default === "" && o.choices !== nothing && !("" in o.choices))) ||
             (p["default"] = _default_json(o.default))
         if o.repeatable && o.name in _CARD_REPEATABLE
             # draft-07: `enum` constrains the whole value, so for an array it
@@ -161,8 +182,8 @@ function _input_schema(leaf::LeafCommand, path::Vector{String})
         isempty(f.description) || (p["description"] = f.description)
         props[f.name] = p
     end
-    # F-25: when <data> or <model> is mutually exclusive with --model / --result,
-    # omit it from flat `required` and emit Draft-07 `anyOf` alternatives instead.
+    # F-25 / #344: when <data>/<model>/<file>/<config> is mutually exclusive with
+    # --model / --result, omit it from flat `required` and emit Draft-07 `anyOf` alternatives.
     any_of = nothing
     if spec !== nothing
         if "data" in required
@@ -177,6 +198,30 @@ function _input_schema(leaf::LeafCommand, path::Vector{String})
             alts = String["model", "result"]
             filter!(!=("model"), required)
             any_of = [Dict{String,Any}("required" => [a]) for a in alts]
+        elseif isempty(required)
+            if haskey(props, "file") && haskey(props, "model") && !isempty(spec.model_types)
+                # dsge abcd * (7) and dsge var * (7): optional <file> or --model [or --result]
+                alts = String["file", "model"]
+                haskey(props, "result") && !isempty(spec.result_types) && push!(alts, "result")
+                any_of = [Dict{String,Any}("required" => [a]) for a in alts]
+            elseif haskey(props, "data") && haskey(props, "model") && !isempty(spec.model_types)
+                # io bf * (6): --data or --model [or --result]
+                alts = String["data", "model"]
+                haskey(props, "result") && !isempty(spec.result_types) && push!(alts, "result")
+                any_of = [Dict{String,Any}("required" => [a]) for a in alts]
+            elseif haskey(props, "config") && haskey(props, "model") && !isempty(spec.model_types)
+                # ri {fevd,irf,simulate,statespace,transition} (5): --config or --model [or --result]
+                alts = String["config", "model"]
+                haskey(props, "result") && !isempty(spec.result_types) && push!(alts, "result")
+                any_of = [Dict{String,Any}("required" => [a]) for a in alts]
+            elseif haskey(props, "data-new") && haskey(props, "data-old") &&
+                   haskey(props, "result") && !isempty(spec.result_types)
+                # nowcast news (1): (--data-new + --data-old) or --result
+                any_of = [
+                    Dict{String,Any}("required" => ["data-new", "data-old"]),
+                    Dict{String,Any}("required" => ["result"]),
+                ]
+            end
         end
     end
     schema = Dict{String,Any}(

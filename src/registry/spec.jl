@@ -143,10 +143,10 @@ function with_result_handles(specs::Vector{CommandSpec})
     return out
 end
 
-# Config ergonomics (P2-8 / C030) — append to every leaf that has --config
+# Config ergonomics (P2-8 / C030 / #344) — append to every leaf that has --config
 const CONFIG_ERGONOMICS_OPTIONS = [
     OptionSpec(name="config-json", type=String, default="",
-               description="JSON object merged over --config (file < json < --set)"),
+               description="Zero-file JSON object string merged over --config (file < json < --set; e.g. '{\"identification\":{\"sign_matrix\":[[1,1],[-1,1]]}}')"),
     OptionSpec(name="set", type=String, default="", repeatable=true,
                description="Override config key=value; repeatable; dotted keys OK"),
 ]
@@ -333,7 +333,7 @@ const CONSTRAINT_OPTION = OptionSpec(
 
 # Bayesian DSGE shared options (replaces _bayes_common_options)
 const BAYES_OPTIONS = [
-    OptionSpec(name="data", short="d", type=String, default="", description="Path to CSV data file"),
+    OptionSpec(name="data", short="d", type=String, default="", description="Path to data file (.csv, .jld2, .jls, :example, or data:// session URI)"),
     OptionSpec(name="params", type=String, default="", description="Comma-separated parameter names"),
     OptionSpec(name="priors", type=String, default="", description="Path to priors TOML file"),
     # CARD-W1 (#209): repeatable counterpart of --priors. Every leaf that splats
@@ -353,6 +353,7 @@ const BAYES_OPTIONS = [
     OptionSpec(name="solver", type=String, default="gensys", description="gensys|klein|perturbation", choices=["gensys", "klein", "perturbation"]),
     OptionSpec(name="order", type=Int, default=1, description="Perturbation order (1, 2, or 3)"),
     OptionSpec(name="constraint-solver", type=String, default="",
+               choices=["nonlinearsolve", "optim", "nlopt", "madnlp", "ipopt", "path"],
                description="Constraint solver: nonlinearsolve|optim|nlopt|madnlp|ipopt|path (madnlp default for nonlinear constraints)"),
     # W12/#114 (MEMs#339): trends in observables. Shared across the whole `dsge bayes`
     # family because every leaf re-estimates from scratch — a prefilter available only on

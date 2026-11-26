@@ -46,7 +46,7 @@ function test_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test"),
-                OptionSpec(name="trend", type=String, default="constant", description="constant|trend"),
+                OptionSpec(name="trend", type=String, default="constant", choices=["constant", "trend"], description="constant|trend"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
@@ -62,7 +62,7 @@ function test_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test"),
-                OptionSpec(name="trend", type=String, default="constant", description="none|constant|trend"),
+                OptionSpec(name="trend", type=String, default="constant", choices=_DET_CHOICES, description="none|constant|trend"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
@@ -95,7 +95,7 @@ function test_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test"),
-                OptionSpec(name="trend", type=String, default="constant", description="constant|trend"),
+                OptionSpec(name="trend", type=String, default="constant", choices=["constant", "trend"], description="constant|trend"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
@@ -144,7 +144,7 @@ function test_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order"),
-                OptionSpec(name="trend", type=String, default="constant", description="none|constant|trend"),
+                OptionSpec(name="trend", type=String, default="constant", choices=_DET_CHOICES, description="none|constant|trend"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
@@ -179,9 +179,9 @@ function test_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
-                OptionSpec(name="test", type=String, default="all", description="strength|gaussianity|independence|overidentification|lambda-distinct|gaussian-count|label-stability|all (the last three are opt-in only)"),
+                OptionSpec(name="test", type=String, default="all", choices=["strength", "gaussianity", "independence", "overidentification", "lambda-distinct", "gaussian-count", "label-stability", "all"], description="strength|gaussianity|independence|overidentification|lambda-distinct|gaussian-count|label-stability|all (the last three are opt-in only)"),
                 OptionSpec(name="method", type=String, default="fastica", description="fastica|jade|sobi|dcov|hsic|cvm (for gaussianity/independence/overidentification tests; label-stability bootstraps the chosen estimator)", choices=["fastica", "jade", "sobi", "dcov", "hsic", "cvm"]),
-                OptionSpec(name="contrast", type=String, default="logcosh", description="logcosh|exp|kurtosis (for FastICA)"),
+                OptionSpec(name="contrast", type=String, default="logcosh", choices=["logcosh", "exp", "kurtosis"], description="logcosh|exp|kurtosis (for FastICA)"),
                 OptionSpec(name="n-starts", type=Int, default=3, description="Additional random starts (for --method cvm)"),
                 OptionSpec(name="n-bootstrap", type=Int, default=999, description="Bootstrap replications (for label-stability)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -911,7 +911,7 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (default: first numeric column)"),
                 OptionSpec(name="endogenous", type=String, default="", description="Endogenous regressor column names, comma-separated (required)"),
                 OptionSpec(name="instruments", type=String, default="", description="EXCLUDED instrument column names, comma-separated (required; other numeric cols are exogenous regressors — include a `const` for an intercept)"),
-                OptionSpec(name="cov-type", type=String, default="hc1", description="ols|hc0|hc1|hc2|hc3"),
+                OptionSpec(name="cov-type", type=String, default="hc1", choices=["ols", "hc0", "hc1", "hc2", "hc3"], description="ols|hc0|hc1|hc2|hc3"),
                 OptionSpec(name="threshold", type=Float64, default=10.0, description="First-stage F rule-of-thumb (used if no Stock-Yogo CV)"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
@@ -1089,8 +1089,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="config", type=String, default="", description="TOML config with [vecm_restriction] H = [[...],...] (p×s, s≥r)"),
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels, VECM uses p-1)"),
                 OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
-                OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
-                OptionSpec(name="method", type=String, default="johansen", description="johansen|engle_granger"),
+                OptionSpec(name="deterministic", type=String, default="constant", choices=_DET_CHOICES, description="none|constant|trend"),
+                OptionSpec(name="method", type=String, default="johansen", choices=["johansen", "engle_granger"], description="johansen|engle_granger"),
                 OptionSpec(name="significance", type=Float64, default=0.05, description="Significance level for rank selection"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
@@ -1109,8 +1109,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="config", type=String, default="", description="TOML config with [vecm_restriction] A = [[...],...] (p×a, a≥r)"),
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels, VECM uses p-1)"),
                 OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
-                OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
-                OptionSpec(name="method", type=String, default="johansen", description="johansen|engle_granger"),
+                OptionSpec(name="deterministic", type=String, default="constant", choices=_DET_CHOICES, description="none|constant|trend"),
+                OptionSpec(name="method", type=String, default="johansen", choices=["johansen", "engle_granger"], description="johansen|engle_granger"),
                 OptionSpec(name="significance", type=Float64, default=0.05, description="Significance level for rank selection"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
@@ -1129,8 +1129,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="vars", type=String, default="", description="Comma-separated variable indices or names to test for weak exogeneity"),
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels, VECM uses p-1)"),
                 OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
-                OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
-                OptionSpec(name="method", type=String, default="johansen", description="johansen|engle_granger"),
+                OptionSpec(name="deterministic", type=String, default="constant", choices=_DET_CHOICES, description="none|constant|trend"),
+                OptionSpec(name="method", type=String, default="johansen", choices=["johansen", "engle_granger"], description="johansen|engle_granger"),
                 OptionSpec(name="significance", type=Float64, default=0.05, description="Significance level for rank selection"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
@@ -1149,8 +1149,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="config", type=String, default="", description="TOML config with [vecm_restriction] b = [[...],...] (p×r, exactly r cols)"),
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels, VECM uses p-1)"),
                 OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
-                OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
-                OptionSpec(name="method", type=String, default="johansen", description="johansen|engle_granger"),
+                OptionSpec(name="deterministic", type=String, default="constant", choices=_DET_CHOICES, description="none|constant|trend"),
+                OptionSpec(name="method", type=String, default="johansen", choices=["johansen", "engle_granger"], description="johansen|engle_granger"),
                 OptionSpec(name="significance", type=Float64, default=0.05, description="Significance level for rank selection"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
@@ -1169,8 +1169,8 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="config", type=String, default="", description="TOML config with [vecm_restriction] both H and A matrices"),
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels, VECM uses p-1)"),
                 OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...)"),
-                OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
-                OptionSpec(name="method", type=String, default="johansen", description="johansen|engle_granger"),
+                OptionSpec(name="deterministic", type=String, default="constant", choices=_DET_CHOICES, description="none|constant|trend"),
+                OptionSpec(name="method", type=String, default="johansen", choices=["johansen", "engle_granger"], description="johansen|engle_granger"),
                 OptionSpec(name="significance", type=Float64, default=0.05, description="Significance level for rank selection"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
@@ -1187,7 +1187,7 @@ function test_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="max-lags", type=Int, default=12, description="Maximum lag order to test"),
-                OptionSpec(name="criterion", type=String, default="aic", description="aic|bic|hqc"),
+                OptionSpec(name="criterion", type=String, default="aic", choices=["aic", "bic", "hqc"], description="aic|bic|hqc"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
@@ -1225,7 +1225,7 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="effect", type=Int, default=2, description="Effect variable index (1-based)"),
                 OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order (in levels)"),
                 OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank (auto|1|2|...) (vecm only; ignored with --model var)"),
-                OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend (vecm only; ignored with --model var)"),
+                OptionSpec(name="deterministic", type=String, default="constant", choices=_DET_CHOICES, description="none|constant|trend (vecm only; ignored with --model var)"),
                 OptionSpec(name="model", type=String, default="", description="var|vecm or path/stem to saved VARModel/VECMModel (default: vecm)", handle=true),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
@@ -1267,7 +1267,7 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="id-col", type=String, default="", description="Panel group identifier column (required)"),
                 OptionSpec(name="time-col", type=String, default="", description="Time period column (required)"),
                 OptionSpec(name="max-lags", type=Int, default=4, description="Maximum lag order to test"),
-                OptionSpec(name="criterion", type=String, default="bic", description="bic|aic|hqic"),
+                OptionSpec(name="criterion", type=String, default="bic", choices=["bic", "aic", "hqic"], description="bic|aic|hqic"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
@@ -1285,7 +1285,7 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="id-col", type=String, default="", description="Panel group identifier column (required)"),
                 OptionSpec(name="time-col", type=String, default="", description="Time period column (required)"),
                 OptionSpec(name="max-lags", type=Int, default=4, description="Maximum lag order to test"),
-                OptionSpec(name="criterion", type=String, default="bic", description="bic|aic|hqic"),
+                OptionSpec(name="criterion", type=String, default="bic", choices=["bic", "aic", "hqic"], description="bic|aic|hqic"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
@@ -1350,7 +1350,7 @@ function test_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="response", type=Int, default=1, description="Response variable column index (1-based)"),
-                OptionSpec(name="test", type=String, default="supwald", description="supwald|suplr|suplm|expwald|explr|explm|meanwald|meanlr|meanlm"),
+                OptionSpec(name="test", type=String, default="supwald", choices=["supwald", "suplr", "suplm", "expwald", "explr", "explm", "meanwald", "meanlr", "meanlm"], description="supwald|suplr|suplm|expwald|explr|explm|meanwald|meanlr|meanlm"),
                 OptionSpec(name="trimming", type=Float64, default=0.15, description="Trimming proportion"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -1372,7 +1372,7 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="response", type=Int, default=1, description="Response variable column index (1-based)"),
                 OptionSpec(name="max-breaks", type=Int, default=5, description="Maximum number of breaks"),
                 OptionSpec(name="trimming", type=Float64, default=0.15, description="Trimming proportion"),
-                OptionSpec(name="criterion", type=String, default="bic", description="bic|lwz"),
+                OptionSpec(name="criterion", type=String, default="bic", choices=["bic", "lwz"], description="bic|lwz"),
                 CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -1392,7 +1392,7 @@ function test_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to panel CSV (or T×N matrix CSV)")],
             options=[
                 OptionSpec(name="factors", type=String, default="auto", description="Number of factors: auto or a positive integer"),
-                OptionSpec(name="method", type=String, default="pooled", description="pooled|individual"),
+                OptionSpec(name="method", type=String, default="pooled", choices=["pooled", "individual"], description="pooled|individual"),
                 OptionSpec(name="id-col", type=String, default="", description="Panel unit ID column (optional)"),
                 OptionSpec(name="time-col", type=String, default="", description="Time column (optional)"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -1410,7 +1410,7 @@ function test_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to CSV data file in T-by-N matrix form, or long-format panel CSV with --id-col/--time-col")],
             options=[
                 OptionSpec(name="lags", type=String, default="auto", description="Lag order (auto|N)"),
-                OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
+                OptionSpec(name="deterministic", type=String, default="constant", choices=_DET_CHOICES, description="none|constant|trend"),
                 OptionSpec(name="id-col", type=String, default="", description="Panel unit ID column (optional)"),
                 OptionSpec(name="time-col", type=String, default="", description="Time column (optional)"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -1445,7 +1445,7 @@ function test_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to panel CSV (or T×N matrix CSV)")],
             options=[
                 OptionSpec(name="factors", type=Int, default=2, description="Number of factors"),
-                OptionSpec(name="method", type=String, default="breitung_eickmeier", description="breitung_eickmeier|chen_dolado_gonzalo|han_inoue"),
+                OptionSpec(name="method", type=String, default="breitung_eickmeier", choices=["breitung_eickmeier", "chen_dolado_gonzalo", "han_inoue"], description="breitung_eickmeier|chen_dolado_gonzalo|han_inoue"),
                 OptionSpec(name="id-col", type=String, default="", description="Panel unit ID column (optional)"),
                 OptionSpec(name="time-col", type=String, default="", description="Time column (optional)"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -1467,7 +1467,7 @@ function test_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
-                OptionSpec(name="regression", type=String, default="constant", description="constant|trend"),
+                OptionSpec(name="regression", type=String, default="constant", choices=["constant", "trend"], description="constant|trend"),
                 OptionSpec(name="fmax", type=Int, default=3, description="Maximum Fourier frequency (1..5)"),
                 OptionSpec(name="lags", type=String, default="aic", description="Lag order (aic|bic|N)"),
                 OptionSpec(name="max-lags", type=Int, default=nothing, description="Max lags (default: auto)"),
@@ -1487,7 +1487,7 @@ function test_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
-                OptionSpec(name="regression", type=String, default="constant", description="constant|trend"),
+                OptionSpec(name="regression", type=String, default="constant", choices=["constant", "trend"], description="constant|trend"),
                 OptionSpec(name="fmax", type=Int, default=3, description="Maximum Fourier frequency"),
                 OptionSpec(name="bandwidth", type=Int, default=nothing, description="Bandwidth (default: auto)"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -1505,7 +1505,7 @@ function test_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index to test (1-based)"),
-                OptionSpec(name="regression", type=String, default="constant", description="constant|trend"),
+                OptionSpec(name="regression", type=String, default="constant", choices=["constant", "trend"], description="constant|trend"),
                 OptionSpec(name="lags", type=String, default="aic", description="Lag order (aic|bic|N)"),
                 OptionSpec(name="max-lags", type=Int, default=nothing, description="Max lags (default: auto)"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -1608,7 +1608,7 @@ function test_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable name (default: first numeric column)"),
-                OptionSpec(name="cov-type", type=String, default="hc1", description="Covariance estimator (ols|hc0|hc1|hc2|hc3)"),
+                OptionSpec(name="cov-type", type=String, default="hc1", choices=["ols", "hc0", "hc1", "hc2", "hc3"], description="Covariance estimator (ols|hc0|hc1|hc2|hc3)"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],

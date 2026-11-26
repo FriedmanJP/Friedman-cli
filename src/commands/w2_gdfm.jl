@@ -1502,7 +1502,7 @@ function w2_spectral_specs()::Vector{CommandSpec}
         args=data_arg,
         options=[
             OptionSpec(name="factors", short="q", type=Int, default=nothing, description="Number of dynamic factors (default: auto via --q-method)"),
-            OptionSpec(name="id", type=String, default="cholesky", description=_SDFM_ID_DESC),
+            OptionSpec(name="id", type=String, default="cholesky", choices=_ID_CHOICES_SDFM, description=_SDFM_ID_DESC),
             OptionSpec(name="q-method", type=String, default="hallin-liska", description="Auto factor selection: hallin-liska|bai-ng|amengual-watson", choices=["hallin-liska", "bai-ng", "amengual-watson"]),
             OptionSpec(name="method", type=String, default="fglr", description="Structural estimator: fglr|fhlz|gdfm-var", choices=["fglr", "fhlz", "gdfm-var"]),
             OptionSpec(name="spectral", type=String, default="lag-window", description="GDFM spectrum: lag-window|smoothed-periodogram", choices=["lag-window", "smoothed-periodogram"]),

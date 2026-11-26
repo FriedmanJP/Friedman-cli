@@ -89,9 +89,49 @@ function _mcp_tool_description(leaf::LeafCommand; compact::Bool=false)
     return full
 end
 
+function _compact_mcp_desc(d::String, has_enum::Bool)::String
+    if has_enum && occursin(r"[a-zA-Z0-9_-]+\|[a-zA-Z0-9_-]+\|", d)
+        # Redundant pipe-list duplicates the JSON Schema `enum` array — drop the pipe-list
+        # cleanly while preserving any leading label or trailing parenthetical note (#344).
+        cleaned = replace(d, r"[a-zA-Z0-9_-]+(?:\|[a-zA-Z0-9_-]+){2,}" => "")
+        cleaned = strip(replace(cleaned, r"\s+" => " "))
+        cleaned = strip(replace(cleaned, r":\s*\(" => " ("))
+        cleaned = strip(cleaned, [':', ' ', ';', ','])
+        d = isempty(cleaned) ? "Allowed values in enum" : String(cleaned)
+    end
+    length(d) <= 100 && return d
+    # Never chop mid-token inside a pipe-separated value list (e.g. distributions)
+    toks = split(d)
+    out = ""
+    for raw in toks
+        w = String(raw)
+        cand = isempty(out) ? w : (out * " " * w)
+        if length(cand) <= 97
+            out = cand
+        elseif contains(w, '|')
+            # Keep an open pipe-list intact instead of cutting `skew-normal|pea...`
+            out = cand
+            return out
+        else
+            return isempty(out) ? first(w, 97) * "..." : (out * "...")
+        end
+    end
+    return out
+end
+
 function _mcp_input_schema(leaf::LeafCommand, path::Vector{String}; compact::Bool=false)
     s = _input_schema(leaf, path)
     props = s["properties"]
+    # #344: `_mcp_argv` always forces `--format json` and ignores caller-supplied `format`,
+    # and interactive browser `--plot` is meaningless over headless MCP stdio (keep `plot-save`).
+    delete!(props, "format")
+    delete!(props, "plot")
+    # Landmine L7: strip CLI-only `x-cli.aliases` from MCP schemas (retained in `frdc schema`)
+    for pv in values(props)
+        pv isa AbstractDict || continue
+        xcli = get(pv, "x-cli", nothing)
+        xcli isa AbstractDict && delete!(xcli, "aliases")
+    end
     haskey(props, "seed") || (props["seed"] = Dict{String,Any}(
         "type" => "integer",
         "description" => "RNG seed scoped to this call",
@@ -107,8 +147,8 @@ function _mcp_input_schema(leaf::LeafCommand, path::Vector{String}; compact::Boo
             delete!(pv, "x-cli")
             delete!(pv, "x-handle")
             if haskey(pv, "description")
-                d = String(pv["description"])
-                length(d) > 100 && (pv["description"] = first(d, 97) * "...")
+                has_enum = haskey(pv, "enum") || (haskey(pv, "items") && pv["items"] isa AbstractDict && haskey(pv["items"], "enum"))
+                pv["description"] = _compact_mcp_desc(String(pv["description"]), has_enum)
             end
         end
     end

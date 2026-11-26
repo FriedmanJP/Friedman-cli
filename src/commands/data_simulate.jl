@@ -67,7 +67,7 @@ _opt_periods(default::Int) = OptionSpec(name="periods", type=Int, default=defaul
 _opt_burn(default::Int) = OptionSpec(name="burn", type=Int, default=default,
     description="Burn-in draws dropped from the sample")
 _opt_save_data() = OptionSpec(name="save-data", type=String, default="",
-    description="Save simulated dataset as a handle (.jld2 native container or .jls)")
+    description="Save simulated dataset as a handle (.jld2 native, .jls serialized, or data:// session URI)")
 
 function _sim_spec(leaf::String, summary::String, handler::Function;
                    args::Vector{ArgSpec}=ArgSpec[],

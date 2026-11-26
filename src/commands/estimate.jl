@@ -340,8 +340,8 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="max-p", type=Int, default=5, description="Max AR order for auto selection"),
                 OptionSpec(name="max-d", type=Int, default=2, description="Max differencing order for auto selection"),
                 OptionSpec(name="max-q", type=Int, default=5, description="Max MA order for auto selection"),
-                OptionSpec(name="criterion", type=String, default="bic", description="aic|bic (for auto selection)"),
-                OptionSpec(name="method", short="m", type=String, default="css_mle", description="ols|css|mle|css_mle (pure AR fits use MLE)"),
+                OptionSpec(name="criterion", type=String, default="bic", choices=["aic", "bic"], description="aic|bic (for auto selection)"),
+                OptionSpec(name="method", short="m", type=String, default="css_mle", choices=["ols", "css", "mle", "css_mle"], description="ols|css|mle|css_mle (pure AR fits use MLE)"),
                 CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
@@ -1302,7 +1302,7 @@ function estimate_specs()::Vector{CommandSpec}
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
                 OptionSpec(name="method", type=String, default="fastica", description="fastica|jade|sobi|dcov|hsic|cvm", choices=["fastica", "jade", "sobi", "dcov", "hsic", "cvm"]),
-                OptionSpec(name="contrast", type=String, default="logcosh", description="logcosh|exp|kurtosis (for FastICA)"),
+                OptionSpec(name="contrast", type=String, default="logcosh", choices=["logcosh", "exp", "kurtosis"], description="logcosh|exp|kurtosis (for FastICA)"),
                 OptionSpec(name="n-starts", type=Int, default=3, description="Additional random starts (for --method cvm)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
@@ -1354,9 +1354,9 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="dependent", type=String, default="", description="Dependent variables (comma-separated)"),
                 OptionSpec(name="predet", type=String, default="", description="Predetermined variables (comma-separated) (GMM only; ignored with --method feols)"),
                 OptionSpec(name="exog", type=String, default="", description="Exogenous variables (comma-separated)"),
-                OptionSpec(name="transformation", type=String, default="fd", description="fd|fod (first-difference or forward orthogonal) (GMM only; ignored with --method feols)"),
-                OptionSpec(name="steps", type=String, default="twostep", description="onestep|twostep (GMM only; ignored with --method feols)"),
-                OptionSpec(name="method", type=String, default="gmm", description="gmm|feols"),
+                OptionSpec(name="transformation", type=String, default="fd", choices=["fd", "fod"], description="fd|fod (first-difference or forward orthogonal) (GMM only; ignored with --method feols)"),
+                OptionSpec(name="steps", type=String, default="twostep", choices=["onestep", "twostep"], description="onestep|twostep (GMM only; ignored with --method feols)"),
+                OptionSpec(name="method", type=String, default="gmm", choices=["gmm", "feols"], description="gmm|feols"),
                 OptionSpec(name="min-lag-endo", type=Int, default=2, description="Minimum lag for endogenous instruments (GMM only; ignored with --method feols)"),
                 OptionSpec(name="max-lag-endo", type=Int, default=99, description="Maximum lag for endogenous instruments (GMM only; ignored with --method feols)"),
                 CONF_LEVEL_MACRO_OPTION,
@@ -1461,7 +1461,7 @@ function estimate_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="config", type=String, default="", description="Config file for the SMM specification; TOML or a model card"),
-                OptionSpec(name="weighting", type=String, default="two_step", description="identity|two_step (optimal|iterated|twostep accepted as aliases of two_step)"),
+                OptionSpec(name="weighting", type=String, default="two_step", choices=["identity", "two_step", "optimal", "iterated", "twostep"], description="identity|two_step (optimal|iterated|twostep accepted as aliases of two_step)"),
                 OptionSpec(name="sim-ratio", type=Int, default=5, description="Simulation-to-sample ratio"),
                 OptionSpec(name="burn", type=Int, default=100, description="Burn-in periods"),
                 CONF_LEVEL_MICRO_OPTION,
@@ -1505,7 +1505,7 @@ function estimate_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="factors", short="q", type=Int, default=nothing, description="Number of dynamic factors (default: auto via --q-method)"),
-                OptionSpec(name="id", type=String, default="cholesky", description=_SDFM_ID_DESC),
+                OptionSpec(name="id", type=String, default="cholesky", choices=_ID_CHOICES_SDFM, description=_SDFM_ID_DESC),
                 OptionSpec(name="q-method", type=String, default="hallin-liska", description="Auto factor selection: hallin-liska|bai-ng|amengual-watson", choices=["hallin-liska","bai-ng","amengual-watson"]),
                 OptionSpec(name="method", type=String, default="fglr", description="Estimator: fglr|fhlz|gdfm-var (fhlz is one-sided infinite-r; gdfm-var is legacy)", choices=["fglr","fhlz","gdfm-var"]),
                 OptionSpec(name="spectral", type=String, default="lag-window", description="GDFM spectrum: lag-window (FHLR)|smoothed-periodogram", choices=["lag-window","smoothed-periodogram"]),
@@ -1609,7 +1609,7 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (default: first numeric column)"),
                 OptionSpec(name="endogenous", type=String, default="", description="Endogenous regressor column names, comma-separated (required)"),
                 OptionSpec(name="instruments", type=String, default="", description="EXCLUDED instrument column names, comma-separated (required; other numeric cols are exogenous regressors — include a `const` for an intercept)"),
-                OptionSpec(name="cov-type", type=String, default="hc1", description="ols|hc0|hc1|hc2|hc3"),
+                OptionSpec(name="cov-type", type=String, default="hc1", choices=["ols", "hc0", "hc1", "hc2", "hc3"], description="ols|hc0|hc1|hc2|hc3"),
                 OptionSpec(name="method", type=String, default="tsls", description="k-class estimator", choices=["tsls","liml","fuller","kclass"]),
                 OptionSpec(name="k", type=String, default="", description="k-class scalar (required with --method kclass; k=0 is OLS, k=1 is 2SLS)"),
                 OptionSpec(name="fuller-a", type=Float64, default=1.0, description="Fuller adjustment a > 0 (--method fuller only; a=1 is approximately unbiased)"),
@@ -1949,7 +1949,7 @@ function estimate_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column name"),
-                OptionSpec(name="cov-type", type=String, default="ols", description="ols|hc0|hc1|cluster"),
+                OptionSpec(name="cov-type", type=String, default="ols", choices=["ols", "hc0", "hc1", "cluster"], description="ols|hc0|hc1|cluster"),
                 OptionSpec(name="clusters", type=String, default="", description="Cluster variable column name"),
                 CONF_LEVEL_MICRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),

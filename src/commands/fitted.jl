@@ -1773,7 +1773,7 @@ function _opts_for_kind(kind::Symbol, verb::Symbol)
             OptionSpec(name="p", type=Int, default=nothing, description="AR order (default: auto selection)"),
             OptionSpec(name="d", type=Int, default=0, description="Differencing order"),
             OptionSpec(name="q", type=Int, default=0, description="MA order"),
-            OptionSpec(name="method", short="m", type=String, default="css_mle", description="ols|css|mle|css_mle"),
+            OptionSpec(name="method", short="m", type=String, default="css_mle", choices=["ols", "css", "mle", "css_mle"], description="ols|css|mle|css_mle"),
             OUTPUT_OPTIONS...,
         ]
     elseif kind === :vol_q
@@ -1803,8 +1803,8 @@ function _opts_for_kind(kind::Symbol, verb::Symbol)
             OptionSpec(name="exog", type=String, default="", description="Exogenous variables (comma-separated)"),
             OptionSpec(name="endog", type=String, default="", description="Endogenous variables (comma-separated)"),
             OptionSpec(name="instruments", type=String, default="", description="Instruments (comma-separated)"),
-            OptionSpec(name="method", short="m", type=String, default="fe", description="fe|re|fd|hausman-taylor"),
-            OptionSpec(name="cov-type", type=String, default="cluster", description="ols|cluster|twoway|driscoll-kraay"),
+            OptionSpec(name="method", short="m", type=String, default="fe", choices=["fe", "re", "fd", "hausman-taylor"], description="fe|re|fd|hausman-taylor"),
+            OptionSpec(name="cov-type", type=String, default="cluster", choices=["ols", "cluster", "twoway", "driscoll-kraay"], description="ols|cluster|twoway|driscoll-kraay"),
             OptionSpec(name="id-col", type=String, default="", description="Panel group ID column"),
             OptionSpec(name="time-col", type=String, default="", description="Panel time column"),
             OUTPUT_OPTIONS...,
@@ -1831,6 +1831,7 @@ function _opts_for_kind(kind::Symbol, verb::Symbol)
             OptionSpec(name="factor-lags", type=Int, default=1,
                        description="Factor VAR lag order"),
             OptionSpec(name="method", type=String, default="twostep",
+                       choices=["twostep", "qml"],
                        description="twostep|qml estimation method"),
             OUTPUT_OPTIONS...,
         ]
@@ -1854,7 +1855,7 @@ function _opts_for_kind(kind::Symbol, verb::Symbol)
         return [
             OptionSpec(name="lags", short="p", type=Int, default=4, description="Lag order"),
             OptionSpec(name="draws", short="n", type=Int, default=2000, description="MCMC draws"),
-            OptionSpec(name="sampler", type=String, default="direct", description="Sampler"),
+            OptionSpec(name="sampler", type=String, default="direct", choices=_BVAR_SAMPLER_CHOICES, description="Sampler"),
             OptionSpec(name="config", type=String, default="", description="TOML prior config"),
             OUTPUT_OPTIONS...,
         ]
@@ -1869,7 +1870,7 @@ function _opts_for_kind(kind::Symbol, verb::Symbol)
         return [
             OptionSpec(name="lags", short="p", type=Int, default=2, description="Lag order"),
             OptionSpec(name="rank", short="r", type=String, default="auto", description="Cointegration rank"),
-            OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend"),
+            OptionSpec(name="deterministic", type=String, default="constant", choices=_DET_CHOICES, description="none|constant|trend"),
             OUTPUT_OPTIONS...,
         ]
     else # :var default
