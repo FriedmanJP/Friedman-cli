@@ -74,6 +74,7 @@ function dsge_specs()::Vector{CommandSpec}
             ],
             tables=[
                 TableSpec(name=:dsge_solution, description="Gensys/Klein/Blanchard-Kahn state-transition policy matrix G1, one column per variable"),
+                TableSpec(name=:dsge_shock_impact, description="Gensys/Klein/Blanchard-Kahn shock-impact matrix, one column per structural shock"),
                 TableSpec(name=:perturbation_policy_gx, description="Perturbation control policy gx: control responses to states and shocks"),
                 TableSpec(name=:projection_solution, description="Projection/PFI/VFI basis coefficients, one row per control"),
                 TableSpec(name=:projection_diagnostics, description="Projection/PFI/VFI convergence, iterations, residual norm, grid and degree"),
@@ -550,7 +551,8 @@ function dsge_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="Path to DSGE model file (.toml or .jl)")],
             options=[
                 select_options(BAYES_OPTIONS, "data", "params", "priors", "prior", "observables",
-                               "solver", "order", "constraint-solver", "output", "format")...,
+                               "solver", "order", "constraint-solver", "measurement-error",
+                               "output", "format")...,
                 OptionSpec(name="max-iter", type=Int, default=500, description="Maximum optimizer iterations (≥ 1)"),
                 OptionSpec(name="f-reltol", type=Float64, default=1e-8, description="Relative function tolerance (> 0)"),
             ],
@@ -1903,6 +1905,18 @@ function _dsge_solve(; model::String, method::String="gensys", order::Int=1,
         end
         output_result(policy_df; format=Symbol(format), output=output,
                       title="DSGE Solution (method=$method)", key="dsge_solution")
+        if hasproperty(sol, :impact) && size(sol.impact, 1) == length(spec.varnames) && size(sol.impact, 2) > 0
+            impact_df = DataFrame()
+            impact_df.variable = spec.varnames
+            shock_names = [string(s) for s in spec.exog]
+            for si in 1:size(sol.impact, 2)
+                sname = si <= length(shock_names) ? shock_names[si] : "shock_$si"
+                impact_df[!, "impact_$sname"] = sol.impact[:, si]
+            end
+            output_result(impact_df; format=Symbol(format),
+                          output=_per_var_output_path(output, "impact"),
+                          title="DSGE Shock Impact (method=$method)", key="dsge_shock_impact")
+        end
     elseif sol isa MacroEconometricModels.PerturbationSolution
         n_s = length(sol.state_indices)
         n_c = length(sol.control_indices)
@@ -2676,6 +2690,103 @@ function _dsge_prior_distributions(raw::Dict{String,Any})
                 for (name, spec) in raw)
 end
 
+"""Parse `--measurement-error` (`none|auto|comma-separated SDs`) and validate length against `n_obs`."""
+function _dsge_parse_measurement_error(measurement_error::String, n_obs::Int, leaf::String="dsge bayes")
+    me = if measurement_error in ("", "none")
+        nothing
+    elseif measurement_error == "auto"
+        :auto
+    else
+        try
+            [parse(Float64, strip(v)) for v in split(measurement_error, ",")]
+        catch
+            throw(CliError("usage/invalid-option",
+                "$leaf: --measurement-error must be none|auto|comma-separated numbers, " *
+                "got '$measurement_error'"))
+        end
+    end
+    me isa Vector && length(me) != n_obs && throw(CliError("usage/invalid",
+        "$leaf: --measurement-error has $(length(me)) value(s) but there are " *
+        "$n_obs observables — give one SD per observable, or use auto"))
+    return me
+end
+
+"""Resolve `:auto` measurement error to per-observable SDs `√(0.1 · var(yⱼ))` matching
+upstream MEMs `_resolve_measurement_error` (MEMs v1.1.1 `posterior_mode` passes
+`measurement_error` directly to `_build_observation_equation` without resolving `:auto`)."""
+function _dsge_resolve_auto_me(me, Y::AbstractMatrix)
+    me === :auto || return me
+    n_obs = size(Y, 2)
+    return Float64[sqrt(0.1 * var(view(Y, :, j))) for j in 1:n_obs]
+end
+
+"""Extract a `T × n_obs` matrix from `df`, aligning columns by name to `obs_syms` when
+present (mirroring `_w4_load_dsgevar_data`). Preserves positional behavior when the numeric
+column count already equals `length(obs_syms)`; throws `data/missing-column` when named
+observables are absent from a multi-column dataset of different width."""
+function _dsge_extract_obs_matrix(df::DataFrame, obs_syms::Vector{Symbol};
+                                  spec=nothing, leaf::String="dsge bayes")::Matrix{Float64}
+    num_cols = variable_names(df)
+    isempty(num_cols) && throw(CliError("data/no-numeric-columns", "no numeric columns found in data"))
+    if !isempty(obs_syms)
+        obs_strs = String.(obs_syms)
+        if all(s -> s in num_cols, obs_strs)
+            return df_to_matrix(df[:, obs_strs])
+        elseif length(num_cols) == length(obs_syms)
+            return df_to_matrix(df)
+        else
+            missing_cols = [s for s in obs_strs if !(s in num_cols)]
+            throw(CliError("data/missing-column",
+                "$leaf: observable column(s) $(join(missing_cols, ", ")) not found in data " *
+                "(available numeric columns: $(join(num_cols, ", ")))";
+                hint="pass --observables matching column names in the data, or provide a dataset with $(length(obs_syms)) column(s)"))
+        end
+    end
+    if spec !== nothing && hasproperty(spec, :endog)
+        endog_strs = String.(spec.endog)
+        if !isempty(endog_strs) && length(num_cols) != length(endog_strs) &&
+           all(s -> s in num_cols, endog_strs)
+            return df_to_matrix(df[:, endog_strs])
+        end
+    end
+    return df_to_matrix(df)
+end
+
+"""Build the `T × n_endog` level matrix expected by MEMs `historical_decomposition` (which
+indexes observable columns at `findfirst(==(obs), spec.endog)`), placing each extracted
+observable column from `Y_obs` into its exact `spec.endog` slot."""
+function _dsge_hd_data_matrix(df::DataFrame, spec, obs_syms::Vector{Symbol},
+                              Y_obs::Matrix{Float64})::Matrix{Float64}
+    (spec !== nothing && hasproperty(spec, :endog) && !isempty(obs_syms) &&
+     all(o -> o in spec.endog, obs_syms)) || return Y_obs
+    n_endog = length(spec.endog)
+    obs_indices = Int[findfirst(==(o), spec.endog) for o in obs_syms]
+    if size(Y_obs, 2) == n_endog && obs_indices == collect(1:n_endog)
+        return Y_obs
+    end
+    T_obs = size(Y_obs, 1)
+    Y_full = zeros(Float64, T_obs, n_endog)
+    if hasproperty(spec, :steady_state) && length(spec.steady_state) == n_endog
+        for j in 1:n_endog
+            Y_full[:, j] .= Float64(spec.steady_state[j])
+        end
+    end
+    num_cols = variable_names(df)
+    for (j, esym) in enumerate(spec.endog)
+        ename = String(esym)
+        if ename in num_cols
+            col = df[!, ename]
+            if !any(ismissing, col)
+                _fill_matrix_col!(Y_full, j, col)
+            end
+        end
+    end
+    for (i, idx) in enumerate(obs_indices)
+        Y_full[:, idx] .= Y_obs[:, i]
+    end
+    return Y_full
+end
+
 """Gather the shared inputs for every Bayesian DSGE leaf: the spec, the data matrix,
 `theta0` as a name→value Dict, the bridged priors, observables and solver kwargs. Split
 out of `_dsge_bayes_run_estimation` so `dsge bayes posterior-mode`/`prior-predictive`
@@ -2709,7 +2820,12 @@ function _dsge_bayes_inputs(; model::String, data::String, params::String,
 
     spec = _load_dsge_model(model; allow_priors=true)
 
-    Y = isempty(data) ? zeros(0, 0) : df_to_matrix(load_data(data))
+    obs_syms = isempty(observables) ? Symbol[] :
+        Symbol[Symbol(strip(s)) for s in split(observables, ",") if !isempty(strip(s))]
+
+    df = isempty(data) ? DataFrame() : load_data(data)
+    Y = isempty(data) ? zeros(0, 0) :
+        _dsge_extract_obs_matrix(df, obs_syms; spec=spec, leaf="dsge bayes")
 
     param_names = [strip(p) for p in split(params, ",")]
     # theta0 as a name→value Dict (MEMs #136 / C054): the by-name path resolves
@@ -2725,11 +2841,9 @@ function _dsge_bayes_inputs(; model::String, data::String, params::String,
     priors_dict = _dsge_prior_distributions(
         _resolve_dsge_priors(priors, prior; stanzas=stanzas))
 
-    obs_syms = isempty(observables) ? Symbol[] : Symbol.(strip.(split(observables, ",")))
-
     solver_kwargs = order > 1 ? (order=order,) : NamedTuple()
 
-    return (spec=spec, Y=Y, theta0=theta0, priors_dict=priors_dict,
+    return (spec=spec, df=df, Y=Y, theta0=theta0, priors_dict=priors_dict,
             obs_syms=obs_syms, solver_kwargs=solver_kwargs, param_names=param_names)
 end
 
@@ -2777,24 +2891,7 @@ function _dsge_bayes_run_estimation(; model::String, data::String, params::Strin
     # Upstream default is NONE — with n_obs > n_shocks the likelihood is then
     # stochastically singular (model/stochastic-singularity), and this option is
     # the in-CLI remedy the error hint points at.
-    me = if measurement_error in ("", "none")
-        nothing
-    elseif measurement_error == "auto"
-        :auto
-    else
-        try
-            [parse(Float64, strip(v)) for v in split(measurement_error, ",")]
-        catch
-            throw(CliError("usage/invalid-option",
-                "dsge bayes: --measurement-error must be none|auto|comma-separated numbers, " *
-                "got '$measurement_error'"))
-        end
-    end
-    # Guard the vector form up front (usage/invalid) — upstream raises an untyped
-    # ArgumentError on a length mismatch, which would surface as internal/error.
-    me isa Vector && length(me) != size(Y, 2) && throw(CliError("usage/invalid",
-        "dsge bayes: --measurement-error has $(length(me)) value(s) but there are " *
-        "$(size(Y, 2)) observables — give one SD per observable, or use auto"))
+    me = _dsge_parse_measurement_error(measurement_error, size(Y, 2), "dsge bayes")
     me === nothing || _status("  Measurement error: $measurement_error")
 
     # --constraint-solver threads into solve via solver_kwargs.solver (the constrained
@@ -3270,35 +3367,127 @@ function _dsge_bayes_hd(; model="", data::String="", params::String="",
                                measurement_error::String="none",
                          output::String="", format::String="table",
                          plot::Bool=false, plot_save::String="")
-    isempty(observables) && throw(CliError("usage/missing-option", "--observables is required (comma-separated variable names)"))
-
-    bd = model isa AbstractString ?
-        _dsge_bayes_run_estimation(; model=String(model), data, params, priors, prior, sampler,
-            n_smc, n_particles, n_draws, burnin, ess_target, observables,
-            solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error) :
-        model
-
+    obs_syms = isempty(observables) ? Symbol[] :
+        Symbol[Symbol(strip(s)) for s in split(observables, ",") if !isempty(strip(s))]
+    isempty(obs_syms) && throw(CliError("usage/missing-option",
+        "--observables is required (comma-separated variable names)"))
     isempty(data) && throw(CliError("usage/missing-option",
         "--data is required for Bayesian DSGE historical decomposition"))
-    df = load_data(data)
-    Y = df_to_matrix(df)
-    obs_syms = Symbol[Symbol(strip(s)) for s in split(observables, ",")]
-    q_levels = [parse(Float64, strip(s)) for s in split(quantiles, ",")]
+    q_levels = try
+        [parse(Float64, strip(s)) for s in split(quantiles, ",")]
+    catch
+        throw(CliError("usage/invalid-option",
+            "dsge bayes hd: --quantiles must be comma-separated numbers, got '$quantiles'"))
+    end
 
-    _status("Historical Decomposition from Bayesian DSGE posterior")
-    _status()
+    local hd
+    if mode_only && model isa AbstractString
+        # Fast path (#342): compute posterior mode directly and solve at mode — never launch
+        # 5,000-particle SMC when the user explicitly asked for --mode-only on a model file.
+        prefilter in ("none", "demean", "first-difference", "linear-detrend", "hp") ||
+            throw(CliError("usage/invalid",
+                "dsge bayes hd: --prefilter must be none|demean|first-difference|linear-detrend|hp, got '$prefilter'"))
+        prefilter == "none" || throw(CliError("usage/invalid",
+            "dsge bayes hd --mode-only on a model file does not support --prefilter '$prefilter'";
+            hint="estimate first with `dsge bayes estimate --prefilter $prefilter --save-model ...` and pass that handle via --model"))
 
-    # re-solves per draw → world-age barrier (see _dsge_call)
-    hd = _dsge_call(historical_decomposition, bd, Y, obs_syms;
-        mode_only=mode_only, n_draws=n_hd_draws, quantiles=q_levels)
+        inp = _dsge_bayes_inputs(; model=String(model), data, params, priors, prior, observables,
+                                 solver, order, constraint_solver)
+        me = _dsge_parse_measurement_error(measurement_error, size(inp.Y, 2), "dsge bayes hd")
+        me_resolved = _dsge_resolve_auto_me(me, inp.Y)
+        solver_kwargs = isempty(constraint_solver) ? inp.solver_kwargs :
+            merge(inp.solver_kwargs, (solver=Symbol(constraint_solver),))
+
+        _status("Historical Decomposition at Bayesian DSGE posterior mode (skipping full posterior sampling)")
+        _status("  Parameters: $(join(inp.param_names, ", "))")
+        _status("  Data: $(size(inp.Y, 1)) obs × $(size(inp.Y, 2)) vars")
+        me === nothing || _status("  Measurement error: $measurement_error")
+        _status()
+
+        pm = try
+            _dsge_call(posterior_mode, inp.spec, inp.Y, inp.theta0;
+                priors=inp.priors_dict, observables=inp.obs_syms,
+                measurement_error=me_resolved,
+                solver=Symbol(solver), solver_kwargs=solver_kwargs)
+        catch e
+            throw(_domain_or_data_error(e, "Bayesian DSGE posterior mode"))
+        end
+
+        spec_mode = inp.spec
+        if hasproperty(spec_mode, :param_values) && spec_mode.param_values isa AbstractDict
+            VT = valtype(spec_mode.param_values)
+            for (i, pn) in enumerate(pm.param_names)
+                spec_mode.param_values[pn] = convert(VT, pm.mode[i])
+            end
+        end
+        if hasproperty(spec_mode, :steady_state) && spec_mode.steady_state isa AbstractVector
+            empty!(spec_mode.steady_state)
+        end
+
+        ss_kw = isempty(constraint_solver) ? (;) : (; solver=Symbol(constraint_solver))
+        spec_mode = try
+            _dsge_call(compute_steady_state, spec_mode; ss_kw...)
+        catch e
+            throw(_dsge_solve_error(e, "Bayesian DSGE mode-only steady state"))
+        end
+        sol_mode = try
+            _dsge_call(solve, spec_mode; method=Symbol(solver), solver_kwargs...)
+        catch e
+            throw(_dsge_solve_error(e, "Bayesian DSGE mode-only solve"))
+        end
+        if sol_mode isa MacroEconometricModels.DSGESolution && !is_determined(sol_mode)
+            throw(CliError("model/solve",
+                "DSGE model is indeterminate at the posterior mode";
+                hint="check priors or parameterization, or run `dsge bayes posterior-mode` to inspect the mode"))
+        end
+
+        Y_hd = _dsge_hd_data_matrix(inp.df, spec_mode, inp.obs_syms, inp.Y)
+        hd = try
+            _dsge_call(historical_decomposition, sol_mode, Y_hd, inp.obs_syms;
+                measurement_error=me_resolved)
+        catch e
+            throw(_domain_or_data_error(e, "Bayesian DSGE historical decomposition"))
+        end
+    else
+        bd = model isa AbstractString ?
+            _dsge_bayes_run_estimation(; model=String(model), data, params, priors, prior, sampler,
+                n_smc, n_particles, n_draws, burnin, ess_target, observables,
+                solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error) :
+            model
+
+        df = load_data(data)
+        Y_obs = _dsge_extract_obs_matrix(df, obs_syms; spec=bd.spec, leaf="dsge bayes hd")
+        me = _dsge_parse_measurement_error(measurement_error, size(Y_obs, 2), "dsge bayes hd")
+        Y_hd = _dsge_hd_data_matrix(df, bd.spec, obs_syms, Y_obs)
+
+        _status(mode_only ? "Historical Decomposition at Bayesian DSGE posterior mode" :
+                            "Historical Decomposition from Bayesian DSGE posterior")
+        _status()
+
+        # re-solves per draw → world-age barrier (see _dsge_call)
+        hd = try
+            _dsge_call(historical_decomposition, bd, Y_hd, obs_syms;
+                mode_only=mode_only, n_draws=n_hd_draws, quantiles=q_levels,
+                measurement_error=me)
+        catch e
+            throw(_domain_or_data_error(e, "Bayesian DSGE historical decomposition"))
+        end
+    end
+
+    # Upstream returns `HistoricalDecomposition` (`.contributions`) for `mode_only=true`
+    # and `BayesianHistoricalDecomposition` (`.point_estimate`) for full posterior HD (#342).
+    is_point_hd = hd isa MacroEconometricModels.HistoricalDecomposition ||
+        (!hasproperty(hd, :point_estimate) && hasproperty(hd, :contributions))
+    contrib_arr = is_point_hd ? hd.contributions : hd.point_estimate
+    title_suffix = is_point_hd ? "(posterior mode)" : "(posterior mean)"
 
     for (si, sname) in enumerate(hd.shock_names)
-        pe = hd.point_estimate[:, :, si]
+        pe = contrib_arr[:, :, si]
         pe_df = DataFrame(pe, hd.variables)
         insertcols!(pe_df, 1, :t => 1:hd.T_eff)
         output_result(pe_df; format=Symbol(format),
             output=_per_var_output_path(output, string(sname)),
-            title="Shock: $sname (posterior mean)",
+            title="Shock: $sname $title_suffix",
             key=_table_key("bayesian_dsge_historical_decomposition", sname))
     end
 
@@ -3526,6 +3715,7 @@ function _dsge_bayes_posterior_mode(; model::String, data::String="", params::St
         priors::String="", observables::String="", solver::String="gensys", order::Int=1,
         prior::Vector{String}=String[],
         max_iter::Int=500, f_reltol::Float64=1e-8, constraint_solver::String="",
+        measurement_error::String="none",
         output::String="", format::String="table")
     max_iter >= 1 || throw(CliError("usage/invalid",
         "dsge bayes posterior-mode: --max-iter must be ≥ 1 (got $max_iter)"))
@@ -3533,17 +3723,23 @@ function _dsge_bayes_posterior_mode(; model::String, data::String="", params::St
         "dsge bayes posterior-mode: --f-reltol must be > 0 (got $f_reltol)"))
     inp = _dsge_bayes_inputs(; model, data, params, priors, prior, observables, solver, order,
                              constraint_solver)
+    me = _dsge_parse_measurement_error(measurement_error, size(inp.Y, 2), "dsge bayes posterior-mode")
+    me_pm = _dsge_resolve_auto_me(me, inp.Y)
+    solver_kwargs = isempty(constraint_solver) ? inp.solver_kwargs :
+        merge(inp.solver_kwargs, (solver=Symbol(constraint_solver),))
     _status("Bayesian DSGE Posterior Mode:")
     _status("  Parameters: $(join(inp.param_names, ", "))")
     _status("  Data: $(size(inp.Y, 1)) obs × $(size(inp.Y, 2)) vars")
+    me === nothing || _status("  Measurement error: $measurement_error")
     _status()
     res = try
         _dsge_call(posterior_mode, inp.spec, inp.Y, inp.theta0;
             priors=inp.priors_dict, observables=inp.obs_syms,
-            solver=Symbol(solver), solver_kwargs=inp.solver_kwargs,
+            measurement_error=me_pm,
+            solver=Symbol(solver), solver_kwargs=solver_kwargs,
             f_reltol=f_reltol, max_iter=max_iter)
     catch e
-        throw(_identification_error(e))
+        throw(_domain_or_data_error(e, "Bayesian DSGE posterior mode"))
     end
     # Mode + the Laplace standard errors implied by the inverse Hessian.
     md = Float64.(collect(res.mode))

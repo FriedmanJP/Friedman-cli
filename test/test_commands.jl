@@ -16165,6 +16165,235 @@ end
     end
 end
 
+@testset "[UX-W1] #342 — DSGE bayes hd, observables subsetting, posterior-mode & VFI errors" begin
+    mktempdir() do dir
+        model = joinpath(dir, "ar2_u1.toml")
+        write(model, """
+        [model]
+        parameters = { rho = 0.85, sigma = 0.02 }
+        endogenous = ["y", "c"]
+        exogenous = ["e"]
+        [[model.equations]]
+        expr = "y[t] = rho * y[t-1] + sigma * e[t]"
+        [[model.equations]]
+        expr = "c[t] = 0.8 * y[t]"
+        """)
+        priors = joinpath(dir, "priors_u1.toml")
+        write(priors, """
+        [priors]
+        [priors.rho]
+        dist = "beta"
+        a = 0.5
+        b = 0.2
+        [priors.sigma]
+        dist = "inv_gamma"
+        a = 2.0
+        b = 0.1
+        """)
+        # Multi-column CSV mirroring `data simulate dsge` output (extra `time` + 2 endogenous cols)
+        multi_csv = joinpath(dir, "sim_multi.csv")
+        y_vec = [0.02 * sin(0.3 * t) for t in 1:40]
+        c_vec = 0.8 .* y_vec
+        CSV.write(multi_csv, DataFrame(time=1:40, y=y_vec, c=c_vec))
+        # Two-column CSV without time column
+        two_csv = joinpath(dir, "sim_two.csv")
+        CSV.write(two_csv, DataFrame(y=y_vec, c=c_vec))
+        # Single-column generic header (positional compatibility)
+        pos_csv = joinpath(dir, "pos_one.csv")
+        CSV.write(pos_csv, DataFrame(var1=y_vec))
+
+        @testset "--observables column subsetting & missing-column error" begin
+            inp1 = _dsge_bayes_inputs(; model=model, data=multi_csv, params="rho,sigma",
+                                      priors=priors, observables="y", solver="gensys", order=1)
+            @test size(inp1.Y) == (40, 1)
+            @test inp1.Y[:, 1] ≈ y_vec
+
+            # Reordered subset
+            inp_rev = _dsge_bayes_inputs(; model=model, data=two_csv, params="rho,sigma",
+                                         priors=priors, observables="c,y", solver="gensys", order=1)
+            @test size(inp_rev.Y) == (40, 2)
+            @test inp_rev.Y[:, 1] ≈ c_vec
+            @test inp_rev.Y[:, 2] ≈ y_vec
+
+            # Positional compatibility when column count == length(obs_syms)
+            inp_pos = _dsge_bayes_inputs(; model=model, data=pos_csv, params="rho,sigma",
+                                         priors=priors, observables="y", solver="gensys", order=1)
+            @test size(inp_pos.Y) == (40, 1)
+            @test inp_pos.Y[:, 1] ≈ y_vec
+
+            # Missing named observable in multi-column DataFrame → data/missing-column
+            err_miss = try
+                _dsge_bayes_inputs(; model=model, data=two_csv, params="rho,sigma",
+                                   priors=priors, observables="nope", solver="gensys", order=1)
+                nothing
+            catch e; e; end
+            @test err_miss isa CliError
+            @test err_miss.code == "data/missing-column"
+            @test exit_class(err_miss) == 3
+            @test occursin("nope", err_miss.message)
+            @test occursin("y", err_miss.message) && occursin("c", err_miss.message)
+        end
+
+        @testset "dsge bayes hd --mode-only on saved handle and on model file (P0-1 + P1-1)" begin
+            bmh_path = joinpath(dir, "bmh.jld2")
+            doc_est = _run_leaf(["dsge", "bayes", "estimate", model,
+                                 "--data", multi_csv, "--params", "rho,sigma",
+                                 "--priors", priors, "--observables", "y",
+                                 "--sampler", "mh", "--draws", "20", "--burnin", "5",
+                                 "--save-model", bmh_path])
+            @test string(doc_est.status) == "ok"
+            @test isfile(bmh_path)
+
+            # Pre-fitted BayesianDSGE handle + --mode-only (returns HistoricalDecomposition)
+            doc_hd_mode = _run_leaf(["dsge", "bayes", "hd", bmh_path,
+                                     "--data", multi_csv, "--observables", "y",
+                                     "--mode-only"])
+            @test string(doc_hd_mode.status) == "ok"
+            @test isempty(validate_envelope_json(JSON3.write(doc_hd_mode)))
+            hd_keys = [string(k) for k in keys(doc_hd_mode.data)]
+            @test any(startswith(k, "bayesian_dsge_historical_decomposition_") for k in hd_keys)
+
+            # Pre-fitted handle without --mode-only (returns BayesianDSGEHistoricalDecomposition)
+            doc_hd_full = _run_leaf(["dsge", "bayes", "hd", bmh_path,
+                                     "--data", multi_csv, "--observables", "y",
+                                     "--n-hd-draws", "10"])
+            @test string(doc_hd_full.status) == "ok"
+            @test isempty(validate_envelope_json(JSON3.write(doc_hd_full)))
+
+            # Raw model file + --mode-only (skips SMC via posterior_mode + solve + HD)
+            doc_hd_file_mode = _run_leaf(["dsge", "bayes", "hd", model,
+                                          "--data", multi_csv, "--params", "rho,sigma",
+                                          "--priors", priors, "--observables", "y",
+                                          "--mode-only"])
+            @test string(doc_hd_file_mode.status) == "ok"
+            @test isempty(validate_envelope_json(JSON3.write(doc_hd_file_mode)))
+            @test any(startswith(string(k), "bayesian_dsge_historical_decomposition_")
+                      for k in keys(doc_hd_file_mode.data))
+
+            # --mode-only on model file with --prefilter != none fails fast (usage/invalid)
+            err_pf = try
+                _capture() do
+                    _dispatch_via_app(["dsge", "bayes", "hd", model,
+                                       "--data", multi_csv, "--params", "rho,sigma",
+                                       "--priors", priors, "--observables", "y",
+                                       "--mode-only", "--prefilter", "demean"])
+                end
+                nothing
+            catch e; e; end
+            @test err_pf isa CliError && err_pf.code == "usage/invalid"
+        end
+
+        @testset "dsge bayes posterior-mode singularity contract & --measurement-error (P1-3)" begin
+            pm_leaf = APP.root.subcmds["dsge"].subcmds["bayes"].subcmds["posterior-mode"]
+            @test any(o -> o.name == "measurement-error", pm_leaf.options)
+
+            # 2 observables on 1-shock model without measurement error → model/stochastic-singularity (exit 5)
+            err_ss = try
+                _capture() do
+                    _dispatch_via_app(["dsge", "bayes", "posterior-mode", model,
+                                       "--data", two_csv, "--params", "rho,sigma",
+                                       "--priors", priors, "--observables", "y,c"])
+                end
+                nothing
+            catch e; e; end
+            @test err_ss isa CliError
+            @test err_ss.code == "model/stochastic-singularity"
+            @test exit_class(err_ss) == 5
+            @test !occursin("identification", lowercase(err_ss.message))
+
+            # With --measurement-error auto and explicit vector → succeeds
+            doc_pm_auto = _run_leaf(["dsge", "bayes", "posterior-mode", model,
+                                     "--data", two_csv, "--params", "rho,sigma",
+                                     "--priors", priors, "--observables", "y,c",
+                                     "--measurement-error", "auto"])
+            @test string(doc_pm_auto.status) == "ok"
+            @test haskey(doc_pm_auto.data, :posterior_mode)
+
+            doc_pm_vec = _run_leaf(["dsge", "bayes", "posterior-mode", model,
+                                    "--data", two_csv, "--params", "rho,sigma",
+                                    "--priors", priors, "--observables", "y,c",
+                                    "--measurement-error", "0.05,0.05"])
+            @test string(doc_pm_vec.status) == "ok"
+
+            # Multi-column subsetting on posterior-mode (--observables y out of [time, y, c])
+            doc_pm_sub = _run_leaf(["dsge", "bayes", "posterior-mode", model,
+                                    "--data", multi_csv, "--params", "rho,sigma",
+                                    "--priors", priors, "--observables", "y"])
+            @test string(doc_pm_sub.status) == "ok"
+
+            # Invalid --measurement-error length/syntax → usage error (exit 2)
+            err_me_len = try
+                _capture() do
+                    _dispatch_via_app(["dsge", "bayes", "posterior-mode", model,
+                                       "--data", two_csv, "--params", "rho,sigma",
+                                       "--priors", priors, "--observables", "y,c",
+                                       "--measurement-error", "0.05"])
+                end
+                nothing
+            catch e; e; end
+            @test err_me_len isa CliError && err_me_len.code == "usage/invalid"
+
+            err_me_bad = try
+                _capture() do
+                    _dispatch_via_app(["dsge", "bayes", "posterior-mode", model,
+                                       "--data", two_csv, "--params", "rho,sigma",
+                                       "--priors", priors, "--observables", "y,c",
+                                       "--measurement-error", "notanumber"])
+                end
+                nothing
+            catch e; e; end
+            @test err_me_bad isa CliError && err_me_bad.code == "usage/invalid-option"
+        end
+
+        @testset "dsge solve --method vfi error classification (P2-4a)" begin
+            e_blind = _dsge_solve_error(
+                ArgumentError("vfi_solver: next_state=:linear is meaningless here — G1 columns for controls [:c] are numerically zero, so the Bellman transition ignores the control. Pass transition= explicitly or next_state=:residual."),
+                "DSGE solve")
+            @test e_blind isa CliError
+            @test e_blind.code == "model/solve"
+            @test exit_class(e_blind) == 5
+            @test !occursin("next_state=:", e_blind.message)
+            @test !occursin("transition=", e_blind.message)
+            @test occursin("--next-state residual", e_blind.message)
+            @test occursin("--next-state residual", e_blind.hint)
+
+            e_res = _dsge_solve_error(
+                ArgumentError("next_state=:residual requires a defining equation for each control (defines ∈ [:c]) or a named euler:; missing [:c]"),
+                "DSGE solve")
+            @test e_res isa CliError && e_res.code == "model/solve" && exit_class(e_res) == 5
+            @test !occursin("next_state=:", e_res.message)
+            @test occursin("--next-state residual", e_res.message)
+
+            e_nostate = _dsge_solve_error(
+                ArgumentError("Model has no state variables — VFI requires at least one"),
+                "DSGE solve")
+            @test e_nostate isa CliError && e_nostate.code == "model/solve" && exit_class(e_nostate) == 5
+        end
+
+        @testset "dsge solve shock impact table & dsge abcd invertibility dims (P2-3)" begin
+            doc_sol = _run_leaf(["dsge", "solve", model])
+            @test string(doc_sol.status) == "ok"
+            @test isempty(validate_envelope_json(JSON3.write(doc_sol)))
+            @test haskey(doc_sol.data, :dsge_solution)
+            @test haskey(doc_sol.data, :dsge_shock_impact)
+            imp_tbl = doc_sol.data.dsge_shock_impact
+            imp_cols = String.(imp_tbl.columns)
+            @test "variable" in imp_cols
+            @test "impact_e" in imp_cols
+            @test length(imp_tbl.rows) == 2
+
+            doc_inv = _run_leaf(["dsge", "abcd", "invertibility", model, "--observables", "y"])
+            @test string(doc_inv.status) == "ok"
+            @test isempty(validate_envelope_json(JSON3.write(doc_inv)))
+            inv_tbl = doc_inv.data.abcd_invertibility
+            inv_cols = String.(inv_tbl.columns)
+            for col in ("n_states", "n_obs", "n_shocks", "rank_D")
+                @test col in inv_cols
+            end
+        end
+    end
+end
+
 include(joinpath(project_root, "test", "test_handles.jl"))
 include(joinpath(project_root, "test", "test_storage.jl"))
 include(joinpath(project_root, "test", "test_w1_quantile.jl"))

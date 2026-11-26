@@ -314,6 +314,15 @@ function _dsge_abcd_extract(; file::String="", model=nothing,
     return sys
 end
 
+function _w4_invertibility_extra_cols(inv_res::MacroEconometricModels.InvertibilityResult)
+    return Pair{String,Any}[
+        "n_states" => Int(inv_res.n_states),
+        "n_obs"    => Int(inv_res.n_obs),
+        "n_shocks" => Int(inv_res.n_shocks),
+        "rank_D"   => Int(inv_res.rank_D),
+    ]
+end
+
 function _dsge_abcd_invertibility(; file::String="", model=nothing, result=nothing,
                                   observables::String="", reduction::String="predetermined",
                                   measurement_error::String="", tol::Float64=1e-8,
@@ -326,7 +335,8 @@ function _dsge_abcd_invertibility(; file::String="", model=nothing, result=nothi
         _status_report(() -> report(result))
         _maybe_plot(result; plot=plot, plot_save=plot_save)
         _emit_result(result; title="FVRSW Poor Man's Invertibility Test ($(result.status))",
-                     key="abcd_invertibility", format=Symbol(format), output=output)
+                     key="abcd_invertibility", format=Symbol(format), output=output,
+                     extra_cols=_w4_invertibility_extra_cols(result))
         return result
     end
     tol >= 0 || throw(CliError("usage/invalid-option", "$leaf: --tol must be >= 0 (got $tol)"))
@@ -354,11 +364,13 @@ function _dsge_abcd_invertibility(; file::String="", model=nothing, result=nothi
     end
 
     verdict = is_invertible(inv_res) ? "invertible" : "non-invertible"
-    _status("Invertibility verdict: $verdict (status=$(inv_res.status), max_modulus=$(inv_res.max_modulus))")
+    _status("Invertibility verdict: $verdict (status=$(inv_res.status), max_modulus=$(inv_res.max_modulus), " *
+            "n_states=$(inv_res.n_states), n_obs=$(inv_res.n_obs), n_shocks=$(inv_res.n_shocks), rank_D=$(inv_res.rank_D))")
     _status_report(() -> report(inv_res))
     _maybe_plot(inv_res; plot=plot, plot_save=plot_save)
     _emit_result(inv_res; title="FVRSW Poor Man's Invertibility Test ($(inv_res.status))",
-                 key="abcd_invertibility", format=Symbol(format), output=output)
+                 key="abcd_invertibility", format=Symbol(format), output=output,
+                 extra_cols=_w4_invertibility_extra_cols(inv_res))
     return inv_res
 end
 
@@ -1241,7 +1253,7 @@ function w4_dsge_specs()::Vector{CommandSpec}
             ],
             flags=[PLOT_FLAGS...],
             tables=[TableSpec(name=:abcd_invertibility,
-                              description="Finite eigenvalues / transmission zeros, spectral radius, status, and invertibility verdict")],
+                              description="Finite eigenvalues / transmission zeros, spectral radius, status, invertibility verdict, and ABCD dimensions (n_states, n_obs, n_shocks, rank_D)")],
             category="dsge",
             model_types=_W4_ABCD_INPUT_TYPES,
             result_types=[:InvertibilityResult],

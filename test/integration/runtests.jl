@@ -10827,6 +10827,220 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         end
     end
 
+    @testset "[UX-W1] #342 — DSGE bayes hd --mode-only, observables subsetting, posterior-mode singularity & VFI (real MEMs)" begin
+        mktempdir() do dir
+            ar2_plain = joinpath(dir, "ar2_plain.jl")
+            write(ar2_plain, """
+            @dsge begin
+                parameters: rho = 0.85, sigma = 0.02
+                endogenous: y, c
+                exogenous: e
+                y[t] = rho * y[t-1] + sigma * e[t]
+                c[t] = 0.8 * y[t]
+            end
+            """)
+            ar2_jl = joinpath(dir, "ar2_priors.jl")
+            write(ar2_jl, """
+            priors:
+                rho ~ beta(0.8, 0.1)
+                sigma ~ inv_gamma(2.0, 0.05)
+
+            @dsge begin
+                parameters: rho = 0.85, sigma = 0.02
+                endogenous: y, c
+                exogenous: e
+                y[t] = rho * y[t-1] + sigma * e[t]
+                c[t] = 0.8 * y[t]
+            end
+            """)
+            ar2_m2_jl = joinpath(dir, "ar2_m2.jl")
+            write(ar2_m2_jl, """
+            priors:
+                rho ~ beta(0.6, 0.15)
+                sigma ~ inv_gamma(2.0, 0.05)
+
+            @dsge begin
+                parameters: rho = 0.7, sigma = 0.02
+                endogenous: y, c
+                exogenous: e
+                y[t] = rho * y[t-1] + sigma * e[t]
+                c[t] = 0.8 * y[t]
+            end
+            """)
+
+            # 1. Simulate multi-variable DSGE data via `data simulate dsge` (both .jld2 handle & CSV)
+            sim_handle = joinpath(dir, "ar2_obs.jld2")
+            sim_csv = joinpath(dir, "ar2_obs.csv")
+            r_sim = run_json(["--seed", "42", "data", "simulate", "dsge", ar2_plain,
+                              "--periods", "80", "--burn", "20",
+                              "--save-data", sim_handle])
+            assert_envelope_ok(r_sim; label="data simulate dsge --save-data")
+            @test isfile(sim_handle)
+            r_sim_csv = run_json(["--seed", "42", "data", "simulate", "dsge", ar2_plain,
+                                  "--periods", "80", "--burn", "20",
+                                  "-o", sim_csv, "--format", "csv"])
+            @test r_sim_csv.code == 0 && isfile(sim_csv)
+
+            # 2. Multi-column --observables subsetting across bayes estimate, posterior-mode, compare, hd
+            bmh_path = joinpath(dir, "bmh.jld2")
+            r_est = run_json(["--seed", "7", "dsge", "bayes", "estimate", ar2_jl,
+                              "--data", sim_handle, "--params", "rho,sigma",
+                              "--observables", "y",
+                              "--sampler", "mh", "--draws", "40", "--burnin", "10",
+                              "--save-model", bmh_path])
+            assert_envelope_ok(r_est; label="dsge bayes estimate multi-col subset handle")
+            @test isfile(bmh_path)
+
+            # Also verify selecting the 2nd endogenous variable (c) from multi-col CSV (which has `time,y,c`)
+            r_pm_c = run_json(["dsge", "bayes", "posterior-mode", ar2_jl,
+                               "--data", sim_csv, "--params", "rho,sigma",
+                               "--observables", "c"])
+            assert_envelope_ok(r_pm_c; label="dsge bayes posterior-mode multi-col subset c")
+
+            r_cmp = run_json(["--seed", "9", "dsge", "bayes", "compare", ar2_jl,
+                              "--model2", ar2_m2_jl, "--data", sim_handle,
+                              "--params", "rho,sigma", "--params2", "rho,sigma",
+                              "--observables", "y",
+                              "--sampler", "mh", "--draws", "30", "--burnin", "10"])
+            assert_envelope_ok(r_cmp; label="dsge bayes compare multi-col subset")
+
+            # Missing named observable in multi-column data → data/missing-column (exit 3)
+            r_bad_obs = run_json(["dsge", "bayes", "posterior-mode", ar2_jl,
+                                  "--data", sim_handle, "--params", "rho,sigma",
+                                  "--observables", "not_a_col"])
+            @test r_bad_obs.code == 3
+            @test String(r_bad_obs.doc.error.code) == "data/missing-column"
+
+            # 3. P0-1: dsge bayes hd --mode-only on pre-fitted BayesianDSGE handle (no FieldError!)
+            r_hd_mode_h = run_json(["dsge", "bayes", "hd", bmh_path,
+                                    "--data", sim_handle, "--observables", "y",
+                                    "--mode-only"])
+            assert_envelope_ok(r_hd_mode_h; label="dsge bayes hd handle --mode-only")
+            hd_tbl = named_table(r_hd_mode_h.doc, :bayesian_dsge_historical_decomposition_e)
+            @test hd_tbl !== nothing
+            @test table_cols(hd_tbl) == ["t", "y"]
+            @test length(table_rows(hd_tbl)) == 80
+            @test all(row -> isfinite(Float64(row[2])), table_rows(hd_tbl))
+
+            # Also test 2nd endogenous variable `c` on handle --mode-only (verifies spec.endog alignment)
+            r_hd_mode_c = run_json(["dsge", "bayes", "hd", bmh_path,
+                                    "--data", sim_handle, "--observables", "c",
+                                    "--mode-only"])
+            assert_envelope_ok(r_hd_mode_c; label="dsge bayes hd handle --mode-only obs=c")
+            hd_tbl_c = named_table(r_hd_mode_c.doc, :bayesian_dsge_historical_decomposition_e)
+            @test hd_tbl_c !== nothing && table_cols(hd_tbl_c) == ["t", "c"]
+
+            # Full posterior HD on saved handle still succeeds
+            r_hd_full_h = run_json(["dsge", "bayes", "hd", bmh_path,
+                                    "--data", sim_handle, "--observables", "y",
+                                    "--n-hd-draws", "5"])
+            assert_envelope_ok(r_hd_full_h; label="dsge bayes hd handle full posterior")
+            @test named_table(r_hd_full_h.doc, :bayesian_dsge_historical_decomposition_e) !== nothing
+
+            # 4. P1-1: dsge bayes hd --mode-only on model FILE skips 5,000-particle SMC & finishes fast
+            t0 = time()
+            r_hd_file_mode = run_json(["dsge", "bayes", "hd", ar2_jl,
+                                       "--data", sim_handle, "--params", "rho,sigma",
+                                       "--observables", "y", "--mode-only"])
+            elapsed_hd = time() - t0
+            assert_envelope_ok(r_hd_file_mode; label="dsge bayes hd model file --mode-only")
+            @test elapsed_hd < 60.0
+            hd_tbl_f = named_table(r_hd_file_mode.doc, :bayesian_dsge_historical_decomposition_e)
+            @test hd_tbl_f !== nothing && table_cols(hd_tbl_f) == ["t", "y"]
+            @test length(table_rows(hd_tbl_f)) == 80
+            @test all(row -> isfinite(Float64(row[2])), table_rows(hd_tbl_f))
+
+            # 5. P1-3: dsge bayes posterior-mode stochastic singularity contract + --measurement-error
+            r_ss = run_json(["dsge", "bayes", "posterior-mode", ar2_jl,
+                             "--data", sim_handle, "--params", "rho,sigma",
+                             "--observables", "y,c"])
+            @test r_ss.code == 5
+            @test String(r_ss.doc.error.code) == "model/stochastic-singularity"
+            @test !occursin("identification", lowercase(String(r_ss.doc.error.message)))
+
+            r_pm_me_auto = run_json(["dsge", "bayes", "posterior-mode", ar2_jl,
+                                     "--data", sim_handle, "--params", "rho,sigma",
+                                     "--observables", "y,c", "--measurement-error", "auto"])
+            assert_envelope_ok(r_pm_me_auto; label="dsge bayes posterior-mode --measurement-error auto")
+            @test named_table(r_pm_me_auto.doc, :posterior_mode) !== nothing
+
+            r_pm_me_vec = run_json(["dsge", "bayes", "posterior-mode", ar2_jl,
+                                    "--data", sim_handle, "--params", "rho,sigma",
+                                    "--observables", "y,c", "--measurement-error", "0.05,0.05"])
+            assert_envelope_ok(r_pm_me_vec; label="dsge bayes posterior-mode --measurement-error vec")
+
+            # 6. P2-4a: dsge solve --method vfi on nonlinear RBC without named euler: → model/solve (not data/invalid)
+            rbc_nl_toml = joinpath(dir, "rbc_nl.toml")
+            write(rbc_nl_toml, """
+            [model]
+            parameters = { beta = 0.99, alpha = 0.36, delta = 0.025, rho = 0.9, sigma = 0.01 }
+            endogenous = ["c", "k", "a"]
+            exogenous = ["e"]
+            utility = "log(c)"
+            beta = "beta"
+            controls = ["c"]
+
+            [[model.equations]]
+            expr = "1 / c[t] = beta * (1 / c[t+1]) * (alpha * exp(a[t+1]) * k[t]^(alpha - 1) + 1 - delta)"
+            [[model.equations]]
+            expr = "c[t] + k[t] = exp(a[t]) * k[t-1]^alpha + (1 - delta) * k[t-1]"
+            [[model.equations]]
+            expr = "a[t] = rho * a[t-1] + sigma * e[t]"
+            """)
+            r_vfi = run_json(["dsge", "solve", rbc_nl_toml, "--method", "vfi"])
+            @test r_vfi.code == 5
+            @test String(r_vfi.doc.error.code) == "model/solve"
+            err_msg = String(r_vfi.doc.error.message)
+            err_hint = haskey(r_vfi.doc.error, :hint) ? String(r_vfi.doc.error.hint) : ""
+            @test !occursin("next_state=:", err_msg)
+            @test !occursin("transition=", err_msg)
+            @test occursin("--next-state residual", err_msg) || occursin("--next-state residual", err_hint)
+
+            # 7. P2-3: dsge solve shock impact table + dsge abcd invertibility dims/rank_D
+            r_sol = run_json(["dsge", "solve", ar2_plain])
+            assert_envelope_ok(r_sol; label="dsge solve shock impact")
+            imp_tbl = named_table(r_sol.doc, :dsge_shock_impact)
+            @test imp_tbl !== nothing
+            @test table_cols(imp_tbl) == ["variable", "impact_e"]
+            imp_rows = Dict(String(row[1]) => Float64(row[2]) for row in table_rows(imp_tbl))
+            @test isapprox(imp_rows["y"], 0.02; atol=1e-6)
+            @test isapprox(imp_rows["c"], 0.016; atol=1e-6)
+
+            r_inv_ok = run_json(["dsge", "abcd", "invertibility", ar2_plain, "--observables", "y"])
+            assert_envelope_ok(r_inv_ok; label="dsge abcd invertibility dims (AR)")
+            inv_ok_tbl = named_table(r_inv_ok.doc, :abcd_invertibility)
+            @test inv_ok_tbl !== nothing
+            for col in ("n_states", "n_obs", "n_shocks", "rank_D")
+                @test col in table_cols(inv_ok_tbl)
+            end
+            ci_rD = findfirst(==("rank_D"), table_cols(inv_ok_tbl))
+            ci_no = findfirst(==("n_obs"), table_cols(inv_ok_tbl))
+            ci_ns = findfirst(==("n_shocks"), table_cols(inv_ok_tbl))
+            @test Int(table_rows(inv_ok_tbl)[1][ci_no]) == 1
+            @test Int(table_rows(inv_ok_tbl)[1][ci_ns]) == 1
+            @test Int(table_rows(inv_ok_tbl)[1][ci_rD]) == 1
+
+            news_jl = joinpath(dir, "news_u1.jl")
+            write(news_jl, """
+            @dsge begin
+                parameters: rho = 0.7, psi = 0.5
+                endogenous: y, a, news
+                exogenous: e_n
+                news[t] = e_n[t]
+                a[t] = rho * a[t-1] + news[t-1]
+                y[t] = a[t] + psi * a[t+1]
+            end
+            """)
+            r_inv_sing = run_json(["dsge", "abcd", "invertibility", news_jl, "--observables", "a"])
+            assert_envelope_ok(r_inv_sing; label="dsge abcd invertibility dims (singular D)")
+            inv_s_tbl = named_table(r_inv_sing.doc, :abcd_invertibility)
+            ci_s_rD = findfirst(==("rank_D"), table_cols(inv_s_tbl))
+            ci_s_st = findfirst(==("status"), table_cols(inv_s_tbl))
+            @test String(table_rows(inv_s_tbl)[1][ci_s_st]) == "non_invertible_singular_D"
+            @test Int(table_rows(inv_s_tbl)[1][ci_s_rD]) == 0
+        end
+    end
+
     include(joinpath(@__DIR__, "test_w3_nongaussian.jl"))
 end
 

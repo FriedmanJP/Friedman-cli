@@ -6395,6 +6395,11 @@ function posterior_mode(spec, data::AbstractMatrix, theta0;
     names = sort(collect(keys(priors)))
     d = length(names)
     d >= 1 || throw(ArgumentError("priors must be non-empty"))
+    n_obs = isempty(observables) ? spec.n_endog : length(observables)
+    if n_obs > spec.n_exog && measurement_error === nothing
+        throw(StochasticSingularityError(
+            "Stochastic singularity: $n_obs observables exceed $(spec.n_exog) structural shock(s) without measurement error"))
+    end
     PosteriorMode{Float64}(fill(0.5, d), Matrix{Float64}(I(d)) .* 0.01,
         Matrix{Float64}(I(d)) .* 100.0, -120.5, -118.0, -125.0, names, true, 12)
 end
@@ -7840,7 +7845,7 @@ function dsge_smoother(sol::DSGESolution, data::AbstractMatrix,
         randn(T_obs, n_states), randn(T_obs, n_states, n_states), -100.0)
 end
 
-function historical_decomposition(sol::DSGESolution{T}, data::AbstractMatrix,
+function historical_decomposition(sol::Union{DSGESolution{T},PerturbationSolution{T}}, data::AbstractMatrix,
         observables::Vector{Symbol}; states::Symbol=:observables,
         measurement_error=nothing) where {T}
     T_obs = size(data, 1)
@@ -7851,7 +7856,8 @@ function historical_decomposition(sol::DSGESolution{T}, data::AbstractMatrix,
     shock_names = string.(sol.spec.exog)
     HistoricalDecomposition{T}(
         randn(T_obs, n_vars, n_shocks), randn(T_obs, n_vars), randn(T_obs, n_vars),
-        randn(T_obs, n_shocks), T_obs, varnames_hd, shock_names, :dsge_linear)
+        randn(T_obs, n_shocks), T_obs, varnames_hd, shock_names,
+        sol isa PerturbationSolution ? :dsge_nonlinear : :dsge_linear)
 end
 
 struct BayesianDSGEHistoricalDecomposition{T<:Real}
@@ -7875,9 +7881,14 @@ function historical_decomposition(bd::BayesianDSGE{T}, data::AbstractMatrix,
     T_obs = size(data, 1)
     n_obs = length(observables)
     n_shocks = bd.spec.n_exog
-    n_q = length(quantiles)
     varnames_bd = [string(s) for s in observables]
     shock_names = string.(bd.spec.exog)
+    if mode_only
+        return HistoricalDecomposition{T}(
+            randn(T_obs, n_obs, n_shocks), randn(T_obs, n_obs), randn(T_obs, n_obs),
+            randn(T_obs, n_shocks), T_obs, varnames_bd, shock_names, :dsge_bayes_mode)
+    end
+    n_q = length(quantiles)
     BayesianDSGEHistoricalDecomposition{T}(
         randn(T_obs, n_obs, n_shocks, n_q), randn(T_obs, n_obs, n_shocks),
         randn(T_obs, n_obs, n_q), randn(T_obs, n_obs), randn(T_obs, n_shocks),
@@ -16164,10 +16175,11 @@ end
 
 function poor_mans_invertibility(sys::ABCDSystem{T}; tol::Real=1e-8, max_var_lags::Int=50) where {T}
     n, k, m = nstates(sys), nobservables(sys), nshocks(sys)
+    rD = isempty(sys.D) ? 0 : _W4LA.rank(sys.D)
     if k < m
         return InvertibilityResult{Float64}(false, :non_invertible_underdetermined, NaN,
             Float64[], Float64[], 0, 0, zeros(n, n), zeros(m, k), Matrix{Float64}[],
-            n, k, m, min(k, m), Float64(tol), copy(sys.obs_names), copy(sys.shock_names))
+            n, k, m, rD, Float64(tol), copy(sys.obs_names), copy(sys.shock_names))
     end
     M = n == 0 ? zeros(0, 0) : sys.A * 0.5
     eigs = n == 0 ? ComplexF64[] : ComplexF64.(_W4LA.eigvals(M))
@@ -16179,7 +16191,7 @@ function poor_mans_invertibility(sys::ABCDSystem{T}; tol::Real=1e-8, max_var_lag
     vlm = (inv_flag && k == m && max_var_lags > 0) ? [zeros(k, k) for _ in 1:min(max_var_lags, 5)] : Matrix{Float64}[]
     return InvertibilityResult{Float64}(inv_flag, st, rho, real.(eigs), imag.(eigs),
         count(z -> abs(z) > 1.0 + tol, eigs), 0, M, Omega, vlm,
-        n, k, m, min(k, m), Float64(tol), copy(sys.obs_names), copy(sys.shock_names))
+        n, k, m, rD, Float64(tol), copy(sys.obs_names), copy(sys.shock_names))
 end
 
 function poor_mans_invertibility(sol::Union{DSGESolution,PerturbationSolution,HADSGESolution},

@@ -2690,11 +2690,41 @@ end
 function _dsge_solve_error(e, label::String)
     e isa CliError && return e
     msg = sprint(showerror, e)
-    if e isa ArgumentError && (occursin("#651", msg) ||
-            occursin("multiple agent populations", msg) ||
-            occursin("mixed agent kinds", msg) ||
-            occursin("no solver for agent kind", msg))
-        return CliError("model/unsupported", "$label: $msg")
+    if e isa ArgumentError
+        if occursin("#651", msg) ||
+           occursin("multiple agent populations", msg) ||
+           occursin("mixed agent kinds", msg) ||
+           occursin("no solver for agent kind", msg)
+            return CliError("model/unsupported", "$label: $msg")
+        end
+        # VFI transition / next_state / model-structure ArgumentErrors are solver-model
+        # mismatches, never input-data errors (data/invalid). Translate raw Julia kwarg
+        # spelling (`next_state=:residual`, `next_state=:linear`, `transition=`) to CLI flags.
+        if occursin("vfi_solver:", msg) ||
+           occursin("next_state=", msg) ||
+           occursin("Model has no state variables", msg) ||
+           occursin("are not all in spec.endog", msg)
+            clean_msg = replace(msg,
+                "ArgumentError: " => "",
+                "Pass transition= explicitly or next_state=:residual." =>
+                    "Use --next-state residual (and ensure the model has a defining equation or named `euler:` equation for each control).",
+                "next_state=:residual" => "--next-state residual",
+                "next_state=:linear" => "--next-state linear",
+                "next_state=:auto" => "--next-state auto",
+            )
+            hint = if occursin("meaningless here", msg) || occursin("ignores the control", msg)
+                "pass --next-state residual (with a defining equation or named `euler:` equation for each control), or use --method projection|perturbation"
+            elseif occursin("defining equation", msg) ||
+                   occursin("multiple equations define control", msg) ||
+                   occursin("leftover residuals", msg)
+                "ensure each VFI control has a unique defining equation (or a single named `euler:` equation) in the model file, or use --method projection|perturbation"
+            elseif occursin("no state variables", msg)
+                "VFI requires at least one endogenous state variable (a lagged variable y[t-1]); use --method gensys|perturbation for static models"
+            else
+                "check the model's VFI control/transition specification or pass --next-state residual"
+            end
+            return CliError("model/solve", "$label: $clean_msg"; hint=hint)
+        end
     end
     return _domain_or_data_error(e, label)
 end
@@ -4246,8 +4276,17 @@ Types outside the union hit the fallback: typed `model/unsupported`, never a
 silent hand-build.
 """
 function _emit_result(m::_TIDY_COEF_TYPES; title::String="Results", key::AbstractString="",
-                      format::Union{String,Symbol}=:table, output::String="")
-    output_result(DataFrame(m); format=format, output=output, title=title, key=key)
+                      format::Union{String,Symbol}=:table, output::String="",
+                      extra_cols::Vector{<:Pair{String,<:Any}}=Pair{String,Any}[])
+    df = DataFrame(m)
+    for (name, vals) in extra_cols
+        name in names(df) && continue
+        v = vals isa AbstractVector ? collect(vals) : fill(vals, nrow(df))
+        length(v) == nrow(df) || throw(CliError("model/error",
+            "extra column '$name' has $(length(v)) rows for a $(nrow(df))-row table"))
+        df[!, name] = v
+    end
+    output_result(df; format=format, output=output, title=title, key=key)
 end
 # Mirrors the upstream `long_table` receivers 1:1 (MEMs core/tables.jl).
 const _TIDY_LONG_TYPES = Union{ImpulseResponse,BayesianImpulseResponse,FEVD,
