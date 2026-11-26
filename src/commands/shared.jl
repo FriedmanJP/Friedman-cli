@@ -379,20 +379,35 @@ end
 """Shared volatility model estimation output: coefficients + persistence."""
 function _vol_estimate_output(model, vname::String, param_names::Vector{String},
                                model_label::String; format::String="table", output::String="",
-                               key::String="")
+                               key::String="", conf_level::Float64=_DEFAULT_CI_MACRO)
+    lv = _validate_conf_level(conf_level, model_label)
     c = coef(model)
     names = param_names[1:length(c)]
-    coef_df = try
-        # SVModel has no vcov/stderror — StatsAPI defaults cause infinite recursion
-        model isa SVModel && throw(ErrorException("no SE for SV"))
-        se = stderror(model)
-        z = c ./ se
-        pv = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
-        DataFrame(parameter=names, estimate=c,
-                  std_error=se,
-                  z_stat=z, p_value=pv)
-    catch
-        DataFrame(parameter=names, estimate=c)
+    coef_df = if model isa SVModel
+        if hasproperty(model, :mu_post) && !isempty(model.mu_post) &&
+           hasproperty(model, :phi_post) && hasproperty(model, :sigma_eta_post)
+            q_lo, _, q_hi = _conf_level_to_quantiles(lv)
+            draws_list = (model.mu_post, model.phi_post, model.sigma_eta_post)
+            k = min(length(c), length(draws_list))
+            ci_lo = Float64[i <= k ? Float64(quantile(draws_list[i], q_lo)) : NaN for i in eachindex(c)]
+            ci_hi = Float64[i <= k ? Float64(quantile(draws_list[i], q_hi)) : NaN for i in eachindex(c)]
+            DataFrame(parameter=names, estimate=c, ci_lower=ci_lo, ci_upper=ci_hi)
+        else
+            DataFrame(parameter=names, estimate=c)
+        end
+    else
+        try
+            se = stderror(model)
+            z = c ./ se
+            pv = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
+            ci_lo, ci_hi = _model_coef_ci(model, c, se, lv)
+            DataFrame(parameter=names, estimate=c,
+                      std_error=se,
+                      z_stat=z, p_value=pv,
+                      ci_lower=ci_lo, ci_upper=ci_hi)
+        catch
+            DataFrame(parameter=names, estimate=c)
+        end
     end
     output_result(coef_df; format=Symbol(format), output=output,
                   title="$model_label Coefficients ($vname)", key=key)
@@ -481,7 +496,8 @@ const VOL_MODELS = [
     (
         name = "sv",
         order = :sv,
-        estimate = (y; p=1, q=1, draws=5000, dist=:normal) -> estimate_sv(y; n_samples=draws, _fwd_seed()...),
+        estimate = (y; p=1, q=1, draws=5000, dist=:normal, quantile_levels=Float64[0.16, 0.5, 0.84]) ->
+            estimate_sv(y; n_samples=draws, quantile_levels=quantile_levels, _fwd_seed()...),
         # SV is a stochastic-volatility sampler, not a GARCH likelihood — no `dist`.
         supports_dist = false,
         param_names = (p, q) -> String["mu", "phi", "sigma_eta"],
@@ -531,9 +547,12 @@ end
 
 function _make_estimate_vol(vol)
     return function (; data::String, column::Int=1, p::Int=1, q::Int=1, draws::Int=5000,
-                      dist::String="normal", output::String="", format::String="table",
+                      dist::String="normal", conf_level::Float64=_DEFAULT_CI_MACRO,
+                      output::String="", format::String="table",
                       plot::Bool=false, plot_save::String="")
-        dsym = _vol_dist_symbol(vol, dist, "estimate volatility $(replace(vol.name, '_' => '-'))")
+        leaf = "estimate volatility $(replace(vol.name, '_' => '-'))"
+        lv = _validate_conf_level(conf_level, leaf)
+        dsym = _vol_dist_symbol(vol, dist, leaf)
         y, vname = load_univariate_series(data, column)
         label = vol.label(p, q)
         if vol.order === :sv
@@ -543,13 +562,18 @@ function _make_estimate_vol(vol)
         end
         _status()
         model = try
-            vol.estimate(y; p=p, q=q, draws=draws, dist=dsym)
+            if vol.order === :sv
+                vol.estimate(y; p=p, q=q, draws=draws, dist=dsym,
+                             quantile_levels=_conf_level_to_quantiles(lv))
+            else
+                vol.estimate(y; p=p, q=q, draws=draws, dist=dsym)
+            end
         catch e
             throw(_domain_or_data_error(e, "$label estimation"))
         end
-        _maybe_plot(model; plot=plot, plot_save=plot_save)
+        _maybe_plot(model; plot=plot, plot_save=plot_save, conf_level=lv)
         _vol_estimate_output(model, vname, vol.param_names(p, q), label; format=format, output=output,
-                             key="$(vol.name)_coefficients")
+                             key="$(vol.name)_coefficients", conf_level=lv)
         # W11/#113: the shape parameter (t degrees of freedom / GED shape) is estimated
         # JOINTLY but lives in `model.shape`, outside `coef(model)` — so it never reached
         # the coefficient table. Without this the user selects a fat-tailed likelihood and
@@ -1759,7 +1783,10 @@ end
 
 Build a coefficient table for Panel VAR model with SE and p-values.
 """
-function _build_pvar_coef_table(model, varnames::Vector{String}, p::Int)
+function _build_pvar_coef_table(model, varnames::Vector{String}, p::Int;
+                                conf_level::Float64=_DEFAULT_CI_MACRO)
+    lv = _validate_conf_level(conf_level, "estimate panel pvar")
+    zc = _normal_quantile(1.0 - (1.0 - lv) / 2.0)
     n = length(varnames)
     n_rows = size(model.Phi, 1)
     row_names = String[]
@@ -1774,9 +1801,13 @@ function _build_pvar_coef_table(model, varnames::Vector{String}, p::Int)
 
     coef_df = DataFrame()
     for (vi, vname) in enumerate(varnames)
-        coef_df[!, Symbol("$(vname)_coef")] = model.Phi[1:length(row_names), vi]
-        coef_df[!, Symbol("$(vname)_se")] = model.se[1:length(row_names), vi]
+        est = Float64.(model.Phi[1:length(row_names), vi])
+        se = Float64.(model.se[1:length(row_names), vi])
+        coef_df[!, Symbol("$(vname)_coef")] = est
+        coef_df[!, Symbol("$(vname)_se")] = se
         coef_df[!, Symbol("$(vname)_pval")] = model.pvalues[1:length(row_names), vi]
+        coef_df[!, Symbol("$(vname)_ci_lower")] = est .- zc .* se
+        coef_df[!, Symbol("$(vname)_ci_upper")] = est .+ zc .* se
     end
     insertcols!(coef_df, 1, :parameter => row_names)
     return coef_df
@@ -4375,6 +4406,34 @@ function _resolve_band_quantiles(quantiles_str::AbstractString, conf_level::Real
     end
 end
 
+"""
+    _model_coef_ci(model, est, se, conf_level) → (ci_lower, ci_upper)
+
+Compute `(ci_lower, ci_upper)` vectors at `conf_level ∈ (0, 1)`, preferring upstream
+`StatsAPI.confint(model; level=lv)` (exact t-distribution where implemented) and falling
+back to the normal quantile `_normal_quantile(1 - (1 - lv) / 2)` when `model === nothing`
+or `confint` is unavailable for the requested block shape.
+"""
+function _model_coef_ci(model, est::AbstractVector{<:Real}, se::AbstractVector{<:Real},
+                        conf_level::Real)
+    lv = _validate_conf_level(conf_level, "confint")
+    n = length(est)
+    if model !== nothing
+        ci = try
+            confint(model; level=lv)
+        catch
+            nothing
+        end
+        if ci isa AbstractMatrix && size(ci) == (n, 2)
+            return Float64.(ci[:, 1]), Float64.(ci[:, 2])
+        end
+    end
+    z = _normal_quantile(1.0 - (1.0 - lv) / 2.0)
+    est_f = Float64.(est)
+    se_f = Float64.(se)
+    return est_f .- z .* se_f, est_f .+ z .* se_f
+end
+
 """Build coefficient table DataFrame from a regression model."""
 function _reg_coef_table(model, varnames::Vector{String}; conf_level::Union{Nothing,Real}=nothing)
     # C051 + [CI-W1] #330: delegate to upstream MEMs v1.1.2 `coef_table` when conf_level is specified.
@@ -4425,8 +4484,8 @@ function _emit_result(m::_TIDY_COEF_TYPES; title::String="Results", key::Abstrac
                       format::Union{String,Symbol}=:table, output::String="",
                       conf_level::Union{Nothing,Real}=nothing,
                       extra_cols::Vector{<:Pair{String,<:Any}}=Pair{String,Any}[])
-    df = if conf_level !== nothing && isdefined(MacroEconometricModels, :coef_table)
-        lv = _validate_conf_level(conf_level, title)
+    lv = conf_level === nothing ? nothing : _validate_conf_level(conf_level, title)
+    df = if lv !== nothing && isdefined(MacroEconometricModels, :coef_table)
         try
             DataFrame(MacroEconometricModels.coef_table(m; conf_level=lv))
         catch e
@@ -4434,6 +4493,17 @@ function _emit_result(m::_TIDY_COEF_TYPES; title::String="Results", key::Abstrac
         end
     else
         DataFrame(m)
+    end
+    if lv !== nothing && "estimate" in names(df) && "std_error" in names(df) &&
+       !("ci_lower" in names(df)) && !("ci_upper" in names(df))
+        est = df[!, "estimate"]
+        se = df[!, "std_error"]
+        if all(x -> x isa Real, est) && all(x -> x isa Real, se)
+            z = _normal_quantile(1.0 - (1.0 - lv) / 2.0)
+            ef = Float64.(est); sf = Float64.(se)
+            df[!, "ci_lower"] = ef .- z .* sf
+            df[!, "ci_upper"] = ef .+ z .* sf
+        end
     end
     for (name, vals) in extra_cols
         name in names(df) && continue
@@ -4465,6 +4535,7 @@ columns come from upstream.
 """
 function _emit_result(r::_TIDY_LONG_TYPES; title::String="Results", key::AbstractString="",
                       format::Union{String,Symbol}=:table, output::String="",
+                      conf_level::Union{Nothing,Real}=nothing,
                       shocks::Union{Nothing,AbstractString,AbstractVector}=nothing,
                       extra_cols::Vector{<:Pair{String,<:Any}}=Pair{String,Any}[])
     df = try

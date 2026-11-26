@@ -1373,6 +1373,7 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="max-breaks", type=Int, default=5, description="Maximum number of breaks"),
                 OptionSpec(name="trimming", type=Float64, default=0.15, description="Trimming proportion"),
                 OptionSpec(name="criterion", type=String, default="bic", description="bic|lwz"),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
@@ -1381,7 +1382,7 @@ function test_specs()::Vector{CommandSpec}
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
             tables=[TableSpec(name=:bai_perron_test,
-                              description="Number of breaks, the break dates, trimming and sample size")],
+                              description="Number of breaks, break dates, break confidence intervals, confidence level, trimming and sample size")],
             category="test",
             handler=_test_bai_perron,
         ),
@@ -4940,25 +4941,32 @@ end
 function _test_bai_perron(; data::String, response::Int=1,
                            max_breaks::Int=5, trimming::Float64=0.15,
                            criterion::String="bic",
+                           conf_level::Float64=_DEFAULT_CI_MACRO,
                            format::String="table", output::String="",
                            plot::Bool=false, plot_save::String="")
+    lv = _validate_conf_level(conf_level, "test stability bai-perron")
     Y, varnames = load_multivariate_data(data)
     n = size(Y, 1)
 
     y = Y[:, response]
     X = hcat(ones(n), Y[:, setdiff(1:size(Y, 2), response)])
 
-    _status("Bai-Perron Multiple Break Test: $(varnames[response]), max_breaks=$max_breaks, criterion=$criterion")
+    _status("Bai-Perron Multiple Break Test: $(varnames[response]), max_breaks=$max_breaks, criterion=$criterion, conf_level=$lv")
     _status()
 
     result = bai_perron_test(y, X; max_breaks=max_breaks, trimming=trimming,
-                             criterion=Symbol(criterion))
+                             criterion=Symbol(criterion), conf_level=lv)
 
-    _maybe_plot(result; plot=plot, plot_save=plot_save)
+    _maybe_plot(result; plot=plot, plot_save=plot_save, conf_level=lv)
 
+    cis_str = hasproperty(result, :break_cis) ?
+        join(["[$(ci[1]), $(ci[2])]" for ci in result.break_cis], ", ") : ""
+    res_lv = hasproperty(result, :conf_level) ? Float64(result.conf_level) : lv
     pairs = Pair{String,Any}[
         "Number of breaks" => result.n_breaks,
         "Break dates" => join(result.break_dates, ", "),
+        "Break CIs" => cis_str,
+        "Confidence level" => res_lv,
         "Trimming" => result.trimming,
         "Observations" => result.nobs,
     ]

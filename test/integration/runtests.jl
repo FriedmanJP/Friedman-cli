@@ -6004,14 +6004,14 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
 
             # Locate the posterior table by a DISTINCTIVE COLUMN SET, never by key
             # order (JSON3 does not preserve insertion order) and never by a
-            # substring (data tables collide on `mean`/`std`). `parameter` + `q05` +
+            # substring (data tables collide on `mean`/`std`). `parameter` + `ci_lower` +
             # `median` is a signature nothing else on this leaf carries.
             function post_tbl(doc)
                 doc === nothing && return nothing
                 for (_, v) in pairs(doc.data)
                     (v isa JSON3.Object && haskey(v, :rows)) || continue
                     Set(table_cols(v)) ==
-                        Set(["parameter", "mean", "std", "q05", "median", "q95"]) && return v
+                        Set(["parameter", "mean", "std", "ci_lower", "median", "ci_upper"]) && return v
                 end
                 return nothing
             end
@@ -6658,7 +6658,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             assert_envelope_ok(rp; label="dsge bayes prior-predictive")
             pt = find_tbl(rp.doc, "statistic")
             @test pt !== nothing && length(table_rows(pt)) >= 1
-            @test Set(["statistic", "mean", "std", "q05", "median", "q95"]) ⊆
+            @test Set(["statistic", "mean", "std", "ci_lower", "median", "ci_upper"]) ⊆
                   Set(String.(table_cols(pt)))
             @test Set(["draws requested", "draws that solved",
                        "periods simulated"]) ⊆ metrics(rp.doc)
@@ -11688,6 +11688,268 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             for p in (reg_csv, iv_csv, clean_csv, tobit_csv, heck_csv, thr_csv, logit_csv, did_csv, ar1_csv)
                 rm(p; force=true)
             end
+        end
+    end
+
+    @testset "[CI-W4] macro 68% CI defaults Batch 2 real-MEMs (#333)" begin
+        _ci_w(tbl; lo::String="ci_lower", hi::String="ci_upper", row::Int=1) = begin
+            cols = String.(table_cols(tbl))
+            li = findfirst(==(lo), cols)
+            hi_i = findfirst(==(hi), cols)
+            @assert li !== nothing && hi_i !== nothing "missing $lo/$hi in $cols"
+            r = collect(table_rows(tbl))[row]
+            Float64(r[hi_i]) - Float64(r[li])
+        end
+
+        mktempdir() do dir
+            rng = MersenneTwister(33301)
+
+            # 1. Macro VAR / Cointreg / ARIMA / NARDL / GARCH / Spectral data
+            T_m = 160
+            y1 = zeros(T_m); y2 = zeros(T_m); x_rw = cumsum(0.5 .* randn(rng, T_m))
+            for t in 2:T_m
+                y1[t] = 0.65 * y1[t-1] + 0.15 * y2[t-1] + 0.5 * randn(rng)
+                y2[t] = 0.10 * y1[t-1] + 0.55 * y2[t-1] + 0.5 * randn(rng)
+            end
+            var_csv = joinpath(dir, "var.csv")
+            CSV.write(var_csv, DataFrame(y1=y1, y2=y2))
+
+            coint_y = 1.5 .+ 2.0 .* x_rw .+ 0.3 .* randn(rng, T_m)
+            coint_csv = joinpath(dir, "coint.csv")
+            CSV.write(coint_csv, DataFrame(y=coint_y, x=x_rw))
+
+            # GARCH returns series
+            ret = zeros(300); h_g = 0.05
+            for t in 1:300
+                h_g = 0.01 + 0.12 * (t > 1 ? ret[t-1]^2 : 0.05) + 0.80 * h_g
+                ret[t] = sqrt(h_g) * randn(rng)
+            end
+            garch_csv = joinpath(dir, "garch.csv")
+            CSV.write(garch_csv, DataFrame(r=ret))
+
+            # Structural break series for Bai-Perron (clean break at t=60 in T=120)
+            bp_x = randn(rng, 120)
+            bp_y = vcat(0.5 .+ 1.0 .* bp_x[1:60] .+ 0.3 .* randn(rng, 60),
+                        4.5 .+ 1.0 .* bp_x[61:120] .+ 0.3 .* randn(rng, 60))
+            bp_csv = joinpath(dir, "bp.csv")
+            CSV.write(bp_csv, DataFrame(y=bp_y, x=bp_x))
+
+            # 1a. estimate multivariate var
+            r_vdef = run_json(["estimate", "multivariate", "var", var_csv, "--lags", "1"])
+            r_v68  = run_json(["estimate", "multivariate", "var", var_csv, "--lags", "1", "--conf-level", "0.68"])
+            r_v90  = run_json(["estimate", "multivariate", "var", var_csv, "--lags", "1", "--conf-level", "0.90"])
+            r_v95  = run_json(["estimate", "multivariate", "var", var_csv, "--lags", "1", "--conf-level", "0.95"])
+            assert_envelope_ok(r_vdef; label="CI-W4 var default")
+            @test _ci_w(r_vdef.doc.data.var_coefficients) ≈ _ci_w(r_v68.doc.data.var_coefficients)
+            @test _ci_w(r_v68.doc.data.var_coefficients) < _ci_w(r_v90.doc.data.var_coefficients) < _ci_w(r_v95.doc.data.var_coefficients)
+
+            # 1b. estimate regression cointreg
+            r_cdef = run_json(["estimate", "regression", "cointreg", coint_csv, "--dep", "y"])
+            r_c68  = run_json(["estimate", "regression", "cointreg", coint_csv, "--dep", "y", "--conf-level", "0.68"])
+            r_c90  = run_json(["estimate", "regression", "cointreg", coint_csv, "--dep", "y", "--conf-level", "0.90"])
+            r_c95  = run_json(["estimate", "regression", "cointreg", coint_csv, "--dep", "y", "--conf-level", "0.95"])
+            assert_envelope_ok(r_cdef; label="CI-W4 cointreg default")
+            @test _ci_w(r_cdef.doc.data.cointegrating_regression_coefficients) ≈ _ci_w(r_c68.doc.data.cointegrating_regression_coefficients)
+            @test _ci_w(r_c68.doc.data.cointegrating_regression_coefficients) < _ci_w(r_c90.doc.data.cointegrating_regression_coefficients) < _ci_w(r_c95.doc.data.cointegrating_regression_coefficients)
+
+            # 1c. estimate univariate arima
+            r_adef = run_json(["estimate", "univariate", "arima", var_csv, "--column", "1", "--p", "1", "--d", "0", "--q", "0"])
+            r_a68  = run_json(["estimate", "univariate", "arima", var_csv, "--column", "1", "--p", "1", "--d", "0", "--q", "0", "--conf-level", "0.68"])
+            r_a90  = run_json(["estimate", "univariate", "arima", var_csv, "--column", "1", "--p", "1", "--d", "0", "--q", "0", "--conf-level", "0.90"])
+            r_a95  = run_json(["estimate", "univariate", "arima", var_csv, "--column", "1", "--p", "1", "--d", "0", "--q", "0", "--conf-level", "0.95"])
+            assert_envelope_ok(r_adef; label="CI-W4 arima default")
+            @test _ci_w(r_adef.doc.data.arima_coefficients) ≈ _ci_w(r_a68.doc.data.arima_coefficients)
+            @test _ci_w(r_a68.doc.data.arima_coefficients) < _ci_w(r_a90.doc.data.arima_coefficients) < _ci_w(r_a95.doc.data.arima_coefficients)
+
+            # 1d. estimate univariate nardl (coefficients + dynamic multipliers at 68%)
+            r_ndef = run_json(["--seed", "42", "estimate", "univariate", "nardl", coint_csv, "--dep", "y", "--p", "1", "--q", "1", "--horizon", "4", "--nreps", "50"])
+            r_n68  = run_json(["--seed", "42", "estimate", "univariate", "nardl", coint_csv, "--dep", "y", "--p", "1", "--q", "1", "--horizon", "4", "--nreps", "50", "--conf-level", "0.68"])
+            r_n90  = run_json(["--seed", "42", "estimate", "univariate", "nardl", coint_csv, "--dep", "y", "--p", "1", "--q", "1", "--horizon", "4", "--nreps", "50", "--conf-level", "0.90"])
+            r_n95  = run_json(["--seed", "42", "estimate", "univariate", "nardl", coint_csv, "--dep", "y", "--p", "1", "--q", "1", "--horizon", "4", "--nreps", "50", "--conf-level", "0.95"])
+            assert_envelope_ok(r_ndef; label="CI-W4 nardl default")
+            @test _ci_w(r_ndef.doc.data.nardl_coefficients) ≈ _ci_w(r_n68.doc.data.nardl_coefficients)
+            @test _ci_w(r_n68.doc.data.nardl_coefficients) < _ci_w(r_n90.doc.data.nardl_coefficients) < _ci_w(r_n95.doc.data.nardl_coefficients)
+
+            # 1e. estimate volatility garch
+            r_gdef = run_json(["estimate", "volatility", "garch", garch_csv, "--column", "1", "--p", "1", "--q", "1"])
+            r_g68  = run_json(["estimate", "volatility", "garch", garch_csv, "--column", "1", "--p", "1", "--q", "1", "--conf-level", "0.68"])
+            r_g90  = run_json(["estimate", "volatility", "garch", garch_csv, "--column", "1", "--p", "1", "--q", "1", "--conf-level", "0.90"])
+            r_g95  = run_json(["estimate", "volatility", "garch", garch_csv, "--column", "1", "--p", "1", "--q", "1", "--conf-level", "0.95"])
+            assert_envelope_ok(r_gdef; label="CI-W4 garch default")
+            @test _ci_w(r_gdef.doc.data.garch_coefficients) ≈ _ci_w(r_g68.doc.data.garch_coefficients)
+            @test _ci_w(r_g68.doc.data.garch_coefficients) < _ci_w(r_g90.doc.data.garch_coefficients) < _ci_w(r_g95.doc.data.garch_coefficients)
+
+            # 1f. estimate regime setar at 0.68 (full MEMs v1.1.2 support!)
+            setar_csv = dgp_setar(; n=300, seed=33302)
+            r_sdef = run_json(["estimate", "regime", "setar", setar_csv, "--column", "1", "--p", "1", "--d", "1", "--no-linearity"])
+            r_s68  = run_json(["estimate", "regime", "setar", setar_csv, "--column", "1", "--p", "1", "--d", "1", "--no-linearity", "--conf-level", "0.68"])
+            r_s90  = run_json(["estimate", "regime", "setar", setar_csv, "--column", "1", "--p", "1", "--d", "1", "--no-linearity", "--conf-level", "0.90"])
+            r_s95  = run_json(["estimate", "regime", "setar", setar_csv, "--column", "1", "--p", "1", "--d", "1", "--no-linearity", "--conf-level", "0.95"])
+            assert_envelope_ok(r_sdef; label="CI-W4 setar default 0.68")
+            @test Float64(metric_value(r_sdef.doc.data.setar_diagnostics, "gamma_ci_level")) ≈ 0.68
+            @test _ci_w(r_sdef.doc.data.setar_coefficients) ≈ _ci_w(r_s68.doc.data.setar_coefficients)
+            @test _ci_w(r_s68.doc.data.setar_coefficients) < _ci_w(r_s90.doc.data.setar_coefficients) < _ci_w(r_s95.doc.data.setar_coefficients)
+            gw(r) = Float64(metric_value(r.doc.data.setar_diagnostics, "gamma_ci_upper")) -
+                    Float64(metric_value(r.doc.data.setar_diagnostics, "gamma_ci_lower"))
+            @test gw(r_sdef) ≈ gw(r_s68)
+            @test gw(r_s68) <= gw(r_s90) <= gw(r_s95) && gw(r_s68) < gw(r_s95)
+            rm(setar_csv; force=true)
+
+            # 2. test stability bai-perron at 0.68 (new in MEMs v1.1.2!)
+            r_bpdef = run_json(["test", "stability", "bai-perron", bp_csv])
+            r_bp68  = run_json(["test", "stability", "bai-perron", bp_csv, "--conf-level", "0.68"])
+            r_bp90  = run_json(["test", "stability", "bai-perron", bp_csv, "--conf-level", "0.90"])
+            r_bp95  = run_json(["test", "stability", "bai-perron", bp_csv, "--conf-level", "0.95"])
+            assert_envelope_ok(r_bpdef; label="CI-W4 bai-perron default 0.68")
+            @test Float64(metric_value(r_bpdef.doc.data.bai_perron_test, "Confidence level")) ≈ 0.68
+            @test Float64(metric_value(r_bp90.doc.data.bai_perron_test, "Confidence level")) ≈ 0.90
+            @test Float64(metric_value(r_bp95.doc.data.bai_perron_test, "Confidence level")) ≈ 0.95
+            bp_w(r) = begin
+                s = string(metric_value(r.doc.data.bai_perron_test, "Break CIs"))
+                m = match(r"\[(\d+),\s*(\d+)\]", s)
+                @assert m !== nothing "expected Break CIs interval, got '$s'"
+                parse(Int, m.captures[2]) - parse(Int, m.captures[1])
+            end
+            @test bp_w(r_bpdef) == bp_w(r_bp68)
+            @test bp_w(r_bp68) <= bp_w(r_bp90) <= bp_w(r_bp95)
+
+            # 3. dsge bayes estimate & dsge var irf|forecast (including Landmine L3!)
+            dsge_jl = joinpath(dir, "ar1_ciw4.jl")
+            write(dsge_jl, """
+priors:
+  rho ~ beta(0.5, 0.2)
+  sigma ~ inv_gamma(2.0, 0.1)
+
+@dsge begin
+    parameters: rho = 0.8, sigma = 0.01
+    endogenous: Y, C
+    exogenous: eps
+    linear: true
+
+    Y[t] = rho * Y[t-1] + sigma * eps[t]
+    C[t] = Y[t]
+end
+""")
+            dsge_1d_csv = joinpath(dir, "y1d.csv")
+            y1d = zeros(60)
+            for t in 2:60; y1d[t] = 0.8 * y1d[t-1] + 0.01 * randn(rng); end
+            CSV.write(dsge_1d_csv, DataFrame(Y=y1d))
+
+            r_bdef = run_json(["--seed", "42", "dsge", "bayes", "estimate", dsge_jl,
+                               "--data", dsge_1d_csv, "--params", "rho,sigma",
+                               "--observables", "Y", "--sampler", "smc", "--n-smc", "40", "--n-particles", "40"])
+            r_b68  = run_json(["--seed", "42", "dsge", "bayes", "estimate", dsge_jl,
+                               "--data", dsge_1d_csv, "--params", "rho,sigma",
+                               "--observables", "Y", "--sampler", "smc", "--n-smc", "40", "--n-particles", "40",
+                               "--conf-level", "0.68"])
+            r_b90  = run_json(["--seed", "42", "dsge", "bayes", "estimate", dsge_jl,
+                               "--data", dsge_1d_csv, "--params", "rho,sigma",
+                               "--observables", "Y", "--sampler", "smc", "--n-smc", "40", "--n-particles", "40",
+                               "--conf-level", "0.90"])
+            r_b95  = run_json(["--seed", "42", "dsge", "bayes", "estimate", dsge_jl,
+                               "--data", dsge_1d_csv, "--params", "rho,sigma",
+                               "--observables", "Y", "--sampler", "smc", "--n-smc", "40", "--n-particles", "40",
+                               "--conf-level", "0.95"])
+            assert_envelope_ok(r_bdef; label="CI-W4 dsge bayes estimate default")
+            @test _ci_w(r_bdef.doc.data.bayesian_dsge_posterior) ≈ _ci_w(r_b68.doc.data.bayesian_dsge_posterior)
+            @test _ci_w(r_b68.doc.data.bayesian_dsge_posterior) < _ci_w(r_b90.doc.data.bayesian_dsge_posterior) < _ci_w(r_b95.doc.data.bayesian_dsge_posterior)
+
+            # Save a DSGE-VAR posterior once, then test dsge var irf & forecast (Landmine L3!)
+            dv_jl = joinpath(dir, "dv_ciw4.jl")
+            write(dv_jl, """
+@dsge begin
+    parameters: rho1 = 0.7, rho2 = 0.5, gamma = 0.2
+    endogenous: y1, y2
+    exogenous: e1, e2
+    linear: true
+
+    y1[t] = rho1 * y1[t-1] + e1[t]
+    y2[t] = rho2 * y2[t-1] + gamma * y1[t] + e2[t]
+end
+""")
+            dv_post = joinpath(dir, "dv_post.jld2")
+            r_dve = run_json(["--seed", "42", "dsge", "var", "estimate", dv_jl,
+                              "--data", var_csv, "--lags", "1", "--lambda", "1.0",
+                              "--draws", "120", "--save-model", dv_post])
+            assert_envelope_ok(r_dve; label="CI-W4 dsge var estimate")
+
+            r_dvi_def = run_json(["--seed", "42", "dsge", "var", "irf", "--model", dv_post, "--horizons", "4"])
+            r_dvi_90  = run_json(["--seed", "42", "dsge", "var", "irf", "--model", dv_post, "--horizons", "4", "--conf-level", "0.90"])
+            r_dvi_95  = run_json(["--seed", "42", "dsge", "var", "irf", "--model", dv_post, "--horizons", "4", "--conf-level", "0.95"])
+            assert_envelope_ok(r_dvi_def; label="CI-W4 dsge var irf default")
+            @test _ci_w(r_dvi_def.doc.data.dsge_var_irf; lo="lower", hi="upper") <
+                  _ci_w(r_dvi_90.doc.data.dsge_var_irf; lo="lower", hi="upper") <
+                  _ci_w(r_dvi_95.doc.data.dsge_var_irf; lo="lower", hi="upper")
+
+            r_dvf_def = run_json(["--seed", "42", "dsge", "var", "forecast", "--model", dv_post, "--horizons", "4"])
+            r_dvf_68  = run_json(["--seed", "42", "dsge", "var", "forecast", "--model", dv_post, "--horizons", "4", "--conf-level", "0.68"])
+            r_dvf_90  = run_json(["--seed", "42", "dsge", "var", "forecast", "--model", dv_post, "--horizons", "4", "--conf-level", "0.90"])
+            r_dvf_95  = run_json(["--seed", "42", "dsge", "var", "forecast", "--model", dv_post, "--horizons", "4", "--conf-level", "0.95"])
+            r_dvf_q90 = run_json(["--seed", "42", "dsge", "var", "forecast", "--model", dv_post, "--horizons", "4", "--quantiles", "0.05,0.5,0.95"])
+            assert_envelope_ok(r_dvf_def; label="CI-W4 dsge var forecast default")
+            wf_def = _ci_w(r_dvf_def.doc.data.dsge_var_forecast; lo="lower", hi="upper")
+            wf_68  = _ci_w(r_dvf_68.doc.data.dsge_var_forecast; lo="lower", hi="upper")
+            wf_90  = _ci_w(r_dvf_90.doc.data.dsge_var_forecast; lo="lower", hi="upper")
+            wf_95  = _ci_w(r_dvf_95.doc.data.dsge_var_forecast; lo="lower", hi="upper")
+            wf_q90 = _ci_w(r_dvf_q90.doc.data.dsge_var_forecast; lo="lower", hi="upper")
+            @test wf_def ≈ wf_68
+            @test wf_68 < wf_90 < wf_95
+            @test isapprox(wf_q90, wf_90; rtol=1e-6)
+            @test wf_q90 > wf_68
+
+            # 4. spectral density (plus acf & periodogram)
+            for (cmd, tbl_k) in (
+                (["spectral", "density", var_csv, "--column", "1"], :spectral_density),
+                (["spectral", "acf", var_csv, "--column", "1"], :acf_pacf),
+                (["spectral", "periodogram", var_csv, "--column", "1"], :periodogram),
+            )
+                r_def = run_json(cmd)
+                r_68  = run_json(vcat(cmd, ["--conf-level", "0.68"]))
+                r_90  = run_json(vcat(cmd, ["--conf-level", "0.90"]))
+                r_95  = run_json(vcat(cmd, ["--conf-level", "0.95"]))
+                assert_envelope_ok(r_def; label="CI-W4 $(join(cmd[1:2], ' ')) default")
+                @test _ci_w(r_def.doc.data[tbl_k]; lo="CI_Lower", hi="CI_Upper") ≈ _ci_w(r_68.doc.data[tbl_k]; lo="CI_Lower", hi="CI_Upper")
+                @test _ci_w(r_68.doc.data[tbl_k]; lo="CI_Lower", hi="CI_Upper") < _ci_w(r_90.doc.data[tbl_k]; lo="CI_Lower", hi="CI_Upper") < _ci_w(r_95.doc.data[tbl_k]; lo="CI_Lower", hi="CI_Upper")
+            end
+
+            # 5. ri estimate & ri cg-test
+            ri_cfg = joinpath(dir, "ri_ciw4.toml")
+            write(ri_cfg, """
+[ri]
+A = [[0.8]]
+B = [[1.0]]
+H = [[1.0]]
+M = [[1.0]]
+B_u = [[0.5]]
+beta = 0.99
+capacity = 1.0
+""")
+            ri_prob = MacroEconometricModels.RationalInattentionProblem(
+                [0.8;;], [1.0;;], [1.0;;]; M=[1.0;;], B_u=[0.5;;], beta=0.99, capacity=1.0)
+            ri_sol = MacroEconometricModels.solve_ri_kalman(ri_prob)
+            ri_sim = MacroEconometricModels.simulate(ri_sol, 120; burn=40, seed=123)
+            ri_act_csv = joinpath(dir, "ri_act.csv")
+            CSV.write(ri_act_csv, DataFrame(u=vec(ri_sim.actions)))
+            r_ridef = run_json(["--seed", "42", "ri", "estimate", ri_act_csv, "--config", ri_cfg])
+            r_ri68  = run_json(["--seed", "42", "ri", "estimate", ri_act_csv, "--config", ri_cfg, "--conf-level", "0.68"])
+            r_ri90  = run_json(["--seed", "42", "ri", "estimate", ri_act_csv, "--config", ri_cfg, "--conf-level", "0.90"])
+            r_ri95  = run_json(["--seed", "42", "ri", "estimate", ri_act_csv, "--config", ri_cfg, "--conf-level", "0.95"])
+            assert_envelope_ok(r_ridef; label="CI-W4 ri estimate default")
+            @test _ci_w(r_ridef.doc.data.ri_estimation) ≈ _ci_w(r_ri68.doc.data.ri_estimation)
+            @test _ci_w(r_ri68.doc.data.ri_estimation) < _ci_w(r_ri90.doc.data.ri_estimation) < _ci_w(r_ri95.doc.data.ri_estimation)
+
+            cg_real = randn(rng, 100)
+            cg_fnow = 0.7 .* cg_real .+ 0.3 .* randn(rng, 100)
+            cg_flag = 0.5 .* cg_real .+ 0.35 .* randn(rng, 100)
+            cg_csv = joinpath(dir, "cg_ciw4.csv")
+            CSV.write(cg_csv, DataFrame(realized=cg_real, f_now=cg_fnow, f_lag=cg_flag))
+            r_cgdef = run_json(["ri", "cg-test", cg_csv])
+            r_cg68  = run_json(["ri", "cg-test", cg_csv, "--conf-level", "0.68"])
+            r_cg90  = run_json(["ri", "cg-test", cg_csv, "--conf-level", "0.90"])
+            r_cg95  = run_json(["ri", "cg-test", cg_csv, "--conf-level", "0.95"])
+            assert_envelope_ok(r_cgdef; label="CI-W4 ri cg-test default")
+            @test _ci_w(r_cgdef.doc.data.cg_test; row=2) ≈ _ci_w(r_cg68.doc.data.cg_test; row=2)
+            @test _ci_w(r_cg68.doc.data.cg_test; row=2) < _ci_w(r_cg90.doc.data.cg_test; row=2) < _ci_w(r_cg95.doc.data.cg_test; row=2)
         end
     end
 end

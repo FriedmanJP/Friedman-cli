@@ -873,17 +873,20 @@ function _dsge_var_estimate(; file::String="", model=nothing,
                             observables::String="", no_intercept::Bool=false,
                             measurement_jitter::Float64=1e-8,
                             solver::String="gensys", order::Int=1,
+                            conf_level::Float64=_DEFAULT_CI_MACRO,
                             output::String="", format::String="table",
                             plot::Bool=false, plot_save::String="")
+    lv = _validate_conf_level(conf_level, "dsge var estimate")
     post = _w4_run_dsge_var_estimate(;
         file, model, data, lags, lambda, n_draws, priors, prior, method,
         burnin, n_particles, step_scale, observables, no_intercept,
         measurement_jitter, solver, order, leaf="dsge var estimate")
     _status("DSGE-VAR($(post.p)) posterior: method=$(post.method), lambda=$(post.lambda), log ML=$(round(post.log_marginal_likelihood; digits=4)), draws=$(post.n_draws)")
     _status_report(() -> report(post))
-    _maybe_plot(post; plot=plot, plot_save=plot_save)
+    _maybe_plot(post; plot=plot, plot_save=plot_save, conf_level=lv)
     _emit_result(post; title="Bayesian DSGE-VAR($(post.p)) Posterior (lambda=$(post.lambda), method=$(post.method))",
-                 key="dsge_var_posterior", format=Symbol(format), output=output)
+                 key="dsge_var_posterior", format=Symbol(format), output=output,
+                 conf_level=lv)
     return post
 end
 
@@ -941,7 +944,8 @@ end
 function _dsge_var_irf(; file::String="", model=nothing, result=nothing,
                        data::String="", lags::Int=4,
                        id::String="dsge-qr", horizon::Int=20, shock::Int=0,
-                       quantiles::String="0.16,0.5,0.84", point_estimate::String="mean",
+                       conf_level::Float64=_DEFAULT_CI_MACRO,
+                       quantiles::String=_DEFAULT_QUANTILES_MACRO, point_estimate::String="mean",
                        lambda::String="auto", n_draws::Int=1000,
                        priors::String="", prior::Vector{String}=String[],
                        method::String="rwmh", burnin::Int=150,
@@ -968,7 +972,8 @@ function _dsge_var_irf(; file::String="", model=nothing, result=nothing,
     horizon >= 1 || throw(CliError("usage/invalid-option", "$leaf: --horizons must be >= 1 (got $horizon)"))
     shock >= 0 || throw(CliError("usage/invalid-option", "$leaf: --shock must be >= 0 (0 = all shocks; got $shock)"))
     id_sym = _w4_parse_dsgevar_id(id, leaf)
-    q_vec = _w4_parse_quantiles(quantiles, leaf)
+    q_vec = _resolve_band_quantiles(quantiles, conf_level, leaf)
+    eff_conf = clamp(last(q_vec) - first(q_vec), 1e-6, 1.0 - 1e-6)
     pe_sym = Symbol(point_estimate)
     pe_sym in (:mean, :median) || throw(CliError("usage/invalid-option",
         "$leaf: --point-estimate must be mean|median (got '$point_estimate')"))
@@ -993,7 +998,7 @@ function _dsge_var_irf(; file::String="", model=nothing, result=nothing,
         nothing
     end
     _status_report(() -> report(birf))
-    _maybe_plot(birf; plot=plot, plot_save=plot_save)
+    _maybe_plot(birf; plot=plot, plot_save=plot_save, conf_level=eff_conf)
     _emit_result(birf; title="DSGE-VAR($(post.p)) Impulse Responses ($id, h=$horizon)",
                  key="dsge_var_irf", format=Symbol(format), output=output,
                  shocks=shock_filter)
@@ -1003,7 +1008,8 @@ end
 function _dsge_var_fevd(; file::String="", model=nothing, result=nothing,
                         data::String="", lags::Int=4,
                         id::String="dsge-qr", horizon::Int=20,
-                        quantiles::String="0.16,0.5,0.84", point_estimate::String="mean",
+                        conf_level::Float64=_DEFAULT_CI_MACRO,
+                        quantiles::String=_DEFAULT_QUANTILES_MACRO, point_estimate::String="mean",
                         lambda::String="auto", n_draws::Int=1000,
                         priors::String="", prior::Vector{String}=String[],
                         method::String="rwmh", burnin::Int=150,
@@ -1020,7 +1026,7 @@ function _dsge_var_fevd(; file::String="", model=nothing, result=nothing,
     end
     horizon >= 1 || throw(CliError("usage/invalid-option", "$leaf: --horizons must be >= 1 (got $horizon)"))
     id_sym = _w4_parse_dsgevar_id(id, leaf)
-    q_vec = _w4_parse_quantiles(quantiles, leaf)
+    q_vec = _resolve_band_quantiles(quantiles, conf_level, leaf)
     pe_sym = Symbol(point_estimate)
     pe_sym in (:mean, :median) || throw(CliError("usage/invalid-option",
         "$leaf: --point-estimate must be mean|median (got '$point_estimate')"))
@@ -1045,7 +1051,8 @@ end
 function _dsge_var_hd(; file::String="", model=nothing, result=nothing,
                       data::String="", lags::Int=4,
                       id::String="dsge-qr", horizon::Int=0,
-                      quantiles::String="0.16,0.5,0.84", point_estimate::String="mean",
+                      conf_level::Float64=_DEFAULT_CI_MACRO,
+                      quantiles::String=_DEFAULT_QUANTILES_MACRO, point_estimate::String="mean",
                       lambda::String="auto", n_draws::Int=1000,
                       priors::String="", prior::Vector{String}=String[],
                       method::String="rwmh", burnin::Int=150,
@@ -1062,7 +1069,7 @@ function _dsge_var_hd(; file::String="", model=nothing, result=nothing,
     end
     horizon >= 0 || throw(CliError("usage/invalid-option", "$leaf: --horizons must be >= 0 (0 = full sample; got $horizon)"))
     id_sym = _w4_parse_dsgevar_id(id, leaf)
-    q_vec = _w4_parse_quantiles(quantiles, leaf)
+    q_vec = _resolve_band_quantiles(quantiles, conf_level, leaf)
     pe_sym = Symbol(point_estimate)
     pe_sym in (:mean, :median) || throw(CliError("usage/invalid-option",
         "$leaf: --point-estimate must be mean|median (got '$point_estimate')"))
@@ -1105,8 +1112,8 @@ end
 function _dsge_var_forecast(; file::String="", model=nothing, result=nothing,
                             data::String="", lags::Int=4,
                             horizon::Int=12,
-                            quantiles::String="0.16,0.5,0.84",
-                            conf_level::Float64=0.0,
+                            quantiles::String=_DEFAULT_QUANTILES_MACRO,
+                            conf_level::Float64=_DEFAULT_CI_MACRO,
                             point_estimate::String="mean",
                             lambda::String="auto", n_draws::Int=1000,
                             priors::String="", prior::Vector{String}=String[],
@@ -1128,15 +1135,16 @@ function _dsge_var_forecast(; file::String="", model=nothing, result=nothing,
     pe_sym = Symbol(point_estimate)
     pe_sym in (:mean, :median) || throw(CliError("usage/invalid-option",
         "$leaf: --point-estimate must be mean|median (got '$point_estimate')"))
-    q_vec = _w4_parse_quantiles(quantiles, leaf)
-    eff_conf = if conf_level > 0.0
-        (0.0 < conf_level < 1.0) || throw(CliError("usage/invalid-option",
-            "$leaf: --conf-level must lie in (0, 1) (got $conf_level)"))
-        conf_level
+    # [Landmine L3 / #333]: resolve via _resolve_band_quantiles + _CURRENT_EXPLICIT_OPTS[]
+    # so default conf_level=0.68 never silently overrides an explicit --quantiles!
+    q_vec = _resolve_band_quantiles(quantiles, conf_level, leaf)
+    exp_opts = isdefined(@__MODULE__, :_CURRENT_EXPLICIT_OPTS) ? _CURRENT_EXPLICIT_OPTS[] : Set{String}()
+    eff_conf = if !("quantiles" in exp_opts) && !(isempty(exp_opts) && quantiles != _DEFAULT_QUANTILES_MACRO)
+        _validate_conf_level(conf_level, leaf)
     elseif length(q_vec) >= 2 && (last(q_vec) - first(q_vec)) > 0.0
         clamp(last(q_vec) - first(q_vec), 0.01, 0.999)
     else
-        0.68
+        _DEFAULT_CI_MACRO
     end
 
     post = _w4_resolve_dsge_var_posterior(;
@@ -1151,7 +1159,7 @@ function _dsge_var_forecast(; file::String="", model=nothing, result=nothing,
         throw(_domain_or_data_error(e, "DSGE-VAR forecast"))
     end
 
-    _maybe_plot(fc; plot=plot, plot_save=plot_save)
+    _maybe_plot(fc; plot=plot, plot_save=plot_save, conf_level=eff_conf)
     _emit_result(fc; title="DSGE-VAR($(post.p)) Forecast (h=$horizon, $(round(Int, 100 * eff_conf))% credible interval)",
                  key="dsge_var_forecast", format=Symbol(format), output=output)
     return (; model=post, result=fc)
@@ -1517,6 +1525,7 @@ function w4_dsge_specs()::Vector{CommandSpec}
             options=[
                 MODEL_OPTION,
                 _W4_DSGEVAR_INLINE_OPTIONS...,
+                CONF_LEVEL_MACRO_OPTION,
                 SAVE_MODEL_OPTION,
                 OUTPUT_OPTIONS...,
                 PLOT_OPTIONS...,
@@ -1526,7 +1535,7 @@ function w4_dsge_specs()::Vector{CommandSpec}
                 PLOT_FLAGS...,
             ],
             tables=[TableSpec(name=:dsge_var_posterior,
-                              description="Bayesian DSGE-VAR(lambda) posterior parameter summary (mean, std, 5%/50%/95% quantiles)")],
+                              description="Bayesian DSGE-VAR(lambda) posterior parameter summary (mean, std, median and credible interval bounds)")],
             category="dsge",
             data_kinds=[:timeseries, :csv],
             model_types=_W4_DSGEVAR_INPUT_TYPES,
@@ -1546,8 +1555,8 @@ function w4_dsge_specs()::Vector{CommandSpec}
                            description="IRF horizon H (>= 1)"),
                 OptionSpec(name="shock", type=Int, default=0,
                            description="Filter output to 1-based shock index (0 = all shocks)"),
-                OptionSpec(name="quantiles", type=String, default="0.16,0.5,0.84",
-                           description="Comma-separated posterior credible quantiles in (0, 1)"),
+                CONF_LEVEL_MACRO_OPTION,
+                QUANTILES_MACRO_OPTION,
                 OptionSpec(name="point-estimate", type=String, default="mean",
                            choices=["mean", "median"],
                            description="Central posterior summary: mean|median"),
@@ -1581,8 +1590,8 @@ function w4_dsge_specs()::Vector{CommandSpec}
                            description="Structural identification: dsge-qr|cholesky|long-run"),
                 OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=20,
                            description="FEVD horizon H (>= 1)"),
-                OptionSpec(name="quantiles", type=String, default="0.16,0.5,0.84",
-                           description="Comma-separated posterior credible quantiles in (0, 1)"),
+                CONF_LEVEL_MACRO_OPTION,
+                QUANTILES_MACRO_OPTION,
                 OptionSpec(name="point-estimate", type=String, default="mean",
                            choices=["mean", "median"],
                            description="Central posterior summary: mean|median"),
@@ -1617,8 +1626,8 @@ function w4_dsge_specs()::Vector{CommandSpec}
                            description="Structural identification: dsge-qr|cholesky|long-run"),
                 OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=0,
                            description="Truncation horizon (0 = full effective sample)"),
-                OptionSpec(name="quantiles", type=String, default="0.16,0.5,0.84",
-                           description="Comma-separated posterior credible quantiles in (0, 1)"),
+                CONF_LEVEL_MACRO_OPTION,
+                QUANTILES_MACRO_OPTION,
                 OptionSpec(name="point-estimate", type=String, default="mean",
                            choices=["mean", "median"],
                            description="Central posterior summary: mean|median"),
@@ -1650,10 +1659,8 @@ function w4_dsge_specs()::Vector{CommandSpec}
                 MODEL_OPTION,
                 OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=12,
                            description="Forecast horizon h (>= 1)"),
-                OptionSpec(name="quantiles", type=String, default="0.16,0.5,0.84",
-                           description="Credible band quantiles in (0, 1) (outer span sets conf_level unless --conf-level is given)"),
-                OptionSpec(name="conf-level", type=Float64, default=0.0,
-                           description="Explicit credible interval width in (0, 1) (0 = derive from --quantiles)"),
+                CONF_LEVEL_MACRO_OPTION,
+                QUANTILES_MACRO_OPTION,
                 OptionSpec(name="point-estimate", type=String, default="mean",
                            choices=["mean", "median"],
                            description="Central posterior summary: mean|median"),

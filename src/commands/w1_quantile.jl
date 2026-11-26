@@ -903,11 +903,40 @@ end
 
 function _estimate_qvar(; data::String, lags::Int=1, taus::String="0.1,0.5,0.9",
                         ordering::String="", se::String="asymptotic", n_boot::Int=199,
+                        conf_level::Float64=_DEFAULT_CI_MACRO,
                         output::String="", format::String="table")
+    lv = _validate_conf_level(conf_level, "estimate multivariate qvar")
     model, _ = _w1_load_and_estimate_qvar(data, lags, taus, ordering, se, n_boot,
                                           "estimate multivariate qvar")
+    n = size(model.Y, 2)
+    ci_lo = Float64[]; ci_hi = Float64[]
+    ci_raw = try
+        confint(model; level=lv)
+    catch
+        nothing
+    end
+    if ci_raw isa AbstractArray && ndims(ci_raw) == 3 && size(ci_raw, 3) == length(model.taus)
+        for ti in eachindex(model.taus)
+            append!(ci_lo, Float64.(vec(@view ci_raw[:, 1, ti])))
+            append!(ci_hi, Float64.(vec(@view ci_raw[:, 2, ti])))
+        end
+    elseif ci_raw isa AbstractMatrix && length(model.taus) == 1 && size(ci_raw, 2) == 2
+        append!(ci_lo, Float64.(vec(@view ci_raw[:, 1])))
+        append!(ci_hi, Float64.(vec(@view ci_raw[:, 2])))
+    else
+        zc = _normal_quantile(1.0 - (1.0 - lv) / 2.0)
+        for (ti, _) in enumerate(model.taus)
+            B = model.B_list[ti]; SE = model.se_list[ti]
+            for eq in 1:n, c in 1:size(B, 1)
+                push!(ci_lo, Float64(B[c, eq]) - zc * Float64(SE[c, eq]))
+                push!(ci_hi, Float64(B[c, eq]) + zc * Float64(SE[c, eq]))
+            end
+        end
+    end
     _emit_result(model; title="Quantile VAR($(model.p)) Coefficients",
-                 key="qvar_coefficients", format=Symbol(format), output=output)
+                 key="qvar_coefficients", format=Symbol(format), output=output,
+                 conf_level=lv,
+                 extra_cols=Pair{String,Any}["ci_lower" => ci_lo, "ci_upper" => ci_hi])
     return model
 end
 
@@ -1013,14 +1042,17 @@ function _estimate_qfavar(; data::String, factors::Int=2, lags::Int=1,
                           method::String="twostep", se::String="none",
                           vb_maxiter::Int=100, vb_tol::Float64=1e-4,
                           n_draws::Int=200, no_standardize::Bool=false,
+                          conf_level::Float64=_DEFAULT_CI_MACRO,
                           output::String="", format::String="table")
+    lv = _validate_conf_level(conf_level, "estimate multivariate qfavar")
     model, _ = _w1_load_and_estimate_qfavar(
         data, factors, lags, key_vars, taus, method, se,
         vb_maxiter, vb_tol, n_draws, no_standardize,
         "estimate multivariate qfavar")
     lbl = model isa VBQuantileFAVAR ? "VB Quantile FAVAR" : "Quantile FAVAR"
     _emit_result(model; title="$lbl Loadings (r=$(model.n_factors), p=$(model.p))",
-                 key="qfavar_loadings", format=Symbol(format), output=output)
+                 key="qfavar_loadings", format=Symbol(format), output=output,
+                 conf_level=lv)
     return model
 end
 
@@ -1208,11 +1240,12 @@ function w1_estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="ordering", type=String, default="", description="Recursive Cholesky variable ordering (comma-separated names or 1-based indices)"),
                 OptionSpec(name="se", type=String, default="asymptotic", description="Standard error method: asymptotic|bootstrap|none", choices=["asymptotic", "bootstrap", "none"]),
                 OptionSpec(name="n-boot", type=Int, default=199, description="Bootstrap replications for --se bootstrap"),
+                CONF_LEVEL_MACRO_OPTION,
                 OUTPUT_OPTIONS...,
             ],
             flags=FlagSpec[],
             tables=[
-                TableSpec(name=:qvar_coefficients, description="Quantile VAR coefficients via Tables.jl: tau | equation | term | estimate | std_error"),
+                TableSpec(name=:qvar_coefficients, description="Quantile VAR coefficients via Tables.jl: tau | equation | term | estimate | std_error | ci_lower | ci_upper"),
             ],
             category="estimate",
             handler=wrap_legacy(_estimate_qvar),
@@ -1232,6 +1265,7 @@ function w1_estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="vb-maxiter", type=Int, default=100, description="Max CAVI iterations for --method vb"),
                 OptionSpec(name="vb-tol", type=Float64, default=1e-4, description="CAVI convergence tolerance for --method vb"),
                 OptionSpec(name="n-draws", type=Int, default=200, description="Variational posterior draws for --method vb"),
+                CONF_LEVEL_MACRO_OPTION,
                 OUTPUT_OPTIONS...,
             ],
             flags=[

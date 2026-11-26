@@ -38,14 +38,15 @@ function spectral_specs()::Vector{CommandSpec}
                            description="Maximum lag (default: automatic, capped at min(T-1, 10*log10(T)))"),
                 OptionSpec(name="ccf-with", type=Int, default=nothing,
                            description="Column index for cross-correlation"),
+                CONF_LEVEL_MACRO_OPTION,
                 plot_opts...,
             ],
             flags=plot_flags,
             tables=[
                 TableSpec(name=:acf_pacf,
-                          description="Autocorrelation, partial autocorrelation, Ljung-Box Q and p-value by lag"),
+                          description="Autocorrelation, partial autocorrelation, Ljung-Box Q, p-value and white-noise confidence band by lag"),
                 TableSpec(name=:cross_correlation,
-                          description="Cross-correlation by lag against --ccf-with (only with that option)"),
+                          description="Cross-correlation with confidence band by lag against --ccf-with (only with that option)"),
             ],
             category="spectral",
             handler=wrap_legacy(_spectral_acf),
@@ -57,11 +58,12 @@ function spectral_specs()::Vector{CommandSpec}
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1,
                            description="Column index (1-based)"),
+                CONF_LEVEL_MACRO_OPTION,
                 plot_opts...,
             ],
             flags=[plot_flags; log_scale_flag],
             tables=[TableSpec(name=:periodogram,
-                              description="Raw periodogram power by Fourier frequency")],
+                              description="Raw periodogram power with chi-squared confidence band by Fourier frequency")],
             category="spectral",
             handler=wrap_legacy(_spectral_periodogram),
         ),
@@ -77,6 +79,7 @@ function spectral_specs()::Vector{CommandSpec}
                            description="periodogram|welch|smoothed|ar"),
                 OptionSpec(name="bandwidth", type=Float64, default=nothing,
                            description="Smoothing bandwidth"),
+                CONF_LEVEL_MACRO_OPTION,
                 plot_opts...,
             ],
             flags=[plot_flags; log_scale_flag],
@@ -94,6 +97,7 @@ function spectral_specs()::Vector{CommandSpec}
                            description="First variable column index"),
                 OptionSpec(name="var2", type=Int, default=2,
                            description="Second variable column index"),
+                CONF_LEVEL_MACRO_OPTION,
                 plot_opts...,
             ],
             flags=plot_flags,
@@ -138,6 +142,7 @@ function _rerender_spectral_result(result; format::String="table", output::Strin
                                    plot::Bool=false, plot_save::String="")
     tn = nameof(typeof(result))
     if tn === :ACFResult
+        n_lags = length(result.lags)
         acf_df = DataFrame(
             Lag     = result.lags,
             ACF     = result.acf,
@@ -145,9 +150,27 @@ function _rerender_spectral_result(result; format::String="table", output::Strin
             Q_stat  = result.q_stats,
             p_value = result.q_pvalues,
         )
+        if hasproperty(result, :ci) && result.ci !== nothing
+            ci_val = Float64(result.ci)
+            acf_df.CI_Lower = fill(-ci_val, n_lags)
+            acf_df.CI_Upper = fill(ci_val, n_lags)
+        end
         output_result(acf_df; format=Symbol(format), output=output, title="ACF / PACF")
     elseif tn === :SpectralDensityResult
-        if key == "periodogram" || !hasproperty(result, :ci_lower) || result.ci_lower === nothing
+        has_ci = hasproperty(result, :ci_lower) && result.ci_lower !== nothing &&
+                 hasproperty(result, :ci_upper) && result.ci_upper !== nothing
+        if key == "periodogram"
+            peri_df = has_ci ? DataFrame(
+                Frequency = result.freq,
+                Power     = result.density,
+                CI_Lower  = result.ci_lower,
+                CI_Upper  = result.ci_upper,
+            ) : DataFrame(
+                Frequency = result.freq,
+                Power     = result.density,
+            )
+            output_result(peri_df; format=Symbol(format), output=output, title="Periodogram")
+        elseif !has_ci
             peri_df = DataFrame(
                 Frequency = result.freq,
                 Power     = result.density,
@@ -217,34 +240,44 @@ end
 function _spectral_acf(; data::String, column::Int=1,
                         max_lag::Union{Int,Nothing}=nothing,
                         ccf_with::Union{Int,Nothing}=nothing,
+                        conf_level::Float64=_DEFAULT_CI_MACRO,
                         output::String="", format::String="table",
                         plot::Bool=false, plot_save::String="")
+    lv = _validate_conf_level(conf_level, "spectral acf")
     df = load_data(data)
     vnames = variable_names(df)
     Y = df_to_matrix(df)
     y = Y[:, column]
 
-    kwargs = isnothing(max_lag) ? (;) : (; lags=max_lag)
-    result = acf(y; kwargs...)
+    kwargs = isnothing(max_lag) ? (; conf_level=lv) : (; lags=max_lag, conf_level=lv)
+    result = acf_pacf(y; kwargs...)
 
-    _status("ACF/PACF: $(vnames[column])  (T = $(length(y)))")
+    _status("ACF/PACF: $(vnames[column])  (T = $(length(y)), conf_level = $lv)")
     _status()
 
+    ci_val = Float64(result.ci)
+    n_lags = length(result.lags)
     acf_df = DataFrame(
-        Lag     = result.lags,
-        ACF     = result.acf,
-        PACF    = result.pacf,
-        Q_stat  = result.q_stats,
-        p_value = result.q_pvalues,
+        Lag      = result.lags,
+        ACF      = result.acf,
+        PACF     = result.pacf,
+        Q_stat   = result.q_stats,
+        p_value  = result.q_pvalues,
+        CI_Lower = fill(-ci_val, n_lags),
+        CI_Upper = fill(ci_val, n_lags),
     )
     output_result(acf_df; format=Symbol(format), output=output, title="ACF / PACF")
 
     if !isnothing(ccf_with)
         z = Y[:, ccf_with]
         ccf_result = ccf(y, z; kwargs...)
+        ccf_ci = Float64(hasproperty(ccf_result, :ci) ? ccf_result.ci : ccf_result.ci_band)
+        n_ccf = length(ccf_result.lags)
         ccf_df = DataFrame(
-            Lag = ccf_result.lags,
-            CCF = ccf_result.ccf,
+            Lag      = ccf_result.lags,
+            CCF      = ccf_result.ccf,
+            CI_Lower = fill(-ccf_ci, n_ccf),
+            CI_Upper = fill(ccf_ci, n_ccf),
         )
         _status()
         output_result(ccf_df; format=Symbol(format),
@@ -252,48 +285,54 @@ function _spectral_acf(; data::String, column::Int=1,
                       title="CCF: $(vnames[column]) x $(vnames[ccf_with])", key="cross_correlation")
     end
 
-    _maybe_plot(result; plot=plot, plot_save=plot_save)
+    _maybe_plot(result; plot=plot, plot_save=plot_save, conf_level=lv)
     return result
 end
 
 function _spectral_periodogram(; data::String, column::Int=1,
+                                conf_level::Float64=_DEFAULT_CI_MACRO,
                                 output::String="", format::String="table",
                                 plot::Bool=false, plot_save::String="",
                                 log_scale::Bool=false)
+    lv = _validate_conf_level(conf_level, "spectral periodogram")
     df = load_data(data)
     vnames = variable_names(df)
     y = df_to_matrix(df)[:, column]
 
-    result = periodogram(y)
+    result = periodogram(y; conf_level=lv)
 
-    _status("Periodogram: $(vnames[column])  (T = $(length(y)))")
+    _status("Periodogram: $(vnames[column])  (T = $(length(y)), conf_level = $lv)")
     _status()
 
     peri_df = DataFrame(
         Frequency = result.freq,
         Power     = result.density,
+        CI_Lower  = result.ci_lower,
+        CI_Upper  = result.ci_upper,
     )
     output_result(peri_df; format=Symbol(format), output=output, title="Periodogram")
     plot_kw = log_scale ? (; log_scale=true) : NamedTuple()
-    _maybe_plot(result; plot=plot, plot_save=plot_save, plot_kw...)
+    _maybe_plot(result; plot=plot, plot_save=plot_save, conf_level=lv, plot_kw...)
     return result
 end
 
 function _spectral_density(; data::String, column::Int=1,
                             method::String="welch",
                             bandwidth::Union{Float64,Nothing}=nothing,
+                            conf_level::Float64=_DEFAULT_CI_MACRO,
                             output::String="", format::String="table",
                             plot::Bool=false, plot_save::String="",
                             log_scale::Bool=false)
+    lv = _validate_conf_level(conf_level, "spectral density")
     df = load_data(data)
     vnames = variable_names(df)
     y = df_to_matrix(df)[:, column]
 
-    kwargs = Dict{Symbol,Any}(:method => Symbol(method))
+    kwargs = Dict{Symbol,Any}(:method => Symbol(method), :conf_level => lv)
     !isnothing(bandwidth) && (kwargs[:bandwidth] = bandwidth)
     result = spectral_density(y; kwargs...)
 
-    _status("Spectral Density ($(method)): $(vnames[column])  (T = $(length(y)))")
+    _status("Spectral Density ($(method)): $(vnames[column])  (T = $(length(y)), conf_level = $lv)")
     _status()
 
     sd_df = DataFrame(
@@ -304,13 +343,15 @@ function _spectral_density(; data::String, column::Int=1,
     )
     output_result(sd_df; format=Symbol(format), output=output, title="Spectral Density")
     plot_kw = log_scale ? (; log_scale=true) : NamedTuple()
-    _maybe_plot(result; plot=plot, plot_save=plot_save, plot_kw...)
+    _maybe_plot(result; plot=plot, plot_save=plot_save, conf_level=lv, plot_kw...)
     return result
 end
 
 function _spectral_cross(; data::String, var1::Int=1, var2::Int=2,
+                          conf_level::Float64=_DEFAULT_CI_MACRO,
                           output::String="", format::String="table",
                           plot::Bool=false, plot_save::String="")
+    lv = _validate_conf_level(conf_level, "spectral cross")
     df = load_data(data)
     vnames = variable_names(df)
     Y = df_to_matrix(df)
@@ -318,7 +359,7 @@ function _spectral_cross(; data::String, var1::Int=1, var2::Int=2,
 
     result = cross_spectrum(y, z)
 
-    _status("Cross-Spectrum: $(vnames[var1]) x $(vnames[var2])  (T = $(length(y)))")
+    _status("Cross-Spectrum: $(vnames[var1]) x $(vnames[var2])  (T = $(length(y)), conf_level = $lv)")
     _status()
 
     cs_df = DataFrame(
@@ -330,7 +371,7 @@ function _spectral_cross(; data::String, var1::Int=1, var2::Int=2,
         Gain          = result.gain,
     )
     output_result(cs_df; format=Symbol(format), output=output, title="Cross-Spectral Analysis")
-    _maybe_plot(result; plot=plot, plot_save=plot_save)
+    _maybe_plot(result; plot=plot, plot_save=plot_save, conf_level=lv)
     return result
 end
 

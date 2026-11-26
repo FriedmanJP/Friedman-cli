@@ -2528,9 +2528,11 @@ end  # Shared utilities
                 @test _err([csv, "--reps", "0"]).code == "usage/invalid"
                 @test _err([csv, "--d", "foo"]).code == "usage/invalid"
                 @test _err([csv, "--d", "0"]).code == "usage/invalid"
-                # --ci-level 0.8: blocked by choices at parse (ParseError, exit 2) or the
-                # in-handler exact-float guard (CliError usage/invalid, exit 2)
-                eci = _err([csv, "--ci-level", "0.8"])
+                # MEMs v1.1.2 uses exact closed-form Hansen (2000) critical values for any
+                # level ∈ (0, 1): 0.68 and 0.80 are valid; out-of-range levels exit 2.
+                @test _doc([csv, "--ci-level", "0.68"]).status == "ok"
+                @test _doc([csv, "--ci-level", "0.8"]).status == "ok"
+                eci = _err([csv, "--ci-level", "1.5"])
                 @test eci isa ParseError || (eci isa CliError && exit_class(eci) == 2)
                 # out-of-range column / missing cell via the hardened univariate loader
                 @test _err([csv, "--column", "99"]).code == "data/column-range"
@@ -17941,6 +17943,456 @@ end
                 e = _run_expect_err(["estimate", "regression", "reg", reg_csv, "--dep", "y", "--conf-level", bad])
                 @test e isa CliError && e.code == "usage/invalid" && exit_class(e) == 2
             end
+        end
+    end
+end
+
+@testset "[CI-W4] macro 68% CI defaults Batch 2 (#333)" begin
+    _run_json_ok(argv; seed::Union{Nothing,Int}=nothing) = begin
+        seed !== nothing && Random.seed!(seed)
+        out = _capture() do
+            _dispatch_via_app(vcat(String[string(a) for a in argv], String["--format", "json"]))
+        end
+        i = findfirst('{', out)
+        @assert i !== nothing "no JSON envelope in output: $out"
+        doc = JSON3.read(out[i:end])
+        @test string(doc.status) == "ok"
+        doc
+    end
+    _run_err(argv) = begin
+        err = nothing
+        try
+            _capture() do
+                _dispatch_via_app(vcat(String[string(a) for a in argv], String["--format", "json"]))
+            end
+        catch e
+            err = e
+        end
+        err
+    end
+    _ci_width_from_tbl(tbl; lo_col::String="ci_lower", hi_col::String="ci_upper", row::Int=1) = begin
+        cols = String.(tbl.columns)
+        li = findfirst(==(lo_col), cols)
+        hi = findfirst(==(hi_col), cols)
+        @assert li !== nothing && hi !== nothing "missing $lo_col/$hi_col in $cols"
+        r = collect(tbl.rows)[row]
+        Float64(r[hi]) - Float64(r[li])
+    end
+
+    @testset "Registry defaults & Landmine L8 guards" begin
+        isempty(REGISTRY) && _capture(() -> try _dispatch_via_app(["--help"]) catch end)
+        spec_map = Dict(s.path => s for s in REGISTRY)
+        opt_default(path, name) = first(o.default for o in spec_map[path].options if o.name == name)
+        has_opt(path, name) = any(o.name == name for o in spec_map[path].options)
+
+        for p in (
+            ["estimate", "multivariate", "var"], ["estimate", "multivariate", "bvar"],
+            ["estimate", "multivariate", "vecm"], ["estimate", "multivariate", "svar"],
+            ["estimate", "multivariate", "svec"], ["estimate", "multivariate", "favar"],
+            ["estimate", "multivariate", "lp"], ["estimate", "multivariate", "tvpvar"],
+            ["estimate", "multivariate", "mfvar"], ["estimate", "multivariate", "qvar"],
+            ["estimate", "multivariate", "qfavar"], ["estimate", "multivariate", "lms-svar"],
+            ["estimate", "multivariate", "lanne-luoto"], ["estimate", "multivariate", "ssvarma"],
+            ["estimate", "panel", "pvar"], ["estimate", "panel", "pmg"],
+            ["estimate", "panel", "xtcointreg"], ["estimate", "regression", "cointreg"],
+            ["estimate", "univariate", "arima"], ["estimate", "univariate", "sarima"],
+            ["estimate", "univariate", "arfima"], ["estimate", "univariate", "ardl"],
+            ["estimate", "univariate", "midas"],
+            ["estimate", "volatility", "arch"], ["estimate", "volatility", "garch"],
+            ["estimate", "volatility", "egarch"], ["estimate", "volatility", "gjr-garch"],
+            ["estimate", "volatility", "sv"], ["estimate", "volatility", "igarch"],
+            ["estimate", "volatility", "cgarch"], ["estimate", "volatility", "aparch"],
+            ["estimate", "volatility", "figarch"], ["estimate", "volatility", "fiegarch"],
+            ["estimate", "volatility", "garch-midas"],
+            ["test", "stability", "bai-perron"],
+            ["dsge", "bayes", "estimate"], ["dsge", "bayes", "summary"],
+            ["dsge", "bayes", "irf"], ["dsge", "bayes", "fevd"],
+            ["dsge", "bayes", "simulate"], ["dsge", "bayes", "hd"],
+            ["dsge", "bayes", "prior-predictive"], ["hadsge", "estimate"],
+            ["dsge", "var", "estimate"], ["dsge", "var", "irf"],
+            ["dsge", "var", "fevd"], ["dsge", "var", "hd"], ["dsge", "var", "forecast"],
+            ["spectral", "acf"], ["spectral", "periodogram"],
+            ["spectral", "density"], ["spectral", "cross"],
+            ["ri", "estimate"], ["ri", "cg-test"],
+        )
+            @test has_opt(p, "conf-level")
+            @test opt_default(p, "conf-level") == 0.68
+        end
+        # SETAR (upgraded for MEMs v1.1.2) and NARDL
+        @test opt_default(["estimate", "regime", "setar"], "conf-level") == 0.68
+        @test isnothing(first(o.choices for o in spec_map[["estimate", "regime", "setar"]].options if o.name == "conf-level"))
+        @test opt_default(["estimate", "univariate", "nardl"], "conf-level") == 0.68
+        # LP --ar-level default 0.68
+        @test opt_default(["estimate", "multivariate", "lp"], "ar-level") == 0.68
+
+        # Landmine L8: SARIMA MUST NOT have --quantiles (-Q collision)
+        @test !has_opt(["estimate", "univariate", "sarima"], "quantiles")
+        # Landmine L8: 5% hypothesis test defaults and micro threshold untouched
+        @test opt_default(["test", "coint", "ardl-bounds"], "level") == 0.05
+        @test opt_default(["test", "stability", "chow"], "level") == 0.05
+        @test opt_default(["test", "stability", "cusum"], "level") == 0.05
+        @test opt_default(["test", "stability", "cusumsq"], "level") == 0.05
+        @test opt_default(["estimate", "multivariate", "vecm"], "significance") == 0.05
+        @test opt_default(["estimate", "multivariate", "svec"], "significance") == 0.05
+        @test opt_default(["estimate", "regime", "threshold"], "conf-level") == 0.95
+    end
+
+    mktempdir() do dir
+        rng = MersenneTwister(333)
+        # Multivariate macro CSV (T=80, n=3)
+        mv_csv = joinpath(dir, "macro.csv")
+        open(mv_csv, "w") do io
+            println(io, "y1,y2,y3")
+            y1, y2, y3 = 0.0, 0.0, 0.0
+            for t in 1:80
+                y1 = 0.6 * y1 + 0.1 * y2 + 0.5 * randn(rng)
+                y2 = 0.1 * y1 + 0.5 * y2 + 0.5 * randn(rng)
+                y3 = 0.2 * y1 - 0.1 * y2 + 0.4 * y3 + 0.5 * randn(rng)
+                println(io, "$y1,$y2,$y3")
+            end
+        end
+        # Instrument CSV for LP-IV
+        z_csv = joinpath(dir, "inst.csv")
+        open(z_csv, "w") do io
+            println(io, "z1")
+            for t in 1:80
+                println(io, randn(rng))
+            end
+        end
+        # High-frequency CSV for MIDAS (m=3, 3*80=240 obs)
+        hf_csv = joinpath(dir, "hf.csv")
+        open(hf_csv, "w") do io
+            println(io, "x")
+            for t in 1:240
+                println(io, randn(rng))
+            end
+        end
+        # Mixed-frequency CSV for MF-VAR (col 2 has NaN gaps)
+        mf_csv = joinpath(dir, "mf.csv")
+        open(mf_csv, "w") do io
+            println(io, "hf1,lf2")
+            for t in 1:60
+                v1 = sin(t / 4.0) + 0.2 * randn(rng)
+                v2 = (t % 3 == 0) ? string(cos(t / 5.0) + 0.1 * randn(rng)) : ""
+                println(io, "$v1,$v2")
+            end
+        end
+        # Panel CSV (N=5, T=25)
+        panel_csv = joinpath(dir, "panel.csv")
+        open(panel_csv, "w") do io
+            println(io, "id,t,y,x1,x2")
+            for i in 1:5
+                yi = 0.0; x1i = 0.0; x2i = 0.0
+                for t in 1:25
+                    x1i = 0.8 * x1i + randn(rng)
+                    x2i = 0.7 * x2i + randn(rng)
+                    yi = 0.5 * yi + 0.6 * x1i + 0.3 * x2i + randn(rng) * 0.5
+                    println(io, "$i,$t,$yi,$x1i,$x2i")
+                end
+            end
+        end
+        # Minimal DSGE TOML + priors TOML + 2-var data CSV
+        dsge_toml = joinpath(dir, "nk.toml")
+        write(dsge_toml, """
+[model]
+parameters = { rho = 0.8, kappa = 0.3 }
+endogenous = ["y", "pi"]
+exogenous = ["eps_y", "eps_pi"]
+[[model.equations]]
+expr = "y[t] = rho * y[t-1] + eps_y[t]"
+[[model.equations]]
+expr = "pi[t] = kappa * y[t] + eps_pi[t]"
+[solver]
+method = "gensys"
+""")
+        priors_toml = joinpath(dir, "priors.toml")
+        write(priors_toml, """
+[priors]
+[priors.rho]
+dist = "beta"
+a = 4.0
+b = 2.0
+[priors.kappa]
+dist = "normal"
+mu = 0.3
+sigma = 0.1
+""")
+        dsge_csv = joinpath(dir, "dsge_data.csv")
+        open(dsge_csv, "w") do io
+            println(io, "y,pi")
+            for t in 1:60
+                println(io, "$(0.2 * sin(t / 5.0) + 0.1 * randn(rng)),$(0.1 * cos(t / 6.0) + 0.1 * randn(rng))")
+            end
+        end
+        # Minimal RI config + data CSV
+        ri_toml = joinpath(dir, "ri.toml")
+        write(ri_toml, """
+[ri]
+A = [[0.8]]
+B = [[1.0]]
+H = [[1.0]]
+M = [[1.0]]
+B_u = [[0.5]]
+beta = 0.99
+capacity = 1.0
+""")
+        cg_csv = joinpath(dir, "cg.csv")
+        open(cg_csv, "w") do io
+            println(io, "realized,f_now,f_lag")
+            for t in 1:60
+                r = 0.5 * sin(t / 4.0) + 0.3 * randn(rng)
+                fn = 0.7 * r + 0.2 * randn(rng)
+                fl = 0.5 * r + 0.25 * randn(rng)
+                println(io, "$r,$fn,$fl")
+            end
+        end
+
+        @testset "Multivariate, panel, univariate, volatility & SETAR monotonicity" begin
+            # VAR
+            d_def = _run_json_ok(["estimate", "multivariate", "var", mv_csv, "--lags", "1"])
+            d_68  = _run_json_ok(["estimate", "multivariate", "var", mv_csv, "--lags", "1", "--conf-level", "0.68"])
+            d_90  = _run_json_ok(["estimate", "multivariate", "var", mv_csv, "--lags", "1", "--conf-level", "0.90"])
+            d_95  = _run_json_ok(["estimate", "multivariate", "var", mv_csv, "--lags", "1", "--conf-level", "0.95"])
+            @test _ci_width_from_tbl(d_def.data.var_coefficients) ≈ _ci_width_from_tbl(d_68.data.var_coefficients)
+            @test _ci_width_from_tbl(d_68.data.var_coefficients) < _ci_width_from_tbl(d_90.data.var_coefficients) < _ci_width_from_tbl(d_95.data.var_coefficients)
+            @test _run_err(["estimate", "multivariate", "var", mv_csv, "--lags", "1", "--conf-level", "1.5"]) isa CliError
+
+            # BVAR, VECM, SVAR, SVEC, FAVAR accept --conf-level & reject invalid
+            @test _run_json_ok(["estimate", "multivariate", "bvar", mv_csv, "--lags", "1", "--draws", "20", "--conf-level", "0.90"]).status == "ok"
+            @test _run_json_ok(["estimate", "multivariate", "vecm", mv_csv, "--lags", "2", "--conf-level", "0.90"]).status == "ok"
+            @test _run_json_ok(["estimate", "multivariate", "svar", mv_csv, "--lags", "1", "--conf-level", "0.90"]).status == "ok"
+            @test _run_json_ok(["estimate", "multivariate", "svec", mv_csv, "--lags", "2", "--conf-level", "0.90"]).status == "ok"
+            @test _run_json_ok(["estimate", "multivariate", "favar", mv_csv, "--lags", "1", "--factors", "1", "--key-vars", "y1", "--conf-level", "0.90"]).status == "ok"
+            @test _run_err(["estimate", "multivariate", "bvar", mv_csv, "--lags", "1", "--conf-level", "0.0"]) isa CliError
+
+            # LP standard + LP-IV --ar-level default 0.68 + monotonicity
+            lp_def = _run_json_ok(["estimate", "multivariate", "lp", mv_csv, "--horizons", "4"])
+            lp_68  = _run_json_ok(["estimate", "multivariate", "lp", mv_csv, "--horizons", "4", "--conf-level", "0.68"])
+            lp_90  = _run_json_ok(["estimate", "multivariate", "lp", mv_csv, "--horizons", "4", "--conf-level", "0.90"])
+            lp_95  = _run_json_ok(["estimate", "multivariate", "lp", mv_csv, "--horizons", "4", "--conf-level", "0.95"])
+            @test _ci_width_from_tbl(lp_def.data.lp_coefficients; lo_col="y1_ci_lower", hi_col="y1_ci_upper") ≈
+                  _ci_width_from_tbl(lp_68.data.lp_coefficients; lo_col="y1_ci_lower", hi_col="y1_ci_upper")
+            @test _ci_width_from_tbl(lp_68.data.lp_coefficients; lo_col="y1_ci_lower", hi_col="y1_ci_upper") <
+                  _ci_width_from_tbl(lp_90.data.lp_coefficients; lo_col="y1_ci_lower", hi_col="y1_ci_upper") <
+                  _ci_width_from_tbl(lp_95.data.lp_coefficients; lo_col="y1_ci_lower", hi_col="y1_ci_upper")
+            # Non-default --ar-level rejected on --method standard
+            @test _run_err(["estimate", "multivariate", "lp", mv_csv, "--horizons", "4", "--ar-level", "0.90"]).code == "usage/invalid"
+            # LP-IV AR band monotonicity (default 0.68)
+            lpiv_def = _run_json_ok(["estimate", "multivariate", "lp", mv_csv, "--method", "iv", "--instruments", z_csv, "--horizons", "3", "--ar-bands"])
+            lpiv_90  = _run_json_ok(["estimate", "multivariate", "lp", mv_csv, "--method", "iv", "--instruments", z_csv, "--horizons", "3", "--ar-bands", "--ar-level", "0.90"])
+            lpiv_95  = _run_json_ok(["estimate", "multivariate", "lp", mv_csv, "--method", "iv", "--instruments", z_csv, "--horizons", "3", "--ar-bands", "--ar-level", "0.95"])
+            @test _ci_width_from_tbl(lpiv_def.data.lp_iv_anderson_rubin_bands; lo_col="ar_lower", hi_col="ar_upper") <
+                  _ci_width_from_tbl(lpiv_90.data.lp_iv_anderson_rubin_bands; lo_col="ar_lower", hi_col="ar_upper") <
+                  _ci_width_from_tbl(lpiv_95.data.lp_iv_anderson_rubin_bands; lo_col="ar_lower", hi_col="ar_upper")
+
+            # TVP-VAR & MF-VAR (--conf-level, --quantiles, conflict, frozen table key)
+            tvp_68 = _run_json_ok(["estimate", "multivariate", "tvpvar", mv_csv, "--lags", "1", "--draws", "10", "--burnin", "5"])
+            tvp_90 = _run_json_ok(["estimate", "multivariate", "tvpvar", mv_csv, "--lags", "1", "--draws", "10", "--burnin", "5", "--conf-level", "0.90"])
+            tvp_q  = _run_json_ok(["estimate", "multivariate", "tvpvar", mv_csv, "--lags", "1", "--draws", "10", "--burnin", "5", "--quantiles", "0.05,0.5,0.95"])
+            @test haskey(tvp_90.data, :tvp_var_stochastic_volatility_path_posterior_sd_68_band)
+            @test _ci_width_from_tbl(tvp_68.data.tvp_var_stochastic_volatility_path_posterior_sd_68_band; lo_col="q16", hi_col="q84") <
+                  _ci_width_from_tbl(tvp_90.data.tvp_var_stochastic_volatility_path_posterior_sd_68_band; lo_col="q5", hi_col="q95")
+            @test _ci_width_from_tbl(tvp_90.data.tvp_var_stochastic_volatility_path_posterior_sd_68_band; lo_col="q5", hi_col="q95") ≈
+                  _ci_width_from_tbl(tvp_q.data.tvp_var_stochastic_volatility_path_posterior_sd_68_band; lo_col="q5", hi_col="q95")
+            @test _run_err(["estimate", "multivariate", "tvpvar", mv_csv, "--lags", "1", "--draws", "10", "--conf-level", "0.90", "--quantiles", "0.05,0.5,0.95"]).code == "usage/conflicting-options"
+
+            mf_68 = _run_json_ok(["estimate", "multivariate", "mfvar", mf_csv, "--lags", "1", "--draws", "10", "--burnin", "5"])
+            mf_90 = _run_json_ok(["estimate", "multivariate", "mfvar", mf_csv, "--lags", "1", "--draws", "10", "--burnin", "5", "--conf-level", "0.90"])
+            @test haskey(mf_90.data, :mf_var_latent_high_frequency_path_68_credible_band)
+            @test _ci_width_from_tbl(mf_68.data.mf_var_latent_high_frequency_path_68_credible_band; lo_col="q16", hi_col="q84") <
+                  _ci_width_from_tbl(mf_90.data.mf_var_latent_high_frequency_path_68_credible_band; lo_col="q5", hi_col="q95")
+            @test _run_err(["estimate", "multivariate", "mfvar", mf_csv, "--lags", "1", "--draws", "10", "--conf-level", "0.90", "--quantiles", "0.05,0.5,0.95"]).code == "usage/conflicting-options"
+
+            # QVAR, QFAVAR, LMS-SVAR, Lanne-Luoto, SSVARMA
+            for (cmd, tbl_key) in (
+                (["estimate", "multivariate", "qvar", mv_csv, "--lags", "1", "--taus", "0.5"], :qvar_coefficients),
+                (["estimate", "multivariate", "lms-svar", mv_csv, "--lags", "1", "--distributions", "student-t,student-t,student-t"], :lms_svar_estimates),
+                (["estimate", "multivariate", "lanne-luoto", mv_csv, "--lags", "1"], :lanne_luoto_gmm_estimates),
+                (["estimate", "multivariate", "ssvarma", mv_csv, "--ar-lags", "1", "--ma-lags", "1"], :ssvarma_estimates),
+            )
+                d68 = _run_json_ok(cmd)
+                d90 = _run_json_ok(vcat(cmd, ["--conf-level", "0.90"]))
+                d95 = _run_json_ok(vcat(cmd, ["--conf-level", "0.95"]))
+                t68 = d68.data[tbl_key]; t90 = d90.data[tbl_key]; t95 = d95.data[tbl_key]
+                @test _ci_width_from_tbl(t68) < _ci_width_from_tbl(t90) < _ci_width_from_tbl(t95)
+            end
+            @test _run_json_ok(["estimate", "multivariate", "qfavar", mv_csv, "--lags", "1", "--factors", "1", "--key-vars", "y1", "--taus", "0.5", "--conf-level", "0.90"]).status == "ok"
+
+            # Cointreg, xtcointreg, PVAR, PMG
+            for (cmd, tbl_key, lo_c, hi_c) in (
+                (["estimate", "regression", "cointreg", mv_csv, "--dep", "y1"], :cointegrating_regression_coefficients, "ci_lower", "ci_upper"),
+                (["estimate", "panel", "xtcointreg", panel_csv, "--id-col", "id", "--time-col", "t", "--dep", "y"], :panel_cointegrating_regression_coefficients, "ci_lower", "ci_upper"),
+                (["estimate", "panel", "pvar", panel_csv, "--id-col", "id", "--time-col", "t", "--lags", "1"], :panel_var_coefficients, "y_ci_lower", "y_ci_upper"),
+                (["estimate", "panel", "pmg", panel_csv, "--id-col", "id", "--time-col", "t", "--dep", "y"], :panel_ardl_long_run_coefficients, "ci_lower", "ci_upper"),
+            )
+                d68 = _run_json_ok(cmd)
+                d90 = _run_json_ok(vcat(cmd, ["--conf-level", "0.90"]))
+                d95 = _run_json_ok(vcat(cmd, ["--conf-level", "0.95"]))
+                @test _ci_width_from_tbl(d68.data[tbl_key]; lo_col=lo_c, hi_col=hi_c) <
+                      _ci_width_from_tbl(d90.data[tbl_key]; lo_col=lo_c, hi_col=hi_c) <
+                      _ci_width_from_tbl(d95.data[tbl_key]; lo_col=lo_c, hi_col=hi_c)
+            end
+
+            # Univariate (ARIMA, SARIMA, ARFIMA, ARDL, NARDL, MIDAS)
+            for (cmd, tbl_key) in (
+                (["estimate", "univariate", "arima", mv_csv, "--column", "1", "--p", "1", "--d", "0", "--q", "0"], :arima_coefficients),
+                (["estimate", "univariate", "arfima", mv_csv, "--column", "1", "--p", "1", "--q", "0"], :arfima_coefficients),
+                (["estimate", "univariate", "ardl", mv_csv, "--dep", "y1", "--p", "1", "--q", "1"], :ardl_coefficients),
+                (["estimate", "univariate", "nardl", mv_csv, "--dep", "y1", "--p", "1", "--q", "1", "--no-bootstrap"], :nardl_coefficients),
+                (["estimate", "univariate", "midas", mv_csv, "--column", "1", "--hf-data", hf_csv, "--m", "3", "--k", "6"], :midas_coefficients),
+            )
+                d68 = _run_json_ok(cmd)
+                d90 = _run_json_ok(vcat(cmd, ["--conf-level", "0.90"]))
+                d95 = _run_json_ok(vcat(cmd, ["--conf-level", "0.95"]))
+                @test _ci_width_from_tbl(d68.data[tbl_key]) < _ci_width_from_tbl(d90.data[tbl_key]) < _ci_width_from_tbl(d95.data[tbl_key])
+            end
+            @test _run_json_ok(["estimate", "univariate", "sarima", mv_csv, "--column", "1", "--p", "1", "--s", "4", "--conf-level", "0.90"]).status == "ok"
+
+            # Volatility (arch, garch, egarch, gjr-garch, sv, igarch, cgarch, aparch, figarch, fiegarch, garch-midas)
+            for (cmd, tbl_key) in (
+                (["estimate", "volatility", "arch", mv_csv, "--column", "1", "--q", "1"], :arch_coefficients),
+                (["estimate", "volatility", "garch", mv_csv, "--column", "1", "--p", "1", "--q", "1"], :garch_coefficients),
+                (["estimate", "volatility", "egarch", mv_csv, "--column", "1", "--p", "1", "--q", "1"], :egarch_coefficients),
+                (["estimate", "volatility", "gjr-garch", mv_csv, "--column", "1", "--p", "1", "--q", "1"], :gjr_garch_coefficients),
+                (["estimate", "volatility", "sv", mv_csv, "--column", "1", "--draws", "50"], :sv_coefficients),
+                (["estimate", "volatility", "igarch", mv_csv, "--column", "1", "--p", "1", "--q", "1"], :igarch_coefficients),
+                (["estimate", "volatility", "cgarch", mv_csv, "--column", "1"], :cgarch_coefficients),
+                (["estimate", "volatility", "aparch", mv_csv, "--column", "1", "--p", "1", "--q", "1"], :aparch_coefficients),
+                (["estimate", "volatility", "figarch", mv_csv, "--column", "1", "--p", "1", "--q", "1"], :figarch_coefficients),
+                (["estimate", "volatility", "fiegarch", mv_csv, "--column", "1", "--p", "1", "--q", "1"], :fiegarch_coefficients),
+                (["estimate", "volatility", "garch-midas", mv_csv, "--column", "1", "--m-freq", "4", "--k", "4"], :garch_midas_coefficients),
+            )
+                d68 = _run_json_ok(cmd)
+                d90 = _run_json_ok(vcat(cmd, ["--conf-level", "0.90"]))
+                d95 = _run_json_ok(vcat(cmd, ["--conf-level", "0.95"]))
+                @test _ci_width_from_tbl(d68.data[tbl_key]) < _ci_width_from_tbl(d90.data[tbl_key]) < _ci_width_from_tbl(d95.data[tbl_key])
+            end
+
+            # SETAR at 0.68 default (Hansen gamma CI + regime coef CIs)
+            st_def = _run_json_ok(["estimate", "regime", "setar", mv_csv, "--column", "1", "--p", "1", "--no-linearity"])
+            st_90  = _run_json_ok(["estimate", "regime", "setar", mv_csv, "--column", "1", "--p", "1", "--no-linearity", "--conf-level", "0.90"])
+            st_95  = _run_json_ok(["estimate", "regime", "setar", mv_csv, "--column", "1", "--p", "1", "--no-linearity", "--conf-level", "0.95"])
+            st_kv(d) = Dict(string(r[1]) => r[2] for r in d.data.setar_diagnostics.rows)
+            kv68 = st_kv(st_def); kv90 = st_kv(st_90); kv95 = st_kv(st_95)
+            @test Float64(kv68["gamma_ci_level"]) ≈ 0.68
+            @test (Float64(kv68["gamma_ci_upper"]) - Float64(kv68["gamma_ci_lower"])) <
+                  (Float64(kv90["gamma_ci_upper"]) - Float64(kv90["gamma_ci_lower"])) <
+                  (Float64(kv95["gamma_ci_upper"]) - Float64(kv95["gamma_ci_lower"]))
+            @test _ci_width_from_tbl(st_def.data.setar_coefficients) <
+                  _ci_width_from_tbl(st_90.data.setar_coefficients) <
+                  _ci_width_from_tbl(st_95.data.setar_coefficients)
+        end
+
+        @testset "test stability bai-perron 68% CI default" begin
+            bp_def = _run_json_ok(["test", "stability", "bai-perron", mv_csv])
+            bp_90  = _run_json_ok(["test", "stability", "bai-perron", mv_csv, "--conf-level", "0.90"])
+            bp_95  = _run_json_ok(["test", "stability", "bai-perron", mv_csv, "--conf-level", "0.95"])
+            bp_kv(d) = Dict(string(r[1]) => r[2] for r in d.data.bai_perron_test.rows)
+            k68 = bp_kv(bp_def); k90 = bp_kv(bp_90); k95 = bp_kv(bp_95)
+            @test Float64(k68["Confidence level"]) ≈ 0.68
+            @test Float64(k90["Confidence level"]) ≈ 0.90
+            @test Float64(k95["Confidence level"]) ≈ 0.95
+            _bp_width(s) = begin
+                m = match(r"\[(\d+),\s*(\d+)\]", string(s))
+                @assert m !== nothing "missing break CI in '$s'"
+                parse(Int, m.captures[2]) - parse(Int, m.captures[1])
+            end
+            @test _bp_width(k68["Break CIs"]) < _bp_width(k90["Break CIs"]) < _bp_width(k95["Break CIs"])
+            @test _run_err(["test", "stability", "bai-perron", mv_csv, "--conf-level", "0.0"]) isa CliError
+        end
+
+        @testset "DSGE Bayes & DSGE-VAR (including Landmine L3)" begin
+            # dsge bayes estimate & summary
+            be_def = _run_json_ok(["dsge", "bayes", "estimate", dsge_toml, "--data", dsge_csv, "--params", "rho,kappa", "--priors", priors_toml, "--observables", "y,pi", "--draws", "40", "--burnin", "10"]; seed=42)
+            be_90  = _run_json_ok(["dsge", "bayes", "estimate", dsge_toml, "--data", dsge_csv, "--params", "rho,kappa", "--priors", priors_toml, "--observables", "y,pi", "--draws", "40", "--burnin", "10", "--conf-level", "0.90"]; seed=42)
+            be_95  = _run_json_ok(["dsge", "bayes", "estimate", dsge_toml, "--data", dsge_csv, "--params", "rho,kappa", "--priors", priors_toml, "--observables", "y,pi", "--draws", "40", "--burnin", "10", "--conf-level", "0.95"]; seed=42)
+            be_q   = _run_json_ok(["dsge", "bayes", "estimate", dsge_toml, "--data", dsge_csv, "--params", "rho,kappa", "--priors", priors_toml, "--observables", "y,pi", "--draws", "40", "--burnin", "10", "--quantiles", "0.05,0.5,0.95"]; seed=42)
+            @test "ci_lower" in String.(be_def.data.bayesian_dsge_posterior.columns)
+            @test !("q05" in String.(be_def.data.bayesian_dsge_posterior.columns))
+            @test _ci_width_from_tbl(be_def.data.bayesian_dsge_posterior) <
+                  _ci_width_from_tbl(be_90.data.bayesian_dsge_posterior) <
+                  _ci_width_from_tbl(be_95.data.bayesian_dsge_posterior)
+            @test _ci_width_from_tbl(be_90.data.bayesian_dsge_posterior) ≈ _ci_width_from_tbl(be_q.data.bayesian_dsge_posterior)
+            @test _run_err(["dsge", "bayes", "estimate", dsge_toml, "--data", dsge_csv, "--params", "rho,kappa", "--priors", priors_toml, "--conf-level", "0.90", "--quantiles", "0.05,0.5,0.95"]).code == "usage/conflicting-options"
+
+            bs_def = _run_json_ok(["dsge", "bayes", "summary", dsge_toml, "--data", dsge_csv, "--params", "rho,kappa", "--priors", priors_toml, "--observables", "y,pi", "--draws", "40", "--burnin", "10"]; seed=42)
+            bs_90  = _run_json_ok(["dsge", "bayes", "summary", dsge_toml, "--data", dsge_csv, "--params", "rho,kappa", "--priors", priors_toml, "--observables", "y,pi", "--draws", "40", "--burnin", "10", "--conf-level", "0.90"]; seed=42)
+            @test "post_ci_lower" in String.(bs_def.data.prior_vs_posterior_comparison.columns)
+            @test _ci_width_from_tbl(bs_def.data.bayesian_dsge_posterior_summary) < _ci_width_from_tbl(bs_90.data.bayesian_dsge_posterior_summary)
+
+            bi_def = _run_json_ok(["dsge", "bayes", "irf", dsge_toml, "--data", dsge_csv, "--params", "rho,kappa", "--priors", priors_toml, "--observables", "y,pi", "--draws", "20", "--horizons", "4"]; seed=42)
+            bi_90  = _run_json_ok(["dsge", "bayes", "irf", dsge_toml, "--data", dsge_csv, "--params", "rho,kappa", "--priors", priors_toml, "--observables", "y,pi", "--draws", "20", "--horizons", "4", "--conf-level", "0.90"]; seed=42)
+            bi_k = first(k for k in keys(bi_def.data) if startswith(string(k), "bayesian_dsge_irf_"))
+            bi_cols = String.(bi_def.data[bi_k].columns)
+            lo_i = first(c for c in bi_cols if endswith(c, "_lower"))
+            hi_i = replace(lo_i, "_lower" => "_upper")
+            @test _ci_width_from_tbl(bi_def.data[bi_k]; lo_col=lo_i, hi_col=hi_i) <
+                  _ci_width_from_tbl(bi_90.data[bi_k]; lo_col=lo_i, hi_col=hi_i)
+
+            # dsge var estimate, irf, forecast (Landmine L3!)
+            dve_def = _run_json_ok(["dsge", "var", "estimate", dsge_toml, "--data", dsge_csv, "--lags", "1", "--draws", "50"])
+            dve_90  = _run_json_ok(["dsge", "var", "estimate", dsge_toml, "--data", dsge_csv, "--lags", "1", "--draws", "50", "--conf-level", "0.90"])
+            dve_95  = _run_json_ok(["dsge", "var", "estimate", dsge_toml, "--data", dsge_csv, "--lags", "1", "--draws", "50", "--conf-level", "0.95"])
+            @test "ci_lower" in String.(dve_def.data.dsge_var_posterior.columns)
+            @test _ci_width_from_tbl(dve_def.data.dsge_var_posterior) <
+                  _ci_width_from_tbl(dve_90.data.dsge_var_posterior) <
+                  _ci_width_from_tbl(dve_95.data.dsge_var_posterior)
+
+            dvi_def = _run_json_ok(["dsge", "var", "irf", dsge_toml, "--data", dsge_csv, "--lags", "1", "--draws", "50", "--horizons", "4"])
+            dvi_90  = _run_json_ok(["dsge", "var", "irf", dsge_toml, "--data", dsge_csv, "--lags", "1", "--draws", "50", "--horizons", "4", "--conf-level", "0.90"])
+            @test _ci_width_from_tbl(dvi_def.data.dsge_var_irf; lo_col="lower", hi_col="upper") <
+                  _ci_width_from_tbl(dvi_90.data.dsge_var_irf; lo_col="lower", hi_col="upper")
+            @test _run_err(["dsge", "var", "irf", dsge_toml, "--data", dsge_csv, "--lags", "1", "--draws", "50", "--conf-level", "0.90", "--quantiles", "0.05,0.5,0.95"]).code == "usage/conflicting-options"
+
+            # Landmine L3: dsge var forecast --quantiles MUST NOT be overridden by default conf_level=0.68!
+            dvf_def = _run_json_ok(["dsge", "var", "forecast", dsge_toml, "--data", dsge_csv, "--lags", "1", "--draws", "50", "--horizons", "4"])
+            dvf_68  = _run_json_ok(["dsge", "var", "forecast", dsge_toml, "--data", dsge_csv, "--lags", "1", "--draws", "50", "--horizons", "4", "--conf-level", "0.68"])
+            dvf_90  = _run_json_ok(["dsge", "var", "forecast", dsge_toml, "--data", dsge_csv, "--lags", "1", "--draws", "50", "--horizons", "4", "--conf-level", "0.90"])
+            dvf_95  = _run_json_ok(["dsge", "var", "forecast", dsge_toml, "--data", dsge_csv, "--lags", "1", "--draws", "50", "--horizons", "4", "--conf-level", "0.95"])
+            dvf_q90 = _run_json_ok(["dsge", "var", "forecast", dsge_toml, "--data", dsge_csv, "--lags", "1", "--draws", "50", "--horizons", "4", "--quantiles", "0.05,0.5,0.95"])
+            w_def = _ci_width_from_tbl(dvf_def.data.dsge_var_forecast; lo_col="lower", hi_col="upper")
+            w_68  = _ci_width_from_tbl(dvf_68.data.dsge_var_forecast; lo_col="lower", hi_col="upper")
+            w_90  = _ci_width_from_tbl(dvf_90.data.dsge_var_forecast; lo_col="lower", hi_col="upper")
+            w_95  = _ci_width_from_tbl(dvf_95.data.dsge_var_forecast; lo_col="lower", hi_col="upper")
+            w_q90 = _ci_width_from_tbl(dvf_q90.data.dsge_var_forecast; lo_col="lower", hi_col="upper")
+            @test w_def ≈ w_68
+            @test w_68 < w_90 < w_95
+            @test w_q90 ≈ w_90
+            @test w_q90 > w_68
+            @test _run_err(["dsge", "var", "forecast", dsge_toml, "--data", dsge_csv, "--lags", "1", "--draws", "50", "--conf-level", "0.90", "--quantiles", "0.05,0.5,0.95"]).code == "usage/conflicting-options"
+        end
+
+        @testset "Spectral & Rational Inattention 68% CI defaults" begin
+            for (cmd, tbl_key) in (
+                (["spectral", "acf", mv_csv, "--column", "1", "--ccf-with", "2"], :acf_pacf),
+                (["spectral", "periodogram", mv_csv, "--column", "1"], :periodogram),
+                (["spectral", "density", mv_csv, "--column", "1"], :spectral_density),
+            )
+                d68 = _run_json_ok(cmd; seed=42)
+                d90 = _run_json_ok(vcat(cmd, ["--conf-level", "0.90"]); seed=42)
+                d95 = _run_json_ok(vcat(cmd, ["--conf-level", "0.95"]); seed=42)
+                @test _ci_width_from_tbl(d68.data[tbl_key]; lo_col="CI_Lower", hi_col="CI_Upper") <
+                      _ci_width_from_tbl(d90.data[tbl_key]; lo_col="CI_Lower", hi_col="CI_Upper") <
+                      _ci_width_from_tbl(d95.data[tbl_key]; lo_col="CI_Lower", hi_col="CI_Upper")
+            end
+            @test _run_json_ok(["spectral", "cross", mv_csv, "--var1", "1", "--var2", "2", "--conf-level", "0.90"]).status == "ok"
+            @test _run_err(["spectral", "cross", mv_csv, "--conf-level", "1.5"]) isa CliError
+
+            # RI estimate & cg-test
+            rie_def = _run_json_ok(["ri", "estimate", dsge_csv, "--config", ri_toml])
+            rie_90  = _run_json_ok(["ri", "estimate", dsge_csv, "--config", ri_toml, "--conf-level", "0.90"])
+            rie_95  = _run_json_ok(["ri", "estimate", dsge_csv, "--config", ri_toml, "--conf-level", "0.95"])
+            @test _ci_width_from_tbl(rie_def.data.ri_estimation) <
+                  _ci_width_from_tbl(rie_90.data.ri_estimation) <
+                  _ci_width_from_tbl(rie_95.data.ri_estimation)
+
+            cg_def = _run_json_ok(["ri", "cg-test", cg_csv])
+            cg_90  = _run_json_ok(["ri", "cg-test", cg_csv, "--conf-level", "0.90"])
+            cg_95  = _run_json_ok(["ri", "cg-test", cg_csv, "--conf-level", "0.95"])
+            @test _ci_width_from_tbl(cg_def.data.cg_test) <
+                  _ci_width_from_tbl(cg_90.data.cg_test) <
+                  _ci_width_from_tbl(cg_95.data.cg_test)
+            @test _run_err(["ri", "cg-test", cg_csv, "--conf-level", "0.0"]) isa CliError
         end
     end
 end

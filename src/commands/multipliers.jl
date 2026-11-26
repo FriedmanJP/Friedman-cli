@@ -69,17 +69,17 @@ end
 
 """Emit the two NARDL multiplier tables from an already-fitted model (#204)."""
 function _emit_nardl_multipliers(m, dep_name::String; horizon::Int=12, nreps::Int=500,
-                                 level::Float64=0.95, no_bootstrap::Bool=false,
+                                 level::Float64=_DEFAULT_CI_MACRO, no_bootstrap::Bool=false,
                                  output::String="", format::String="table")
     horizon >= 0 || throw(CliError("usage/invalid", "nardl multipliers: --horizon must be ≥ 0, got $horizon"))
     nreps >= 0 || throw(CliError("usage/invalid", "nardl multipliers: --nreps must be ≥ 0, got $nreps"))
-    (0.0 < level < 1.0) || throw(CliError("usage/invalid", "nardl multipliers: --level must be in (0,1), got $level"))
+    lv = _validate_conf_level(level, "nardl multipliers")
     _status("NARDL dynamic multipliers: $dep_name (H=$horizon)"); _status()
     bootstrap = !no_bootstrap
     mm = try
         # MEMs#786: dynamic_multipliers takes seed= (recorded on NARDLMultipliers.manifest;
         # seed wins over rng). Forward --seed; otherwise the explicit default RNG.
-        dynamic_multipliers(m, horizon; bootstrap=bootstrap, nreps=nreps, level=level,
+        dynamic_multipliers(m, horizon; bootstrap=bootstrap, nreps=nreps, level=lv,
                             rng=Random.default_rng(), _fwd_seed()...)
     catch e
         throw(_garch_variant_error(e, "NARDL dynamic multipliers"))

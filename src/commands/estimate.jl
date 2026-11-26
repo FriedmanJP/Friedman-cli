@@ -84,6 +84,9 @@ function _vol_specs(verb::Symbol)::Vector{CommandSpec}
                                    choices=["normal", "student", "ged"],
                                    description="Conditional distribution of the innovations"))
         end
+        if verb === :estimate
+            push!(opts, CONF_LEVEL_MACRO_OPTION)
+        end
         append!(opts, out_opts)
         cli_name = get(_VOL_CLI_NAMES, vol.name, vol.name)
         label = vol.label(1, 1)
@@ -130,6 +133,7 @@ function estimate_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto via AIC)"),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -155,6 +159,7 @@ function estimate_specs()::Vector{CommandSpec}
                            description="Minnesota hyperparameter selection: glp|grid",
                            choices=["glp", "grid"]),
                 OptionSpec(name="config", type=String, default="", description="TOML config for prior hyperparameters"),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -229,13 +234,15 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="k-q", type=Float64, default=0.01, description="Coefficient random-walk prior scale (> 0)"),
                 OptionSpec(name="k-s", type=Float64, default=0.1, description="Covariance random-walk prior scale (> 0)"),
                 OptionSpec(name="k-w", type=Float64, default=0.01, description="Log-volatility random-walk prior scale (> 0)"),
+                CONF_LEVEL_MACRO_OPTION,
+                QUANTILES_MACRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=[FlagSpec(name="no-tvp", description="Hold coefficients constant (drop the time variation)"),
                    FlagSpec(name="no-sv", description="Hold volatilities constant (drop stochastic volatility)")],
             tables=[TableSpec(name=:tvp_var_stochastic_volatility_path_posterior_sd_68_band,
-                              description="Posterior mean and 16/50/84 quantiles of the stochastic-volatility path, one row per period x variable"),
+                              description="Posterior mean and credible-band quantiles (default 68% = 16/50/84) of the stochastic-volatility path, one row per period x variable"),
                     TableSpec(name=:tvp_var_specification,
                               description="Lags, variable count, effective sample, training sample, draws and the tvp/sv switches")],
             category="estimate",
@@ -253,12 +260,14 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="draws", short="n", type=Int, default=1000, description="Retained Gibbs draws"),
                 OptionSpec(name="burnin", type=Int, default=500, description="Burn-in sweeps discarded"),
                 OptionSpec(name="prior", type=String, default="minnesota", description="minnesota|diffuse", choices=["minnesota","diffuse"]),
+                CONF_LEVEL_MACRO_OPTION,
+                QUANTILES_MACRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
             tables=[TableSpec(name=:mf_var_latent_high_frequency_path_68_credible_band,
-                              description="Posterior mean and 16/50/84 quantiles of the latent high-frequency path"),
+                              description="Posterior mean and credible-band quantiles (default 68% = 16/50/84) of the latent high-frequency path"),
                     TableSpec(name=:mf_var_specification,
                               description="Lags, variable count, high-frequency length, low-frequency columns, ratio and aggregation")],
             category="estimate",
@@ -290,12 +299,13 @@ function estimate_specs()::Vector{CommandSpec}
                            description="MOP worst-case relative-bias target: 0.05|0.10|0.20|0.30 (iv, with --mop-f)"),
                 OptionSpec(name="mop-bandwidth", type=Int, default=0,
                            description="HAC lag length for the MOP effective F; 0 = auto (iv, with --mop-f)"),
-                OptionSpec(name="ar-level", type=Float64, default=0.95,
-                           description="Coverage for the AR bands (iv, with --ar-bands)"),
+                OptionSpec(name="ar-level", type=Float64, default=_DEFAULT_CI_MACRO,
+                           description="Coverage for the AR bands in (0, 1) (iv, with --ar-bands; default: 0.68)"),
                 OptionSpec(name="ar-grid", type=Int, default=401,
                            description="Grid points per horizon×response when inverting the AR test (iv, with --ar-bands)"),
                 OptionSpec(name="ar-span", type=Float64, default=20.0,
                            description="AR search half-width in 2SLS standard errors (iv, with --ar-bands)"),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -304,7 +314,7 @@ function estimate_specs()::Vector{CommandSpec}
                 FlagSpec(name="ar-bands", description="Report weak-instrument-robust Anderson-Rubin IRF bands (LP-IV)")
             ],
             tables=[TableSpec(name=:lp_coefficients,
-                              description="Impulse responses by horizon with standard errors and t-statistics, one column per response variable"),
+                              description="Impulse responses by horizon with standard errors, t-statistics and CIs, one column group per response variable"),
                     TableSpec(name=:lp_coefficients_expansion,
                               description="Expansion-regime responses (--method state only)"),
                     TableSpec(name=:lp_coefficients_recession,
@@ -332,12 +342,13 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="max-q", type=Int, default=5, description="Max MA order for auto selection"),
                 OptionSpec(name="criterion", type=String, default="bic", description="aic|bic (for auto selection)"),
                 OptionSpec(name="method", short="m", type=String, default="css_mle", description="ols|css|mle|css_mle (pure AR fits use MLE)"),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
             flags=FlagSpec[],
             tables=[TableSpec(name=:arima_coefficients,
-                              description="AR / MA / constant estimates with standard errors, z-statistics and p-values"),
+                              description="AR / MA / constant estimates with standard errors, z-statistics, p-values and CIs"),
                     TableSpec(name=:information_criteria,
                               description="AIC, BIC and the log-likelihood of the fitted ARIMA")],
             category="estimate",
@@ -354,6 +365,7 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="method", short="m", type=String, default="css", description="css|mle (fractional-integration estimator)", choices=["css","mle"]),
                 OptionSpec(name="d0", type=Float64, default=nothing, description="Starting value for d (default: GPH pre-estimate)"),
                 OptionSpec(name="max-iter", type=Int, default=500, description="Maximum optimizer iterations"),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file")
             ],
@@ -464,12 +476,13 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
                 OptionSpec(name="p", type=Int, default=1, description="GARCH order p"),
                 OptionSpec(name="q", type=Int, default=1, description="ARCH order q"),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
             tables=[TableSpec(name=:igarch_coefficients,
-                              description="IGARCH parameter estimates with standard errors, z-statistics and p-values"),
+                              description="IGARCH parameter estimates with standard errors, z-statistics, p-values and CIs"),
                     TableSpec(name=:igarch_diagnostics,
                               description="Log-likelihood, AIC/BIC, persistence, convergence and iteration count")],
             category="estimate",
@@ -481,12 +494,13 @@ function estimate_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="column", short="c", type=Int, default=1, description="Column index (1-based)"),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
             tables=[TableSpec(name=:cgarch_coefficients,
-                              description="Component-GARCH permanent/transitory parameter estimates with standard errors"),
+                              description="Component-GARCH permanent/transitory parameter estimates with standard errors and CIs"),
                     TableSpec(name=:cgarch_diagnostics,
                               description="Log-likelihood, AIC/BIC, transitory persistence and unconditional variance")],
             category="estimate",
@@ -502,12 +516,13 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="q", type=Int, default=1, description="ARCH order q"),
                 OptionSpec(name="fix-delta", type=Float64, default=nothing, description="Pin power δ (>0); default estimates it"),
                 OptionSpec(name="fix-gamma", type=Float64, default=nothing, description="Pin leverage γ ∈ (-1,1); default estimates it"),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
             tables=[TableSpec(name=:aparch_coefficients,
-                              description="APARCH parameter estimates including the power delta and asymmetry gamma"),
+                              description="APARCH parameter estimates including the power delta and asymmetry gamma with CIs"),
                     TableSpec(name=:aparch_diagnostics,
                               description="Log-likelihood, AIC/BIC, persistence, delta (estimated or fixed) and parameter count")],
             category="estimate",
@@ -524,12 +539,13 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="d0", type=Float64, default=0.4, description="Initial fractional-integration order d ∈ (0,1)"),
                 OptionSpec(name="truncation", type=Int, default=1000, description="ARCH(∞) truncation lag"),
                 OptionSpec(name="dist", type=String, default="normal", description="Innovation distribution (only normal is accepted)", choices=["normal"]),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
             tables=[TableSpec(name=:figarch_coefficients,
-                              description="FIGARCH parameter estimates including the fractional-integration d"),
+                              description="FIGARCH parameter estimates including the fractional-integration d with CIs"),
                     TableSpec(name=:figarch_diagnostics,
                               description="Log-likelihood, AIC/BIC, persistence, d, truncation lag and negative-lambda count")],
             category="estimate",
@@ -546,12 +562,13 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="d0", type=Float64, default=0.4, description="Initial fractional-integration order d ∈ (0,1)"),
                 OptionSpec(name="truncation", type=Int, default=1000, description="MA(∞) truncation lag"),
                 OptionSpec(name="dist", type=String, default="normal", description="Innovation distribution (only normal is accepted)", choices=["normal"]),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
             tables=[TableSpec(name=:fiegarch_coefficients,
-                              description="FIEGARCH parameter estimates including the fractional-integration d"),
+                              description="FIEGARCH parameter estimates including the fractional-integration d with CIs"),
                     TableSpec(name=:fiegarch_diagnostics,
                               description="Log-likelihood, AIC/BIC, persistence, d and the truncation lag")],
             category="estimate",
@@ -568,6 +585,7 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="rv", type=String, default="realized", description="Long-run driver: realized (from returns) | macro (exogenous)", choices=["realized","macro"]),
                 OptionSpec(name="span", type=String, default="fixed", description="τ span: fixed (per block) | rolling (rolling RV)", choices=["fixed","rolling"]),
                 OptionSpec(name="config", type=String, default="", description="TOML with [garch_midas] x_lf = [...] (required for --rv macro)"),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -932,12 +950,13 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="lags", type=String, default="auto", description="DOLS lags: auto or a non-negative integer"),
                 OptionSpec(name="ic", type=String, default="aic", description="DOLS lead/lag selection: aic|bic", choices=["aic","bic"]),
                 OptionSpec(name="dols-se", type=String, default="lrv", description="DOLS standard errors: lrv|robust", choices=["lrv","robust"]),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
             tables=[TableSpec(name=:cointegrating_regression_coefficients,
-                              description="FMOLS / CCR / DOLS long-run coefficients with long-run-variance standard errors"),
+                              description="FMOLS / CCR / DOLS long-run coefficients with long-run-variance standard errors and CIs"),
                     TableSpec(name=:cointegrating_regression_diagnostics,
                               description="Method, trend, kernel, bandwidth, omega_uv and sample dimensions")],
             category="estimate",
@@ -961,12 +980,13 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="lags", type=String, default="auto", description="DOLS lags: auto or a non-negative integer"),
                 OptionSpec(name="ic", type=String, default="aic", description="DOLS lead/lag selection: aic|bic", choices=["aic","bic"]),
                 OptionSpec(name="dols-se", type=String, default="lrv", description="DOLS standard errors: lrv|robust", choices=["lrv","robust"]),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
             tables=[TableSpec(name=:panel_cointegrating_regression_coefficients,
-                              description="Panel FMOLS/DOLS long-run coefficients (group-mean or pooled per --pooling)"),
+                              description="Panel FMOLS/DOLS long-run coefficients (group-mean or pooled per --pooling) with CIs"),
                     TableSpec(name=:panel_cointegrating_regression_diagnostics,
                               description="Method, pooling, trend, kernel, unit count and per-unit sample lengths")],
             category="estimate",
@@ -993,14 +1013,15 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="ic", type=String, default="aic", description="Selection criterion: aic|bic", choices=["aic","bic"]),
                 OptionSpec(name="case", type=Int, default=3, description="Pesaran-Shin-Smith deterministic case (1..5)"),
                 OptionSpec(name="trend", type=String, default="none", description="Informational trend label: none|const|trend", choices=["none","const","trend"]),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
             tables=[TableSpec(name=:ardl_coefficients,
-                              description="Levels-form ARDL coefficients with standard errors, z-statistics and p-values"),
+                              description="Levels-form ARDL coefficients with standard errors, z-statistics, p-values and CIs"),
                     TableSpec(name=:ardl_long_run_coefficients,
-                              description="Long-run level multipliers with delta-method standard errors"),
+                              description="Long-run level multipliers with delta-method standard errors and CIs"),
                     TableSpec(name=:ardl_diagnostics,
                               description="Selected p/q, case, trend, information criterion, fit statistics and the ECM speed alpha")],
             category="estimate",
@@ -1021,7 +1042,7 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="case", type=Int, default=3, description="Pesaran-Shin-Smith deterministic case (1..5)"),
                 OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=12, description="Max cumulative-multiplier horizon H (≥ 0)"),
                 OptionSpec(name="nreps", type=Int, default=500, description="Bootstrap replications for multiplier bands (0 = no bands)"),
-                OptionSpec(name="conf-level", aliases=["level"], kwarg=:level, type=Float64, default=0.95, description="Bootstrap band coverage level"),
+                OptionSpec(name="conf-level", aliases=["ci-level", "confidence", "level"], kwarg=:level, type=Float64, default=_DEFAULT_CI_MACRO, description="Confidence/bootstrap band coverage level in (0, 1) (default: 0.68)"),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
@@ -1029,9 +1050,9 @@ function estimate_specs()::Vector{CommandSpec}
             flags=[FlagSpec(name="no-bootstrap", description="Skip bootstrap bands (point multipliers only)"),
                    FlagSpec(name="plot", description="Open interactive plot in browser")],
             tables=[TableSpec(name=:nardl_coefficients,
-                              description="Levels-form NARDL coefficients on the split (positive/negative) regressor set"),
+                              description="Levels-form NARDL coefficients on the split (positive/negative) regressor set with CIs"),
                     TableSpec(name=:nardl_asymmetric_long_run_coefficients,
-                              description="Asymmetric long-run multipliers theta+ and theta- with standard errors"),
+                              description="Asymmetric long-run multipliers theta+ and theta- with standard errors and CIs"),
                     TableSpec(name=:nardl_diagnostics,
                               description="Split dimensions, selected orders, fit statistics and the enlarged-k PSS bounds decision"),
                     TableSpec(name=:nardl_cumulative_dynamic_multipliers,
@@ -1062,14 +1083,15 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="q", type=Int, default=1, description="Distributed-lag order for all regressors (≥ 0)"),
                 OptionSpec(name="max-iter", aliases=["maxiter"], kwarg=:maxiter, type=Int, default=100, description="PMG outer-loop max iterations"),
                 OptionSpec(name="tol", type=Float64, default=1e-8, description="PMG outer-loop convergence tolerance"),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
             tables=[TableSpec(name=:panel_ardl_long_run_coefficients,
-                              description="Pooled or averaged long-run coefficients theta with standard errors"),
+                              description="Pooled or averaged long-run coefficients theta with standard errors and CIs"),
                     TableSpec(name=:panel_ardl_short_run_ec_coefficients,
-                              description="Error-correction speed phi and the short-run coefficient block"),
+                              description="Error-correction speed phi and the short-run coefficient block with CIs"),
                     TableSpec(name=:panel_ardl_diagnostics,
                               description="Estimator, unit count, orders, phi with its SE, log-likelihood and convergence")],
             category="estimate",
@@ -1100,6 +1122,7 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="poly-degree", type=Int, default=2, description="Polynomial degree for --weights almon"),
                 OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=1, description="Direct forecast horizon h stored in the model (1 = nowcast)"),
                 OptionSpec(name="max-iter", type=Int, default=500, description="Optimizer iteration cap (forwarded as max_iter)"),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -1153,7 +1176,7 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="d", type=String, default="1", description="Delay lag: an integer ≥ 1, or 'auto' (=1:p grid)"),
                 OptionSpec(name="trim", type=Float64, default=0.15, description="Trimming fraction for the threshold grid (0 < trim < 0.5)"),
                 OptionSpec(name="draws", aliases=["reps"], kwarg=:reps, type=Int, default=1000, description="Bootstrap replications for the linearity test (>= 1)"),
-                OptionSpec(name="conf-level", aliases=["ci-level"], kwarg=:ci_level, type=Float64, default=0.95, description="Threshold CI level: 0.90|0.95|0.99", choices=["0.90", "0.95", "0.99"]),
+                OptionSpec(name="conf-level", aliases=["ci-level", "confidence", "level"], kwarg=:ci_level, type=Float64, default=_DEFAULT_CI_MACRO, description="Confidence level in (0, 1) for Hansen threshold gamma CI and regime coefficients (default: 0.68)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table", "csv", "json"]),
                 PLOT_OPTIONS...
@@ -1163,7 +1186,7 @@ function estimate_specs()::Vector{CommandSpec}
                 FlagSpec(name="no-linearity", description="Skip the attached Hansen (1996) linearity test")
             , PLOT_FLAGS...],
             tables=[TableSpec(name=:setar_coefficients,
-                              description="Per-regime SETAR coefficients with standard errors, z-statistics and p-values"),
+                              description="Per-regime SETAR coefficients with standard errors, z-statistics, p-values and CIs"),
                     TableSpec(name=:setar_diagnostics,
                               description="Threshold gamma with its Hansen CI, regime counts, p/d, fit statistics and the linearity test")],
             category="estimate",
@@ -1336,6 +1359,7 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="method", type=String, default="gmm", description="gmm|feols"),
                 OptionSpec(name="min-lag-endo", type=Int, default=2, description="Minimum lag for endogenous instruments (GMM only; ignored with --method feols)"),
                 OptionSpec(name="max-lag-endo", type=Int, default=99, description="Maximum lag for endogenous instruments (GMM only; ignored with --method feols)"),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -1360,6 +1384,7 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="deterministic", type=String, default="constant", description="none|constant|trend", choices=["none", "constant", "trend"]),
                 OptionSpec(name="method", type=String, default="johansen", description="johansen|engle_granger", choices=["johansen", "engle_granger"]),
                 OptionSpec(name="significance", type=Float64, default=0.05, description="Significance level for rank selection"),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -1383,6 +1408,7 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="config", type=String, default="", description="TOML config with [svar] A/B matrices (a/b/ab-model)"),
                 OptionSpec(name="n-starts", type=Int, default=5, description="Optimizer starting values (overidentified patterns)"),
                 OptionSpec(name="max-iter", type=Int, default=400, description="Max optimizer iterations per start"),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table", "csv", "json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
@@ -1412,6 +1438,7 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="config", type=String, default="", description="TOML config with optional [svec] long/short-run zero matrices"),
                 OptionSpec(name="n-starts", type=Int, default=5, description="Optimizer starting values (restricted patterns)"),
                 OptionSpec(name="max-iter", type=Int, default=400, description="Max optimizer iterations per start"),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table", "csv", "json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
@@ -1457,6 +1484,7 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="key-vars", type=String, default="", description="Key variable names or indices (comma-separated)"),
                 OptionSpec(name="method", type=String, default="two_step", description="two_step|bayesian", choices=["two_step", "bayesian"]),
                 OptionSpec(name="draws", short="n", type=Int, default=5000, description="MCMC draws (bayesian only)"),
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
@@ -1647,6 +1675,7 @@ function estimate_specs()::Vector{CommandSpec}
             summary="Fit seasonal SARIMA(p,d,q)(P,D,Q)[s] with auto-selection",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[SARIMA_OPTIONS...,
+                CONF_LEVEL_MACRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 PLOT_OPTIONS...],
@@ -1962,12 +1991,14 @@ end
 # ── VAR ────────────────────────────────────────────────────
 
 function _estimate_var(; data::String, lags=nothing, trend::String="constant",
+                        conf_level::Float64=_DEFAULT_CI_MACRO,
                         output::String="", format::String="table")
     trend == "constant" || throw(CliError("usage/invalid",
         "estimate multivariate var: --trend '$trend' is not supported (VAR always includes a constant intercept)";
         hint="omit --trend (only constant intercept is supported by estimate_var)"))
     lags === nothing || lags >= 1 || throw(CliError("usage/invalid",
         "estimate multivariate var: --lags must be ≥ 1 (got $lags)"))
+    lv = _validate_conf_level(conf_level, "estimate multivariate var")
     Y, varnames = load_multivariate_data(data)
     n = size(Y, 2)
 
@@ -1994,10 +2025,10 @@ function _estimate_var(; data::String, lags=nothing, trend::String="constant",
     end
     _status_report(() -> report(model))
 
-    # C051: MEMs renders coefficient-bearing models as a tidy coef table via Tables.jl
+    # C051 + #333: MEMs renders coefficient-bearing models via coef_table(model; conf_level=lv)
     # (equation|term|estimate|std_error|stat|p_value|ci_lower|ci_upper).
-    output_result(DataFrame(model); format=Symbol(format), output=output, title="VAR($p) Coefficients",
-                  key="var_coefficients")
+    _emit_result(model; title="VAR($p) Coefficients", key="var_coefficients",
+                 format=Symbol(format), output=output, conf_level=lv)
 
     _status()
     output_model_criteria(model; format=format, output=output, title="Information Criteria")
@@ -2053,9 +2084,11 @@ end
 function _estimate_bvar(; data::String, lags::Int=4, prior::String="minnesota",
                          draws::Int=2000, sampler::String="direct", method::String="mean",
                          hyperopt::String="glp",
-                         config::String="", output::String="", format::String="table")
+                         config::String="", conf_level::Float64=_DEFAULT_CI_MACRO,
+                         output::String="", format::String="table")
     lags >= 1 || throw(CliError("usage/invalid", "estimate multivariate bvar: --lags must be ≥ 1 (got $lags)"))
     draws >= 1 || throw(CliError("usage/invalid", "estimate multivariate bvar: --draws must be ≥ 1 (got $draws)"))
+    _validate_conf_level(conf_level, "estimate multivariate bvar")
     hopt = lowercase(strip(hyperopt))
     hopt in ("glp", "grid") || throw(CliError("usage/invalid-option",
         "invalid --hyperopt '$hyperopt'; must be glp or grid"))
@@ -2129,12 +2162,13 @@ function _estimate_lp(; data::String, method::String="standard", shock::Int=1,
                        state_var=nothing, gamma::Float64=1.5, transition::String="logistic",
                        treatment::Int=1, score_method::String="logit",
                        mop_f::Bool=false, mop_tau::Float64=0.10, mop_bandwidth::Int=0,
-                       ar_bands::Bool=false, ar_level::Float64=0.95, ar_grid::Int=401,
-                       ar_span::Float64=20.0,
+                       ar_bands::Bool=false, ar_level::Float64=_DEFAULT_CI_MACRO, ar_grid::Int=401,
+                       ar_span::Float64=20.0, conf_level::Float64=_DEFAULT_CI_MACRO,
                        output::String="", format::String="table")
     validate_method(method, ["standard", "iv", "smooth", "state", "propensity", "robust"], "LP method")
     horizons >= 1 || throw(CliError("usage/invalid", "estimate multivariate lp: --horizons must be ≥ 1 (got $horizons)"))
     control_lags >= 0 || throw(CliError("usage/invalid", "estimate multivariate lp: --lags must be ≥ 0 (got $control_lags)"))
+    lv = _validate_conf_level(conf_level, "estimate multivariate lp")
     # W10/#112: the weak-IV riders only exist on the LP-IV path. Silently ignoring them under
     # another --method would let an agent believe it got robust bands it never received.
     if method != "iv"
@@ -2143,31 +2177,36 @@ function _estimate_lp(; data::String, method::String="standard", shock::Int=1,
         ar_bands && push!(set, "--ar-bands")
         mop_tau == 0.10 || push!(set, "--mop-tau")
         mop_bandwidth == 0 || push!(set, "--mop-bandwidth")
-        ar_level == 0.95 || push!(set, "--ar-level")
+        ar_level == _DEFAULT_CI_MACRO || push!(set, "--ar-level")
         ar_grid == 401 || push!(set, "--ar-grid")
         ar_span == 20.0 || push!(set, "--ar-span")
         isempty(set) || throw(CliError("usage/invalid",
             "estimate multivariate lp: $(join(set, ", ")) applies only to --method iv (got --method $method)"))
     end
     if method == "standard"
-        return _estimate_lp_standard(data, shock, horizons, control_lags, vcov, output, format)
+        return _estimate_lp_standard(data, shock, horizons, control_lags, vcov, output, format;
+                                     conf_level=lv)
     elseif method == "iv"
         return _estimate_lp_iv(data, shock, horizons, control_lags, vcov, instruments, output, format;
                                mop_f=mop_f, mop_tau=mop_tau, mop_bandwidth=mop_bandwidth,
                                ar_bands=ar_bands, ar_level=ar_level, ar_grid=ar_grid,
-                               ar_span=ar_span)
+                               ar_span=ar_span, conf_level=lv)
     elseif method == "smooth"
-        return _estimate_lp_smooth(data, shock, horizons, knots, lambda, output, format)
+        return _estimate_lp_smooth(data, shock, horizons, knots, lambda, output, format;
+                                   conf_level=lv)
     elseif method == "state"
-        return _estimate_lp_state(data, shock, horizons, state_var, gamma, transition, output, format)
+        return _estimate_lp_state(data, shock, horizons, state_var, gamma, transition, output, format;
+                                  conf_level=lv)
     elseif method == "propensity"
-        return _estimate_lp_propensity(data, treatment, horizons, score_method, output, format)
+        return _estimate_lp_propensity(data, treatment, horizons, score_method, output, format;
+                                       conf_level=lv)
     elseif method == "robust"
-        return _estimate_lp_robust(data, treatment, horizons, score_method, output, format)
+        return _estimate_lp_robust(data, treatment, horizons, score_method, output, format;
+                                   conf_level=lv)
     end
 end
 
-"""Output LP coefficient table: shock coefficients + SEs per horizon per response variable."""
+"""Output LP coefficient table: shock coefficients + SEs + CIs per horizon per response variable."""
 function _output_lp_coef_table(irf_result, varnames, horizons;
                                title::String="", format::String="table", output::String="",
                                key::String="")
@@ -2175,6 +2214,10 @@ function _output_lp_coef_table(irf_result, varnames, horizons;
     n_resp = size(irf_result.values, 2)
     has_se = hasproperty(irf_result, :se) && !isnothing(irf_result.se) &&
              size(irf_result.se) == size(irf_result.values)
+    has_ci = hasproperty(irf_result, :ci_lower) && hasproperty(irf_result, :ci_upper) &&
+             !isnothing(irf_result.ci_lower) && !isnothing(irf_result.ci_upper) &&
+             size(irf_result.ci_lower) == size(irf_result.values) &&
+             size(irf_result.ci_upper) == size(irf_result.values)
 
     coef_df = DataFrame()
     coef_df.Horizon = 0:(n_h - 1)
@@ -2188,12 +2231,17 @@ function _output_lp_coef_table(irf_result, varnames, horizons;
             coef_df[!, Symbol("$(vname)_se")] = ses
             coef_df[!, Symbol("$(vname)_t")] = tstats
         end
+        if has_ci
+            coef_df[!, Symbol("$(vname)_ci_lower")] = irf_result.ci_lower[:, vi]
+            coef_df[!, Symbol("$(vname)_ci_upper")] = irf_result.ci_upper[:, vi]
+        end
     end
 
     output_result(coef_df; format=Symbol(format), output=output, title=title, key=key)
 end
 
-function _estimate_lp_standard(data, shock, horizons, control_lags, vcov, output, format)
+function _estimate_lp_standard(data, shock, horizons, control_lags, vcov, output, format;
+                               conf_level::Float64=_DEFAULT_CI_MACRO)
     Y, varnames = load_multivariate_data(data)
     n = size(Y, 2)
     shock_name = _shock_name(varnames, shock)
@@ -2208,7 +2256,7 @@ function _estimate_lp_standard(data, shock, horizons, control_lags, vcov, output
     catch e
         throw(_domain_or_data_error(e, "LP estimation"))
     end
-    irf_result = lp_irf(model)
+    irf_result = lp_irf(model; conf_level=conf_level)
 
     _output_lp_coef_table(irf_result, varnames, horizons;
         title="LP Coefficients ($shock_name → responses)", format=format, output=output,
@@ -2233,8 +2281,8 @@ end
 
 function _estimate_lp_iv(data, shock, horizons, control_lags, vcov, instruments, output, format;
                          mop_f::Bool=false, mop_tau::Float64=0.10, mop_bandwidth::Int=0,
-                         ar_bands::Bool=false, ar_level::Float64=0.95, ar_grid::Int=401,
-                         ar_span::Float64=20.0)
+                         ar_bands::Bool=false, ar_level::Float64=_DEFAULT_CI_MACRO, ar_grid::Int=401,
+                         ar_span::Float64=20.0, conf_level::Float64=_DEFAULT_CI_MACRO)
     # was a bare error() → untyped exit 1 for an ordinary missing-option mistake
     isempty(instruments) && throw(CliError("usage/missing",
         "estimate multivariate lp --method iv requires --instruments <file.csv>";
@@ -2248,8 +2296,7 @@ function _estimate_lp_iv(data, shock, horizons, control_lags, vcov, instruments,
             "estimate multivariate lp: --mop-bandwidth must be ≥ 0 (got $mop_bandwidth)"))
     end
     if ar_bands
-        (0.0 < ar_level < 1.0) || throw(CliError("usage/invalid",
-            "estimate multivariate lp: --ar-level must be in (0, 1) (got $ar_level)"))
+        ar_level = _validate_conf_level(ar_level, "estimate multivariate lp")
         ar_grid >= 5 || throw(CliError("usage/invalid",
             "estimate multivariate lp: --ar-grid must be ≥ 5 (got $ar_grid)"))
         ar_span > 0.0 || throw(CliError("usage/invalid",
@@ -2307,7 +2354,7 @@ function _estimate_lp_iv(data, shock, horizons, control_lags, vcov, instruments,
     end
     _status()
 
-    irf_result = lp_iv_irf(model)
+    irf_result = lp_iv_irf(model; conf_level=conf_level)
 
     _output_lp_coef_table(irf_result, varnames, horizons;
         title="LP-IV Coefficients ($shock_name → responses)", format=format, output=output,
@@ -2403,7 +2450,8 @@ function _lp_ar_band_table(band)
     return DataFrame(rows)
 end
 
-function _estimate_lp_smooth(data, shock, horizons, knots, lambda, output, format)
+function _estimate_lp_smooth(data, shock, horizons, knots, lambda, output, format;
+                             conf_level::Float64=_DEFAULT_CI_MACRO)
     Y, varnames = load_multivariate_data(data)
     n = size(Y, 2)
 
@@ -2423,7 +2471,7 @@ function _estimate_lp_smooth(data, shock, horizons, knots, lambda, output, forma
     catch e
         throw(_domain_or_data_error(e, "Smooth LP estimation"))
     end
-    irf_result = smooth_lp_irf(model)
+    irf_result = smooth_lp_irf(model; conf_level=conf_level)
 
     _output_lp_coef_table(irf_result, varnames, horizons;
         title="Smooth LP Coefficients ($shock_name → responses)", format=format, output=output,
@@ -2439,7 +2487,8 @@ function _estimate_lp_smooth(data, shock, horizons, knots, lambda, output, forma
     return model
 end
 
-function _estimate_lp_state(data, shock, horizons, state_var, gamma, transition, output, format)
+function _estimate_lp_state(data, shock, horizons, state_var, gamma, transition, output, format;
+                            conf_level::Float64=_DEFAULT_CI_MACRO)
     isnothing(state_var) && throw(CliError("usage/missing-option", "state-dependent LP requires --state-var=<idx>"))
 
     Y, varnames = load_multivariate_data(data)
@@ -2456,7 +2505,7 @@ function _estimate_lp_state(data, shock, horizons, state_var, gamma, transition,
     catch e
         throw(_domain_or_data_error(e, "State-dependent LP estimation"))
     end
-    results = state_irf(model)
+    results = state_irf(model; conf_level=conf_level)
 
     for (regime, label) in [(:expansion, "Expansion"), (:recession, "Recession")]
         irf_result = getfield(results, regime)
@@ -2482,7 +2531,8 @@ function _estimate_lp_state(data, shock, horizons, state_var, gamma, transition,
     return model
 end
 
-function _estimate_lp_propensity(data, treatment, horizons, score_method, output, format)
+function _estimate_lp_propensity(data, treatment, horizons, score_method, output, format;
+                                 conf_level::Float64=_DEFAULT_CI_MACRO)
     Y, varnames = load_multivariate_data(data)
     n = size(Y, 2)
     treat_name = _var_name(varnames, treatment)
@@ -2509,7 +2559,7 @@ function _estimate_lp_propensity(data, treatment, horizons, score_method, output
     _status("  Max weighted SMD: $(round(diag.balance.max_weighted; digits=4))")
     _status()
 
-    irf_result = propensity_irf(model)
+    irf_result = propensity_irf(model; conf_level=conf_level)
 
     _output_lp_coef_table(irf_result, varnames, horizons;
         title="Propensity Score LP: ATE Estimates ($treat_name)", format=format, output=output,
@@ -2517,7 +2567,8 @@ function _estimate_lp_propensity(data, treatment, horizons, score_method, output
     return model
 end
 
-function _estimate_lp_robust(data, treatment, horizons, score_method, output, format)
+function _estimate_lp_robust(data, treatment, horizons, score_method, output, format;
+                             conf_level::Float64=_DEFAULT_CI_MACRO)
     Y, varnames = load_multivariate_data(data)
     n = size(Y, 2)
     treat_name = _var_name(varnames, treatment)
@@ -2544,7 +2595,7 @@ function _estimate_lp_robust(data, treatment, horizons, score_method, output, fo
     _status("  Max weighted SMD: $(round(diag.balance.max_weighted; digits=4))")
     _status()
 
-    irf_result = propensity_irf(model)
+    irf_result = propensity_irf(model; conf_level=conf_level)
 
     _output_lp_coef_table(irf_result, varnames, horizons;
         title="Doubly Robust LP: ATE Estimates ($treat_name)", format=format, output=output,
@@ -2557,6 +2608,7 @@ end
 function _estimate_arima(; data::String, column::Int=1, p=nothing, d::Int=0, q::Int=0,
                           max_p::Int=5, max_d::Int=2, max_q::Int=5,
                           criterion::String="bic", method::String="css_mle",
+                          conf_level::Float64=_DEFAULT_CI_MACRO,
                           format::String="table", output::String="")
     max_p >= 1 || throw(CliError("usage/invalid", "estimate univariate arima: --max-p must be ≥ 1 (got $max_p)"))
     max_d >= 0 || throw(CliError("usage/invalid", "estimate univariate arima: --max-d must be ≥ 0 (got $max_d)"))
@@ -2564,6 +2616,7 @@ function _estimate_arima(; data::String, column::Int=1, p=nothing, d::Int=0, q::
     isnothing(p) || p >= 0 || throw(CliError("usage/invalid", "estimate univariate arima: --p must be ≥ 0 (got $p)"))
     d >= 0 || throw(CliError("usage/invalid", "estimate univariate arima: --d must be ≥ 0 (got $d)"))
     q >= 0 || throw(CliError("usage/invalid", "estimate univariate arima: --q must be ≥ 0 (got $q)"))
+    lv = _validate_conf_level(conf_level, "estimate univariate arima")
     y, vname = load_univariate_series(data, column)
     method_sym = Symbol(method)
     safe_method = method_sym == :css_mle ? :mle : method_sym
@@ -2595,7 +2648,7 @@ function _estimate_arima(; data::String, column::Int=1, p=nothing, d::Int=0, q::
     label = _model_label(p_sel, d_sel, q_sel)
 
     _arima_coef_table(model; format=format, output=output, title="$label Coefficients ($vname)",
-                      key="arima_coefficients")
+                      key="arima_coefficients", conf_level=lv)
 
     _status()
     output_kv(Pair{String,Any}[
@@ -2654,15 +2707,45 @@ end
 """`SARIMA(p,d,q)(P,D,Q)[s]` label, the conventional Box-Jenkins notation."""
 _sarima_label(m) = "SARIMA($(m.p),$(m.d),$(m.q))($(m.P),$(m.D),$(m.Q))[$(m.s)]"
 
-function _sarima_coef_df(m)
+function _sarima_coef_df(m; conf_level::Float64=_DEFAULT_CI_MACRO)
     names = String[]; vals = Float64[]
     m.c != 0 && (push!(names, "intercept"); push!(vals, Float64(m.c)))
     for (i, v) in enumerate(m.phi);   push!(names, "ar$i");    push!(vals, Float64(v)); end
     for (i, v) in enumerate(m.theta); push!(names, "ma$i");    push!(vals, Float64(v)); end
     for (i, v) in enumerate(m.Phi);   push!(names, "sar$i");   push!(vals, Float64(v)); end
     for (i, v) in enumerate(m.Theta); push!(names, "sma$i");   push!(vals, Float64(v)); end
+    n_main = length(names)
     push!(names, "sigma2"); push!(vals, Float64(m.sigma2))
-    return DataFrame(parameter=names, estimate=vals)
+    try
+        c_all = Float64.(coef(m))
+        se_all = Float64.(stderror(m))
+        length(c_all) == length(se_all) || error("coef/se length mismatch")
+        start_idx = if length(se_all) == n_main + (m.c != 0 ? 0 : 1)
+            m.c != 0 ? 1 : 2
+        elseif length(se_all) == n_main
+            1
+        else
+            error("unexpected se length")
+        end
+        lo_all, hi_all = _model_coef_ci(m, c_all, se_all, conf_level)
+        rng = start_idx:(start_idx + n_main - 1)
+        se_main = se_all[rng]
+        lo_main = lo_all[rng]
+        hi_main = hi_all[rng]
+        z_main = [se_main[i] == 0.0 ? 0.0 : vals[i] / se_main[i] for i in 1:n_main]
+        pv_main = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z_main]
+        return DataFrame(
+            parameter = names,
+            estimate  = vals,
+            std_error = vcat(se_main, NaN),
+            z_stat    = vcat(z_main, NaN),
+            p_value   = vcat(pv_main, NaN),
+            ci_lower  = vcat(lo_main, NaN),
+            ci_upper  = vcat(hi_main, NaN),
+        )
+    catch
+        return DataFrame(parameter=names, estimate=vals)
+    end
 end
 
 function _estimate_sarima(; data::String, column::Int=1, p=nothing, d::Int=0, q::Int=0,
@@ -2670,8 +2753,10 @@ function _estimate_sarima(; data::String, column::Int=1, p=nothing, d::Int=0, q:
                            max_p::Int=2, max_q::Int=2, max_P::Int=1, max_Q::Int=1,
                            criterion::String="aic", method::String="css_mle",
                            max_iter::Int=500, no_intercept::Bool=false,
+                           conf_level::Float64=_DEFAULT_CI_MACRO,
                            plot::Bool=false, plot_save::String="",
                            output::String="", format::String="table")
+    lv = _validate_conf_level(conf_level, "estimate univariate sarima")
     model, vname, used_auto = _sarima_fit(data, column, p, d, q, P, D, Q, s, auto,
                                           max_p, max_q, max_P, max_Q, criterion, method,
                                           max_iter, no_intercept, "estimate univariate sarima")
@@ -2679,7 +2764,7 @@ function _estimate_sarima(; data::String, column::Int=1, p=nothing, d::Int=0, q:
     _status(used_auto ? "Auto SARIMA (s=$s): variable=$vname → $lbl" :
                         "Estimating $lbl: variable=$vname")
     _status()
-    output_result(_sarima_coef_df(model); format=Symbol(format), output=output,
+    output_result(_sarima_coef_df(model; conf_level=lv); format=Symbol(format), output=output,
                   title="$lbl Coefficients ($vname)", key="sarima_coefficients")
     _status()
     output_kv(Pair{String,Any}[
@@ -2689,7 +2774,7 @@ function _estimate_sarima(; data::String, column::Int=1, p=nothing, d::Int=0, q:
         "n_obs"          => length(model.y),
         "n_effective"    => length(model.residuals),
     ]; format=format, output=_per_var_output_path(output, "criteria"), title="Information Criteria")
-    _maybe_plot(model; plot=plot, plot_save=plot_save)
+    _maybe_plot(model; plot=plot, plot_save=plot_save, conf_level=lv)
     _set_save_meta!(; varnames=[vname])
     return model
 end
@@ -2800,7 +2885,7 @@ function _model_label(p::Int, d::Int, q::Int)
 end
 
 function _arima_coef_table(model; format::String="table", output::String="", title::String="Coefficients",
-                           key::String="")
+                           key::String="", conf_level::Float64=_DEFAULT_CI_MACRO)
     c = coef(model)
     p_order = ar_order(model)
     q_order = ma_order(model)
@@ -2820,9 +2905,11 @@ function _arima_coef_table(model; format::String="table", output::String="", tit
         se = stderror(model)
         z = c ./ se
         pv = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
+        ci_lo, ci_hi = _model_coef_ci(model, Float64.(c), Float64.(se), conf_level)
         DataFrame(parameter=param_names, estimate=c,
                   std_error=se,
-                  z_stat=z, p_value=pv)
+                  z_stat=z, p_value=pv,
+                  ci_lower=ci_lo, ci_upper=ci_hi)
     catch
         DataFrame(parameter=param_names, estimate=c)
     end
@@ -2910,7 +2997,9 @@ end
 
 function _estimate_arfima(; data::String, column::Int=1, p::Int=0, q::Int=0,
                            method::String="css", d0=nothing, max_iter::Int=500,
+                           conf_level::Float64=_DEFAULT_CI_MACRO,
                            format::String="table", output::String="")
+    lv = _validate_conf_level(conf_level, "estimate univariate arfima")
     y, vname = load_univariate_series(data, column)
     method_sym = Symbol(method)
 
@@ -2930,7 +3019,8 @@ function _estimate_arfima(; data::String, column::Int=1, p::Int=0, q::Int=0,
     # (`DataFrame(model)`), so the tidy coefficient path does not apply — this is a
     # documented C051 exception (like ARIMA/volatility). Ordering is [c, d, phi.., theta..].
     _arfima_coef_table(model; format=format, output=output,
-                       title="$label Coefficients ($vname)", key="arfima_coefficients")
+                       title="$label Coefficients ($vname)", key="arfima_coefficients",
+                       conf_level=lv)
 
     _status()
     output_kv(Pair{String,Any}[
@@ -2946,7 +3036,7 @@ function _estimate_arfima(; data::String, column::Int=1, p::Int=0, q::Int=0,
 end
 
 function _arfima_coef_table(model; format::String="table", output::String="", title::String="Coefficients",
-                            key::String="")
+                            key::String="", conf_level::Float64=_DEFAULT_CI_MACRO)
     c = coef(model)                                 # [c, d, phi.., theta..]
     p_order = ar_order(model)
     q_order = ma_order(model)
@@ -2967,9 +3057,11 @@ function _arfima_coef_table(model; format::String="table", output::String="", ti
         se = stderror(model)
         z = c ./ se
         pv = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
+        ci_lo, ci_hi = _model_coef_ci(model, Float64.(c), Float64.(se), conf_level)
         DataFrame(parameter=param_names, estimate=c,
                   std_error=se,
-                  z_stat=z, p_value=pv)
+                  z_stat=z, p_value=pv,
+                  ci_lower=ci_lo, ci_upper=ci_hi)
     catch
         DataFrame(parameter=param_names, estimate=c)
     end
@@ -3496,7 +3588,9 @@ end
 function _estimate_vecm(; data::String, lags::Int=2, rank::String="auto",
                           deterministic::String="constant", method::String="johansen",
                           significance::Float64=0.05,
+                          conf_level::Float64=_DEFAULT_CI_MACRO,
                           output::String="", format::String="table")
+    _validate_conf_level(conf_level, "estimate multivariate vecm")
     vecm, Y, varnames, p = _load_and_estimate_vecm(data, lags, rank, deterministic, method, significance)
     n = size(Y, 2)
     r = cointegrating_rank(vecm)
@@ -3535,12 +3629,14 @@ end
 
 function _estimate_svar(; data::String, lags=nothing, pattern::String="recursive", config::String="",
                         n_starts::Int=5, max_iter::Int=400,
+                        conf_level::Float64=_DEFAULT_CI_MACRO,
                         output::String="", format::String="table",
                         plot::Bool=false, plot_save::String="")
     n_starts >= 1 || throw(CliError("usage/invalid",
         "estimate multivariate svar: --n-starts must be ≥ 1 (got $n_starts)"))
     max_iter >= 1 || throw(CliError("usage/invalid",
         "estimate multivariate svar: --max-iter must be ≥ 1 (got $max_iter)"))
+    lv = _validate_conf_level(conf_level, "estimate multivariate svar")
     model, Y, varnames, p = _load_and_estimate_var(data, lags)
     n = size(Y, 2)
     pat = _load_svar_pattern(config, n, pattern, "estimate multivariate svar")
@@ -3579,7 +3675,7 @@ function _estimate_svar(; data::String, lags=nothing, pattern::String="recursive
     ]; format=format, output=_per_var_output_path(output, "summary"), title="SVAR Identification Summary",
         key="svar_summary")
 
-    _maybe_plot(svar; plot=plot, plot_save=plot_save)
+    _maybe_plot(svar; plot=plot, plot_save=plot_save, conf_level=lv)
     return svar
 end
 
@@ -3589,12 +3685,14 @@ function _estimate_svec(; data::String, lags::Int=2, rank::String="auto",
                         deterministic::String="constant", method::String="johansen",
                         significance::Float64=0.05, config::String="",
                         n_starts::Int=5, max_iter::Int=400,
+                        conf_level::Float64=_DEFAULT_CI_MACRO,
                         output::String="", format::String="table",
                         plot::Bool=false, plot_save::String="")
     n_starts >= 1 || throw(CliError("usage/invalid",
         "estimate multivariate svec: --n-starts must be ≥ 1 (got $n_starts)"))
     max_iter >= 1 || throw(CliError("usage/invalid",
         "estimate multivariate svec: --max-iter must be ≥ 1 (got $max_iter)"))
+    lv = _validate_conf_level(conf_level, "estimate multivariate svec")
     vecm, Y, varnames, p = _load_and_estimate_vecm(data, lags, rank, deterministic, method, significance)
     n = size(Y, 2)
     lr_zeros, sr_zeros = _load_svec_zeros(config, n, "estimate multivariate svec")
@@ -3632,7 +3730,7 @@ function _estimate_svec(; data::String, lags::Int=2, rank::String="auto",
     ]; format=format, output=_per_var_output_path(output, "summary"), title="SVEC Identification Summary",
         key="svec_summary")
 
-    _maybe_plot(svec; plot=plot, plot_save=plot_save)
+    _maybe_plot(svec; plot=plot, plot_save=plot_save, conf_level=lv)
     return svec
 end
 
@@ -3643,10 +3741,12 @@ function _estimate_pvar(; data::String, id_col::String="", time_col::String="",
                          transformation::String="fd", steps::String="twostep",
                          method::String="gmm", system::Bool=false, collapse::Bool=false,
                          min_lag_endo::Int=2, max_lag_endo::Int=99,
+                         conf_level::Float64=_DEFAULT_CI_MACRO,
                          output::String="", format::String="table")
     validate_method(method, ["gmm", "feols"], "PVAR estimation method")
     validate_method(transformation, ["fd", "fod"], "PVAR transformation")
     validate_method(steps, ["onestep", "twostep"], "PVAR steps")
+    lv = _validate_conf_level(conf_level, "estimate panel pvar")
 
     model, panel, all_varnames = _load_and_estimate_pvar(data, id_col, time_col, lags;
         method=method, transformation=transformation, steps=steps,
@@ -3672,7 +3772,7 @@ function _estimate_pvar(; data::String, id_col::String="", time_col::String="",
 
     _status_report(() -> report(model))
 
-    coef_df = _build_pvar_coef_table(model, varnames, p)
+    coef_df = _build_pvar_coef_table(model, varnames, p; conf_level=lv)
     output_result(coef_df; format=Symbol(format), output=output,
                   title="Panel VAR($p) Coefficients ($method)", key="panel_var_coefficients")
 
@@ -3888,8 +3988,10 @@ end
 
 function _estimate_favar(; data::String, factors=nothing, lags::Int=2,
                           key_vars::String="", method::String="two_step",
-                          draws::Int=5000, output::String="", format::String="table",
+                          draws::Int=5000, conf_level::Float64=_DEFAULT_CI_MACRO,
+                          output::String="", format::String="table",
                           plot::Bool=false, plot_save::String="")
+    lv = _validate_conf_level(conf_level, "estimate multivariate favar")
     favar, Y, varnames = _load_and_estimate_favar(data, factors, lags, key_vars, method, draws)
 
     if favar isa MacroEconometricModels.BayesianFAVAR
@@ -3913,7 +4015,7 @@ function _estimate_favar(; data::String, factors=nothing, lags::Int=2,
     _status_styled("  Factors: $(favar.n_factors), Key variables: $(favar.n_key)\n"; color=:cyan)
     _status_styled("  AIC: $(round(favar.aic; digits=2)), BIC: $(round(favar.bic; digits=2))\n"; color=:cyan)
 
-    _maybe_plot(favar; plot=plot, plot_save=plot_save)
+    _maybe_plot(favar; plot=plot, plot_save=plot_save, conf_level=lv)
     return favar
 end
 
@@ -5255,8 +5357,9 @@ end
 # exception used by the SUR/3SLS systems leaves), not via `DataFrame(model)`.
 
 """Hand-built coefficient table for a GARCH-variant volatility model:
-`parameter | estimate | std_error | z_stat | p_value`. Falls back to estimate-only
-when the QMLE covariance is unavailable (non-finite SEs)."""
+`parameter | estimate | std_error | z_stat | p_value` (plus `ci_lower | ci_upper`
+when `conf_level` is provided). Falls back to estimate-only when the QMLE
+covariance is unavailable (non-finite SEs)."""
 function _garch_variant_coef_table(model, param_names::Vector{String};
                                    conf_level::Union{Nothing,Real}=nothing)
     c = Float64.(coef(model))
@@ -5267,7 +5370,7 @@ function _garch_variant_coef_table(model, param_names::Vector{String};
         z = [se[i] == 0 ? 0.0 : c[i] / se[i] for i in eachindex(c)]
         pv = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
         if conf_level !== nothing
-            ci_lo, ci_hi = _ci_bounds(model, c, se, conf_level)
+            ci_lo, ci_hi = _model_coef_ci(model, c, se, Float64(conf_level))
             return DataFrame(parameter=names, estimate=c,
                              std_error=se,
                              z_stat=z, p_value=pv,
@@ -5316,31 +5419,36 @@ end
 # coefficient table is hand-built (the documented C051 exception, like io/mgarch/sur).
 
 """Tidy per-regime coefficient table for a nonlinear-TS model regime block:
-`regime | term | estimate | std_error | z_stat | p_value` (large-sample normal
-z/p, matching the `_garch_variant`/`dsge` `_normal_cdf` convention). Callers `vcat`
-the two regime blocks into one table (C065a SETAR, reused by C065b STAR)."""
+`regime | term | estimate | std_error | z_stat | p_value` (plus `ci_lower | ci_upper`
+when bounds are supplied; large-sample normal z/p, matching the `_garch_variant`/`dsge`
+`_normal_cdf` convention). Callers `vcat` the two regime blocks into one table
+(C065a SETAR, reused by C065b STAR)."""
 function _threshold_coef_table(betas::AbstractVector, ses::AbstractVector,
                                terms::Vector{String}, regime_label::String;
                                conf_level::Union{Nothing,Real}=nothing,
                                ci_lo::Union{Nothing,AbstractVector}=nothing,
-                               ci_hi::Union{Nothing,AbstractVector}=nothing)
+                               ci_hi::Union{Nothing,AbstractVector}=nothing,
+                               ci_lower::Union{Nothing,AbstractVector}=nothing,
+                               ci_upper::Union{Nothing,AbstractVector}=nothing)
     b = Float64.(betas); s = Float64.(ses)
     n = length(b)
     tm = length(terms) == n ? terms : String["term$i" for i in 1:n]
     z  = [s[i] == 0.0 ? 0.0 : b[i] / s[i] for i in 1:n]
     pv = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
-    if conf_level !== nothing
-        lo, hi = if ci_lo !== nothing && ci_hi !== nothing && length(ci_lo) == n && length(ci_hi) == n
-            Float64.(ci_lo), Float64.(ci_hi)
-        else
-            lv = _validate_conf_level(conf_level, "threshold")
-            zc = _normal_quantile(1.0 - (1.0 - lv) / 2.0)
-            b .- zc .* s, b .+ zc .* s
-        end
+    lo_in = ci_lower !== nothing ? ci_lower : ci_lo
+    hi_in = ci_upper !== nothing ? ci_upper : ci_hi
+    if lo_in !== nothing && hi_in !== nothing && length(lo_in) == n && length(hi_in) == n
         return DataFrame(regime=fill(regime_label, n), term=tm[1:n],
                          estimate=b, std_error=s,
                          z_stat=z, p_value=pv,
-                         ci_lower=lo, ci_upper=hi)
+                         ci_lower=Float64.(lo_in), ci_upper=Float64.(hi_in))
+    elseif conf_level !== nothing
+        lv = _validate_conf_level(conf_level, "threshold")
+        zc = _normal_quantile(1.0 - (1.0 - lv) / 2.0)
+        return DataFrame(regime=fill(regime_label, n), term=tm[1:n],
+                         estimate=b, std_error=s,
+                         z_stat=z, p_value=pv,
+                         ci_lower=b .- zc .* s, ci_upper=b .+ zc .* s)
     end
     return DataFrame(regime=fill(regime_label, n), term=tm[1:n],
                      estimate=b, std_error=s,
@@ -5791,7 +5899,9 @@ function _residuals_garch_midas(; data::String="", column::Int=1, m_freq::Int=0,
 end
 
 function _estimate_igarch(; data::String, column::Int=1, p::Int=1, q::Int=1,
+                           conf_level::Float64=_DEFAULT_CI_MACRO,
                            output::String="", format::String="table")
+    lv = _validate_conf_level(conf_level, "estimate volatility igarch")
     y, vname = load_univariate_series(data, column)
     _status("Estimating IGARCH($p,$q): variable=$vname, observations=$(length(y))")
     _status()
@@ -5801,7 +5911,7 @@ function _estimate_igarch(; data::String, column::Int=1, p::Int=1, q::Int=1,
         throw(_garch_variant_error(e, "IGARCH"))
     end
     names = String["mu"; "omega"; ["alpha$i" for i in 1:q]; ["beta$i" for i in 1:p]]
-    output_result(_garch_variant_coef_table(model, names); format=Symbol(format),
+    output_result(_garch_variant_coef_table(model, names; conf_level=lv); format=Symbol(format),
                   output=output, title="IGARCH($p,$q) Coefficients ($vname)",
                   key="igarch_coefficients")
     output_kv(_garch_variant_diag(model); format=format,
@@ -5812,7 +5922,9 @@ function _estimate_igarch(; data::String, column::Int=1, p::Int=1, q::Int=1,
 end
 
 function _estimate_cgarch(; data::String, column::Int=1,
+                           conf_level::Float64=_DEFAULT_CI_MACRO,
                            output::String="", format::String="table")
+    lv = _validate_conf_level(conf_level, "estimate volatility cgarch")
     y, vname = load_univariate_series(data, column)
     _status("Estimating Component-GARCH(1,1): variable=$vname, observations=$(length(y))")
     _status()
@@ -5822,7 +5934,7 @@ function _estimate_cgarch(; data::String, column::Int=1,
         throw(_garch_variant_error(e, "CGARCH"))
     end
     names = String["mu", "omega", "rho", "phi", "alpha", "beta"]
-    output_result(_garch_variant_coef_table(model, names); format=Symbol(format),
+    output_result(_garch_variant_coef_table(model, names; conf_level=lv); format=Symbol(format),
                   output=output, title="Component-GARCH(1,1) Coefficients ($vname)",
                   key="cgarch_coefficients")
     output_kv(_garch_variant_diag(model; extra=Pair{String,Any}[
@@ -5835,7 +5947,9 @@ end
 
 function _estimate_aparch(; data::String, column::Int=1, p::Int=1, q::Int=1,
                            fix_delta=nothing, fix_gamma=nothing,
+                           conf_level::Float64=_DEFAULT_CI_MACRO,
                            output::String="", format::String="table")
+    lv = _validate_conf_level(conf_level, "estimate volatility aparch")
     y, vname = load_univariate_series(data, column)
     fd = fix_delta === nothing ? nothing : Float64(fix_delta)
     fg = fix_gamma === nothing ? nothing : Float64(fix_gamma)
@@ -5848,7 +5962,7 @@ function _estimate_aparch(; data::String, column::Int=1, p::Int=1, q::Int=1,
         throw(_garch_variant_error(e, "APARCH"))
     end
     names = String["mu"; "omega"; ["alpha$i" for i in 1:q]; ["gamma$i" for i in 1:q]; ["beta$i" for i in 1:p]; "delta"]
-    output_result(_garch_variant_coef_table(model, names); format=Symbol(format),
+    output_result(_garch_variant_coef_table(model, names; conf_level=lv); format=Symbol(format),
                   output=output, title="APARCH($p,$q) Coefficients ($vname)",
                   key="aparch_coefficients")
     output_kv(_garch_variant_diag(model; extra=Pair{String,Any}[
@@ -5861,7 +5975,9 @@ end
 
 function _estimate_figarch(; data::String, column::Int=1, p::Int=1, q::Int=1,
                             d0::Float64=0.4, truncation::Int=1000, dist::String="normal",
+                            conf_level::Float64=_DEFAULT_CI_MACRO,
                             output::String="", format::String="table")
+    lv = _validate_conf_level(conf_level, "estimate volatility figarch")
     y, vname = load_univariate_series(data, column)
     _status("Estimating FIGARCH($p,d,$q): variable=$vname, observations=$(length(y)), d0=$d0, truncation=$truncation")
     _status()
@@ -5871,7 +5987,7 @@ function _estimate_figarch(; data::String, column::Int=1, p::Int=1, q::Int=1,
         throw(_garch_variant_error(e, "FIGARCH"))
     end
     names = String["mu"; "omega"; ["phi$i" for i in 1:q]; ["beta$i" for i in 1:p]; "d"]
-    output_result(_garch_variant_coef_table(model, names); format=Symbol(format),
+    output_result(_garch_variant_coef_table(model, names; conf_level=lv); format=Symbol(format),
                   output=output, title="FIGARCH($p,d,$q) Coefficients ($vname)",
                   key="figarch_coefficients")
     output_kv(_garch_variant_diag(model; extra=Pair{String,Any}[
@@ -5885,7 +6001,9 @@ end
 
 function _estimate_fiegarch(; data::String, column::Int=1, p::Int=1, q::Int=1,
                              d0::Float64=0.4, truncation::Int=1000, dist::String="normal",
+                             conf_level::Float64=_DEFAULT_CI_MACRO,
                              output::String="", format::String="table")
+    lv = _validate_conf_level(conf_level, "estimate volatility fiegarch")
     y, vname = load_univariate_series(data, column)
     _status("Estimating FIEGARCH($p,d,$q): variable=$vname, observations=$(length(y)), d0=$d0, truncation=$truncation")
     _status()
@@ -5895,7 +6013,7 @@ function _estimate_fiegarch(; data::String, column::Int=1, p::Int=1, q::Int=1,
         throw(_garch_variant_error(e, "FIEGARCH"))
     end
     names = String["mu"; "omega"; "theta"; "gamma"; ["phi$i" for i in 1:q]; ["beta$i" for i in 1:p]; "d"]
-    output_result(_garch_variant_coef_table(model, names); format=Symbol(format),
+    output_result(_garch_variant_coef_table(model, names; conf_level=lv); format=Symbol(format),
                   output=output, title="FIEGARCH($p,d,$q) Coefficients ($vname)",
                   key="fiegarch_coefficients")
     output_kv(_garch_variant_diag(model; extra=Pair{String,Any}[
@@ -5908,12 +6026,14 @@ end
 
 function _estimate_garch_midas(; data::String, column::Int=1, m_freq::Int=0, k::Int=12,
                                 rv::String="realized", span::String="fixed", config::String="",
+                                conf_level::Float64=_DEFAULT_CI_MACRO,
                                 output::String="", format::String="table")
     m_freq >= 1 || throw(CliError("usage/missing-option",
         "estimate volatility garch-midas requires --m-freq ≥ 1 (high-frequency observations per low-frequency block)"))
     rv_sym = Symbol(rv); span_sym = Symbol(span)
     rv_sym in (:realized, :macro) || throw(CliError("usage/bad-value", "--rv must be realized|macro, got $rv"))
     span_sym in (:fixed, :rolling) || throw(CliError("usage/bad-value", "--span must be fixed|rolling, got $span"))
+    lv = _validate_conf_level(conf_level, "estimate volatility garch-midas")
     y, vname = load_univariate_series(data, column)
     x_lf = Float64[]
     if rv_sym === :macro
@@ -5929,7 +6049,7 @@ function _estimate_garch_midas(; data::String, column::Int=1, m_freq::Int=0, k::
         throw(_garch_variant_error(e, "GARCH-MIDAS"))
     end
     names = String["mu", "alpha", "beta", "m", "theta", "w"]
-    output_result(_garch_variant_coef_table(model, names); format=Symbol(format),
+    output_result(_garch_variant_coef_table(model, names; conf_level=lv); format=Symbol(format),
                   output=output, title="GARCH-MIDAS Coefficients ($vname)",
                   key="garch_midas_coefficients")
     output_kv(_garch_variant_diag(model; extra=Pair{String,Any}[
@@ -6819,20 +6939,20 @@ end
 
 """Hand-built coefficient table for a single-equation cointegrating regression
 (`CointRegModel`): `term|estimate|std_error|stat|p_value|ci_lower|ci_upper`. p-values/CIs use
-the large-sample normal approximation (the estimators are asymptotically mixed-normal; same
-convention as `_garch_variant_coef_table`/`dsge` using `_normal_cdf`)."""
-function _cointreg_coef_table(model)
+`confint(model; level=conf_level)` (falling back to large-sample normal critical values at
+`conf_level`, default 68% per macro convention)."""
+function _cointreg_coef_table(model; conf_level::Float64=_DEFAULT_CI_MACRO)
     est = Float64.(coef(model))
     se = Float64.(stderror(model))
     names = String.(model.varnames)[1:length(est)]
     z = [se[i] == 0 ? 0.0 : est[i] / se[i] for i in eachindex(est)]
     pv = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
-    zc = 1.959963984540054   # Φ⁻¹(0.975)
+    ci_lo, ci_hi = _model_coef_ci(model, est, se, conf_level)
     return DataFrame(term=names, estimate=est,
                      std_error=se, stat=z,
                      p_value=pv,
-                     ci_lower=est .- zc .* se,
-                     ci_upper=est .+ zc .* se)
+                     ci_lower=ci_lo,
+                     ci_upper=ci_hi)
 end
 
 """Hand-built coefficient table for a panel cointegrating regression
@@ -6840,23 +6960,25 @@ end
 The group-mean SE is a back-solved display SE and can be `Inf` — do NOT recompute from
 `vcov`; non-finite entries are kept (round-safe) and rendered by the non-finite-safe output
 path (C067a/C073)."""
-function _panel_cointreg_coef_table(model)
+function _panel_cointreg_coef_table(model; conf_level::Float64=_DEFAULT_CI_MACRO)
     est = Float64.(model.coef)
     se = Float64.(model.se)
     names = String.(model.varnames)[1:length(est)]
-    zc = 1.959963984540054
+    ci_lo, ci_hi = _model_coef_ci(nothing, est, se, conf_level)
     return DataFrame(term=names, estimate=est,
                      std_error=se, stat=Float64.(model.tstats),
                      p_value=Float64.(model.pvalues),
-                     ci_lower=est .- zc .* se,
-                     ci_upper=est .+ zc .* se)
+                     ci_lower=ci_lo,
+                     ci_upper=ci_hi)
 end
 
 function _estimate_cointreg(; data::String, dep::String="", method::String="fmols",
                              trend::String="const", kernel::String="bartlett",
                              bandwidth::String="andrews", leads::String="auto",
                              lags::String="auto", ic::String="aic", dols_se::String="lrv",
+                             conf_level::Float64=_DEFAULT_CI_MACRO,
                              output::String="", format::String="table")
+    lv = _validate_conf_level(conf_level, "estimate regression cointreg")
     y, X, xcols = _load_reg_data(data, dep)
     dep_name = _resolve_dep_name(data, dep)
     bw = _parse_cointreg_bandwidth(bandwidth)
@@ -6871,7 +6993,7 @@ function _estimate_cointreg(; data::String, dep::String="", method::String="fmol
     catch e
         throw(_garch_variant_error(e, "cointreg"))
     end
-    output_result(_cointreg_coef_table(model); format=Symbol(format), output=output,
+    output_result(_cointreg_coef_table(model; conf_level=lv); format=Symbol(format), output=output,
                   title="Cointegrating Regression Coefficients ($dep_name)",
                   key="cointegrating_regression_coefficients")
     pairs = Pair{String,Any}[
@@ -6898,7 +7020,9 @@ function _estimate_xtcointreg(; data::String, id_col::String="", time_col::Strin
                                pooling::String="group", trend::String="const",
                                kernel::String="bartlett", bandwidth::String="andrews",
                                leads::String="auto", lags::String="auto", ic::String="aic",
-                               dols_se::String="lrv", output::String="", format::String="table")
+                               dols_se::String="lrv", conf_level::Float64=_DEFAULT_CI_MACRO,
+                               output::String="", format::String="table")
+    lv = _validate_conf_level(conf_level, "estimate panel xtcointreg")
     pd, depsym, indepsyms, depc, indeps = _load_panel_reg(data, id_col, time_col, dep, indep)
     bw = _parse_cointreg_bandwidth(bandwidth)
     ld = _parse_cointreg_leadlag(leads, "--leads")
@@ -6916,7 +7040,7 @@ function _estimate_xtcointreg(; data::String, id_col::String="", time_col::Strin
     title = model.pooling === :group ? "Group-mean" : "Pooled"
     # `--pooling` selects the estimator, not a different table: same columns either way, so
     # it stays in the title and the key is fixed.
-    output_result(_panel_cointreg_coef_table(model); format=Symbol(format), output=output,
+    output_result(_panel_cointreg_coef_table(model; conf_level=lv); format=Symbol(format), output=output,
                   title="Panel Cointegrating Regression $title Coefficients ($depc)",
                   key="panel_cointegrating_regression_coefficients")
     tspan = model.balanced ? string(first(model.T_i)) :
@@ -6947,31 +7071,35 @@ end
 # mock has no TDist); the ARDL/NARDL trend vocabulary is none|const|trend (ARDL-specific).
 
 """Hand-built levels-form coefficient table for a fitted `ARDLModel` (pass `m` for
-`estimate ardl` or `m.ardl` for NARDL): `term|estimate|std_error|stat|p_value`."""
-function _ardl_coef_table(a)
+`estimate ardl` or `m.ardl` for NARDL): `term|estimate|std_error|stat|p_value|ci_lower|ci_upper`."""
+function _ardl_coef_table(a; conf_level::Float64=_DEFAULT_CI_MACRO)
     est = Float64.(coef(a))
     se = Float64.(stderror(a))
     names = String.(a.coefnames)[1:length(est)]
     z = [se[i] == 0 ? 0.0 : est[i] / se[i] for i in eachindex(est)]
     pv = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
+    ci_lo, ci_hi = _model_coef_ci(a, est, se, conf_level)
     return DataFrame(term=names, estimate=est,
                      std_error=se, stat=z,
-                     p_value=pv)
+                     p_value=pv,
+                     ci_lower=ci_lo, ci_upper=ci_hi)
 end
 
 """Hand-built long-run (level) multiplier table from an `ARDLLongRun`:
-`term|estimate|std_error|stat|p_value` (delta-method SEs; normal-approx stat/p — MEMs uses
-`dist=:z` for the long-run block). Serves `estimate ardl` (symmetric) and `estimate nardl`
+`term|estimate|std_error|stat|p_value|ci_lower|ci_upper` (delta-method SEs; normal-approx stat/p —
+MEMs uses `dist=:z` for the long-run block). Serves `estimate ardl` (symmetric) and `estimate nardl`
 (θ⁺/θ⁻ on the enlarged regressor set)."""
-function _ardl_longrun_table(lr)
+function _ardl_longrun_table(lr; conf_level::Float64=_DEFAULT_CI_MACRO)
     est = Float64.(lr.theta)
     se = Float64.(lr.se)
     names = String.(lr.varnames)[1:length(est)]
     z = [se[i] == 0 ? 0.0 : est[i] / se[i] for i in eachindex(est)]
     pv = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
+    ci_lo, ci_hi = _model_coef_ci(nothing, est, se, conf_level)
     return DataFrame(term=names, estimate=est,
                      std_error=se, stat=z,
-                     p_value=pv)
+                     p_value=pv,
+                     ci_lower=ci_lo, ci_upper=ci_hi)
 end
 
 """Fit an `ARDLModel` from a loaded `(y, X, xcols)` + a resolved dep name, with all
@@ -7029,16 +7157,18 @@ end
 
 function _estimate_ardl(; data::String, dep::String="", p::String="auto", q::String="auto",
                          max_p::Int=4, max_q::Int=4, ic::String="aic", case::Int=3,
-                         trend::String="none", output::String="", format::String="table")
+                         trend::String="none", conf_level::Float64=_DEFAULT_CI_MACRO,
+                         output::String="", format::String="table")
+    lv = _validate_conf_level(conf_level, "estimate univariate ardl")
     y, X, xcols = _load_reg_data(data, dep)
     dep_name = _resolve_dep_name(data, dep)
     _status("ARDL: $dep_name ~ $(join(xcols, " + ")) (p=$p, q=$q, case=$case, ic=$ic), n=$(length(y))"); _status()
     m = _fit_ardl(y, X, xcols, dep_name; p=p, q=q, max_p=max_p, max_q=max_q,
                   ic=ic, case=case, trend=trend, label="ARDL")
-    output_result(_ardl_coef_table(m); format=Symbol(format), output=output,
+    output_result(_ardl_coef_table(m; conf_level=lv); format=Symbol(format), output=output,
                   title="ARDL Coefficients (levels form) ($dep_name)", key="ardl_coefficients")
     lr = long_run(m)
-    output_result(_ardl_longrun_table(lr); format=Symbol(format),
+    output_result(_ardl_longrun_table(lr; conf_level=lv); format=Symbol(format),
                   output=_per_var_output_path(output, "longrun"),
                   title="ARDL Long-Run Coefficients ($dep_name)",
                   key="ardl_long_run_coefficients")
@@ -7068,20 +7198,21 @@ end
 function _estimate_nardl(; data::String, dep::String="", asymmetric::String="all",
                           p::String="auto", q::String="auto", max_p::Int=4, max_q::Int=4,
                           ic::String="aic", case::Int=3, horizon::Int=12, nreps::Int=500,
-                          level::Float64=0.95, no_bootstrap::Bool=false,
+                          level::Float64=_DEFAULT_CI_MACRO, no_bootstrap::Bool=false,
                           plot::Bool=false, plot_save::String="",
                           output::String="", format::String="table")
+    lv = _validate_conf_level(level, "estimate univariate nardl")
     y, X, xcols = _load_reg_data(data, dep)
     dep_name = _resolve_dep_name(data, dep)
     _status("NARDL: $dep_name ~ $(join(xcols, " + ")) (asym=$asymmetric, p=$p, q=$q, case=$case), n=$(length(y))"); _status()
     m = _fit_nardl(y, X, xcols, dep_name; asymmetric=asymmetric, p=p, q=q,
                    max_p=max_p, max_q=max_q, ic=ic, case=case, label="NARDL")
     a = m.ardl
-    output_result(_ardl_coef_table(a); format=Symbol(format), output=output,
+    output_result(_ardl_coef_table(a; conf_level=lv); format=Symbol(format), output=output,
                   title="NARDL Coefficients (levels form, split regressors) ($dep_name)",
                   key="nardl_coefficients")
     lr = long_run(m)   # ARDLLongRun on the enlarged (θ⁺/θ⁻) regressor set
-    output_result(_ardl_longrun_table(lr); format=Symbol(format),
+    output_result(_ardl_longrun_table(lr; conf_level=lv); format=Symbol(format),
                   output=_per_var_output_path(output, "longrun"),
                   title="NARDL Asymmetric Long-Run Coefficients (θ⁺ / θ⁻) ($dep_name)",
                   key="nardl_asymmetric_long_run_coefficients")
@@ -7107,9 +7238,9 @@ function _estimate_nardl(; data::String, dep::String="", asymmetric::String="all
     ]; format=format, title="NARDL Diagnostics + Bounds (enlarged k=$(m.k))",
        key="nardl_diagnostics",
        output=_per_var_output_path(output, "diagnostics"))
-    _emit_nardl_multipliers(m, dep_name; horizon=horizon, nreps=nreps, level=level,
+    _emit_nardl_multipliers(m, dep_name; horizon=horizon, nreps=nreps, level=lv,
                             no_bootstrap=no_bootstrap, output=output, format=format)
-    _maybe_plot(m; plot=plot, plot_save=plot_save)
+    _maybe_plot(m; plot=plot, plot_save=plot_save, conf_level=lv)
     return m
 end
 
@@ -7126,25 +7257,27 @@ end
 # via `_json_safe` and `_render_table` (C067a/C073/#323).
 
 """Hand-built long-run coefficient table for a fitted `PMGModel`:
-`term|estimate|std_error|stat|p_value` from the common (`:pmg`/`:dfe`) or averaged (`:mg`)
+`term|estimate|std_error|stat|p_value|ci_lower|ci_upper` from the common (`:pmg`/`:dfe`) or averaged (`:mg`)
 long-run block `theta`/`theta_se`; `term = m.xnames`. Normal-approx stat/p."""
-function _pmg_longrun_table(m)
+function _pmg_longrun_table(m; conf_level::Float64=_DEFAULT_CI_MACRO)
     est = Float64.(m.theta)
     se = Float64.(m.theta_se)
     names = String.(m.xnames)[1:length(est)]
     z = [se[i] == 0 ? 0.0 : est[i] / se[i] for i in eachindex(est)]
     pv = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
+    ci_lo, ci_hi = _model_coef_ci(m, est, se, conf_level)
     return DataFrame(term=names, estimate=est,
                      std_error=se, stat=z,
-                     p_value=pv)
+                     p_value=pv,
+                     ci_lower=ci_lo, ci_upper=ci_hi)
 end
 
 """Hand-built short-run / error-correction table for a fitted `PMGModel`:
-`term|estimate|std_error`. The error-correction speed φ (mean for `:pmg`/`:mg`, common for
+`term|estimate|std_error|ci_lower|ci_upper`. The error-correction speed φ (mean for `:pmg`/`:mg`, common for
 `:dfe`) is the first row, followed by the averaged/common short-run block (`m.sr`/`m.sr_se`,
 `term = m.srnames`). For a DFE fit the unit intercept is absorbed → `srnames` may be empty, in
 which case only the φ row is emitted."""
-function _pmg_shortrun_table(m)
+function _pmg_shortrun_table(m; conf_level::Float64=_DEFAULT_CI_MACRO)
     terms = String["EC speed (phi)"]
     est = Float64[m.phi]
     se = Float64[m.phi_se]
@@ -7152,18 +7285,22 @@ function _pmg_shortrun_table(m)
     for j in eachindex(srnames)
         push!(terms, srnames[j]); push!(est, Float64(m.sr[j])); push!(se, Float64(m.sr_se[j]))
     end
-    return DataFrame(term=terms, estimate=est, std_error=se)
+    ci_lo, ci_hi = _model_coef_ci(nothing, est, se, conf_level)
+    return DataFrame(term=terms, estimate=est, std_error=se,
+                     ci_lower=ci_lo, ci_upper=ci_hi)
 end
 
 function _estimate_pmg(; data::String, id_col::String="", time_col::String="",
                         dep::String="", indep::String="", method::String="pmg",
                         trend::String="constant", p::Int=1, q::Int=1,
                         maxiter::Int=100, tol::Float64=1e-8,
+                        conf_level::Float64=_DEFAULT_CI_MACRO,
                         output::String="", format::String="table")
     p >= 1 || throw(CliError("usage/invalid", "--p must be ≥ 1, got $p"))
     q >= 0 || throw(CliError("usage/invalid", "--q must be ≥ 0, got $q"))
     maxiter >= 1 || throw(CliError("usage/invalid", "--maxiter must be ≥ 1, got $maxiter"))
     tol > 0 || throw(CliError("usage/invalid", "--tol must be > 0, got $tol"))
+    lv = _validate_conf_level(conf_level, "estimate panel pmg")
     pd, depsym, indepsyms, depc, indeps = _load_panel_reg(data, id_col, time_col, dep, indep)
     _status("Panel ARDL ($(uppercase(method)), EC form): $depc ~ $(join(indeps, " + ")) (p=$p, q=$q, trend=$trend), units=$(pd.n_groups)"); _status()
     m = try
@@ -7172,10 +7309,10 @@ function _estimate_pmg(; data::String, id_col::String="", time_col::String="",
     catch e
         throw(_garch_variant_error(e, "PMG"))
     end
-    output_result(_pmg_longrun_table(m); format=Symbol(format), output=output,
+    output_result(_pmg_longrun_table(m; conf_level=lv); format=Symbol(format), output=output,
                   title="Panel ARDL Long-Run Coefficients (theta) ($depc)",
                   key="panel_ardl_long_run_coefficients")
-    output_result(_pmg_shortrun_table(m); format=Symbol(format),
+    output_result(_pmg_shortrun_table(m; conf_level=lv); format=Symbol(format),
                   output=_per_var_output_path(output, "shortrun"),
                   title="Panel ARDL Short-Run + EC Coefficients ($depc)",
                   key="panel_ardl_short_run_ec_coefficients")
@@ -7234,12 +7371,12 @@ function _midas_weight_table(model)
     return DataFrame(lag=collect(1:length(w)), weight=w)
 end
 
-"""Hand-built MIDAS coefficient table (`term|estimate|std_error|stat|p_value`) over the full
-parameter vector `[β; θ]` (`coef(m)`), with `term = m.varnames`. Falls back to estimate-only when
-the Gauss-Newton SEs are unavailable/non-finite (mirrors `_garch_variant_coef_table`). For
-`:umidas` the θ block is empty and the K lag coefficients enter as the linear block; θ labels are
+"""Hand-built MIDAS coefficient table (`term|estimate|std_error|stat|p_value|ci_lower|ci_upper`)
+over the full parameter vector `[β; θ]` (`coef(m)`), with `term = m.varnames`. Falls back to
+estimate-only when the Gauss-Newton SEs are unavailable/non-finite (mirrors `_garch_variant_coef_table`).
+For `:umidas` the θ block is empty and the K lag coefficients enter as the linear block; θ labels are
 padded if `varnames` is shorter than `coef` (defensive)."""
-function _midas_coef_table(model)
+function _midas_coef_table(model; conf_level::Float64=_DEFAULT_CI_MACRO)
     est = Float64.(coef(model))
     nm = String.(model.varnames)
     names = length(nm) == length(est) ? nm :
@@ -7249,9 +7386,11 @@ function _midas_coef_table(model)
         (length(se) == length(est) && all(isfinite, se)) || error("unavailable SEs")
         z = [se[i] == 0 ? 0.0 : est[i] / se[i] for i in eachindex(est)]
         pv = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
+        ci_lo, ci_hi = _model_coef_ci(model, est, se, conf_level)
         return DataFrame(term=names, estimate=est,
                          std_error=se, stat=z,
-                         p_value=pv)
+                         p_value=pv,
+                         ci_lower=ci_lo, ci_upper=ci_hi)
     catch
         return DataFrame(term=names, estimate=est)
     end
@@ -7346,6 +7485,7 @@ end
 function _estimate_midas(; data::String, column::Int=1, hf_data::String="", hf_column::Int=1,
                           m::Int=0, k::Int=0, weights::String="expalmon", p_ar::Int=0,
                           poly_degree::Int=2, horizon::Int=1, max_iter::Int=500,
+                          conf_level::Float64=_DEFAULT_CI_MACRO,
                           output::String="", format::String="table")
     # Up-front guards → usage/invalid (before any load or estimator call).
     isempty(hf_data) && throw(CliError("usage/missing-option",
@@ -7363,6 +7503,7 @@ function _estimate_midas(; data::String, column::Int=1, hf_data::String="", hf_c
     # mock throws `ArgumentError` → data/invalid: a latent mock/real exit-class divergence. Reject up
     # front → usage/invalid (poly_degree=0 = constant/equal weights is valid on both).
     poly_degree >= 0 || throw(CliError("usage/invalid", "--poly-degree must be ≥ 0, got $poly_degree"))
+    lv = _validate_conf_level(conf_level, "estimate univariate midas")
     # Beta weights need a ≥2-point grid; pre-guard for a friendly message (real `_beta_grid` throws).
     (weights in ("beta2", "beta3") && k < 2) && throw(CliError("data/invalid",
         "--weights $weights requires --k ≥ 2 (the Beta weight grid needs ≥ 2 lags), got k=$k"))
@@ -7377,7 +7518,7 @@ function _estimate_midas(; data::String, column::Int=1, hf_data::String="", hf_c
     end
     output_result(_midas_weight_table(model); format=Symbol(format), output=output,
                   title="MIDAS Weight Curve ($xnm, most-recent-first)", key="midas_weight_curve")
-    output_result(_midas_coef_table(model); format=Symbol(format),
+    output_result(_midas_coef_table(model; conf_level=lv); format=Symbol(format),
                   output=_per_var_output_path(output, "coef"),
                   title="MIDAS Coefficients ($ynm)", key="midas_coefficients")
     output_kv(Pair{String,Any}[
@@ -7528,7 +7669,7 @@ function _estimate_threshold(; data::String, dep::String="", threshold_col::Stri
 end
 
 function _estimate_setar(; data::String, column::Int=1, p::Int=1, d::String="1",
-                          trim::Float64=0.15, reps::Int=1000, ci_level::Float64=0.95,
+                          trim::Float64=0.15, reps::Int=1000, ci_level::Float64=_DEFAULT_CI_MACRO,
                           het::Bool=false, no_linearity::Bool=false,
                           plot::Bool=false, plot_save::String="",
                           output::String="", format::String="table")
@@ -7536,24 +7677,38 @@ function _estimate_setar(; data::String, column::Int=1, p::Int=1, d::String="1",
     (0.0 < trim < 0.5) || throw(CliError("usage/invalid",
         "estimate regime setar: --trim must be in (0, 0.5) (got $trim)"))
     reps >= 1 || throw(CliError("usage/invalid", "estimate regime setar: --reps must be ≥ 1 (got $reps)"))
-    # Hansen (2000) critical values are tabulated ONLY for these three levels — anything
-    # else makes `_hansen2000_crit` throw an uncaught ArgumentError, so guard exactly.
-    (ci_level == 0.90 || ci_level == 0.95 || ci_level == 0.99) || throw(CliError("usage/invalid",
-        "estimate regime setar: --ci-level must be exactly 0.90, 0.95, or 0.99 (got $ci_level)"))
+    # MEMs v1.1.2 uses exact closed-form Hansen (2000) critical values for any level ∈ (0, 1).
+    lv = _validate_conf_level(ci_level, "estimate regime setar")
     d_arg = _parse_setar_delay(d)
     y, vname = load_univariate_series(data, column)
-    _status("Estimating SETAR(2;$p,$p): variable=$vname, obs=$(length(y)), d=$d, ci=$ci_level" *
+    _status("Estimating SETAR(2;$p,$p): variable=$vname, obs=$(length(y)), d=$d, ci=$lv" *
             (het ? ", het bootstrap" : "") * (no_linearity ? ", linearity test skipped" : ""))
     _status()
     model = try
         estimate_setar(y, p, d_arg; trim=trim, linearity=!no_linearity, reps=reps,
-                       ci_level=ci_level, het=het, _fwd_seed()...)
+                       ci_level=lv, het=het, _fwd_seed()...)
     catch e
         throw(_nonlinear_error(e, "SETAR"))
     end
+    k1 = length(model.beta1); k2 = length(model.beta2)
+    ci1_lo, ci1_hi, ci2_lo, ci2_hi = try
+        ci_mat = confint(model; level=lv)
+        if ci_mat isa AbstractMatrix && size(ci_mat, 1) == k1 + k2 && size(ci_mat, 2) >= 2
+            (Float64.(ci_mat[1:k1, 1]), Float64.(ci_mat[1:k1, 2]),
+             Float64.(ci_mat[(k1+1):(k1+k2), 1]), Float64.(ci_mat[(k1+1):(k1+k2), 2]))
+        else
+            error("unexpected confint shape")
+        end
+    catch
+        lo1, hi1 = _model_coef_ci(nothing, Float64.(model.beta1), Float64.(model.se1), lv)
+        lo2, hi2 = _model_coef_ci(nothing, Float64.(model.beta2), Float64.(model.se2), lv)
+        (lo1, hi1, lo2, hi2)
+    end
     coef = vcat(
-        _threshold_coef_table(model.beta1, model.se1, model.xnames, "regime1 (q≤γ)"),
-        _threshold_coef_table(model.beta2, model.se2, model.xnames, "regime2 (q>γ)"),
+        _threshold_coef_table(model.beta1, model.se1, model.xnames, "regime1 (q≤γ)";
+                              ci_lower=ci1_lo, ci_upper=ci1_hi),
+        _threshold_coef_table(model.beta2, model.se2, model.xnames, "regime2 (q>γ)";
+                              ci_lower=ci2_lo, ci_upper=ci2_hi),
     )
     output_result(coef; format=Symbol(format), output=output,
                   title="SETAR(2;$p,$p) Coefficients ($vname)", key="setar_coefficients")
@@ -7585,7 +7740,7 @@ function _estimate_setar(; data::String, column::Int=1, p::Int=1, d::String="1",
     end
     output_kv(diag; format=format, output=_per_var_output_path(output, "diagnostics"),
               title="SETAR(2;$p,$p) Diagnostics", key="setar_diagnostics")
-    _maybe_plot(model; plot=plot, plot_save=plot_save)
+    _maybe_plot(model; plot=plot, plot_save=plot_save, conf_level=lv)
     return model
 end
 
@@ -8245,6 +8400,22 @@ end
 # run_cli still makes runs reproducible, and the docs say so rather than implying a
 # manifest-recorded seed the result cannot carry.
 
+"""Format a quantile level `lv ∈ (0, 1)` as a collision-free column Symbol (`0.16 → :q16`,
+`0.025 → :q2_5`, `0.975 → :q97_5`)."""
+function _band_quantile_col(lv::Float64)::Symbol
+    pct = lv * 100.0
+    pct_int = round(Int, pct)
+    isapprox(pct, pct_int; atol=1e-6) && return Symbol("q", pct_int)
+    tenths = round(Int, pct * 10.0)
+    if isapprox(pct * 10.0, tenths; atol=1e-5)
+        w, d = divrem(tenths, 10)
+        return Symbol("q", w, "_", d)
+    end
+    hundredths = round(Int, pct * 100.0)
+    w, d = divrem(hundredths, 100)
+    return Symbol("q", w, "_", lpad(string(d), 2, '0'))
+end
+
 """
     _band_long_table(mu, qs, varnames, levels; index_name) -> DataFrame
 
@@ -8261,14 +8432,12 @@ function _band_long_table(mu::AbstractMatrix, qs::AbstractArray{<:Real,3},
                    :variable => repeat(varnames; inner=T_),
                    :mean => vec(Float64.(mu)))
     for (q, lv) in enumerate(levels)
-        # `q16`/`q50`/`q84` — the level, not the index, so a reader can tell which band a
-        # column is without consulting the invocation.
-        df[!, Symbol("q", string(round(Int, lv * 100)))] = vec(Float64.(@view qs[:, :, q]))
+        # `q16`/`q50`/`q84` (or `q2_5`/`q97_5` for 95% bands) — the level, not the index,
+        # so a reader can tell which band a column is without consulting the invocation.
+        df[!, _band_quantile_col(Float64(lv))] = vec(Float64.(@view qs[:, :, q]))
     end
     return df
 end
-
-const _TVP_QUANTILES = [0.16, 0.5, 0.84]
 
 function _load_and_estimate_tvpvar(data::String, lags::Int, draws::Int, burnin::Int,
                                    thin::Int, n_train::Int, k_q::Float64, k_s::Float64,
@@ -8303,17 +8472,22 @@ function _estimate_tvpvar(; data::String, lags::Int=2, draws::Int=2000, burnin::
                            thin::Int=1, n_train::Int=0,
                            k_q::Float64=0.01, k_s::Float64=0.1, k_w::Float64=0.01,
                            no_tvp::Bool=false, no_sv::Bool=false,
+                           conf_level::Float64=_DEFAULT_CI_MACRO,
+                           quantiles::String=_DEFAULT_QUANTILES_MACRO,
                            output::String="", format::String="table")
+    q_levels = _resolve_band_quantiles(quantiles, conf_level, "estimate multivariate tvpvar")
     post, varnames = _load_and_estimate_tvpvar(data, lags, draws, burnin, thin, n_train,
                                                k_q, k_s, k_w, no_tvp, no_sv)
     _status_report(() -> report(post))
 
-    mu, qs = volatility_path(post; quantile_levels=_TVP_QUANTILES)
+    mu, qs = volatility_path(post; quantile_levels=q_levels)
+    band_pct = round(Int, (last(q_levels) - first(q_levels)) * 100)
     # σ_{i,t} = exp(h_{i,t}/2): volatility_path already converts the stored log-VARIANCE
     # state to a standard deviation, so these are directly comparable with the data's units.
-    output_result(_band_long_table(mu, qs, varnames, _TVP_QUANTILES);
+    output_result(_band_long_table(mu, qs, varnames, q_levels);
                   format=Symbol(format), output=output,
-                  title="TVP-VAR Stochastic Volatility Path (posterior sd, 68% band)")
+                  title="TVP-VAR Stochastic Volatility Path (posterior sd, $(band_pct)% band)",
+                  key="tvp_var_stochastic_volatility_path_posterior_sd_68_band")
 
     output_kv(Pair{String,Any}[
         "lags"      => post.p,
@@ -8423,12 +8597,15 @@ end
 function _estimate_mfvar(; data::String, lags::Int=2, low_freq::String="",
                           freq_ratio::Int=3, aggregation::String="growth",
                           draws::Int=1000, burnin::Int=500, prior::String="minnesota",
+                          conf_level::Float64=_DEFAULT_CI_MACRO,
+                          quantiles::String=_DEFAULT_QUANTILES_MACRO,
                           output::String="", format::String="table")
     lags >= 1 || throw(CliError("usage/invalid", "--lags must be ≥ 1 (got $lags)"))
     draws >= 1 || throw(CliError("usage/invalid", "--draws must be ≥ 1 (got $draws)"))
     burnin >= 0 || throw(CliError("usage/invalid", "--burnin must be ≥ 0 (got $burnin)"))
     freq_ratio >= 1 || throw(CliError("usage/invalid",
         "--freq-ratio must be ≥ 1 (got $freq_ratio)"))
+    q_levels = _resolve_band_quantiles(quantiles, conf_level, "estimate multivariate mfvar")
     pr = lowercase(strip(prior))
     pr in ("minnesota", "diffuse") || throw(CliError("usage/invalid-option",
         "invalid --prior '$prior'; must be minnesota or diffuse"))
@@ -8494,12 +8671,14 @@ function _estimate_mfvar(; data::String, lags::Int=2, low_freq::String="",
     end
     _status_report(() -> report(post))
 
-    mu, qs = latent_path(post; quantile_levels=_TVP_QUANTILES)
+    mu, qs = latent_path(post; quantile_levels=q_levels)
+    band_pct = round(Int, (last(q_levels) - first(q_levels)) * 100)
     # The latent path is at the HIGH frequency for every series, including the ones observed
     # only every freq_ratio periods — interpolating them is what the model is for.
-    output_result(_band_long_table(mu, qs, varnames, _TVP_QUANTILES);
+    output_result(_band_long_table(mu, qs, varnames, q_levels);
                   format=Symbol(format), output=output,
-                  title="MF-VAR Latent High-Frequency Path (68% credible band)")
+                  title="MF-VAR Latent High-Frequency Path ($(band_pct)% credible band)",
+                  key="mf_var_latent_high_frequency_path_68_credible_band")
 
     output_kv(Pair{String,Any}[
         "lags"        => post.p,

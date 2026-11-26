@@ -340,18 +340,22 @@ function _rerender_ri_result(result; format::String="table", output::String="",
         _maybe_plot(result; plot=plot, plot_save=plot_save)
     elseif tn === :RIEstimationResult
         _emit_result(result; title="Rational Inattention Estimation ($(result.method))",
-                     key="ri_estimation", format=format, output=output)
+                     key="ri_estimation", format=format, output=output,
+                     conf_level=_DEFAULT_CI_MACRO)
         output_kv(_ri_estimation_summary(result); format=format,
                   output=_per_var_output_path(output, "summary"),
                   title="RI Estimation Summary", key="ri_estimation_summary")
-        _maybe_plot(result; plot=plot, plot_save=plot_save)
+        _maybe_plot(result; plot=plot, plot_save=plot_save, conf_level=_DEFAULT_CI_MACRO)
     elseif tn === :CGTestResult
+        cg_lo, cg_hi = _model_coef_ci(nothing, Float64[result.alpha, result.beta_cg],
+                                      Float64[result.se_alpha, result.se_cg], _DEFAULT_CI_MACRO)
         _emit_result(result; title="Coibion-Gorodnichenko (2015) Information-Rigidity Test",
-                     key="cg_test", format=format, output=output)
+                     key="cg_test", format=format, output=output,
+                     extra_cols=Pair{String,Any}["ci_lower" => cg_lo, "ci_upper" => cg_hi])
         output_kv(_ri_cg_summary(result); format=format,
                   output=_per_var_output_path(output, "summary"),
                   title="CG Test Summary", key="cg_summary")
-        _maybe_plot(result; plot=plot, plot_save=plot_save)
+        _maybe_plot(result; plot=plot, plot_save=plot_save, conf_level=_DEFAULT_CI_MACRO)
     elseif tn === :MWAttentionResult
         _emit_result(result; title="Maćkowiak-Wiederholt (2009) Attention Allocation",
                      key="ri_mw_attention", format=format, output=output)
@@ -740,6 +744,7 @@ function _ri_estimate(; data::String="", config::String="", model=nothing,
                       cov_type::String="hessian", observables::String="",
                       init_param::Float64=NaN, measurement_error::String="",
                       draws::Int=1000, burnin::Int=250, step_scale::Float64=0.1,
+                      conf_level::Float64=_DEFAULT_CI_MACRO,
                       output::String="", format::String="table",
                       plot::Bool=false, plot_save::String="")
     isempty(strip(data)) && throw(CliError("usage/missing",
@@ -760,6 +765,7 @@ function _ri_estimate(; data::String="", config::String="", model=nothing,
         (isfinite(init_param) && init_param > 0.0) || throw(CliError("usage/invalid",
             "ri estimate: --init-param must be finite and > 0 (got $init_param)"))
     end
+    lv = _validate_conf_level(conf_level, "ri estimate")
 
     ep_sym = Symbol(estimate_param)
     prob = if model !== nothing
@@ -796,11 +802,12 @@ function _ri_estimate(; data::String="", config::String="", model=nothing,
         throw(_domain_or_data_error(e, "ri estimate"))
     end
     _emit_result(res; title="Rational Inattention Estimation ($method)",
-                 key="ri_estimation", format=format, output=output)
+                 key="ri_estimation", format=format, output=output,
+                 conf_level=lv)
     output_kv(_ri_estimation_summary(res); format=format,
               output=_per_var_output_path(output, "summary"),
               title="RI Estimation Summary", key="ri_estimation_summary")
-    _maybe_plot(res; plot=plot, plot_save=plot_save)
+    _maybe_plot(res; plot=plot, plot_save=plot_save, conf_level=lv)
     return res
 end
 
@@ -846,12 +853,14 @@ end
 function _ri_cg_test(; data::String="", realized::String="",
                      forecast_now::String="", forecast_lag::String="",
                      hac_lags::String="auto", horizon::Int=1, model=nothing,
+                     conf_level::Float64=_DEFAULT_CI_MACRO,
                      output::String="", format::String="table",
                      plot::Bool=false, plot_save::String="")
     isempty(strip(data)) && throw(CliError("usage/missing",
         "ri cg-test: <data> path is required"))
     horizon >= 1 || throw(CliError("usage/invalid",
         "ri cg-test: --horizon must be ≥ 1 (got $horizon)"))
+    lv = _validate_conf_level(conf_level, "ri cg-test")
     hl = if strip(hac_lags) == "auto"
         :auto
     else
@@ -874,12 +883,15 @@ function _ri_cg_test(; data::String="", realized::String="",
         e isa CliError && rethrow()
         throw(_domain_or_data_error(e, "ri cg-test"))
     end
+    cg_lo, cg_hi = _model_coef_ci(nothing, Float64[res.alpha, res.beta_cg],
+                                  Float64[res.se_alpha, res.se_cg], lv)
     _emit_result(res; title="Coibion-Gorodnichenko (2015) Information-Rigidity Test",
-                 key="cg_test", format=format, output=output)
+                 key="cg_test", format=format, output=output,
+                 extra_cols=Pair{String,Any}["ci_lower" => cg_lo, "ci_upper" => cg_hi])
     output_kv(_ri_cg_summary(res; model=model, horizon=horizon); format=format,
               output=_per_var_output_path(output, "summary"),
               title="CG Test Summary", key="cg_summary")
-    _maybe_plot(res; plot=plot, plot_save=plot_save)
+    _maybe_plot(res; plot=plot, plot_save=plot_save, conf_level=lv)
     return res
 end
 
@@ -1223,6 +1235,7 @@ function ri_specs()::Vector{CommandSpec}
                            description="Adaptive burn-in draws for --method bayes (≥ 0)"),
                 OptionSpec(name="step-scale", type=Float64, default=0.1,
                            description="Initial RWMH proposal step scale for --method bayes (> 0)"),
+                CONF_LEVEL_MACRO_OPTION,
                 plot_opts...,
             ],
             flags=plot_flags,
@@ -1255,13 +1268,14 @@ function ri_specs()::Vector{CommandSpec}
                            description="Newey-West Bartlett lag truncation: auto or non-negative integer"),
                 OptionSpec(name="horizon", aliases=["horizons"], kwarg=:horizon, type=Int, default=1,
                            description="Forecast horizon h ≥ 1 for --model implied CG slope comparison"),
+                CONF_LEVEL_MACRO_OPTION,
                 MODEL_OPTION,
                 plot_opts...,
             ],
             flags=plot_flags,
             tables=[
                 TableSpec(name=:cg_test,
-                          description="Coibion-Gorodnichenko regression estimates (alpha, beta_cg), HAC SEs, t-stats, p-values and implied gain/capacity"),
+                          description="Coibion-Gorodnichenko regression estimates (alpha, beta_cg), HAC SEs, t-stats, p-values, confidence intervals and implied gain/capacity"),
                 TableSpec(name=:cg_summary,
                           description="Sample size, HAC bandwidth, implied Kalman gain/capacity and optional model-implied CG slope comparison"),
             ],

@@ -347,8 +347,10 @@ function _estimate_lms_svar(; data::String, lags=nothing,
                             max_iter::Int=500,
                             tol=nothing,
                             shock_names::String="",
+                            conf_level::Float64=_DEFAULT_CI_MACRO,
                             output::String="", format::String="table",
                             plot::Bool=false, plot_save::String="")
+    lv = _validate_conf_level(conf_level, "estimate multivariate lms-svar")
     n_starts >= 1 || throw(CliError("usage/invalid",
         "estimate multivariate lms-svar: --n-starts must be ≥ 1 (got $n_starts)"))
     max_iter >= 1 || throw(CliError("usage/invalid",
@@ -378,9 +380,14 @@ function _estimate_lms_svar(; data::String, lags=nothing,
     end
 
     _status_report(() -> report(res))
-    _maybe_plot(res; plot=plot, plot_save=plot_save)
+    _maybe_plot(res; plot=plot, plot_save=plot_save, conf_level=lv)
+    est_vec = vcat(Float64.(vec(res.B0)), Float64.(res.sigma))
+    se_sig = Float64[j <= length(res.se_sigma) ? Float64(res.se_sigma[j]) : NaN for j in eachindex(res.sigma)]
+    se_vec = vcat(Float64.(vec(res.se_B0)), se_sig)
+    ci_lo, ci_hi = _model_coef_ci(nothing, est_vec, se_vec, lv)
     _emit_result(res; title="LMS Non-Gaussian SVAR", key="lms_svar_estimates",
-                 format=Symbol(format), output=output)
+                 format=Symbol(format), output=output, conf_level=lv,
+                 extra_cols=Pair{String,Any}["ci_lower" => ci_lo, "ci_upper" => ci_hi])
 
     diag_pairs = Pair{String,Any}[
         "method"          => string(res.method),
@@ -428,8 +435,10 @@ function _estimate_lanne_luoto(; data::String, lags=nothing,
                                tol::Float64=1e-7,
                                n_starts::Int=5,
                                shock_names::String="",
+                               conf_level::Float64=_DEFAULT_CI_MACRO,
                                output::String="", format::String="table",
                                plot::Bool=false, plot_save::String="")
+    lv = _validate_conf_level(conf_level, "estimate multivariate lanne-luoto")
     max_iter >= 1 || throw(CliError("usage/invalid",
         "estimate multivariate lanne-luoto: --max-iter must be ≥ 1 (got $max_iter)"))
     tol > 0 || throw(CliError("usage/invalid",
@@ -465,10 +474,12 @@ function _estimate_lanne_luoto(; data::String, lags=nothing,
     end
 
     _status_report(() -> report(res))
-    _maybe_plot(res; plot=plot, plot_save=plot_save)
+    _maybe_plot(res; plot=plot, plot_save=plot_save, conf_level=lv)
+    ci_lo, ci_hi = _model_coef_ci(nothing, Float64.(vec(res.B0)), Float64.(vec(res.se_B0)), lv)
     _emit_result(res; title="Lanne-Luoto Co-Kurtosis GMM SVAR",
                  key="lanne_luoto_gmm_estimates",
-                 format=Symbol(format), output=output)
+                 format=Symbol(format), output=output, conf_level=lv,
+                 extra_cols=Pair{String,Any}["ci_lower" => ci_lo, "ci_upper" => ci_hi])
     return res
 end
 
@@ -483,8 +494,10 @@ function _estimate_ssvarma(; data::String,
                            tol::Float64=1e-6,
                            shock_names::String="",
                            blaschke::Bool=false,
+                           conf_level::Float64=_DEFAULT_CI_MACRO,
                            output::String="", format::String="table",
                            plot::Bool=false, plot_save::String="")
+    lv = _validate_conf_level(conf_level, "estimate multivariate ssvarma")
     ar_lags >= 0 || throw(CliError("usage/invalid",
         "estimate multivariate ssvarma: --ar-lags must be ≥ 0 (got $ar_lags)"))
     ma_lags >= 0 || throw(CliError("usage/invalid",
@@ -521,9 +534,21 @@ function _estimate_ssvarma(; data::String,
     end
 
     _status_report(() -> report(m))
-    _maybe_plot(m; plot=plot, plot_save=plot_save)
+    _maybe_plot(m; plot=plot, plot_save=plot_save, conf_level=lv)
+    ss_extra = Pair{String,Any}[]
+    if hasproperty(m, :se)
+        se_v = Float64.(collect(m.se))
+        est_v = vcat(Float64.(vec(m.mu)), Float64.(vec(m.Phi)),
+                     Float64.(vec(m.Theta)), Float64.(vec(m.C)))
+        if length(se_v) == length(est_v)
+            z = _normal_quantile(1.0 - (1.0 - lv) / 2.0)
+            push!(ss_extra, "std_error" => se_v)
+            push!(ss_extra, "ci_lower" => est_v .- z .* se_v)
+            push!(ss_extra, "ci_upper" => est_v .+ z .* se_v)
+        end
+    end
     _emit_result(m; title="Strong SVARMA($ar_lags, $ma_lags)", key="ssvarma_estimates",
-                 format=Symbol(format), output=output)
+                 format=Symbol(format), output=output, conf_level=lv, extra_cols=ss_extra)
 
     if blaschke
         reg = try
@@ -1062,13 +1087,14 @@ function w3_estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="max-iter", type=Int, default=500, description="Maximum L-BFGS iterations per stage"),
                 OptionSpec(name="tol", type=Float64, default=nothing, description="Gradient convergence tolerance (default: library precision)"),
                 OptionSpec(name="shock-names", type=String, default="", description="Comma-separated structural shock labels"),
+                CONF_LEVEL_MACRO_OPTION,
                 OUTPUT_OPTIONS...,
                 PLOT_OPTIONS...,
             ],
             flags=[PLOT_FLAGS...],
             tables=[
                 TableSpec(name=:lms_svar_estimates,
-                          description="LMS non-Gaussian SVAR impact matrix B0 and scale estimates with standard errors"),
+                          description="LMS non-Gaussian SVAR impact matrix B0 and scale estimates with standard errors and confidence intervals"),
                 TableSpec(name=:lms_svar_diagnostics,
                           description="LMS non-Gaussian SVAR model diagnostics: log-likelihood, Gaussian log-likelihood, AIC, BIC, convergence, iterations, and per-shock distribution parameters (e.g., Student-t nu)"),
             ],
@@ -1090,12 +1116,13 @@ function w3_estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="tol", type=Float64, default=1e-7, description="Convergence tolerance"),
                 OptionSpec(name="n-starts", type=Int, default=5, description="Multi-start count for initial Givens basin search"),
                 OptionSpec(name="shock-names", type=String, default="", description="Comma-separated structural shock labels"),
+                CONF_LEVEL_MACRO_OPTION,
                 OUTPUT_OPTIONS...,
                 PLOT_OPTIONS...,
             ],
             flags=[PLOT_FLAGS...],
             tables=[TableSpec(name=:lanne_luoto_gmm_estimates,
-                              description="Lanne-Luoto co-kurtosis GMM impact matrix B0 estimates with standard errors and Hansen J-test")],
+                              description="Lanne-Luoto co-kurtosis GMM impact matrix B0 estimates with standard errors, confidence intervals and Hansen J-test")],
             category="estimate",
             handler=wrap_legacy(_estimate_lanne_luoto),
         ),
@@ -1114,6 +1141,7 @@ function w3_estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="max-iter", type=Int, default=500, description="Maximum optimizer iterations per regime"),
                 OptionSpec(name="tol", type=Float64, default=1e-6, description="Gradient convergence tolerance"),
                 OptionSpec(name="shock-names", type=String, default="", description="Comma-separated structural shock labels"),
+                CONF_LEVEL_MACRO_OPTION,
                 OUTPUT_OPTIONS...,
                 PLOT_OPTIONS...,
             ],

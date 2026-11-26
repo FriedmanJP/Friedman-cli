@@ -314,12 +314,14 @@ function dsge_specs()::Vector{CommandSpec}
             summary="Estimate a DSGE model with Bayesian sampling and report the posterior",
             args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="Path to DSGE model file (.toml or .jl)")],
             options=[
-                BAYES_OPTIONS...
+                BAYES_OPTIONS...,
+                CONF_LEVEL_MACRO_OPTION,
+                QUANTILES_MACRO_OPTION,
             ],
             flags=[
                 FlagSpec(name="delayed-acceptance", description="Use delayed acceptance for MH (Christen & Fox 2005)")
             ],
-            tables=[TableSpec(name=:bayesian_dsge_posterior, description="Posterior mean, std, median and 5/95% quantiles per estimated parameter")],
+            tables=[TableSpec(name=:bayesian_dsge_posterior, description="Posterior mean, std, median and credible interval bounds per estimated parameter")],
             category="dsge",
             handler=wrap_legacy(_dsge_bayes_estimate),
         ),
@@ -330,13 +332,15 @@ function dsge_specs()::Vector{CommandSpec}
             options=[
                 BAYES_OPTIONS...,
                 OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=40, description="IRF horizon"),
+                CONF_LEVEL_MACRO_OPTION,
+                QUANTILES_MACRO_OPTION,
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
             ],
             flags=[
                 FlagSpec(name="delayed-acceptance", description="Use delayed acceptance for MH"),
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:bayesian_dsge_irf, description="Posterior-mean responses of every variable to one shock, one table per shock", family=true)],
+            tables=[TableSpec(name=:bayesian_dsge_irf, description="Posterior-mean responses and credible bands of every variable to one shock, one table per shock", family=true)],
             category="dsge",
             handler=wrap_legacy(_dsge_bayes_irf),
         ),
@@ -347,13 +351,15 @@ function dsge_specs()::Vector{CommandSpec}
             options=[
                 BAYES_OPTIONS...,
                 OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=40, description="FEVD horizon"),
+                CONF_LEVEL_MACRO_OPTION,
+                QUANTILES_MACRO_OPTION,
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
             ],
             flags=[
                 FlagSpec(name="delayed-acceptance", description="Use delayed acceptance for MH"),
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:bayesian_dsge_fevd, description="Posterior-mean variance shares by shock across horizons, one table per variable", family=true)],
+            tables=[TableSpec(name=:bayesian_dsge_fevd, description="Posterior-mean variance shares and credible bands by shock across horizons, one table per variable", family=true)],
             category="dsge",
             handler=wrap_legacy(_dsge_bayes_fevd),
         ),
@@ -364,13 +370,15 @@ function dsge_specs()::Vector{CommandSpec}
             options=[
                 BAYES_OPTIONS...,
                 OptionSpec(name="periods", type=Int, default=200, description="Simulation periods"),
+                CONF_LEVEL_MACRO_OPTION,
+                QUANTILES_MACRO_OPTION,
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
             ],
             flags=[
                 FlagSpec(name="delayed-acceptance", description="Use delayed acceptance for MH"),
                 FlagSpec(name="plot", description="Open interactive plot in browser")
             ],
-            tables=[TableSpec(name=:bayesian_dsge_simulation, description="Posterior-mean simulated path of every variable")],
+            tables=[TableSpec(name=:bayesian_dsge_simulation, description="Posterior-mean simulated path and credible bands of every variable")],
             category="dsge",
             handler=wrap_legacy(_dsge_bayes_simulate),
         ),
@@ -379,14 +387,16 @@ function dsge_specs()::Vector{CommandSpec}
             summary="Estimate a DSGE model with Bayesian sampling and report the posterior summary with prior-posterior comparison",
             args=[ArgSpec(name="model", type=String, required=true, default=nothing, description="Path to DSGE model file (.toml or .jl)")],
             options=[
-                BAYES_OPTIONS...
+                BAYES_OPTIONS...,
+                CONF_LEVEL_MACRO_OPTION,
+                QUANTILES_MACRO_OPTION,
             ],
             flags=[
                 FlagSpec(name="delayed-acceptance", description="Use delayed acceptance for MH")
             ],
             tables=[
-                TableSpec(name=:bayesian_dsge_posterior_summary, description="Posterior mean, median, std and 5/95% quantiles per parameter"),
-                TableSpec(name=:prior_vs_posterior_comparison, description="Prior mean/std against posterior mean/std and quantiles per parameter"),
+                TableSpec(name=:bayesian_dsge_posterior_summary, description="Posterior mean, median, std and credible interval bounds per parameter"),
+                TableSpec(name=:prior_vs_posterior_comparison, description="Prior mean/std against posterior mean/std and credible interval bounds per parameter"),
             ],
             category="dsge",
             handler=wrap_legacy(_dsge_bayes_summary),
@@ -434,7 +444,8 @@ function dsge_specs()::Vector{CommandSpec}
                 filter(o -> o.name != "observables", BAYES_OPTIONS)...,
                 OptionSpec(name="observables", type=String, default="", description="Observable variable names, comma-separated (required — no default)"),
                 OptionSpec(name="n-hd-draws", type=Int, default=200, description="Number of posterior draws for HD"),
-                OptionSpec(name="quantiles", type=String, default="0.16,0.5,0.84", description="Quantile levels"),
+                CONF_LEVEL_MACRO_OPTION,
+                QUANTILES_MACRO_OPTION,
                 OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=40, description="Horizon (accepted but not used: historical decomposition has no horizon setting)"),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
             ],
@@ -573,10 +584,12 @@ function dsge_specs()::Vector{CommandSpec}
                 with_default(select_options(BAYES_OPTIONS, "params", "priors", "prior", "observables", "solver",
                                "order", "constraint-solver", "draws", "output", "format"), "draws", 500)...,
                 OptionSpec(name="periods", type=Int, default=200, description="Periods to simulate per draw (≥ 1)"),
+                CONF_LEVEL_MACRO_OPTION,
+                QUANTILES_MACRO_OPTION,
             ],
             flags=FlagSpec[],
             tables=[
-                TableSpec(name=:prior_predictive_distribution, description="Mean, std, median and 5/95% quantiles of each summary statistic across prior draws"),
+                TableSpec(name=:prior_predictive_distribution, description="Mean, std, median and credible interval bounds of each summary statistic across prior draws"),
                 TableSpec(name=:prior_predictive_summary, description="Draws requested, draws that solved and periods simulated per draw"),
             ],
             category="dsge",
@@ -840,13 +853,15 @@ function dsge_specs()::Vector{CommandSpec}
                            description="Measurement error: none|auto (auto adds 10% per-obs variance)",
                            choices=["none", "auto"]),
                 OptionSpec(name="seed", type=Int, default=0, description="Random seed (0=no seed)"),
+                CONF_LEVEL_MACRO_OPTION,
+                QUANTILES_MACRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table",
                            description="table|csv|json", choices=["table","csv","json"]),
             ],
             flags=FlagSpec[],
             tables=[
-                TableSpec(name=:ha_dsge_bayesian_posterior, description="Posterior mean, std, median and 5/95% quantiles per parameter"),
+                TableSpec(name=:ha_dsge_bayesian_posterior, description="Posterior mean, std, median and credible interval bounds per parameter"),
                 TableSpec(name=:ha_dsge_bayesian_settings, description="Sampler, solution method, observables and measurement-error provenance"),
             ],
             category="dsge",
@@ -2927,7 +2942,11 @@ function _dsge_bayes_estimate(; model::String, data::String="", params::String="
                                delayed_acceptance::Bool=false,
                                prefilter::String="none", hp_lambda::Float64=1600.0,
                                measurement_error::String="none",
+                               conf_level::Float64=_DEFAULT_CI_MACRO,
+                               quantiles::String=_DEFAULT_QUANTILES_MACRO,
                                output::String="", format::String="table")
+    q_levels = _resolve_band_quantiles(quantiles, conf_level, "dsge bayes estimate")
+    q_lo, q_hi = first(q_levels), last(q_levels)
     result = _dsge_bayes_run_estimation(; model, data, params, priors, prior, sampler,
         n_smc, n_particles, n_draws, burnin, ess_target, observables,
         solver, order, delayed_acceptance, constraint_solver, prefilter, hp_lambda, measurement_error)
@@ -2939,9 +2958,9 @@ function _dsge_bayes_estimate(; model::String, data::String="", params::String="
         parameter = result.param_names,
         mean = [Float64(mean(draws[:, i])) for i in 1:np],
         std = [Float64(sqrt(var(draws[:, i]))) for i in 1:np],
-        q05 = [Float64(quantile(draws[:, i], 0.05)) for i in 1:np],
+        ci_lower = [Float64(quantile(draws[:, i], q_lo)) for i in 1:np],
         median = [Float64(median(draws[:, i])) for i in 1:np],
-        q95 = [Float64(quantile(draws[:, i], 0.95)) for i in 1:np],
+        ci_upper = [Float64(quantile(draws[:, i], q_hi)) for i in 1:np],
     )
     output_result(est_df; format=Symbol(format), output=output,
                   title="Bayesian DSGE Posterior ($sampler)", key="bayesian_dsge_posterior")
@@ -2965,8 +2984,12 @@ function _dsge_bayes_irf(; model="", data::String="", params::String="",
                           prefilter::String="none", hp_lambda::Float64=1600.0,
                                measurement_error::String="none",
                           horizon::Int=40,
+                          conf_level::Float64=_DEFAULT_CI_MACRO,
+                          quantiles::String=_DEFAULT_QUANTILES_MACRO,
                           output::String="", format::String="table",
                           plot::Bool=false, plot_save::String="")
+    q_levels = _resolve_band_quantiles(quantiles, conf_level, "dsge bayes irf")
+    eff_conf = clamp(last(q_levels) - first(q_levels), 1e-6, 1.0 - 1e-6)
     result = model isa AbstractString ?
         _dsge_bayes_run_estimation(; model=String(model), data, params, priors, prior, sampler,
             n_smc, n_particles, n_draws, burnin, ess_target, observables,
@@ -2978,14 +3001,16 @@ function _dsge_bayes_irf(; model="", data::String="", params::String="",
 
     _status("Computing Bayesian DSGE IRF: horizon=$horizon")
     # re-solves per draw → world-age barrier (see _dsge_call)
-    irf_result = _dsge_call(irf, result, horizon; n_draws=n_draws,
+    irf_result = _dsge_call(irf, result, horizon; n_draws=n_draws, quantiles=q_levels,
         solver=Symbol(solver), solver_kwargs=solver_kwargs)
 
-    _maybe_plot(irf_result; plot=plot, plot_save=plot_save)
+    _maybe_plot(irf_result; plot=plot, plot_save=plot_save, conf_level=eff_conf)
 
     n_h = size(irf_result.point_estimate, 1)
     ns = size(irf_result.point_estimate, 3)
     varnames = irf_result.variables
+    has_q = hasproperty(irf_result, :quantiles) && ndims(irf_result.quantiles) == 4 &&
+            size(irf_result.quantiles, 4) >= 2
     for si in 1:ns
         shock_name = si <= length(irf_result.shocks) ? irf_result.shocks[si] : "shock_$si"
         irf_df = DataFrame()
@@ -2993,6 +3018,10 @@ function _dsge_bayes_irf(; model="", data::String="", params::String="",
         for (vi, vname) in enumerate(varnames)
             vi > size(irf_result.point_estimate, 2) && break
             irf_df[!, vname] = irf_result.point_estimate[:, vi, si]
+            if has_q
+                irf_df[!, "$(vname)_lower"] = irf_result.quantiles[:, vi, si, 1]
+                irf_df[!, "$(vname)_upper"] = irf_result.quantiles[:, vi, si, end]
+            end
         end
         output_result(irf_df; format=Symbol(format),
                       output=_per_var_output_path(output, shock_name),
@@ -3013,8 +3042,12 @@ function _dsge_bayes_fevd(; model="", data::String="", params::String="",
                            horizon::Int=40,
                            prefilter::String="none", hp_lambda::Float64=1600.0,
                                measurement_error::String="none",
+                           conf_level::Float64=_DEFAULT_CI_MACRO,
+                           quantiles::String=_DEFAULT_QUANTILES_MACRO,
                            output::String="", format::String="table",
                            plot::Bool=false, plot_save::String="")
+    q_levels = _resolve_band_quantiles(quantiles, conf_level, "dsge bayes fevd")
+    eff_conf = clamp(last(q_levels) - first(q_levels), 1e-6, 1.0 - 1e-6)
     result = model isa AbstractString ?
         _dsge_bayes_run_estimation(; model=String(model), data, params, priors, prior, sampler,
             n_smc, n_particles, n_draws, burnin, ess_target, observables,
@@ -3026,15 +3059,17 @@ function _dsge_bayes_fevd(; model="", data::String="", params::String="",
 
     _status("Computing Bayesian DSGE FEVD: horizon=$horizon")
     # re-solves per draw → world-age barrier (see _dsge_call)
-    fevd_result = _dsge_call(fevd, result, horizon; n_draws=n_draws,
+    fevd_result = _dsge_call(fevd, result, horizon; n_draws=n_draws, quantiles=q_levels,
         solver=Symbol(solver), solver_kwargs=solver_kwargs)
 
-    _maybe_plot(fevd_result; plot=plot, plot_save=plot_save)
+    _maybe_plot(fevd_result; plot=plot, plot_save=plot_save, conf_level=eff_conf)
 
     n_v = size(fevd_result.point_estimate, 2)
     ns = size(fevd_result.point_estimate, 3)
     n_h = size(fevd_result.point_estimate, 1)
     varnames = fevd_result.variables
+    has_q = hasproperty(fevd_result, :quantiles) && ndims(fevd_result.quantiles) == 4 &&
+            size(fevd_result.quantiles, 4) >= 2
     for vi in 1:min(n_v, length(varnames))
         vname = varnames[vi]
         fevd_df = DataFrame()
@@ -3042,6 +3077,10 @@ function _dsge_bayes_fevd(; model="", data::String="", params::String="",
         for si in 1:ns
             shock_name = si <= length(fevd_result.shocks) ? fevd_result.shocks[si] : "shock_$si"
             fevd_df[!, shock_name] = fevd_result.point_estimate[:, vi, si]
+            if has_q
+                fevd_df[!, "$(shock_name)_lower"] = fevd_result.quantiles[:, vi, si, 1]
+                fevd_df[!, "$(shock_name)_upper"] = fevd_result.quantiles[:, vi, si, end]
+            end
         end
         output_result(fevd_df; format=Symbol(format),
                       output=_per_var_output_path(output, vname),
@@ -3062,8 +3101,12 @@ function _dsge_bayes_simulate(; model="", data::String="", params::String="",
                                prefilter::String="none", hp_lambda::Float64=1600.0,
                                measurement_error::String="none",
                                periods::Int=200,
+                               conf_level::Float64=_DEFAULT_CI_MACRO,
+                               quantiles::String=_DEFAULT_QUANTILES_MACRO,
                                output::String="", format::String="table",
                                plot::Bool=false, plot_save::String="")
+    q_levels = _resolve_band_quantiles(quantiles, conf_level, "dsge bayes simulate")
+    eff_conf = clamp(last(q_levels) - first(q_levels), 1e-6, 1.0 - 1e-6)
     result = model isa AbstractString ?
         _dsge_bayes_run_estimation(; model=String(model), data, params, priors, prior, sampler,
             n_smc, n_particles, n_draws, burnin, ess_target, observables,
@@ -3075,17 +3118,23 @@ function _dsge_bayes_simulate(; model="", data::String="", params::String="",
 
     _status("Simulating from Bayesian DSGE posterior: T=$periods")
     # re-solves per draw → world-age barrier (see _dsge_call)
-    sim = _dsge_call(simulate, result, periods; n_draws=n_draws,
+    sim = _dsge_call(simulate, result, periods; n_draws=n_draws, quantiles=q_levels,
         solver=Symbol(solver), solver_kwargs=solver_kwargs)
 
-    _maybe_plot(sim; plot=plot, plot_save=plot_save)
+    _maybe_plot(sim; plot=plot, plot_save=plot_save, conf_level=eff_conf)
 
     varnames = sim.variables
     sim_df = DataFrame()
     sim_df.period = 1:periods
+    has_q = hasproperty(sim, :quantiles) && ndims(sim.quantiles) == 3 &&
+            size(sim.quantiles, 3) >= 2
     for (vi, vname) in enumerate(varnames)
         vi > size(sim.point_estimate, 2) && break
         sim_df[!, vname] = sim.point_estimate[:, vi]
+        if has_q
+            sim_df[!, "$(vname)_lower"] = sim.quantiles[:, vi, 1]
+            sim_df[!, "$(vname)_upper"] = sim.quantiles[:, vi, end]
+        end
     end
     output_result(sim_df; format=Symbol(format), output=output,
                   title="Bayesian DSGE Simulation ($sampler, T=$periods)",
@@ -3103,7 +3152,17 @@ function _dsge_bayes_summary(; model="", data::String="", params::String="",
                               delayed_acceptance::Bool=false,
                               prefilter::String="none", hp_lambda::Float64=1600.0,
                                measurement_error::String="none",
+                              conf_level::Float64=_DEFAULT_CI_MACRO,
+                              quantiles::String=_DEFAULT_QUANTILES_MACRO,
                               output::String="", format::String="table")
+    q_levels = _resolve_band_quantiles(quantiles, conf_level, "dsge bayes summary")
+    exp_opts = isdefined(@__MODULE__, :_CURRENT_EXPLICIT_OPTS) ? _CURRENT_EXPLICIT_OPTS[] : Set{String}()
+    eff_conf = if !("quantiles" in exp_opts)
+        _validate_conf_level(conf_level, "dsge bayes summary")
+    else
+        clamp(last(q_levels) - first(q_levels), 1e-6, 1.0 - 1e-6)
+    end
+    q_lo, q_hi = first(q_levels), last(q_levels)
     result = model isa AbstractString ?
         _dsge_bayes_run_estimation(; model=String(model), data, params, priors, prior, sampler,
             n_smc, n_particles, n_draws, burnin, ess_target, observables,
@@ -3111,28 +3170,29 @@ function _dsge_bayes_summary(; model="", data::String="", params::String="",
         model
     sampler = model isa AbstractString ? sampler : string(result.method)
 
-    summary = posterior_summary(result)
-    pp_table = prior_posterior_table(result)
+    summary = posterior_summary(result; conf_level=eff_conf)
+    pp_table = prior_posterior_table(result; conf_level=eff_conf)
 
-    # Posterior summary table (upstream MEMs v1.0.3 uses :ci_lower/:ci_upper; compute 5/95% from draws when available)
+    # Posterior summary table: prefer exact draw quantiles at q_lo/q_hi (supports custom
+    # asymmetric --quantiles), falling back to MEMs v1.1.2's native :ci_lower/:ci_upper.
     pnames = result.param_names
     has_draws = hasproperty(result, :theta_draws) && size(result.theta_draws, 2) == length(pnames) && size(result.theta_draws, 1) > 0
-    q05_vals = [has_draws ? quantile(view(result.theta_draws, :, i), 0.05) :
-                Float64(get(summary[pnames[i]], :q05, get(summary[pnames[i]], :ci_lower, NaN)))
-                for i in eachindex(pnames)]
-    q95_vals = [has_draws ? quantile(view(result.theta_draws, :, i), 0.95) :
-                Float64(get(summary[pnames[i]], :q95, get(summary[pnames[i]], :ci_upper, NaN)))
-                for i in eachindex(pnames)]
-    q05_map = Dict(pnames[i] => q05_vals[i] for i in eachindex(pnames))
-    q95_map = Dict(pnames[i] => q95_vals[i] for i in eachindex(pnames))
+    lo_vals = [has_draws ? Float64(quantile(view(result.theta_draws, :, i), q_lo)) :
+               Float64(get(summary[pnames[i]], :ci_lower, get(summary[pnames[i]], :q05, NaN)))
+               for i in eachindex(pnames)]
+    hi_vals = [has_draws ? Float64(quantile(view(result.theta_draws, :, i), q_hi)) :
+               Float64(get(summary[pnames[i]], :ci_upper, get(summary[pnames[i]], :q95, NaN)))
+               for i in eachindex(pnames)]
+    lo_map = Dict(pnames[i] => lo_vals[i] for i in eachindex(pnames))
+    hi_map = Dict(pnames[i] => hi_vals[i] for i in eachindex(pnames))
 
     sum_df = DataFrame(
         parameter = pnames,
         mean = [Float64(summary[p][:mean]) for p in pnames],
         median = [Float64(summary[p][:median]) for p in pnames],
         std = [Float64(summary[p][:std]) for p in pnames],
-        q05 = [Float64(q05_vals[i]) for i in eachindex(pnames)],
-        q95 = [Float64(q95_vals[i]) for i in eachindex(pnames)],
+        ci_lower = lo_vals,
+        ci_upper = hi_vals,
     )
     output_result(sum_df; format=Symbol(format), output=output,
                   title="Bayesian DSGE Posterior Summary ($sampler)",
@@ -3145,11 +3205,11 @@ function _dsge_bayes_summary(; model="", data::String="", params::String="",
         prior_std = [Float64(r.prior_std) for r in pp_table],
         post_mean = [Float64(r.post_mean) for r in pp_table],
         post_std = [Float64(r.post_std) for r in pp_table],
-        post_q05 = [Float64(get(q05_map, r.param,
-            hasproperty(r, :post_q05) ? r.post_q05 : (hasproperty(r, :ci_lower) ? r.ci_lower : NaN)))
+        post_ci_lower = [Float64(get(lo_map, r.param,
+            hasproperty(r, :ci_lower) ? r.ci_lower : (hasproperty(r, :post_q05) ? r.post_q05 : NaN)))
             for r in pp_table],
-        post_q95 = [Float64(get(q95_map, r.param,
-            hasproperty(r, :post_q95) ? r.post_q95 : (hasproperty(r, :ci_upper) ? r.ci_upper : NaN)))
+        post_ci_upper = [Float64(get(hi_map, r.param,
+            hasproperty(r, :ci_upper) ? r.ci_upper : (hasproperty(r, :post_q95) ? r.post_q95 : NaN)))
             for r in pp_table],
     )
     output_result(pp_df; format=Symbol(format),
@@ -3359,7 +3419,9 @@ function _dsge_bayes_hd(; model="", data::String="", params::String="",
                          ess_target::Float64=0.5,
                          solver::String="gensys", order::Int=1,
                          constraint_solver::String="",
-                         n_hd_draws::Int=200, quantiles::String="0.16,0.5,0.84",
+                         n_hd_draws::Int=200,
+                         conf_level::Float64=_DEFAULT_CI_MACRO,
+                         quantiles::String=_DEFAULT_QUANTILES_MACRO,
                          mode_only::Bool=false,
                          delayed_acceptance::Bool=false,
                          horizon::Int=40,
@@ -3373,12 +3435,8 @@ function _dsge_bayes_hd(; model="", data::String="", params::String="",
         "--observables is required (comma-separated variable names)"))
     isempty(data) && throw(CliError("usage/missing-option",
         "--data is required for Bayesian DSGE historical decomposition"))
-    q_levels = try
-        [parse(Float64, strip(s)) for s in split(quantiles, ",")]
-    catch
-        throw(CliError("usage/invalid-option",
-            "dsge bayes hd: --quantiles must be comma-separated numbers, got '$quantiles'"))
-    end
+    q_levels = _resolve_band_quantiles(quantiles, conf_level, "dsge bayes hd")
+    eff_conf = clamp(last(q_levels) - first(q_levels), 1e-6, 1.0 - 1e-6)
 
     local hd
     if mode_only && model isa AbstractString
@@ -3491,7 +3549,7 @@ function _dsge_bayes_hd(; model="", data::String="", params::String="",
             key=_table_key("bayesian_dsge_historical_decomposition", sname))
     end
 
-    _maybe_plot(hd; plot=plot, plot_save=plot_save)
+    _maybe_plot(hd; plot=plot, plot_save=plot_save, conf_level=eff_conf)
     return hd
 end
 
@@ -3769,11 +3827,15 @@ function _dsge_bayes_prior_predictive(; model::String, params::String="",
         priors::String="", observables::String="", solver::String="gensys", order::Int=1,
         prior::Vector{String}=String[],
         n_draws::Int=500, periods::Int=200, constraint_solver::String="",
+        conf_level::Float64=_DEFAULT_CI_MACRO,
+        quantiles::String=_DEFAULT_QUANTILES_MACRO,
         output::String="", format::String="table")
     n_draws >= 1 || throw(CliError("usage/invalid",
         "dsge bayes prior-predictive: --n-draws must be ≥ 1 (got $n_draws)"))
     periods >= 1 || throw(CliError("usage/invalid",
         "dsge bayes prior-predictive: --periods must be ≥ 1 (got $periods)"))
+    q_levels = _resolve_band_quantiles(quantiles, conf_level, "dsge bayes prior-predictive")
+    q_lo, q_hi = first(q_levels), last(q_levels)
     inp = _dsge_bayes_inputs(; model, data="", params, priors, prior, observables, solver, order,
                              constraint_solver, require_data=false)
     _status("Bayesian DSGE Prior Predictive: draws=$n_draws, periods=$periods")
@@ -3794,9 +3856,9 @@ function _dsge_bayes_prior_predictive(; model::String, params::String="",
             statistic = String.(res.stat_names),
             mean = [Float64(mean(view(S, :, j))) for j in 1:nstat],
             std = [Float64(sqrt(var(view(S, :, j)))) for j in 1:nstat],
-            q05 = [Float64(quantile(view(S, :, j), 0.05)) for j in 1:nstat],
+            ci_lower = [Float64(quantile(view(S, :, j), q_lo)) for j in 1:nstat],
             median = [Float64(median(view(S, :, j))) for j in 1:nstat],
-            q95 = [Float64(quantile(view(S, :, j), 0.95)) for j in 1:nstat]);
+            ci_upper = [Float64(quantile(view(S, :, j), q_hi)) for j in 1:nstat]);
         format=Symbol(format), output=output, title="Prior Predictive Distribution")
     output_kv(Pair{String,Any}[
         "draws requested" => res.n_draws,
@@ -4389,7 +4451,11 @@ function _dsge_ha_estimate(; model::String, data::String="", priors::String="",
                             proposal_scale::Float64=0.01, adapt_interval::Int=100,
                             measurement_error::String="none", seed::Int=0,
                             hh_solver::String="egm", distribution::String="young",
+                            conf_level::Float64=_DEFAULT_CI_MACRO,
+                            quantiles::String=_DEFAULT_QUANTILES_MACRO,
                             output::String="", format::String="table")
+    q_levels = _resolve_band_quantiles(quantiles, conf_level, "dsge ha estimate")
+    q_lo, q_hi = first(q_levels), last(q_levels)
     isempty(data) && throw(CliError("usage/missing-option",
         "--data is required (path to observed aggregates CSV)"))
     # CARD-W2 (#210): same third source as the RA guard above — a `priors:` stanza
@@ -4457,9 +4523,9 @@ function _dsge_ha_estimate(; model::String, data::String="", priors::String="",
         parameter = String.(result.param_names),
         mean = [Float64(mean(draws[:, i])) for i in 1:np],
         std = [Float64(sqrt(var(draws[:, i]))) for i in 1:np],
-        q05 = [Float64(quantile(draws[:, i], 0.05)) for i in 1:np],
+        ci_lower = [Float64(quantile(draws[:, i], q_lo)) for i in 1:np],
         median = [Float64(median(draws[:, i])) for i in 1:np],
-        q95 = [Float64(quantile(draws[:, i], 0.95)) for i in 1:np],
+        ci_upper = [Float64(quantile(draws[:, i], q_hi)) for i in 1:np],
     )
     output_result(est_df; format=Symbol(format), output=output,
                   title="HA-DSGE Bayesian Posterior ($sampler_label, method=$meth)",

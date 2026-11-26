@@ -842,9 +842,14 @@ struct SVModel{T<:Real}
     dist::Symbol; leverage::Bool; n_samples::Int
 end
 # Convenience 1-arg constructor: c is ignored, just for backward compat
-SVModel(c::Vector{T}) where T = SVModel(zeros(T, 100), zeros(T, 10, 100),
-    zeros(T, 10), zeros(T, 10), zeros(T, 10), ones(T, 100),
-    ones(T, 100, 3), T[0.16, 0.5, 0.84], :normal, false, 10)
+SVModel(c::Vector{T}; quantile_levels::Vector{<:Real}=T[0.16, 0.5, 0.84]) where T = SVModel(
+    zeros(T, 100), zeros(T, 21, 100),
+    collect(T, range(T(-0.1), T(0.1); length=21)),
+    collect(T, range(T(0.85), T(0.95); length=21)),
+    collect(T, range(T(0.05), T(0.25); length=21)),
+    ones(T, 100),
+    ones(T, 100, length(quantile_levels)),
+    T.(quantile_levels), :normal, false, 21)
 
 struct VolatilityForecast{T<:Real} <: AbstractForecastResult{T}
     forecast::Vector{T}; ci_lower::Vector{T}; ci_upper::Vector{T}; se::Vector{T}
@@ -1635,10 +1640,11 @@ function estimate_lp(Y, shock_var, horizon; lags=4, cov_type=:newey_west)
     T_obs, n = size(Y)
     LPModel(Y, shock_var, horizon, lags, ones(lags+1, n)*0.1, ones(T_obs-lags, n)*0.01, Matrix{Float64}(I(n)) * 0.01, [T_obs - lags - h for h in 0:horizon])
 end
-function lp_irf(model::LPModel; conf_level=0.95)
+function lp_irf(model::LPModel; conf_level=0.68)
     n = size(model.Y, 2); h = model.horizon + 1
     vals = ones(h, n) * 0.1
-    LPImpulseResponse(vals, vals .- 0.5, vals .+ 0.5, abs.(ones(h, n)) * 0.1)
+    hw = 0.1 * _mock_z_crit(conf_level)
+    LPImpulseResponse(vals, vals .- hw, vals .+ hw, abs.(ones(h, n)) * 0.1)
 end
 function estimate_lp_iv(Y, shock_var, Z, horizon; lags=4, cov_type=:newey_west,
                        response_vars=collect(1:size(Y, 2)), bandwidth=0,
@@ -1650,10 +1656,11 @@ function estimate_lp_iv(Y, shock_var, Z, horizon; lags=4, cov_type=:newey_west,
     te = [T_obs - lags - h for h in 0:horizon]
     LPIVModel(Y, Z, fs, horizon, te, shock_var, collect(response_vars), collect(varnames))
 end
-function lp_iv_irf(model::LPIVModel; conf_level=0.95)
+function lp_iv_irf(model::LPIVModel; conf_level=0.68)
     n = length(model.response_vars); h = model.horizon + 1
     vals = ones(h, n) * 0.1
-    LPImpulseResponse(vals, vals .- 0.5, vals .+ 0.5, ones(h, n) * 0.1)
+    hw = 0.1 * _mock_z_crit(conf_level)
+    LPImpulseResponse(vals, vals .- hw, vals .+ hw, ones(h, n) * 0.1)
 end
 # Real returns (F_stats, weak_horizons, min_F, passes_threshold, threshold) — there is NO
 # `F_stat`/`is_weak`. The old mock invented both, so `estimate var lp --method iv` passed T1/T2
@@ -1670,31 +1677,34 @@ weak_instrument_test(F_stats::Vector; threshold=10.0) =
 function estimate_smooth_lp(Y, shock_var, horizon; n_knots=3, lambda=0.0, degree=3)
     SmoothLPModel(Y, lambda, horizon)
 end
-function smooth_lp_irf(model::SmoothLPModel; conf_level=0.95)
+function smooth_lp_irf(model::SmoothLPModel; conf_level=0.68)
     n = size(model.Y, 2); h = model.horizon + 1
     vals = ones(h, n) * 0.1
-    LPImpulseResponse(vals, vals .- 0.5, vals .+ 0.5, ones(h, n) * 0.1)
+    hw = 0.1 * _mock_z_crit(conf_level)
+    LPImpulseResponse(vals, vals .- hw, vals .+ hw, ones(h, n) * 0.1)
 end
 cross_validate_lambda(Y, shock, horizon; k_folds=5) = 0.5
 function estimate_state_lp(Y, shock_var, state_var, horizon; gamma=1.5, lags=4)
     n = size(Y, 2)
     StateLPModel(Y, ones(5, n)*0.1, ones(5, n)*0.1, horizon)
 end
-function state_irf(model::StateLPModel; regime=:both, conf_level=0.95)
+function state_irf(model::StateLPModel; regime=:both, conf_level=0.68)
     n = size(model.Y, 2); h = model.horizon + 1
     exp_vals = ones(h, n) * 0.1; rec_vals = ones(h, n) * 0.2
-    (expansion=LPImpulseResponse(exp_vals, exp_vals .- 0.5, exp_vals .+ 0.5, ones(h, n)*0.1),
-     recession=LPImpulseResponse(rec_vals, rec_vals .- 0.5, rec_vals .+ 0.5, ones(h, n)*0.1))
+    hw = 0.1 * _mock_z_crit(conf_level)
+    (expansion=LPImpulseResponse(exp_vals, exp_vals .- hw, exp_vals .+ hw, ones(h, n)*0.1),
+     recession=LPImpulseResponse(rec_vals, rec_vals .- hw, rec_vals .+ hw, ones(h, n)*0.1))
 end
 test_regime_difference(model::StateLPModel; h=nothing) =
     (joint_test=(avg_t_stat=2.5, p_value=0.012),)
 function estimate_propensity_lp(Y, treatment, covariates, horizon; ps_method=:logit, trimming=(0.01,0.99))
     PropensityLPModel(Y, fill(0.5, horizon + 1, size(Y, 2)), fill(0.1, horizon + 1, size(Y, 2)), horizon)
 end
-function propensity_irf(model::PropensityLPModel; conf_level=0.95)
+function propensity_irf(model::PropensityLPModel; conf_level=0.68)
     n = size(model.Y, 2); h = model.horizon + 1
     vals = ones(h, n) * 0.1
-    LPImpulseResponse(vals, vals .- 0.5, vals .+ 0.5, ones(h, n) * 0.1)
+    hw = 0.1 * _mock_z_crit(conf_level)
+    LPImpulseResponse(vals, vals .- hw, vals .+ hw, ones(h, n) * 0.1)
 end
 propensity_diagnostics(model::PropensityLPModel) =
     (propensity_summary=(treated=(mean=0.7,), control=(mean=0.3,)), balance=(max_weighted=0.05,))
@@ -2006,7 +2016,8 @@ estimate_egarch(y, p, q; dist::Symbol=:normal) =
     (_mock_dist_check(dist); EGARCHModel(ones(2*q+p+2) * 0.1))
 estimate_gjr_garch(y, p, q; dist::Symbol=:normal) =
     (_mock_dist_check(dist); GJRGARCHModel(ones(2*q+p+2) * 0.1))
-estimate_sv(y; n_samples=5000, seed=nothing) = SVModel(ones(3) * 0.1)
+estimate_sv(y; n_samples=5000, seed=nothing, quantile_levels::Vector{<:Real}=[0.16, 0.5, 0.84]) =
+    SVModel(ones(3) * 0.1; quantile_levels=quantile_levels)
 coef(m::ARCHModel) = [m.mu, m.omega, m.alpha...]
 coef(m::GARCHModel) = [m.mu, m.omega, m.alpha..., m.beta...]
 coef(m::EGARCHModel) = [m.mu, m.omega, m.alpha..., m.gamma..., m.beta...]
@@ -5165,13 +5176,12 @@ function estimate_threshold(y::AbstractVector, X::AbstractMatrix, q::AbstractVec
 end
 
 function estimate_setar(y::AbstractVector, p::Int, d=1; trim::Real=0.15, linearity::Bool=true,
-                        reps::Int=1000, ci_level::Real=0.95, het::Bool=false,
+                        reps::Int=1000, ci_level::Real=0.68, het::Bool=false,
                         rng::Random.AbstractRNG=Random.default_rng(), seed=nothing)
     p >= 1 || throw(ArgumentError("SETAR order p must be ≥ 1; got $p."))
     (0 < trim < 0.5) || throw(ArgumentError("trim must satisfy 0 < trim < 0.5; got $trim."))
-    (ci_level ≈ 0.90 || ci_level ≈ 0.95 || ci_level ≈ 0.99) ||
-        throw(ArgumentError("Hansen (2000) critical values are tabulated only for " *
-                            "ci_level ∈ {0.90, 0.95, 0.99}; got $ci_level."))
+    (isfinite(Float64(ci_level)) && 0 < ci_level < 1) ||
+        throw(ArgumentError("ci_level must lie strictly in (0, 1); got $ci_level."))
     delays = if d === :auto
         1:p
     elseif d isa AbstractRange
@@ -5222,7 +5232,10 @@ function estimate_setar(y::AbstractVector, p::Int, d=1; trim::Real=0.15, lineari
     aic = n * log(sigma2 + eps()) + 2 * npar
     bic = n * log(sigma2 + eps()) + npar * log(n)
     xn = vcat("const", String["y[t-$i]" for i in 1:p])
-    gci = (gamma - 0.5, gamma + 0.5)
+    # Exact Hansen (2000) closed-form critical value c(α) = -2 * log(1 - sqrt(ci_level))
+    h_crit = -2.0 * log(1.0 - sqrt(Float64(ci_level)))
+    g_hw = 0.08 * h_crit
+    gci = (gamma - g_hw, gamma + g_hw)
     lt = linearity ? hansen_linearity_test(yy, X, q; trim=trim, reps=reps, rng=rng) : nothing
     ThresholdModel{Float64}(yy, X, q, gamma, gci, Float64(ci_level), b1, b2, se1, se2, reg,
         ssr1, ssr2, ssr, sigma2, resid, n, k, count(reg), count(.!reg), p, dd, true,
@@ -6477,7 +6490,7 @@ function bai_perron_test(y::AbstractVector{T}, X::AbstractMatrix;
     (isfinite(lv) && 0.0 < lv < 1.0) || throw(ArgumentError("conf_level must lie in (0, 1)"))
     n = length(y)
     k = size(X, 2)
-    half = max(1, round(Int, 5 * lv / 0.68))
+    half = max(1, round(Int, 5 * _mock_z_crit(lv)))
     BaiPerronResult{T}(
         1, [div(n, 2)], [(max(1, div(n, 2) - half), min(n, div(n, 2) + half))],
         [ones(T, k) * T(2.0), ones(T, k) * T(5.0)],
@@ -7771,36 +7784,43 @@ end
 
 # irf dispatch on BayesianDSGE
 function irf(result::BayesianDSGE{T}, horizon::Int;
-        n_draws=200, quantiles=[0.05, 0.16, 0.84, 0.95],
+        n_draws=200, quantiles=[0.16, 0.5, 0.84],
         solver=:gensys, solver_kwargs=NamedTuple(), rng=nothing) where T
     nv = length(result.param_names)
     ns = max(1, nv)
+    m = fill(T(0.1), horizon + 1, nv, ns)
     q = Array{T,4}(undef, horizon + 1, nv, ns, length(quantiles))
-    fill!(q, T(0.1))
-    m = zeros(T, horizon + 1, nv, ns)
+    for (qi, qlv) in enumerate(quantiles)
+        q[:, :, :, qi] .= m .+ T((Float64(qlv) - 0.5) * 0.2)
+    end
     BayesianImpulseResponse(m, q, T.(quantiles))
 end
 
 # fevd dispatch on BayesianDSGE
 function fevd(result::BayesianDSGE{T}, horizon::Int;
-        n_draws=200, quantiles=[0.05, 0.16, 0.84, 0.95],
+        n_draws=200, quantiles=[0.16, 0.5, 0.84],
         solver=:gensys, solver_kwargs=NamedTuple(), rng=nothing) where T
     nv = length(result.param_names)
     ns = max(1, nv)
-    q = Array{T,4}(undef, horizon, nv, ns, length(quantiles))
-    fill!(q, T(1.0 / ns))
     m = fill(T(1.0 / ns), horizon, nv, ns)
+    q = Array{T,4}(undef, horizon, nv, ns, length(quantiles))
+    for (qi, qlv) in enumerate(quantiles)
+        q[:, :, :, qi] .= clamp.(m .+ T((Float64(qlv) - 0.5) * 0.2), T(0.0), T(1.0))
+    end
     BayesianFEVD(m, q, T.(quantiles))
 end
 
 # simulate dispatch on BayesianDSGE
 function simulate(result::BayesianDSGE{T}, T_periods::Int;
-        n_draws=200, quantiles=[0.05, 0.16, 0.84, 0.95],
+        n_draws=200, quantiles=[0.16, 0.5, 0.84],
         solver=:gensys, solver_kwargs=NamedTuple(), rng=nothing) where T
     nv = length(result.param_names)
     nq = length(quantiles)
-    q = randn(T, T_periods, nv, nq)
     pe = randn(T, T_periods, nv)
+    q = Array{T,3}(undef, T_periods, nv, nq)
+    for (qi, qlv) in enumerate(quantiles)
+        q[:, :, qi] .= pe .+ T((Float64(qlv) - 0.5) * 0.2)
+    end
     ap = randn(T, n_draws, T_periods, nv)
     BayesianDSGESimulation{T}(q, pe, ap, String.(result.param_names), T.(quantiles))
 end
@@ -8002,20 +8022,25 @@ struct DurbinWatsonResult{T<:AbstractFloat}
 end
 
 function acf(y::AbstractVector{T}; lags::Int=20, maxlag::Union{Int,Nothing}=nothing,
-             conf_level::Real=0.95, varname::String="y") where T
+             conf_level::Real=0.68, varname::String="y") where T
     n = length(y)
     nlags = isnothing(maxlag) ? lags : maxlag
     acf_vals = [T(0.9)^k for k in 0:nlags]
     pacf_vals = [k == 0 ? T(1.0) : T(0.9) * T(0.5)^(k-1) for k in 0:nlags]
-    ci = T(1.96) / sqrt(n)
+    ci = T(_mock_z_crit(conf_level)) / sqrt(T(n))
     q_stats = [T(k+1) * T(0.1) for k in 0:nlags]
     q_pvals = [T(0.05) for _ in 0:nlags]
     lags_vec = collect(0:nlags)
     ACFResult{T}(lags_vec, acf_vals, pacf_vals, ci, nothing, q_stats, q_pvals, n)
 end
 
+function acf_pacf(y::AbstractVector{T}; lags::Int=20, maxlag::Union{Int,Nothing}=nothing,
+                  conf_level::Real=0.68, varname::String="y") where T
+    acf(y; lags=lags, maxlag=maxlag, conf_level=conf_level, varname=varname)
+end
+
 function pacf(y::AbstractVector{T}; lags::Int=20, maxlag::Union{Int,Nothing}=nothing,
-              conf_level::Real=0.95, varname::String="y") where T
+              conf_level::Real=0.68, varname::String="y") where T
     acf(y; lags=lags, maxlag=maxlag, conf_level=conf_level, varname=varname)
 end
 
@@ -8029,31 +8054,32 @@ struct CCFResult{T<:AbstractFloat}
 end
 
 function ccf(y1::AbstractVector{T}, y2::AbstractVector{T}; lags::Int=20,
-             maxlag::Union{Int,Nothing}=nothing, conf_level::Real=0.95,
+             maxlag::Union{Int,Nothing}=nothing, conf_level::Real=0.68,
              var1::String="y1", var2::String="y2") where T
     n = length(y1)
     nlags = isnothing(maxlag) ? lags : maxlag
     ccf_vals = [T(0.5) * T(0.8)^abs(k) for k in -nlags:nlags]
-    ci = T(1.96) / sqrt(n)
+    ci = T(_mock_z_crit(conf_level)) / sqrt(T(n))
     lags_vec = collect(-nlags:nlags)
     CCFResult{T}(ccf_vals, lags_vec, T(conf_level), ci, (var1, var2), n)
 end
 
-function periodogram(y::AbstractVector{T}; varname::String="y") where T
+function periodogram(y::AbstractVector{T}; conf_level::Real=0.68, varname::String="y") where T
     n = length(y)
     freqs = [T(k) / n for k in 1:div(n, 2)]
     spec = abs2.(randn(T, length(freqs))) .+ T(0.01)
-    log_spec = log.(spec)
-    SpectralDensityResult{T}(freqs, spec, fill(T(0.0), length(freqs)), fill(T(0.0), length(freqs)), :periodogram, T(0.0), n)
+    f = T(clamp(0.15 * _mock_z_crit(conf_level), 0.01, 0.95))
+    SpectralDensityResult{T}(freqs, spec, spec .* (T(1.0) - f), spec .* (T(1.0) + f), :periodogram, T(0.0), n)
 end
 
 function spectral_density(y::AbstractVector{T}; method::Symbol=:welch, bandwidth=nothing,
-                          kernel::Symbol=:bartlett, varname::String="y") where T
+                          kernel::Symbol=:bartlett, conf_level::Real=0.68, varname::String="y") where T
     n = length(y)
     freqs = [T(k) / n for k in 1:div(n, 2)]
     bw = isnothing(bandwidth) ? T(sqrt(n)) : T(bandwidth)
     dens = abs2.(randn(T, length(freqs))) .+ T(0.01)
-    SpectralDensityResult{T}(freqs, dens, dens .* T(0.5), dens .* T(1.5), method, bw, n)
+    f = T(clamp(0.15 * _mock_z_crit(conf_level), 0.01, 0.95))
+    SpectralDensityResult{T}(freqs, dens, dens .* (T(1.0) - f), dens .* (T(1.0) + f), method, bw, n)
 end
 
 function cross_spectrum(y1::AbstractVector{T}, y2::AbstractVector{T};
@@ -8116,7 +8142,7 @@ end
 export ACFResult, SpectralDensityResult, CrossSpectrumResult, TransferFunctionResult
 export FisherTestResult, BartlettWhiteNoiseResult, BoxPierceResult, DurbinWatsonResult
 export ACFResult, CCFResult
-export acf, pacf, ccf, periodogram, spectral_density, cross_spectrum, transfer_function
+export acf, acf_pacf, pacf, ccf, periodogram, spectral_density, cross_spectrum, transfer_function
 export fisher_test, bartlett_white_noise_test, box_pierce_test, durbin_watson_test
 
 # ─── Panel Regression Types & Functions (v0.4.0) ─────────────
@@ -12406,7 +12432,7 @@ function volatility_path(post::TVPVARPosterior; quantile_levels::Vector{<:Real}=
     mu = dropdims(sum(vol; dims=1) ./ size(vol,1); dims=1)
     qs = Array{Float64,3}(undef, post.T_eff, post.n, length(quantile_levels))
     for q in eachindex(quantile_levels), j in 1:post.n, t in 1:post.T_eff
-        qs[t, j, q] = mu[t, j]
+        qs[t, j, q] = max(1e-6, mu[t, j] + 0.2 * (Float64(quantile_levels[q]) - 0.5))
     end
     return mu, qs
 end
@@ -12492,7 +12518,7 @@ function latent_path(post::MFVARPosterior; quantile_levels::Vector{<:Real}=[0.16
     mu = dropdims(sum(post.Z_draws; dims=1) ./ size(post.Z_draws,1); dims=1)
     qs = Array{Float64,3}(undef, post.T_hf, post.n, length(quantile_levels))
     for q in eachindex(quantile_levels), j in 1:post.n, t in 1:post.T_hf
-        qs[t, j, q] = mu[t, j]
+        qs[t, j, q] = mu[t, j] + 0.2 * (Float64(quantile_levels[q]) - 0.5)
     end
     return mu, qs
 end
@@ -12908,7 +12934,7 @@ struct LPIVARBand{T<:AbstractFloat}
     shock_name::String
 end
 
-function lp_iv_ar_band(model::LPIVModel; level::Real=0.95, n_grid::Int=401,
+function lp_iv_ar_band(model::LPIVModel; level::Real=0.68, n_grid::Int=401,
                        span::Real=20, bandwidth::Int=0, responses=nothing)
     (0 < level < 1) || throw(ArgumentError("level must be in (0, 1)"))
     n_grid >= 5 || throw(ArgumentError("n_grid must be at least 5"))
@@ -12919,9 +12945,10 @@ function lp_iv_ar_band(model::LPIVModel; level::Real=0.95, n_grid::Int=401,
         "responses must index into 1:$nr")))
     idx = responses === nothing ? collect(1:nr) : responses
     nk = length(idx)
+    z = _mock_z_crit(level)
     pt = fill(0.1, H + 1, nk)
-    lo = fill(-0.4, H + 1, nk)
-    hi = fill(0.6, H + 1, nk)
+    lo = pt .- 0.25 * z
+    hi = pt .+ 0.25 * z
     bnd = trues(H + 1, nk)
     emp = falses(H + 1, nk)
     # Real routinely returns unbounded cells at long horizons; make the LAST horizon
@@ -12932,8 +12959,8 @@ function lp_iv_ar_band(model::LPIVModel; level::Real=0.95, n_grid::Int=401,
     for i in 1:(H + 1), j in 1:nk
         sets[i, j] = [(lo[i, j], hi[i, j])]
     end
-    LPIVARBand{Float64}(lo, hi, sets, bnd, emp, pt .- 0.3, pt .+ 0.3, pt,
-                        fill(max(bandwidth, 1), H + 1, nk), H, Float64(level), 3.84,
+    LPIVARBand{Float64}(lo, hi, sets, bnd, emp, pt .- 0.15 * z, pt .+ 0.15 * z, pt,
+                        fill(max(bandwidth, 1), H + 1, nk), H, Float64(level), z^2,
                         size(model.instruments, 2), names[idx], "$(model.varnames[model.shock_var]) (IV)")
 end
 
@@ -16487,10 +16514,12 @@ function estimate_dsge_var(
     n = length(pr.obs_names)
     m = length(pr.shock_names)
     k = size(pr.Gamma_xx, 1)
-    B_draws = fill(0.1, n_draws, k, n)
+    B_draws = Array{Float64,3}(undef, n_draws, k, n)
     S_draws = zeros(Float64, n_draws, n, n)
     B0_draws = zeros(Float64, n_draws, n, m)
     for s in 1:n_draws
+        δ = n_draws > 1 ? 0.1 * ((s - 1) / (n_draws - 1) - 0.5) : 0.0
+        B_draws[s, :, :] .= 0.1 + δ
         for i in 1:n; S_draws[s, i, i] = 0.5; end
         for i in 1:min(n, m); B0_draws[s, i, i] = 0.7; end
     end
@@ -16519,14 +16548,17 @@ function estimate_dsge_var(
     n = length(pr.obs_names)
     m = length(pr.shock_names)
     k = size(pr.Gamma_xx, 1)
-    B_draws = fill(0.1, n_draws, k, n)
+    B_draws = Array{Float64,3}(undef, n_draws, k, n)
     S_draws = zeros(Float64, n_draws, n, n)
     B0_draws = zeros(Float64, n_draws, n, m)
+    td = Matrix{Float64}(undef, n_draws, d)
     for s in 1:n_draws
+        δ = n_draws > 1 ? 0.1 * ((s - 1) / (n_draws - 1) - 0.5) : 0.0
+        B_draws[s, :, :] .= 0.1 + δ
+        td[s, :] .= 0.5 + δ
         for i in 1:n; S_draws[s, i, i] = 0.5; end
         for i in 1:min(n, m); B0_draws[s, i, i] = 0.7; end
     end
-    td = fill(0.5, n_draws, d)
     lp = fill(-50.0, n_draws)
     man = capture_manifest(; seed=seed, settings=Dict{String,Any}("mode" => "joint", "method" => String(method), "lambda" => lam_val, "n_draws" => n_draws, "p" => p))
     return DSGEVARPosterior{Float64}(B_draws, S_draws, B0_draws, lam_val, -105.0,
@@ -16551,7 +16583,10 @@ function irf(post::DSGEVARPosterior, horizon::Int;
     snames = shock_names !== nothing ? shock_names : (method === :dsge_qr ? copy(post.shock_names) : copy(post.varnames))
     nq = length(quantiles)
     pe = fill(0.1, horizon, n, m)
-    q = fill(0.1, horizon, n, m, nq)
+    q = Array{Float64,4}(undef, horizon, n, m, nq)
+    for (qi, qlv) in enumerate(quantiles)
+        q[:, :, :, qi] .= pe .+ (Float64(qlv) - 0.5) * 0.2
+    end
     return BayesianImpulseResponse{Float64}(q, pe, horizon, copy(post.varnames), snames,
         Float64.(quantiles), zeros(Float64, post.n_draws, horizon, n, m), post.n_draws, post.n_draws, 0)
 end
@@ -16565,7 +16600,10 @@ function fevd(post::DSGEVARPosterior, horizon::Int;
     snames = shock_names !== nothing ? shock_names : (method === :dsge_qr ? copy(post.shock_names) : copy(post.varnames))
     nq = length(quantiles)
     pe = fill(1.0 / m, n, m, horizon)
-    q = fill(1.0 / m, n, m, horizon, nq)
+    q = Array{Float64,4}(undef, n, m, horizon, nq)
+    for (qi, qlv) in enumerate(quantiles)
+        q[:, :, :, qi] .= clamp.(pe .+ (Float64(qlv) - 0.5) * 0.2, 0.0, 1.0)
+    end
     return BayesianFEVD{Float64}(q, pe, horizon, copy(post.varnames), snames,
         Float64.(quantiles), post.n_draws, post.n_draws, 0)
 end
@@ -16583,8 +16621,12 @@ function historical_decomposition(post::DSGEVARPosterior, horizon::Int=0;
     snames = shock_names !== nothing ? shock_names : copy(post.varnames)
     nq = length(quantiles)
     pe = fill(0.05, T_eff, n, n)
-    q = fill(0.05, T_eff, n, n, nq)
-    iq = fill(0.01, T_eff, n, nq)
+    q = Array{Float64,4}(undef, T_eff, n, n, nq)
+    iq = Array{Float64,3}(undef, T_eff, n, nq)
+    for (qi, qlv) in enumerate(quantiles)
+        q[:, :, :, qi] .= pe .+ (Float64(qlv) - 0.5) * 0.2
+        iq[:, :, qi] .= 0.01 + (Float64(qlv) - 0.5) * 0.05
+    end
     im = fill(0.01, T_eff, n)
     sm = fill(0.02, T_eff, n)
     act = size(use_data, 1) > post.p ? Matrix{Float64}(use_data[(post.p + 1):end, :]) : zeros(T_eff, n)
@@ -16593,13 +16635,14 @@ function historical_decomposition(post::DSGEVARPosterior, horizon::Int=0;
 end
 
 function forecast(post::DSGEVARPosterior, h::Int;
-                  reps::Union{Nothing,Int}=nothing, conf_level::Real=0.95,
+                  reps::Union{Nothing,Int}=nothing, conf_level::Real=0.68,
                   point_estimate::Symbol=:mean, store_draws::Bool=false,
                   rng::AbstractRNG=Random.default_rng(),
                   seed::Union{Integer,Nothing}=nothing)
     n = post.n
     fc = fill(0.2, h, n)
-    return BVARForecast{Float64}(fc, fc .- 0.1, fc .+ 0.1, h, Float64(conf_level),
+    hw = 0.1 * _mock_z_crit(conf_level)
+    return BVARForecast{Float64}(fc, fc .- hw, fc .+ hw, h, Float64(conf_level),
         point_estimate, copy(post.varnames), nothing)
 end
 
@@ -16730,7 +16773,10 @@ function DataFrames.DataFrame(pr::DSGEVARLambdaProfile)
         logml_inf=fill(Float64(pr.logml_inf), m))
 end
 
-function DataFrames.DataFrame(post::DSGEVARPosterior)
+function _dsgevar_posterior_df(post::DSGEVARPosterior; conf_level::Real=DEFAULT_CI_MACRO)
+    lv = Float64(conf_level)
+    q_lo = (1.0 - lv) / 2.0
+    q_hi = 1.0 - q_lo
     if post.theta_draws !== nothing && !isempty(post.param_names)
         pnames = String[string(s) for s in post.param_names]
         vals = [Float64.(vec(post.theta_draws[:, j])) for j in 1:length(pnames)]
@@ -16738,20 +16784,22 @@ function DataFrames.DataFrame(post::DSGEVARPosterior)
             parameter=pnames,
             mean=Float64[mean(v) for v in vals],
             std=Float64[std(v) for v in vals],
-            q05=Float64[quantile(v, 0.05) for v in vals],
+            ci_lower=Float64[quantile(v, q_lo) for v in vals],
             median=Float64[quantile(v, 0.5) for v in vals],
-            q95=Float64[quantile(v, 0.95) for v in vals])
+            ci_upper=Float64[quantile(v, q_hi) for v in vals])
     end
     _, k, n = size(post.B_draws)
-    param = String[]; mn = Float64[]; sd = Float64[]; q05 = Float64[]; med = Float64[]; q95 = Float64[]
+    param = String[]; mn = Float64[]; sd = Float64[]; lo = Float64[]; med = Float64[]; hi = Float64[]
     for j in 1:n, i in 1:k
         v = Float64.(vec(post.B_draws[:, i, j]))
         push!(param, "B[$i,$(post.varnames[j])]")
         push!(mn, mean(v)); push!(sd, std(v))
-        push!(q05, quantile(v, 0.05)); push!(med, quantile(v, 0.5)); push!(q95, quantile(v, 0.95))
+        push!(lo, quantile(v, q_lo)); push!(med, quantile(v, 0.5)); push!(hi, quantile(v, q_hi))
     end
-    return DataFrames.DataFrame(parameter=param, mean=mn, std=sd, q05=q05, median=med, q95=q95)
+    return DataFrames.DataFrame(parameter=param, mean=mn, std=sd, ci_lower=lo, median=med, ci_upper=hi)
 end
+
+DataFrames.DataFrame(post::DSGEVARPosterior) = _dsgevar_posterior_df(post; conf_level=DEFAULT_CI_MACRO)
 
 for _T in (ABCDSystem, InvertibilityResult, InnovationsRepresentation,
            ShockRecoverabilityResult, DSGEVARIRFAudit, ObservableSearchResult,
@@ -17964,6 +18012,9 @@ default_ci_level(r::RDDResult) = Float64(r.level)
 default_ci_level(m::QuantileRegModel) = Float64(1 - m.alpha)
 default_ci_level(r::BaiPerronResult) = Float64(r.conf_level)
 
+coef_table(post::DSGEVARPosterior; conf_level::Real=default_ci_level(post)) =
+    _dsgevar_posterior_df(post; conf_level=conf_level)
+
 function coef_table(m; conf_level::Real=default_ci_level(m))
     z = _mock_z_crit(conf_level)
     df = copy(DataFrames.DataFrame(m))
@@ -17975,6 +18026,13 @@ function coef_table(m; conf_level::Real=default_ci_level(m))
         df[!, "ci_upper"] = est .+ z .* se
     end
     return df
+end
+
+function confint(m::ThresholdModel; level::Real=default_ci_level(m))
+    z = _mock_z_crit(level)
+    b = Float64.(vcat(m.beta1, m.beta2))
+    s = Float64.(vcat(m.se1, m.se2))
+    return hcat(b .- z .* s, b .+ z .* s)
 end
 
 function confint(m; level::Real=default_ci_level(m))
