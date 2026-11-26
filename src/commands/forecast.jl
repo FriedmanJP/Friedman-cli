@@ -1499,9 +1499,9 @@ function _forecast_eval_metrics(; data::String, actual::String="", forecasts::St
                  format=Symbol(format), output=output)
     # Theil MSE decomposition (proportions sum to 1): model | bias | variance | covariance.
     dec = DataFrame(model = ev.models,
-                    bias = round.(ev.decomp[:, 1]; digits=6),
-                    variance = round.(ev.decomp[:, 2]; digits=6),
-                    covariance = round.(ev.decomp[:, 3]; digits=6))
+                    bias = ev.decomp[:, 1],
+                    variance = ev.decomp[:, 2],
+                    covariance = ev.decomp[:, 3])
     output_result(dec; format=Symbol(format), output=_per_var_output_path(output, "decomp"),
                   title="Theil MSE Decomposition", key="theil_mse_decomposition")
     # #95: ForecastEvaluation has a real recipe (bar chart of the chosen metric). The
@@ -1606,7 +1606,7 @@ function _forecast_eval_combine(; data::String, actual::String="", forecasts::St
                  format=Symbol(format), output=output)
     if emit_series
         stab = DataFrame(index = collect(1:length(r.combined)),
-                         combined = round.(r.combined; digits=6))
+                         combined = r.combined)
         output_result(stab; format=Symbol(format), output=_per_var_output_path(output, "combined"),
                       title="Combined Forecast Series")
     end

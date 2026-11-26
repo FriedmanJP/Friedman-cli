@@ -140,43 +140,43 @@ function _rerender_spectral_result(result; format::String="table", output::Strin
     if tn === :ACFResult
         acf_df = DataFrame(
             Lag     = result.lags,
-            ACF     = round.(result.acf; digits=6),
-            PACF    = round.(result.pacf; digits=6),
-            Q_stat  = round.(result.q_stats; digits=4),
-            p_value = round.(result.q_pvalues; digits=4),
+            ACF     = result.acf,
+            PACF    = result.pacf,
+            Q_stat  = result.q_stats,
+            p_value = result.q_pvalues,
         )
         output_result(acf_df; format=Symbol(format), output=output, title="ACF / PACF")
     elseif tn === :SpectralDensityResult
         if key == "periodogram" || !hasproperty(result, :ci_lower) || result.ci_lower === nothing
             peri_df = DataFrame(
-                Frequency = round.(result.freq; digits=6),
-                Power     = round.(result.density; digits=6),
+                Frequency = result.freq,
+                Power     = result.density,
             )
             output_result(peri_df; format=Symbol(format), output=output, title="Periodogram")
         else
             sd_df = DataFrame(
-                Frequency = round.(result.freq; digits=6),
-                Density   = round.(result.density; digits=6),
-                CI_Lower  = round.(result.ci_lower; digits=6),
-                CI_Upper  = round.(result.ci_upper; digits=6),
+                Frequency = result.freq,
+                Density   = result.density,
+                CI_Lower  = result.ci_lower,
+                CI_Upper  = result.ci_upper,
             )
             output_result(sd_df; format=Symbol(format), output=output, title="Spectral Density")
         end
     elseif tn === :CrossSpectrumResult
         cs_df = DataFrame(
-            Frequency     = round.(result.freq; digits=6),
-            Co_spectrum   = round.(result.co_spectrum; digits=6),
-            Quad_spectrum = round.(result.quad_spectrum; digits=6),
-            Coherence     = round.(result.coherence; digits=6),
-            Phase         = round.(result.phase; digits=6),
-            Gain          = round.(result.gain; digits=6),
+            Frequency     = result.freq,
+            Co_spectrum   = result.co_spectrum,
+            Quad_spectrum = result.quad_spectrum,
+            Coherence     = result.coherence,
+            Phase         = result.phase,
+            Gain          = result.gain,
         )
         output_result(cs_df; format=Symbol(format), output=output, title="Cross-Spectral Analysis")
     elseif tn === :TransferFunctionResult
         tf_df = DataFrame(
-            Frequency = round.(result.freq; digits=6),
-            Gain      = round.(result.gain; digits=6),
-            Phase     = round.(result.phase; digits=6),
+            Frequency = result.freq,
+            Gain      = result.gain,
+            Phase     = result.phase,
         )
         output_result(tf_df; format=Symbol(format), output=output, title="Filter Transfer Function")
     else
@@ -232,10 +232,10 @@ function _spectral_acf(; data::String, column::Int=1,
 
     acf_df = DataFrame(
         Lag     = result.lags,
-        ACF     = round.(result.acf; digits=6),
-        PACF    = round.(result.pacf; digits=6),
-        Q_stat  = round.(result.q_stats; digits=4),
-        p_value = round.(result.q_pvalues; digits=4),
+        ACF     = result.acf,
+        PACF    = result.pacf,
+        Q_stat  = result.q_stats,
+        p_value = result.q_pvalues,
     )
     output_result(acf_df; format=Symbol(format), output=output, title="ACF / PACF")
 
@@ -244,7 +244,7 @@ function _spectral_acf(; data::String, column::Int=1,
         ccf_result = ccf(y, z; kwargs...)
         ccf_df = DataFrame(
             Lag = ccf_result.lags,
-            CCF = round.(ccf_result.ccf; digits=6),
+            CCF = ccf_result.ccf,
         )
         _status()
         output_result(ccf_df; format=Symbol(format),
@@ -270,8 +270,8 @@ function _spectral_periodogram(; data::String, column::Int=1,
     _status()
 
     peri_df = DataFrame(
-        Frequency = round.(result.freq; digits=6),
-        Power     = round.(result.density; digits=6),
+        Frequency = result.freq,
+        Power     = result.density,
     )
     output_result(peri_df; format=Symbol(format), output=output, title="Periodogram")
     plot_kw = log_scale ? (; log_scale=true) : NamedTuple()
@@ -297,10 +297,10 @@ function _spectral_density(; data::String, column::Int=1,
     _status()
 
     sd_df = DataFrame(
-        Frequency = round.(result.freq; digits=6),
-        Density   = round.(result.density; digits=6),
-        CI_Lower  = round.(result.ci_lower; digits=6),
-        CI_Upper  = round.(result.ci_upper; digits=6),
+        Frequency = result.freq,
+        Density   = result.density,
+        CI_Lower  = result.ci_lower,
+        CI_Upper  = result.ci_upper,
     )
     output_result(sd_df; format=Symbol(format), output=output, title="Spectral Density")
     plot_kw = log_scale ? (; log_scale=true) : NamedTuple()
@@ -322,12 +322,12 @@ function _spectral_cross(; data::String, var1::Int=1, var2::Int=2,
     _status()
 
     cs_df = DataFrame(
-        Frequency     = round.(result.freq; digits=6),
-        Co_spectrum   = round.(result.co_spectrum; digits=6),
-        Quad_spectrum = round.(result.quad_spectrum; digits=6),
-        Coherence     = round.(result.coherence; digits=6),
-        Phase         = round.(result.phase; digits=6),
-        Gain          = round.(result.gain; digits=6),
+        Frequency     = result.freq,
+        Co_spectrum   = result.co_spectrum,
+        Quad_spectrum = result.quad_spectrum,
+        Coherence     = result.coherence,
+        Phase         = result.phase,
+        Gain          = result.gain,
     )
     output_result(cs_df; format=Symbol(format), output=output, title="Cross-Spectral Analysis")
     _maybe_plot(result; plot=plot, plot_save=plot_save)
@@ -349,9 +349,9 @@ function _spectral_transfer(; filter::String="hp", lambda::Float64=1600.0,
     _status()
 
     tf_df = DataFrame(
-        Frequency = round.(result.freq; digits=6),
-        Gain      = round.(result.gain; digits=6),
-        Phase     = round.(result.phase; digits=6),
+        Frequency = result.freq,
+        Gain      = result.gain,
+        Phase     = result.phase,
     )
     output_result(tf_df; format=Symbol(format), output=output, title="Filter Transfer Function")
     _maybe_plot(result; plot=plot, plot_save=plot_save)

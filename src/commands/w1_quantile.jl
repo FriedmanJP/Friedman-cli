@@ -48,7 +48,7 @@ function _w1_parse_taus(raw::String, flag::String, leaf::String)::Vector{Float64
             "$leaf: $flag values must lie strictly in (0, 1) (got '$p' in '$raw')"))
         push!(taus, v)
     end
-    length(unique(round.(taus; digits=12))) == length(taus) || throw(CliError("usage/invalid",
+    length(unique(round.(taus; digits=12))) == length(taus) || throw(CliError("usage/invalid", # lossless-ok: quantile grid dedup
         "$leaf: $flag contains duplicate quantile values ($raw)"))
     return taus
 end
@@ -850,7 +850,7 @@ function _predict_xtqreg(; data::String="", dep::String="", indep::String="",
     for i in 1:N, t in 1:T_obs
         push!(unit, i); push!(period, t); push!(val, Float64(fitted[i, t]))
     end
-    df = DataFrame(unit=unit, period=period, fitted_value=round.(val; digits=6))
+    df = DataFrame(unit=unit, period=period, fitted_value=val)
     output_result(df; format=Symbol(format), output=output,
                   title="Panel Quantile Regression Fitted Values (τ=$(m.tau), r=$(m.r))",
                   key="xtqreg_fitted_values")
@@ -890,7 +890,7 @@ function _residuals_xtqreg(; data::String="", dep::String="", indep::String="",
     for i in 1:N, t in 1:T_obs
         push!(unit, i); push!(period, t); push!(val, Float64(resid[i, t]))
     end
-    df = DataFrame(unit=unit, period=period, residual=round.(val; digits=6))
+    df = DataFrame(unit=unit, period=period, residual=val)
     output_result(df; format=Symbol(format), output=output,
                   title="Panel Quantile Regression Residuals (τ=$(m.tau), r=$(m.r))",
                   key="xtqreg_residuals")

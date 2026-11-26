@@ -382,11 +382,11 @@ function _vol_estimate_output(model, vname::String, param_names::Vector{String},
         se = stderror(model)
         z = c ./ se
         pv = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
-        DataFrame(parameter=names, estimate=round.(c; digits=6),
-                  std_error=round.(se; digits=6),
-                  z_stat=round.(z; digits=3), p_value=round.(pv; digits=4))
+        DataFrame(parameter=names, estimate=c,
+                  std_error=se,
+                  z_stat=z, p_value=pv)
     catch
-        DataFrame(parameter=names, estimate=round.(c; digits=6))
+        DataFrame(parameter=names, estimate=c)
     end
     output_result(coef_df; format=Symbol(format), output=output,
                   title="$model_label Coefficients ($vname)", key=key)
@@ -401,8 +401,8 @@ function _vol_forecast_output(fc, vname::String, model_label::String,
                                key::String="")
     fc_df = DataFrame(
         horizon=1:horizons,
-        variance=round.(fc.forecast; digits=6),
-        volatility=round.(sqrt.(fc.forecast); digits=6)
+        variance=fc.forecast,
+        volatility=sqrt.(fc.forecast)
     )
     output_result(fc_df; format=Symbol(format), output=output,
                   title="$model_label Volatility Forecast ($vname, h=$horizons)", key=key)
@@ -545,7 +545,7 @@ function _make_estimate_vol(vol)
         # drop the coefficients above.
         if dsym !== :normal
             sh = hasproperty(model, :shape) ? Float64(model.shape) : NaN
-            output_result(DataFrame(parameter=["shape"], estimate=[round(sh; digits=6)],
+            output_result(DataFrame(parameter=["shape"], estimate=[sh],
                                     distribution=[String(dsym)]);
                           format=Symbol(format),
                           output=_per_var_output_path(output, "shape"),
@@ -603,8 +603,8 @@ function _make_predict_vol(vol)
             _status("$(vol.label(p, q)) conditional variance: variable=$vname")
         end
         _status()
-        pred_df = DataFrame(t=1:length(cond_var), variance=round.(cond_var; digits=6),
-                            volatility=round.(sqrt.(cond_var); digits=6))
+        pred_df = DataFrame(t=1:length(cond_var), variance=cond_var,
+                            volatility=sqrt.(cond_var))
         output_result(pred_df; format=Symbol(format), output=output,
                       title="$(vol.predict_title(p, q)) ($vname)",
                       key="$(vol.name)_conditional_variance")
@@ -623,7 +623,7 @@ function _make_residuals_vol(vol)
             _status("$(vol.label(p, q)) standardized residuals: variable=$vname")
         end
         _status()
-        res_df = DataFrame(t=1:length(resid), residual=round.(resid; digits=6))
+        res_df = DataFrame(t=1:length(resid), residual=resid)
         output_result(res_df; format=Symbol(format), output=output,
                       title="$(vol.resid_title(p, q)) ($vname)",
                       key="$(vol.name)_standardized_residuals")
@@ -663,7 +663,7 @@ const _residuals_sv = _VOL_RESIDUALS_HANDLERS["sv"]
 
 """
     build_irf_table(irf_data, ci_lower, ci_upper, varnames, shock, horizons=nothing;
-                    lower_suffix="_lower", upper_suffix="_upper", digits=nothing) -> DataFrame
+                    lower_suffix="_lower", upper_suffix="_upper") -> DataFrame
 
 Build a single-shock IRF table: `horizon` + one column per variable, optionally with CI bands.
 
@@ -674,8 +674,7 @@ function build_irf_table(irf_data::AbstractArray, ci_lower, ci_upper,
                          varnames::AbstractVector{<:AbstractString}, shock::Int,
                          horizons=nothing;
                          lower_suffix::String="_lower",
-                         upper_suffix::String="_upper",
-                         digits::Union{Nothing,Int}=nothing)
+                         upper_suffix::String="_upper")
     nd = ndims(irf_data)
     nd == 2 || nd == 3 || error("irf_data must be 2D (H×n) or 3D (H×n×S), got ndims=$nd")
     n_h = size(irf_data, 1)
@@ -696,23 +695,21 @@ function build_irf_table(irf_data::AbstractArray, ci_lower, ci_upper,
     end
     length(hvals) == n_h || error("horizons length $(length(hvals)) != IRF length $n_h")
 
-    _maybe_round(x) = isnothing(digits) ? x : round.(x; digits=digits)
-
     irf_df = DataFrame(horizon=collect(hvals))
     for (vi, vname) in enumerate(varnames)
         vi > size(irf_data, 2) && break
-        irf_df[!, String(vname)] = _maybe_round(slice(irf_data, vi))
+        irf_df[!, String(vname)] = slice(irf_data, vi)
     end
     if !isnothing(ci_lower)
         for (vi, vname) in enumerate(varnames)
             vi > size(ci_lower, 2) && break
-            irf_df[!, "$(vname)$(lower_suffix)"] = _maybe_round(slice(ci_lower, vi))
+            irf_df[!, "$(vname)$(lower_suffix)"] = slice(ci_lower, vi)
         end
     end
     if !isnothing(ci_upper)
         for (vi, vname) in enumerate(varnames)
             vi > size(ci_upper, 2) && break
-            irf_df[!, "$(vname)$(upper_suffix)"] = _maybe_round(slice(ci_upper, vi))
+            irf_df[!, "$(vname)$(upper_suffix)"] = slice(ci_upper, vi)
         end
     end
     return irf_df
@@ -1763,9 +1760,9 @@ function _build_pvar_coef_table(model, varnames::Vector{String}, p::Int)
 
     coef_df = DataFrame()
     for (vi, vname) in enumerate(varnames)
-        coef_df[!, Symbol("$(vname)_coef")] = round.(model.Phi[1:length(row_names), vi]; digits=6)
-        coef_df[!, Symbol("$(vname)_se")] = round.(model.se[1:length(row_names), vi]; digits=6)
-        coef_df[!, Symbol("$(vname)_pval")] = round.(model.pvalues[1:length(row_names), vi]; digits=4)
+        coef_df[!, Symbol("$(vname)_coef")] = model.Phi[1:length(row_names), vi]
+        coef_df[!, Symbol("$(vname)_se")] = model.se[1:length(row_names), vi]
+        coef_df[!, Symbol("$(vname)_pval")] = model.pvalues[1:length(row_names), vi]
     end
     insertcols!(coef_df, 1, :parameter => row_names)
     return coef_df
@@ -2200,10 +2197,10 @@ function _rerender_arias_irf(result; format::String="table", output::String="",
     ess = hasproperty(result, :ess) ? Float64(result.ess) : NaN
     ess_frac = hasproperty(result, :ess_fraction) ? Float64(result.ess_fraction) : NaN
     output_kv(Pair{String,Any}[
-        "acceptance_rate" => round(Float64(result.acceptance_rate); digits=6),
+        "acceptance_rate" => Float64(result.acceptance_rate),
         "n_draws"         => length(result.weights),
-        "ess"             => round(ess; digits=4),
-        "ess_fraction"    => round(ess_frac; digits=6),
+        "ess"             => ess,
+        "ess_fraction"    => ess_frac,
     ]; format=format, output=_per_var_output_path(output, "diagnostics"),
        title="Arias Importance-Sampling Diagnostics")
     _maybe_plot(result; plot=plot, plot_save=plot_save)
@@ -2260,9 +2257,9 @@ function _rerender_robust_bayes(result; format::String="table", output::String="
                   title="Robust Bayes bands to $shock_name shock (Giacomini-Kitagawa)",
                   key="robust_bayes_bands")
     output_kv(Pair{String,Any}[
-        "Empty-set probability" => round(Float64(result.empty_set_prob); digits=6),
-        "Informativeness" => round(Float64(result.informativeness); digits=6),
-        "Level" => round(Float64(result.level); digits=4),
+        "Empty-set probability" => Float64(result.empty_set_prob),
+        "Informativeness" => Float64(result.informativeness),
+        "Level" => Float64(result.level),
     ]; format=format, output=_per_var_output_path(output, "diagnostics"),
         title="Robust Bayes Diagnostics", key="robust_bayes_diagnostics")
     _maybe_plot(result; plot=plot, plot_save=plot_save)
@@ -2393,10 +2390,10 @@ function _rerender_filter_result(result; format::String="table", output::String=
             col_tr  = has_vnames ? vname : "trend"
             col_sea = has_vnames ? vname : "seasonal"
             col_irr = has_vnames ? vname : "irregular"
-            adj_df[!, col_adj] = round.(res.adjusted; digits=6)
-            trend_df[!, col_tr] = round.(res.trend; digits=6)
-            seas_df[!, col_sea] = round.(res.seasonal; digits=6)
-            irr_df[!, col_irr] = round.(res.irregular; digits=6)
+            adj_df[!, col_adj] = res.adjusted
+            trend_df[!, col_tr] = res.trend
+            seas_df[!, col_sea] = res.seasonal
+            irr_df[!, col_irr] = res.irregular
             order = res.arima_order
             order_str = order isa Tuple ? join(string.(order), ",") : string(order)
             push!(diag_rows, (
@@ -2405,8 +2402,8 @@ function _rerender_filter_result(result; format::String="table", output::String=
                 frequency = res.frequency,
                 transform = string(res.transform),
                 arima_order = order_str,
-                aic = round(Float64(res.aic); digits=4),
-                sigma2 = round(Float64(res.sigma2); digits=6),
+                aic = Float64(res.aic),
+                sigma2 = Float64(res.sigma2),
                 n_outliers = Int(res.n_outliers),
                 T_obs = Int(res.T_obs),
             ))
@@ -2448,8 +2445,8 @@ function _rerender_filter_result(result; format::String="table", output::String=
         end
         t_col = has_vnames && !isempty(vname) ? "$(vname)_trend" : "trend"
         c_col = has_vnames && !isempty(vname) ? "$(vname)_cycle" : "cycle"
-        result_df[!, t_col] = round.(t; digits=6)
-        result_df[!, c_col] = round.(c; digits=6)
+        result_df[!, t_col] = t
+        result_df[!, c_col] = c
         ps = isempty(plot_save) ? "" : (length(entries) == 1 ? plot_save : _per_var_output_path(plot_save, vname))
         _maybe_plot(res; plot=plot, plot_save=ps)
     end

@@ -31,8 +31,6 @@
 
 # ── Shared RI helpers ────────────────────────────────────────────────────────
 
-_ri_safe_round(x::Real; digits::Int=6) = isfinite(x) ? round(Float64(x); digits=digits) : string(x)
-
 function _ri_observables_sym(obs::String)::Symbol
     s = strip(obs)
     s == "all" && return :all
@@ -157,11 +155,11 @@ function _ri_solve_summary(sol::SimsKalmanSolution)
         "method"        => string(sol.method),
         "converged"     => sol.converged,
         "iterations"    => sol.iterations,
-        "omega"         => _ri_safe_round(sol.omega),
-        "capacity_bits" => _ri_safe_round(sol.capacity_bits),
-        "capacity_nats" => _ri_safe_round(sol.capacity_nats),
+        "omega"         => Float64(sol.omega),
+        "capacity_bits" => Float64(sol.capacity_bits),
+        "capacity_nats" => Float64(sol.capacity_nats),
         "signal_rank"   => sol.signal_rank,
-        "expected_loss" => _ri_safe_round(sol.expected_loss),
+        "expected_loss" => Float64(sol.expected_loss),
     ]
 end
 
@@ -171,11 +169,11 @@ function _ri_transition_summary(dyn::DynamicRISolution)
         "n_state"          => size(dyn.Sigma_init, 1),
         "converged"        => dyn.converged,
         "iterations"       => dyn.iterations,
-        "residual"         => _ri_safe_round(dyn.residual; digits=8),
-        "initial_bits"     => _ri_safe_round(dyn.capacity_bits_path[1]),
-        "terminal_bits"    => _ri_safe_round(dyn.capacity_bits_path[end]),
-        "initial_omega"    => _ri_safe_round(dyn.omega_path[1]),
-        "terminal_omega"   => _ri_safe_round(dyn.omega_path[end]),
+        "residual"         => Float64(dyn.residual),
+        "initial_bits"     => Float64(dyn.capacity_bits_path[1]),
+        "terminal_bits"    => Float64(dyn.capacity_bits_path[end]),
+        "initial_omega"    => Float64(dyn.omega_path[1]),
+        "terminal_omega"   => Float64(dyn.omega_path[end]),
         "initial_rank"     => dyn.signal_rank_path[1],
         "terminal_rank"    => dyn.signal_rank_path[end],
     ]
@@ -185,19 +183,19 @@ function _ri_estimation_summary(res::RIEstimationResult)
     pairs = Pair{String,Any}[
         "method"          => string(res.method),
         "estimate_param"  => string(res.estimate_param),
-        "capacity"        => _ri_safe_round(res.capacity),
-        "omega"           => _ri_safe_round(res.omega),
-        "loglik"          => _ri_safe_round(res.loglik; digits=4),
-        "loglik_fullinfo" => _ri_safe_round(res.loglik_fullinfo; digits=4),
-        "lr_stat"         => _ri_safe_round(res.lr_stat; digits=4),
-        "lr_pvalue"       => _ri_safe_round(res.lr_pvalue; digits=6),
-        "aic"             => _ri_safe_round(res.aic; digits=4),
-        "bic"             => _ri_safe_round(res.bic; digits=4),
+        "capacity"        => Float64(res.capacity),
+        "omega"           => Float64(res.omega),
+        "loglik"          => Float64(res.loglik),
+        "loglik_fullinfo" => Float64(res.loglik_fullinfo),
+        "lr_stat"         => Float64(res.lr_stat),
+        "lr_pvalue"       => Float64(res.lr_pvalue),
+        "aic"             => Float64(res.aic),
+        "bic"             => Float64(res.bic),
         "n_obs"           => res.n_obs,
         "converged"       => res.converged,
     ]
     if res.method === :bayes && isfinite(res.acceptance_rate)
-        push!(pairs, "acceptance_rate" => _ri_safe_round(res.acceptance_rate; digits=4))
+        push!(pairs, "acceptance_rate" => Float64(res.acceptance_rate))
     end
     return pairs
 end
@@ -206,12 +204,12 @@ function _ri_cg_summary(res::CGTestResult; model=nothing, horizon::Int=1)
     pairs = Pair{String,Any}[
         "n_obs"            => res.n_obs,
         "hac_lags"         => res.hac_lags,
-        "beta_cg"          => _ri_safe_round(res.beta_cg),
-        "se_cg"            => _ri_safe_round(res.se_cg),
-        "t_stat"           => _ri_safe_round(res.t_stat; digits=4),
-        "pvalue"           => _ri_safe_round(res.pvalue; digits=6),
-        "implied_gain"     => _ri_safe_round(res.implied_gain),
-        "implied_capacity" => _ri_safe_round(res.implied_capacity),
+        "beta_cg"          => Float64(res.beta_cg),
+        "se_cg"            => Float64(res.se_cg),
+        "t_stat"           => Float64(res.t_stat),
+        "pvalue"           => Float64(res.pvalue),
+        "implied_gain"     => Float64(res.implied_gain),
+        "implied_capacity" => Float64(res.implied_capacity),
     ]
     if model !== nothing
         m_slope = try
@@ -220,8 +218,8 @@ function _ri_cg_summary(res::CGTestResult; model=nothing, horizon::Int=1)
             throw(_domain_or_data_error(e, "implied_cg_slope"))
         end
         push!(pairs, "comparison_horizon" => horizon)
-        push!(pairs, "model_implied_cg_slope" => _ri_safe_round(m_slope))
-        push!(pairs, "cg_slope_diff" => _ri_safe_round(res.beta_cg - m_slope))
+        push!(pairs, "model_implied_cg_slope" => Float64(m_slope))
+        push!(pairs, "cg_slope_diff" => Float64(res.beta_cg - m_slope))
     end
     return pairs
 end
@@ -229,12 +227,12 @@ end
 function _ri_mw_summary(res::MWAttentionResult)
     share = res.total_kappa > 0 ? res.kappa_agg / res.total_kappa : NaN
     Pair{String,Any}[
-        "kappa_agg"                 => _ri_safe_round(res.kappa_agg),
-        "kappa_idio"                => _ri_safe_round(res.kappa_idio),
-        "total_kappa"               => _ri_safe_round(res.total_kappa),
-        "agg_attention_share"       => _ri_safe_round(share),
-        "omega"                     => _ri_safe_round(res.omega),
-        "strategic_complementarity" => _ri_safe_round(res.strategic_complementarity),
+        "kappa_agg"                 => Float64(res.kappa_agg),
+        "kappa_idio"                => Float64(res.kappa_idio),
+        "total_kappa"               => Float64(res.total_kappa),
+        "agg_attention_share"       => Float64(share),
+        "omega"                     => Float64(res.omega),
+        "strategic_complementarity" => Float64(res.strategic_complementarity),
         "units"                     => string(res.units),
         "converged"                 => res.converged,
         "iterations"                => res.iterations,
@@ -247,12 +245,12 @@ function _ri_discrete_summary(sol::RIDiscreteChoiceSolution)
     Pair{String,Any}[
         "alternatives"       => J,
         "states"             => S,
-        "omega"              => _ri_safe_round(sol.omega),
+        "omega"              => Float64(sol.omega),
         "consideration_set"  => cset,
-        "mutual_info_bits"   => _ri_safe_round(sol.mutual_info_bits),
-        "mutual_info_nats"   => _ri_safe_round(sol.mutual_info_nats),
-        "expected_utility"   => _ri_safe_round(sol.expected_utility),
-        "net_welfare"        => _ri_safe_round(sol.net_welfare),
+        "mutual_info_bits"   => Float64(sol.mutual_info_bits),
+        "mutual_info_nats"   => Float64(sol.mutual_info_nats),
+        "expected_utility"   => Float64(sol.expected_utility),
+        "net_welfare"        => Float64(sol.net_welfare),
         "converged"          => sol.converged,
         "iterations"         => sol.iterations,
     ]
@@ -264,9 +262,9 @@ function _ri_iia_summary(diag::RIIIADiagnostic)
         "base_alternatives"         => size(diag.base_solution.payoffs, 1),
         "base_consideration_set"    => join(diag.base_solution.consideration_set, ","),
         "expanded_consideration_set"=> join(diag.expanded_solution.consideration_set, ","),
-        "max_uncond_odds_shift"     => _ri_safe_round(max_uncond),
-        "cond_odds_ratio_max_diff"  => _ri_safe_round(diag.cond_odds_ratio_max_diff),
-        "max_iia_violation"         => _ri_safe_round(diag.max_iia_violation),
+        "max_uncond_odds_shift"     => Float64(max_uncond),
+        "cond_odds_ratio_max_diff"  => Float64(diag.cond_odds_ratio_max_diff),
+        "max_iia_violation"         => Float64(diag.max_iia_violation),
     ]
 end
 
@@ -328,7 +326,7 @@ function _rerender_ri_result(result; format::String="table", output::String="",
             "representation"  => "steady-kalman",
             "n_state"         => size(result.K_gain, 1),
             "n_obs"           => size(result.K_gain, 2),
-            "max_eig_modulus" => _ri_safe_round(max_eig),
+            "max_eig_modulus" => Float64(max_eig),
         ]; format=format, output=_per_var_output_path(output, "summary"),
            title="RI State-Space Summary", key="ri_statespace_summary")
         _maybe_plot(result; plot=plot, plot_save=plot_save)
@@ -578,7 +576,7 @@ function _ri_statespace(; config::String="", model=nothing,
             "observables"     => string(obs_sym),
             "n_state"         => size(ssk.K_gain, 1),
             "n_obs"           => size(ssk.K_gain, 2),
-            "max_eig_modulus" => _ri_safe_round(max_eig),
+            "max_eig_modulus" => Float64(max_eig),
         ]; format=format, output=_per_var_output_path(output, "summary"),
            title="RI State-Space Summary", key="ri_statespace_summary")
         _maybe_plot(ssk; plot=plot, plot_save=plot_save)
@@ -671,7 +669,7 @@ function _ri_simulate(; config::String="", model=nothing,
             end
             push!(used, nm)
             push!(vnames, nm)
-            df[!, Symbol(nm)] = round.(M64[:, j]; digits=6)
+            df[!, Symbol(nm)] = M64[:, j]
         end
     end
     _add_block!(sim.states, copy(prob.state_names))
@@ -1641,16 +1639,16 @@ function _estimate_ri_logit(; data::String, env_col::String="env",
     _emit_result(model; title="RI Logit Coefficients",
                  key="ri_logit_coefficients", format=format, output=output)
     output_kv(Pair{String,Any}[
-        "omega"        => _ri_safe_round(model.omega),
+        "omega"        => Float64(model.omega),
         "normalize"    => string(model.normalize),
         "cov_type"     => string(model.cov_type),
-        "loglik"       => _ri_safe_round(model.loglik; digits=4),
-        "loglik_mnl"   => _ri_safe_round(model.loglik_mnl; digits=4),
-        "lr_vs_mnl"    => _ri_safe_round(model.lr_vs_mnl; digits=4),
-        "lr_pval"      => _ri_safe_round(model.lr_pval; digits=6),
-        "pseudo_r2"    => _ri_safe_round(model.pseudo_r2),
-        "aic"          => _ri_safe_round(model.aic; digits=4),
-        "bic"          => _ri_safe_round(model.bic; digits=4),
+        "loglik"       => Float64(model.loglik),
+        "loglik_mnl"   => Float64(model.loglik_mnl),
+        "lr_vs_mnl"    => Float64(model.lr_vs_mnl),
+        "lr_pval"      => Float64(model.lr_pval),
+        "pseudo_r2"    => Float64(model.pseudo_r2),
+        "aic"          => Float64(model.aic),
+        "bic"          => Float64(model.bic),
         "converged"    => model.converged,
         "iterations"   => model.iterations,
         "n_obs"        => model.n_obs,
@@ -1700,7 +1698,7 @@ function _predict_ri_logit(; data::String="", env_col::String="env",
         pred_df[!, :state] = copy(m.state_id)
     end
     for j in 1:J
-        pred_df[!, Symbol("P_alt_$j")] = round.(Float64.(P[:, j]); digits=6)
+        pred_df[!, Symbol("P_alt_$j")] = Float64.(P[:, j])
     end
     output_result(pred_df; format=Symbol(format), output=output,
                   title="RI Logit Predicted Probabilities",

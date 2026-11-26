@@ -281,8 +281,8 @@ function _did_test_pretrend(; data::String, outcome::String, treatment::String,
 
     output_kv([
         "Test type" => String(result.test_type),
-        "F-statistic" => round(result.statistic; digits=4),
-        "p-value" => round(result.pvalue; digits=4),
+        "F-statistic" => result.statistic,
+        "p-value" => result.pvalue,
         "Degrees of freedom" => result.df,
         "Verdict" => result.pvalue > 0.05 ?
             "Cannot reject parallel trends (p > 0.05)" :
@@ -307,14 +307,14 @@ function _did_test_negweight(; data::String, treatment::String,
     output_kv([
         "Negative weights found" => result.has_negative_weights ? "yes" : "no",
         "Number of negative weights" => result.n_negative,
-        "Total negative weight" => round(result.total_negative_weight; digits=6),
+        "Total negative weight" => result.total_negative_weight,
     ]; format=format, output=output, title="Negative Weight Check (de Chaisemartin-D'Haultfoeuille 2020)")
 
     if result.has_negative_weights && !isempty(result.cohort_time_pairs)
         wt_df = DataFrame(
             Cohort = [p[1] for p in result.cohort_time_pairs],
             Time = [p[2] for p in result.cohort_time_pairs],
-            Weight = round.(result.weights; digits=6)
+            Weight = result.weights
         )
         _status()
         output_result(wt_df; format=fmt, output=_per_var_output_path(output, "weights"),
@@ -352,11 +352,11 @@ function _did_test_honest(; data::String, outcome::String, treatment::String,
 
     hon_df = DataFrame(
         Event_Time = result.post_event_times,
-        ATT = round.(result.post_att; digits=6),
-        Robust_CI_Lower = round.(result.robust_ci_lower; digits=6),
-        Robust_CI_Upper = round.(result.robust_ci_upper; digits=6),
-        Original_CI_Lower = round.(result.original_ci_lower; digits=6),
-        Original_CI_Upper = round.(result.original_ci_upper; digits=6)
+        ATT = result.post_att,
+        Robust_CI_Lower = result.robust_ci_lower,
+        Robust_CI_Upper = result.robust_ci_upper,
+        Original_CI_Lower = result.original_ci_lower,
+        Original_CI_Upper = result.original_ci_upper
     )
     fmt = Symbol(lowercase(format))
     output_result(hon_df; format=fmt, output=output,
@@ -607,8 +607,8 @@ function _rerender_did_result(result; format::String="table", output::String="",
     elseif tn === :PretrendTestResult
         output_kv([
             "Test type" => String(result.test_type),
-            "F-statistic" => round(result.statistic; digits=4),
-            "p-value" => round(result.pvalue; digits=4),
+            "F-statistic" => result.statistic,
+            "p-value" => result.pvalue,
             "Degrees of freedom" => result.df,
             "Verdict" => result.pvalue > 0.05 ?
                 "Cannot reject parallel trends (p > 0.05)" :
@@ -618,14 +618,14 @@ function _rerender_did_result(result; format::String="table", output::String="",
         output_kv([
             "Negative weights found" => result.has_negative_weights ? "yes" : "no",
             "Number of negative weights" => result.n_negative,
-            "Total negative weight" => round(result.total_negative_weight; digits=6),
+            "Total negative weight" => result.total_negative_weight,
         ]; format=format, output=output,
             title="Negative Weight Check (de Chaisemartin-D'Haultfoeuille 2020)")
         if result.has_negative_weights && !isempty(result.cohort_time_pairs)
             wt_df = DataFrame(
                 Cohort = [p[1] for p in result.cohort_time_pairs],
                 Time = [p[2] for p in result.cohort_time_pairs],
-                Weight = round.(result.weights; digits=6),
+                Weight = result.weights,
             )
             output_result(wt_df; format=fmt, output=_per_var_output_path(output, "weights"),
                           title="Weight Details")
@@ -633,11 +633,11 @@ function _rerender_did_result(result; format::String="table", output::String="",
     elseif tn === :HonestDiDResult
         hon_df = DataFrame(
             Event_Time = result.post_event_times,
-            ATT = round.(result.post_att; digits=6),
-            Robust_CI_Lower = round.(result.robust_ci_lower; digits=6),
-            Robust_CI_Upper = round.(result.robust_ci_upper; digits=6),
-            Original_CI_Lower = round.(result.original_ci_lower; digits=6),
-            Original_CI_Upper = round.(result.original_ci_upper; digits=6),
+            ATT = result.post_att,
+            Robust_CI_Lower = result.robust_ci_lower,
+            Robust_CI_Upper = result.robust_ci_upper,
+            Original_CI_Lower = result.original_ci_lower,
+            Original_CI_Upper = result.original_ci_upper,
         )
         output_result(hon_df; format=fmt, output=output,
                       title="HonestDiD Sensitivity (Rambachan-Roth 2023)",

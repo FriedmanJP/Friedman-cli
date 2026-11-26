@@ -583,15 +583,15 @@ function _data_describe(; data::String, format::String="table", output::String="
         n=summary.n,   # already per-variable; fill() nested a vector into every cell
         first_valid=fv,
         last_valid=lv,
-        mean=round.(summary.mean; digits=4),
-        std=round.(summary.std; digits=4),
-        min=round.(summary.min; digits=4),
-        p25=round.(summary.p25; digits=4),
-        median=round.(summary.median; digits=4),
-        p75=round.(summary.p75; digits=4),
-        max=round.(summary.max; digits=4),
-        skewness=round.(summary.skewness; digits=4),
-        kurtosis=round.(summary.kurtosis; digits=4),
+        mean=summary.mean,
+        std=summary.std,
+        min=summary.min,
+        p25=summary.p25,
+        median=summary.median,
+        p75=summary.p75,
+        max=summary.max,
+        skewness=summary.skewness,
+        kurtosis=summary.kurtosis,
     )
 
     _status("Data Summary: $n_obs observations × $n_vars variables")
@@ -746,7 +746,7 @@ function _data_filter(; data::String, method::String="hp", component::String="cy
             selected = component == "cycle" ? c : t
         end
 
-        result_df[!, vname] = round.(selected; digits=6)
+        result_df[!, vname] = selected
     end
 
     title = "Data Filter: $method ($component component)"

@@ -572,10 +572,10 @@ function _var_irf_arias(model, config::String, horizons::Int,
     output_result(irf_df; format=Symbol(format), output=output,
                   title="IRF to $shock_name shock (Arias et al. identification)", key="irf")
     output_kv(Pair{String,Any}[
-        "acceptance_rate" => round(Float64(result.acceptance_rate); digits=6),
+        "acceptance_rate" => Float64(result.acceptance_rate),
         "n_draws"         => length(result.weights),
-        "ess"             => round(ess; digits=4),
-        "ess_fraction"    => round(ess_frac; digits=6),
+        "ess"             => ess,
+        "ess_fraction"    => ess_frac,
     ]; format=format, output=_per_var_output_path(output, "diagnostics"),
        title="Arias Importance-Sampling Diagnostics")
     return result
@@ -725,9 +725,9 @@ function _irf_bvar_robust_bayes(post, config::String, n::Int, horizons::Int,
     _status()
 
     output_kv(Pair{String,Any}[
-        "Empty-set probability" => round(Float64(result.empty_set_prob); digits=6),
-        "Informativeness" => round(Float64(result.informativeness); digits=6),
-        "Level" => round(Float64(result.level); digits=4),
+        "Empty-set probability" => Float64(result.empty_set_prob),
+        "Informativeness" => Float64(result.informativeness),
+        "Level" => Float64(result.level),
     ]; format=format, output=_per_var_output_path(output, "diagnostics"),
         title="Robust Bayes Diagnostics", key="robust_bayes_diagnostics")
 

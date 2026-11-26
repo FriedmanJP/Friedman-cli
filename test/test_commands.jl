@@ -16855,6 +16855,132 @@ end
     end
 end
 
+@testset "[DISPLAY-W2] lossless handlers Batch 1 (#324)" begin
+    mktempdir() do dir
+        # Build a deterministic high-precision dataset so every mean/std/filter/spectral value
+        # has > 10 non-zero fractional digits.
+        n_obs = 60
+        y1 = [10.0 + sin(t * 0.37123456789) + pi / 7 * cos(t * 0.21987654321) for t in 1:n_obs]
+        y2 = [2.0 + 0.5 * y1[t] + 0.31415926535 * sin(t * 0.5123456789) for t in 1:n_obs]
+        csv_path = joinpath(dir, "hi_prec.csv")
+        CSV.write(csv_path, DataFrame(y1=y1, y2=y2))
+
+        # 1. data describe: JSON carries full Float64 (matching Statistics.mean/std to rtol=1e-14),
+        #    while :table displays 3 decimal places by default.
+        doc_desc = _run_leaf(["data", "describe", csv_path])
+        desc_tbl = doc_desc.data.descriptive_statistics
+        desc_cols = String.(desc_tbl.columns)
+        mean_idx = findfirst(==("mean"), desc_cols)
+        std_idx = findfirst(==("std"), desc_cols)
+        @test isapprox(Float64(desc_tbl.rows[1][mean_idx]), mean(y1); rtol=1e-14)
+        @test isapprox(Float64(desc_tbl.rows[1][std_idx]), std(y1); rtol=1e-14)
+        @test Float64(desc_tbl.rows[1][mean_idx]) != round(mean(y1); digits=4)
+        tbl_desc = _capture() do
+            _dispatch_via_app(["data", "describe", csv_path, "--format", "table"])
+        end
+        @test occursin(_format_display_float(mean(y1), 3), tbl_desc)
+        @test !occursin(string(mean(y1)), tbl_desc)
+
+        # 2. data filter & filter hp: CSV and JSON retain full Float64 (> 6 decimals),
+        #    while :table displays 3 decimals.
+        hp_ref = hp_filter(y1; lambda=1600.0)
+        csv_df_out = _capture() do
+            _dispatch_via_app(["data", "filter", csv_path, "--method", "hp", "--component", "cycle", "--format", "csv"])
+        end
+        df_filtered = CSV.read(IOBuffer(csv_df_out), DataFrame)
+        @test isapprox(df_filtered.y1[1], cycle(hp_ref)[1]; rtol=1e-14)
+        @test df_filtered.y1[1] != round(cycle(hp_ref)[1]; digits=6)
+
+        csv_hp_out = _capture() do
+            _dispatch_via_app(["filter", "hp", csv_path, "--columns", "1", "--format", "csv"])
+        end
+        df_hp = CSV.read(IOBuffer(csv_hp_out), DataFrame)
+        @test isapprox(df_hp.y1_trend[1], trend(hp_ref)[1]; rtol=1e-14)
+        @test isapprox(df_hp.y1_cycle[1], cycle(hp_ref)[1]; rtol=1e-14)
+        @test df_hp.y1_cycle[1] != round(cycle(hp_ref)[1]; digits=6)
+        doc_hp = _run_leaf(["filter", "hp", csv_path, "--columns", "1"])
+        @test isapprox(Float64(doc_hp.data.hp_filter.rows[1][3]), cycle(hp_ref)[1]; rtol=1e-14)
+        tbl_hp = _capture() do
+            _dispatch_via_app(["filter", "hp", csv_path, "--columns", "1", "--format", "table"])
+        end
+        @test occursin(_format_display_float(cycle(hp_ref)[1], 3), tbl_hp)
+
+        # 3. estimate volatility garch / _vol_estimate_output: small positive omega must NOT
+        #    underflow to 0 in JSON; table renders 3 decimals; build_irf_table is lossless.
+        tiny_omega = 1.234567891234e-8
+        gm = GARCHModel([0.123456789123, tiny_omega, 0.091234567891, 0.851234567891])
+        env_vol = Envelope(command="estimate volatility garch")
+        prev_env = _ENVELOPE[]
+        _ENVELOPE[] = env_vol
+        try
+            _vol_estimate_output(gm, "y1", ["mu", "omega", "alpha1", "beta1"], "GARCH(1,1)";
+                                 format="json", key="garch_coefficients")
+        finally
+            _ENVELOPE[] = prev_env
+        end
+        jbuf_v = IOBuffer(); render(env_vol, :json, jbuf_v)
+        vdoc = JSON3.read(String(take!(jbuf_v)))
+        @test vdoc.data.garch_coefficients.rows[2][1] == "omega"
+        @test vdoc.data.garch_coefficients.rows[2][2] == tiny_omega
+        @test vdoc.data.garch_coefficients.rows[2][2] > 0.0
+        @test vdoc.data.garch_coefficients.rows[1][2] == 0.123456789123
+        tbuf_v = IOBuffer(); render(env_vol, :table, tbuf_v)
+        vtbl = String(take!(tbuf_v))
+        @test occursin("0.123", vtbl)
+        @test !occursin("0.123456789123", vtbl)
+        doc_garch = _run_leaf(["estimate", "volatility", "garch", csv_path])
+        @test string(doc_garch.status) == "ok"
+
+        irf_arr = reshape([0.123456789123, 0.987654321987, -0.555555555555, 0.111111111111], 2, 2, 1)
+        irf_df = build_irf_table(irf_arr, nothing, nothing, ["y1", "y2"], 1)
+        @test irf_df.y1[1] === 0.123456789123
+        @test_throws MethodError build_irf_table(irf_arr, nothing, nothing, ["y1", "y2"], 1; digits=4)
+
+        # 4. spectral density: JSON emits unrounded >6-digit Float64, :table renders 3 decimals.
+        doc_sd = _run_leaf(["spectral", "density", csv_path, "--method", "welch"])
+        sd_rows = doc_sd.data.spectral_density.rows
+        @test any(r -> Float64(r[2]) != round(Float64(r[2]); digits=6), sd_rows)
+        tbl_sd = _capture() do
+            _dispatch_via_app(["spectral", "density", csv_path, "--method", "welch", "--format", "table"])
+        end
+        @test occursin("Spectral Density", tbl_sd) || occursin("Density", tbl_sd)
+        @test !any(r -> occursin(string(Float64(r[2])), tbl_sd) && Float64(r[2]) != round(Float64(r[2]); digits=3), sd_rows)
+
+        # 5. fitted.jl (predict reg): lossless JSON + 3-decimal :table.
+        doc_pred = _run_leaf(["predict", "regression", "reg", csv_path, "--dep", "y2"])
+        pred_vals = [Float64(r[2]) for r in doc_pred.data.reg_fitted_values.rows]
+        @test any(v -> v != round(v; digits=6), pred_vals)
+
+        # 6. ri.jl: _ri_safe_round retired; raw Float64 (incl. NaN/Inf) safe on JSON & :table.
+        @test !isdefined(@__MODULE__, :_ri_safe_round)
+        env_ri = Envelope(command="ri solve")
+        prev_env2 = _ENVELOPE[]
+        _ENVELOPE[] = env_ri
+        try
+            output_kv(Pair{String,Any}[
+                "omega" => 0.123456789123456,
+                "nan_metric" => NaN,
+                "inf_metric" => Inf,
+            ]; format="json", title="RI Summary", key="ri_summary")
+        finally
+            _ENVELOPE[] = prev_env2
+        end
+        jbuf_ri = IOBuffer(); render(env_ri, :json, jbuf_ri)
+        ridoc = JSON3.read(String(take!(jbuf_ri)))
+        @test ridoc.data.ri_summary.rows[1][2] === 0.123456789123456
+        @test ridoc.data.ri_summary.rows[2][2] == "NaN"
+        @test ridoc.data.ri_summary.rows[3][2] == "Inf"
+        tbuf_ri = IOBuffer(); render(env_ri, :table, tbuf_ri)
+        ritbl = String(take!(tbuf_ri))
+        @test occursin("0.123", ritbl)
+        @test occursin("NaN", ritbl)
+        @test occursin("Inf", ritbl)
+
+        # 7. w1_quantile.jl: quantile-grid dedup (# lossless-ok) preserved.
+        @test_throws CliError _w1_parse_taus("0.5, 0.5000000000001", "--taus", "test")
+    end
+end
+
 include(joinpath(project_root, "test", "test_handles.jl"))
 include(joinpath(project_root, "test", "test_storage.jl"))
 include(joinpath(project_root, "test", "test_w1_quantile.jl"))

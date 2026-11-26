@@ -108,7 +108,7 @@ function _predict_arima(; data::String="", column::Int=1, p=nothing, d::Int=0, q
 
     pred_df = DataFrame(
         t=1:length(fitted),
-        fitted=round.(fitted; digits=6)
+        fitted=fitted
     )
 
     output_result(pred_df; format=Symbol(format), output=output,
@@ -297,7 +297,7 @@ function _predict_favar(; data::String="", factors=nothing, lags::Int=2,
     pred_df.t = 1:T_eff
     for v in 1:size(fitted, 2)
         vname = v <= length(favar.varnames) ? favar.varnames[v] : "var_$v"
-        pred_df[!, vname] = round.(fitted[:, v]; digits=6)
+        pred_df[!, vname] = fitted[:, v]
     end
     output_result(pred_df; format=Symbol(format), output=output,
                   title="FAVAR In-Sample Predictions (T_eff=$T_eff)",
@@ -353,7 +353,7 @@ function _predict_reg(; data::String="", dep::String="", cov_type::String="hc1",
     _status()
 
     fitted = oos ? predict(model, _load_oos_X(data, model)) : predict(model)
-    pred_df = DataFrame(observation=1:length(fitted), fitted_value=round.(fitted; digits=6))
+    pred_df = DataFrame(observation=1:length(fitted), fitted_value=fitted)
     output_result(pred_df; format=Symbol(format), output=output, title="$wls_tag Fitted Values",
                   key="reg_fitted_values")
 end
@@ -385,8 +385,8 @@ function _predict_logit(; data::String="", dep::String="", cov_type::String="hc1
             format=Symbol(format), output=output)
     elseif odds_ratio
         or = MacroEconometricModels.odds_ratio(model)
-        or_df = DataFrame(Variable=or.varnames, Odds_Ratio=round.(or.or; digits=6),
-            CI_Lower=round.(or.ci_lower; digits=6), CI_Upper=round.(or.ci_upper; digits=6))
+        or_df = DataFrame(Variable=or.varnames, Odds_Ratio=or.or,
+            CI_Lower=or.ci_lower, CI_Upper=or.ci_upper)
         output_result(or_df; format=Symbol(format), output=output,
                       title="Odds Ratios (Logit)")
     elseif classification_table
@@ -401,7 +401,7 @@ function _predict_logit(; data::String="", dep::String="", cov_type::String="hc1
             if v isa AbstractMatrix
                 confusion = v
             else
-                push!(scalars, k => v isa AbstractFloat ? round(v; digits=6) : v)
+                push!(scalars, k => v)
             end
         end
         output_kv(scalars; format=format, output=output,
@@ -420,7 +420,7 @@ function _predict_logit(; data::String="", dep::String="", cov_type::String="hc1
         _status("Logit Fitted Probabilities: $dep_name")
         _status()
         fitted = oos ? predict(model, _load_oos_X(data, model)) : predict(model)
-        pred_df = DataFrame(observation=1:length(fitted), fitted_prob=round.(fitted; digits=6))
+        pred_df = DataFrame(observation=1:length(fitted), fitted_prob=fitted)
         output_result(pred_df; format=Symbol(format), output=output,
                       title="Logit Fitted Probabilities")
     end
@@ -463,7 +463,7 @@ function _predict_probit(; data::String="", dep::String="", cov_type::String="hc
             if v isa AbstractMatrix
                 confusion = v
             else
-                push!(scalars, k => v isa AbstractFloat ? round(v; digits=6) : v)
+                push!(scalars, k => v)
             end
         end
         output_kv(scalars; format=format, output=output,
@@ -482,7 +482,7 @@ function _predict_probit(; data::String="", dep::String="", cov_type::String="hc
         _status("Probit Fitted Probabilities: $dep_name")
         _status()
         fitted = oos ? predict(model, _load_oos_X(data, model)) : predict(model)
-        pred_df = DataFrame(observation=1:length(fitted), fitted_prob=round.(fitted; digits=6))
+        pred_df = DataFrame(observation=1:length(fitted), fitted_prob=fitted)
         output_result(pred_df; format=Symbol(format), output=output,
                       title="Probit Fitted Probabilities")
     end
@@ -516,7 +516,7 @@ function _predict_preg(; data::String="", dep::String="", indep::String="",
     _status()
 
     fitted = predict(model)
-    pred_df = DataFrame(observation=1:length(fitted), fitted_value=round.(fitted; digits=6))
+    pred_df = DataFrame(observation=1:length(fitted), fitted_value=fitted)
     output_result(pred_df; format=Symbol(format), output=output,
                   title="Panel Regression Fitted Values ($method)",
                   key="panel_regression_fitted_values")
@@ -555,7 +555,7 @@ function _predict_piv(; data::String="", dep::String="", exog::String="",
     _status()
 
     fitted = predict(model)
-    pred_df = DataFrame(observation=1:length(fitted), fitted_value=round.(fitted; digits=6))
+    pred_df = DataFrame(observation=1:length(fitted), fitted_value=fitted)
     output_result(pred_df; format=Symbol(format), output=output,
                   title="Panel IV Fitted Values ($method)",
                   key="panel_iv_fitted_values")
@@ -588,7 +588,7 @@ function _predict_plogit(; data::String="", dep::String="", indep::String="",
     _status()
 
     fitted = predict(model)
-    pred_df = DataFrame(observation=1:length(fitted), fitted_prob=round.(fitted; digits=6))
+    pred_df = DataFrame(observation=1:length(fitted), fitted_prob=fitted)
     output_result(pred_df; format=Symbol(format), output=output,
                   title="Panel Logit Fitted Probabilities ($method)",
                   key="panel_logit_fitted_probabilities")
@@ -621,7 +621,7 @@ function _predict_pprobit(; data::String="", dep::String="", indep::String="",
     _status()
 
     fitted = predict(model)
-    pred_df = DataFrame(observation=1:length(fitted), fitted_prob=round.(fitted; digits=6))
+    pred_df = DataFrame(observation=1:length(fitted), fitted_prob=fitted)
     output_result(pred_df; format=Symbol(format), output=output,
                   title="Panel Probit Fitted Probabilities ($method)",
                   key="panel_probit_fitted_probabilities")
@@ -643,14 +643,14 @@ function _choice_prob_table(probs::AbstractMatrix, categories)
     labels = length(categories) == size(probs, 2) ? string.(categories) :
              string.(1:size(probs, 2))
     for (j, lab) in enumerate(labels)
-        df[!, "prob_$lab"] = round.(probs[:, j]; digits=6)
+        df[!, "prob_$lab"] = probs[:, j]
     end
     return df
 end
 
 # A univariate result still renders as a single fitted-probability column.
 _choice_prob_table(probs::AbstractVector, categories) =
-    DataFrame(observation=1:length(probs), fitted_prob=round.(probs; digits=6))
+    DataFrame(observation=1:length(probs), fitted_prob=probs)
 
 """
     _choice_me_table(me) → (DataFrame, has_se)
@@ -671,9 +671,9 @@ function _choice_me_table(me)
     labels = length(me.categories) == J ? string.(me.categories) : string.(1:J)
     df = DataFrame(variable=repeat(String.(me.varnames); inner=J),
                    category=repeat(labels; outer=K),
-                   dydx=round.(vec(permutedims(me.effects)); digits=6))
+                   dydx=vec(permutedims(me.effects)))
     has_se = me.se !== nothing && !all(isnan, me.se)
-    has_se && (df[!, :se] = round.(vec(permutedims(me.se)); digits=6))
+    has_se && (df[!, :se] = vec(permutedims(me.se)))
     return df, has_se
 end
 
@@ -886,7 +886,7 @@ function _residuals_arima(; data::String="", column::Int=1, p=nothing, d::Int=0,
 
     res_df = DataFrame(
         t=1:length(resid),
-        residual=round.(resid; digits=6)
+        residual=resid
     )
 
     output_result(res_df; format=Symbol(format), output=output,
@@ -1070,7 +1070,7 @@ function _residuals_favar(; data::String="", factors=nothing, lags::Int=2,
     res_df.t = 1:T_eff
     for v in 1:size(resid, 2)
         vname = v <= length(favar.varnames) ? favar.varnames[v] : "var_$v"
-        res_df[!, vname] = round.(resid[:, v]; digits=6)
+        res_df[!, vname] = resid[:, v]
     end
     output_result(res_df; format=Symbol(format), output=output,
                   title="FAVAR Residuals (T_eff=$T_eff)",
@@ -1099,7 +1099,7 @@ function _residuals_reg(; data::String="", dep::String="", cov_type::String="hc1
     _status()
 
     resid = residuals(model)
-    res_df = DataFrame(observation=1:length(resid), residual=round.(resid; digits=6))
+    res_df = DataFrame(observation=1:length(resid), residual=resid)
     output_result(res_df; format=Symbol(format), output=output, title="$wls_tag Residuals",
                   key="reg_residuals")
 end
@@ -1123,7 +1123,7 @@ function _residuals_logit(; data::String="", dep::String="", cov_type::String="h
     _status()
 
     resid = residuals(model)
-    res_df = DataFrame(observation=1:length(resid), residual=round.(resid; digits=6))
+    res_df = DataFrame(observation=1:length(resid), residual=resid)
     output_result(res_df; format=Symbol(format), output=output, title="Logit Residuals")
 end
 
@@ -1146,7 +1146,7 @@ function _residuals_probit(; data::String="", dep::String="", cov_type::String="
     _status()
 
     resid = residuals(model)
-    res_df = DataFrame(observation=1:length(resid), residual=round.(resid; digits=6))
+    res_df = DataFrame(observation=1:length(resid), residual=resid)
     output_result(res_df; format=Symbol(format), output=output, title="Probit Residuals")
 end
 
@@ -1179,7 +1179,7 @@ function _residuals_preg(; data::String="", dep::String="", indep::String="",
     _status()
 
     resid = residuals(model)
-    res_df = DataFrame(observation=1:length(resid), residual=round.(resid; digits=6))
+    res_df = DataFrame(observation=1:length(resid), residual=resid)
     output_result(res_df; format=Symbol(format), output=output,
                   title="Panel Regression Residuals ($method)",
                   key="panel_regression_residuals")
@@ -1218,7 +1218,7 @@ function _residuals_piv(; data::String="", dep::String="", exog::String="",
     _status()
 
     resid = residuals(model)
-    res_df = DataFrame(observation=1:length(resid), residual=round.(resid; digits=6))
+    res_df = DataFrame(observation=1:length(resid), residual=resid)
     output_result(res_df; format=Symbol(format), output=output,
                   title="Panel IV Residuals ($method)",
                   key="panel_iv_residuals")
@@ -1251,7 +1251,7 @@ function _residuals_plogit(; data::String="", dep::String="", indep::String="",
     _status()
 
     resid = Float64.(model.y) .- Float64.(predict(model))
-    res_df = DataFrame(observation=1:length(resid), residual=round.(resid; digits=6))
+    res_df = DataFrame(observation=1:length(resid), residual=resid)
     output_result(res_df; format=Symbol(format), output=output,
                   title="Panel Logit Residuals ($method)",
                   key="panel_logit_residuals")
@@ -1284,7 +1284,7 @@ function _residuals_pprobit(; data::String="", dep::String="", indep::String="",
     _status()
 
     resid = Float64.(model.y) .- Float64.(predict(model))
-    res_df = DataFrame(observation=1:length(resid), residual=round.(resid; digits=6))
+    res_df = DataFrame(observation=1:length(resid), residual=resid)
     output_result(res_df; format=Symbol(format), output=output,
                   title="Panel Probit Residuals ($method)",
                   key="panel_probit_residuals")
@@ -1304,7 +1304,7 @@ function _choice_resid_table(resid::AbstractMatrix, categories)
     labels = length(categories) == size(resid, 2) ? string.(categories) :
              string.(1:size(resid, 2))
     for (j, lab) in enumerate(labels)
-        df[!, "resid_$lab"] = round.(resid[:, j]; digits=6)
+        df[!, "resid_$lab"] = resid[:, j]
     end
     return df
 end
@@ -1336,7 +1336,7 @@ function _choice_residuals_output(model, label::String, key_stem::String,
                 hint=sprint(showerror, e)))
         end
         df = DataFrame(observation=1:length(g),
-                       generalized_residual=round.(g; digits=6))
+                       generalized_residual=g)
         return output_result(df; format=Symbol(format), output=output,
                              title="$label Generalized Residuals",
                              key="$(key_stem)_generalized_residuals")
@@ -1349,7 +1349,7 @@ function _choice_residuals_output(model, label::String, key_stem::String,
             hint=sprint(showerror, e)))
     end
     df = R isa AbstractMatrix ? _choice_resid_table(R, model.categories) :
-         DataFrame(observation=1:length(R), residual=round.(R; digits=6))
+         DataFrame(observation=1:length(R), residual=R)
     return output_result(df; format=Symbol(format), output=output,
                          title="$label Residuals ($kind)",
                          key="$(key_stem)_residuals")

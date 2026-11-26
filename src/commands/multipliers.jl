@@ -44,16 +44,16 @@ function _nardl_multipliers_table(mm)
     for (i, nm) in enumerate(mm.reg_names)
         for (h, hz) in enumerate(mm.horizons)
             push!(horizon, hz); push!(regressor, String(nm))
-            push!(m_pos, round(Float64(mm.m_pos[i, h]); digits=6))
-            push!(m_neg, round(Float64(mm.m_neg[i, h]); digits=6))
-            push!(m_diff, round(Float64(mm.m_diff[i, h]); digits=6))
+            push!(m_pos, Float64(mm.m_pos[i, h]))
+            push!(m_neg, Float64(mm.m_neg[i, h]))
+            push!(m_diff, Float64(mm.m_diff[i, h]))
             if has_ci
-                push!(pos_lo, round(Float64(mm.m_pos_lo[i, h]); digits=6))
-                push!(pos_hi, round(Float64(mm.m_pos_hi[i, h]); digits=6))
-                push!(neg_lo, round(Float64(mm.m_neg_lo[i, h]); digits=6))
-                push!(neg_hi, round(Float64(mm.m_neg_hi[i, h]); digits=6))
-                push!(dif_lo, round(Float64(mm.m_diff_lo[i, h]); digits=6))
-                push!(dif_hi, round(Float64(mm.m_diff_hi[i, h]); digits=6))
+                push!(pos_lo, Float64(mm.m_pos_lo[i, h]))
+                push!(pos_hi, Float64(mm.m_pos_hi[i, h]))
+                push!(neg_lo, Float64(mm.m_neg_lo[i, h]))
+                push!(neg_hi, Float64(mm.m_neg_hi[i, h]))
+                push!(dif_lo, Float64(mm.m_diff_lo[i, h]))
+                push!(dif_hi, Float64(mm.m_diff_hi[i, h]))
             end
         end
     end
@@ -94,8 +94,8 @@ function _emit_nardl_multipliers(m, dep_name::String; horizon::Int=12, nreps::In
         "nreps"     => mm.nreps,
         "level"     => mm.level,
         "bootstrap" => mm.nreps > 0,
-        "theta_pos" => join([round(Float64(t); digits=4) for t in mm.theta_pos], ", "),
-        "theta_neg" => join([round(Float64(t); digits=4) for t in mm.theta_neg], ", "),
+        "theta_pos" => join([Float64(t) for t in mm.theta_pos], ", "),
+        "theta_neg" => join([Float64(t) for t in mm.theta_neg], ", "),
     ]; format=format, output=_per_var_output_path(output, "multipliers-summary"),
        title="NARDL Multipliers Summary", key="nardl_multipliers_summary")
     return mm

@@ -240,8 +240,8 @@ function _filter_hp(; data::String, lambda::Float64=1600.0, columns::String="",
         _maybe_plot(res; plot=plot, plot_save=ps)
         t = trend(res)
         c = cycle(res)
-        result_df[!, "$(vname)_trend"] = round.(t; digits=6)
-        result_df[!, "$(vname)_cycle"] = round.(c; digits=6)
+        result_df[!, "$(vname)_trend"] = t
+        result_df[!, "$(vname)_cycle"] = c
         push!(cycles, c)
         push!(originals, y)
     end
@@ -303,8 +303,8 @@ function _filter_hamilton(; data::String, horizon::Int=8, lags::Int=4, columns::
         # trend()/cycle() may be full-length or valid-range-only
         tv = length(t) == T_obs ? t[vr] : t
         cv = length(c) == T_obs ? c[vr] : c
-        result_df[!, "$(vname)_trend"] = round.(tv; digits=6)
-        result_df[!, "$(vname)_cycle"] = round.(cv; digits=6)
+        result_df[!, "$(vname)_trend"] = tv
+        result_df[!, "$(vname)_cycle"] = cv
         push!(cycles, cv)
         push!(originals, y[vr])
     end
@@ -363,8 +363,8 @@ function _filter_bn(; data::String, method::String="arima", p=nothing, q=nothing
         _maybe_plot(res; plot=plot, plot_save=ps)
         t = trend(res)
         c = cycle(res)
-        result_df[!, "$(vname)_trend"] = round.(t; digits=6)
-        result_df[!, "$(vname)_cycle"] = round.(c; digits=6)
+        result_df[!, "$(vname)_trend"] = t
+        result_df[!, "$(vname)_cycle"] = c
         push!(cycles, c)
         push!(originals, y)
     end
@@ -417,8 +417,8 @@ function _filter_bk(; data::String, pl::Int=6, pu::Int=32, K::Int=12, columns::S
         # trend()/cycle() may be full-length or valid-range-only
         tv = length(t) == T_obs ? t[vr] : t
         cv = length(c) == T_obs ? c[vr] : c
-        result_df[!, "$(vname)_trend"] = round.(tv; digits=6)
-        result_df[!, "$(vname)_cycle"] = round.(cv; digits=6)
+        result_df[!, "$(vname)_trend"] = tv
+        result_df[!, "$(vname)_cycle"] = cv
         push!(cycles, cv)
         push!(originals, y[vr])
     end
@@ -470,8 +470,8 @@ function _filter_bhp(; data::String, lambda::Float64=1600.0, stopping::String="B
         _maybe_plot(res; plot=plot, plot_save=ps)
         t = trend(res)
         c = cycle(res)
-        result_df[!, "$(vname)_trend"] = round.(t; digits=6)
-        result_df[!, "$(vname)_cycle"] = round.(c; digits=6)
+        result_df[!, "$(vname)_trend"] = t
+        result_df[!, "$(vname)_cycle"] = c
         push!(cycles, c)
         push!(originals, y)
 
@@ -562,10 +562,10 @@ function _filter_x13(; data::String,
         ps = isempty(plot_save) ? "" : (length(col_idx) == 1 ? plot_save : _per_var_output_path(plot_save, vname))
         _maybe_plot(res; plot=plot, plot_save=ps)
 
-        adj_df[!, vname] = round.(res.adjusted; digits=6)
-        trend_df[!, vname] = round.(res.trend; digits=6)
-        seas_df[!, vname] = round.(res.seasonal; digits=6)
-        irr_df[!, vname] = round.(res.irregular; digits=6)
+        adj_df[!, vname] = res.adjusted
+        trend_df[!, vname] = res.trend
+        seas_df[!, vname] = res.seasonal
+        irr_df[!, vname] = res.irregular
 
         order = res.arima_order
         order_str = order isa Tuple ? join(string.(order), ",") : string(order)
@@ -575,8 +575,8 @@ function _filter_x13(; data::String,
             frequency = res.frequency,
             transform = string(res.transform),
             arima_order = order_str,
-            aic = round(Float64(res.aic); digits=4),
-            sigma2 = round(Float64(res.sigma2); digits=6),
+            aic = Float64(res.aic),
+            sigma2 = Float64(res.sigma2),
             n_outliers = Int(res.n_outliers),
             T_obs = Int(res.T_obs),
         ))

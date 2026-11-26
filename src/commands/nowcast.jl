@@ -154,7 +154,7 @@ function _rerender_nowcast_result(result; format::String="table", output::String
     if tn === :NowcastResult
         result_df = DataFrame(
             metric=["nowcast", "forecast"],
-            value=[round(Float64(result.nowcast); digits=6), round(Float64(result.forecast); digits=6)],
+            value=[Float64(result.nowcast), Float64(result.forecast)],
         )
         output_result(result_df; format=Symbol(format), output=output,
                       title=isempty(title) ? "Nowcast Result" : title,
@@ -162,7 +162,7 @@ function _rerender_nowcast_result(result; format::String="table", output::String
     elseif tn === :NowcastNews
         result_df = DataFrame(
             variable=result.variable_names,
-            news_impact=round.(result.impact_news; digits=6),
+            news_impact=result.impact_news,
         )
         output_result(result_df; format=Symbol(format), output=output,
                       title="Nowcast News Decomposition",
@@ -176,7 +176,7 @@ function _rerender_nowcast_result(result; format::String="table", output::String
         fc_df = DataFrame()
         fc_df[!, :horizon] = 1:h
         for i in 1:nc
-            fc_df[!, Symbol(vns[i])] = round.(result[:, i]; digits=6)
+            fc_df[!, Symbol(vns[i])] = result[:, i]
         end
         output_result(fc_df; format=Symbol(format), output=output,
                       title="Nowcast Forecast (h=$h)", key="nowcast_forecast")
@@ -267,8 +267,8 @@ function _nowcast_dfm(; data::String="", result=nothing, model=nothing,
 
     result_df = DataFrame(
         metric=["nowcast", "forecast", "log-likelihood", "EM iterations"],
-        value=[round(nc_res.nowcast; digits=6), round(nc_res.forecast; digits=6),
-               round(model.loglik; digits=2), model.n_iter]
+        value=[nc_res.nowcast, nc_res.forecast,
+               model.loglik, model.n_iter]
     )
     output_result(result_df; format=Symbol(format), output=output,
                   title="Nowcast DFM (r=$(model.r), p=$(model.p), target=$target_name)", key="nowcast_dfm")
@@ -334,21 +334,21 @@ function _nowcast_bvar(; data::String="", result=nothing, model=nothing,
 
     result_df = DataFrame(
         metric=["nowcast", "forecast", "log-likelihood"],
-        value=[round(nc_res.nowcast; digits=6), round(nc_res.forecast; digits=6),
-               round(model.loglik; digits=2)]
+        value=[nc_res.nowcast, nc_res.forecast,
+               model.loglik]
     )
     output_result(result_df; format=Symbol(format), output=output,
                   title="Nowcast BVAR (lags=$(model.lags), prior=$prior, target=$target_name)", key="nowcast_bvar")
 
     settings = Pair{String,Any}[
         "prior" => string(model.prior),
-        "lambda (overall shrinkage)" => round(model.lambda; digits=6),
-        "theta (lag decay)" => round(model.theta; digits=6),
-        "miu (sum-of-coefficients)" => round(model.miu; digits=6),
-        "alpha (co-persistence)" => round(model.alpha; digits=6),
+        "lambda (overall shrinkage)" => model.lambda,
+        "theta (lag decay)" => model.theta,
+        "miu (sum-of-coefficients)" => model.miu,
+        "alpha (co-persistence)" => model.alpha,
     ]
     isnan(model.theta_cross) ||
-        push!(settings, "theta_cross (cross-variable tightness)" => round(model.theta_cross; digits=6))
+        push!(settings, "theta_cross (cross-variable tightness)" => model.theta_cross)
     output_kv(settings; format=format, output=_per_var_output_path(output, "settings"),
               title="Nowcast BVAR Hyperparameters")
     prior == "litterman" &&
@@ -389,7 +389,7 @@ function _nowcast_bridge(; data::String="", result=nothing, model=nothing,
 
     result_df = DataFrame(
         metric=["nowcast", "forecast", "n_equations"],
-        value=[round(nc_res.nowcast; digits=6), round(nc_res.forecast; digits=6),
+        value=[nc_res.nowcast, nc_res.forecast,
                model.n_equations]
     )
     output_result(result_df; format=Symbol(format), output=output,
@@ -457,7 +457,7 @@ function _nowcast_news(; data_new::String="", data_old::String="",
 
     result_df = DataFrame(
         variable=news.variable_names,
-        news_impact=round.(news.impact_news; digits=6)
+        news_impact=news.impact_news
     )
     output_result(result_df; format=Symbol(format), output=output,
                   title="Nowcast News Decomposition (method=$method)", key="nowcast_news_decomposition")
@@ -506,7 +506,7 @@ function _nowcast_forecast(; data::String="", result=nothing, model=nothing,
     n_cols = size(fc_mat, 2)
     eff_vnames = length(varnames) >= n_cols ? varnames[1:n_cols] : String["var_$i" for i in 1:n_cols]
     for (i, vname) in enumerate(eff_vnames)
-        fc_df[!, Symbol(vname)] = round.(fc_mat[:, i]; digits=6)
+        fc_df[!, Symbol(vname)] = fc_mat[:, i]
     end
 
     output_result(fc_df; format=Symbol(format), output=output,
