@@ -17399,9 +17399,9 @@ end
         @test _opt(gar, "conf-level") === nothing
         @test _opt(gar, "alpha").default === 0.05
 
-        # Micro leaves owned by #331 remain untouched on this branch
+        # Micro leaves owned by #331 default to 0.90
         for path in (["did", "estimate"], ["did", "event-study"], ["test", "did", "honest"])
-            @test _opt(_leaf(path), "conf-level").default === 0.95
+            @test _opt(_leaf(path), "conf-level").default === 0.90
         end
     end
 
@@ -17582,12 +17582,13 @@ end
         thr_opt = only(filter(o -> o.name == "conf-level", _lookup_leaf(["estimate", "regime", "threshold"]).options))
         @test thr_opt.choices === nothing || isempty(thr_opt.choices)
 
-        # Scope boundary: macro leaves owned by #332/#333 and CI-less residuals were NOT touched
+        # Scope boundary: macro leaves owned by #332/#333 default to 0.68, and CI-less residuals have no --conf-level
         lpdid_opt = only(filter(o -> o.name == "conf-level", _lookup_leaf(["did", "lp-did"]).options))
-        @test lpdid_opt.default == 0.95
+        @test lpdid_opt.default == 0.68
         setar_opt = only(filter(o -> o.name == "conf-level", _lookup_leaf(["estimate", "regime", "setar"]).options))
-        @test setar_opt.default == 0.95
-        @test !any(o -> o.name == "conf-level", _lookup_leaf(["estimate", "regression", "cointreg"]).options)
+        @test setar_opt.default == 0.68
+        coint_opt = only(filter(o -> o.name == "conf-level", _lookup_leaf(["estimate", "regression", "cointreg"]).options))
+        @test coint_opt.default == 0.68
         @test !any(o -> o.name == "conf-level", _lookup_leaf(["residuals", "regression", "reg"]).options)
         @test !any(o -> o.name == "conf-level", _lookup_leaf(["residuals", "panel", "preg"]).options)
     end
@@ -18034,7 +18035,7 @@ end
         @test opt_default(["test", "stability", "cusumsq"], "level") == 0.05
         @test opt_default(["estimate", "multivariate", "vecm"], "significance") == 0.05
         @test opt_default(["estimate", "multivariate", "svec"], "significance") == 0.05
-        @test opt_default(["estimate", "regime", "threshold"], "conf-level") == 0.95
+        @test opt_default(["estimate", "regime", "threshold"], "conf-level") == 0.90
     end
 
     mktempdir() do dir
