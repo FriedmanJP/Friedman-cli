@@ -1829,6 +1829,11 @@ static int run_thin(int argc, char **argv) {
 
         /* Tier 4: bare `serve` missing --mcp (and #299 lazy MCP proxy hook) */
         if (strcmp(cur_path, "serve") == 0) {
+            /* #343: global --seed on serve is rejected by frdc-core with usage/invalid (exit 2);
+               fail open so stderr, hint, and --json error envelope match byte-for-byte. */
+            if (has_seed) {
+                break;
+            }
             if (leaf_argc == 0 && !force_json) {
                 const char *msg  = "serve requires --mcp (the only supported mode)";
                 const char *hint = "frdc serve --mcp speaks JSON-RPC 2.0 / Model Context Protocol on stdio";

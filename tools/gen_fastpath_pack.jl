@@ -230,6 +230,7 @@ function generate_fastpath_pack(output_path::AbstractString;
         "julia_version"            => string(VERSION),
         "machine"                  => String(manifest["machine"]),
         "manifest_deps_json"       => _write_sorted_json_dict(deps_str),
+        "mcp_instructions"         => String(Friedman._MCP_INSTRUCTIONS),
         "mcp_protocol_version"     => String(Friedman._MCP_PROTOCOL_VERSION),
         "mems_git_sha"             => String(Friedman._BUNDLED_MANIFEST_STATIC.git_sha),
         "mems_version"             => String(Friedman._cached_mems_version()),

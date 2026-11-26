@@ -14,6 +14,14 @@
 
 const _MCP_PROTOCOL_VERSION = "2024-11-05"
 
+const _MCP_INSTRUCTIONS =
+    "Friedman-cli (frdc) MCP server over stdio (JSON-RPC 2.0).\n" *
+    "- Output format: every tools/call automatically forces --format json and returns one schema-v1 JSON envelope (do not pass format).\n" *
+    "- Session URIs: use data://<name>, model://<name>, result://<name>, or mem://<name> to persist and reuse datasets, estimated models, and results across calls in memory.\n" *
+    "- Tool naming: command path segments are joined with '_' while multi-word leaf names keep kebab-case '-' (e.g. estimate_multivariate_lms-svar, dsge_abcd_audit-irf, test_unit-root_adf).\n" *
+    "- Config & cards: pass config-json for zero-file JSON overrides, set for key=value overrides, and array-typed prior / constraint for repeatable DSGE card specs.\n" *
+    "- Precision & CIs: JSON envelopes always preserve full IEEE-754 Float64 precision; default confidence/credible bands are 68% for macroeconometric tools (incl. did_lp-did) and 90% for microeconometric tools (override via conf-level or quantiles)."
+
 """
     _mcp_path_matches(path, family, prefix) → Bool
 
@@ -297,22 +305,30 @@ function _serve_loop(input::IO, output::IO; families::AbstractString="",
                     "protocolVersion" => _MCP_PROTOCOL_VERSION,
                     "capabilities" => Dict{String,Any}("tools" => Dict{String,Any}()),
                     "serverInfo" => Dict{String,Any}(
-                        "name" => "frdc", "version" => string(FRIEDMAN_VERSION)))))
+                        "name" => "frdc", "version" => string(FRIEDMAN_VERSION)),
+                    "instructions" => _MCP_INSTRUCTIONS)))
             elseif startswith(method, "notifications/")
                 # notifications carry no id and get no response
             elseif method == "ping"
                 _rpc_send(output, _rpc_result(id, Dict{String,Any}()))
             elseif method == "tools/list"
                 params = get(req, :params, nothing)
-                p_fam = params === nothing ? families :
+                req_prefix = _mcp_list_prefix(params)
+                req_fam = params === nothing ? "" :
                     let pf = get(params, :families, nothing)
-                        pf === nothing ? families : strip(string(pf))
+                        pf === nothing ? "" : strip(string(pf))
                     end
-                p_tools = params === nothing ? tools :
+                req_tools = params === nothing ? "" :
                     let pt = get(params, :tools, nothing)
-                        pt === nothing ? tools : strip(string(pt))
+                        pt === nothing ? "" : strip(string(pt))
                     end
-                listed = _mcp_tools(; prefix=_mcp_list_prefix(params), families=p_fam, tools=p_tools)
+                req_fam_pats = String[lowercase(strip(s)) for s in split(req_fam, ",") if !isempty(strip(s))]
+                req_tool_pats = String[lowercase(strip(s)) for s in split(req_tools, ",") if !isempty(strip(s))]
+                # #343: strictly intersect per-request filters with startup `scoped_tools`
+                # so tools/list can only narrow (never widen) the callable `by_name` set.
+                listed = [t for t in scoped_tools if
+                    _mcp_path_matches(t[3], t[2].family, req_prefix) &&
+                    _mcp_matches_filters(t[1], t[3], t[2].family, req_fam_pats, req_tool_pats)]
                 cursor_raw = params === nothing ? nothing : get(params, :cursor, nothing)
                 limit_raw = params === nothing ? nothing : get(params, :limit, nothing)
                 res_dict = Dict{String,Any}()
@@ -362,6 +378,11 @@ end
 
 function _serve(; mcp::Bool=false, families::String="", tools::String="", compact::Bool=false,
                 format::String="table", output::String="", kwargs...)
+    if isdefined(@__MODULE__, :_SEED) && _SEED[] !== nothing
+        throw(CliError("usage/invalid",
+            "serve does not accept global --seed";
+            hint="pass per-call 'seed' inside MCP tools/call arguments"))
+    end
     mcp || throw(CliError("usage/missing",
         "serve requires --mcp (the only supported mode)";
         hint="frdc serve --mcp speaks JSON-RPC 2.0 / Model Context Protocol on stdio"))

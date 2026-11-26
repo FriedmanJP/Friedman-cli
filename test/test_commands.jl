@@ -19188,6 +19188,48 @@ end
     @test haskey(s_mr["properties"]["model"], "x-handle")
 end
 
+@testset "[UX-W2] MCP scope intersection, --seed rejection & initialize.instructions (#343)" begin
+    # 1. initialize emits non-empty instructions covering envelope, session URIs & tool naming
+    in1 = IOBuffer("""{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n""")
+    out1 = IOBuffer()
+    _serve_loop(in1, out1)
+    r1 = JSON3.read(String(take!(out1)))
+    @test haskey(r1.result, :instructions)
+    @test String(r1.result.instructions) == _MCP_INSTRUCTIONS
+    @test occursin("data://", String(r1.result.instructions))
+    @test occursin("format", String(r1.result.instructions))
+
+    # 2. Strict startup-scope intersection: --families ri cannot be widened by params.families="dsge"
+    in2 = IOBuffer(join([
+        """{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}""",
+        """{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{"families":"dsge"}}""",
+        """{"jsonrpc":"2.0","id":3,"method":"tools/list","params":{"tools":"dsge_*"}}""",
+        """{"jsonrpc":"2.0","id":4,"method":"tools/list","params":{"prefix":"dsge"}}""",
+        """{"jsonrpc":"2.0","id":5,"method":"tools/list","params":{"tools":"ri_solve"}}""",
+    ], "\n") * "\n")
+    out2 = IOBuffer()
+    _serve_loop(in2, out2; families="ri")
+    rs2 = [JSON3.read(l) for l in split(String(take!(out2)), '\n') if !isempty(strip(l))]
+    @test length(rs2) == 5
+    @test length(rs2[1].result.tools) > 0
+    @test all(t -> startswith(String(t.name), "ri_") || String(t.family) == "ri", rs2[1].result.tools)
+    @test isempty(rs2[2].result.tools)   # params.families="dsge" intersected with startup "ri" => []
+    @test isempty(rs2[3].result.tools)   # params.tools="dsge_*" intersected with startup "ri" => []
+    @test isempty(rs2[4].result.tools)   # params.prefix="dsge" intersected with startup "ri" => []
+    @test [String(t.name) for t in rs2[5].result.tools] == ["ri_solve"]  # narrowing works!
+
+    # 3. Leading/global --seed rejected on serve with exit-2 usage/invalid + hint
+    prev_seed = _SEED[]
+    try
+        _SEED[] = 42
+        e = try; _serve(; mcp=true); nothing; catch ex; ex; end
+        @test e isa CliError && e.code == "usage/invalid" && exit_class(e) == 2
+        @test occursin("tools/call", e.hint)
+    finally
+        _SEED[] = prev_seed
+    end
+end
+
 include(joinpath(project_root, "test", "test_handles.jl"))
 include(joinpath(project_root, "test", "test_storage.jl"))
 include(joinpath(project_root, "test", "test_w1_quantile.jl"))

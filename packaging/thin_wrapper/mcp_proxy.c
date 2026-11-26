@@ -796,9 +796,11 @@ int frdc_mcp_proxy_main(const FrdcPack *pack, const char *exe_path,
     FrdcSlice proto = { (const uint8_t *)"2024-11-05", 10 };
     FrdcSlice cli_name = { (const uint8_t *)"frdc", 4 };
     FrdcSlice cli_ver  = { (const uint8_t *)"0.0.0", 5 };
+    FrdcSlice mcp_instr = { (const uint8_t *)"", 0 };
     frdc_pack_meta(pack, "mcp_protocol_version", &proto);
     frdc_pack_meta(pack, "cli_name", &cli_name);
     frdc_pack_meta(pack, "cli_version", &cli_ver);
+    frdc_pack_meta(pack, "mcp_instructions", &mcp_instr);
 
     /* Emit stderr startup banner unless --quiet or FRDC_MCP_SILENT_BANNER=1 */
     const char *silent_env = frdc_env_get("FRDC_MCP_SILENT_BANNER", "FRIEDMAN_MCP_SILENT_BANNER");
@@ -861,7 +863,12 @@ int frdc_mcp_proxy_main(const FrdcPack *pack, const char *exe_path,
             mb_json_str(&out, (const char *)cli_name.ptr, cli_name.len);
             mb_str(&out, ",\"version\":");
             mb_json_str(&out, (const char *)cli_ver.ptr, cli_ver.len);
-            mb_str(&out, "}}}\n");
+            mb_ch(&out, '}');
+            if (mcp_instr.len > 0) {
+                mb_str(&out, ",\"instructions\":");
+                mb_json_str(&out, (const char *)mcp_instr.ptr, mcp_instr.len);
+            }
+            mb_str(&out, "}}\n");
             if (!out.oom) frdc_write_all_stdout((const uint8_t *)out.data, out.len);
             fflush(stdout);
             mb_free(&out);
@@ -891,8 +898,8 @@ int frdc_mcp_proxy_main(const FrdcPack *pack, const char *exe_path,
             if (params && !yyjson_is_obj(params)) params = NULL;
 
             const char *prefix = "";
-            const char *req_fam = families ? families : "";
-            const char *req_tools = tools ? tools : "";
+            const char *req_fam = "";
+            const char *req_tools = "";
             yyjson_val *cursor_val = NULL;
             yyjson_val *limit_val = NULL;
 
@@ -917,7 +924,10 @@ int frdc_mcp_proxy_main(const FrdcPack *pack, const char *exe_path,
             uint32_t n_matched = 0;
             if (matched) {
                 for (uint32_t idx = 0; idx < cat.n_tools; idx++) {
-                    if (mcp_path_matches(&cat.recs[idx], prefix) &&
+                    /* #343: strictly intersect startup scope (cli_fam_pats/cli_tool_pats)
+                       with per-request params so tools/list can never widen callable tools. */
+                    if (mcp_matches_filters(&cat.recs[idx], &cli_fam_pats, &cli_tool_pats) &&
+                        mcp_path_matches(&cat.recs[idx], prefix) &&
                         mcp_matches_filters(&cat.recs[idx], &eff_fam, &eff_tools)) {
                         matched[n_matched++] = idx;
                     }
