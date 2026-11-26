@@ -1,7 +1,7 @@
 # Shared test helpers (TS-1). Included by runtests / test_commands / test_e2e.
 
 using Test
-using CSV, DataFrames, JSON3, PrettyTables, TOML
+using CSV, DataFrames, JSON3, PrettyTables, Printf, TOML
 using Random
 
 # ─── Test Helpers ───────────────────────────────────────────────

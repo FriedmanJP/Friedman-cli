@@ -56,7 +56,7 @@ end
 const _RESULT_REPLAY_ALLOWED_OPTS = Set([
     "result", "format", "output", "plot-save", "plot",
     "shock", "shocks", "summary", "emit-series",
-    "quiet", "no-color", "compact", "json", "seed",
+    "quiet", "no-color", "compact", "json", "seed", "digits",
     "strict", "max-rows", "max-cols",
 ])
 

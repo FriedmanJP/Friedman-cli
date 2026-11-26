@@ -27,6 +27,39 @@ const _LAST_ARGV = Ref{Vector{String}}(String[])
 const _COMPACT = Ref(false)
 const _FORCE_JSON = Ref(false)
 const _ENVELOPE_JSON_TO_FILE = Ref(false)
+const _DEFAULT_DISPLAY_DIGITS = 3
+const _DISPLAY_DIGITS = Ref{Union{Int,Nothing}}(_DEFAULT_DISPLAY_DIGITS)
+
+"""
+    _parse_display_digits(raw) → Union{Int,Nothing}
+
+Parse a `--digits` / `FRDC_DIGITS` value: `"full"` (case-insensitive) → `nothing`
+(unrounded table floats), or a strict decimal integer `0..16`. Rejects everything
+else with typed `CliError("usage/bad-digits", ...)` (exit `2`).
+"""
+function _parse_display_digits(raw::AbstractString)::Union{Int,Nothing}
+    s = strip(String(raw))
+    isempty(s) && throw(CliError("usage/bad-digits",
+        "invalid --digits value ''";
+        hint="pass an integer 0..16 or 'full'"))
+    lowercase(s) == "full" && return nothing
+    if !all(c -> '0' <= c <= '9', s)
+        throw(CliError("usage/bad-digits",
+            "invalid --digits value '$raw'";
+            hint="pass an integer 0..16 or 'full'"))
+    end
+    d = tryparse(Int, s)
+    (d === nothing || d < 0 || d > 16) && throw(CliError("usage/bad-digits",
+        "invalid --digits value '$raw' (must be 0..16 or 'full')";
+        hint="pass an integer 0..16 or 'full'"))
+    return d
+end
+
+function _default_display_digits()::Union{Int,Nothing}
+    raw = get(ENV, "FRDC_DIGITS", "")
+    isempty(strip(raw)) && return _DEFAULT_DISPLAY_DIGITS
+    return _parse_display_digits(raw)
+end
 
 _status(parts...) = _QUIET[] || println(stderr, parts...)
 function _status_styled(args...; kwargs...)
@@ -93,9 +126,10 @@ function _probe_target_command(args::Vector{String}, stop_idx::Int)
     while i <= stop_idx
         tok = args[i]
         if tok == "--quiet" || tok == "--no-color" || tok == "--json" || tok == "--compact" ||
-           startswith(tok, "--seed=") || (tok == "-q" && isempty(path))
+           startswith(tok, "--seed=") || startswith(tok, "--digits=") ||
+           (tok == "-q" && isempty(path))
             i += 1
-        elseif tok == "--seed"
+        elseif tok == "--seed" || tok == "--digits"
             i += 2
         elseif startswith(tok, "-")
             i += 1
@@ -151,6 +185,7 @@ function _extract_global_flags!(args::Vector{String})
     _SEED[] = nothing
     _COMPACT[] = false
     _FORCE_JSON[] = false
+    _DISPLAY_DIGITS[] = _DEFAULT_DISPLAY_DIGITS
 
     dd = findfirst(==("--"), args)
     stop_idx = dd === nothing ? length(args) : dd - 1
@@ -171,6 +206,8 @@ function _extract_global_flags!(args::Vector{String})
     remaining = String[]
     sizehint!(remaining, length(args))
     force_json = false
+    explicit_digits = false
+    cli_digits = _DEFAULT_DISPLAY_DIGITS
     i = 1
     while i <= stop_idx
         tok = args[i]
@@ -189,6 +226,17 @@ function _extract_global_flags!(args::Vector{String})
             i += 1
         elseif tok == "--json"
             force_json = true
+            i += 1
+        elseif tok == "--digits"
+            i + 1 <= stop_idx || throw(CliError("usage/bad-digits",
+                "--digits requires a value (0..16 or 'full')";
+                hint="pass an integer 0..16 or 'full'"))
+            cli_digits = _parse_display_digits(args[i + 1])
+            explicit_digits = true
+            i += 2
+        elseif startswith(tok, "--digits=")
+            cli_digits = _parse_display_digits(tok[10:end])
+            explicit_digits = true
             i += 1
         elseif tok == "--seed"
             i + 1 <= stop_idx || throw(CliError("usage/bad-seed", "--seed requires an integer argument"))
@@ -220,6 +268,7 @@ function _extract_global_flags!(args::Vector{String})
         append!(remaining, @view args[dd:end])
     end
 
+    _DISPLAY_DIGITS[] = explicit_digits ? cli_digits : _default_display_digits()
     _FORCE_JSON[] = force_json
     if force_json
         rem_stop = dd === nothing ? length(remaining) : findfirst(==("--"), remaining) - 1
@@ -769,24 +818,11 @@ end
 # Internal helpers
 
 function _write_table(df::DataFrame, output::String, title::String)
-    disp = _COMPACT[] ? begin
-        out_df = DataFrame()
-        for name in names(df)
-            col = df[!, name]
-            out_df[!, name] = [v isa AbstractFloat && isfinite(v) ? round(Float64(v); sigdigits=4) : v for v in col]
-        end
-        out_df
-    end : df
     is_tty = isempty(output) && (stdout isa Base.TTY)
     fit_tty = _COMPACT[] && is_tty
     io = isempty(output) ? stdout : open(output, "w")
     try
-        pretty_table(io, disp;
-            title=title,
-            alignment=:c,
-            column_labels=names(disp),
-            fit_table_in_display_horizontally=fit_tty,
-            fit_table_in_display_vertically=fit_tty)
+        _render_table(io, df; title=title, fit_tty=fit_tty)
     finally
         isempty(output) || close(io)
     end

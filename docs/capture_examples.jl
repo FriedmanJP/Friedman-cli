@@ -28,7 +28,7 @@ const FLOAT_SIGDIGITS = 8
 const COMPARE_RTOL = 1e-4
 const COMPARE_ATOL = 1e-8
 const TABLE_RTOL = 2e-3
-const TABLE_ATOL = 2e-4
+const TABLE_ATOL = 1.1e-3
 
 # ── Normalization & formatting ────────────────────────────────
 

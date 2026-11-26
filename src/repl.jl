@@ -253,6 +253,9 @@ function _repl_extract_globals!(args::Vector{String})
     @isdefined(_QUIET) && (_QUIET[] = false)
     @isdefined(_COLOR) && (_COLOR[] = !haskey(ENV, "NO_COLOR"))
     @isdefined(_SEED)  && (_SEED[] = nothing)
+    @isdefined(_COMPACT) && (_COMPACT[] = false)
+    @isdefined(_DISPLAY_DIGITS) && @isdefined(_default_display_digits) &&
+        (_DISPLAY_DIGITS[] = _default_display_digits())
     force_json = false
     i = 1
     n = length(args)
@@ -264,8 +267,22 @@ function _repl_extract_globals!(args::Vector{String})
         elseif tok == "--no-color"
             @isdefined(_COLOR) && (_COLOR[] = false)
             i += 1
+        elseif tok == "--compact"
+            @isdefined(_COMPACT) && (_COMPACT[] = true)
+            i += 1
         elseif tok == "--json"
             force_json = true
+            i += 1
+        elseif tok == "--digits"
+            i + 1 <= n || throw(CliError("usage/bad-digits",
+                "--digits requires a value (0..16 or 'full')";
+                hint="pass an integer 0..16 or 'full'"))
+            @isdefined(_DISPLAY_DIGITS) && @isdefined(_parse_display_digits) &&
+                (_DISPLAY_DIGITS[] = _parse_display_digits(args[i + 1]))
+            i += 2
+        elseif startswith(tok, "--digits=")
+            @isdefined(_DISPLAY_DIGITS) && @isdefined(_parse_display_digits) &&
+                (_DISPLAY_DIGITS[] = _parse_display_digits(tok[10:end]))
             i += 1
         elseif tok == "--seed"
             i + 1 <= n || throw(CliError("usage/bad-seed", "--seed requires an integer argument"))
@@ -317,12 +334,12 @@ function _repl_positional_args(args::Vector{String}, start_idx::Int)::Vector{Str
     n = length(args)
     while i <= n
         t = args[i]
-        if t == "--format" || t == "-f" || t == "--output" || t == "-o" || t == "--seed"
+        if t == "--format" || t == "-f" || t == "--output" || t == "-o" || t == "--seed" || t == "--digits"
             i += 2
             continue
         elseif startswith(t, "--format=") || startswith(t, "-f=") ||
                startswith(t, "--output=") || startswith(t, "-o=") ||
-               startswith(t, "--seed=") ||
+               startswith(t, "--seed=") || startswith(t, "--digits=") ||
                t == "--json" || t == "--quiet" || t == "-q" ||
                t == "--no-color" || t == "--compact" ||
                t == "--help" || t == "-h"
@@ -371,6 +388,8 @@ function repl_dispatch(s::Session, app::Entry, args::Vector{String};
     prev_quiet = @isdefined(_QUIET) ? _QUIET[] : false
     prev_color = @isdefined(_COLOR) ? _COLOR[] : true
     prev_seed  = @isdefined(_SEED)  ? _SEED[]  : nothing
+    prev_compact = @isdefined(_COMPACT) ? _COMPACT[] : false
+    prev_digits = @isdefined(_DISPLAY_DIGITS) ? _DISPLAY_DIGITS[] : 3
     prev_fjson = @isdefined(_FORCE_JSON) ? _FORCE_JSON[] : false
     prev_sstore = @isdefined(_SESSION_STORE) ? _SESSION_STORE[] : nothing
     prev_mstore = @isdefined(_SERVE_MODEL_STORE) ? _SERVE_MODEL_STORE[] : nothing
@@ -524,6 +543,8 @@ function repl_dispatch(s::Session, app::Entry, args::Vector{String};
         @isdefined(_QUIET) && (_QUIET[] = prev_quiet)
         @isdefined(_COLOR) && (_COLOR[] = prev_color)
         @isdefined(_SEED)  && (_SEED[] = prev_seed)
+        @isdefined(_COMPACT) && (_COMPACT[] = prev_compact)
+        @isdefined(_DISPLAY_DIGITS) && (_DISPLAY_DIGITS[] = prev_digits)
         @isdefined(_FORCE_JSON) && (_FORCE_JSON[] = prev_fjson)
         @isdefined(_SESSION_STORE) && (_SESSION_STORE[] = prev_sstore)
         @isdefined(_SERVE_MODEL_STORE) && (_SERVE_MODEL_STORE[] = prev_mstore)

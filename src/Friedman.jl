@@ -16,7 +16,7 @@
 
 module Friedman
 
-using CSV, DataFrames, PrettyTables, JSON3, TOML
+using CSV, DataFrames, PrettyTables, Printf, JSON3, TOML
 using MacroEconometricModels
 # Load-bearing (C052): loading JLD2 activates MacroEconometricModelsJLD2Ext, which
 # backs MEMs `save_model`/`load_model` (native `.jld2` handles). Unlike FFTW — pulled in
@@ -290,6 +290,7 @@ function run_cli(args::Vector{String})::Cint
         _QUIET[] = false
         _COMPACT[] = false
         _FORCE_JSON[] = false
+        _DISPLAY_DIGITS[] = _DEFAULT_DISPLAY_DIGITS
     end
 end
 

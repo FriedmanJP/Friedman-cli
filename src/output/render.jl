@@ -1,4 +1,5 @@
 # Envelope renderers: :json | :table | :csv (P1-1; F17, F20, F66)
+import Printf
 
 _json_cell_safe(x) = string(x)
 _json_cell_safe(x::Nothing) = nothing
@@ -32,14 +33,74 @@ function _table_payload(df::DataFrame)
     return Dict{String,Any}("columns" => cols, "rows" => rows)
 end
 
-function _compact_df(df::DataFrame)
-    (_COMPACT[]) || return df
-    out = DataFrame()
-    for name in names(df)
-        col = df[!, name]
-        out[!, name] = [v isa AbstractFloat && isfinite(v) ? round(Float64(v); sigdigits=4) : v for v in col]
+const _FLOAT_FMT_F = ntuple(i -> Printf.Format("%.$(i - 1)f"), 17)
+const _FLOAT_FMT_E = ntuple(i -> Printf.Format("%.$(i - 1)e"), 17)
+
+"""
+    _format_display_float(x::AbstractFloat, digits::Int) → String
+
+Presentation-only numeric cell formatter (`[DISPLAY-W1]` #323). Formats finite floats
+to fixed `digits` decimal places (default `3`), switches to scientific notation (`%.de`)
+for extreme magnitudes `|x| >= 1e9`, normalizes signed zeros (`"-0.000"` → `"0.000"`),
+and renders `NaN` / `Inf` / `-Inf` cleanly. Never mutates underlying `DataFrame` cells.
+"""
+function _format_display_float(x::AbstractFloat, digits::Int)::String
+    isnan(x) && return "NaN"
+    isinf(x) && return x > 0 ? "Inf" : "-Inf"
+    d = clamp(digits, 0, 16)
+    xf = Float64(x)
+    xf == 0.0 && (xf = 0.0)
+    s = abs(xf) >= 1e9 ? Printf.format(_FLOAT_FMT_E[d + 1], xf) :
+                         Printf.format(_FLOAT_FMT_F[d + 1], xf)
+    if startswith(s, "-") && all(c -> c == '0' || c == '.', @view s[2:end])
+        return s[2:end]
     end
-    return out
+    return s
+end
+
+"""
+    _make_table_formatter(digits) → Union{Nothing,Function}
+
+Build a non-mutating PrettyTables v3 cell formatter dispatched strictly on
+`v isa AbstractFloat`. Leaves `Int`, `Bool`, `String`, `Missing`, `Nothing`, and
+other non-float values untouched (critical for integer columns and heterogeneous
+`output_kv` tables).
+"""
+function _make_table_formatter(digits::Union{Int,Nothing})
+    if digits === nothing
+        return (v, i, j) -> v isa AbstractFloat ? string(v) : v
+    end
+    d = clamp(digits, 0, 16)
+    return (v, i, j) -> v isa AbstractFloat ? _format_display_float(v, d) : v
+end
+
+"""
+    _render_table(io, df; title="", fit_tty=false, digits=...)
+
+Canonical non-mutating `:table` renderer shared by `render(env, :table, io)` and
+`_write_table`. Applies presentation-only float formatting via PrettyTables v3
+`formatters` without mutating or copying `df`.
+"""
+function _render_table(io::IO, df::DataFrame; title::String="", fit_tty::Bool=false,
+                       digits::Union{Int,Nothing}=(isdefined(@__MODULE__, :_DISPLAY_DIGITS) ? _DISPLAY_DIGITS[] : 3))
+    fmt = _make_table_formatter(digits)
+    if fmt === nothing
+        pretty_table(io, df;
+            title=title,
+            alignment=:c,
+            column_labels=names(df),
+            fit_table_in_display_horizontally=fit_tty,
+            fit_table_in_display_vertically=fit_tty)
+    else
+        pretty_table(io, df;
+            title=title,
+            alignment=:c,
+            column_labels=names(df),
+            formatters=[fmt],
+            fit_table_in_display_horizontally=fit_tty,
+            fit_table_in_display_vertically=fit_tty)
+    end
+    return nothing
 end
 
 function _envelope_to_dict(env::Envelope)
@@ -96,13 +157,7 @@ function render(env::Envelope, fmt::Symbol, out::IO)
         is_tty = out isa Base.TTY
         fit_tty = isdefined(@__MODULE__, :_COMPACT) && _COMPACT[] && is_tty
         for (name, df) in env.tables
-            disp = isdefined(@__MODULE__, :_COMPACT) ? _compact_df(df) : df
-            pretty_table(out, disp;
-                title=string(name),
-                alignment=:c,
-                column_labels=names(disp),
-                fit_table_in_display_horizontally=fit_tty,
-                fit_table_in_display_vertically=fit_tty)
+            _render_table(out, df; title=string(name), fit_tty=fit_tty)
         end
     end
     return nothing

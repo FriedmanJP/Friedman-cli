@@ -34,7 +34,7 @@ using .MacroEconometricModels
     include(joinpath(project_root, "src", "cli", "help.jl"))
     # Dispatch leaf now depends on envelope/meta helpers (P1)
     include(joinpath(project_root, "src", "output", "errors.jl"))
-    using CSV, DataFrames, JSON3, PrettyTables, Random
+    using CSV, DataFrames, JSON3, PrettyTables, Printf, Random
     include(joinpath(project_root, "src", "io.jl"))
     include(joinpath(project_root, "src", "output", "envelope.jl"))
     include(joinpath(project_root, "src", "output", "render.jl"))
@@ -2698,7 +2698,7 @@ end
 # ──────────────────────────────────────────────────────────────
 # IO utilities (needs CSV, DataFrames, JSON3, PrettyTables)
 # ──────────────────────────────────────────────────────────────
-using CSV, DataFrames, JSON3, PrettyTables
+using CSV, DataFrames, JSON3, PrettyTables, Printf
 
 # PrettyTables v3 renamed tf_unicode_rounded → text_table_borders__unicode_rounded;
 # io.jl references the old name, so alias it for the test context.

@@ -19,7 +19,7 @@
 # without requiring the actual MacroEconometricModels package.
 
 using Test
-using CSV, DataFrames, JSON3, PrettyTables, TOML
+using CSV, DataFrames, JSON3, PrettyTables, Printf, TOML
 using Dates
 using LinearAlgebra: eigvals, diag, I, svd, diagm, logdet, det
 using Statistics: mean, median, var, quantile, std
@@ -16032,14 +16032,112 @@ end
                 _QUIET[] = prev_q
             end
 
-            # _compact_df rounds floats to 4 significant digits when _COMPACT[] is true
-            prev_comp = _COMPACT[]
-            _COMPACT[] = true
-            try
-                cdf = _compact_df(DataFrame(x=[1.23456789]))
-                @test cdf.x[1] == 1.235
-            finally
-                _COMPACT[] = prev_comp
+            # [DISPLAY-W1] #323: presentation-only 3-decimal table formatter, --digits / FRDC_DIGITS,
+            # non-mutation invariant, and lossless JSON/CSV wire outputs
+            @testset "[DISPLAY-W1] presentation-only table formatting & --digits (#323)" begin
+                @test _format_display_float(3.141592123, 3) == "3.142"
+                @test _format_display_float(0.5, 3) == "0.500"
+                @test _format_display_float(-0.25, 3) == "-0.250"
+                @test _format_display_float(-0.0001, 3) == "0.000"
+                @test _format_display_float(-0.0, 3) == "0.000"
+                @test _format_display_float(0.0, 0) == "0"
+                @test _format_display_float(-0.1, 0) == "0"
+                @test _format_display_float(123456.7891, 3) == "123456.789"
+                @test _format_display_float(9.694778e12, 3) == "9.695e+12"
+                @test _format_display_float(NaN, 3) == "NaN"
+                @test _format_display_float(Inf, 3) == "Inf"
+                @test _format_display_float(-Inf, 3) == "-Inf"
+
+                # Non-mutation & heterogeneous column preservation
+                df_raw = DataFrame(
+                    label = ["a", "b"],
+                    n = [1, 42],
+                    flag = [true, false],
+                    val = Any[3.141592123, -0.0001],
+                    miss = Union{Float64,Missing}[missing, 0.5],
+                )
+                env_disp = Envelope(command="frdc estimate multivariate var")
+                add_table!(env_disp, :demo, df_raw)
+                tbuf = IOBuffer()
+                render(env_disp, :table, tbuf)
+                tstr = String(take!(tbuf))
+                @test occursin("3.142", tstr)
+                @test occursin("0.500", tstr)
+                @test !occursin("-0.000", tstr)
+                @test occursin("│ 1 │", tstr) || occursin(" 1 ", tstr)
+                @test !occursin("1.000", tstr)
+                @test !occursin("42.000", tstr)
+                # Underlying DataFrame untouched bit-for-bit
+                @test df_raw.val[1] === 3.141592123
+                # Same Envelope renders lossless JSON and CSV
+                jbuf = IOBuffer(); render(env_disp, :json, jbuf)
+                jdoc = JSON3.read(String(take!(jbuf)))
+                @test jdoc.data.demo.rows[1][4] === 3.141592123
+                cbuf = IOBuffer(); render(env_disp, :csv, cbuf)
+                @test occursin("3.141592123", String(take!(cbuf)))
+
+                # --digits=full and --digits=6 overrides
+                tbuf6 = IOBuffer()
+                _render_table(tbuf6, df_raw; title="d6", digits=6)
+                @test occursin("3.141592", String(take!(tbuf6)))
+                tbuf_full = IOBuffer()
+                _render_table(tbuf_full, df_raw; title="full", digits=nothing)
+                @test occursin("3.141592123", String(take!(tbuf_full)))
+
+                # _parse_display_digits + _extract_global_flags! + FRDC_DIGITS precedence
+                @test _parse_display_digits("0") == 0
+                @test _parse_display_digits("3") == 3
+                @test _parse_display_digits("16") == 16
+                @test _parse_display_digits("full") === nothing
+                @test _parse_display_digits("FULL") === nothing
+                for bad in ("", "-1", "17", "3.5", "+3", "abc")
+                    err = try; _parse_display_digits(bad); nothing; catch e; e; end
+                    @test err isa CliError && err.code == "usage/bad-digits"
+                end
+
+                prev_dig = _DISPLAY_DIGITS[]
+                try
+                    withenv("FRDC_DIGITS" => "5") do
+                        rem1 = _extract_global_flags!(["data", "list"])
+                        @test _DISPLAY_DIGITS[] == 5
+                        @test rem1 == ["data", "list"]
+                        rem2 = _extract_global_flags!(["--digits", "2", "data", "list"])
+                        @test _DISPLAY_DIGITS[] == 2
+                        @test rem2 == ["data", "list"]
+                        rem3 = _extract_global_flags!(["data", "list", "--digits=full"])
+                        @test _DISPLAY_DIGITS[] === nothing
+                        @test rem3 == ["data", "list"]
+                    end
+                    # Explicit CLI --digits overrides invalid FRDC_DIGITS
+                    withenv("FRDC_DIGITS" => "bogus") do
+                        _extract_global_flags!(["--digits", "4", "data", "list"])
+                        @test _DISPLAY_DIGITS[] == 4
+                        err_env = try; _extract_global_flags!(["data", "list"]); nothing; catch e; e; end
+                        @test err_env isa CliError && err_env.code == "usage/bad-digits"
+                    end
+                    # JSON error envelope on bad --digits via run_cli
+                    if @isdefined(Friedman)
+                        err_out = mktemp() do p, io
+                            rc = redirect_stdout(io) do
+                                redirect_stderr(devnull) do
+                                    Friedman.run_cli(["--digits", "bad", "--json", "data", "list"])
+                                end
+                            end
+                            close(io)
+                            (rc, read(p, String))
+                        end
+                        @test err_out[1] == Cint(2)
+                        edoc = JSON3.read(err_out[2])
+                        @test string(edoc.error.code) == "usage/bad-digits"
+                    end
+                finally
+                    _DISPLAY_DIGITS[] = prev_dig
+                end
+
+                # Schema contract includes additive display_precision block
+                cdoc = _contract_doc()
+                @test haskey(cdoc, "display_precision")
+                @test cdoc["display_precision"]["table_default_digits"] == 3
             end
         end
     end

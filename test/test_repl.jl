@@ -1089,4 +1089,17 @@ end
             @test Friedman._resolve_histfile() == "/tmp/custom_hist_279"
         end
     end
+
+    @testset "REPL --digits & --compact state isolation ([DISPLAY-W1] #323)" begin
+        s = Friedman.Session()
+        @test Friedman._repl_positional_args(["data", "use", "--digits", "6", ":denmark"], 3) == [":denmark"]
+        @test Friedman._repl_positional_args(["data", "use", "--digits=full", "--compact", ":denmark"], 3) == [":denmark"]
+        prev_d = Friedman._DISPLAY_DIGITS[]
+        prev_c = Friedman._COMPACT[]
+        out_io = IOBuffer(); err_io = IOBuffer()
+        Friedman.repl_dispatch(s, app, ["--digits", "6", "--compact", "data", "use", ":denmark"]; output=out_io, err=err_io)
+        @test Friedman._DISPLAY_DIGITS[] == prev_d
+        @test Friedman._COMPACT[] == prev_c
+        @test s.data_path == ":denmark"
+    end
 end

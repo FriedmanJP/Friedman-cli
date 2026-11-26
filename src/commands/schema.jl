@@ -234,6 +234,13 @@ function _contract_doc()
         "exit_codes" => [Dict{String,Any}(
                              "exit_code" => c, "class" => cl, "meaning" => m)
                          for (c, cl, m) in _EXIT_CODE_TAXONOMY],
+        "display_precision" => Dict{String,Any}(
+            "table_default_digits" => 3,
+            "flag" => "--digits=<0..16|full>",
+            "env" => "FRDC_DIGITS",
+            "lossless_formats" => ["json", "csv", "mcp", "jld2", "jls", "fmod"],
+            "note" => "Rounding applies strictly to human :table presentation; JSON, CSV, MCP, and saved handles always preserve full IEEE-754 Float64 precision.",
+        ),
     )
 end
 
