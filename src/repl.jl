@@ -96,30 +96,44 @@ function session_load_builtin!(s::Session, name::Symbol)
 end
 
 """
-    _walk_command_path(app, args) → (node_or_leaf, depth)
+    _walk_command_path_canon(app, args) → (node_or_leaf, depth, canon_path)
 
-Consume leading tokens while they match subcommand names on the registry tree.
-Returns the node/leaf reached and the number of tokens consumed as the command path.
-The first non-matching non-option token is a positional (data/model path) — not sniffed by extension.
+Consume leading tokens while they match canonical subcommand names or aliases on
+the registry tree. Returns `(node_or_leaf, depth, canonical_path_tokens)`.
 """
-function _walk_command_path(app::Entry, args::Vector{String})
+function _walk_command_path_canon(app::Entry, args::Vector{String})
     node = app.root
     depth = 0
+    canon_path = String[]
     for arg in args
         startswith(arg, "-") && break
         if node isa NodeCommand
-            sub = get(node.subcmds, arg, nothing)
+            canon = get(node.aliases, arg, arg)
+            sub = get(node.subcmds, canon, nothing)
             isnothing(sub) && break
             depth += 1
+            push!(canon_path, canon)
             if sub isa LeafCommand
-                return (sub, depth)
+                return (sub, depth, canon_path)
             end
             node = sub
         else
             break
         end
     end
-    return (node, depth)
+    return (node, depth, canon_path)
+end
+
+"""
+    _walk_command_path(app, args) → (node_or_leaf, depth)
+
+Consume leading tokens while they match subcommand names (or aliases) on the registry tree.
+Returns the node/leaf reached and the number of tokens consumed as the command path.
+The first non-matching non-option token is a positional (data/model path) — not sniffed by extension.
+"""
+function _walk_command_path(app::Entry, args::Vector{String})
+    node_or_leaf, depth, _ = _walk_command_path_canon(app, args)
+    return (node_or_leaf, depth)
 end
 
 """
@@ -135,7 +149,7 @@ function inject_session_data(s::Session, args::Vector{String}, app::Entry)
     session_has_data(s) || return args
     isempty(args) && return args
 
-    node_or_leaf, depth = _walk_command_path(app, args)
+    node_or_leaf, depth, canon_path = _walk_command_path_canon(app, args)
     depth == 0 && return args
     # Incomplete path still on a NodeCommand — nothing to inject yet
     node_or_leaf isa LeafCommand || return args
@@ -146,19 +160,22 @@ function inject_session_data(s::Session, args::Vector{String}, app::Entry)
         return args  # already has a positional
     end
 
-    spec = @isdefined(_spec_for_path) ? _spec_for_path(args[1:depth]) : nothing
+    spec = @isdefined(_spec_for_path) ? _spec_for_path(canon_path) : nothing
     model_is_handle = spec === nothing || !isempty(spec.model_types)
     result_is_handle = spec === nothing || !isempty(spec.result_types)
     for i in positionals_start:length(args)
         tok = args[i]
         tok == "--" && break
-        if model_is_handle && (tok == "--model" || startswith(tok, "--model="))
-            mval = tok == "--model" ? (i < length(args) ? args[i + 1] : "") : tok[9:end]
-            if !(args[1:depth] == ["test", "multivariate", "granger"] && mval in ("var", "vecm"))
+        if model_is_handle && (tok == "--model" || startswith(tok, "--model=") ||
+                               tok == "-M" || startswith(tok, "-M="))
+            mval = (tok == "--model" || tok == "-M") ? (i < length(args) ? args[i + 1] : "") :
+                   (startswith(tok, "--model=") ? tok[9:end] : tok[4:end])
+            if !(canon_path == ["test", "multivariate", "granger"] && mval in ("var", "vecm"))
                 return args
             end
         end
-        if result_is_handle && (tok == "--result" || startswith(tok, "--result="))
+        if result_is_handle && (tok == "--result" || startswith(tok, "--result=") ||
+                                tok == "-R" || startswith(tok, "-R="))
             return args
         end
     end
@@ -190,29 +207,36 @@ function is_estimate_command(args::Vector{String})
 end
 
 # Options/flags on downstream leaves (irf/fevd/hd/forecast/predict/residuals) that apply to an
-# ALREADY-estimated model (#253). Any other option/flag (such as --model, --result, --lags/-p,
-# --draws/-n, --prior, --rank/-r, --column/-c, --dep, etc.) indicates an explicit handle or a
-# re-estimation specification and suppresses Session.results model-cache injection.
+# ALREADY-estimated model (#253, #339). Any other option/flag (such as --model/-M, --result/-R,
+# --lags/-p, --draws/-n, --prior, --rank/-r, --column/-c, --dep/-y, etc.) indicates an explicit
+# handle or a re-estimation specification and suppresses Session.results model-cache injection.
 const _DOWNSTREAM_ONLY_OPTS = Set([
-    "horizons", "ci", "ci-level", "ci-method", "conf-level", "confidence", "level", "quantiles",
+    "horizons", "horizon", "hor",
+    "ci", "ci-level", "ci-method", "conf-level", "cl", "confidence", "level",
+    "quantiles", "qtl",
     "replications", "reps", "boot-draws", "irf-draws",
-    "id", "config-json", "set",
-    "shock", "shock-size", "shocks", "irf-type", "summary",
+    "id", "config-json", "cj", "set",
+    "shock", "shock-size", "ssize", "shocks", "irf-type", "summary",
     "conditions-file", "x-future", "hf-data", "hf-column", "threshold",
-    "format", "output", "plot-save", "save-result", "save-model",
+    "format", "output", "plot-save", "ps", "save-result", "sr", "save-model", "sm",
 ])
 
 const _DOWNSTREAM_ONLY_FLAGS = Set([
-    "plot", "strict", "cumulative", "generalized", "identified-set", "normalize",
-    "marginal-effects", "odds-ratio", "classification-table", "standardized", "emit-series",
+    "plot", "strict", "cumulative", "cum", "generalized", "gen", "identified-set", "normalize",
+    "marginal-effects", "meff", "odds-ratio", "or", "classification-table", "ctab",
+    "standardized", "emit-series",
 ])
 
+const _DOWNSTREAM_VALUED_SHORTS = Set(["-H", "-f", "-o", "-L", "-Q", "-G", "-S", "-W", "-i", "-K"])
+const _DOWNSTREAM_FLAG_SHORTS = Set(["-g", "-X"])
+
 function _can_inject_cached_model(app::Entry, args::Vector{String})::Bool
-    is_downstream_command(args) || return false
     any(a -> a in ("--help", "-h"), args) && return false
-    node_or_leaf, depth = _walk_command_path(app, args)
+    node_or_leaf, depth, canon_path = _walk_command_path_canon(app, args)
     (depth > 0 && node_or_leaf isa LeafCommand) || return false
-    has_id_opt = any(t -> t == "--id" || startswith(t, "--id="), @view args[(depth + 1):end])
+    is_downstream_command(canon_path) || return false
+    has_id_opt = any(t -> t == "--id" || startswith(t, "--id=") || t == "-i" || startswith(t, "-i="),
+                     @view args[(depth + 1):end])
     i = depth + 1
     n = length(args)
     while i <= n
@@ -222,8 +246,8 @@ function _can_inject_cached_model(app::Entry, args::Vector{String})::Bool
         elseif startswith(tok, "--")
             eq = findfirst('=', tok)
             oname = eq === nothing ? tok[3:end] : tok[3:(eq - 1)]
-            if oname in _DOWNSTREAM_ONLY_OPTS || (oname == "config" && has_id_opt)
-                is_flag = any(f -> f.name == oname, node_or_leaf.flags)
+            if oname in _DOWNSTREAM_ONLY_OPTS || (oname in ("config", "cfg") && has_id_opt)
+                is_flag = any(f -> f.name == oname || oname in f.aliases, node_or_leaf.flags)
                 i += (eq === nothing && !is_flag) ? 2 : 1
             elseif oname in _DOWNSTREAM_ONLY_FLAGS && eq === nothing
                 i += 1
@@ -231,9 +255,11 @@ function _can_inject_cached_model(app::Entry, args::Vector{String})::Bool
                 return false
             end
         elseif startswith(tok, "-") && length(tok) >= 2
-            if tok in ("-H", "-f", "-o")
+            if tok in _DOWNSTREAM_FLAG_SHORTS
+                i += 1
+            elseif tok in _DOWNSTREAM_VALUED_SHORTS
                 i += 2
-            elseif startswith(tok, "-H=") || startswith(tok, "-f=") || startswith(tok, "-o=")
+            elseif length(tok) >= 3 && tok[3] == '=' && tok[1:2] in _DOWNSTREAM_VALUED_SHORTS
                 i += 1
             else
                 return false
@@ -270,7 +296,7 @@ function _repl_extract_globals!(args::Vector{String})
         elseif tok == "--compact"
             @isdefined(_COMPACT) && (_COMPACT[] = true)
             i += 1
-        elseif tok == "--json"
+        elseif tok == "--json" || tok == "-J"
             force_json = true
             i += 1
         elseif tok == "--digits"
@@ -413,8 +439,9 @@ function repl_dispatch(s::Session, app::Entry, args::Vector{String};
             throw(InterruptException())
         end
 
-        # data use / data current / data clear
-        if length(args) >= 2 && args[1] == "data" && args[2] in ("use", "current", "clear")
+        # data use / data current / data clear (and coexisting alias `d use|current|clear`, #339)
+        top_canon = get(app.root.aliases, args[1], args[1])
+        if length(args) >= 2 && (top_canon == "data" || args[1] == "d") && args[2] in ("use", "current", "clear")
             wants_json = _repl_wants_json(args)
             quiet = (@isdefined(_QUIET) && _QUIET[]) || ("--quiet" in args) || ("-q" in args)
             wants_help = any(t -> t == "--help" || t == "-h", args)
@@ -507,10 +534,14 @@ function repl_dispatch(s::Session, app::Entry, args::Vector{String};
             end
         end
 
+        # Resolve canonical command path once for caching & model-type detection (#339)
+        _, _, canon_path = _walk_command_path_canon(app, args)
+        canon_or_raw = isempty(canon_path) ? args : canon_path
+
         # Check BEFORE inject_session_data whether downstream command should use cached model (#253)
         extra_kw = Dict{Symbol,Any}()
         if _can_inject_cached_model(app, args)
-            model_type = detect_model_type(args)
+            model_type = detect_model_type(canon_or_raw)
             cached = session_get_result(s, model_type)
             if !isnothing(cached)
                 extra_kw[:model] = cached
@@ -532,8 +563,8 @@ function repl_dispatch(s::Session, app::Entry, args::Vector{String};
         end
 
         # Cache estimation results
-        if is_estimate_command(args) && !isnothing(result)
-            model_type = detect_model_type(args)
+        if is_estimate_command(canon_or_raw) && !isnothing(result)
+            model_type = detect_model_type(canon_or_raw)
             if model_type != :none
                 cached_obj = (result isa NamedTuple && haskey(result, :model)) ? result.model : result
                 isnothing(cached_obj) || session_store_result!(s, model_type, cached_obj)
@@ -732,16 +763,22 @@ end
 Sorted candidate vectors for tab completion, built once from the registry tree.
 """
 struct CompletionIndex
-    children::Dict{Vector{String},Vector{String}}  # path → sorted subcommand names
-    leaf_opts::Dict{Vector{String},Vector{String}} # path → sorted --option/--flag names
+    children::Dict{Vector{String},Vector{String}}          # path → sorted subcommand names
+    leaf_opts::Dict{Vector{String},Vector{String}}         # path → sorted --option/--flag names
+    aliases::Dict{Vector{String},Dict{String,String}}      # path → (alias → canonical) (#339)
 end
+CompletionIndex(children, leaf_opts) = CompletionIndex(children, leaf_opts, Dict{Vector{String},Dict{String,String}}())
 
 function build_completion_index(app::Entry)::CompletionIndex
     children = Dict{Vector{String},Vector{String}}()
     leaf_opts = Dict{Vector{String},Vector{String}}()
+    aliases = Dict{Vector{String},Dict{String,String}}()
     function walk(node::NodeCommand, path::Vector{String})
         kids = sort!(collect(keys(node.subcmds)))
         children[copy(path)] = kids
+        if !isempty(node.aliases)
+            aliases[copy(path)] = copy(node.aliases)
+        end
         for name in kids
             sub = node.subcmds[name]
             p = vcat(path, name)
@@ -769,7 +806,7 @@ function build_completion_index(app::Entry)::CompletionIndex
         end
         sort!(dk)
     end
-    return CompletionIndex(children, leaf_opts)
+    return CompletionIndex(children, leaf_opts, aliases)
 end
 
 # Session-scoped index; rebuilt in start_repl / when APP changes
@@ -844,8 +881,10 @@ function complete_command(
             continue
         end
         startswith(tok, "-") && return String[]
-        if haskey(idx.children, path) && tok in idx.children[path]
-            push!(path, tok)
+        al_map = get(idx.aliases, path, nothing)
+        canon = al_map === nothing ? tok : get(al_map, tok, tok)
+        if haskey(idx.children, path) && canon in idx.children[path]
+            push!(path, canon)
         else
             return String[]
         end

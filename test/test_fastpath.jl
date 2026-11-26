@@ -157,10 +157,11 @@ end
         _build_core_stub(core_exe)
         @test isfile(core_exe)
 
-        # 2. Generate FRDCACHE v1 pack from live Friedman and verify pack invariants
+        # 2. Generate FRDCACHE v2 pack from live Friedman and verify pack invariants
         stats = generate_fastpath_pack(pack_path)
         @test isfile(pack_path)
         @test stats.n_nodes >= 600
+        @test stats.n_aliases >= 190
         @test stats.n_repls >= 300
         @test stats.n_mcp_tools >= 500
 
@@ -187,7 +188,8 @@ end
                     p = vcat(path, [name])
                     prog = "$(app.name) $(join(p, " "))"
                     fp = _run_proc(wrapper_exe, vcat(p, ["--help"]))
-                    exp = _capture_help_plain(io -> Friedman.print_help(io, sub; prog=prog))
+                    exp = _capture_help_plain(io -> Friedman.print_help(io, sub; prog=prog,
+                                                                        aliases=Friedman._aliases_for(node, name)))
                     @test fp.code == 0
                     @test fp.stderr == ""
                     @test fp.stdout == exp
@@ -561,6 +563,116 @@ print('INTERACTIVE_OK')
                         @test strip(inter) == "INTERACTIVE_OK"
                     end
                 end
+            end
+            # 10d. [UX-W2/W3] & [DISPLAY-W5] & [ABBREV-W4] differential parity gates (#327, #339, #343, #344, #346)
+            @testset "MCP scope intersection, instructions & schema parity (#343, #344, #346)" begin
+                # initialize.result.instructions byte-for-byte parity (C99 proxy <-> Julia)
+                init_line = """{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n"""
+                fp_init = _run_proc(wrapper_exe, ["serve", "--mcp", "--quiet"]; stdin_data=init_line)
+                @test fp_init.code == 0
+                j_init = run_julia_mcp(init_line)
+                c_init = JSON3.read(strip(fp_init.stdout))
+                @test haskey(c_init.result, :instructions)
+                @test String(c_init.result.instructions) == String(j_init[1].result.instructions)
+                @test String(c_init.result.instructions) == Friedman._MCP_INSTRUCTIONS
+
+                # Scoped tools/list intersection: --families ri cannot be widened by params.families="dsge"
+                scope_probe = join([
+                    """{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"families":"dsge"}}""",
+                    """{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{"tools":"dsge_*"}}""",
+                    """{"jsonrpc":"2.0","id":3,"method":"tools/list","params":{"prefix":"dsge"}}""",
+                    """{"jsonrpc":"2.0","id":4,"method":"tools/list","params":{"tools":"ri_solve"}}""",
+                ], "\n") * "\n"
+                fp_sp = _run_proc(wrapper_exe, ["serve", "--mcp", "--quiet", "--families", "ri"]; stdin_data=scope_probe)
+                @test fp_sp.code == 0
+                c_sp = [JSON3.read(l) for l in split(fp_sp.stdout, '\n') if !isempty(strip(l))]
+                j_sp = run_julia_mcp(scope_probe; families="ri")
+                @test length(c_sp) == 4
+                for k in 1:4
+                    @test c_sp[k] == j_sp[k]
+                end
+                @test isempty(c_sp[1].result.tools)
+                @test isempty(c_sp[2].result.tools)
+                @test isempty(c_sp[3].result.tools)
+                @test [String(t.name) for t in c_sp[4].result.tools] == ["ri_solve"]
+
+                # Slim MCP schemas served from C99 cache: 0 ignored format, 0 plot, 0 x-cli.aliases, 26 anyOf
+                all_req = """{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n"""
+                fp_all = _run_proc(wrapper_exe, ["serve", "--mcp", "--quiet"]; stdin_data=all_req)
+                fp_cmp = _run_proc(wrapper_exe, ["serve", "--mcp", "--quiet", "--compact"]; stdin_data=all_req)
+                @test fp_all.code == 0 && fp_cmp.code == 0
+                all_tools = JSON3.read(strip(fp_all.stdout)).result.tools
+                cmp_tools = JSON3.read(strip(fp_cmp.stdout)).result.tools
+                @test all(t -> !haskey(t.inputSchema.properties, :format), all_tools)
+                @test all(t -> !haskey(t.inputSchema.properties, :plot), all_tools)
+                @test all(t -> !haskey(t.inputSchema.properties, :format), cmp_tools)
+                @test all(t -> all(pv -> !(pv isa JSON3.Object && haskey(pv, Symbol("x-cli")) && haskey(pv[Symbol("x-cli")], :aliases)),
+                                   values(t.inputSchema.properties)), all_tools)
+                # Leading --seed on serve fails open cleanly to frdc-core (core stub returns 42)
+                fp_seed_srv = _run_proc(wrapper_exe, ["--seed", "42", "serve", "--mcp"])
+                @test fp_seed_srv.code == 42
+                @test startswith(fp_seed_srv.stdout, "CORE_FALLBACK:")
+            end
+
+            @testset "Global --digits, FRDC_DIGITS, -J & FRDCACHE v2 alias fast-paths (#327, #339)" begin
+                # Valid --digits / -J fast-path parity with Julia core
+                for argv in (
+                    ["--digits", "6", "data", "list"],
+                    ["--digits=full", "data", "list", "--format", "json"],
+                    ["data", "list", "--digits", "4"],
+                    ["--digits", "6", "--help"],
+                    ["--digits=3", "estimate", "--help"],
+                    ["-J", "data", "list"],
+                    # FRDCACHE v2 coexisting command/family/leaf aliases (Tier 1, 2, 3, 4)
+                    ["est", "--help"],
+                    ["est", "mv", "--help"],
+                    ["est", "mv", "var", "-h"],
+                    ["d", "ls"],
+                    ["d", "ls", "-f", "json"],
+                    ["sch", "est", "mv", "var"],
+                    ["schema", "est", "mv", "var"],
+                    ["comp", "zsh"],
+                    ["est", "mv", "nope"],
+                    ["est", "mv", "nope", "-J"],
+                    ["est", "var", "bvar"],
+                )
+                    fp = _run_proc(wrapper_exe, argv)
+                    jl = _run_julia_cli(argv)
+                    @test fp.code == jl.code
+                    @test fp.stderr == jl.stderr
+                    if any(t -> t in ("json", "--json", "-J") || endswith(t, "=json"), argv) ||
+                       first(argv) in ("sch", "schema")
+                        # Compare parsed JSON (ignoring elapsed_ms / timestamp)
+                        fd = JSON3.read(strip(fp.stdout))
+                        jd = JSON3.read(strip(jl.stdout))
+                        if haskey(fd, :status)
+                            @test fd.status == jd.status
+                            @test fd.command == jd.command
+                            @test fd.data == jd.data
+                            @test fd.error == jd.error
+                            @test collect(String.(fd.meta.argv)) == collect(String.(jd.meta.argv))
+                        else
+                            @test fd == jd
+                        end
+                    else
+                        @test fp.stdout == jl.stdout
+                    end
+                end
+
+                # Invalid --digits and invalid FRDC_DIGITS fail open to frdc-core (stub exit 42)
+                for bad_argv in (
+                    ["--digits", "invalid", "data", "list"],
+                    ["--digits=99", "data", "list"],
+                    ["--digits", "invalid", "--json", "data", "list"],
+                )
+                    r = _run_proc(wrapper_exe, bad_argv)
+                    @test r.code == 42 && startswith(r.stdout, "CORE_FALLBACK:")
+                end
+                r_env = _run_proc(wrapper_exe, ["data", "list"]; env_extra=Dict("FRDC_DIGITS" => "bad"))
+                @test r_env.code == 42 && startswith(r_env.stdout, "CORE_FALLBACK:")
+                # Valid CLI --digits overrides bad FRDC_DIGITS (matches src/io.jl:272)
+                r_ovr = _run_proc(wrapper_exe, ["--digits", "4", "data", "list"]; env_extra=Dict("FRDC_DIGITS" => "bad"))
+                @test r_ovr.code == 0 && !startswith(r_ovr.stdout, "CORE_FALLBACK:")
             end
         end
     end

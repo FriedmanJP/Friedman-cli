@@ -135,11 +135,22 @@ module Friedman
     struct ParseError <: Exception; message::String; end
     struct DispatchError <: Exception; message::String; end
     struct Argument; name::String; required::Bool; end
-    struct Option; name::String; short::String; type::Type; default::Any; description::String; end
-    struct Flag; name::String; short::String; description::String; end
+    Argument(name::String; required::Bool=true) = Argument(name, required)
+    struct Option; name::String; short::String; type::Type; default::Any; description::String; aliases::Vector{String}; end
+    Option(n::String, s::String, t::Type, d, desc::String) = Option(n, s, t, d, desc, String[])
+    Option(n::String; short::String="", type::Type=String, default=nothing, description::String="", aliases::Vector{String}=String[]) =
+        Option(n, short, type, default, description, aliases)
+    struct Flag; name::String; short::String; description::String; aliases::Vector{String}; end
+    Flag(n::String, s::String, desc::String) = Flag(n, s, desc, String[])
+    Flag(n::String; short::String="", description::String="", aliases::Vector{String}=String[]) =
+        Flag(n, short, description, aliases)
     struct LeafCommand; name::String; handler::Function; args::Vector{Argument}; options::Vector{Option}; flags::Vector{Flag}; description::String; end
-    struct NodeCommand; name::String; subcmds::Dict{String,Union{NodeCommand,LeafCommand}}; description::String; end
+    LeafCommand(name::String, handler::Function; args::Vector{Argument}=Argument[], options::Vector{Option}=Option[], flags::Vector{Flag}=Flag[], description::String="") =
+        LeafCommand(name, handler, args, options, flags, description)
+    struct NodeCommand; name::String; subcmds::Dict{String,Union{NodeCommand,LeafCommand}}; description::String; aliases::Dict{String,String}; end
+    NodeCommand(n::String, s::Dict{String,Union{NodeCommand,LeafCommand}}, d::String) = NodeCommand(n, s, d, Dict{String,String}())
     struct Entry; name::String; root::NodeCommand; version::VersionNumber; end
+    Entry(name::String, root::NodeCommand; version::VersionNumber=v"1.2.0") = Entry(name, root, version)
     const FRIEDMAN_VERSION = v"0.4.1"
     const _QUIET = Ref(false)
     const _COLOR = Ref(true)
@@ -155,10 +166,12 @@ module Friedman
         if !isempty(args) && startswith(args[1], "-")
             throw(DispatchError("frdc: unknown command '$(args[1])'"))
         end
+        _, _, cpath = _walk_command_path_canon(app, args)
+        eff = isempty(cpath) ? args : cpath
         # Return a mock result for estimate commands (model token: depth-3
         # family path, else the flat leaf)
-        if !isempty(args) && args[1] == "estimate" && length(args) >= 2
-            tag = length(args) >= 3 ? args[3] : args[2]
+        if !isempty(eff) && eff[1] == "estimate" && length(eff) >= 2
+            tag = length(eff) >= 3 ? eff[3] : eff[2]
             return "mock_$(tag)_model"
         end
         # For downstream commands, store the injected model in a global for testing
@@ -1116,5 +1129,82 @@ end
         @test Friedman._DISPLAY_DIGITS[] == prev_d
         @test Friedman._COMPACT[] == prev_c
         @test s.data_path == ":denmark"
+    end
+
+    @testset "[ABBREV-W4] REPL alias, short-flag & completion parity (#339)" begin
+        seen_irf = Ref{Any}(nothing)
+        var_est_leaf = Friedman.LeafCommand("var", (; data="", lags=1, kwargs...) -> (:mock_var_model, data, lags);
+            args=[Friedman.Argument("data"; required=true)],
+            options=[Friedman.Option("lags"; short="p", type=Int, default=1)],
+            description="Estimate VAR")
+        irf_var_leaf = Friedman.LeafCommand("var", (; data="", model="", horizons=20, conf_level=0.68, kwargs...) -> begin
+            seen_irf[] = (data=data, model=model, horizons=horizons, conf_level=conf_level)
+            return :mock_irf_result
+        end;
+            args=[Friedman.Argument("data"; required=true)],
+            options=[
+                Friedman.Option("model"; short="M", type=String, default=""),
+                Friedman.Option("result"; short="R", type=String, default=""),
+                Friedman.Option("horizons"; short="H", type=Int, default=20, aliases=["hor"]),
+                Friedman.Option("conf-level"; short="L", type=Float64, default=0.68, aliases=["cl"]),
+                Friedman.Option("id"; short="i", type=String, default="cholesky"),
+            ],
+            flags=[Friedman.Flag("plot"; short="g"), Friedman.Flag("cumulative"; aliases=["cum"])],
+            description="IRF VAR")
+        mv_node = Friedman.NodeCommand("multivariate",
+            Dict{String,Union{Friedman.NodeCommand,Friedman.LeafCommand}}("var" => var_est_leaf),
+            "MV")
+        est_node = Friedman.NodeCommand("estimate",
+            Dict{String,Union{Friedman.NodeCommand,Friedman.LeafCommand}}("multivariate" => mv_node),
+            "Estimate", Dict("mv" => "multivariate"))
+        irf_node = Friedman.NodeCommand("irf",
+            Dict{String,Union{Friedman.NodeCommand,Friedman.LeafCommand}}("var" => irf_var_leaf),
+            "IRF")
+        data_node = Friedman.NodeCommand("data",
+            Dict{String,Union{Friedman.NodeCommand,Friedman.LeafCommand}}(
+                "list" => Friedman.LeafCommand("list", (; kwargs...) -> nothing; description="List"),
+            ), "Data", Dict("ls" => "list"))
+        a_root = Friedman.NodeCommand("frdc",
+            Dict{String,Union{Friedman.NodeCommand,Friedman.LeafCommand}}(
+                "estimate" => est_node, "irf" => irf_node, "data" => data_node,
+            ), "Root", Dict("est" => "estimate", "d" => "data"))
+        a_app = Friedman.Entry("frdc", a_root; version=v"1.2.0")
+
+        # 1. `d use :denmark` / `d current` / `d clear`
+        s = Friedman.Session()
+        o1 = IOBuffer(); e1 = IOBuffer()
+        Friedman.repl_dispatch(s, a_app, ["d", "use", ":denmark"]; output=o1, err=e1)
+        @test Friedman.session_has_data(s) && s.data_path == ":denmark"
+        o2 = IOBuffer(); e2 = IOBuffer()
+        Friedman.repl_dispatch(s, a_app, ["d", "current"]; output=o2, err=e2)
+        @test occursin(":denmark", String(take!(o2)))
+
+        # 2. `est mv var -p 2` injects session data AND caches model under :var
+        Friedman.repl_dispatch(s, a_app, ["est", "mv", "var", "-p", "2"]; output=IOBuffer(), err=IOBuffer())
+        @test Friedman._last_dispatched_args == ["est", "mv", "var", ":denmark", "-p", "2"]
+        @test Friedman.session_get_result(s, :var) == "mock_var_model"
+
+        # 3. Downstream shorts & aliases (`-H`, `-L`, `-g`, `--hor`, `--cl`, `--cum`) reuse cached model!
+        @test Friedman._can_inject_cached_model(a_app, ["irf", "var", "-H", "8", "-L", "0.90", "-g"])
+        @test Friedman._can_inject_cached_model(a_app, ["irf", "var", "--hor", "8", "--cl", "0.90", "--cum"])
+        @test !Friedman._can_inject_cached_model(a_app, ["irf", "var", "-M", "saved.jld2"])
+        Friedman._last_injected_model = nothing
+        Friedman.repl_dispatch(s, a_app, ["irf", "var", "-H", "8", "-L", "0.90"]; output=IOBuffer(), err=IOBuffer())
+        @test Friedman._last_injected_model == "mock_var_model"
+
+        # 4. `-M` and `-R` suppress session data injection
+        @test Friedman.inject_session_data(s, ["irf", "var", "-M", "saved.jld2"], a_app) == ["irf", "var", "-M", "saved.jld2"]
+        @test Friedman.inject_session_data(s, ["irf", "var", "-R", "res.jld2"], a_app) == ["irf", "var", "-R", "res.jld2"]
+        @test Friedman.inject_session_data(s, ["est", "mv", "var", "-p", "2"], a_app) == ["est", "mv", "var", ":denmark", "-p", "2"]
+
+        # 5. CompletionIndex resolves alias prefixes (`est mv <TAB>`, `d use :fr`)
+        a_idx = Friedman.build_completion_index(a_app)
+        @test "var" in Friedman.complete_command(a_app, "est mv "; index=a_idx)
+        @test "--lags" in Friedman.complete_command(a_app, "est mv var "; index=a_idx)
+        @test ":fred_md" in Friedman.complete_command(a_app, "d use :fr"; index=a_idx)
+
+        # 6. `d clear` clears session
+        Friedman.repl_dispatch(s, a_app, ["d", "clear"]; output=IOBuffer(), err=IOBuffer())
+        @test !Friedman.session_has_data(s)
     end
 end

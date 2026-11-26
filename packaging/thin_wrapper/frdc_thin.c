@@ -420,32 +420,37 @@ int frdc_pack_load(FrdcPack *p, const char *path) {
     uint32_t n_meta       = frdc_rd_u32(buf + 20);
     uint32_t n_nodes      = frdc_rd_u32(buf + 24);
     uint32_t n_repls      = frdc_rd_u32(buf + 28);
-    uint32_t n_blocks     = frdc_rd_u32(buf + 32);
-    uint32_t n_entries    = frdc_rd_u32(buf + 36);
-    uint32_t meta_off     = frdc_rd_u32(buf + 40);
-    uint32_t meta_len     = frdc_rd_u32(buf + 44);
-    uint32_t node_off     = frdc_rd_u32(buf + 48);
-    uint32_t node_len     = frdc_rd_u32(buf + 52);
-    uint32_t repl_off     = frdc_rd_u32(buf + 56);
-    uint32_t repl_len     = frdc_rd_u32(buf + 60);
-    uint32_t block_off    = frdc_rd_u32(buf + 64);
-    uint32_t block_len    = frdc_rd_u32(buf + 68);
-    uint32_t entry_off    = frdc_rd_u32(buf + 72);
-    uint32_t entry_len    = frdc_rd_u32(buf + 76);
-    uint32_t key_pool_off = frdc_rd_u32(buf + 80);
-    uint32_t key_pool_len = frdc_rd_u32(buf + 84);
-    uint64_t source_stamp = frdc_rd_u64(buf + 88);
+    uint32_t n_aliases    = frdc_rd_u32(buf + 32);
+    uint32_t n_blocks     = frdc_rd_u32(buf + 36);
+    uint32_t n_entries    = frdc_rd_u32(buf + 40);
+    uint32_t meta_off     = frdc_rd_u32(buf + 44);
+    uint32_t meta_len     = frdc_rd_u32(buf + 48);
+    uint32_t node_off     = frdc_rd_u32(buf + 52);
+    uint32_t node_len     = frdc_rd_u32(buf + 56);
+    uint32_t repl_off     = frdc_rd_u32(buf + 60);
+    uint32_t repl_len     = frdc_rd_u32(buf + 64);
+    uint32_t alias_off    = frdc_rd_u32(buf + 68);
+    uint32_t alias_len    = frdc_rd_u32(buf + 72);
+    uint32_t block_off    = frdc_rd_u32(buf + 76);
+    uint32_t block_len    = frdc_rd_u32(buf + 80);
+    uint32_t entry_off    = frdc_rd_u32(buf + 84);
+    uint32_t entry_len    = frdc_rd_u32(buf + 88);
+    uint32_t key_pool_off = frdc_rd_u32(buf + 92);
+    uint32_t key_pool_len = frdc_rd_u32(buf + 96);
+    uint64_t source_stamp = frdc_rd_u64(buf + 100);
 
     uint64_t index_end = (uint64_t)key_pool_off + (uint64_t)key_pool_len;
     if (index_end > (uint64_t)sz || index_end < FRDCACHE_HEADER_SIZE ||
         (uint64_t)meta_off  + (uint64_t)meta_len  > index_end ||
         (uint64_t)node_off  + (uint64_t)node_len  > index_end ||
         (uint64_t)repl_off  + (uint64_t)repl_len  > index_end ||
+        (uint64_t)alias_off + (uint64_t)alias_len > index_end ||
         (uint64_t)block_off + (uint64_t)block_len > index_end ||
         (uint64_t)entry_off + (uint64_t)entry_len > index_end ||
         meta_len  != n_meta    * 16u ||
         node_len  != n_nodes   * 12u ||
         repl_len  != n_repls   * 16u ||
+        alias_len != n_aliases * 16u ||
         block_len != n_blocks  * 16u ||
         entry_len != n_entries * 20u ||
         key_pool_len == 0) {
@@ -466,11 +471,13 @@ int frdc_pack_load(FrdcPack *p, const char *path) {
     p->n_meta       = n_meta;
     p->n_nodes      = n_nodes;
     p->n_repls      = n_repls;
+    p->n_aliases    = n_aliases;
     p->n_blocks     = n_blocks;
     p->n_entries    = n_entries;
     p->meta_off     = meta_off;
     p->node_off     = node_off;
     p->repl_off     = repl_off;
+    p->alias_off    = alias_off;
     p->block_off    = block_off;
     p->entry_off    = entry_off;
     p->key_pool_off = key_pool_off;
@@ -542,6 +549,49 @@ int frdc_pack_repl(const FrdcPack *p, const char *old_path, size_t old_len, Frdc
         if (c < 0) lo = mid + 1u; else hi = mid;
     }
     return -1;
+}
+
+int frdc_pack_alias(const FrdcPack *p, const char *parent_path, size_t parent_len,
+                    const char *tok, size_t tok_len, FrdcSlice *canon_out) {
+    if (p->n_aliases == 0) return -1;
+    if (parent_len + 1u + tok_len >= 320u) return -1;
+    char akey[320];
+    if (parent_len > 0) memcpy(akey, parent_path, parent_len);
+    akey[parent_len] = '|';
+    if (tok_len > 0) memcpy(akey + parent_len + 1u, tok, tok_len);
+    size_t alen = parent_len + 1u + tok_len;
+    akey[alen] = '\0';
+
+    uint32_t lo = 0, hi = p->n_aliases;
+    while (lo < hi) {
+        uint32_t mid = lo + (hi - lo) / 2u;
+        const uint8_t *rec = p->buf + p->alias_off + mid * 16u;
+        FrdcSlice k;
+        if (pool_slice(p, frdc_rd_u32(rec), frdc_rd_u32(rec + 4), &k) != 0) return -1;
+        int c = slice_cmp(k.ptr, k.len, (const uint8_t *)akey, alen);
+        if (c == 0) {
+            return pool_slice(p, frdc_rd_u32(rec + 8), frdc_rd_u32(rec + 12), canon_out);
+        }
+        if (c < 0) lo = mid + 1u; else hi = mid;
+    }
+    return -1;
+}
+
+/* Resolve `tok` under canonical `parent_path` through FRDCACHE v2 alias_tbl.
+   Returns canonical segment pointer (either into `out_buf` or `tok` itself) and sets `*out_len`. */
+static const char *resolve_seg(const FrdcPack *pack, const char *parent_path, size_t parent_len,
+                               const char *tok, char *out_buf, size_t out_cap, size_t *out_len) {
+    size_t tlen = strlen(tok);
+    FrdcSlice canon;
+    if (frdc_pack_alias(pack, parent_path, parent_len, tok, tlen, &canon) == 0 &&
+        canon.len > 0 && canon.len < out_cap) {
+        memcpy(out_buf, canon.ptr, canon.len);
+        out_buf[canon.len] = '\0';
+        if (out_len) *out_len = canon.len;
+        return out_buf;
+    }
+    if (out_len) *out_len = tlen;
+    return tok;
 }
 
 int frdc_pack_read_entry(const FrdcPack *p, const char *key, size_t key_len,
@@ -826,7 +876,11 @@ static void probe_target_command(const FrdcPack *pack, int argc, char **argv, in
         } else if (tok[0] == '-') {
             i++;
         } else {
-            if (res->cmd_path_len == 0 && strcmp(tok, "schema") == 0) {
+            char seg_buf[128];
+            size_t seg_len = 0;
+            const char *seg = resolve_seg(pack, res->cmd_path, res->cmd_path_len,
+                                          tok, seg_buf, sizeof(seg_buf), &seg_len);
+            if (res->cmd_path_len == 0 && strcmp(seg, "schema") == 0) {
                 if (res->first_cmd_idx == stop_idx) res->first_cmd_idx = i;
                 strcpy(res->cmd_path, "schema");
                 res->cmd_path_len = 6;
@@ -834,8 +888,8 @@ static void probe_target_command(const FrdcPack *pack, int argc, char **argv, in
             }
             char cand[256];
             int n = res->cmd_path_len == 0
-                ? snprintf(cand, sizeof(cand), "%s", tok)
-                : snprintf(cand, sizeof(cand), "%s %s", res->cmd_path, tok);
+                ? snprintf(cand, sizeof(cand), "%s", seg)
+                : snprintf(cand, sizeof(cand), "%s %s", res->cmd_path, seg);
             if (n <= 0 || (size_t)n >= sizeof(cand)) break;
             uint32_t fl = 0;
             if (frdc_pack_node(pack, cand, (size_t)n, &fl) != 0) {
@@ -1040,10 +1094,12 @@ static void resolve_net_command(const FrdcPack *pack, int argc, char **argv,
     for (int i = 1; i < argc; i++) {
         const char *tok = argv[i];
         if (tok[0] == '-') continue;
+        char seg_buf[128];
+        const char *seg = resolve_seg(pack, path, plen, tok, seg_buf, sizeof(seg_buf), NULL);
         char cand[256];
         int n = plen == 0
-            ? snprintf(cand, sizeof(cand), "%s", tok)
-            : snprintf(cand, sizeof(cand), "%s %s", path, tok);
+            ? snprintf(cand, sizeof(cand), "%s", seg)
+            : snprintf(cand, sizeof(cand), "%s %s", path, seg);
         if (n <= 0 || (size_t)n >= sizeof(cand)) break;
         uint32_t fl = 0;
         if (frdc_pack_node(pack, cand, (size_t)n, &fl) != 0) break;
@@ -1275,10 +1331,12 @@ static int handle_schema_cmd(const FrdcPack *pack, int orig_argc, char **orig_ar
     size_t clen = 0;
     cur[0] = '\0';
     for (int p = 0; p < n_parts; p++) {
+        char seg_buf[128];
+        const char *seg = resolve_seg(pack, cur, clen, path_parts[p], seg_buf, sizeof(seg_buf), NULL);
         char cand[256];
         int n = clen == 0
-            ? snprintf(cand, sizeof(cand), "%s", path_parts[p])
-            : snprintf(cand, sizeof(cand), "%s %s", cur, path_parts[p]);
+            ? snprintf(cand, sizeof(cand), "%s", seg)
+            : snprintf(cand, sizeof(cand), "%s %s", cur, seg);
         if (n <= 0 || (size_t)n >= sizeof(cand)) return -1;
 
         uint32_t fl = 0;
@@ -1305,11 +1363,11 @@ static int handle_schema_cmd(const FrdcPack *pack, int orig_argc, char **orig_ar
         memcpy(cur, cand, (size_t)n + 1);
         clen = (size_t)n;
         if ((fl & FRDC_NODE_IS_LEAF) && p + 1 < n_parts) {
-            /* Extra tokens after a leaf */
+            /* Extra tokens after a leaf (uses canonical segment name matching _resolve_schema_path) */
             FrdcBuf msg;
             buf_init(&msg);
             buf_append_str(&msg, "schema: '");
-            buf_append_str(&msg, path_parts[p]);
+            buf_append_str(&msg, seg);
             buf_append_str(&msg, "' is a leaf; extra path ");
             for (int q = p + 1; q < n_parts; q++) {
                 if (q > p + 1) buf_append_ch(&msg, ' ');
@@ -1775,27 +1833,33 @@ static int run_thin(int argc, char **argv) {
         return frdc_exec_core(exe_path, argc, argv);
     }
 
-    /* 7. Tier 2 & 4: Dedicated schema dispatcher */
-    if (strcmp(rem[0], "schema") == 0) {
-        int rc = handle_schema_cmd(&pack, argc, argv, rem + 1, rem_n - 1,
-                                   use_color, quiet, stderr_use_color,
-                                   wants_json, has_seed, seed_val, t0_ns);
-        free(rem);
-        frdc_pack_free(&pack);
-        if (rc >= 0) return rc;
-        return frdc_exec_core(exe_path, argc, argv);
+    /* 7. Tier 2 & 4: Dedicated schema dispatcher (resolve root alias first — Landmine L5) */
+    {
+        char top_buf[128];
+        const char *top_canon = resolve_seg(&pack, "", 0, rem[0], top_buf, sizeof(top_buf), NULL);
+        if (strcmp(top_canon, "schema") == 0) {
+            int rc = handle_schema_cmd(&pack, argc, argv, rem + 1, rem_n - 1,
+                                       use_color, quiet, stderr_use_color,
+                                       wants_json, has_seed, seed_val, t0_ns);
+            free(rem);
+            frdc_pack_free(&pack);
+            if (rc >= 0) return rc;
+            return frdc_exec_core(exe_path, argc, argv);
+        }
     }
 
-    /* 8. Walk NodeCommand / LeafCommand tree */
+    /* 8. Walk NodeCommand / LeafCommand tree (resolving FRDCACHE v2 aliases per segment) */
     char cur_path[256];
     size_t cur_len = 0;
     cur_path[0] = '\0';
 
     for (int k = 0; k < rem_n; k++) {
+        char seg_buf[128];
+        const char *seg = resolve_seg(&pack, cur_path, cur_len, rem[k], seg_buf, sizeof(seg_buf), NULL);
         char cand[256];
         int n = cur_len == 0
-            ? snprintf(cand, sizeof(cand), "%s", rem[k])
-            : snprintf(cand, sizeof(cand), "%s %s", cur_path, rem[k]);
+            ? snprintf(cand, sizeof(cand), "%s", seg)
+            : snprintf(cand, sizeof(cand), "%s %s", cur_path, seg);
         if (n <= 0 || (size_t)n >= sizeof(cand)) break;
 
         uint32_t fl = 0;

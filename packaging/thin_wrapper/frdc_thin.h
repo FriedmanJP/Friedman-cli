@@ -12,11 +12,11 @@
 extern "C" {
 #endif
 
-/* FRDCACHE v1 constants (must match tools/gen_fastpath_pack.jl) */
+/* FRDCACHE v2 constants (must match tools/gen_fastpath_pack.jl) */
 #define FRDCACHE_MAGIC_STR   "FRDCACHE"
 #define FRDCACHE_MAGIC_LEN   8u
-#define FRDCACHE_VERSION     1u
-#define FRDCACHE_HEADER_SIZE 100u
+#define FRDCACHE_VERSION     2u
+#define FRDCACHE_HEADER_SIZE 112u
 
 /* node_tbl bitflags */
 #define FRDC_NODE_IS_LEAF          (1u << 0)
@@ -40,12 +40,14 @@ typedef struct {
     uint32_t n_meta;
     uint32_t n_nodes;
     uint32_t n_repls;
+    uint32_t n_aliases;
     uint32_t n_blocks;
     uint32_t n_entries;
 
     uint32_t meta_off;
     uint32_t node_off;
     uint32_t repl_off;
+    uint32_t alias_off;
     uint32_t block_off;
     uint32_t entry_off;
     uint32_t key_pool_off;
@@ -76,6 +78,8 @@ void frdc_pack_free(FrdcPack *p);
 int  frdc_pack_meta(const FrdcPack *p, const char *key, FrdcSlice *out);
 int  frdc_pack_node(const FrdcPack *p, const char *path, size_t path_len, uint32_t *flags_out);
 int  frdc_pack_repl(const FrdcPack *p, const char *old_path, size_t old_len, FrdcSlice *new_out);
+int  frdc_pack_alias(const FrdcPack *p, const char *parent_path, size_t parent_len,
+                     const char *tok, size_t tok_len, FrdcSlice *canon_out);
 int  frdc_pack_read_entry(const FrdcPack *p, const char *key, size_t key_len,
                           uint8_t **out_buf, size_t *out_len);
 

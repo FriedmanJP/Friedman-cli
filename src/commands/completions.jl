@@ -28,6 +28,7 @@ function _completion_tree_data(app::Entry)
     nodes = Dict{Vector{String},Vector{String}}()
     leaves = Tuple{Vector{String},LeafCommand}[]
     leaf_paths = Set{Vector{String}}()
+    node_aliases = Tuple{String,String,String}[] # (parent_path_str, alias_tok, canon_tok)
 
     function walk(node::NodeCommand, path::Vector{String})
         kids = sort!(collect(keys(node.subcmds)))
@@ -36,6 +37,10 @@ function _completion_tree_data(app::Entry)
             sort!(kids)
         end
         nodes[copy(path)] = kids
+        pstr = join(path, " ")
+        for al in sort!(collect(keys(node.aliases)))
+            push!(node_aliases, (pstr, al, node.aliases[al]))
+        end
         for k in sort!(collect(keys(node.subcmds)))
             sub = node.subcmds[k]
             p = vcat(path, [k])
@@ -49,10 +54,11 @@ function _completion_tree_data(app::Entry)
     end
     walk(app.root, String[])
     sort!(leaves; by=first)
+    sort!(node_aliases)
     datasets = isdefined(@__MODULE__, :EXAMPLE_DATASETS) ?
         sort!(String[":" * string(k) for k in EXAMPLE_DATASETS]) :
         String[]
-    return nodes, leaves, leaf_paths, datasets
+    return nodes, leaves, leaf_paths, datasets, node_aliases
 end
 
 function _leaf_flag_tokens(leaf::LeafCommand)::Vector{String}
@@ -74,7 +80,7 @@ function _shell_sq_esc(s::AbstractString)::String
 end
 
 function generate_bash_completion(app::Entry)::String
-    nodes, leaves, leaf_paths, datasets = _completion_tree_data(app)
+    nodes, leaves, leaf_paths, datasets, node_aliases = _completion_tree_data(app)
     ds_words = join(datasets, " ")
     io = IOBuffer()
     println(io, "# Friedman-cli (frdc) bash completion (generated from APP)")
@@ -99,10 +105,17 @@ function generate_bash_completion(app::Entry)::String
     println(io, "    fi")
     println(io, "    case \"\$w\" in")
     println(io, "      --seed|--digits) expect_val=1; ((i++)); continue ;;")
-    println(io, "      --*=*|-f=*|-H=*|-o=*|-p=*) ((i++)); continue ;;")
+    println(io, "      --*=*|-*=*) ((i++)); continue ;;")
     println(io, "      --*|-*) ((i++)); continue ;;")
     println(io, "    esac")
     println(io, "    if [[ \$is_leaf -eq 0 ]]; then")
+    if !isempty(node_aliases)
+        println(io, "      case \"\$path|\$w\" in")
+        for (pstr, al, canon) in node_aliases
+            println(io, "        \"$pstr|$al\") w=\"$canon\" ;;")
+        end
+        println(io, "      esac")
+    end
     println(io, "      local cand=\"\"")
     println(io, "      if [[ -z \"\$path\" ]]; then cand=\"\$w\"; else cand=\"\$path \$w\"; fi")
     println(io, "      case \"\$cand\" in")
@@ -179,20 +192,23 @@ function generate_bash_completion(app::Entry)::String
 end
 
 function generate_zsh_completion(app::Entry)::String
-    nodes, leaves, _, datasets = _completion_tree_data(app)
+    nodes, leaves, _, datasets, node_aliases = _completion_tree_data(app)
     ds_quoted = join(["'" * d * "'" for d in datasets], " ")
     io = IOBuffer()
     println(io, "#compdef frdc")
     println(io, "# Friedman-cli (frdc) zsh completion (generated from APP)")
     println(io, "_frdc() {")
-    println(io, "  local cur prev path_str is_leaf expect_val w cand")
+    println(io, "  local cur prev path_str is_leaf expect_val w cand akey")
     println(io, "  cur=\"\${words[\$CURRENT]}\"")
     println(io, "  prev=\"\"")
     println(io, "  (( CURRENT > 1 )) && prev=\"\${words[\$((CURRENT-1))]}\"")
     println(io, "  path_str=\"\"")
     println(io, "  is_leaf=0")
     println(io, "  expect_val=0")
-    println(io, "  typeset -A _fn_nodes _fn_leaves _fn_opts _fn_choices")
+    println(io, "  typeset -A _fn_nodes _fn_leaves _fn_opts _fn_choices _fn_aliases")
+    for (pstr, al, canon) in node_aliases
+        println(io, "  _fn_aliases[\"$pstr|$al\"]=\"$canon\"")
+    end
     for p in sort!(collect(keys(nodes)); by=p -> join(p, " "))
         pk = join(p, " ")
         isempty(pk) && continue
@@ -224,6 +240,8 @@ function generate_zsh_completion(app::Entry)::String
     println(io, "      -*) ((i++)); continue ;;")
     println(io, "    esac")
     println(io, "    if (( ! is_leaf )); then")
+    println(io, "      akey=\"\${path_str}|\${w}\"")
+    println(io, "      [[ -n \"\${_fn_aliases[\$akey]-}\" ]] && w=\"\${_fn_aliases[\$akey]}\"")
     println(io, "      cand=\${path_str:+\$path_str }\$w")
     println(io, "      if [[ -n \"\${_fn_leaves[\$cand]-}\" ]]; then")
     println(io, "        path_str=\"\$cand\"; is_leaf=1")
@@ -275,7 +293,7 @@ function generate_zsh_completion(app::Entry)::String
 end
 
 function generate_fish_completion(app::Entry)::String
-    nodes, leaves, _, datasets = _completion_tree_data(app)
+    nodes, leaves, _, datasets, node_aliases = _completion_tree_data(app)
     io = IOBuffer()
     println(io, "# Friedman-cli (frdc) fish completion (generated from APP)")
     println(io, "function __frdc_path_is")
@@ -296,6 +314,15 @@ function generate_fish_completion(app::Entry)::String
     println(io, "      case ':*'")
     println(io, "        break")
     println(io, "      case '*'")
+    if !isempty(node_aliases)
+        println(io, "        set -l pstr (string join ' ' -- \$p)")
+        println(io, "        switch \"\$pstr|\$t\"")
+        for (pstr, al, canon) in node_aliases
+            println(io, "          case '$pstr|$al'")
+            println(io, "            set t '$canon'")
+        end
+        println(io, "        end")
+    end
     println(io, "        set p \$p \$t")
     println(io, "        test (count \$p) -ge 3; and break")
     println(io, "    end")

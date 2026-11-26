@@ -58,26 +58,28 @@ end
 
 function parse_frdcache(path::AbstractString)
     buf = read(path)
-    @assert length(buf) >= 100 "pack too small: $(length(buf))"
+    @assert length(buf) >= 112 "pack too small: $(length(buf))"
     @assert String(buf[1:8]) == "FRDCACHE" "bad magic: $(repr(String(buf[1:8])))"
     version = _read_u32(buf, 8)
     flags = _read_u32(buf, 12)
     header_crc = _read_u32(buf, 16)
-    @assert version == 1 "unsupported format_version: $version"
+    @assert version == 2 "unsupported format_version: $version"
 
     n_meta    = Int(_read_u32(buf, 20))
     n_nodes   = Int(_read_u32(buf, 24))
     n_repls   = Int(_read_u32(buf, 28))
-    n_blocks  = Int(_read_u32(buf, 32))
-    n_entries = Int(_read_u32(buf, 36))
+    n_aliases = Int(_read_u32(buf, 32))
+    n_blocks  = Int(_read_u32(buf, 36))
+    n_entries = Int(_read_u32(buf, 40))
 
-    meta_off     = Int(_read_u32(buf, 40)); meta_len     = Int(_read_u32(buf, 44))
-    node_off     = Int(_read_u32(buf, 48)); node_len     = Int(_read_u32(buf, 52))
-    repl_off     = Int(_read_u32(buf, 56)); repl_len     = Int(_read_u32(buf, 60))
-    block_off    = Int(_read_u32(buf, 64)); block_len    = Int(_read_u32(buf, 68))
-    entry_off    = Int(_read_u32(buf, 72)); entry_len    = Int(_read_u32(buf, 76))
-    key_pool_off = Int(_read_u32(buf, 80)); key_pool_len = Int(_read_u32(buf, 84))
-    source_stamp = _read_u64(buf, 88)
+    meta_off     = Int(_read_u32(buf, 44)); meta_len     = Int(_read_u32(buf, 48))
+    node_off     = Int(_read_u32(buf, 52)); node_len     = Int(_read_u32(buf, 56))
+    repl_off     = Int(_read_u32(buf, 60)); repl_len     = Int(_read_u32(buf, 64))
+    alias_off    = Int(_read_u32(buf, 68)); alias_len    = Int(_read_u32(buf, 72))
+    block_off    = Int(_read_u32(buf, 76)); block_len    = Int(_read_u32(buf, 80))
+    entry_off    = Int(_read_u32(buf, 84)); entry_len    = Int(_read_u32(buf, 88))
+    key_pool_off = Int(_read_u32(buf, 92)); key_pool_len = Int(_read_u32(buf, 96))
+    source_stamp = _read_u64(buf, 100)
 
     index_end = key_pool_off + key_pool_len
     @assert index_end <= length(buf) "index_end out of bounds"
@@ -87,6 +89,7 @@ function parse_frdcache(path::AbstractString)
     @assert meta_len  == 16 * n_meta
     @assert node_len  == 12 * n_nodes
     @assert repl_len  == 16 * n_repls
+    @assert alias_len == 16 * n_aliases
     @assert block_len == 16 * n_blocks
     @assert entry_len == 20 * n_entries
 
@@ -123,6 +126,17 @@ function parse_frdcache(path::AbstractString)
     end
     @assert issorted(repl_keys) "repl_tbl not sorted"
 
+    aliases = Dict{String,String}()
+    alias_keys = String[]
+    for i in 0:(n_aliases - 1)
+        p = alias_off + 16 * i
+        ak = _pool_str(buf, key_pool_off, _read_u32(buf, p), _read_u32(buf, p + 4))
+        av = _pool_str(buf, key_pool_off, _read_u32(buf, p + 8), _read_u32(buf, p + 12))
+        push!(alias_keys, ak)
+        aliases[ak] = av
+    end
+    @assert issorted(alias_keys) "alias_tbl not sorted"
+
     blocks = Vector{Vector{UInt8}}(undef, n_blocks)
     for i in 0:(n_blocks - 1)
         p = block_off + 16 * i
@@ -154,7 +168,7 @@ function parse_frdcache(path::AbstractString)
 
     return (
         version=version, flags=flags, source_stamp=source_stamp,
-        meta=meta, nodes=nodes, repls=repls, blocks=blocks, entries=entries,
+        meta=meta, nodes=nodes, repls=repls, aliases=aliases, blocks=blocks, entries=entries,
         total_bytes=length(buf),
     )
 end
@@ -188,13 +202,14 @@ function verify_pack(pack_path::AbstractString)
     pack = parse_frdcache(pack_path)
     app = Friedman.APP
 
-    @testset "FRDCACHE v1 integrity & live parity" begin
-        @test pack.version == 1
+    @testset "FRDCACHE v2 integrity & live parity" begin
+        @test pack.version == 2
         @test pack.meta["cli_name"] == app.name
         @test pack.meta["cli_version"] == string(Friedman.FRIEDMAN_VERSION)
         @test pack.meta["julia_version"] == string(VERSION)
         @test pack.meta["mems_version"] == Friedman._cached_mems_version()
         @test pack.meta["mcp_protocol_version"] == Friedman._MCP_PROTOCOL_VERSION
+        @test pack.meta["mcp_instructions"] == Friedman._MCP_INSTRUCTIONS
         @test pack.meta["version_line"] == "$(app.name) v$(app.version)\n"
         @test pack.meta["warranty_text"] == _capture_stdout(() -> Friedman.dispatch(app, ["--warranty"]))
         @test pack.meta["conditions_text"] == _capture_stdout(() -> Friedman.dispatch(app, ["--conditions"]))
@@ -218,12 +233,17 @@ function verify_pack(pack_path::AbstractString)
 
         # Walk every node and leaf in APP.root
         n_checked = 0
+        expected_aliases = Dict{String,String}()
+        for (al, target) in app.root.aliases
+            expected_aliases["|$al"] = target
+        end
         function check_walk(node::Friedman.NodeCommand, path::Vector{String})
             for name in sort!(collect(keys(node.subcmds)))
                 sub = node.subcmds[name]
                 p = vcat(path, [name])
                 pstr = join(p, " ")
                 prog = "$(app.name) $pstr"
+                als = Friedman._aliases_for(node, name)
                 n_checked += 1
                 @test haskey(pack.nodes, pstr)
                 @test haskey(pack.entries, "H:$pstr")
@@ -232,9 +252,12 @@ function verify_pack(pack_path::AbstractString)
                 s_txt = String(copy(pack.entries["S:$pstr"]))
                 if sub isa Friedman.NodeCommand
                     @test pack.nodes[pstr] == UInt32(0)
-                    @test h_txt == _capture_help(io -> Friedman.print_help(io, sub; prog=prog); color=true)
-                    @test _strip_ansi(h_txt) == _capture_help(io -> Friedman.print_help(io, sub; prog=prog); color=false)
-                    @test s_txt == JSON3.write(Friedman._schema_node(sub, p))
+                    for (al, target) in sub.aliases
+                        expected_aliases["$pstr|$al"] = target
+                    end
+                    @test h_txt == _capture_help(io -> Friedman.print_help(io, sub; prog=prog, aliases=als); color=true)
+                    @test _strip_ansi(h_txt) == _capture_help(io -> Friedman.print_help(io, sub; prog=prog, aliases=als); color=false)
+                    @test s_txt == JSON3.write(Friedman._schema_node(sub, p; aliases=als))
                     check_walk(sub, p)
                 else
                     fl = UInt32(1 << 0)
@@ -244,14 +267,16 @@ function verify_pack(pack_path::AbstractString)
                     (any(o -> o.name == "compact", sub.options) || any(f -> f.name == "compact", sub.flags)) && (fl |= UInt32(1 << 4))
                     any(o -> o.name == "format", sub.options) && (fl |= UInt32(1 << 5))
                     @test pack.nodes[pstr] == fl
-                    @test h_txt == _capture_help(io -> Friedman.print_help(io, sub; prog=prog); color=true)
-                    @test _strip_ansi(h_txt) == _capture_help(io -> Friedman.print_help(io, sub; prog=prog); color=false)
-                    @test s_txt == JSON3.write(Friedman._schema_leaf(sub, p))
+                    @test h_txt == _capture_help(io -> Friedman.print_help(io, sub; prog=prog, aliases=als); color=true)
+                    @test _strip_ansi(h_txt) == _capture_help(io -> Friedman.print_help(io, sub; prog=prog, aliases=als); color=false)
+                    @test s_txt == JSON3.write(Friedman._schema_leaf(sub, p; aliases=als))
                 end
             end
         end
         check_walk(app.root, String[])
         @test n_checked == length(pack.nodes) - 1
+        @test pack.aliases == expected_aliases
+        @test length(pack.aliases) >= 190
 
         # Replacements table exact parity
         @test length(pack.repls) == length(Friedman._PATH_REPLACEMENTS)

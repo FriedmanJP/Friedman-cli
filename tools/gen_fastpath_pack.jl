@@ -2,36 +2,39 @@
 # Friedman-cli — macroeconometric analysis from the terminal
 # Copyright (C) 2026 Wookyung Chung <chung@friedman.jp>
 #
-# Single-source FRDCACHE v1 binary metadata pack generator ([FASTPATH-W1] #293, #299).
+# Single-source FRDCACHE v2 binary metadata pack generator ([FASTPATH-W1] #293, #299, [ABBREV-W4] #339).
 # Pure Julia using only stdlib Zlib_jll + Friedman (zero new Project.toml dependencies).
 #
 # Usage:
 #   julia --project tools/gen_fastpath_pack.jl --output <path> [--source-stamp <unix_secs>]
 #
 # Binary layout (little-endian, deterministic):
-#   Header (100 bytes):
-#     [0..7]   magic = "FRDCACHE" (8 bytes)
-#     [8..11]  format_version::UInt32 = 1
-#     [12..15] flags::UInt32 = 0
-#     [16..19] header_index_crc32::UInt32 (IEEE CRC32 over bytes [20 .. index_end-1])
-#     [20..23] n_meta::UInt32
-#     [24..27] n_nodes::UInt32
-#     [28..31] n_repls::UInt32
-#     [32..35] n_blocks::UInt32
-#     [36..39] n_entries::UInt32
-#     [40..47] meta_off::UInt32,     meta_len::UInt32
-#     [48..55] node_off::UInt32,     node_len::UInt32
-#     [56..63] repl_off::UInt32,     repl_len::UInt32
-#     [64..71] block_off::UInt32,    block_len::UInt32
-#     [72..79] entry_off::UInt32,    entry_len::UInt32
-#     [80..87] key_pool_off::UInt32, key_pool_len::UInt32
-#     [88..95] source_stamp_unix::UInt64 (0 for reproducible release packs)
-#     [96..99] reserved::UInt32 = 0
+#   Header (112 bytes):
+#     [0..7]     magic = "FRDCACHE" (8 bytes)
+#     [8..11]    format_version::UInt32 = 2
+#     [12..15]   flags::UInt32 = 0
+#     [16..19]   header_index_crc32::UInt32 (IEEE CRC32 over bytes [20 .. index_end-1])
+#     [20..23]   n_meta::UInt32
+#     [24..27]   n_nodes::UInt32
+#     [28..31]   n_repls::UInt32
+#     [32..35]   n_aliases::UInt32
+#     [36..39]   n_blocks::UInt32
+#     [40..43]   n_entries::UInt32
+#     [44..51]   meta_off::UInt32,     meta_len::UInt32
+#     [52..59]   node_off::UInt32,     node_len::UInt32
+#     [60..67]   repl_off::UInt32,     repl_len::UInt32
+#     [68..75]   alias_off::UInt32,    alias_len::UInt32
+#     [76..83]   block_off::UInt32,    block_len::UInt32
+#     [84..91]   entry_off::UInt32,    entry_len::UInt32
+#     [92..99]   key_pool_off::UInt32, key_pool_len::UInt32
+#     [100..107] source_stamp_unix::UInt64 (0 for reproducible release packs)
+#     [108..111] reserved::UInt32 = 0
 #
 #   Sections (contiguous immediately after header, ending at index_end):
 #     meta_tbl  : n_meta    × 16B (key_off, key_len, val_off, val_len) — sorted by key
 #     node_tbl  : n_nodes   × 12B (path_off, path_len, flags) — sorted by path
 #     repl_tbl  : n_repls   × 16B (old_off, old_len, new_off, new_len) — sorted by old
+#     alias_tbl : n_aliases × 16B (key_off, key_len, val_off, val_len) — sorted by "<parent>|<alias>"
 #     block_tbl : n_blocks  × 16B (file_off, comp_len, raw_len, raw_crc32)
 #     entry_tbl : n_entries × 20B (key_off, key_len, block_idx, raw_off, raw_len) — sorted by key
 #     key_pool  : deduplicated NUL-terminated UTF-8 strings (offset 0 is "")
@@ -44,8 +47,8 @@ using JSON3
 using Zlib_jll
 
 const FRDCACHE_MAGIC = Vector{UInt8}("FRDCACHE")
-const FRDCACHE_VERSION = UInt32(1)
-const FRDCACHE_HEADER_SIZE = UInt32(100)
+const FRDCACHE_VERSION = UInt32(2)
+const FRDCACHE_HEADER_SIZE = UInt32(112)
 
 # node_tbl bitflags
 const NODE_IS_LEAF          = UInt32(1 << 0)
@@ -243,15 +246,19 @@ function generate_fastpath_pack(output_path::AbstractString;
     end
     sort!(meta_pairs; by=first)
 
-    # 2. Walk command tree for node_tbl, help payloads, and schema payloads
+    # 2. Walk command tree for node_tbl, alias_tbl, help payloads, and schema payloads
     node_rows = Tuple{String,UInt32}[]
+    alias_rows = Tuple{String,String}[]
     # group_name => Vector{Tuple{entry_key, payload_bytes}}
     groups = Dict{String,Vector{Tuple{String,Vector{UInt8}}}}()
     push_entry!(grp::String, key::String, bytes::Vector{UInt8}) =
         push!(get!(groups, grp, Tuple{String,Vector{UInt8}}[]), (key, bytes))
 
-    # Root entry
+    # Root entry & root aliases
     push!(node_rows, ("", UInt32(0)))
+    for (al, target) in root.aliases
+        push!(alias_rows, ("|$al", target))
+    end
     push_entry!("help:_root", "H:", _capture_help_color(io -> Friedman.print_help(io, app)))
     push_entry!("help:_root", "H:repl", _capture_help_color(io -> Friedman.print_repl_help(io; prog="$(app.name) repl")))
     push_entry!("schema:_root", "S:", Vector{UInt8}(JSON3.write(Friedman._schema_node(root, String[]))))
@@ -263,12 +270,16 @@ function generate_fastpath_pack(output_path::AbstractString;
             pstr = join(p, " ")
             prog = isempty(p) ? app.name : "$(app.name) $pstr"
             top = p[1]
+            als = Friedman._aliases_for(node, name)
             if sub isa Friedman.NodeCommand
                 push!(node_rows, (pstr, UInt32(0)))
+                for (al, target) in sub.aliases
+                    push!(alias_rows, ("$pstr|$al", target))
+                end
                 push_entry!("help:$top", "H:$pstr",
-                            _capture_help_color(io -> Friedman.print_help(io, sub; prog=prog)))
+                            _capture_help_color(io -> Friedman.print_help(io, sub; prog=prog, aliases=als)))
                 push_entry!("schema:$top", "S:$pstr",
-                            Vector{UInt8}(JSON3.write(Friedman._schema_node(sub, p))))
+                            Vector{UInt8}(JSON3.write(Friedman._schema_node(sub, p; aliases=als))))
                 walk_tree(sub, p)
             else
                 fl = NODE_IS_LEAF
@@ -281,14 +292,15 @@ function generate_fastpath_pack(output_path::AbstractString;
                 any(o -> o.name == "format", sub.options) && (fl |= NODE_HAS_FORMAT_OPT)
                 push!(node_rows, (pstr, fl))
                 push_entry!("help:$top", "H:$pstr",
-                            _capture_help_color(io -> Friedman.print_help(io, sub; prog=prog)))
+                            _capture_help_color(io -> Friedman.print_help(io, sub; prog=prog, aliases=als)))
                 push_entry!("schema:$top", "S:$pstr",
-                            Vector{UInt8}(JSON3.write(Friedman._schema_leaf(sub, p))))
+                            Vector{UInt8}(JSON3.write(Friedman._schema_leaf(sub, p; aliases=als))))
             end
         end
     end
     walk_tree(root, String[])
     sort!(node_rows; by=first)
+    sort!(alias_rows; by=first)
 
     # 3. Path replacements table
     repl_rows = Tuple{String,String}[
@@ -359,6 +371,12 @@ function generate_fastpath_pack(output_path::AbstractString;
         no, nl = _intern!(pool, new_s)
         push!(repl_encoded, (oo, ol, no, nl))
     end
+    alias_encoded = NTuple{4,UInt32}[]
+    for (ak, av) in alias_rows
+        ko, kl = _intern!(pool, ak)
+        vo, vl = _intern!(pool, av)
+        push!(alias_encoded, (ko, kl, vo, vl))
+    end
     entry_encoded = NTuple{5,UInt32}[]
     for (ekey, bidx, roff, rlen) in raw_entries
         ko, kl = _intern!(pool, ekey)
@@ -372,7 +390,9 @@ function generate_fastpath_pack(output_path::AbstractString;
     node_len = UInt32(12 * length(node_encoded))
     repl_off = node_off + node_len
     repl_len = UInt32(16 * length(repl_encoded))
-    block_off = repl_off + repl_len
+    alias_off = repl_off + repl_len
+    alias_len = UInt32(16 * length(alias_encoded))
+    block_off = alias_off + alias_len
     block_len = UInt32(16 * length(block_meta))
     entry_off = block_off + block_len
     entry_len = UInt32(20 * length(entry_encoded))
@@ -394,11 +414,13 @@ function generate_fastpath_pack(output_path::AbstractString;
         UInt32(length(meta_encoded)),
         UInt32(length(node_encoded)),
         UInt32(length(repl_encoded)),
+        UInt32(length(alias_encoded)),
         UInt32(length(block_encoded)),
         UInt32(length(entry_encoded)),
         meta_off, meta_len,
         node_off, node_len,
         repl_off, repl_len,
+        alias_off, alias_len,
         block_off, block_len,
         entry_off, entry_len,
         key_pool_off, key_pool_len,
@@ -415,6 +437,9 @@ function generate_fastpath_pack(output_path::AbstractString;
         write(idx_body, htol(v))
     end
     for rec in repl_encoded, v in rec
+        write(idx_body, htol(v))
+    end
+    for rec in alias_encoded, v in rec
         write(idx_body, htol(v))
     end
     for rec in block_encoded, v in rec
@@ -453,6 +478,7 @@ function generate_fastpath_pack(output_path::AbstractString;
         n_meta = length(meta_encoded),
         n_nodes = length(node_encoded),
         n_repls = length(repl_encoded),
+        n_aliases = length(alias_encoded),
         n_blocks = length(block_encoded),
         n_entries = length(entry_encoded),
         n_mcp_tools = mcp.count,
@@ -498,8 +524,8 @@ end
 if abspath(PROGRAM_FILE) == @__FILE__
     out, stamp, sroot = _parse_cli_args(ARGS)
     stats = generate_fastpath_pack(out; source_stamp=stamp, source_root=sroot)
-    println("Generated FRDCACHE v1: $(stats.path) ($(round(stats.total_bytes / 1024; digits=1)) KiB; " *
+    println("Generated FRDCACHE v2: $(stats.path) ($(round(stats.total_bytes / 1024; digits=1)) KiB; " *
             "index=$(round(stats.index_bytes / 1024; digits=1)) KiB, " *
             "blocks=$(stats.n_blocks), entries=$(stats.n_entries), " *
-            "nodes=$(stats.n_nodes), repls=$(stats.n_repls), mcp=$(stats.n_mcp_tools))")
+            "nodes=$(stats.n_nodes), aliases=$(stats.n_aliases), repls=$(stats.n_repls), mcp=$(stats.n_mcp_tools))")
 end
