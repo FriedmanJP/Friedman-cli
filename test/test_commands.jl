@@ -2435,9 +2435,9 @@ end  # Shared utilities
                     eb = _err(vcat([csv, "--dep", "y", "--threshold-col", "z"], bad))
                     @test eb isa CliError && eb.code == "usage/invalid" && exit_class(eb) == 2
                 end
-                # Hansen (2000) CVs exist only at 0.90/0.95/0.99 — blocked at parse (choices)
-                # or by the in-handler exact-float guard.
-                eci = _err([csv, "--dep", "y", "--threshold-col", "z", "--ci-level", "0.8"])
+                # Confidence level must be strictly in (0, 1) — MEMs v1.1.2 uses
+                # continuous analytical Hansen (2000) critical values for any level in (0, 1).
+                eci = _err([csv, "--dep", "y", "--threshold-col", "z", "--ci-level", "1.5"])
                 @test eci isa ParseError || (eci isa CliError && exit_class(eci) == 2)
                 # q == dep is degenerate (the sample would split on the outcome itself)
                 ed = _err([csv, "--dep", "y", "--threshold-col", "y"])
@@ -17509,6 +17509,437 @@ end
             )
                 doc = _run_doc(argv)
                 @test doc.status == "ok"
+            end
+        end
+    end
+end
+
+@testset "[CI-W2] micro 90% CI defaults & configurability (#331)" begin
+    # 1. Registry audit: all 39 microeconometric leaves expose `--conf-level` default 0.90
+    #    with canonical aliases ["ci-level", "confidence", "level"], and macro leaves are untouched.
+    @testset "Registry defaults, aliases & scope boundary (39 micro leaves)" begin
+        roots = Dict(
+            "estimate"  => register_estimate_commands!(),
+            "predict"   => register_predict_commands!(),
+            "residuals" => register_residuals_commands!(),
+            "did"       => register_did_commands!(),
+            "test"      => register_test_commands!(),
+        )
+        function _lookup_leaf(path::Vector{String})
+            node = roots[path[1]]
+            for seg in path[2:end]
+                node = node.subcmds[seg]
+            end
+            return node::LeafCommand
+        end
+
+        micro_leaves = Vector{Vector{String}}([
+            # Non-LP DiD (4)
+            ["did", "estimate"], ["did", "event-study"],
+            ["test", "did", "pretrend"], ["test", "did", "honest"],
+            # RDD, QReg, Threshold, Count Choice (5)
+            ["estimate", "regression", "rdd"], ["estimate", "regression", "qreg"],
+            ["estimate", "regime", "threshold"],
+            ["estimate", "choice", "poisson"], ["estimate", "choice", "nbreg"],
+            # Cross-sectional regressions (12)
+            ["estimate", "regression", "reg"], ["estimate", "regression", "iv"],
+            ["estimate", "regression", "sur"], ["estimate", "regression", "3sls"],
+            ["estimate", "regression", "robust"], ["estimate", "regression", "tobit"],
+            ["estimate", "regression", "truncreg"], ["estimate", "regression", "heckman"],
+            ["estimate", "regression", "kernel-reg"], ["estimate", "regression", "lowess"],
+            ["estimate", "regression", "gmm"], ["estimate", "regression", "smm"],
+            # Discrete choice (6)
+            ["estimate", "choice", "logit"], ["estimate", "choice", "probit"],
+            ["estimate", "choice", "ologit"], ["estimate", "choice", "oprobit"],
+            ["estimate", "choice", "mlogit"], ["estimate", "choice", "ri-logit"],
+            # Micro panel (5)
+            ["estimate", "panel", "preg"], ["estimate", "panel", "piv"],
+            ["estimate", "panel", "plogit"], ["estimate", "panel", "pprobit"],
+            ["estimate", "panel", "xtqreg"],
+            # Choice predict ME / OR (5)
+            ["predict", "choice", "logit"], ["predict", "choice", "probit"],
+            ["predict", "choice", "ologit"], ["predict", "choice", "oprobit"],
+            ["predict", "choice", "mlogit"],
+            # Cross-sectional IV confidence sets (2)
+            ["test", "iv", "anderson-rubin"], ["test", "iv", "wild-cluster"],
+        ])
+        @test length(micro_leaves) == 39
+
+        for path in micro_leaves
+            leaf = _lookup_leaf(path)
+            cl_opts = filter(o -> o.name == "conf-level", leaf.options)
+            @test length(cl_opts) == 1
+            opt = cl_opts[1]
+            @test opt.default == 0.90
+            @test "ci-level" in opt.aliases
+            @test "confidence" in opt.aliases
+            @test "level" in opt.aliases
+        end
+
+        # Threshold accepts any continuous conf-level in (0, 1) (no discrete choices list)
+        thr_opt = only(filter(o -> o.name == "conf-level", _lookup_leaf(["estimate", "regime", "threshold"]).options))
+        @test thr_opt.choices === nothing || isempty(thr_opt.choices)
+
+        # Scope boundary: macro leaves owned by #332/#333 and CI-less residuals were NOT touched
+        lpdid_opt = only(filter(o -> o.name == "conf-level", _lookup_leaf(["did", "lp-did"]).options))
+        @test lpdid_opt.default == 0.95
+        setar_opt = only(filter(o -> o.name == "conf-level", _lookup_leaf(["estimate", "regime", "setar"]).options))
+        @test setar_opt.default == 0.95
+        @test !any(o -> o.name == "conf-level", _lookup_leaf(["estimate", "regression", "cointreg"]).options)
+        @test !any(o -> o.name == "conf-level", _lookup_leaf(["residuals", "regression", "reg"]).options)
+        @test !any(o -> o.name == "conf-level", _lookup_leaf(["residuals", "panel", "preg"]).options)
+    end
+
+    # Helper to extract a CI width from a parsed JSON envelope
+    function _ci_width_from_doc(doc; key=nothing, lo_col=nothing, hi_col=nothing, row::Int=1)
+        tbl = if key !== nothing
+            getproperty(doc.data, Symbol(key))
+        else
+            found = nothing
+            for (_, v) in pairs(doc.data)
+                (v isa JSON3.Object && haskey(v, :columns) && haskey(v, :rows) && !isempty(v.rows)) || continue
+                cols = String[string(c) for c in v.columns]
+                if ("ci_lower" in cols && "ci_upper" in cols) ||
+                   ("CI_Lower" in cols && "CI_Upper" in cols) ||
+                   ("lower" in cols && "upper" in cols) ||
+                   ("Robust_CI_Lower" in cols && "Robust_CI_Upper" in cols) ||
+                   ("Original_CI_Lower" in cols && "Original_CI_Upper" in cols)
+                    found = v
+                    break
+                end
+            end
+            found
+        end
+        @assert tbl !== nothing "No CI table found in envelope keys=$(collect(keys(doc.data)))"
+        cols = String[string(c) for c in tbl.columns]
+        if lo_col !== nothing && hi_col !== nothing
+            li = findfirst(==(lo_col), cols)
+            ui = findfirst(==(hi_col), cols)
+        else
+            pair = if "ci_lower" in cols && "ci_upper" in cols
+                ("ci_lower", "ci_upper")
+            elseif "CI_Lower" in cols && "CI_Upper" in cols
+                ("CI_Lower", "CI_Upper")
+            elseif "lower" in cols && "upper" in cols
+                ("lower", "upper")
+            elseif "Robust_CI_Lower" in cols && "Robust_CI_Upper" in cols
+                ("Robust_CI_Lower", "Robust_CI_Upper")
+            else
+                ("Original_CI_Lower", "Original_CI_Upper")
+            end
+            li = findfirst(==(pair[1]), cols)
+            ui = findfirst(==(pair[2]), cols)
+        end
+        r = collect(tbl.rows[row])
+        return Float64(r[ui]) - Float64(r[li])
+    end
+
+    function _kv_metric(doc, key::Symbol, metric::String)
+        tbl = getproperty(doc.data, key)
+        for r in tbl.rows
+            rr = collect(r)
+            string(rr[1]) == metric && return rr[2]
+        end
+        error("Metric '$metric' not found in table $key")
+    end
+
+    function _check_monotonic_leaf(base_args::Vector{String}; key=nothing, lo_col=nothing, hi_col=nothing, row::Int=1)
+        doc_def = _run_leaf(base_args)
+        doc_68  = _run_leaf(vcat(base_args, ["--conf-level", "0.68"]))
+        doc_90  = _run_leaf(vcat(base_args, ["--conf-level", "0.90"]))
+        doc_95  = _run_leaf(vcat(base_args, ["--conf-level", "0.95"]))
+        w_def = _ci_width_from_doc(doc_def; key=key, lo_col=lo_col, hi_col=hi_col, row=row)
+        w_68  = _ci_width_from_doc(doc_68;  key=key, lo_col=lo_col, hi_col=hi_col, row=row)
+        w_90  = _ci_width_from_doc(doc_90;  key=key, lo_col=lo_col, hi_col=hi_col, row=row)
+        w_95  = _ci_width_from_doc(doc_95;  key=key, lo_col=lo_col, hi_col=hi_col, row=row)
+        @test isapprox(w_def, w_90; rtol=1e-10, atol=1e-12)
+        @test w_68 > 0 && w_68 < w_90 < w_95
+        return (w_def=w_def, w_68=w_68, w_90=w_90, w_95=w_95)
+    end
+
+    function _run_expect_err(args::Vector{String})
+        try
+            _capture() do
+                _dispatch_via_app(vcat(args, ["--format", "json"]))
+            end
+            return nothing
+        catch e
+            return e
+        end
+    end
+
+    mktempdir() do dir
+        rng = Random.MersenneTwister(331)
+        N = 80
+        x1 = randn(rng, N)
+        x2 = randn(rng, N)
+        z1 = randn(rng, N)
+        z2 = randn(rng, N)
+        u = randn(rng, N)
+        x_endog = 0.7 .* z1 .+ 0.5 .* z2 .+ 0.4 .* u .+ 0.3 .* randn(rng, N)
+        y = 1.0 .+ 2.0 .* x1 .- 0.8 .* x2 .+ 0.5 .* u
+        y_iv = 1.0 .+ 2.0 .* x_endog .+ 0.8 .* x2 .+ u
+        y_pos = abs.(y) .+ 0.5
+        y_bin = Float64.(1.0 ./ (1.0 .+ exp.(-(0.2 .+ 1.1 .* x1 .- 0.7 .* x2))) .> rand(rng, N))
+        y_cnt = Float64.(round.(Int, exp.(0.3 .+ 0.3 .* x1)) .+ rand(rng, 0:2, N))
+        y_ord = Float64.(clamp.(1 .+ floor.(Int, (1.5 .+ x1 .- 0.5 .* x2 .+ 0.5 .* randn(rng, N))), 1, 3))
+        sel = Float64.(0.2 .+ 0.5 .* x1 .+ 1.0 .* z1 .+ randn(rng, N) .> 0.0)
+        cl = Float64.(repeat(1:8, inner=10))
+
+        reg_csv = joinpath(dir, "reg.csv")
+        CSV.write(reg_csv, DataFrame("y" => y, "const" => ones(N), "x1" => x1, "x2" => x2))
+
+        iv_csv = joinpath(dir, "iv.csv")
+        CSV.write(iv_csv, DataFrame("y" => y_iv, "const" => ones(N), "x2" => x2,
+                                    "x_endog" => x_endog, "z1" => z1, "z2" => z2))
+
+        cl_csv = joinpath(dir, "cl.csv")
+        CSV.write(cl_csv, DataFrame("y" => y, "const" => ones(N), "x1" => x1, "x2" => x2, "cl" => cl))
+
+        trunc_csv = joinpath(dir, "trunc.csv")
+        CSV.write(trunc_csv, DataFrame("y" => y_pos, "x1" => x1, "x2" => x2))
+
+        heck_csv = joinpath(dir, "heck.csv")
+        CSV.write(heck_csv, DataFrame("y" => y, "d" => sel, "const" => ones(N), "x1" => x1, "z1" => z1))
+
+        rdd_csv = joinpath(dir, "rdd.csv")
+        CSV.write(rdd_csv, DataFrame("y" => y, "running" => x1))
+
+        thr_csv = joinpath(dir, "thr.csv")
+        CSV.write(thr_csv, DataFrame("y" => y, "x1" => x1, "x2" => x2, "z" => z1))
+
+        bin_csv = joinpath(dir, "bin.csv")
+        CSV.write(bin_csv, DataFrame("y" => y_bin, "x1" => x1, "x2" => x2))
+
+        cnt_csv = joinpath(dir, "cnt.csv")
+        CSV.write(cnt_csv, DataFrame("y" => y_cnt, "x1" => x1, "x2" => x2))
+
+        ord_csv = joinpath(dir, "ord.csv")
+        CSV.write(ord_csv, DataFrame("y" => y_ord, "x1" => x1, "x2" => x2))
+
+        sys_csv = joinpath(dir, "sys.csv")
+        CSV.write(sys_csv, DataFrame("y1" => y, "y2" => y_iv, "x1" => x1, "x2" => x2, "x3" => z1))
+        sur_cfg = joinpath(dir, "sur.toml")
+        write(sur_cfg, """
+        [[equations]]
+        name = "eq1"
+        dep = "y1"
+        indep = ["x1", "x2"]
+        [[equations]]
+        name = "eq2"
+        dep = "y2"
+        indep = ["x2", "x3"]
+        """)
+        tsls_cfg = joinpath(dir, "3sls.toml")
+        write(tsls_cfg, """
+        [[equations]]
+        name = "eq1"
+        dep = "y1"
+        indep = ["x1", "x2"]
+        [[equations]]
+        name = "eq2"
+        dep = "y2"
+        indep = ["x2", "x3"]
+        [instruments]
+        common = ["x1", "x2", "x3"]
+        """)
+
+        gmm_lp_csv = joinpath(dir, "gmm_lp.csv")
+        CSV.write(gmm_lp_csv, DataFrame(var1=randn(rng, N) .+ 1.0, var2=randn(rng, N) .+ 2.0, var3=randn(rng, N) .+ 3.0))
+        gmm_lp_cfg = _make_gmm_config(dir)
+        gmm_iv_csv = joinpath(dir, "gmm_iv.csv")
+        CSV.write(gmm_iv_csv, DataFrame(y=y_iv, x_endog=x_endog, z1=z1, z2=z2))
+        gmm_iv_cfg = joinpath(dir, "gmm_iv.toml")
+        write(gmm_iv_cfg, """
+        [gmm]
+        dep = "y"
+        endogenous = ["x_endog"]
+        instruments = ["z1", "z2"]
+        theta0 = [0.0, 0.0]
+        """)
+        smm_csv = _make_csv(dir; T=80, n=1)
+        smm_cfg = joinpath(dir, "smm.toml")
+        write(smm_cfg, """
+        [smm]
+        model = "ar1"
+        theta0 = [0.5, 1.0]
+        lags = 2
+        weighting = "two_step"
+        """)
+
+        # DiD panel CSV
+        G_d, T_d = 6, 12
+        did_df = DataFrame(
+            unit = repeat(1:G_d, inner=T_d),
+            time = repeat(1:T_d, outer=G_d),
+            outcome = randn(rng, G_d * T_d) .+ 1.0,
+            treat = [((i <= 3 && t >= 7) ? 1 : 0) for i in 1:G_d for t in 1:T_d],
+        )
+        did_csv = joinpath(dir, "did.csv")
+        CSV.write(did_csv, did_df)
+
+        # Micro panel CSV
+        G_p, T_p = 8, 10
+        Np = G_p * T_p
+        px1 = randn(rng, Np); px2 = randn(rng, Np); pz1 = randn(rng, Np); pz2 = randn(rng, Np)
+        pe = 0.6 .* pz1 .+ 0.4 .* pz2 .+ 0.4 .* randn(rng, Np)
+        py = 1.0 .+ 1.5 .* px1 .- 0.6 .* px2 .+ 0.5 .* randn(rng, Np)
+        pyb = Float64.(1.0 ./ (1.0 .+ exp.(-(px1 .- 0.5 .* px2))) .> rand(rng, Np))
+        panel_csv = joinpath(dir, "panel.csv")
+        CSV.write(panel_csv, DataFrame(
+            id = repeat(1:G_p, inner=T_p),
+            time = repeat(1:T_p, outer=G_p),
+            y = py, ybin = pyb, x1 = px1, x2 = px2, xend = pe, z1 = pz1, z2 = pz2,
+        ))
+
+        # RI-Logit CSV
+        ril_rows = DataFrame(env=Int[], state=Int[], alt=Int[], choice=Int[], x1=Float64[], x2=Float64[])
+        for i in 1:24
+            m = mod1(i, 2); s = mod1(div(i - 1, 2) + 1, 2)
+            for j in 1:2
+                push!(ril_rows, (m, s, j, j == s ? 1 : 0, (j == s ? 1.5 : -0.5) + 0.1 * m, (j == 1 ? 0.3 : -0.3) * s))
+            end
+        end
+        ril_csv = joinpath(dir, "ri_logit.csv")
+        CSV.write(ril_csv, ril_rows)
+
+        @testset "1. Non-LP DiD (estimate, event-study, pretrend, honest)" begin
+            _check_monotonic_leaf(["did", "estimate", did_csv, "--outcome", "outcome",
+                                   "--treatment", "treat", "--id-col", "unit", "--time-col", "time"])
+            _check_monotonic_leaf(["did", "event-study", did_csv, "--outcome", "outcome",
+                                   "--treatment", "treat", "--id-col", "unit", "--time-col", "time"])
+            _check_monotonic_leaf(["test", "did", "honest", did_csv, "--outcome", "outcome",
+                                   "--treatment", "treat", "--id-col", "unit", "--time-col", "time"];
+                                  lo_col="Robust_CI_Lower", hi_col="Robust_CI_Upper")
+            _check_monotonic_leaf(["test", "did", "honest", did_csv, "--outcome", "outcome",
+                                   "--treatment", "treat", "--id-col", "unit", "--time-col", "time"];
+                                  lo_col="Original_CI_Lower", hi_col="Original_CI_Upper")
+            # pretrend accepts default 0.90, aliases, and rejects invalid levels
+            for flag in ("--conf-level", "--ci-level", "--confidence", "--level")
+                d_pt = _run_leaf(["test", "did", "pretrend", did_csv, "--outcome", "outcome",
+                                  "--treatment", "treat", "--id-col", "unit", "--time-col", "time",
+                                  flag, "0.90"])
+                @test d_pt.status == "ok"
+            end
+            e_pt = _run_expect_err(["test", "did", "pretrend", did_csv, "--outcome", "outcome",
+                                    "--treatment", "treat", "--id-col", "unit", "--time-col", "time",
+                                    "--conf-level", "1.0"])
+            @test e_pt isa CliError && e_pt.code == "usage/invalid"
+        end
+
+        @testset "2. RDD, QReg (alpha compat + conflict), Threshold, Count Choice (incl. --irr)" begin
+            _check_monotonic_leaf(["estimate", "regression", "rdd", rdd_csv, "--outcome", "y", "--running", "running"])
+            _check_monotonic_leaf(["estimate", "regression", "qreg", reg_csv, "--dep", "y"])
+
+            # qreg --alpha backwards-compatible override & conflict guard
+            d_q95 = _run_leaf(["estimate", "regression", "qreg", reg_csv, "--dep", "y", "--conf-level", "0.95"])
+            d_qa05 = _run_leaf(["estimate", "regression", "qreg", reg_csv, "--dep", "y", "--alpha", "0.05"])
+            @test isapprox(_ci_width_from_doc(d_q95), _ci_width_from_doc(d_qa05); rtol=1e-10)
+            e_qboth = _run_expect_err(["estimate", "regression", "qreg", reg_csv, "--dep", "y",
+                                       "--conf-level", "0.90", "--alpha", "0.05"])
+            @test e_qboth isa CliError && e_qboth.code == "usage/conflicting-options" && exit_class(e_qboth) == 2
+
+            # Threshold: both gamma_ci (continuous Hansen 2000 for 0.68/0.90/0.95) and regime coef CIs
+            thr_base = ["estimate", "regime", "threshold", thr_csv, "--dep", "y", "--threshold-col", "z", "--no-linearity"]
+            _check_monotonic_leaf(thr_base)
+            t_def = _run_leaf(thr_base)
+            t_68  = _run_leaf(vcat(thr_base, ["--conf-level", "0.68"]))
+            t_90  = _run_leaf(vcat(thr_base, ["--conf-level", "0.90"]))
+            t_95  = _run_leaf(vcat(thr_base, ["--conf-level", "0.95"]))
+            @test Float64(_kv_metric(t_def, :threshold_regression_diagnostics, "gamma_ci_level")) == 0.90
+            gw(d) = Float64(_kv_metric(d, :threshold_regression_diagnostics, "gamma_ci_upper")) -
+                    Float64(_kv_metric(d, :threshold_regression_diagnostics, "gamma_ci_lower"))
+            @test isapprox(gw(t_def), gw(t_90); rtol=1e-10)
+            @test gw(t_68) < gw(t_90) < gw(t_95)
+
+            # Poisson & NBReg: both main coef table and --irr table
+            for leaf in ("poisson", "nbreg")
+                _check_monotonic_leaf(["estimate", "choice", leaf, cnt_csv, "--dep", "y"];
+                                      key=leaf == "poisson" ? "poisson_regression_coefficients" : "negative_binomial_regression_coefficients")
+                _check_monotonic_leaf(["estimate", "choice", leaf, cnt_csv, "--dep", "y", "--irr"];
+                                      key="incidence_rate_ratios")
+            end
+        end
+
+        @testset "3. All 12 cross-sectional regressions" begin
+            _check_monotonic_leaf(["estimate", "regression", "reg", reg_csv, "--dep", "y"])
+            _check_monotonic_leaf(["estimate", "regression", "iv", iv_csv, "--dep", "y",
+                                   "--endogenous", "x_endog", "--instruments", "z1,z2"])
+            _check_monotonic_leaf(["estimate", "regression", "sur", sys_csv, "--config", sur_cfg])
+            _check_monotonic_leaf(["estimate", "regression", "3sls", sys_csv, "--config", tsls_cfg])
+            _check_monotonic_leaf(["estimate", "regression", "robust", reg_csv, "--dep", "y"])
+            _check_monotonic_leaf(["estimate", "regression", "tobit", trunc_csv, "--dep", "y"])
+            _check_monotonic_leaf(["estimate", "regression", "truncreg", trunc_csv, "--dep", "y", "--lower", "0.0"])
+            _check_monotonic_leaf(["estimate", "regression", "heckman", heck_csv, "--dep", "y",
+                                   "--select", "d", "--outcome-vars", "const,x1", "--select-vars", "const,x1,z1"])
+            _check_monotonic_leaf(["estimate", "regression", "kernel-reg", reg_csv, "--dep", "y", "--indep", "x1"])
+            _check_monotonic_leaf(["estimate", "regression", "lowess", reg_csv, "--dep", "y", "--indep", "x1"])
+            _check_monotonic_leaf(["estimate", "regression", "gmm", gmm_lp_csv, "--config", gmm_lp_cfg])
+            _check_monotonic_leaf(["estimate", "regression", "gmm", gmm_iv_csv, "--config", gmm_iv_cfg])
+            _check_monotonic_leaf(["estimate", "regression", "smm", smm_csv, "--config", smm_cfg])
+        end
+
+        @testset "4. All 6 discrete choice estimators" begin
+            _check_monotonic_leaf(["estimate", "choice", "logit", bin_csv, "--dep", "y"])
+            _check_monotonic_leaf(["estimate", "choice", "probit", bin_csv, "--dep", "y"])
+            _check_monotonic_leaf(["estimate", "choice", "ologit", ord_csv, "--dep", "y"])
+            _check_monotonic_leaf(["estimate", "choice", "oprobit", ord_csv, "--dep", "y"])
+            _check_monotonic_leaf(["estimate", "choice", "mlogit", ord_csv, "--dep", "y"])
+            _check_monotonic_leaf(["estimate", "choice", "ri-logit", ril_csv,
+                                   "--env-col", "env", "--choice-col", "choice",
+                                   "--alt-col", "alt", "--state-col", "state", "--attr-cols", "x1,x2"])
+        end
+
+        @testset "5. All 5 micro panel estimators" begin
+            _check_monotonic_leaf(["estimate", "panel", "preg", panel_csv, "--dep", "y",
+                                   "--indep", "x1,x2", "--id-col", "id", "--time-col", "time"])
+            _check_monotonic_leaf(["estimate", "panel", "piv", panel_csv, "--dep", "y",
+                                   "--exog", "x1", "--endog", "xend", "--instruments", "z1,z2",
+                                   "--id-col", "id", "--time-col", "time"])
+            _check_monotonic_leaf(["estimate", "panel", "plogit", panel_csv, "--dep", "ybin",
+                                   "--indep", "x1,x2", "--id-col", "id", "--time-col", "time"])
+            _check_monotonic_leaf(["estimate", "panel", "pprobit", panel_csv, "--dep", "ybin",
+                                   "--indep", "x1,x2", "--id-col", "id", "--time-col", "time"])
+            _check_monotonic_leaf(["estimate", "panel", "xtqreg", panel_csv, "--dep", "y",
+                                   "--indep", "x1,x2", "--id-col", "id", "--time-col", "time", "--factors", "1"])
+        end
+
+        @testset "6. Discrete choice predict ME & OR (5 leaves)" begin
+            _check_monotonic_leaf(["predict", "choice", "logit", bin_csv, "--dep", "y", "--marginal-effects"])
+            _check_monotonic_leaf(["predict", "choice", "logit", bin_csv, "--dep", "y", "--odds-ratio"])
+            _check_monotonic_leaf(["predict", "choice", "probit", bin_csv, "--dep", "y", "--marginal-effects"])
+            _check_monotonic_leaf(["predict", "choice", "ologit", ord_csv, "--dep", "y", "--marginal-effects"])
+            _check_monotonic_leaf(["predict", "choice", "oprobit", ord_csv, "--dep", "y", "--marginal-effects"])
+            _check_monotonic_leaf(["predict", "choice", "mlogit", ord_csv, "--dep", "y", "--marginal-effects"])
+        end
+
+        @testset "7. Cross-sectional IV confidence sets (anderson-rubin & wild-cluster)" begin
+            _MOCK_FLAGS[:ar_set_shape] = :bounded
+            _check_monotonic_leaf(["test", "iv", "anderson-rubin", iv_csv, "--dep", "y",
+                                   "--endogenous", "x_endog", "--instruments", "z1,z2"];
+                                  lo_col="lower", hi_col="upper")
+
+            wc_base = ["test", "iv", "wild-cluster", cl_csv, "--dep", "y", "--clusters", "cl", "--coefficient", "x1"]
+            wc_def = _run_leaf(wc_base)
+            wc_68  = _run_leaf(vcat(wc_base, ["--conf-level", "0.68"]))
+            wc_90  = _run_leaf(vcat(wc_base, ["--conf-level", "0.90"]))
+            wc_95  = _run_leaf(vcat(wc_base, ["--conf-level", "0.95"]))
+            @test Float64(_kv_metric(wc_def, :wild_cluster_bootstrap, "level")) == 0.90
+            wc_w(d) = Float64(_kv_metric(d, :wild_cluster_bootstrap, "ci_upper")) -
+                      Float64(_kv_metric(d, :wild_cluster_bootstrap, "ci_lower"))
+            @test isapprox(wc_w(wc_def), wc_w(wc_90); rtol=1e-10)
+            @test wc_w(wc_68) < wc_w(wc_90) < wc_w(wc_95)
+        end
+
+        @testset "8. Aliases (--ci-level, --confidence, --level) & invalid values" begin
+            w_ref = _ci_width_from_doc(_run_leaf(["estimate", "regression", "reg", reg_csv, "--dep", "y", "--conf-level", "0.95"]))
+            for alias in ("--ci-level", "--confidence", "--level")
+                w_a = _ci_width_from_doc(_run_leaf(["estimate", "regression", "reg", reg_csv, "--dep", "y", alias, "0.95"]))
+                @test isapprox(w_a, w_ref; rtol=1e-12)
+            end
+            for bad in ("0.0", "1.0", "1.5", "-0.1")
+                e = _run_expect_err(["estimate", "regression", "reg", reg_csv, "--dep", "y", "--conf-level", bad])
+                @test e isa CliError && e.code == "usage/invalid" && exit_class(e) == 2
             end
         end
     end

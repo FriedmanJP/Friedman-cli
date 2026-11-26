@@ -178,7 +178,8 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="se", type=String, default="iid", description="Standard errors: iid|robust|boot", choices=["iid","robust","boot"]),
                 OptionSpec(name="solver", type=String, default="ipm", description="LP solver: ipm (Frisch-Newton interior point) | irls", choices=["ipm","irls"]),
                 OptionSpec(name="n-boot", type=Int, default=500, description="Bootstrap replications for --se boot"),
-                OptionSpec(name="alpha", type=Float64, default=0.05, description="Significance level for the CI, in (0,1)"),
+                CONF_LEVEL_MICRO_OPTION,
+                OptionSpec(name="alpha", type=Float64, default=0.10, description="Backwards-compatible significance level α = 1 - conf_level in (0,1); conflicts with --conf-level"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -203,7 +204,7 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="bias-bandwidth", type=Float64, default=0.0, description="Bias bandwidth b (0 = CCT auto-selection)"),
                 OptionSpec(name="kernel", type=String, default="triangular", description="triangular|epanechnikov|uniform", choices=["triangular","epanechnikov","uniform"]),
                 OptionSpec(name="order", type=Int, default=1, description="Local polynomial order (>= 1)"),
-                OptionSpec(name="conf-level", aliases=["level"], kwarg=:level, type=Float64, default=0.95, description="Confidence level in (0,1)"),
+                OptionSpec(name="conf-level", aliases=["ci-level", "confidence", "level"], kwarg=:level, type=Float64, default=_DEFAULT_CI_MICRO, description="Confidence interval level in (0, 1) (default: 0.90)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -371,6 +372,7 @@ function estimate_specs()::Vector{CommandSpec}
             options=[
                 OptionSpec(name="config", type=String, default="", description="Config file for moment conditions and instruments; TOML or a model card"),
                 OptionSpec(name="weighting", short="w", type=String, default="twostep", description="identity|optimal|twostep|iterated|cue", choices=["identity", "optimal", "twostep", "iterated", "cue"]),
+                CONF_LEVEL_MICRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -706,12 +708,13 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (default: first numeric column)"),
                 OptionSpec(name="psi", type=String, default="huber", description="ψ (weight) function: huber|bisquare", choices=["huber","bisquare"]),
                 OptionSpec(name="method", type=String, default="m", description="Estimator: m|mm (MM = high-breakdown)", choices=["m","mm"]),
+                CONF_LEVEL_MICRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
             tables=[TableSpec(name=:robust_regression_coefficients,
-                              description="M-estimator coefficients with standard errors, z-statistics and p-values"),
+                              description="M-estimator coefficients with standard errors, z-statistics, p-values and CIs"),
                     TableSpec(name=:robust_regression_diagnostics,
                               description="psi function, estimator, robust scale, robust R-squared, tuning and convergence")],
             category="estimate",
@@ -725,12 +728,13 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (default: first numeric column)"),
                 OptionSpec(name="lower", type=Float64, default=0.0, description="Lower censoring bound"),
                 OptionSpec(name="upper", type=Float64, default=Inf, description="Upper censoring bound (Inf = uncensored above)"),
+                CONF_LEVEL_MICRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
             tables=[TableSpec(name=:tobit_coefficients,
-                              description="Censored-regression coefficients with standard errors, z-statistics and p-values"),
+                              description="Censored-regression coefficients with standard errors, z-statistics, p-values and CIs"),
                     TableSpec(name=:tobit_diagnostics,
                               description="sigma, log-likelihood, AIC/BIC, censoring bounds and left/right censored counts")],
             category="estimate",
@@ -747,12 +751,13 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column name (default: first numeric column)"),
                 OptionSpec(name="lower", type=Float64, default=0.0, description="Lower truncation bound"),
                 OptionSpec(name="upper", type=Float64, default=Inf, description="Upper truncation bound (Inf = untruncated above)"),
+                CONF_LEVEL_MICRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
             tables=[TableSpec(name=:truncated_regression_coefficients,
-                              description="Truncated-normal coefficients with standard errors, z-statistics and p-values"),
+                              description="Truncated-normal coefficients with standard errors, z-statistics, p-values and CIs"),
                     TableSpec(name=:truncated_regression_diagnostics,
                               description="sigma and its SE, log-likelihood, AIC/BIC, bounds and the truncated count")],
             category="estimate",
@@ -774,6 +779,7 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="outcome-vars", type=String, default="", description="Outcome-equation regressor columns, comma-separated (required)"),
                 OptionSpec(name="select-vars", type=String, default="", description="Selection-equation regressor columns, comma-separated (required)"),
                 OptionSpec(name="method", type=String, default="twostep", description="twostep (Heckit) | mle (FIML)", choices=["twostep","mle"]),
+                CONF_LEVEL_MICRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -874,12 +880,13 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="degree", type=Int, default=1, description="Local-polynomial degree (method=lp)"),
                 OptionSpec(name="bw", type=String, default="cv", description="Bandwidth: cv | rot | a positive number"),
                 OptionSpec(name="kernel", type=String, default="gaussian", description="gaussian | epanechnikov | triangular | uniform", choices=["gaussian","epanechnikov","triangular","uniform"]),
+                CONF_LEVEL_MICRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
             tables=[TableSpec(name=:kernel_regression_fit,
-                              description="Evaluation grid with the fitted conditional mean and its standard error"),
+                              description="Evaluation grid with the fitted conditional mean, its standard error and confidence bounds"),
                     TableSpec(name=:kernel_regression_diagnostics,
                               description="Method, polynomial degree, kernel, bandwidth rule and selected bandwidth")],
             category="estimate",
@@ -894,11 +901,12 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="indep", type=String, default="", description="Single predictor column name (required)"),
                 OptionSpec(name="frac", type=Float64, default=0.6667, description="Smoother span f ∈ (0,1] (fraction of points per window)"),
                 OptionSpec(name="iter", type=Int, default=3, description="Number of bisquare robustifying passes"),
+                CONF_LEVEL_MICRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
             flags=FlagSpec[],
-            tables=[TableSpec(name=:lowess_fit, description="Sorted x with the locally-weighted smoothed fit"),
+            tables=[TableSpec(name=:lowess_fit, description="Sorted x with the locally-weighted smoothed fit, pointwise standard error and confidence bounds"),
                     TableSpec(name=:lowess_diagnostics,
                               description="Smoothing span, robustness iterations and the observation count")],
             category="estimate",
@@ -1119,9 +1127,8 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="threshold-col", type=String, default="", description="Required: the variable that splits the sample (excluded from the regressors)"),
                 OptionSpec(name="trim", type=Float64, default=0.15, description="Trimming fraction for the threshold grid (0 < trim < 0.5)"),
                 OptionSpec(name="draws", aliases=["reps"], kwarg=:reps, type=Int, default=1000, description="Bootstrap replications for the linearity test (≥ 1)"),
-                # Hansen (2000) CVs are tabulated only at 0.90/0.95/0.99. `choices` is
-                # Vector{String} even for a Float64 option — same as `estimate setar`.
-                OptionSpec(name="conf-level", aliases=["ci-level"], kwarg=:ci_level, type=Float64, default=0.95, description="Threshold CI level: 0.90|0.95|0.99", choices=["0.90", "0.95", "0.99"]),
+                # Hansen (2000) Theorem 2 analytical CV: -2 log(1 - sqrt(level)) for any level in (0, 1) (MEMs v1.1.2).
+                OptionSpec(name="conf-level", aliases=["ci-level", "confidence", "level"], kwarg=:ci_level, type=Float64, default=_DEFAULT_CI_MICRO, description="Confidence interval level in (0, 1) for threshold γ and regime coefficients (default: 0.90)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save interactive plot to HTML file")
@@ -1130,7 +1137,7 @@ function estimate_specs()::Vector{CommandSpec}
                    FlagSpec(name="no-linearity", description="Skip the Hansen (1996) linearity test"),
                    FlagSpec(name="plot", description="Display an interactive plot")],
             tables=[TableSpec(name=:threshold_regression_coefficients,
-                              description="Per-regime coefficients with standard errors, z-statistics and p-values"),
+                              description="Per-regime coefficients with standard errors, z-statistics, p-values and CIs"),
                     TableSpec(name=:threshold_regression_diagnostics,
                               description="Threshold gamma with its Hansen CI, per-regime counts, fit statistics and the linearity test")],
             category="estimate",
@@ -1430,6 +1437,7 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="weighting", type=String, default="two_step", description="identity|two_step (optimal|iterated|twostep accepted as aliases of two_step)"),
                 OptionSpec(name="sim-ratio", type=Int, default=5, description="Simulation-to-sample ratio"),
                 OptionSpec(name="burn", type=Int, default=100, description="Burn-in periods"),
+                CONF_LEVEL_MICRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -1528,7 +1536,8 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="time-col", type=String, default="",
                            description="Time column for Conley spatial+serial correlation (needs --time-cutoff)"),
                 OptionSpec(name="time-cutoff", type=Int, default=0,
-                           description="Conley serial-correlation lag cutoff (0 = spatial only)")
+                           description="Conley serial-correlation lag cutoff (0 = spatial only)"),
+                CONF_LEVEL_MICRO_OPTION,
             ],
             flags=FlagSpec[],
             tables=[TableSpec(name=:reg_coefficients,
@@ -1576,6 +1585,7 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="method", type=String, default="tsls", description="k-class estimator", choices=["tsls","liml","fuller","kclass"]),
                 OptionSpec(name="k", type=String, default="", description="k-class scalar (required with --method kclass; k=0 is OLS, k=1 is 2SLS)"),
                 OptionSpec(name="fuller-a", type=Float64, default=1.0, description="Fuller adjustment a > 0 (--method fuller only; a=1 is approximately unbiased)"),
+                CONF_LEVEL_MICRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -1593,6 +1603,7 @@ function estimate_specs()::Vector{CommandSpec}
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to data file or handle stem (.csv, .jld2, .jls)")],
             options=[
                 OptionSpec(name="config", type=String, default="", description="Config file listing the equations as dep = indep, ...; required; TOML or a model card"),
+                CONF_LEVEL_MICRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -1614,6 +1625,7 @@ function estimate_specs()::Vector{CommandSpec}
             options=[
                 OptionSpec(name="config", type=String, default="", description="Config file listing the equations as dep = indep, ... plus instruments; required; TOML or a model card"),
                 OptionSpec(name="instruments", type=String, default="common", choices=["common","perequation"], description="common|perequation instrument sets"),
+                CONF_LEVEL_MICRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -1701,7 +1713,8 @@ function estimate_specs()::Vector{CommandSpec}
             options=[
                 REG_OPTIONS...,
                 OptionSpec(name="max-iter", aliases=["maxiter"], kwarg=:maxiter, type=Int, default=100, description="Maximum IRLS iterations"),
-                OptionSpec(name="tol", type=Float64, default=1e-8, description="Convergence tolerance")
+                OptionSpec(name="tol", type=Float64, default=1e-8, description="Convergence tolerance"),
+                CONF_LEVEL_MICRO_OPTION,
             ],
             flags=FlagSpec[],
             tables=[TableSpec(name=:logit_regression_coefficients,
@@ -1718,7 +1731,8 @@ function estimate_specs()::Vector{CommandSpec}
             options=[
                 REG_OPTIONS...,
                 OptionSpec(name="max-iter", aliases=["maxiter"], kwarg=:maxiter, type=Int, default=100, description="Maximum IRLS iterations"),
-                OptionSpec(name="tol", type=Float64, default=1e-8, description="Convergence tolerance")
+                OptionSpec(name="tol", type=Float64, default=1e-8, description="Convergence tolerance"),
+                CONF_LEVEL_MICRO_OPTION,
             ],
             flags=FlagSpec[],
             tables=[TableSpec(name=:probit_regression_coefficients,
@@ -1764,7 +1778,8 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="min-lag-endo", type=Int, default=2,
                            description="First instrument lag for endogenous regressors (--method ab|bb)");
                 OptionSpec(name="max-lag-endo", type=Int, default=99,
-                           description="Last instrument lag for endogenous regressors (--method ab|bb)")
+                           description="Last instrument lag for endogenous regressors (--method ab|bb)");
+                CONF_LEVEL_MICRO_OPTION
             ],
             flags=[
                 FlagSpec(name="twoway", description="Include time fixed effects"),
@@ -1795,6 +1810,7 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="cov-type", type=String, default="cluster", description="ols|cluster|twoway|driscoll-kraay", choices=["ols", "cluster", "twoway", "driscoll-kraay"]),
                 OptionSpec(name="id-col", type=String, default="", description="Panel group ID column"),
                 OptionSpec(name="time-col", type=String, default="", description="Panel time column"),
+                CONF_LEVEL_MICRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -1810,14 +1826,17 @@ function estimate_specs()::Vector{CommandSpec}
             path=["estimate", "plogit"],
             summary="Fit panel logit regression (pooled|fe|re|cre)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to panel data file or handle stem (.csv, .jld2, .jls)")],
-            options=map(o -> o.name == "cov-type" ?
+            options=[
+                map(o -> o.name == "cov-type" ?
                     OptionSpec(name="cov-type", type=String, default="cluster",
                                choices=["ols", "cluster"],
                                description="ols|cluster") :
                     o.name == "dep" ?
                     OptionSpec(name="dep", type=String, default="",
                                description="Dependent variable column name (required)") : o,
-                with_default(PREG_OPTIONS, "method", "pooled")),
+                with_default(PREG_OPTIONS, "method", "pooled"))...,
+                CONF_LEVEL_MICRO_OPTION,
+            ],
             flags=FlagSpec[],
             tables=[TableSpec(name=:panel_logit_coefficients,
                               description="Panel logit coefficients with standard errors, z-statistics and p-values"),
@@ -1830,7 +1849,8 @@ function estimate_specs()::Vector{CommandSpec}
             path=["estimate", "pprobit"],
             summary="Fit panel probit regression (pooled|re|cre; no within estimator)",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing, description="Path to panel data file or handle stem (.csv, .jld2, .jls)")],
-            options=map(o -> o.name == "cov-type" ?
+            options=[
+                map(o -> o.name == "cov-type" ?
                     OptionSpec(name="cov-type", type=String, default="cluster",
                                choices=["ols", "cluster"],
                                description="ols|cluster") :
@@ -1841,7 +1861,9 @@ function estimate_specs()::Vector{CommandSpec}
                     o.name == "dep" ?
                     OptionSpec(name="dep", type=String, default="",
                                description="Dependent variable column name (required)") : o,
-                with_default(PREG_OPTIONS, "method", "pooled")),
+                with_default(PREG_OPTIONS, "method", "pooled"))...,
+                CONF_LEVEL_MICRO_OPTION,
+            ],
             flags=FlagSpec[],
             tables=[TableSpec(name=:panel_probit_coefficients,
                               description="Panel probit coefficients with standard errors, z-statistics and p-values"),
@@ -1860,6 +1882,7 @@ function estimate_specs()::Vector{CommandSpec}
                                    choices=["ols", "hc0", "hc1", "cluster"],
                                    description="ols|hc0|hc1|cluster") : o,
                     REG_OPTIONS)...,
+                CONF_LEVEL_MICRO_OPTION,
             ],
             flags=FlagSpec[],
             tables=[TableSpec(name=:ordered_logit_coefficients,
@@ -1880,6 +1903,7 @@ function estimate_specs()::Vector{CommandSpec}
                                    choices=["ols", "hc0", "hc1", "cluster"],
                                    description="ols|hc0|hc1|cluster") : o,
                     REG_OPTIONS)...,
+                CONF_LEVEL_MICRO_OPTION,
             ],
             flags=FlagSpec[],
             tables=[TableSpec(name=:ordered_probit_coefficients,
@@ -1898,6 +1922,7 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="dep", type=String, default="", description="Dependent variable column name"),
                 OptionSpec(name="cov-type", type=String, default="ols", description="ols|hc0|hc1|cluster"),
                 OptionSpec(name="clusters", type=String, default="", description="Cluster variable column name"),
+                CONF_LEVEL_MICRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"])
             ],
@@ -2954,9 +2979,29 @@ end
 
 # ── GMM ────────────────────────────────────────────────────
 
+function _ci_bounds(model, est::AbstractVector, se::AbstractVector, conf_level::Real)
+    lv = _validate_conf_level(conf_level, "confint")
+    if isdefined(MacroEconometricModels, :confint)
+        ci = try
+            MacroEconometricModels.confint(model; level=lv)
+        catch
+            nothing
+        end
+        if ci isa AbstractMatrix && size(ci) == (length(est), 2)
+            return Float64.(ci[:, 1]), Float64.(ci[:, 2])
+        end
+    end
+    zc = _normal_quantile(1.0 - (1.0 - lv) / 2.0)
+    b = Float64.(est)
+    s = Float64.(se)
+    return b .- zc .* s, b .+ zc .* s
+end
+
 function _estimate_gmm(; data::String, config::String="",
                         weighting::String="twostep",
+                        conf_level::Float64=0.90,
                         output::String="", format::String="table")
+    conf_level = _validate_conf_level(conf_level, "estimate regression gmm")
     isempty(config) && throw(CliError("usage/missing-option",
         "GMM requires a --config=<file.toml> specifying moment conditions and instruments"))
 
@@ -2975,7 +3020,7 @@ function _estimate_gmm(; data::String, config::String="",
             "estimate regression gmm: IV-GMM requires both [gmm].dep and [gmm].theta0 (got dep=$(isempty(gmm_cfg["dep"]) ? "missing" : "set"), theta0=$(has_theta0 ? "set" : "missing"))";
             hint="omit both to keep the LP-GMM default, or set both for IV-GMM"))
     end
-    has_dep && return _estimate_gmm_iv(data, gmm_cfg, w, weighting, output, format)
+    has_dep && return _estimate_gmm_iv(data, gmm_cfg, w, weighting, conf_level, output, format)
 
     Y, varnames = load_multivariate_data(data)
 
@@ -3019,25 +3064,26 @@ function _estimate_gmm(; data::String, config::String="",
             _status_styled("  -> Cannot reject valid moment conditions\n"; color=:green)
         end
 
-        if !isempty(output)
-            se = stderror(model)
-            param_df = DataFrame(parameter=["theta$i" for i in 1:length(model.theta)],
-                                 estimate=model.theta, std_error=se)
-            output_result(param_df; format=Symbol(format), output=output, title="GMM Estimates")
-        end
+        se = stderror(model)
+        ci_lo, ci_hi = _ci_bounds(model, model.theta, se, conf_level)
+        param_df = DataFrame(parameter=["theta$i" for i in 1:length(model.theta)],
+                             estimate=model.theta, std_error=se,
+                             ci_lower=ci_lo, ci_upper=ci_hi)
+        output_result(param_df; format=Symbol(format), output=output,
+                      title="GMM Estimates", key="gmm_estimates")
         return model
     end
 end
 
 """
-    _estimate_gmm_iv(data, gmm_cfg, w, weighting, output, format)
+    _estimate_gmm_iv(data, gmm_cfg, w, weighting, conf_level, output, format)
 
 Opt-in IV-GMM (W3/#195, MEMs#815). Triggered when `[gmm]` has both `dep` and
 `theta0`. Builds Z'(y − Xθ) moments and passes `X=`/`Z=` so `first_stage_F`
 is stored. LP-GMM remains the default path.
 """
 function _estimate_gmm_iv(data::String, gmm_cfg::Dict, w::Symbol, weighting::String,
-                          output::String, format::String)
+                          conf_level::Float64, output::String, format::String)
     dep = gmm_cfg["dep"]
     endog = gmm_cfg["endogenous"]
     exog = gmm_cfg["exogenous"]
@@ -3102,10 +3148,12 @@ function _estimate_gmm_iv(data::String, gmm_cfg::Dict, w::Symbol, weighting::Str
     end
 
     se = stderror(model)
+    ci_lo, ci_hi = _ci_bounds(model, model.theta, se, conf_level)
     names_ = String["(Intercept)"]
     append!(names_, endog)
     append!(names_, exog)
-    coef_df = DataFrame(parameter=names_, estimate=model.theta, std_error=se)
+    coef_df = DataFrame(parameter=names_, estimate=model.theta, std_error=se,
+                        ci_lower=ci_lo, ci_upper=ci_hi)
     output_result(coef_df; format=Symbol(format), output=output,
                   title="GMM Estimates", key="gmm_estimates")
 
@@ -3744,8 +3792,9 @@ end
 
 function _estimate_smm(; data::String, config::String="",
                         weighting::String="two_step", sim_ratio::Int=5,
-                        burn::Int=100,
+                        burn::Int=100, conf_level::Float64=0.90,
                         output::String="", format::String="table")
+    conf_level = _validate_conf_level(conf_level, "estimate regression smm")
     Y, varnames = load_multivariate_data(data)
     k = size(Y, 2)
 
@@ -3806,6 +3855,7 @@ function _estimate_smm(; data::String, config::String="",
     se = sqrt.(abs.(diag(model.vcov)))
     t_stats = model.theta ./ se
     p_vals = [2.0 * (1.0 - _normal_cdf(abs(t))) for t in t_stats]
+    ci_lo, ci_hi = _ci_bounds(model, model.theta, se, conf_level)
 
     est_df = DataFrame(
         parameter = param_names,
@@ -3813,6 +3863,8 @@ function _estimate_smm(; data::String, config::String="",
         std_error = se,
         t_stat = t_stats,
         p_value = p_vals,
+        ci_lower = ci_lo,
+        ci_upper = ci_hi,
     )
     output_result(est_df; format=Symbol(format), output=output,
                   title="SMM Estimation (model=$modelname, weighting=$weighting)",
@@ -3916,7 +3968,9 @@ function _estimate_reg(; data::String, dep::String="", cov_type::String="hc1",
                         lat::String="", lon::String="", dist_cutoff::Float64=0.0,
                         conley_kernel::String="bartlett", conley_metric::String="euclidean",
                         time_col::String="", time_cutoff::Int=0,
+                        conf_level::Float64=0.90,
                         output::String="", format::String="table")
+    conf_level = _validate_conf_level(conf_level, "estimate regression reg")
     # ── W10/#112: Conley (1999) spatial HAC ─────────────────────────────────
     # Guard the whole option group up front and in BOTH directions: choosing `conley`
     # without coordinates, and supplying coordinates under another cov-type (which would
@@ -4007,7 +4061,7 @@ function _estimate_reg(; data::String, dep::String="", cov_type::String="hc1",
         throw(_domain_or_data_error(e, "OLS/WLS regression"))
     end
 
-    coef_df = _reg_coef_table(model, xcols)
+    coef_df = _reg_coef_table(model, xcols; conf_level=conf_level)
     # The OLS/WLS distinction is an option-driven label, so it stays in the human-facing
     # title only — the envelope address is fixed for both paths (leaf-stem key,
     # matching predict/residuals reg → reg_fitted_values/reg_residuals).
@@ -4128,7 +4182,9 @@ end
 function _estimate_iv(; data::String, dep::String="", endogenous::String="",
                        instruments::String="", cov_type::String="hc1",
                        method::String="tsls", k::String="", fuller_a::Float64=1.0,
+                       conf_level::Float64=0.90,
                        output::String="", format::String="table")
+    conf_level = _validate_conf_level(conf_level, "estimate regression iv")
     # C067b: typed shared loader (`_load_iv_data`) replaces the old bare `error()` sites
     # (untyped exit-1) — a missing/unknown column is user input, not a CLI bug. Shared with
     # `test weak-instrument` so the two never drift.
@@ -4170,7 +4226,7 @@ function _estimate_iv(; data::String, dep::String="", endogenous::String="",
         throw(_garch_variant_error(e, "IV ($label) estimation"))
     end
 
-    coef_df = _reg_coef_table(model, xcols)
+    coef_df = _reg_coef_table(model, xcols; conf_level=conf_level)
     output_result(coef_df; format=Symbol(format), output=output, title="IV ($label) Regression Coefficients",
                   key="iv_coefficients")
 
@@ -4343,7 +4399,9 @@ function _residuals_3sls(; data::String="", config::String="", instruments::Stri
 end
 
 function _estimate_sur(; data::String, config::String="", iterate::Bool=false,
-                        no_intercept::Bool=false, output::String="", format::String="table")
+                        no_intercept::Bool=false, conf_level::Float64=0.90,
+                        output::String="", format::String="table")
+    conf_level = _validate_conf_level(conf_level, "estimate regression sur")
     isempty(config) && throw(CliError("config/missing",
         "estimate regression sur requires --config <toml> with [[equations]] blocks (each `dep` + `indep`)"))
     df = load_data(data)
@@ -4362,7 +4420,7 @@ function _estimate_sur(; data::String, config::String="", iterate::Bool=false,
     end
 
     _emit_result(model; title="SUR Coefficients", key="sur_coefficients",
-                 format=Symbol(format), output=output)
+                 format=Symbol(format), output=output, conf_level=conf_level)
     kind = model.iterated ? "Iterated SUR" : "SUR"
     output_kv(Pair{String,Any}[
         "estimator"  => model.restricted ? "$kind (restricted)" : kind,
@@ -4377,7 +4435,9 @@ function _estimate_sur(; data::String, config::String="", iterate::Bool=false,
 end
 
 function _estimate_3sls(; data::String, config::String="", instruments::String="common",
-                         no_intercept::Bool=false, output::String="", format::String="table")
+                         no_intercept::Bool=false, conf_level::Float64=0.90,
+                         output::String="", format::String="table")
+    conf_level = _validate_conf_level(conf_level, "estimate regression 3sls")
     isempty(config) && throw(CliError("config/missing",
         "estimate regression 3sls requires --config <toml> with [[equations]] and instruments"))
     df = load_data(data)
@@ -4410,7 +4470,7 @@ function _estimate_3sls(; data::String, config::String="", instruments::String="
     end
 
     _emit_result(model; title="3SLS Coefficients", key="3sls_coefficients",
-                 format=Symbol(format), output=output)
+                 format=Symbol(format), output=output, conf_level=conf_level)
     output_kv(Pair{String,Any}[
         "estimator"          => "3SLS",
         "equations"          => length(model.eqnames),
@@ -4426,7 +4486,9 @@ end
 
 function _estimate_logit(; data::String, dep::String="", cov_type::String="hc1",
                           clusters::String="", maxiter::Int=100, tol::Float64=1e-8,
+                          conf_level::Float64=0.90,
                           output::String="", format::String="table")
+    conf_level = _validate_conf_level(conf_level, "estimate choice logit")
     y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
     cl = _load_clusters(data, clusters)
 
@@ -4438,7 +4500,7 @@ function _estimate_logit(; data::String, dep::String="", cov_type::String="hc1",
     model = estimate_logit(y, X; cov_type=Symbol(cov_type), varnames=xcols,
                            clusters=cl, maxiter=maxiter, tol=tol)
 
-    coef_df = _reg_coef_table(model, xcols)
+    coef_df = _reg_coef_table(model, xcols; conf_level=conf_level)
     output_result(coef_df; format=Symbol(format), output=output, title="Logit Regression Coefficients")
 
     _status()
@@ -4461,7 +4523,9 @@ end
 
 function _estimate_probit(; data::String, dep::String="", cov_type::String="hc1",
                            clusters::String="", maxiter::Int=100, tol::Float64=1e-8,
+                           conf_level::Float64=0.90,
                            output::String="", format::String="table")
+    conf_level = _validate_conf_level(conf_level, "estimate choice probit")
     y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
     cl = _load_clusters(data, clusters)
 
@@ -4473,7 +4537,7 @@ function _estimate_probit(; data::String, dep::String="", cov_type::String="hc1"
     model = estimate_probit(y, X; cov_type=Symbol(cov_type), varnames=xcols,
                             clusters=cl, maxiter=maxiter, tol=tol)
 
-    coef_df = _reg_coef_table(model, xcols)
+    coef_df = _reg_coef_table(model, xcols; conf_level=conf_level)
     output_result(coef_df; format=Symbol(format), output=output, title="Probit Regression Coefficients")
 
     _status()
@@ -4501,7 +4565,9 @@ function _estimate_preg(; data::String, dep::String="", indep::String="",
                          absorb::String="", hdfe_tol::Float64=1e-8, hdfe_maxiter::Int=1000,
                          collapse::Bool=false, min_lag_endo::Int=2, max_lag_endo::Int=99,
                          id_col::String="", time_col::String="",
+                         conf_level::Float64=0.90,
                          output::String="", format::String="table")
+    conf_level = _validate_conf_level(conf_level, "estimate panel preg")
     # was a bare error() -> internal/error exit 1 for an ordinary usage mistake
     isempty(dep) && throw(CliError("usage/missing", "--dep is required";
         hint="name the dependent variable column, e.g. --dep y"))
@@ -4578,7 +4644,7 @@ function _estimate_preg(; data::String, dep::String="", indep::String="",
         throw(_garch_variant_error(e, "panel regression"))
     end
 
-    coef_df = _preg_coef_table(model, model.varnames)
+    coef_df = _preg_coef_table(model, model.varnames; conf_level=conf_level)
     output_result(coef_df; format=Symbol(format), output=output,
         title="Panel Regression Coefficients ($method)", key="panel_regression_coefficients")
 
@@ -4648,7 +4714,9 @@ function _estimate_piv(; data::String, dep::String="", exog::String="",
                         endog::String="", instruments::String="",
                         method::String="fe", cov_type::String="cluster",
                         id_col::String="", time_col::String="",
+                        conf_level::Float64=0.90,
                         output::String="", format::String="table")
+    conf_level = _validate_conf_level(conf_level, "estimate panel piv")
     # were bare error() → internal exit 1 for ordinary usage mistakes
     isempty(dep) && throw(CliError("usage/missing", "--dep is required";
         hint="name the dependent variable column, e.g. --dep y"))
@@ -4669,7 +4737,7 @@ function _estimate_piv(; data::String, dep::String="", exog::String="",
         instruments=inst_syms, model=_to_sym(method), cov_type=_to_sym(cov_type))
 
     all_vars = [string.(exog_syms); string.(endog_syms)]
-    coef_df = _preg_coef_table(model, all_vars)
+    coef_df = _preg_coef_table(model, all_vars; conf_level=conf_level)
     output_result(coef_df; format=Symbol(format), output=output, title="Panel IV Coefficients")
 
     # ── W10/#131 (MEMs#553): weak-instrument diagnostics, populated since 0.7.3.
@@ -4700,7 +4768,9 @@ end
 function _estimate_plogit(; data::String, dep::String="", indep::String="",
                            method::String="pooled", cov_type::String="cluster",
                            id_col::String="", time_col::String="",
+                           conf_level::Float64=0.90,
                            output::String="", format::String="table")
+    conf_level = _validate_conf_level(conf_level, "estimate panel plogit")
     isempty(dep) && throw(CliError("usage/missing-option", "--dep is required"))
     pd = _load_panel_for_preg(data, id_col, time_col)
     dep = _resolve_panel_dep(pd, dep)
@@ -4712,7 +4782,7 @@ function _estimate_plogit(; data::String, dep::String="", indep::String="",
     model = estimate_xtlogit(pd, Symbol(dep), indep_syms;
         model=_to_sym(method), cov_type=_to_sym(cov_type))
 
-    coef_df = _preg_coef_table(model, model.varnames)
+    coef_df = _preg_coef_table(model, model.varnames; conf_level=conf_level)
     output_result(coef_df; format=Symbol(format), output=output,
         title="Panel Logit Coefficients ($method)", key="panel_logit_coefficients")
 
@@ -4733,7 +4803,9 @@ end
 function _estimate_pprobit(; data::String, dep::String="", indep::String="",
                             method::String="pooled", cov_type::String="cluster",
                             id_col::String="", time_col::String="",
+                            conf_level::Float64=0.90,
                             output::String="", format::String="table")
+    conf_level = _validate_conf_level(conf_level, "estimate panel pprobit")
     isempty(dep) && throw(CliError("usage/missing-option", "--dep is required"))
     pd = _load_panel_for_preg(data, id_col, time_col)
     dep = _resolve_panel_dep(pd, dep)
@@ -4745,7 +4817,7 @@ function _estimate_pprobit(; data::String, dep::String="", indep::String="",
     model = estimate_xtprobit(pd, Symbol(dep), indep_syms;
         model=_to_sym(method), cov_type=_to_sym(cov_type))
 
-    coef_df = _preg_coef_table(model, model.varnames)
+    coef_df = _preg_coef_table(model, model.varnames; conf_level=conf_level)
     output_result(coef_df; format=Symbol(format), output=output,
         title="Panel Probit Coefficients ($method)", key="panel_probit_coefficients")
 
@@ -4766,8 +4838,9 @@ end
 # ── Ordered Logit ──────────────────────────────────────
 
 function _estimate_ologit(; data::String, dep::String="", cov_type::String="ols",
-                           clusters::String="",
+                           clusters::String="", conf_level::Float64=0.90,
                            output::String="", format::String="table")
+    conf_level = _validate_conf_level(conf_level, "estimate choice ologit")
     y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
     cl = _load_clusters(data, clusters)
     dep_name = _resolve_dep_name(data, dep)
@@ -4787,8 +4860,10 @@ function _estimate_ologit(; data::String, dep::String="", cov_type::String="ols"
                   title="Cutpoints")
 
     _status()
-    # C051: MEMs tidy coef table (term|estimate|std_error|stat|p_value|ci_lower|ci_upper).
-    output_result(DataFrame(model); format=Symbol(format), output=output, title="Ordered Logit Coefficients")
+    # C051 + [CI-W2]: MEMs tidy coef table via _emit_result with conf_level forwarding.
+    _emit_result(model; title="Ordered Logit Coefficients",
+                 key="ordered_logit_coefficients",
+                 format=Symbol(format), output=output, conf_level=conf_level)
 
     _status()
     pairs = Pair{String,Any}[
@@ -4805,8 +4880,9 @@ end
 # ── Ordered Probit ─────────────────────────────────────
 
 function _estimate_oprobit(; data::String, dep::String="", cov_type::String="ols",
-                            clusters::String="",
+                            clusters::String="", conf_level::Float64=0.90,
                             output::String="", format::String="table")
+    conf_level = _validate_conf_level(conf_level, "estimate choice oprobit")
     y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
     cl = _load_clusters(data, clusters)
     dep_name = _resolve_dep_name(data, dep)
@@ -4823,8 +4899,10 @@ function _estimate_oprobit(; data::String, dep::String="", cov_type::String="ols
                   title="Cutpoints")
 
     _status()
-    # C051: MEMs tidy coef table (term|estimate|std_error|stat|p_value|ci_lower|ci_upper).
-    output_result(DataFrame(model); format=Symbol(format), output=output, title="Ordered Probit Coefficients")
+    # C051 + [CI-W2]: MEMs tidy coef table via _emit_result with conf_level forwarding.
+    _emit_result(model; title="Ordered Probit Coefficients",
+                 key="ordered_probit_coefficients",
+                 format=Symbol(format), output=output, conf_level=conf_level)
 
     _status()
     pairs = Pair{String,Any}[
@@ -4839,8 +4917,9 @@ end
 # ── Multinomial Logit ──────────────────────────────────
 
 function _estimate_mlogit(; data::String, dep::String="", cov_type::String="ols",
-                           clusters::String="",
+                           clusters::String="", conf_level::Float64=0.90,
                            output::String="", format::String="table")
+    conf_level = _validate_conf_level(conf_level, "estimate choice mlogit")
     y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
     cl = _load_clusters(data, clusters)
     dep_name = _resolve_dep_name(data, dep)
@@ -4850,11 +4929,10 @@ function _estimate_mlogit(; data::String, dep::String="", cov_type::String="ols"
 
     model = estimate_mlogit(y, X; cov_type=Symbol(cov_type), varnames=xcols, clusters=cl)
 
-    # C051: MEMs tidy coef table keyed by alternative — all categories in one table
-    # (alternative|term|estimate|std_error|stat|p_value|ci_lower|ci_upper), replacing the
-    # per-category loop of wide tables.
-    output_result(DataFrame(model); format=Symbol(format), output=output,
-                  title="Multinomial Logit Coefficients")
+    # C051 + [CI-W2]: MEMs tidy coef table keyed by alternative via _emit_result.
+    _emit_result(model; title="Multinomial Logit Coefficients",
+                 key="multinomial_logit_coefficients",
+                 format=Symbol(format), output=output, conf_level=conf_level)
     _status()
 
     pairs = Pair{String,Any}[
@@ -4951,8 +5029,7 @@ end
 function _count_guards(maxiter::Int, tol::Float64, conf_level::Float64, leaf::String)
     maxiter >= 1 || throw(CliError("usage/invalid", "$leaf: --maxiter must be ≥ 1 (got $maxiter)"))
     tol > 0 || throw(CliError("usage/invalid", "$leaf: --tol must be > 0 (got $tol)"))
-    (0 < conf_level < 1) || throw(CliError("usage/invalid",
-        "$leaf: --conf-level must satisfy 0 < level < 1 (got $conf_level)"))
+    _validate_conf_level(conf_level, leaf)
 end
 
 function _fit_poisson(data, dep, offset, exposure, cov_type, clusters, maxiter, tol)
@@ -5000,7 +5077,7 @@ end
 function _estimate_poisson(; data::String, dep::String="", offset::String="",
                             exposure::String="", cov_type::String="robust",
                             clusters::String="", maxiter::Int=100, tol::Float64=1e-10,
-                            conf_level::Float64=0.95, irr::Bool=false,
+                            conf_level::Float64=0.90, irr::Bool=false,
                             output::String="", format::String="table")
     _count_guards(maxiter, tol, conf_level, "estimate choice poisson")
     model, xcols = _fit_poisson(data, dep, offset, exposure, cov_type, clusters, maxiter, tol)
@@ -5009,7 +5086,8 @@ function _estimate_poisson(; data::String, dep::String="", offset::String="",
     _status("  Observations: $(length(model.y)), Regressors: $(length(xcols)), Cov type: $cov_type")
     _status()
     _emit_result(model; title="Poisson Regression Coefficients",
-                 key="poisson_regression_coefficients", format=Symbol(format), output=output)
+                 key="poisson_regression_coefficients", format=Symbol(format), output=output,
+                 conf_level=conf_level)
     if irr
         output_result(_irr_table(model, conf_level); format=Symbol(format),
                       output=_per_var_output_path(output, "irr"),
@@ -5024,7 +5102,7 @@ end
 
 function _estimate_nbreg(; data::String, dep::String="", offset::String="",
                           exposure::String="", maxiter::Int=1000, tol::Float64=1e-10,
-                          conf_level::Float64=0.95, irr::Bool=false,
+                          conf_level::Float64=0.90, irr::Bool=false,
                           output::String="", format::String="table")
     _count_guards(maxiter, tol, conf_level, "estimate choice nbreg")
     model, xcols = _fit_nbreg(data, dep, offset, exposure, maxiter, tol)
@@ -5034,7 +5112,7 @@ function _estimate_nbreg(; data::String, dep::String="", offset::String="",
     _status()
     _emit_result(model; title="Negative Binomial Regression Coefficients",
                  key="negative_binomial_regression_coefficients",
-                 format=Symbol(format), output=output)
+                 format=Symbol(format), output=output, conf_level=conf_level)
     # α and its delta-method SE are NOT in the coefficient table (upstream's vcov slice
     # stops at β), so they get their own table — with a distinct output path, or --output
     # would drop the coefficients above.
@@ -5061,7 +5139,7 @@ function _predict_poisson(; data::String="", dep::String="", offset::String="",
                            exposure::String="", cov_type::String="robust",
                            clusters::String="", maxiter::Int=100, tol::Float64=1e-10,
                            output::String="", format::String="table", model=nothing)
-    _count_guards(maxiter, tol, 0.95, "predict choice poisson")
+    _count_guards(maxiter, tol, 0.90, "predict choice poisson")
     m = model === nothing ?
         first(_fit_poisson(data, dep, offset, exposure, cov_type, clusters, maxiter, tol)) : model
     _status("Poisson conditional means: n=$(length(predict(m)))"); _status()
@@ -5075,7 +5153,7 @@ end
 function _predict_nbreg(; data::String="", dep::String="", offset::String="",
                          exposure::String="", maxiter::Int=1000, tol::Float64=1e-10,
                          output::String="", format::String="table", model=nothing)
-    _count_guards(maxiter, tol, 0.95, "predict choice nbreg")
+    _count_guards(maxiter, tol, 0.90, "predict choice nbreg")
     m = model === nothing ? first(_fit_nbreg(data, dep, offset, exposure, maxiter, tol)) : model
     mu = predict(m)
     _status("Negative binomial conditional means: n=$(length(mu))"); _status()
@@ -5089,7 +5167,7 @@ function _residuals_poisson(; data::String="", dep::String="", offset::String=""
                              exposure::String="", cov_type::String="robust",
                              clusters::String="", maxiter::Int=100, tol::Float64=1e-10,
                              output::String="", format::String="table", model=nothing)
-    _count_guards(maxiter, tol, 0.95, "residuals choice poisson")
+    _count_guards(maxiter, tol, 0.90, "residuals choice poisson")
     m = model === nothing ?
         first(_fit_poisson(data, dep, offset, exposure, cov_type, clusters, maxiter, tol)) : model
     r = residuals(m)
@@ -5103,7 +5181,7 @@ end
 function _residuals_nbreg(; data::String="", dep::String="", offset::String="",
                            exposure::String="", maxiter::Int=1000, tol::Float64=1e-10,
                            output::String="", format::String="table", model=nothing)
-    _count_guards(maxiter, tol, 0.95, "residuals choice nbreg")
+    _count_guards(maxiter, tol, 0.90, "residuals choice nbreg")
     m = model === nothing ? first(_fit_nbreg(data, dep, offset, exposure, maxiter, tol)) : model
     r = residuals(m)
     _status("Negative binomial residuals: n=$(length(r))"); _status()
@@ -5179,7 +5257,8 @@ end
 """Hand-built coefficient table for a GARCH-variant volatility model:
 `parameter | estimate | std_error | z_stat | p_value`. Falls back to estimate-only
 when the QMLE covariance is unavailable (non-finite SEs)."""
-function _garch_variant_coef_table(model, param_names::Vector{String})
+function _garch_variant_coef_table(model, param_names::Vector{String};
+                                   conf_level::Union{Nothing,Real}=nothing)
     c = Float64.(coef(model))
     names = param_names[1:length(c)]
     try
@@ -5187,6 +5266,13 @@ function _garch_variant_coef_table(model, param_names::Vector{String})
         (length(se) == length(c) && all(isfinite, se)) || error("unavailable SEs")
         z = [se[i] == 0 ? 0.0 : c[i] / se[i] for i in eachindex(c)]
         pv = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
+        if conf_level !== nothing
+            ci_lo, ci_hi = _ci_bounds(model, c, se, conf_level)
+            return DataFrame(parameter=names, estimate=c,
+                             std_error=se,
+                             z_stat=z, p_value=pv,
+                             ci_lower=ci_lo, ci_upper=ci_hi)
+        end
         return DataFrame(parameter=names, estimate=c,
                          std_error=se,
                          z_stat=z, p_value=pv)
@@ -5234,12 +5320,28 @@ end
 z/p, matching the `_garch_variant`/`dsge` `_normal_cdf` convention). Callers `vcat`
 the two regime blocks into one table (C065a SETAR, reused by C065b STAR)."""
 function _threshold_coef_table(betas::AbstractVector, ses::AbstractVector,
-                               terms::Vector{String}, regime_label::String)
+                               terms::Vector{String}, regime_label::String;
+                               conf_level::Union{Nothing,Real}=nothing,
+                               ci_lo::Union{Nothing,AbstractVector}=nothing,
+                               ci_hi::Union{Nothing,AbstractVector}=nothing)
     b = Float64.(betas); s = Float64.(ses)
     n = length(b)
     tm = length(terms) == n ? terms : String["term$i" for i in 1:n]
     z  = [s[i] == 0.0 ? 0.0 : b[i] / s[i] for i in 1:n]
     pv = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
+    if conf_level !== nothing
+        lo, hi = if ci_lo !== nothing && ci_hi !== nothing && length(ci_lo) == n && length(ci_hi) == n
+            Float64.(ci_lo), Float64.(ci_hi)
+        else
+            lv = _validate_conf_level(conf_level, "threshold")
+            zc = _normal_quantile(1.0 - (1.0 - lv) / 2.0)
+            b .- zc .* s, b .+ zc .* s
+        end
+        return DataFrame(regime=fill(regime_label, n), term=tm[1:n],
+                         estimate=b, std_error=s,
+                         z_stat=z, p_value=pv,
+                         ci_lower=lo, ci_upper=hi)
+    end
     return DataFrame(regime=fill(regime_label, n), term=tm[1:n],
                      estimate=b, std_error=s,
                      z_stat=z, p_value=pv)
@@ -6055,7 +6157,9 @@ function _estimate_elastic_net(; data::String, dep::String="", alpha::Float64=0.
 end
 
 function _estimate_robust(; data::String, dep::String="", psi::String="huber",
-                           method::String="m", output::String="", format::String="table")
+                           method::String="m", conf_level::Float64=0.90,
+                           output::String="", format::String="table")
+    conf_level = _validate_conf_level(conf_level, "estimate regression robust")
     y, X, xcols = _load_reg_data(data, dep)
     dep_name = _resolve_dep_name(data, dep)
     _status("Robust regression ($psi $method-estimator): $dep_name ~ $(join(xcols, " + ")), n=$(length(y))")
@@ -6065,7 +6169,8 @@ function _estimate_robust(; data::String, dep::String="", psi::String="huber",
     catch e
         throw(_garch_variant_error(e, "Robust regression"))
     end
-    output_result(_garch_variant_coef_table(model, xcols); format=Symbol(format), output=output,
+    output_result(_garch_variant_coef_table(model, xcols; conf_level=conf_level);
+                  format=Symbol(format), output=output,
                   title="Robust Regression Coefficients")
     output_kv(Pair{String,Any}[
         "psi"        => string(model.psi),
@@ -6081,7 +6186,9 @@ function _estimate_robust(; data::String, dep::String="", psi::String="huber",
 end
 
 function _estimate_tobit(; data::String, dep::String="", lower::Float64=0.0,
-                          upper::Float64=Inf, output::String="", format::String="table")
+                          upper::Float64=Inf, conf_level::Float64=0.90,
+                          output::String="", format::String="table")
+    conf_level = _validate_conf_level(conf_level, "estimate regression tobit")
     lower < upper || throw(CliError("usage/invalid",
         "estimate regression tobit: --lower ($lower) must be < --upper ($upper)"))
     y, X, xcols = _load_reg_data(data, dep)
@@ -6093,7 +6200,8 @@ function _estimate_tobit(; data::String, dep::String="", lower::Float64=0.0,
     catch e
         throw(_garch_variant_error(e, "Tobit regression"))
     end
-    output_result(_garch_variant_coef_table(model, xcols); format=Symbol(format), output=output,
+    output_result(_garch_variant_coef_table(model, xcols; conf_level=conf_level);
+                  format=Symbol(format), output=output,
                   title="Tobit Coefficients")
     output_kv(Pair{String,Any}[
         "sigma"            => Float64(model.sigma),
@@ -6119,7 +6227,9 @@ end
 # C051 hand-built exception as Tobit/robust). Bad input (any y outside (lower,upper), or a
 # missing cell) is mapped to a typed data error via `_garch_variant_error`/`_load_reg_data`.
 function _estimate_truncreg(; data::String, dep::String="", lower::Float64=0.0,
-                             upper::Float64=Inf, output::String="", format::String="table")
+                             upper::Float64=Inf, conf_level::Float64=0.90,
+                             output::String="", format::String="table")
+    conf_level = _validate_conf_level(conf_level, "estimate regression truncreg")
     lower < upper || throw(CliError("usage/invalid",
         "estimate regression truncreg: --lower ($lower) must be < --upper ($upper)"))
     y, X, xcols = _load_reg_data(data, dep)
@@ -6131,7 +6241,8 @@ function _estimate_truncreg(; data::String, dep::String="", lower::Float64=0.0,
     catch e
         throw(_garch_variant_error(e, "Truncated regression"))
     end
-    output_result(_garch_variant_coef_table(model, xcols); format=Symbol(format), output=output,
+    output_result(_garch_variant_coef_table(model, xcols; conf_level=conf_level);
+                  format=Symbol(format), output=output,
                   title="Truncated Regression Coefficients")
     output_kv(Pair{String,Any}[
         "sigma"        => Float64(model.sigma),
@@ -6151,10 +6262,9 @@ end
 
 # ── C067b: Heckman sample-selection model (two-step / FIML) ─────
 # HeckmanModel is a TWO-equation result (outcome β + selection γ) → the coefficient table is
-# hand-built as one tidy `equation|term|estimate|std_error|z_stat|p_value` frame (C051 tidy
-# convention: the `equation` column carries outcome/selection, like VAR/panel prepend one).
-# SEs come from the stored vcov blocks; z/p are normal-approx (both estimators are asymptotic).
-function _heckman_coef_table(model)
+# hand-built as one tidy `equation|term|estimate|std_error|z_stat|p_value|ci_lower|ci_upper` frame.
+# SEs come from the stored vcov blocks; z/p/CIs are normal-approx (both estimators are asymptotic).
+function _heckman_coef_table(model; conf_level::Float64=0.90)
     eqc = String[]; term = String[]; est = Float64[]; sec = Float64[]
     _append! = (eqname, names, beta, vcov) -> begin
         se = sqrt.(max.(diag(vcov), 0.0))
@@ -6167,14 +6277,19 @@ function _heckman_coef_table(model)
     _append!("selection", model.select_names,  model.gamma, model.vcov_gamma)
     z  = [sec[i] == 0.0 ? 0.0 : est[i] / sec[i] for i in eachindex(est)]
     pv = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
+    zc = _normal_quantile(1.0 - (1.0 - conf_level) / 2.0)
     DataFrame(equation=eqc, term=term, estimate=est,
               std_error=sec, z_stat=z,
-              p_value=pv)
+              p_value=pv,
+              ci_lower=est .- zc .* sec,
+              ci_upper=est .+ zc .* sec)
 end
 
 function _estimate_heckman(; data::String, dep::String="", select::String="",
                             outcome_vars::String="", select_vars::String="",
-                            method::String="twostep", output::String="", format::String="table")
+                            method::String="twostep", conf_level::Float64=0.90,
+                            output::String="", format::String="table")
+    conf_level = _validate_conf_level(conf_level, "estimate regression heckman")
     method in ("twostep", "mle") || throw(CliError("usage/invalid",
         "estimate regression heckman: --method must be twostep or mle, got '$method'"))
     isempty(select) && throw(CliError("usage/missing",
@@ -6241,7 +6356,8 @@ function _estimate_heckman(; data::String, dep::String="", select::String="",
         throw(_garch_variant_error(e, "Heckman selection model"))
     end
 
-    output_result(_heckman_coef_table(model); format=Symbol(format), output=output,
+    output_result(_heckman_coef_table(model; conf_level=conf_level);
+                  format=Symbol(format), output=output,
                   title="Heckman Coefficients (outcome + selection)")
     output_kv(Pair{String,Any}[
         "method"      => string(model.method),
@@ -6565,13 +6681,19 @@ function _estimate_kde(; data::String, column::Int=1, kernel::String="gaussian",
 end
 
 # estimate kernel-reg — Nadaraya-Watson / local-linear / local-polynomial regression
-_kernel_reg_table(kr) = DataFrame(x=Float64.(kr.x),
-                                  fitted=Float64.(kr.fitted),
-                                  se=Float64.(kr.se))
+function _kernel_reg_table(kr; conf_level::Float64=0.90)
+    fit = Float64.(kr.fitted)
+    se  = Float64.(kr.se)
+    zc  = _normal_quantile(1.0 - (1.0 - conf_level) / 2.0)
+    return DataFrame(x=Float64.(kr.x), fitted=fit, se=se,
+                     ci_lower=fit .- zc .* se, ci_upper=fit .+ zc .* se)
+end
 
 function _estimate_kernel_reg(; data::String, dep::String="", indep::String="",
                                method::String="ll", degree::Int=1, bw::String="cv",
-                               kernel::String="gaussian", output::String="", format::String="table")
+                               kernel::String="gaussian", conf_level::Float64=0.90,
+                               output::String="", format::String="table")
+    conf_level = _validate_conf_level(conf_level, "estimate regression kernel-reg")
     method in ("nw", "ll", "lp") || throw(CliError("usage/invalid",
         "estimate regression kernel-reg: --method must be nw|ll|lp, got '$method'"))
     kernel in ("gaussian", "epanechnikov", "triangular", "uniform") || throw(CliError("usage/invalid",
@@ -6587,7 +6709,7 @@ function _estimate_kernel_reg(; data::String, dep::String="", indep::String="",
     catch e
         throw(_garch_variant_error(e, "Kernel regression"))
     end
-    output_result(_kernel_reg_table(kr); format=Symbol(format), output=output,
+    output_result(_kernel_reg_table(kr; conf_level=conf_level); format=Symbol(format), output=output,
                   title="Kernel Regression Fit ($ynm ~ $xnm)", key="kernel_regression_fit")
     output_kv(Pair{String,Any}[
         "method"    => string(kr.method),
@@ -6602,12 +6724,45 @@ function _estimate_kernel_reg(; data::String, dep::String="", indep::String="",
 end
 
 # estimate lowess — Cleveland (1979) locally-weighted scatterplot smoother
-_lowess_table(lf) = DataFrame(x=Float64.(lf.x),
-                              fitted=Float64.(lf.fitted))
+function _lowess_table(lf; conf_level::Float64=0.90)
+    xs = Float64.(lf.x)
+    fit = Float64.(lf.fitted)
+    ys = Float64.(lf.ydata)
+    n = length(xs)
+    q = clamp(floor(Int, Float64(lf.span) * n), 2, n)
+    rss = 0.0
+    @inbounds for i in 1:n
+        r = ys[i] - fit[i]
+        rss += r * r
+    end
+    eff_df = min(Float64(n) - 1.0, max(2.0, 2.0 / max(Float64(lf.span), 1e-6)))
+    sigma2 = rss / max(Float64(n) - eff_df, 1.0)
+    se = Vector{Float64}(undef, n)
+    for i in 1:n
+        xi = xs[i]
+        dists = abs.(xs .- xi)
+        perm = partialsortperm(dists, 1:q)
+        h = max(dists[perm[end]], eps(Float64))
+        wsum = 0.0
+        w2sum = 0.0
+        @inbounds for idx in perm
+            u = min(dists[idx] / h, 1.0)
+            w = (1.0 - u^3)^3
+            wsum += w
+            w2sum += w * w
+        end
+        se[i] = wsum > 0.0 ? sqrt(sigma2 * w2sum / (wsum * wsum)) : 0.0
+    end
+    zc = _normal_quantile(1.0 - (1.0 - conf_level) / 2.0)
+    return DataFrame(x=xs, fitted=fit, se=se,
+                     ci_lower=fit .- zc .* se, ci_upper=fit .+ zc .* se)
+end
 
 function _estimate_lowess(; data::String, dep::String="", indep::String="",
                            frac::Float64=0.6667, iter::Int=3,
+                           conf_level::Float64=0.90,
                            output::String="", format::String="table")
+    conf_level = _validate_conf_level(conf_level, "estimate regression lowess")
     (0.0 < frac <= 1.0) || throw(CliError("usage/invalid",
         "estimate regression lowess: --frac must be in (0,1], got $frac"))
     iter >= 0 || throw(CliError("usage/invalid",
@@ -6620,7 +6775,7 @@ function _estimate_lowess(; data::String, dep::String="", indep::String="",
     catch e
         throw(_garch_variant_error(e, "LOWESS"))
     end
-    output_result(_lowess_table(lf); format=Symbol(format), output=output,
+    output_result(_lowess_table(lf; conf_level=conf_level); format=Symbol(format), output=output,
                   title="LOWESS Fit ($ynm ~ $xnm)", key="lowess_fit")
     output_kv(Pair{String,Any}[
         "frac" => Float64(lf.span),
@@ -7297,17 +7452,14 @@ function _load_threshold_data(data::String, dep::String, threshold_col::String)
 end
 
 function _estimate_threshold(; data::String, dep::String="", threshold_col::String="",
-        trim::Float64=0.15, reps::Int=1000, ci_level::Float64=0.95,
+        trim::Float64=0.15, reps::Int=1000, ci_level::Float64=0.90,
         het::Bool=false, no_linearity::Bool=false,
         output::String="", format::String="table",
         plot::Bool=false, plot_save::String="")
     (0.0 < trim < 0.5) || throw(CliError("usage/invalid",
         "estimate regime threshold: --trim must be in (0, 0.5) (got $trim)"))
     reps >= 1 || throw(CliError("usage/invalid", "estimate regime threshold: --reps must be ≥ 1 (got $reps)"))
-    # Hansen (2000) critical values are tabulated ONLY for these three levels — anything
-    # else makes `_hansen2000_crit` throw an uncaught ArgumentError (same as setar).
-    (ci_level == 0.90 || ci_level == 0.95 || ci_level == 0.99) || throw(CliError("usage/invalid",
-        "estimate regime threshold: --ci-level must be exactly 0.90, 0.95, or 0.99 (got $ci_level)"))
+    ci_level = _validate_conf_level(ci_level, "estimate regime threshold")
     y, X, q, depc, xcols = _load_threshold_data(data, dep, threshold_col)
     _status("Estimating threshold regression: $depc ~ $(join(xcols, " + ")), split by $threshold_col, n=$(length(y)), ci=$ci_level" *
             (het ? ", het bootstrap" : "") * (no_linearity ? ", linearity test skipped" : ""))
@@ -7319,10 +7471,28 @@ function _estimate_threshold(; data::String, dep::String="", threshold_col::Stri
     catch e
         throw(_nonlinear_error(e, "threshold regression"))
     end
-    _maybe_plot(model; plot=plot, plot_save=plot_save)
+    _maybe_plot(model; plot=plot, plot_save=plot_save, conf_level=ci_level)
+    k1 = length(model.beta1)
+    k2 = length(model.beta2)
+    ci_all = if isdefined(MacroEconometricModels, :confint)
+        try
+            m = MacroEconometricModels.confint(model; level=ci_level)
+            (m isa AbstractMatrix && size(m) == (k1 + k2, 2)) ? m : nothing
+        catch
+            nothing
+        end
+    else
+        nothing
+    end
     coef = vcat(
-        _threshold_coef_table(model.beta1, model.se1, model.xnames, "regime1 ($threshold_col≤γ)"),
-        _threshold_coef_table(model.beta2, model.se2, model.xnames, "regime2 ($threshold_col>γ)"),
+        _threshold_coef_table(model.beta1, model.se1, model.xnames, "regime1 ($threshold_col≤γ)";
+                              conf_level=ci_level,
+                              ci_lo=ci_all === nothing ? nothing : @view(ci_all[1:k1, 1]),
+                              ci_hi=ci_all === nothing ? nothing : @view(ci_all[1:k1, 2])),
+        _threshold_coef_table(model.beta2, model.se2, model.xnames, "regime2 ($threshold_col>γ)";
+                              conf_level=ci_level,
+                              ci_lo=ci_all === nothing ? nothing : @view(ci_all[(k1 + 1):(k1 + k2), 1]),
+                              ci_hi=ci_all === nothing ? nothing : @view(ci_all[(k1 + 1):(k1 + k2), 2])),
     )
     output_result(coef; format=Symbol(format), output=output,
                   title="Threshold Regression Coefficients ($depc)",
@@ -8377,7 +8547,8 @@ const _QREG_SOLVERS = ("ipm", "irls")
 
 function _estimate_qreg(; data::String, dep::String="", tau::String="0.5",
                          se::String="iid", solver::String="ipm",
-                         n_boot::Int=500, alpha::Float64=0.05,
+                         n_boot::Int=500, conf_level::Float64=0.90,
+                         alpha::Float64=0.10,
                          output::String="", format::String="table")
     taus = _parse_taus(tau)
     se_l = lowercase(strip(se))
@@ -8387,8 +8558,30 @@ function _estimate_qreg(; data::String, dep::String="", tau::String="0.5",
     solver_l in _QREG_SOLVERS || throw(CliError("usage/invalid-option",
         "invalid --solver '$solver'; must be one of $(join(_QREG_SOLVERS, "|"))"))
     n_boot >= 1 || throw(CliError("usage/invalid", "--n-boot must be ≥ 1 (got $n_boot)"))
-    0 < alpha < 1 || throw(CliError("usage/invalid",
+    (isfinite(alpha) && 0 < alpha < 1) || throw(CliError("usage/invalid",
         "--alpha must lie in (0, 1) (got $alpha)"))
+    conf_level = _validate_conf_level(conf_level, "estimate regression qreg")
+
+    explicit = isdefined(@__MODULE__, :_CURRENT_EXPLICIT_OPTS) ? _CURRENT_EXPLICIT_OPTS[] : Set{String}()
+    has_c = "conf-level" in explicit
+    has_a = "alpha" in explicit
+    if has_c && has_a
+        throw(CliError("usage/conflicting-options",
+            "estimate regression qreg: cannot combine --conf-level with --alpha";
+            hint="pass either --conf-level <0..1> or --alpha <0..1>, not both"))
+    end
+    eff_conf = if has_a
+        _validate_conf_level(1.0 - alpha, "estimate regression qreg")
+    elseif has_c
+        conf_level
+    elseif !isapprox(conf_level, _DEFAULT_CI_MICRO; atol=1e-12)
+        conf_level
+    elseif !isapprox(alpha, 1.0 - _DEFAULT_CI_MICRO; atol=1e-12)
+        _validate_conf_level(1.0 - alpha, "estimate regression qreg")
+    else
+        conf_level
+    end
+    eff_alpha = 1.0 - eff_conf
 
     y, X, xcols = _load_reg_data(data, dep)
     dep_name = _resolve_dep_name(data, dep)
@@ -8399,7 +8592,7 @@ function _estimate_qreg(; data::String, dep::String="", tau::String="0.5",
     model = try
         estimate_qreg(y, X, length(taus) == 1 ? taus[1] : taus;
                       se=Symbol(se_l), solver=Symbol(solver_l),
-                      varnames=xcols, n_boot=n_boot, alpha=alpha,
+                      varnames=xcols, n_boot=n_boot, alpha=eff_alpha,
                       _fwd_seed()...)
     catch e
         e isa CliError && rethrow()
@@ -8407,7 +8600,8 @@ function _estimate_qreg(; data::String, dep::String="", tau::String="0.5",
     end
 
     _emit_result(model; title="Quantile Regression Coefficients ($(se_l) SE)",
-                 key="quantile_regression_coefficients", format=Symbol(format), output=output)
+                 key="quantile_regression_coefficients", format=Symbol(format), output=output,
+                 conf_level=eff_conf)
 
     # Pseudo-R² is per-quantile and NOT comparable with an OLS R²: it compares the check-
     # function objective against an intercept-only quantile fit, so it measures fit at that
@@ -8429,14 +8623,13 @@ function _estimate_rdd(; data::String, outcome::String="", running::String="",
                         fuzzy::String="", cutoff::Float64=0.0,
                         bandwidth::Float64=0.0, bias_bandwidth::Float64=0.0,
                         kernel::String="triangular", order::Int=1,
-                        level::Float64=0.95,
+                        level::Float64=0.90,
                         output::String="", format::String="table")
     kern = lowercase(strip(kernel))
     kern in _RDD_KERNELS || throw(CliError("usage/invalid-option",
         "invalid --kernel '$kernel'; must be one of $(join(_RDD_KERNELS, "|"))"))
     order >= 1 || throw(CliError("usage/invalid", "--order must be ≥ 1 (got $order)"))
-    0 < level < 1 || throw(CliError("usage/invalid",
-        "--level must lie in (0, 1) (got $level)"))
+    level = _validate_conf_level(level, "estimate regression rdd")
     bandwidth >= 0 || throw(CliError("usage/invalid",
         "--bandwidth must be > 0, or 0 for CCT auto-selection (got $bandwidth)"))
     bias_bandwidth >= 0 || throw(CliError("usage/invalid",
@@ -8501,7 +8694,8 @@ function _estimate_rdd(; data::String, outcome::String="", running::String="",
 
     _emit_result(res;
                  title="RDD Treatment Effect ($(res.design), $(round(Int, 100*res.level))% CI)",
-                 key="rdd_treatment_effect", format=Symbol(format), output=output)
+                 key="rdd_treatment_effect", format=Symbol(format), output=output,
+                 conf_level=level)
 
     settings = Pair{String,Any}[
         "design"          => String(res.design),

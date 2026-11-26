@@ -1618,6 +1618,31 @@ function _fit_ri_logit_from_args(; data::String, env_col::String="env",
     return model, d
 end
 
+function _ri_logit_coef_table(model::RILogitModel, conf_level::Float64)
+    K = length(model.beta)
+    if K == 0
+        return DataFrame(term=["omega"], estimate=[Float64(model.omega)],
+                         std_error=[NaN], stat=[NaN], p_value=[NaN],
+                         ci_lower=[NaN], ci_upper=[NaN])
+    end
+    b = Float64.(model.beta)
+    # Work around upstream MEMs v1.1.2 `_coef_nt(m::RILogitModel)` checking
+    # `size(m.vcov_mat) == (K, K)` when `m.vcov_mat` is `(K+1, K+1)` (beta + omega).
+    se = if size(model.vcov_mat, 1) >= K && size(model.vcov_mat, 2) >= K
+        Float64[sqrt(max(Float64(model.vcov_mat[i, i]), 0.0)) for i in 1:K]
+    else
+        fill(NaN, K)
+    end
+    zcrit = _normal_quantile(1.0 - (1.0 - conf_level) / 2.0)
+    stat = Float64[se[i] > 0.0 ? b[i] / se[i] : NaN for i in 1:K]
+    pval = Float64[isfinite(stat[i]) ? 2.0 * (1.0 - _normal_cdf(abs(stat[i]))) : NaN for i in 1:K]
+    lo = b .- zcrit .* se
+    hi = b .+ zcrit .* se
+    vn = length(model.varnames) == K ? String.(model.varnames) : ["x$i" for i in 1:K]
+    return DataFrame(term=vn, estimate=b, std_error=se, stat=stat, p_value=pval,
+                     ci_lower=lo, ci_upper=hi)
+end
+
 function _estimate_ri_logit(; data::String, env_col::String="env",
                             choice_col::String="choice", alt_col::String="alt",
                             state_col::String="state", obs_col::String="",
@@ -1625,8 +1650,10 @@ function _estimate_ri_logit(; data::String, env_col::String="env",
                             priors::String="", normalize::String="auto",
                             cov_type::String="hessian", tol::Float64=1e-10,
                             max_iter::Int=400, unobserved_state::Bool=false,
+                            conf_level::Float64=0.90,
                             output::String="", format::String="table",
                             plot::Bool=false, plot_save::String="")
+    conf_level = _validate_conf_level(conf_level, "estimate choice ri-logit")
     model, d = _fit_ri_logit_from_args(; data=data, env_col=env_col,
         choice_col=choice_col, alt_col=alt_col, state_col=state_col,
         obs_col=obs_col, attr_cols=attr_cols, config=config,
@@ -1636,8 +1663,9 @@ function _estimate_ri_logit(; data::String, env_col::String="env",
     _status("RI Logit: N=$(model.n_obs), M=$(d.M) envs, J=$(d.J) alts, S=$(d.S) states, K=$(d.K) attrs")
     _status()
 
-    _emit_result(model; title="RI Logit Coefficients",
-                 key="ri_logit_coefficients", format=format, output=output)
+    output_result(_ri_logit_coef_table(model, conf_level);
+                  title="RI Logit Coefficients",
+                  key="ri_logit_coefficients", format=Symbol(format), output=output)
     output_kv(Pair{String,Any}[
         "omega"        => Float64(model.omega),
         "normalize"    => string(model.normalize),
@@ -1654,7 +1682,7 @@ function _estimate_ri_logit(; data::String, env_col::String="env",
         "n_obs"        => model.n_obs,
     ]; format=format, output=_per_var_output_path(output, "fit"),
        title="Fit Statistics", key="fit_statistics")
-    _maybe_plot(model; plot=plot, plot_save=plot_save)
+    _maybe_plot(model; plot=plot, plot_save=plot_save, conf_level=conf_level)
     return model
 end
 
@@ -1742,7 +1770,7 @@ function w5_estimate_specs()::Vector{CommandSpec}
             summary="Fit Matějka-McKay (2015) Rational Inattention discrete-choice logit model",
             args=[ArgSpec(name="data", type=String, required=true, default=nothing,
                           description="Path to long-format menu CSV or handle stem (.csv, .jld2, .jls)")],
-            options=[_RI_LOGIT_COMMON_OPTIONS..., OUTPUT_OPTIONS..., PLOT_OPTIONS...],
+            options=[_RI_LOGIT_COMMON_OPTIONS..., CONF_LEVEL_MICRO_OPTION, OUTPUT_OPTIONS..., PLOT_OPTIONS...],
             flags=[
                 FlagSpec(name="unobserved-state",
                          description="Treat state as unobserved by the econometrician (estimate from unconditional shares)"),

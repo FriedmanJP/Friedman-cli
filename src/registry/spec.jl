@@ -291,8 +291,7 @@ const COUNT_COMMON_OPTIONS = [
                description="Exposure column, strictly positive; enters as log(exposure)"),
 ]
 const COUNT_IRR_OPTIONS = [
-    OptionSpec(name="conf-level", type=Float64, default=0.95,
-               description="Confidence level for the incidence-rate-ratio CI (0 < level < 1)"),
+    CONF_LEVEL_MICRO_OPTION,
     OptionSpec(name="output", short="o", type=String, default="",
                description="Export results to file"),
     OptionSpec(name="format", short="f", type=String, default="table",

@@ -48,13 +48,14 @@ function _did_estimate(; data::String, outcome::String, treatment::String,
         method::String="twfe", id_col::String="", time_col::String="",
         leads::Int=0, horizon::Int=5, covariates::String="",
         control_group::String="never_treated", cluster::String="unit",
-        conf_level::Float64=0.95, n_boot::Int=200,
+        conf_level::Float64=0.90, n_boot::Int=200,
         base_period::String="varying",
         output::String="", format::String="table",
         plot::Bool=false, plot_save::String="")
 
     isempty(outcome) && throw(CliError("usage/missing-option", "--outcome is required"))
     isempty(treatment) && throw(CliError("usage/missing-option", "--treatment is required"))
+    conf_level = _validate_conf_level(conf_level, "did estimate")
 
     df = load_data(data)
     id, tc = _did_panel_cols(df, id_col, time_col)
@@ -73,7 +74,7 @@ function _did_estimate(; data::String, outcome::String, treatment::String,
     # so the event-time block routes through the central helper. Key frozen (`did_estimation`).
     fmt = Symbol(lowercase(format))
     _emit_result(result; title="DID Estimation — $(uppercase(method))", key="did_estimation",
-        format=fmt, output=output)
+        format=fmt, output=output, conf_level=conf_level)
 
     _status()
     _status_styled("  Overall ATT: "; bold=true)
@@ -96,7 +97,7 @@ function _did_estimate(; data::String, outcome::String, treatment::String,
             title="Group-Time ATT (Callaway-Sant'Anna)")
     end
 
-    _maybe_plot(result; plot=plot, plot_save=plot_save)
+    _maybe_plot(result; plot=plot, plot_save=plot_save, conf_level=conf_level)
     return result
 end
 
@@ -104,12 +105,13 @@ function _did_event_study(; data::String, outcome::String, treatment::String,
         id_col::String="", time_col::String="",
         leads::Int=3, horizon::Int=5, lags::Int=4,
         covariates::String="", cluster::String="unit",
-        conf_level::Float64=0.95,
+        conf_level::Float64=0.90,
         output::String="", format::String="table",
         plot::Bool=false, plot_save::String="")
 
     isempty(outcome) && throw(CliError("usage/missing-option", "--outcome is required"))
     isempty(treatment) && throw(CliError("usage/missing-option", "--treatment is required"))
+    conf_level = _validate_conf_level(conf_level, "did event-study")
 
     df = load_data(data)
     id, tc = _did_panel_cols(df, id_col, time_col)
@@ -123,7 +125,7 @@ function _did_event_study(; data::String, outcome::String, treatment::String,
 
     fmt = Symbol(lowercase(format))
     _emit_result(result; title="Event Study LP — $(result.outcome_var)",
-                 key="event_study_lp", format=fmt, output=output)
+                 key="event_study_lp", format=fmt, output=output, conf_level=conf_level)
 
     _status()
     _status_styled("  N: "; bold=true)
@@ -135,7 +137,7 @@ function _did_event_study(; data::String, outcome::String, treatment::String,
     _status_styled("Horizon: "; bold=true)
     _status("$(result.horizon)")
 
-    _maybe_plot(result; plot=plot, plot_save=plot_save)
+    _maybe_plot(result; plot=plot, plot_save=plot_save, conf_level=conf_level)
     return result
 end
 
@@ -258,12 +260,13 @@ end
 function _did_test_pretrend(; data::String, outcome::String, treatment::String,
         id_col::String="", time_col::String="",
         leads::Int=3, horizon::Int=5, lags::Int=4,
-        cluster::String="unit", conf_level::Float64=0.95,
+        cluster::String="unit", conf_level::Float64=0.90,
         method::String="did", did_method::String="twfe",
         output::String="", format::String="table")
 
     isempty(outcome) && throw(CliError("usage/missing-option", "--outcome is required"))
     isempty(treatment) && throw(CliError("usage/missing-option", "--treatment is required"))
+    conf_level = _validate_conf_level(conf_level, "test did pretrend")
 
     df = load_data(data)
     id, tc = _did_panel_cols(df, id_col, time_col)
@@ -328,13 +331,14 @@ function _did_test_honest(; data::String, outcome::String, treatment::String,
         id_col::String="", time_col::String="",
         mbar::Float64=1.0,
         leads::Int=3, horizon::Int=5, lags::Int=4,
-        cluster::String="unit", conf_level::Float64=0.95,
+        cluster::String="unit", conf_level::Float64=0.90,
         method::String="did", did_method::String="twfe",
         output::String="", format::String="table",
         plot::Bool=false, plot_save::String="")
 
     isempty(outcome) && throw(CliError("usage/missing-option", "--outcome is required"))
     isempty(treatment) && throw(CliError("usage/missing-option", "--treatment is required"))
+    conf_level = _validate_conf_level(conf_level, "test did honest")
 
     df = load_data(data)
     id, tc = _did_panel_cols(df, id_col, time_col)
@@ -368,7 +372,7 @@ function _did_test_honest(; data::String, outcome::String, treatment::String,
     _status_styled("  Breakdown value: "; bold=true)
     _status(round(result.breakdown_value; digits=4))
 
-    _maybe_plot(result; plot=plot, plot_save=plot_save)
+    _maybe_plot(result; plot=plot, plot_save=plot_save, conf_level=conf_level)
     return result
 end
 
@@ -390,7 +394,7 @@ function did_specs()::Vector{CommandSpec}
                 OptionSpec(name="covariates", type=String, default="", description="Comma-separated covariate column names"),
                 OptionSpec(name="control-group", type=String, default="never_treated", description="never_treated|not_yet_treated", choices=["never_treated","not_yet_treated"]),
                 OptionSpec(name="cluster", type=String, default="unit", description="unit|time|twoway", choices=["unit","time","twoway"]),
-                OptionSpec(name="conf-level", type=Float64, default=0.95, description="Confidence level"),
+                CONF_LEVEL_MICRO_OPTION,
                 OptionSpec(name="n-boot", type=Int, default=200, description="Bootstrap replications (dcdh only)"),
                 OptionSpec(name="base-period", type=String, default="varying", description="varying|universal (Callaway-Sant'Anna only)", choices=["varying","universal"]),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -422,7 +426,7 @@ function did_specs()::Vector{CommandSpec}
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="Control lags"),
                 OptionSpec(name="covariates", type=String, default="", description="Comma-separated covariate column names"),
                 OptionSpec(name="cluster", type=String, default="unit", description="unit|time|twoway"),
-                OptionSpec(name="conf-level", type=Float64, default=0.95, description="Confidence level"),
+                CONF_LEVEL_MICRO_OPTION,
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
                 OptionSpec(name="plot-save", type=String, default="", description="Save plot to HTML file")
@@ -505,7 +509,7 @@ function did_specs()::Vector{CommandSpec}
                 OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=5, description="Post-treatment horizon"),
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="Control lags (event-study only)"),
                 OptionSpec(name="cluster", type=String, default="unit", description="unit|time|twoway"),
-                OptionSpec(name="conf-level", type=Float64, default=0.95, description="Confidence level"),
+                CONF_LEVEL_MICRO_OPTION,
                 OptionSpec(name="method", type=String, default="did", description="did|event-study", choices=["did","event-study"]),
                 OptionSpec(name="did-method", type=String, default="twfe", choices=["twfe", "cs", "sa", "bjs", "dcdh"], description="twfe|cs|sa|bjs|dcdh (did method only)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
@@ -550,7 +554,7 @@ function did_specs()::Vector{CommandSpec}
                 OptionSpec(name="horizons", aliases=["horizon"], kwarg=:horizon, type=Int, default=5, description="Post-treatment horizon"),
                 OptionSpec(name="lags", short="p", type=Int, default=4, description="Control lags (event-study only)"),
                 OptionSpec(name="cluster", type=String, default="unit", description="unit|time|twoway"),
-                OptionSpec(name="conf-level", type=Float64, default=0.95, description="Confidence level"),
+                CONF_LEVEL_MICRO_OPTION,
                 OptionSpec(name="method", type=String, default="did", description="did|event-study", choices=["did","event-study"]),
                 OptionSpec(name="did-method", type=String, default="twfe", choices=["twfe", "cs", "sa", "bjs", "dcdh"], description="twfe|cs|sa|bjs|dcdh (did method only)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),

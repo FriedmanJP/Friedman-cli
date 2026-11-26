@@ -776,9 +776,11 @@ function _estimate_xtqreg(; data::String, dep::String="", indep::String="",
                           slope::String="homogeneous", se::String="asymptotic",
                           n_boot::Int=199, r_max::Int=6, max_iter::Int=100,
                           tol::Float64=1e-5, no_bias_correct::Bool=false,
+                          conf_level::Float64=0.90,
                           output::String="", format::String="table",
                           plot::Bool=false, plot_save::String="")
     leaf = "estimate panel xtqreg"
+    conf_level = _validate_conf_level(conf_level, leaf)
     _w1_check_tau(tau, "--tau", leaf)
     r_spec = _w1_parse_factors_or_auto(factors, "--factors", leaf)
     slope_l = lowercase(strip(slope))
@@ -811,8 +813,9 @@ function _estimate_xtqreg(; data::String, dep::String="", indep::String="",
 
     _emit_result(model;
                  title="Interactive Panel Quantile Regression (τ=$tau, r=$(model.r), $slope_l)",
-                 key="xtqreg_coefficients", format=Symbol(format), output=output)
-    _maybe_plot(model; plot=plot, plot_save=plot_save)
+                 key="xtqreg_coefficients", format=Symbol(format), output=output,
+                 conf_level=conf_level)
+    _maybe_plot(model; plot=plot, plot_save=plot_save, conf_level=conf_level)
     return model
 end
 
@@ -1180,6 +1183,7 @@ function w1_estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="r-max", type=Int, default=6, description="Max factor count when --factors auto"),
                 OptionSpec(name="max-iter", type=Int, default=100, description="Maximum outer alternating iterations"),
                 OptionSpec(name="tol", type=Float64, default=1e-5, description="Convergence tolerance (> 0)"),
+                CONF_LEVEL_MICRO_OPTION,
                 OUTPUT_OPTIONS...,
                 PLOT_OPTIONS...,
             ],

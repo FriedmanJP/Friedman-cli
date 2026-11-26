@@ -362,10 +362,12 @@ end
 
 function _predict_logit(; data::String="", dep::String="", cov_type::String="hc1",
                          clusters::String="", threshold::Float64=0.5,
+                         conf_level::Float64=0.90,
                          marginal_effects::Bool=false, odds_ratio::Bool=false,
                          classification_table::Bool=false,
                          output::String="", format::String="table",
                          model=nothing)
+    conf_level = _validate_conf_level(conf_level, "predict choice logit")
     oos = !isnothing(model) && !isempty(data)
     if isnothing(model)
         y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
@@ -377,14 +379,14 @@ function _predict_logit(; data::String="", dep::String="", cov_type::String="hc1
     end
 
     if marginal_effects
-        me = MacroEconometricModels.marginal_effects(model)
+        me = MacroEconometricModels.marginal_effects(model; conf_level=conf_level)
         # #216: vector-form MarginalEffects routes through the central helper —
         # upstream lowercase unrounded columns (+ non-finite-row drop, as report() does).
         # Key frozen via the title slug (`average_marginal_effects_logit`).
         _emit_result(me; title="Average Marginal Effects (Logit)",
-            format=Symbol(format), output=output)
+            format=Symbol(format), output=output, conf_level=conf_level)
     elseif odds_ratio
-        or = MacroEconometricModels.odds_ratio(model)
+        or = MacroEconometricModels.odds_ratio(model; conf_level=conf_level)
         or_df = DataFrame(Variable=or.varnames, Odds_Ratio=or.or,
             CI_Lower=or.ci_lower, CI_Upper=or.ci_upper)
         output_result(or_df; format=Symbol(format), output=output,
@@ -430,10 +432,12 @@ end
 
 function _predict_probit(; data::String="", dep::String="", cov_type::String="hc1",
                           clusters::String="", threshold::Float64=0.5,
+                          conf_level::Float64=0.90,
                           marginal_effects::Bool=false,
                           classification_table::Bool=false,
                           output::String="", format::String="table",
                           model=nothing)
+    conf_level = _validate_conf_level(conf_level, "predict choice probit")
     oos = !isnothing(model) && !isempty(data)
     if isnothing(model)
         y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
@@ -445,12 +449,12 @@ function _predict_probit(; data::String="", dep::String="", cov_type::String="hc
     end
 
     if marginal_effects
-        me = MacroEconometricModels.marginal_effects(model)
+        me = MacroEconometricModels.marginal_effects(model; conf_level=conf_level)
         # #216: vector-form MarginalEffects routes through the central helper —
         # upstream lowercase unrounded columns (+ non-finite-row drop, as report() does).
         # Key frozen via the title slug (`average_marginal_effects_probit`).
         _emit_result(me; title="Average Marginal Effects (Probit)",
-            format=Symbol(format), output=output)
+            format=Symbol(format), output=output, conf_level=conf_level)
     elseif classification_table
         ct = MacroEconometricModels.classification_table(model; threshold=threshold)
         _status("Classification Table (threshold=$threshold):")
@@ -666,14 +670,21 @@ ordered models, so both are checked. Every variable's effects sum to ~0 across
 categories (∂Σp/∂x = 0), base category included. Neither family carries
 z/p/CI — deliberately NOT routed through the shared `MarginalEffects` renderer.
 """
-function _choice_me_table(me)
+function _choice_me_table(me; conf_level::Float64=0.90)
     K, J = size(me.effects)
     labels = length(me.categories) == J ? string.(me.categories) : string.(1:J)
+    dydx = vec(permutedims(me.effects))
     df = DataFrame(variable=repeat(String.(me.varnames); inner=J),
                    category=repeat(labels; outer=K),
-                   dydx=vec(permutedims(me.effects)))
+                   dydx=dydx)
     has_se = me.se !== nothing && !all(isnan, me.se)
-    has_se && (df[!, :se] = vec(permutedims(me.se)))
+    if has_se
+        se_vec = Float64.(vec(permutedims(me.se)))
+        zc = _normal_quantile(1.0 - (1.0 - conf_level) / 2.0)
+        df[!, :se] = se_vec
+        df[!, :ci_lower] = Float64.(dydx) .- zc .* se_vec
+        df[!, :ci_upper] = Float64.(dydx) .+ zc .* se_vec
+    end
     return df, has_se
 end
 
@@ -681,9 +692,10 @@ end
 output path, or `--output` would silently drop the probabilities). `key_stem` is the
 caller's registry-declared table stem (W3/#138)."""
 function _output_choice_me(model, model_label::String, key_stem::String;
-                           format::String="table", output::String="")
+                           format::String="table", output::String="",
+                           conf_level::Float64=0.90)
     me = MacroEconometricModels.marginal_effects(model)
-    me_df, has_se = _choice_me_table(me)
+    me_df, has_se = _choice_me_table(me; conf_level=conf_level)
     has_se || _status_styled(
         "  Note: standard errors unavailable (model covariance missing)\n"; color=:yellow)
     _status()
@@ -694,9 +706,11 @@ function _output_choice_me(model, model_label::String, key_stem::String;
 end
 
 function _predict_ologit(; data::String="", dep::String="", cov_type::String="hc1",
-                          clusters::String="", marginal_effects::Bool=false,
+                          clusters::String="", conf_level::Float64=0.90,
+                          marginal_effects::Bool=false,
                           output::String="", format::String="table",
                           model=nothing)
+    conf_level = _validate_conf_level(conf_level, "predict choice ologit")
     oos = !isnothing(model) && !isempty(data)
     if isnothing(model)
         y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
@@ -720,13 +734,15 @@ function _predict_ologit(; data::String="", dep::String="", cov_type::String="hc
     output_result(pred_df; format=Symbol(format), output=output,
                   title="Ordered Logit Predicted Probabilities")
     marginal_effects && _output_choice_me(model, "Ordered Logit", "ordered_logit";
-                                          format=format, output=output)
+                                          format=format, output=output, conf_level=conf_level)
 end
 
 function _predict_oprobit(; data::String="", dep::String="", cov_type::String="hc1",
-                           clusters::String="", marginal_effects::Bool=false,
+                           clusters::String="", conf_level::Float64=0.90,
+                           marginal_effects::Bool=false,
                            output::String="", format::String="table",
                            model=nothing)
+    conf_level = _validate_conf_level(conf_level, "predict choice oprobit")
     oos = !isnothing(model) && !isempty(data)
     if isnothing(model)
         y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
@@ -750,13 +766,15 @@ function _predict_oprobit(; data::String="", dep::String="", cov_type::String="h
     output_result(pred_df; format=Symbol(format), output=output,
                   title="Ordered Probit Predicted Probabilities")
     marginal_effects && _output_choice_me(model, "Ordered Probit", "ordered_probit";
-                                          format=format, output=output)
+                                          format=format, output=output, conf_level=conf_level)
 end
 
 function _predict_mlogit(; data::String="", dep::String="", cov_type::String="ols",
-                          clusters::String="", marginal_effects::Bool=false,
+                          clusters::String="", conf_level::Float64=0.90,
+                          marginal_effects::Bool=false,
                           output::String="", format::String="table",
                           model=nothing)
+    conf_level = _validate_conf_level(conf_level, "predict choice mlogit")
     oos = !isnothing(model) && !isempty(data)
     if isnothing(model)
         y, X, xcols = _load_reg_data(data, dep; clusters_col=clusters)
@@ -780,7 +798,7 @@ function _predict_mlogit(; data::String="", dep::String="", cov_type::String="ol
     output_result(pred_df; format=Symbol(format), output=output,
                   title="Multinomial Logit Predicted Probabilities")
     marginal_effects && _output_choice_me(model, "Multinomial Logit", "multinomial_logit";
-                                          format=format, output=output)
+                                          format=format, output=output, conf_level=conf_level)
 end
 
 
@@ -1658,6 +1676,7 @@ end
 # outright; none had T3 coverage (#85).
 const _LOGIT_EXTRA = [
     OptionSpec(name="threshold", type=Float64, default=0.5, description="Classification threshold"),
+    CONF_LEVEL_MICRO_OPTION,
 ]
 const _LOGIT_EXTRA_FLAGS = [
     FlagSpec(name="marginal-effects", description="Report average marginal effects"),
@@ -1669,8 +1688,8 @@ const _LOGIT_EXTRA_FLAGS = [
 # re-adds `--marginal-effects` WITH handler support, now that MEMs#550 (0.7.3)
 # gives the ordered/multinomial models delta-method SEs. `--category`/
 # `--base-category` stay out — upstream marginal_effects takes NO kwargs.
-const _ORDERED_EXTRA = OptionSpec[]
-const _MLOGIT_EXTRA = OptionSpec[]
+const _ORDERED_EXTRA = [CONF_LEVEL_MICRO_OPTION]
+const _MLOGIT_EXTRA = [CONF_LEVEL_MICRO_OPTION]
 const _CHOICE_ME_FLAGS = [
     FlagSpec(name="marginal-effects",
              description="Also report average marginal effects per category (delta-method SEs; no z/p — upstream reports none)"),

@@ -941,7 +941,7 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="clusters", type=String, default="", description="Cluster column name (required for --cov-type cluster)"),
                 OptionSpec(name="beta0", type=String, default="",
                            description="Hypothesized coefficient value(s) on the endogenous regressors, comma-separated (default: 0 for each)"),
-                OptionSpec(name="conf-level", aliases=["level"], kwarg=:level, type=Float64, default=0.95, description="Nominal coverage of the confidence set"),
+                OptionSpec(name="conf-level", aliases=["ci-level", "confidence", "level"], kwarg=:level, type=Float64, default=_DEFAULT_CI_MICRO, description="Nominal coverage of the confidence set in (0, 1) (default: 0.90)"),
                 OptionSpec(name="n-grid", type=Int, default=1001, description="Grid points used to invert the AR test"),
                 OptionSpec(name="span", type=Float64, default=20.0, description="Search half-width around the 2SLS estimate, in standard errors"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -976,7 +976,7 @@ function test_specs()::Vector{CommandSpec}
                 OptionSpec(name="boot-reps", type=Int, default=999, description="Bootstrap replications (ignored when the 2^G sign space is enumerated)"),
                 OptionSpec(name="boot-weights", type=String, default="rademacher", choices=["rademacher","webb"],
                            description="Bootstrap weights; webb (6-point) is preferred when the cluster count is very small"),
-                OptionSpec(name="conf-level", aliases=["level"], kwarg=:level, type=Float64, default=0.95, description="Coverage of the inverted-test confidence interval"),
+                OptionSpec(name="conf-level", aliases=["ci-level", "confidence", "level"], kwarg=:level, type=Float64, default=_DEFAULT_CI_MICRO, description="Coverage of the inverted-test confidence interval in (0, 1) (default: 0.90)"),
                 OptionSpec(name="ci-gridpoints", type=Int, default=25, description="Grid used to bracket the CI crossings"),
                 OptionSpec(name="enumerate-signs", type=String, default="auto", choices=["auto","yes","no"],
                            description="Exact enumeration of the 2^G Rademacher sign vectors: auto enumerates whenever possible"),
@@ -2758,10 +2758,9 @@ end
 function _test_anderson_rubin(; data::String, dep::String="", endogenous::String="",
                                instruments::String="", cov_type::String="hc1",
                                clusters::String="", beta0::String="",
-                               level::Float64=0.95, n_grid::Int=1001, span::Float64=20.0,
+                               level::Float64=0.90, n_grid::Int=1001, span::Float64=20.0,
                                no_ci::Bool=false, format::String="table", output::String="")
-    (0.0 < level < 1.0) || throw(CliError("usage/invalid",
-        "test iv anderson-rubin: --level must be in (0, 1) (got $level)"))
+    level = _validate_conf_level(level, "test iv anderson-rubin")
     n_grid >= 5 || throw(CliError("usage/invalid",
         "test iv anderson-rubin: --n-grid must be ≥ 5 (got $n_grid)"))
     span > 0.0 || throw(CliError("usage/invalid",
@@ -2926,7 +2925,7 @@ end
 function _test_wild_cluster(; data::String, dep::String="", clusters::String="",
                              coefficient::String="", null::Float64=0.0,
                              boot_reps::Int=999, boot_weights::String="rademacher",
-                             level::Float64=0.95, ci_gridpoints::Int=25,
+                             level::Float64=0.90, ci_gridpoints::Int=25,
                              enumerate_signs::String="auto", no_impose_null::Bool=false,
                              no_ci::Bool=false, format::String="table", output::String="")
     isempty(clusters) && throw(CliError("usage/missing",
@@ -2934,8 +2933,7 @@ function _test_wild_cluster(; data::String, dep::String="", clusters::String="",
         hint="the wild CLUSTER bootstrap needs the cluster assignment; there is no default"))
     boot_reps >= 1 || throw(CliError("usage/invalid",
         "test iv wild-cluster: --boot-reps must be ≥ 1 (got $boot_reps)"))
-    (0.0 < level < 1.0) || throw(CliError("usage/invalid",
-        "test iv wild-cluster: --level must be in (0, 1) (got $level)"))
+    level = _validate_conf_level(level, "test iv wild-cluster")
     ci_gridpoints >= 2 || throw(CliError("usage/invalid",
         "test iv wild-cluster: --ci-gridpoints must be ≥ 2 (got $ci_gridpoints)"))
 

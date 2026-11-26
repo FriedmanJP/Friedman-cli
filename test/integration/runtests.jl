@@ -1677,7 +1677,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test run_json(["estimate", "regime", "threshold", csv, "--dep", "y", "--threshold-col", "z",
                             "--trim", "0.6"]).code == 2
             @test run_json(["estimate", "regime", "threshold", csv, "--dep", "y", "--threshold-col", "z",
-                            "--ci-level", "0.8"]).code == 2                                      # not a Hansen-tabulated level
+                            "--ci-level", "1.5"]).code == 2                                      # out of (0, 1)
             @test run_json(["estimate", "regime", "threshold", csv, "--dep", "y", "--threshold-col", "y"]).code == 2
             @test run_json(["estimate", "regime", "threshold", csv, "--dep", "y", "--threshold-col", "nope"]).code == 3
             @test run_json(["estimate", "regime", "threshold", csv, "--dep", "nope", "--threshold-col", "z"]).code == 3
@@ -11354,6 +11354,338 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             end
         finally
             for p in (mv_csv, ar_csv, garch_csv, setar_csv, star_csv, panel_csv)
+                rm(p; force=true)
+            end
+        end
+    end
+
+    @testset "[CI-W2] Real MEMs v1.1.2 micro 90% CI defaults & monotonicity (#331)" begin
+        function _ci_w(res; key=nothing, lo_col=nothing, hi_col=nothing, row::Int=1)
+            tbl = if key !== nothing
+                getproperty(res.doc.data, Symbol(key))
+            else
+                found = nothing
+                for (_, v) in pairs(res.doc.data)
+                    (v isa JSON3.Object && haskey(v, :columns) && haskey(v, :rows) && !isempty(v.rows)) || continue
+                    cols = String[string(c) for c in v.columns]
+                    if ("ci_lower" in cols && "ci_upper" in cols) ||
+                       ("CI_Lower" in cols && "CI_Upper" in cols) ||
+                       ("lower" in cols && "upper" in cols) ||
+                       ("Robust_CI_Lower" in cols && "Robust_CI_Upper" in cols) ||
+                       ("Original_CI_Lower" in cols && "Original_CI_Upper" in cols)
+                        found = v
+                        break
+                    end
+                end
+                found
+            end
+            @assert tbl !== nothing "No CI table in $(collect(keys(res.doc.data)))"
+            cols = String[string(c) for c in tbl.columns]
+            pair = if lo_col !== nothing && hi_col !== nothing
+                (lo_col, hi_col)
+            elseif "ci_lower" in cols && "ci_upper" in cols
+                ("ci_lower", "ci_upper")
+            elseif "CI_Lower" in cols && "CI_Upper" in cols
+                ("CI_Lower", "CI_Upper")
+            elseif "lower" in cols && "upper" in cols
+                ("lower", "upper")
+            elseif "Robust_CI_Lower" in cols && "Robust_CI_Upper" in cols
+                ("Robust_CI_Lower", "Robust_CI_Upper")
+            else
+                ("Original_CI_Lower", "Original_CI_Upper")
+            end
+            li = findfirst(==(pair[1]), cols)
+            ui = findfirst(==(pair[2]), cols)
+            rr = collect(tbl.rows[row])
+            return Float64(rr[ui]) - Float64(rr[li])
+        end
+
+        function _assert_micro_ci_t3(label::String, base_args::Vector{String};
+                                     key=nothing, lo_col=nothing, hi_col=nothing, row::Int=1)
+            r_def = run_json(base_args)
+            r_68  = run_json(vcat(base_args, ["--conf-level", "0.68"]))
+            r_90  = run_json(vcat(base_args, ["--conf-level", "0.90"]))
+            r_95  = run_json(vcat(base_args, ["--conf-level", "0.95"]))
+            assert_envelope_ok(r_def; label="$label default")
+            assert_envelope_ok(r_68;  label="$label 0.68")
+            assert_envelope_ok(r_90;  label="$label 0.90")
+            assert_envelope_ok(r_95;  label="$label 0.95")
+            w_def = _ci_w(r_def; key=key, lo_col=lo_col, hi_col=hi_col, row=row)
+            w_68  = _ci_w(r_68;  key=key, lo_col=lo_col, hi_col=hi_col, row=row)
+            w_90  = _ci_w(r_90;  key=key, lo_col=lo_col, hi_col=hi_col, row=row)
+            w_95  = _ci_w(r_95;  key=key, lo_col=lo_col, hi_col=hi_col, row=row)
+            @test isapprox(w_def, w_90; rtol=1e-9, atol=1e-11)
+            @test isfinite(w_68) && w_68 > 0 && w_68 < w_90 < w_95
+        end
+
+        mktempdir() do dir
+            rng = Random.Xoshiro(3310)
+            reg_csv = dgp_reg(; T=200, seed=331)
+            iv_csv = dgp_iv(; T=250, seed=331, inst_strength=0.9)
+            clean_csv, tobit_csv, _ = dgp_penalized(; T=220, p=3, seed=331)
+            heck_csv = dgp_heckman(; T=500, seed=331)
+            thr_csv = dgp_threshold(; n=240, seed=331)
+            logit_csv = dgp_logit(; T=300, seed=331)
+            did_csv = dgp_did_panel(; N=40, T=10, treat_start=6, att=2.0, seed=331)
+            ar1_csv = dgp_ar1(; T=160, φ=0.6, seed=331)
+
+            # Truncated sample (y > 0)
+            x1t = randn(rng, 400); x2t = randn(rng, 400)
+            yt = 1.5 .+ 1.2 .* x1t .- 0.6 .* x2t .+ 0.7 .* randn(rng, 400)
+            keep_t = yt .> 0.0
+            trunc_csv = joinpath(dir, "trunc.csv")
+            CSV.write(trunc_csv, DataFrame(y=yt[keep_t], x1=x1t[keep_t], x2=x2t[keep_t]))
+
+            # Sharp RDD sample
+            xr = 2.0 .* rand(rng, 300) .- 1.0
+            yr = 1.0 .+ 2.0 .* Float64.(xr .>= 0.0) .+ 0.8 .* xr .+ 0.4 .* randn(rng, 300)
+            rdd_csv = joinpath(dir, "rdd.csv")
+            CSV.write(rdd_csv, DataFrame(y=yr, running=xr))
+
+            # Count sample (Poisson / NBReg)
+            xc1 = randn(rng, 250); xc2 = randn(rng, 250)
+            lam = exp.(0.6 .+ 0.4 .* xc1 .- 0.3 .* xc2)
+            # Knuth Poisson draw without external package
+            yc = Int[]
+            for l in lam
+                L = exp(-l); k = 0; p = 1.0
+                while p > L
+                    k += 1; p *= rand(rng)
+                end
+                push!(yc, k - 1)
+            end
+            cnt_csv = joinpath(dir, "cnt.csv")
+            CSV.write(cnt_csv, DataFrame(y=Float64.(yc), x1=xc1, x2=xc2))
+
+            # Ordered / Multinomial 3-category sample
+            xo1 = randn(rng, 300); xo2 = randn(rng, 300)
+            ystar = 1.1 .* xo1 .- 0.9 .* xo2 .+ randn(rng, 300)
+            yo = [v < -0.5 ? 1.0 : (v < 0.7 ? 2.0 : 3.0) for v in ystar]
+            ord_csv = joinpath(dir, "ord.csv")
+            CSV.write(ord_csv, DataFrame(y=yo, x1=xo1, x2=xo2))
+
+            # SUR & 3SLS sample + configs
+            xs1 = randn(rng, 200); xs2 = randn(rng, 200); xs3 = randn(rng, 200)
+            ys1 = 1.0 .+ 0.8 .* xs1 .+ 0.4 .* xs2 .+ 0.5 .* randn(rng, 200)
+            ys2 = -0.5 .+ 0.7 .* xs2 .+ 0.6 .* xs3 .+ 0.5 .* randn(rng, 200)
+            sys_csv = joinpath(dir, "sys.csv")
+            CSV.write(sys_csv, DataFrame(y1=ys1, y2=ys2, x1=xs1, x2=xs2, x3=xs3))
+            sur_cfg = joinpath(dir, "sur.toml")
+            write(sur_cfg, """
+            [[equations]]
+            name = "eq1"
+            dep = "y1"
+            indep = ["x1", "x2"]
+            [[equations]]
+            name = "eq2"
+            dep = "y2"
+            indep = ["x2", "x3"]
+            """)
+            tsls_cfg = joinpath(dir, "3sls.toml")
+            write(tsls_cfg, """
+            [[equations]]
+            name = "eq1"
+            dep = "y1"
+            indep = ["x1", "x2"]
+            [[equations]]
+            name = "eq2"
+            dep = "y2"
+            indep = ["x2", "x3"]
+            [instruments]
+            common = ["x1", "x2", "x3"]
+            """)
+
+            # GMM IV & SMM AR(1) configs (4-col IV CSV: intercept + x_endog -> theta0 len 2)
+            gz1 = randn(rng, 250); gz2 = randn(rng, 250); gu = randn(rng, 250)
+            gx_endog = 0.8 .* gz1 .+ 0.6 .* gz2 .+ 0.5 .* gu .+ 0.3 .* randn(rng, 250)
+            gy_gmm = 1.0 .+ 2.0 .* gx_endog .+ gu
+            gmm_iv_csv = joinpath(dir, "gmm_iv.csv")
+            CSV.write(gmm_iv_csv, DataFrame(y=gy_gmm, x_endog=gx_endog, z1=gz1, z2=gz2))
+            gmm_cfg = joinpath(dir, "gmm_iv.toml")
+            write(gmm_cfg, """
+            [gmm]
+            dep = "y"
+            endogenous = ["x_endog"]
+            instruments = ["z1", "z2"]
+            theta0 = [0.0, 0.0]
+            """)
+            smm_cfg = joinpath(dir, "smm.toml")
+            write(smm_cfg, """
+            [smm]
+            model = "ar1"
+            theta0 = [0.5, 1.0]
+            lags = 2
+            weighting = "two_step"
+            sim_ratio = 3
+            burn = 30
+            """)
+
+            # Micro panel sample
+            Np_u, Tp_u = 16, 12
+            Ntot = Np_u * Tp_u
+            pid = Int[]; pt = Int[]; py = Float64[]; pyb = Float64[]
+            px1 = Float64[]; px2 = Float64[]; pxend = Float64[]; pz1 = Float64[]; pz2 = Float64[]
+            for i in 1:Np_u
+                ui = randn(rng)
+                for t in 1:Tp_u
+                    w1 = randn(rng); w2 = randn(rng); z1v = randn(rng); z2v = randn(rng)
+                    err = 0.5 * randn(rng)
+                    endv = 0.8 * z1v + 0.6 * z2v + 0.3 * err + 0.3 * randn(rng)
+                    yv = ui + 1.5 * w1 - 0.8 * w2 + 1.2 * endv + err
+                    pb = 1.0 / (1.0 + exp(-(0.2 * ui + 1.0 * w1 - 0.7 * w2)))
+                    push!(pid, i); push!(pt, t); push!(py, yv); push!(pyb, rand(rng) < pb ? 1.0 : 0.0)
+                    push!(px1, w1); push!(px2, w2); push!(pxend, endv); push!(pz1, z1v); push!(pz2, z2v)
+                end
+            end
+            panel_csv = joinpath(dir, "panel.csv")
+            CSV.write(panel_csv, DataFrame(id=pid, time=pt, y=py, ybin=pyb,
+                                           x1=px1, x2=px2, xend=pxend, z1=pz1, z2=pz2))
+
+            # Clustered OLS sample for wild-cluster
+            G_cl = 12; n_per = 12; N_cl = G_cl * n_per
+            xcl = randn(rng, N_cl); cl_id = repeat(1:G_cl, inner=n_per)
+            cl_eff = randn(rng, G_cl)[cl_id]
+            ycl = 1.0 .+ 1.5 .* xcl .+ cl_eff .+ 0.5 .* randn(rng, N_cl)
+            cl_csv = joinpath(dir, "cl.csv")
+            CSV.write(cl_csv, DataFrame("y" => ycl, "const" => ones(N_cl), "x1" => xcl, "cl" => Float64.(cl_id)))
+
+            # RI-Logit synthetic sample
+            J_r, S_r, K_r, M_r = 2, 2, 1, 2
+            attrs = zeros(Float64, J_r, S_r, K_r, M_r)
+            attrs[:, :, 1, 1] = [1.0 0.0; 0.0 1.0]
+            attrs[:, :, 1, 2] = [1.5 0.0; 0.0 1.5]
+            sols_r = [MacroEconometricModels.solve_ri_discrete(attrs[:, :, 1, m], [0.5, 0.5]; omega=0.5) for m in 1:M_r]
+            rl_df = DataFrame(env=Int[], state=Int[], alt=Int[], choice=Int[], x1=Float64[])
+            for m in 1:M_r, _ in 1:40
+                s = rand(rng, 1:S_r)
+                chosen = rand(rng) < sols_r[m].cond_probs[1, s] ? 1 : 2
+                for j in 1:J_r
+                    push!(rl_df, (m, s, j, j == chosen ? 1 : 0, attrs[j, s, 1, m]))
+                end
+            end
+            ril_csv = joinpath(dir, "rilogit.csv")
+            CSV.write(ril_csv, rl_df)
+
+            @testset "Non-LP DiD" begin
+                _assert_micro_ci_t3("did estimate", ["did", "estimate", did_csv, "--outcome", "y", "--treatment", "d",
+                                                     "--id-col", "id", "--time-col", "time"])
+                _assert_micro_ci_t3("did event-study", ["did", "event-study", did_csv, "--outcome", "y", "--treatment", "d",
+                                                        "--id-col", "id", "--time-col", "time"])
+                _assert_micro_ci_t3("test did honest", ["test", "did", "honest", did_csv, "--outcome", "y", "--treatment", "d",
+                                                        "--id-col", "id", "--time-col", "time"];
+                                    lo_col="Robust_CI_Lower", hi_col="Robust_CI_Upper")
+                r_pt = run_json(["test", "did", "pretrend", did_csv, "--outcome", "y", "--treatment", "d",
+                                 "--id-col", "id", "--time-col", "time"])
+                assert_envelope_ok(r_pt; label="test did pretrend default 0.90")
+            end
+
+            @testset "Cross-sectional regressions, RDD, QReg, Threshold" begin
+                _assert_micro_ci_t3("reg", ["estimate", "regression", "reg", reg_csv, "--dep", "y"])
+                _assert_micro_ci_t3("iv", ["estimate", "regression", "iv", iv_csv, "--dep", "y",
+                                           "--endogenous", "x_endog", "--instruments", "z1,z2"])
+                _assert_micro_ci_t3("qreg", ["estimate", "regression", "qreg", reg_csv, "--dep", "y"])
+                r_qa = run_json(["estimate", "regression", "qreg", reg_csv, "--dep", "y", "--alpha", "0.05"])
+                r_qc = run_json(["estimate", "regression", "qreg", reg_csv, "--dep", "y", "--conf-level", "0.95"])
+                assert_envelope_ok(r_qa; label="qreg --alpha 0.05")
+                @test isapprox(_ci_w(r_qa), _ci_w(r_qc); rtol=1e-9)
+                r_qbad = run_json(["estimate", "regression", "qreg", reg_csv, "--dep", "y",
+                                   "--conf-level", "0.90", "--alpha", "0.05"])
+                @test r_qbad.code == 2 && String(r_qbad.doc.error.code) == "usage/conflicting-options"
+
+                _assert_micro_ci_t3("rdd", ["estimate", "regression", "rdd", rdd_csv, "--outcome", "y", "--running", "running"])
+                _assert_micro_ci_t3("sur", ["estimate", "regression", "sur", sys_csv, "--config", sur_cfg])
+                _assert_micro_ci_t3("3sls", ["estimate", "regression", "3sls", sys_csv, "--config", tsls_cfg])
+                _assert_micro_ci_t3("robust", ["estimate", "regression", "robust", clean_csv, "--dep", "y"])
+                _assert_micro_ci_t3("tobit", ["estimate", "regression", "tobit", tobit_csv, "--dep", "yc"])
+                _assert_micro_ci_t3("truncreg", ["estimate", "regression", "truncreg", trunc_csv, "--dep", "y", "--lower", "0.0"])
+                _assert_micro_ci_t3("heckman", ["estimate", "regression", "heckman", heck_csv, "--dep", "y",
+                                                "--select", "d", "--outcome-vars", "const,x1", "--select-vars", "const,x1,z1"])
+                _assert_micro_ci_t3("kernel-reg", ["estimate", "regression", "kernel-reg", reg_csv, "--dep", "y", "--indep", "x"])
+                _assert_micro_ci_t3("lowess", ["estimate", "regression", "lowess", reg_csv, "--dep", "y", "--indep", "x"])
+                _assert_micro_ci_t3("gmm", ["estimate", "regression", "gmm", gmm_iv_csv, "--config", gmm_cfg])
+                _assert_micro_ci_t3("smm", ["--seed", "42", "estimate", "regression", "smm", ar1_csv, "--config", smm_cfg])
+
+                # Threshold: regime coef CIs + continuous Hansen 2000 gamma_ci_level default 0.90
+                thr_base = ["estimate", "regime", "threshold", thr_csv, "--dep", "y", "--threshold-col", "z", "--no-linearity"]
+                _assert_micro_ci_t3("threshold", thr_base)
+                rt_def = run_json(thr_base)
+                rt_68  = run_json(vcat(thr_base, ["--conf-level", "0.68"]))
+                rt_95  = run_json(vcat(thr_base, ["--conf-level", "0.95"]))
+                td(r) = named_table(r.doc, :threshold_regression_diagnostics)
+                @test Float64(metric_value(td(rt_def), "gamma_ci_level")) == 0.90
+                @test Float64(metric_value(td(rt_68), "gamma_ci_level")) == 0.68
+                @test Float64(metric_value(td(rt_95), "gamma_ci_level")) == 0.95
+                gw_t(r) = Float64(metric_value(td(r), "gamma_ci_upper")) - Float64(metric_value(td(r), "gamma_ci_lower"))
+                @test gw_t(rt_68) <= gw_t(rt_def) <= gw_t(rt_95)
+            end
+
+            @testset "Discrete choice, Count (--irr) & Choice Predict ME/OR" begin
+                _assert_micro_ci_t3("logit", ["estimate", "choice", "logit", logit_csv, "--dep", "y"])
+                _assert_micro_ci_t3("probit", ["estimate", "choice", "probit", logit_csv, "--dep", "y"])
+                _assert_micro_ci_t3("ologit", ["estimate", "choice", "ologit", ord_csv, "--dep", "y"])
+                _assert_micro_ci_t3("oprobit", ["estimate", "choice", "oprobit", ord_csv, "--dep", "y"])
+                _assert_micro_ci_t3("mlogit", ["estimate", "choice", "mlogit", ord_csv, "--dep", "y"])
+                _assert_micro_ci_t3("poisson", ["estimate", "choice", "poisson", cnt_csv, "--dep", "y"];
+                                    key="poisson_regression_coefficients")
+                _assert_micro_ci_t3("poisson --irr", ["estimate", "choice", "poisson", cnt_csv, "--dep", "y", "--irr"];
+                                    key="incidence_rate_ratios")
+                _assert_micro_ci_t3("nbreg", ["estimate", "choice", "nbreg", cnt_csv, "--dep", "y"];
+                                    key="negative_binomial_regression_coefficients")
+                _assert_micro_ci_t3("nbreg --irr", ["estimate", "choice", "nbreg", cnt_csv, "--dep", "y", "--irr"];
+                                    key="incidence_rate_ratios")
+                _assert_micro_ci_t3("ri-logit", ["estimate", "choice", "ri-logit", ril_csv,
+                                                 "--env-col", "env", "--choice-col", "choice",
+                                                 "--alt-col", "alt", "--state-col", "state",
+                                                 "--attr-cols", "x1", "--normalize", "omega-one",
+                                                 "--cov-type", "hessian"])
+
+                _assert_micro_ci_t3("predict logit ME", ["predict", "choice", "logit", logit_csv, "--dep", "y", "--marginal-effects"])
+                _assert_micro_ci_t3("predict logit OR", ["predict", "choice", "logit", logit_csv, "--dep", "y", "--odds-ratio"])
+                _assert_micro_ci_t3("predict probit ME", ["predict", "choice", "probit", logit_csv, "--dep", "y", "--marginal-effects"])
+                _assert_micro_ci_t3("predict ologit ME", ["predict", "choice", "ologit", ord_csv, "--dep", "y", "--marginal-effects"])
+                _assert_micro_ci_t3("predict oprobit ME", ["predict", "choice", "oprobit", ord_csv, "--dep", "y", "--marginal-effects"])
+                _assert_micro_ci_t3("predict mlogit ME", ["predict", "choice", "mlogit", ord_csv, "--dep", "y", "--marginal-effects"])
+            end
+
+            @testset "Micro panel (preg, piv, plogit, pprobit, xtqreg)" begin
+                _assert_micro_ci_t3("preg", ["estimate", "panel", "preg", panel_csv, "--dep", "y",
+                                             "--indep", "x1,x2", "--id-col", "id", "--time-col", "time"])
+                _assert_micro_ci_t3("piv", ["estimate", "panel", "piv", panel_csv, "--dep", "y",
+                                            "--exog", "x1", "--endog", "xend", "--instruments", "z1,z2",
+                                            "--id-col", "id", "--time-col", "time"])
+                _assert_micro_ci_t3("plogit", ["estimate", "panel", "plogit", panel_csv, "--dep", "ybin",
+                                               "--indep", "x1,x2", "--id-col", "id", "--time-col", "time"])
+                _assert_micro_ci_t3("pprobit", ["estimate", "panel", "pprobit", panel_csv, "--dep", "ybin",
+                                                "--indep", "x1,x2", "--id-col", "id", "--time-col", "time"])
+                _assert_micro_ci_t3("xtqreg", ["--seed", "42", "estimate", "panel", "xtqreg", panel_csv,
+                                               "--dep", "y", "--indep", "x1,x2",
+                                               "--id-col", "id", "--time-col", "time",
+                                               "--factors", "1", "--tau", "0.5", "--max-iter", "30"])
+            end
+
+            @testset "IV confidence sets (anderson-rubin & wild-cluster)" begin
+                _assert_micro_ci_t3("anderson-rubin", ["test", "iv", "anderson-rubin", iv_csv, "--dep", "y",
+                                                       "--endogenous", "x_endog", "--instruments", "z1,z2"];
+                                    lo_col="lower", hi_col="upper")
+
+                wc_base = ["--seed", "42", "test", "iv", "wild-cluster", cl_csv, "--dep", "y",
+                           "--clusters", "cl", "--coefficient", "x1", "--boot-reps", "99"]
+                rw_def = run_json(wc_base)
+                rw_68  = run_json(vcat(wc_base, ["--conf-level", "0.68"]))
+                rw_90  = run_json(vcat(wc_base, ["--conf-level", "0.90"]))
+                rw_95  = run_json(vcat(wc_base, ["--conf-level", "0.95"]))
+                assert_envelope_ok(rw_def; label="wild-cluster default")
+                assert_envelope_ok(rw_68;  label="wild-cluster 0.68")
+                assert_envelope_ok(rw_90;  label="wild-cluster 0.90")
+                assert_envelope_ok(rw_95;  label="wild-cluster 0.95")
+                wct(r) = named_table(r.doc, :wild_cluster_bootstrap)
+                @test Float64(metric_value(wct(rw_def), "level")) == 0.90
+                wc_w(r) = Float64(metric_value(wct(r), "ci_upper")) - Float64(metric_value(wct(r), "ci_lower"))
+                @test isapprox(wc_w(rw_def), wc_w(rw_90); rtol=1e-9)
+                @test wc_w(rw_68) < wc_w(rw_90) < wc_w(rw_95)
+            end
+
+            for p in (reg_csv, iv_csv, clean_csv, tobit_csv, heck_csv, thr_csv, logit_csv, did_csv, ar1_csv)
                 rm(p; force=true)
             end
         end

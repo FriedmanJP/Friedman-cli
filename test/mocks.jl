@@ -4868,7 +4868,11 @@ function lowess(y::AbstractVector, x::AbstractVector; f::Real=2//3, iter::Int=3,
     iter >= 0 || throw(ArgumentError("iter must be ≥ 0"))
     xs = Vector{Float64}(collect(Float64, x)); ys = Vector{Float64}(collect(Float64, y))
     perm = sortperm(xs); xs = xs[perm]; ys = ys[perm]
-    LowessFit{Float64}(xs, ys, ys, Float64(f), iter, n)
+    mx = mean(xs); my = mean(ys)
+    sxx = sum(v -> (v - mx)^2, xs)
+    slope = sxx > 0 ? sum((xs[i] - mx) * (ys[i] - my) for i in 1:n) / sxx : 0.0
+    fitted = my .+ slope .* (xs .- mx)
+    LowessFit{Float64}(xs, fitted, ys, Float64(f), iter, n)
 end
 
 export StateSpaceModel, KernelDensity, KernelRegression, LowessFit
@@ -5118,7 +5122,7 @@ end
 # exit classes identical at T1/T2 and T3 (the standing mock-fidelity lesson).
 function estimate_threshold(y::AbstractVector, X::AbstractMatrix, q::AbstractVector;
                             trim::Real=0.15, linearity::Bool=true, reps::Int=1000,
-                            ci_level::Real=0.95, het::Bool=false,
+                            ci_level::Real=0.90, het::Bool=false,
                             rng::Random.AbstractRNG=Random.default_rng(),
                             xnames::Union{Nothing,Vector{String}}=nothing,
                             qname::String="q", p::Int=0, d::Int=0, is_setar::Bool=false,
@@ -5130,9 +5134,8 @@ function estimate_threshold(y::AbstractVector, X::AbstractMatrix, q::AbstractVec
     (length(yv) == n == length(qv)) ||
         throw(DimensionMismatch("y, X rows and q must have matching length."))
     (0 < trim < 0.5) || throw(ArgumentError("trim must satisfy 0 < trim < 0.5; got $trim."))
-    (ci_level ≈ 0.90 || ci_level ≈ 0.95 || ci_level ≈ 0.99) ||
-        throw(ArgumentError("Hansen (2000) critical values are tabulated only for " *
-                            "ci_level ∈ {0.90, 0.95, 0.99}; got $ci_level."))
+    (isfinite(Float64(ci_level)) && 0 < Float64(ci_level) < 1) ||
+        throw(ArgumentError("ci_level must lie strictly in (0, 1); got $ci_level."))
     (n >= 2 * (k + 1)) || throw(ArgumentError(
         "Sample too small: need at least $(2 * (k + 1)) observations for two $(k)-regressor regimes."))
     qlo, qhi = extrema(qv)
@@ -5155,7 +5158,8 @@ function estimate_threshold(y::AbstractVector, X::AbstractMatrix, q::AbstractVec
     bic = -2 * loglik + log(n) * npar
     xn = xnames === nothing ? String["x$i" for i in 1:k] : xnames
     lt = linearity ? hansen_linearity_test(yv, Xm, qv; trim=trim, reps=reps, rng=rng) : nothing
-    ThresholdModel{Float64}(yv, Xm, qv, gamma, (gamma - 0.5, gamma + 0.5), Float64(ci_level),
+    hw = 0.25 * _mock_z_crit(ci_level)
+    ThresholdModel{Float64}(yv, Xm, qv, gamma, (gamma - hw, gamma + hw), Float64(ci_level),
         b1, b2, se1, se2, reg, ssr1, ssr2, ssr, sigma2, resid, n, k, count(reg), count(.!reg),
         p, d, is_setar, aic, bic, xn, qname, Float64(trim), lt)
 end
@@ -5860,7 +5864,7 @@ end
 function estimate_did(pd::PanelData{T}, outcome, treatment;
         method=:twfe, leads=0, horizon=5, covariates=String[],
         control_group=:never_treated, cluster=:unit,
-        conf_level=0.95, n_boot=200, base_period=:varying, seed=nothing) where T
+        conf_level=0.90, n_boot=200, base_period=:varying, seed=nothing) where T
     # Mirror upstream validation (did/estimation.jl): only the long names route.
     # The CLI maps its shorts via DID_METHOD_MAP and never forwards :cs/:sa/:dcdh.
     method in (:twfe, :callaway_santanna, :sun_abraham, :bjs, :did_multiplegt) ||
@@ -5869,8 +5873,9 @@ function estimate_did(pd::PanelData{T}, outcome, treatment;
     n_et = length(et)
     att = fill(T(0.5), n_et)
     se = fill(T(0.1), n_et)
-    ci_lo = att .- T(1.96) .* se
-    ci_hi = att .+ T(1.96) .* se
+    z = T(_mock_z_crit(conf_level))
+    ci_lo = att .- z .* se
+    ci_hi = att .+ z .* se
     # Real group_time_att is cohorts × CALENDAR periods (n_times), not event grid.
     gt_att = method === :callaway_santanna ? ones(T, 3, pd.T_obs) * T(0.4) : nothing
     cohorts = method === :callaway_santanna ? [5, 10, 15] : nothing
@@ -5882,17 +5887,18 @@ function estimate_did(pd::PanelData{T}, outcome, treatment;
 end
 
 function estimate_event_study_lp(pd::PanelData{T}, outcome, treatment, H::Int;
-        leads=3, lags=4, covariates=String[], cluster=:unit, conf_level=0.95) where T
+        leads=3, lags=4, covariates=String[], cluster=:unit, conf_level=0.90) where T
     et = collect(-leads:H)
     n_et = length(et)
     coefs = fill(T(0.3), n_et)
     se = fill(T(0.1), n_et)
+    z = T(_mock_z_crit(conf_level))
     n_h = leads + H + 1
     B_mats = [ones(T, pd.n_vars, pd.n_vars) * T(0.1) for _ in 1:n_h]
     resid = [randn(T, div(pd.T_obs, pd.n_groups), pd.n_vars) for _ in 1:n_h]
     vcov_mats = [Matrix{T}(I(pd.n_vars)) * T(0.01) for _ in 1:n_h]
     t_eff = fill(div(pd.T_obs, pd.n_groups) - lags, n_h)
-    EventStudyLP{T}(coefs, se, coefs .- T(1.96) .* se, coefs .+ T(1.96) .* se,
+    EventStudyLP{T}(coefs, se, coefs .- z .* se, coefs .+ z .* se,
         et, -1, B_mats, resid, vcov_mats, t_eff,
         String(outcome), String(treatment),
         pd.T_obs, pd.n_groups, lags, leads, H, false, cluster, T(conf_level), pd)
@@ -5945,22 +5951,24 @@ function negative_weight_check(pd::PanelData{T}, treatment) where T
         [(5, 3), (5, 4), (10, 3), (10, 4), (10, 5), (10, 6)])
 end
 
-function honest_did(result::DIDResult{T}; Mbar=1.0, conf_level=0.95) where T
+function honest_did(result::DIDResult{T}; Mbar=1.0, conf_level=0.90) where T
     post_idx = findall(t -> t >= 0, result.event_times)
     post_et = result.event_times[post_idx]
     post_att = result.att[post_idx]
+    hw = T(0.15) * T(_mock_z_crit(conf_level))
     HonestDiDResult{T}(T(Mbar),
-        post_att .- T(0.3), post_att .+ T(0.3),
+        post_att .- hw, post_att .+ hw,
         result.ci_lower[post_idx], result.ci_upper[post_idx],
         T(2.5), post_et, post_att, T(conf_level))
 end
 
-function honest_did(result::EventStudyLP{T}; Mbar=1.0, conf_level=0.95) where T
+function honest_did(result::EventStudyLP{T}; Mbar=1.0, conf_level=0.90) where T
     post_idx = findall(t -> t >= 0, result.event_times)
     post_et = result.event_times[post_idx]
     post_att = result.coefficients[post_idx]
+    hw = T(0.15) * T(_mock_z_crit(conf_level))
     HonestDiDResult{T}(T(Mbar),
-        post_att .- T(0.3), post_att .+ T(0.3),
+        post_att .- hw, post_att .+ hw,
         result.ci_lower[post_idx], result.ci_upper[post_idx],
         T(2.5), post_et, post_att, T(conf_level))
 end
@@ -7215,26 +7223,26 @@ function estimate_probit(y::AbstractVector{T}, X::AbstractMatrix{T};
 end
 
 function marginal_effects(m::Union{LogitModel{T},ProbitModel{T}};
-                          type=:ame, at=nothing, conf_level=0.95) where T
+                          type=:ame, at=nothing, conf_level=0.90) where T
     k = length(m.beta)
     effects = ones(T, k) * T(0.1)
     se = ones(T, k) * T(0.02)
     z = effects ./ se
     pvals = ones(T, k) * T(0.001)
-    z_crit = T(1.96)
+    z_crit = T(_mock_z_crit(conf_level))
     ci_lo = effects .- z_crit .* se
     ci_hi = effects .+ z_crit .* se
-    MarginalEffects{T}(effects, se, z, pvals, ci_lo, ci_hi, m.varnames, type, conf_level)
+    MarginalEffects{T}(effects, se, z, pvals, ci_lo, ci_hi, m.varnames, type, T(conf_level))
 end
 
-function odds_ratio(m::LogitModel{T}; conf_level=0.95) where T
+function odds_ratio(m::LogitModel{T}; conf_level=0.90) where T
     or = exp.(m.beta)
     se = stderror(m)
-    z_crit = T(1.96)
+    z_crit = T(_mock_z_crit(conf_level))
     ci_lo = exp.(m.beta .- z_crit .* se)
     ci_hi = exp.(m.beta .+ z_crit .* se)
     # Field is `or` upstream (OddsRatio struct) — name it the same here.
-    (or=or, se=se, ci_lower=ci_lo, ci_upper=ci_hi, varnames=m.varnames, conf_level=conf_level)
+    (or=or, se=se, ci_lower=ci_lo, ci_upper=ci_hi, varnames=m.varnames, conf_level=T(conf_level))
 end
 
 # ─── W2/#107: count-data regression (MEMs#427) ───────────────────────────────
@@ -7346,11 +7354,12 @@ dispersion_test(m::PoissonModel) =
                             length(m.y))
 
 function incidence_rate_ratio(m::Union{PoissonModel{T},NegBinModel{T}};
-                              conf_level=0.95) where T
+                              conf_level=0.90) where T
     irr = exp.(m.beta)
     se = stderror(m)
-    (or=irr, se=irr .* se, ci_lower=exp.(m.beta .- 1.96 .* se),
-     ci_upper=exp.(m.beta .+ 1.96 .* se), varnames=m.varnames, conf_level=conf_level)
+    z = _mock_z_crit(conf_level)
+    (or=irr, se=irr .* se, ci_lower=exp.(m.beta .- z .* se),
+     ci_upper=exp.(m.beta .+ z .* se), varnames=m.varnames, conf_level=Float64(conf_level))
 end
 
 for M in (:PoissonModel, :NegBinModel)
@@ -12667,7 +12676,7 @@ end
 
 function estimate_rdd(y::AbstractVector, running::AbstractVector; cutoff::Real=0.0,
                       fuzzy=nothing, kernel::Symbol=:triangular, p::Int=1,
-                      h=nothing, b=nothing, level::Real=0.95)
+                      h=nothing, b=nothing, level::Real=0.90)
     length(running) == length(y) ||
         throw(ArgumentError("running must have length $(length(y))"))
     kernel in (:triangular, :epanechnikov, :uniform) || throw(ArgumentError(
@@ -12679,7 +12688,10 @@ function estimate_rdd(y::AbstractVector, running::AbstractVector; cutoff::Real=0
     nl = count(<(cutoff), running); nr = count(>=(cutoff), running)
     hh = h === nothing ? 1.5 : Float64(h)
     bb = b === nothing ? 2.5 : Float64(b)
-    RDDResult{Float64}(2.0, 2.1, 0.4, 0.45, (1.216, 2.784), (1.218, 2.982),
+    z = _mock_z_crit(level)
+    RDDResult{Float64}(2.0, 2.1, 0.4, 0.45,
+                       (2.0 - z * 0.4, 2.0 + z * 0.4),
+                       (2.1 - z * 0.45, 2.1 + z * 0.45),
                        0.0001, 4.67, hh, bb, nl, nr, Float64(cutoff), p, kernel,
                        Float64(level), fuzzy === nothing ? :sharp : :fuzzy,
                        fuzzy === nothing ? nothing : 0.8)
@@ -12755,7 +12767,7 @@ end
 # `_MOCK_FLAGS[:ar_set_shape]` drives the degenerate shapes so T1/T2 can exercise the
 # renderer's empty / unbounded / disjoint branches, which is where a `[lo, hi]` assumption
 # would break.
-function anderson_rubin_ci(model; level=0.95, n_grid=1001, span=20, grid=nothing,
+function anderson_rubin_ci(model; level=0.90, n_grid=1001, span=20, grid=nothing,
                            cov_type=nothing, clusters=nothing)
     endog = _mock_ar_unpack(model)
     length(endog) == 1 || throw(ArgumentError(
@@ -12768,21 +12780,24 @@ function anderson_rubin_ci(model; level=0.95, n_grid=1001, span=20, grid=nothing
         "clusters is required for cov_type=:cluster"))
     j = endog[1]
     est = Float64(model.beta[j])
+    z = _mock_z_crit(level)
+    hw = 0.25 * z
+    whw = 0.15 * z
     shape = get(_MOCK_FLAGS, :ar_set_shape, :bounded)
     ivals, empt, whole, bnd = if shape === :empty
         (Tuple{Float64,Float64}[], true, false, true)
     elseif shape === :whole
         ([(-Inf, Inf)], false, true, false)
     elseif shape === :unbounded
-        ([(est - 0.4, Inf)], false, false, false)
+        ([(est - 0.2 * z, Inf)], false, false, false)
     elseif shape === :disjoint
-        ([(est - 1.2, est - 0.6), (est + 0.6, est + 1.2)], false, false, true)
+        ([(est - 0.6 * z, est - 0.3 * z), (est + 0.3 * z, est + 0.6 * z)], false, false, true)
     else
-        ([(est - 0.5, est + 0.5)], false, false, true)
+        ([(est - hw, est + hw)], false, false, true)
     end
-    AndersonRubinCI{Float64}(ivals, empt, whole, bnd, Float64(level), 3.84,
+    AndersonRubinCI{Float64}(ivals, empt, whole, bnd, Float64(level), z * z,
                              est - Float64(span) * 0.1, est + Float64(span) * 0.1,
-                             est - 0.3, est + 0.3, est, 1,
+                             est - whw, est + whw, est, 1,
                              ct === :ols ? :F : :chisq, model.varnames[j])
 end
 
@@ -12809,7 +12824,7 @@ end
 function wild_cluster_bootstrap(model::RegModel, coefficient, null_value::Real=0.0;
                                 clusters=nothing, n_boot::Int=999,
                                 weights::Symbol=:rademacher, imposenull::Bool=true,
-                                ci::Bool=true, level::Real=0.95, ci_gridpoints::Int=25,
+                                ci::Bool=true, level::Real=0.90, ci_gridpoints::Int=25,
                                 enumerate=nothing, rng=nothing, seed=nothing)
     # Mirror real's guards: clusters are REQUIRED for a RegModel, and the weight scheme is
     # a closed two-member enum (the `--wild-dist` lesson — never infer enum members).
@@ -12845,9 +12860,10 @@ function wild_cluster_bootstrap(model::RegModel, coefficient, null_value::Real=0
     enumerated = enumerate === nothing ? can_enum : (enumerate === true)
     nb = enumerated ? 2^min(G, 20) : n_boot
     est = Float64(model.beta[idx])
+    hw = 0.2 * _mock_z_crit(level)
     WildClusterBootstrap{Float64}(model.varnames[idx], idx, est, Float64(null_value),
                                   2.1, 0.07, 0.065, 0.03,
-                                  ci ? est - 0.4 : NaN, ci ? est + 0.4 : NaN,
+                                  ci ? est - hw : NaN, ci ? est + hw : NaN,
                                   Float64(level), fill(0.5, min(nb, 16)), nb, G,
                                   weights, imposenull, enumerated)
 end
