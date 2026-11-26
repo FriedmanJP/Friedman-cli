@@ -1,6 +1,6 @@
 # [Regression, Systems & GMM/SMM](@id chap-regression)
 
-Continuous cross-sectional, cointegrating, regularized, quantile, nonparametric, multi-equation simultaneous, and moment-based estimators live under [`estimate regression`](@ref ref-fam-estimate-regression) (`reg`, `iv`, `qreg`, `rdd`, `lasso`, `ridge`, `elastic-net`, `robust`, `cointreg`, `kde`, `kernel-reg`, `lowess`, `sur`, `3sls`, `gmm`, `smm`), with fitted predictions ([`predict regression`](@ref ref-fam-predict-regression)) and residuals ([`residuals regression`](@ref ref-fam-residuals-regression)) for `reg`, `sur`, and `3sls`. (Discrete choice, Tobit, truncated, and Heckman selection estimators are covered in [Discrete Choice, Count & Selection](@ref chap-choice).) See [MacroEconometricModels.jl — Cross-Sectional & GMM](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/regression/) for upstream details.
+Continuous cross-sectional, cointegrating, regularized, quantile, nonparametric, multi-equation simultaneous, and moment-based estimators live under [`estimate regression`](@ref ref-fam-estimate-regression) (`reg`, `iv`, `qreg`, `rdd`, `lasso`, `ridge`, `elastic-net`, `robust`, `cointreg`, `kde`, `kernel-reg`, `lowess`, `sur`, `3sls`, `gmm`, `smm`), with fitted predictions ([`predict regression`](@ref ref-fam-predict-regression)) and residuals ([`residuals regression`](@ref ref-fam-residuals-regression)) for `reg`, `sur`, and `3sls`. Cross-sectional regression leaves default to **90%** confidence intervals (`-L`/`--conf-level 0.90`), while time-series cointegrating regression ([`cointreg`](@ref ref-estimate-regression-cointreg)) defaults to **68%** (`-L`/`--conf-level 0.68`). (Discrete choice, Tobit, truncated, and Heckman selection estimators are covered in [Discrete Choice, Count & Selection](@ref chap-choice).) See [MacroEconometricModels.jl — Cross-Sectional & GMM](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/regression/) for upstream details.
 
 ## Quick Start
 
@@ -12,22 +12,22 @@ frdc --quiet data simulate lp-iv --periods 200 --seed 42 --save-data iv_sim
 frdc estimate regression iv iv_sim --dep y --endogenous s --instruments z1 --method tsls --cov-type hc1
 ```
 ```text
-                      IV (2SLS) Regression Coefficients
-┌──────┬──────────┬───────────┬─────────┬─────────────┬──────────┬──────────┐
-│ term │ estimate │ std_error │  stat   │   p_value   │ ci_lower │ ci_upper │
-├──────┼──────────┼───────────┼─────────┼─────────────┼──────────┼──────────┤
-│  s   │ 0.751309 │ 0.0981391 │ 7.65555 │ 8.29559e-13 │ 0.557777 │ 0.944841 │
-│  x2  │ 0.647819 │ 0.128301  │ 5.04922 │  1.0032e-6  │ 0.394807 │ 0.90083  │
-└──────┴──────────┴───────────┴─────────┴─────────────┴──────────┴──────────┘
-       IV Diagnostics
-┌───────────────┬──────────┐
-│    metric     │  value   │
-├───────────────┼──────────┤
-│      R²       │ 0.600961 │
-│    Adj. R²    │ 0.598946 │
-│    method     │   tsls   │
-│ First-stage F │ 298.231  │
-└───────────────┴──────────┘
+                   IV (2SLS) Regression Coefficients
+┌──────┬──────────┬───────────┬───────┬─────────┬──────────┬──────────┐
+│ term │ estimate │ std_error │ stat  │ p_value │ ci_lower │ ci_upper │
+├──────┼──────────┼───────────┼───────┼─────────┼──────────┼──────────┤
+│  s   │  0.751   │   0.098   │ 7.656 │  0.000  │  0.589   │  0.913   │
+│  x2  │  0.648   │   0.128   │ 5.049 │  0.000  │  0.436   │  0.860   │
+└──────┴──────────┴───────────┴───────┴─────────┴──────────┴──────────┘
+      IV Diagnostics
+┌───────────────┬─────────┐
+│    metric     │  value  │
+├───────────────┼─────────┤
+│      R²       │  0.601  │
+│    Adj. R²    │  0.599  │
+│    method     │  tsls   │
+│ First-stage F │ 298.231 │
+└───────────────┴─────────┘
 ```
 
 The command returns `iv_coefficients` (`s = 0.751309`, SE `0.0981391`; `x2 = 0.647819`) and `iv_diagnostics` (`R² = 0.600961`, `First-stage F = 298.231`, alongside `--method liml|fuller|kclass`); follow up with [`test iv weak-instrument`](@ref ref-test-iv-weak-instrument) and weak-IV-robust [`test iv anderson-rubin`](@ref ref-test-iv-anderson-rubin).
@@ -63,22 +63,22 @@ y_i = x_i'\beta + \varepsilon_i, \qquad \widehat{\beta}_{\text{GMM/2SLS}} = (X' 
 frdc estimate regression robust :stackloss --dep stack.loss --psi huber --method mm
 ```
 ```text
-              Robust Regression Coefficients
-┌────────────┬───────────┬───────────┬─────────┬─────────┐
-│ parameter  │ estimate  │ std_error │ z_stat  │ p_value │
-├────────────┼───────────┼───────────┼─────────┼─────────┤
-│  Air.Flow  │  0.81035  │ 0.174304  │ 4.6491  │   0.0   │
-│ Water.Temp │  1.01971  │ 0.478114  │ 2.1328  │ 0.0329  │
-│ Acid.Conc. │ -0.611146 │ 0.088822  │ -6.8806 │   0.0   │
-└────────────┴───────────┴───────────┴─────────┴─────────┘
+                        Robust Regression Coefficients
+┌────────────┬──────────┬───────────┬────────┬─────────┬──────────┬──────────┐
+│ parameter  │ estimate │ std_error │ z_stat │ p_value │ ci_lower │ ci_upper │
+├────────────┼──────────┼───────────┼────────┼─────────┼──────────┼──────────┤
+│  Air.Flow  │  0.810   │   0.174   │ 4.649  │  0.000  │  0.508   │  1.113   │
+│ Water.Temp │  1.020   │   0.478   │ 2.133  │  0.033  │  0.191   │  1.849   │
+│ Acid.Conc. │  -0.611  │   0.089   │ -6.881 │  0.000  │  -0.765  │  -0.457  │
+└────────────┴──────────┴───────────┴────────┴─────────┴──────────┴──────────┘
 Robust Regression Diagnostics
 ┌────────────┬──────────┐
 │   metric   │  value   │
 ├────────────┼──────────┤
 │    psi     │ bisquare │
 │   method   │    mm    │
-│   scale    │ 3.19175  │
-│ robust_r2  │ 0.553015 │
+│   scale    │  3.192   │
+│ robust_r2  │  0.553   │
 │   tuning   │  4.685   │
 │ converged  │   true   │
 │ iterations │    14    │
@@ -115,13 +115,13 @@ EOF
 frdc --seed 9 estimate regression smm ar1_sim --config smm_card --sim-ratio 4 --burn 50
 ```
 ```text
-     SMM Estimation (model=ar1, weighting=two_step)
-┌───────────┬──────────┬───────────┬─────────┬─────────┐
-│ parameter │ estimate │ std_error │ t_stat  │ p_value │
-├───────────┼──────────┼───────────┼─────────┼─────────┤
-│    phi    │ 0.641416 │ 0.071546  │ 8.9651  │   0.0   │
-│   sigma   │ 0.799064 │ 0.055001  │ 14.5282 │   0.0   │
-└───────────┴──────────┴───────────┴─────────┴─────────┘
+               SMM Estimation (model=ar1, weighting=two_step)
+┌───────────┬──────────┬───────────┬────────┬─────────┬──────────┬──────────┐
+│ parameter │ estimate │ std_error │ t_stat │ p_value │ ci_lower │ ci_upper │
+├───────────┼──────────┼───────────┼────────┼─────────┼──────────┼──────────┤
+│    phi    │  0.641   │   0.072   │ 8.965  │  0.000  │  0.524   │  0.759   │
+│   sigma   │  0.799   │   0.055   │ 14.528 │  0.000  │  0.709   │  0.890   │
+└───────────┴──────────┴───────────┴────────┴─────────┴──────────┴──────────┘
 ```
 
 Two-step SMM (`smm_estimates`) recovers persistence `phi = 0.641416` (true `0.6`) and innovation scale `sigma = 0.799064` (true `0.8`) using the simulated autocovariance conditions at lags 1–2.

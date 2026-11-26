@@ -67,11 +67,11 @@ Additionally, `frdc repl` launches an interactive REPL session ([Interactive REP
 
 ---
 
-## Common Options & Globals
+## Common Options, Globals & Abbreviations
 
-Every leaf that produces tabular output supports `--format`/`-f` (`table`|`csv`|`json`) and `--output`/`-o` (`<path>` to write to a file instead of stdout). Leaves accepting structured specifications add `--config <path>` (see [Model Cards & Config Grammar](@ref cfg-overview)); plot-capable leaves add `--plot` and `--plot-save <path>`.
+Every leaf that produces tabular output supports `--format`/`-f` (`table`|`csv`|`json`) and `--output`/`-o` (`<path>` to write to a file instead of stdout). Human tables display 3 decimal places by default (overridable via `--digits <0..16|full>` or `FRDC_DIGITS`), while `--format json`, `--format csv`, MCP responses, and `.jld2`/`.jls` handles always preserve full IEEE-754 `Float64` precision. Confidence intervals default to **68%** (`-L`/`--conf-level 0.68`, `--quantiles 0.16,0.5,0.84`) for macroeconometric leaves (including `did lp-did`) and **90%** (`-L`/`--conf-level 0.90`) for microeconometric leaves; hypothesis-test significance levels remain 5%. Leaves accepting structured specifications add `--config`/`-C <path>` (see [Model Cards & Config Grammar](@ref cfg-overview)); plot-capable leaves add `--plot`/`-g` and `--plot-save`/`-G <path>`.
 
-Leading agent globals go **before** the command: `--seed N`, `--quiet`/`-q`, `--json`, and `--no-color`. See [Pipelines, Handles & Reproducibility](@ref gs-pipelines) and the [Agent Guide](../agent-guide.md) for the complete JSON envelope and typed handle contract.
+All top-level commands, family groups, long leaves, and common options provide zero-collision coexisting abbreviations (for example `frdc est mv var :denmark -p 2 -J`, `frdc fc uv arima :nile -H 6 -L 0.68`, `frdc t ur adf :nile`, `frdc d desc :denmark`, `frdc sch est mv var`) that dispatch identically and emit canonical `command` names in JSON envelopes. Leading/mid-argv agent globals include `--seed N`, `--quiet`/`-q`, `--json`/`-J`, `--digits <0..16|full>`, `--compact`, and `--no-color`. See [Pipelines, Handles & Reproducibility](@ref gs-pipelines) and the [Agent Guide](../agent-guide.md) for the complete JSON envelope and typed handle contract.
 
 ---
 

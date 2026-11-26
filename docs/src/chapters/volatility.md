@@ -1,6 +1,6 @@
 # [Volatility & Multivariate GARCH](@id chap-volatility)
 
-Financial and macroeconomic volatility clustering, leverage asymmetries, long-memory persistence, mixed-frequency macro drivers, latent stochastic volatility, and time-varying conditional covariance matrices are handled across all 14 volatility subcommands under [`estimate volatility`](@ref ref-fam-estimate-volatility), alongside conditional variance prediction (`predict volatility`), standardized residuals (`residuals volatility`), and multi-step volatility forecasting (`forecast volatility`). See the upstream [Volatility manual](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/volatility/) in `MacroEconometricModels.jl`.
+Financial and macroeconomic volatility clustering, leverage asymmetries, long-memory persistence, mixed-frequency macro drivers, latent stochastic volatility, and time-varying conditional covariance matrices are handled across all 14 volatility subcommands under [`estimate volatility`](@ref ref-fam-estimate-volatility), alongside conditional variance prediction (`predict volatility`), standardized residuals (`residuals volatility`), and multi-step volatility forecasting (`forecast volatility`), defaulting to **68%** confidence intervals (`-L`/`--conf-level 0.68`). See the upstream [Volatility manual](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/volatility/) in `MacroEconometricModels.jl`.
 
 ## Quick Start
 
@@ -13,17 +13,17 @@ frdc --quiet estimate volatility garch garch_sim --p 1 --q 1 --save-model garch_
 frdc forecast volatility garch --model garch_fit.jld2 --horizons 6
 ```
 ```text
-GARCH(1,1) Volatility Forecast (series, h=6)
-┌─────────┬──────────┬────────────┐
-│ horizon │ variance │ volatility │
-├─────────┼──────────┼────────────┤
-│    1    │ 0.320159 │  0.565826  │
-│    2    │ 0.323899 │  0.569121  │
-│    3    │ 0.327559 │  0.572328  │
-│    4    │ 0.330963 │  0.575293  │
-│    5    │ 0.334169 │  0.578074  │
-│    6    │ 0.336948 │  0.580472  │
-└─────────┴──────────┴────────────┘
+   GARCH(1,1) Volatility Forecast (series, h=6)
+┌─────────┬──────────┬────────────┬───────┬───────┐
+│ horizon │ variance │ volatility │ lower │ upper │
+├─────────┼──────────┼────────────┼───────┼───────┤
+│    1    │  0.320   │   0.566    │ 0.320 │ 0.320 │
+│    2    │  0.324   │   0.569    │ 0.315 │ 0.333 │
+│    3    │  0.328   │   0.572    │ 0.313 │ 0.343 │
+│    4    │  0.331   │   0.575    │ 0.312 │ 0.349 │
+│    5    │  0.334   │   0.578    │ 0.313 │ 0.355 │
+│    6    │  0.337   │   0.580    │ 0.313 │ 0.360 │
+└─────────┴──────────┴────────────┴───────┴───────┘
 ```
 
 Storing `garch_fit.jld2` reuses the fitted MLE parameters directly across [`predict volatility garch`](@ref ref-predict-volatility-garch), [`residuals volatility garch`](@ref ref-residuals-volatility-garch), and [`forecast volatility garch`](@ref ref-forecast-volatility-garch) (JSON table key `garch_volatility_forecast`).
@@ -67,14 +67,14 @@ frdc --quiet --seed 42 data simulate sv --mu -0.5 --phi 0.95 --sigma-eta 0.2 --p
 frdc --seed 42 estimate volatility sv sv_sim --draws 400
 ```
 ```text
-   SV Coefficients (y)
-┌───────────┬───────────┐
-│ parameter │ estimate  │
-├───────────┼───────────┤
-│    mu     │ -0.498525 │
-│    phi    │ 0.945236  │
-│ sigma_eta │ 0.154004  │
-└───────────┴───────────┘
+             SV Coefficients (y)
+┌───────────┬──────────┬──────────┬──────────┐
+│ parameter │ estimate │ ci_lower │ ci_upper │
+├───────────┼──────────┼──────────┼──────────┤
+│    mu     │  -0.499  │  -0.803  │  -0.161  │
+│    phi    │  0.945   │  0.918   │  0.972   │
+│ sigma_eta │  0.154   │  0.121   │  0.183   │
+└───────────┴──────────┴──────────┴──────────┘
 ```
 
 The `sv_coefficients` table summarizes posterior mean estimates (`mu = -0.498525`, `phi = 0.945236`, `sigma_eta = 0.154004`) near the true DGP values.
@@ -99,35 +99,35 @@ frdc --quiet data simulate var --periods 300 --burn 50 --seed 2 --save-data mv_s
 frdc estimate volatility dcc mv_sim --p 1 --q 1 --correction none
 ```
 ```text
-     DCC-GARCH Conditional Correlation
-┌────────┬──────────┬──────────┬──────────┐
-│ series │    y1    │    y2    │    y3    │
-├────────┼──────────┼──────────┼──────────┤
-│   y1   │   1.0    │ 0.383801 │ 0.413936 │
-│   y2   │ 0.383801 │   1.0    │ 0.12696  │
-│   y3   │ 0.413936 │ 0.12696  │   1.0    │
-└────────┴──────────┴──────────┴──────────┘
+DCC-GARCH Conditional Correlation
+┌────────┬───────┬───────┬───────┐
+│ series │  y1   │  y2   │  y3   │
+├────────┼───────┼───────┼───────┤
+│   y1   │ 1.000 │ 0.384 │ 0.414 │
+│   y2   │ 0.384 │ 1.000 │ 0.127 │
+│   y3   │ 0.414 │ 0.127 │ 1.000 │
+└────────┴───────┴───────┴───────┘
              DCC-GARCH Dynamics Parameters
 ┌───────────┬──────────┬───────────┬────────┬─────────┐
 │ parameter │ estimate │ std_error │ z_stat │ p_value │
 ├───────────┼──────────┼───────────┼────────┼─────────┤
-│     a     │ 0.15717  │ 0.040307  │ 3.8993 │ 0.0001  │
-│     b     │ 0.150718 │ 0.127061  │ 1.1862 │ 0.2355  │
+│     a     │  0.157   │   0.040   │ 3.899  │  0.000  │
+│     b     │  0.151   │   0.127   │ 1.186  │  0.236  │
 └───────────┴──────────┴───────────┴────────┴─────────┘
    DCC-GARCH Diagnostics
-┌──────────────┬──────────┐
-│    metric    │  value   │
-├──────────────┼──────────┤
-│    loglik    │ -1293.58 │
-│     aic      │ 2615.16  │
-│     bic      │ 2667.01  │
-│    series    │    3     │
-│ observations │   300    │
-│  converged   │   true   │
-│     kind     │   dcc    │
-│  correction  │   none   │
-│ persistence  │ 0.307888 │
-└──────────────┴──────────┘
+┌──────────────┬───────────┐
+│    metric    │   value   │
+├──────────────┼───────────┤
+│    loglik    │ -1293.579 │
+│     aic      │ 2615.157  │
+│     bic      │ 2667.010  │
+│    series    │     3     │
+│ observations │    300    │
+│  converged   │   true    │
+│     kind     │    dcc    │
+│  correction  │   none    │
+│ persistence  │   0.308   │
+└──────────────┴───────────┘
 ```
 
 The command emits `dcc_garch_conditional_correlation` (`(y1, y2) = 0.383801`, `(y1, y3) = 0.413936`), `dcc_garch_dynamics_parameters` (`a = 0.15717`, `b = 0.150718`), and `dcc_garch_diagnostics` (`loglik = -1293.58`, `bic = 2667.01`, `persistence = 0.307888`) under `--format json`. Notice multivariate GARCH commands (`ccc`, `dcc`, `bekk`) estimate full-system dynamics and do not have separate `predict`/`forecast`/`residuals` leaves.

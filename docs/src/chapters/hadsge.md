@@ -25,40 +25,40 @@ HA-DSGE Solve Diagnostics (method=ssj)
 │      obs_rows      │   1   │
 │      obs_cols      │  10   │
 └────────────────────┴───────┘
-   HA Steady-State Aggregates
-┌───────────────┬──────────────┐
-│     name      │    value     │
-├───────────────┼──────────────┤
-│   K_demand    │     0.0      │
-│   A_policy    │ -5.91356e-9  │
-│  A_residual   │ -1.76212e-16 │
-│       K       │ -5.91356e-9  │
-│       Y       │   0.882609   │
-│ excess_demand │ -5.91356e-9  │
-└───────────────┴──────────────┘
+HA Steady-State Aggregates
+┌───────────────┬───────┐
+│     name      │ value │
+├───────────────┼───────┤
+│   K_demand    │ 0.000 │
+│   A_policy    │ 0.000 │
+│  A_residual   │ 0.000 │
+│       K       │ 0.000 │
+│       Y       │ 0.883 │
+│ excess_demand │ 0.000 │
+└───────────────┴───────┘
 HA Steady-State Prices
-┌──────┬────────────┐
-│ name │   value    │
-├──────┼────────────┤
-│  w   │    1.0     │
-│  r   │ -0.0130703 │
-└──────┴────────────┘
-  HA Steady-State Diagnostics
-┌───────────────┬─────────────┐
-│    metric     │    value    │
-├───────────────┼─────────────┤
-│   converged   │     1.0     │
-│  iterations   │    28.0     │
-│  euler_error  │  -1.93627   │
-│ excess_demand │ -5.91356e-9 │
-└───────────────┴─────────────┘
-                   HA Euler Accuracy (log10, by convention)
-┌────────────┬──────────┬──────────┬─────────────┬───────────────┬───────────┐
-│ convention │   max    │   mean   │ n_evaluated │ n_constrained │ n_offgrid │
-├────────────┼──────────┼──────────┼─────────────┼───────────────┼───────────┤
-│ midpoints  │ -1.93627 │ -4.53987 │     584     │      14       │     0     │
-│   nodes    │ -4.46995 │ -5.6558  │     585     │      15       │     0     │
-└────────────┴──────────┴──────────┴─────────────┴───────────────┴───────────┘
+┌──────┬────────┐
+│ name │ value  │
+├──────┼────────┤
+│  w   │ 1.000  │
+│  r   │ -0.013 │
+└──────┴────────┘
+HA Steady-State Diagnostics
+┌───────────────┬────────┐
+│    metric     │ value  │
+├───────────────┼────────┤
+│   converged   │ 1.000  │
+│  iterations   │ 28.000 │
+│  euler_error  │ -1.936 │
+│ excess_demand │ 0.000  │
+└───────────────┴────────┘
+                 HA Euler Accuracy (log10, by convention)
+┌────────────┬────────┬────────┬─────────────┬───────────────┬───────────┐
+│ convention │  max   │  mean  │ n_evaluated │ n_constrained │ n_offgrid │
+├────────────┼────────┼────────┼─────────────┼───────────────┼───────────┤
+│ midpoints  │ -1.936 │ -4.540 │     584     │      14       │     0     │
+│   nodes    │ -4.470 │ -5.656 │     585     │      15       │     0     │
+└────────────┴────────┴────────┴─────────────┴───────────────┴───────────┘
 ```
 
 The command outputs `ha_dsge_solve_diagnostics` (`explained_variance = 1.0`, `n_reduced = 10`), `ha_steady_state_aggregates` (`Y = 0.882609`, `excess_demand = -5.91356e-9`), `ha_steady_state_prices` (`r = -0.0130703`), `ha_steady_state_diagnostics` (`28.0` iterations), and Euler equation residuals (`ha_euler_accuracy_log10_by_convention`, midpoint max `-1.93627` vs node max `-4.46995`).
@@ -106,21 +106,21 @@ frdc dsge olg solve --alpha 0.36 --beta 0.96 --delta 0.08 --gamma 0.98 --debt 0.
 frdc dsge ct solve --grid-size 25 --max-iter 40 --a-max 20.0
 ```
 ```text
- CT Aiyagari Prices
-┌──────┬───────────┐
-│ name │   value   │
-├──────┼───────────┤
-│  r   │ 0.0396901 │
-│  w   │  1.39856  │
-└──────┴───────────┘
+CT Aiyagari Prices
+┌──────┬───────┐
+│ name │ value │
+├──────┼───────┤
+│  r   │ 0.040 │
+│  w   │ 1.399 │
+└──────┴───────┘
 CT Aiyagari Aggregates
-┌───────────┬─────────┐
-│   name    │  value  │
-├───────────┼─────────┤
-│     K     │ 1.31568 │
-│     L     │  0.15   │
-│ converged │   1.0   │
-└───────────┴─────────┘
+┌───────────┬───────┐
+│   name    │ value │
+├───────────┼───────┤
+│     K     │ 1.316 │
+│     L     │ 0.150 │
+│ converged │ 1.000 │
+└───────────┴───────┘
 ```
 
 The continuous-time solver iterates the upwind HJB–KFE fixed point to print `ct_aiyagari_prices` (`r = 0.0396901`, `w = 1.39856`) and `ct_aiyagari_aggregates` (`K = 1.31568`, `converged = 1.0`).

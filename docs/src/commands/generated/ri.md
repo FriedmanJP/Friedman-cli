@@ -25,47 +25,50 @@ Coibion-Gorodnichenko (2015) information-rigidity regression test (with optional
 | `--forecast-now` | — | `String` | `""` | — | Column name or 1-based index for current forecast F_t y_{t+h} (default: 2nd numeric col) |
 | `--forecast-lag` | — | `String` | `""` | — | Column name or 1-based index for lagged forecast F_{t-1} y_{t+h} (default: 3rd numeric col) |
 | `--hac-lags` | — | `String` | `auto` | — | Newey-West Bartlett lag truncation: auto or non-negative integer |
-| `--horizon` | — | `Int64` | `1` | — | Forecast horizon h ≥ 1 for --model implied CG slope comparison |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--horizon` | `-H` | `Int64` | `1` | — | Forecast horizon h ≥ 1 for --model implied CG slope comparison *(aliases: `--horizons`, `--hor`)* |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:cross_section`, `:csv`; model types: `SimsKalmanSolution`; result types: `CGTestResult`
 
-**Output tables:** `cg_test` (Coibion-Gorodnichenko regression estimates (alpha, beta_cg), HAC SEs, t-stats, p-values and implied gain/capacity); `cg_summary` (Sample size, HAC bandwidth, implied Kalman gain/capacity and optional model-implied CG slope comparison)
+**Output tables:** `cg_test` (Coibion-Gorodnichenko regression estimates (alpha, beta_cg), HAC SEs, t-stats, p-values, confidence intervals and implied gain/capacity); `cg_summary` (Sample size, HAC bandwidth, implied Kalman gain/capacity and optional model-implied CG slope comparison)
 
 ### [`frdc ri discrete`](@id ref-ri-discrete)
 
 Solve Matějka-McKay (2015) / Caplin-Dean-Leahy (2019) discrete-choice RI problem
 
+**Aliases:** `disc`
+
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--config` | — | `String` | `""` | — | TOML with [ri.discrete] payoff matrix U and prior mu (plus optional omega/capacity, units) |
+| `--config` | `-C` | `String` | `""` | — | TOML with [ri.discrete] payoff matrix U and prior mu (plus optional omega/capacity, units) *(aliases: `--cfg`)* |
 | `--omega` | — | `Float64` | `NaN` | — | Override marginal information cost omega > 0 per nat (mutually exclusive with --capacity) |
 | `--capacity` | — | `Float64` | `NaN` | — | Override Shannon capacity kappa > 0 (mutually exclusive with --omega) |
 | `--units` | — | `String` | `""` | — | Override information units: bits \| nats (from config, else bits) |
-| `--tol` | — | `Float64` | `1.0e-12` | — | Solver convergence tolerance (> 0) |
-| `--max-iter` | — | `Int64` | `5000` | — | Maximum Blahut-Arimoto / active-set Newton iterations (≥ 1) |
+| `--tol` | `-T` | `Float64` | `1.0e-12` | — | Solver convergence tolerance (> 0) |
+| `--max-iter` | `-I` | `Int64` | `5000` | — | Maximum Blahut-Arimoto / active-set Newton iterations (≥ 1) *(aliases: `--miter`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--plot` | `-g` | Open interactive plot in browser |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** result types: `RIDiscreteChoiceSolution`
 
@@ -75,36 +78,39 @@ Solve Matějka-McKay (2015) / Caplin-Dean-Leahy (2019) discrete-choice RI proble
 
 Estimate RI capacity or shadow cost from observed series via Kalman MLE or Bayesian RWMH
 
+**Aliases:** `est`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to observed data CSV or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--config` | — | `String` | `""` | — | TOML with [ri] structural matrices A, B, H (plus optional M, B_u, beta, units) |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--config` | `-C` | `String` | `""` | — | TOML with [ri] structural matrices A, B, H (plus optional M, B_u, beta, units) *(aliases: `--cfg`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--method` | `-m` | `String` | `mle` | `mle`, `bayes` | Estimation method: mle \| bayes |
 | `--estimate-param` | — | `String` | `capacity` | `capacity`, `omega` | Primary RI parameter to estimate: capacity \| omega |
-| `--cov-type` | — | `String` | `hessian` | `hessian`, `sandwich` | MLE covariance estimator: hessian \| sandwich |
-| `--observables` | — | `String` | `""` | — | Observable subset (actions\|all\|states\|actions-and-states) or comma-separated indices/names |
+| `--cov-type` | `-v` | `String` | `hessian` | `hessian`, `sandwich` | MLE covariance estimator: hessian \| sandwich *(aliases: `--cov`)* |
+| `--observables` | — | `String` | `""` | — | Observable subset (actions\|all\|states\|actions-and-states) or comma-separated indices/names *(aliases: `--obs`)* |
 | `--init-param` | — | `Float64` | `NaN` | — | Optional positive initial guess for capacity or omega |
-| `--measurement-error` | — | `String` | `""` | — | Optional measurement-error std dev (scalar or comma-separated per observable) |
-| `--draws` | — | `Int64` | `1000` | — | Retained posterior draws for --method bayes (≥ 1) |
-| `--burnin` | — | `Int64` | `250` | — | Adaptive burn-in draws for --method bayes (≥ 0) |
+| `--measurement-error` | — | `String` | `""` | — | Optional measurement-error std dev (scalar or comma-separated per observable) *(aliases: `--me`)* |
+| `--draws` | `-n` | `Int64` | `1000` | — | Retained posterior draws for --method bayes (≥ 1) |
+| `--burnin` | `-B` | `Int64` | `250` | — | Adaptive burn-in draws for --method bayes (≥ 0) |
 | `--step-scale` | — | `Float64` | `0.1` | — | Initial RWMH proposal step scale for --method bayes (> 0) |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--plot` | `-g` | Open interactive plot in browser |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `RationalInattentionProblem`, `SimsKalmanSolution`; result types: `RIEstimationResult`
 
@@ -116,22 +122,22 @@ Analytical FEVD decomposing fundamental vs endogenous RI processing-noise varian
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--config` | — | `String` | `""` | — | TOML with [ri] problem (solved first when --model is omitted) |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--horizons` | — | `Int64` | `20` | — | Variance decomposition horizon H (≥ 1) |
-| `--observables` | — | `String` | `actions` | `all`, `actions`, `actions-and-states`, `states` | Observable block: all \| actions \| actions-and-states \| states |
+| `--config` | `-C` | `String` | `""` | — | TOML with [ri] problem (solved first when --model is omitted) *(aliases: `--cfg`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--horizons` | `-H` | `Int64` | `20` | — | Variance decomposition horizon H (≥ 1) *(aliases: `--horizon`, `--hor`)* |
+| `--observables` | — | `String` | `actions` | `all`, `actions`, `actions-and-states`, `states` | Observable block: all \| actions \| actions-and-states \| states *(aliases: `--obs`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--plot` | `-g` | Open interactive plot in browser |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** model types: `SimsKalmanSolution`, `RationalInattentionProblem`; result types: `FEVD`
 
@@ -143,23 +149,23 @@ Diagnose IIA breakdown under discrete-choice RI when adding a new alternative
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--config` | — | `String` | `""` | — | TOML with [ri.discrete] U, mu, and new_option_payoffs (plus optional omega/capacity, units) |
+| `--config` | `-C` | `String` | `""` | — | TOML with [ri.discrete] U, mu, and new_option_payoffs (plus optional omega/capacity, units) *(aliases: `--cfg`)* |
 | `--omega` | — | `Float64` | `NaN` | — | Override marginal information cost omega > 0 per nat (mutually exclusive with --capacity) |
 | `--capacity` | — | `Float64` | `NaN` | — | Override Shannon capacity kappa > 0 (mutually exclusive with --omega) |
 | `--units` | — | `String` | `""` | — | Override information units: bits \| nats (from config, else bits) |
-| `--tol` | — | `Float64` | `1.0e-12` | — | Solver convergence tolerance (> 0) |
+| `--tol` | `-T` | `Float64` | `1.0e-12` | — | Solver convergence tolerance (> 0) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--plot` | `-g` | Open interactive plot in browser |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** result types: `RIIIADiagnostic`
 
@@ -171,22 +177,22 @@ Analytical inertial impulse response functions for a SimsKalmanSolution
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--config` | — | `String` | `""` | — | TOML with [ri] problem (solved first when --model is omitted) |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--horizons` | — | `Int64` | `20` | — | Impulse response horizon H (≥ 1) |
-| `--observables` | — | `String` | `all` | `all`, `actions`, `actions-and-states`, `states` | Observable block: all \| actions \| actions-and-states \| states |
+| `--config` | `-C` | `String` | `""` | — | TOML with [ri] problem (solved first when --model is omitted) *(aliases: `--cfg`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--horizons` | `-H` | `Int64` | `20` | — | Impulse response horizon H (≥ 1) *(aliases: `--horizon`, `--hor`)* |
+| `--observables` | — | `String` | `all` | `all`, `actions`, `actions-and-states`, `states` | Observable block: all \| actions \| actions-and-states \| states *(aliases: `--obs`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--plot` | `-g` | Open interactive plot in browser |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** model types: `SimsKalmanSolution`, `RationalInattentionProblem`; result types: `ImpulseResponse`
 
@@ -198,26 +204,26 @@ Solve Maćkowiak-Wiederholt (2009) multi-block attention allocation and GE price
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--config` | — | `String` | `""` | — | TOML with [ri.mw] agg_block and idio_block (plus optional capacity/omega, strategic_complementarity) |
+| `--config` | `-C` | `String` | `""` | — | TOML with [ri.mw] agg_block and idio_block (plus optional capacity/omega, strategic_complementarity) *(aliases: `--cfg`)* |
 | `--capacity` | — | `Float64` | `NaN` | — | Override total Shannon capacity kappa > 0 (mutually exclusive with --omega) |
 | `--omega` | — | `Float64` | `NaN` | — | Override common marginal cost omega > 0 (mutually exclusive with --capacity) |
 | `--strategic-complementarity` | — | `Float64` | `NaN` | — | Override strategic complementarity r in [0, 1) (from config, else 0.85) |
-| `--horizons` | — | `Int64` | `40` | — | Price and real-output impulse response horizon H (≥ 1) |
-| `--tol` | — | `Float64` | `1.0e-8` | — | Fixed-point convergence tolerance (> 0) |
-| `--max-iter` | — | `Int64` | `200` | — | Maximum general-equilibrium fixed-point iterations (≥ 1) |
+| `--horizons` | `-H` | `Int64` | `40` | — | Price and real-output impulse response horizon H (≥ 1) *(aliases: `--horizon`, `--hor`)* |
+| `--tol` | `-T` | `Float64` | `1.0e-8` | — | Fixed-point convergence tolerance (> 0) |
+| `--max-iter` | `-I` | `Int64` | `200` | — | Maximum general-equilibrium fixed-point iterations (≥ 1) *(aliases: `--maxiter`, `--miter`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--plot` | `-g` | Open interactive plot in browser |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** result types: `MWAttentionResult`
 
@@ -227,22 +233,24 @@ Solve Maćkowiak-Wiederholt (2009) multi-block attention allocation and GE price
 
 Simulate true states, posterior beliefs, endogenous signals and actions from a SimsKalmanSolution
 
+**Aliases:** `sim`
+
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--config` | — | `String` | `""` | — | TOML with [ri] problem (solved first when --model is omitted) |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--periods` | — | `Int64` | `200` | — | Post-burn-in simulation periods (≥ 1) |
-| `--burn` | — | `Int64` | `100` | — | Burn-in periods discarded before recording (≥ 0) |
+| `--config` | `-C` | `String` | `""` | — | TOML with [ri] problem (solved first when --model is omitted) *(aliases: `--cfg`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--periods` | `-N` | `Int64` | `200` | — | Post-burn-in simulation periods (≥ 1) |
+| `--burn` | `-B` | `Int64` | `100` | — | Burn-in periods discarded before recording (≥ 0) |
 | `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to global --seed, else Xoshiro(0)) |
-| `--save-data` | — | `String` | `""` | — | Save simulated series as a TimeSeriesData handle (.jld2 or .jls) |
+| `--save-data` | — | `String` | `""` | — | Save simulated series as a TimeSeriesData handle (.jld2 or .jls) *(aliases: `--sd`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** model types: `SimsKalmanSolution`, `RationalInattentionProblem`
 
@@ -254,27 +262,27 @@ Solve Sims (2003) steady-state LQG Rational Inattention Kalman filter
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--config` | — | `String` | `""` | — | TOML with [ri] A, B, H (plus optional M, B_u, beta, capacity/omega, units) |
+| `--config` | `-C` | `String` | `""` | — | TOML with [ri] A, B, H (plus optional M, B_u, beta, capacity/omega, units) *(aliases: `--cfg`)* |
 | `--method` | `-m` | `String` | `water-filling` | `water-filling`, `logdet-barrier` | Solver method: water-filling \| logdet-barrier |
 | `--capacity` | — | `Float64` | `NaN` | — | Override Shannon capacity kappa > 0 (mutually exclusive with --omega) |
 | `--omega` | — | `Float64` | `NaN` | — | Override marginal info shadow cost omega > 0 per nat (mutually exclusive with --capacity) |
 | `--units` | — | `String` | `""` | — | Override information units: bits \| nats (from config, else bits) |
-| `--tol` | — | `Float64` | `1.0e-11` | — | Solver convergence tolerance (> 0) |
-| `--max-iter` | — | `Int64` | `2000` | — | Maximum outer fixed-point iterations (≥ 1) |
+| `--tol` | `-T` | `Float64` | `1.0e-11` | — | Solver convergence tolerance (> 0) |
+| `--max-iter` | `-I` | `Int64` | `2000` | — | Maximum outer fixed-point iterations (≥ 1) *(aliases: `--miter`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--problem-only` | — | Construct and emit RationalInattentionProblem without solving |
-| `--plot` | — | Open interactive plot in browser |
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--plot` | `-g` | Open interactive plot in browser |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** result types: `SimsKalmanSolution`, `RationalInattentionProblem`
 
@@ -284,27 +292,29 @@ Solve Sims (2003) steady-state LQG Rational Inattention Kalman filter
 
 Convert a SimsKalmanSolution into joint StateSpaceModel, ABCDSystem, or SteadyStateKalman
 
+**Aliases:** `ss`
+
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--config` | — | `String` | `""` | — | TOML with [ri] problem (solved first when --model is omitted) |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--observables` | — | `String` | `all` | `all`, `actions`, `actions-and-states`, `states` | Observable block: all \| actions \| actions-and-states \| states |
+| `--config` | `-C` | `String` | `""` | — | TOML with [ri] problem (solved first when --model is omitted) *(aliases: `--cfg`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--observables` | — | `String` | `all` | `all`, `actions`, `actions-and-states`, `states` | Observable block: all \| actions \| actions-and-states \| states *(aliases: `--obs`)* |
 | `--as` | — | `String` | `statespace` | `statespace`, `abcd`, `steady-kalman` | Output representation: statespace \| abcd \| steady-kalman |
 | `--init-mode` | — | `String` | `""` | — | Kalman initialization mode for --as statespace: stationary \| kappa \| diffuse |
 | `--kappa` | — | `Float64` | `1.0e6` | — | Diffuse variance scale for init-mode=kappa\|diffuse |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--plot` | `-g` | Open interactive plot in browser |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** model types: `SimsKalmanSolution`, `RationalInattentionProblem`; result types: `StateSpaceModel`, `ABCDSystem`, `SteadyStateKalman`
 
@@ -314,29 +324,31 @@ Convert a SimsKalmanSolution into joint StateSpaceModel, ABCDSystem, or SteadySt
 
 Solve Afrouzi-Yang (2021) dynamic LQG Rational Inattention transition path
 
+**Aliases:** `trans`
+
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--config` | — | `String` | `""` | — | TOML with [ri] problem and/or Sigma_init, omega_path, capacity_path |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--config` | `-C` | `String` | `""` | — | TOML with [ri] problem and/or Sigma_init, omega_path, capacity_path *(aliases: `--cfg`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--t-path` | — | `Int64` | `100` | — | Transition horizon T_path (≥ 1) |
 | `--damping` | — | `Float64` | `0.7` | — | Forward-backward shooting damping weight in (0, 1] |
-| `--tol` | — | `Float64` | `1.0e-10` | — | Shooting convergence tolerance (> 0) |
-| `--max-iter` | — | `Int64` | `500` | — | Maximum shooting iterations (≥ 1) |
+| `--tol` | `-T` | `Float64` | `1.0e-10` | — | Shooting convergence tolerance (> 0) |
+| `--max-iter` | `-I` | `Int64` | `500` | — | Maximum shooting iterations (≥ 1) *(aliases: `--miter`)* |
 | `--capacity` | — | `Float64` | `NaN` | — | Override constant per-period capacity ≥ 0 along transition path |
 | `--omega` | — | `Float64` | `NaN` | — | Override constant shadow cost omega > 0 along transition path |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--plot` | `-g` | Open interactive plot in browser |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** model types: `SimsKalmanSolution`, `RationalInattentionProblem`; result types: `DynamicRISolution`
 

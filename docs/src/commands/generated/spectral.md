@@ -3,6 +3,8 @@
 
 Generated command reference for `frdc spectral` (`6` leaves). Back to [CLI Reference Overview](@ref cli-overview).
 
+**Command aliases:** `sp`, `spec`
+
 **Workflow guides:** [Univariate, Filters & Spectral](@ref chap-univariate) · [Structural ID, LP & Innovation Accounting](@ref chap-structural)
 
 ---
@@ -24,19 +26,20 @@ Autocorrelation / partial autocorrelation / cross-correlation
 | `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
 | `--max-lag` | — | `Int64` | — | — | Maximum lag (default: automatic, capped at min(T-1, 10*log10(T))) |
 | `--ccf-with` | — | `Int64` | — | — | Column index for cross-correlation |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `ACFResult`
 
-**Output tables:** `acf_pacf` (Autocorrelation, partial autocorrelation, Ljung-Box Q and p-value by lag); `cross_correlation` (Cross-correlation by lag against --ccf-with (only with that option))
+**Output tables:** `acf_pacf` (Autocorrelation, partial autocorrelation, Ljung-Box Q, p-value and white-noise confidence band by lag); `cross_correlation` (Cross-correlation with confidence band by lag against --ccf-with (only with that option))
 
 ### [`frdc spectral cross`](@id ref-spectral-cross)
 
@@ -50,15 +53,16 @@ Cross-spectral analysis (coherence, phase, gain)
 |--------|-------|------|---------|---------|-------------|
 | `--var1` | — | `Int64` | `1` | — | First variable column index |
 | `--var2` | — | `Int64` | `2` | — | Second variable column index |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `CrossSpectrumResult`
 
@@ -68,6 +72,8 @@ Cross-spectral analysis (coherence, phase, gain)
 
 Spectral density estimation
 
+**Aliases:** `dens`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
@@ -76,16 +82,17 @@ Spectral density estimation
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
 | `--method` | `-m` | `String` | `welch` | `periodogram`, `welch`, `smoothed`, `ar` | periodogram\|welch\|smoothed\|ar |
-| `--bandwidth` | — | `Float64` | — | — | Smoothing bandwidth |
+| `--bandwidth` | `-b` | `Float64` | — | — | Smoothing bandwidth *(aliases: `--bw`)* |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 | `--log-scale` | — | Plot spectral density on a log10 vertical axis (default: linear) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `SpectralDensityResult`
@@ -103,38 +110,38 @@ Frequency-band structural FEVD for a Structural DFM
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--factors` | `-q` | `Int64` | — | — | Number of dynamic factors (default: auto via --q-method) |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|longrun\|max-share\|proxy\|lewis-tvv\|sv-em\|gmm-moments (--id proxy requires --instrument) |
+| `--id` | `-i` | `String` | `cholesky` | `cholesky`, `sign`, `longrun`, `max-share`, `proxy`, `lewis-tvv`, `sv-em`, `gmm-moments` | cholesky\|sign\|longrun\|max-share\|proxy\|lewis-tvv\|sv-em\|gmm-moments (--id proxy requires --instrument) |
 | `--q-method` | — | `String` | `hallin-liska` | `hallin-liska`, `bai-ng`, `amengual-watson` | Auto factor selection: hallin-liska\|bai-ng\|amengual-watson |
-| `--method` | — | `String` | `fglr` | `fglr`, `fhlz`, `gdfm-var` | Structural estimator: fglr\|fhlz\|gdfm-var |
+| `--method` | `-m` | `String` | `fglr` | `fglr`, `fhlz`, `gdfm-var` | Structural estimator: fglr\|fhlz\|gdfm-var |
 | `--spectral` | — | `String` | `lag-window` | `lag-window`, `smoothed-periodogram` | GDFM spectrum: lag-window\|smoothed-periodogram |
 | `--instrument` | — | `String` | `""` | — | Proxy-instrument CSV column (only with --id proxy) |
 | `--var-lags` | — | `String` | `auto` | — | Factor VAR lag order (positive integer or auto\|aic\|bic\|hq) |
 | `--n-perm` | — | `Int64` | `30` | — | Cross-sectional permutations for --method fhlz |
 | `--p-max` | — | `Int64` | — | — | Maximum lag order for automatic/FHLZ lag selection |
 | `--target` | — | `String` | `""` | — | Target variable name or 1-based index (for --id max-share) |
-| `--horizons` | — | `Int64` | `40` | — | Structural IRF horizon for SDFM estimation |
-| `--config` | — | `String` | `""` | — | TOML config for sign restrictions or lewis-tvv/sv-em |
-| `--bandwidth` | — | `Int64` | `0` | — | Spectral bandwidth (0=auto) |
-| `--kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `tukey` | bartlett\|parzen\|tukey |
+| `--horizons` | `-H` | `Int64` | `40` | — | Structural IRF horizon for SDFM estimation *(aliases: `--hor`)* |
+| `--config` | `-C` | `String` | `""` | — | TOML config for sign restrictions or lewis-tvv/sv-em *(aliases: `--cfg`)* |
+| `--bandwidth` | `-b` | `Int64` | `0` | — | Spectral bandwidth (0=auto) *(aliases: `--bw`)* |
+| `--kernel` | `-k` | `String` | `bartlett` | `bartlett`, `parzen`, `tukey` | bartlett\|parzen\|tukey |
 | `--pl` | — | `Float64` | `6.0` | — | Minimum period of oscillation (default: 6) |
 | `--pu` | — | `Float64` | `32.0` | — | Maximum period of oscillation (default: 32) |
 | `--band-low` | — | `Float64` | — | — | Explicit lower angular frequency in [0, pi) (radians) |
 | `--band-high` | — | `Float64` | — | — | Explicit upper angular frequency in (0, pi] (radians) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--include-idiosyncratic` | — | Append idiosyncratic band variance share column |
-| `--plot` | — | Open interactive plot in browser |
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--plot` | `-g` | Open interactive plot in browser |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `StructuralDFM`; result types: `SpectralFEVDResult`
 
@@ -144,6 +151,8 @@ Frequency-band structural FEVD for a Structural DFM
 
 Raw periodogram
 
+**Aliases:** `pgram`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
@@ -151,39 +160,42 @@ Raw periodogram
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 | `--log-scale` | — | Plot spectral density on a log10 vertical axis (default: linear) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `SpectralDensityResult`
 
-**Output tables:** `periodogram` (Raw periodogram power by Fourier frequency)
+**Output tables:** `periodogram` (Raw periodogram power with chi-squared confidence band by Fourier frequency)
 
 ### [`frdc spectral transfer`](@id ref-spectral-transfer)
 
 Filter transfer function (theoretical frequency response)
 
+**Aliases:** `tf`
+
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--filter` | — | `String` | `hp` | `hp`, `bk`, `hamilton` | hp\|bk\|hamilton |
-| `--lambda` | — | `Float64` | `1600.0` | — | Filter parameter (e.g. HP lambda) |
-| `--n-freq` | — | `Int64` | `256` | — | Number of frequency grid points (≥ 2) |
+| `--lambda` | `-l` | `Float64` | `1600.0` | — | Filter parameter (e.g. HP lambda) |
+| `--n-freq` | — | `Int64` | `256` | — | Number of frequency grid points (≥ 2) *(aliases: `--nobs`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `TransferFunctionResult`
 

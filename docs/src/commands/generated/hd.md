@@ -22,28 +22,30 @@ Compute Bayesian historical decomposition
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | `4` | — | Lag order |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|fastica\|jade\|sobi\|dcov\|hsic\|cvm\|student-t\|mixture-normal\|mixture-normal-asym\|pml\|skew-normal\|lms\|markov-switching\|garch-id\|uhlig\|lewis-tvv\|sv-em |
+| `--id` | `-i` | `String` | `cholesky` | `cholesky`, `sign`, `narrative`, `longrun`, `fastica`, `jade`, `sobi`, `dcov`, `hsic`, `cvm`, `student-t`, `mixture-normal`, `mixture-normal-asym`, `pml`, `skew-normal`, `lms`, `markov-switching`, `garch-id`, `uhlig`, `lewis-tvv`, `sv-em` | cholesky\|sign\|narrative\|longrun\|fastica\|jade\|sobi\|dcov\|hsic\|cvm\|student-t\|mixture-normal\|mixture-normal-asym\|pml\|skew-normal\|lms\|markov-switching\|garch-id\|uhlig\|lewis-tvv\|sv-em |
 | `--draws` | `-n` | `Int64` | `2000` | — | Posterior draws |
-| `--sampler` | — | `String` | `direct` | — | direct\|gibbs |
-| `--config` | — | `String` | `""` | — | TOML config for identification/prior |
+| `--sampler` | — | `String` | `direct` | `direct`, `gibbs` | direct\|gibbs |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--quantiles` | `-Q` | `String` | `0.16,0.5,0.84` | — | Posterior/bootstrap band quantiles in (0, 1) (default: 0.16,0.5,0.84 = 68% band) *(aliases: `--qtl`)* |
+| `--config` | `-C` | `String` | `""` | — | TOML config for identification/prior *(aliases: `--cfg`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--plot` | `-g` | Open interactive plot in browser |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `BVARPosterior`; result types: `BayesianHistoricalDecomposition`
 
-**Output tables:** `bayesian_hd_*` (One table per variable: period | initial | posterior-mean contribution of each shock)
+**Output tables:** `bayesian_hd_*` (One table per variable: period | initial | posterior-mean contribution and credible band of each shock)
 
 ### [`frdc hd favar`](@id ref-hd-favar)
 
@@ -55,26 +57,26 @@ FAVAR historical decomposition
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--factors` | — | `Int64` | — | — | Number of factors (default: auto) |
+| `--factors` | `-q` | `Int64` | — | — | Number of factors (default: auto) |
 | `--lags` | `-p` | `Int64` | `2` | — | VAR lag order |
 | `--key-vars` | — | `String` | `""` | — | Key variable names or indices (comma-separated) |
-| `--horizons` | — | `Int64` | `20` | — | HD horizon |
-| `--id` | — | `String` | `cholesky` | — | Identification method: cholesky\|sign\|narrative\|longrun\|… (base set; see irf var) |
-| `--config` | — | `String` | `""` | — | TOML config for restrictions |
+| `--horizons` | `-H` | `Int64` | `20` | — | HD horizon *(aliases: `--hor`)* |
+| `--id` | `-i` | `String` | `cholesky` | `cholesky`, `sign`, `narrative`, `longrun`, `fastica`, `jade`, `sobi`, `dcov`, `hsic`, `cvm`, `student-t`, `mixture-normal`, `mixture-normal-asym`, `pml`, `skew-normal`, `lms`, `markov-switching`, `garch-id`, `uhlig`, `lewis-tvv`, `sv-em` | Identification method: cholesky\|sign\|narrative\|longrun\|… (base set; see irf var) |
+| `--config` | `-C` | `String` | `""` | — | TOML config for restrictions *(aliases: `--cfg`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--plot` | `-g` | Open interactive plot in browser |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `FAVARModel`; result types: `HistoricalDecomposition`
 
@@ -90,36 +92,36 @@ Historical decomposition from I(1) cointegrated GDFM
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dynamic-rank` | — | `Int64` | — | — | Number of dynamic shocks q (default: auto on first differences) |
+| `--dynamic-rank` | — | `Int64` | — | — | Number of dynamic shocks q (default: auto on first differences) *(aliases: `--drank`)* |
 | `--n-permanent` | — | `Int64` | — | — | Number of permanent I(1) stochastic trends (0..q; default: auto) |
-| `--id` | — | `String` | `permanent-transitory` | `permanent-transitory`, `cholesky`, `longrun`, `sign`, `proxy` | Identification: permanent-transitory\|cholesky\|longrun\|sign\|proxy |
+| `--id` | `-i` | `String` | `permanent-transitory` | `permanent-transitory`, `cholesky`, `longrun`, `sign`, `proxy` | Identification: permanent-transitory\|cholesky\|longrun\|sign\|proxy |
 | `--det-trend` | — | `String` | `constant` | `none`, `constant`, `linear`, `trend` | Deterministic trend: none\|constant\|linear\|trend (trend aliases linear) |
 | `--p-max` | — | `Int64` | `4` | — | Maximum block VECM VAR lag order in levels |
 | `--n-perm` | — | `Int64` | `25` | — | Cross-sectional permutations to average |
-| `--bandwidth` | — | `Int64` | `0` | — | Spectral lag-window bandwidth M (0=auto) |
-| `--kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `tukey` | Spectral kernel: bartlett\|parzen\|tukey |
+| `--bandwidth` | `-b` | `Int64` | `0` | — | Spectral lag-window bandwidth M (0=auto) *(aliases: `--bw`)* |
+| `--kernel` | `-k` | `String` | `bartlett` | `bartlett`, `parzen`, `tukey` | Spectral kernel: bartlett\|parzen\|tukey |
 | `--lag-criterion` | — | `String` | `bic` | `bic`, `aic` | Block VECM lag criterion: bic\|aic |
 | `--irf-horizon` | — | `Int64` | `40` | — | Maximum stored level IRF horizon |
-| `--config` | — | `String` | `""` | — | TOML config for sign restrictions (--id sign) |
+| `--config` | `-C` | `String` | `""` | — | TOML config for sign restrictions (--id sign) *(aliases: `--cfg`)* |
 | `--instrument` | — | `String` | `""` | — | External instrument CSV column (--id proxy) |
 | `--seed` | — | `Int64` | — | — | Optional RNG seed |
-| `--horizons` | — | `Int64` | — | — | Periods decomposed (default: effective sample length) |
+| `--horizons` | `-H` | `Int64` | — | — | Periods decomposed (default: effective sample length) *(aliases: `--hor`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--no-standardize` | — | Do not scale series by first-difference standard deviation |
+| `--no-standardize` | — | Do not scale series by first-difference standard deviation *(aliases: `--nostd`)* |
 | `--include-idiosyncratic` | — | Include idiosyncratic remainder column |
-| `--plot` | — | Open interactive plot in browser |
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--plot` | `-g` | Open interactive plot in browser |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `CointegratedGDFM`; result types: `HistoricalDecomposition`
 
@@ -137,23 +139,23 @@ Compute historical decomposition via structural LP
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | `4` | — | LP control lags |
 | `--var-lags` | — | `Int64` | — | — | VAR lag order for identification (default: same as --lags) |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|fastica\|jade\|sobi\|dcov\|hsic\|cvm\|student-t\|mixture-normal\|mixture-normal-asym\|pml\|skew-normal\|lms\|markov-switching\|garch-id\|uhlig\|lewis-tvv\|sv-em |
-| `--vcov` | — | `String` | `newey_west` | — | newey_west\|white\|driscoll_kraay |
-| `--config` | — | `String` | `""` | — | TOML config for identification |
+| `--id` | `-i` | `String` | `cholesky` | `cholesky`, `sign`, `narrative`, `longrun`, `fastica`, `jade`, `sobi`, `dcov`, `hsic`, `cvm`, `student-t`, `mixture-normal`, `mixture-normal-asym`, `pml`, `skew-normal`, `lms`, `markov-switching`, `garch-id`, `uhlig`, `lewis-tvv`, `sv-em` | cholesky\|sign\|narrative\|longrun\|fastica\|jade\|sobi\|dcov\|hsic\|cvm\|student-t\|mixture-normal\|mixture-normal-asym\|pml\|skew-normal\|lms\|markov-switching\|garch-id\|uhlig\|lewis-tvv\|sv-em |
+| `--vcov` | — | `String` | `newey_west` | `newey_west`, `white`, `driscoll_kraay` | newey_west\|white\|driscoll_kraay |
+| `--config` | `-C` | `String` | `""` | — | TOML config for identification *(aliases: `--cfg`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--plot` | `-g` | Open interactive plot in browser |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `StructuralLP`; result types: `HistoricalDecomposition`
 
@@ -170,33 +172,33 @@ Structural DFM historical decomposition
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--factors` | `-q` | `Int64` | — | — | Number of dynamic factors (default: auto via --q-method) |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|longrun\|max-share\|proxy\|lewis-tvv\|sv-em\|gmm-moments (--id proxy requires --instrument) |
+| `--id` | `-i` | `String` | `cholesky` | `cholesky`, `sign`, `longrun`, `max-share`, `proxy`, `lewis-tvv`, `sv-em`, `gmm-moments` | cholesky\|sign\|longrun\|max-share\|proxy\|lewis-tvv\|sv-em\|gmm-moments (--id proxy requires --instrument) |
 | `--q-method` | — | `String` | `hallin-liska` | `hallin-liska`, `bai-ng`, `amengual-watson` | Auto factor selection: hallin-liska\|bai-ng\|amengual-watson |
-| `--method` | — | `String` | `fglr` | `fglr`, `fhlz`, `gdfm-var` | Estimator: fglr\|fhlz\|gdfm-var (fhlz is one-sided infinite-r; gdfm-var is legacy) |
+| `--method` | `-m` | `String` | `fglr` | `fglr`, `fhlz`, `gdfm-var` | Estimator: fglr\|fhlz\|gdfm-var (fhlz is one-sided infinite-r; gdfm-var is legacy) |
 | `--spectral` | — | `String` | `lag-window` | `lag-window`, `smoothed-periodogram` | GDFM spectrum: lag-window (FHLR)\|smoothed-periodogram |
-| `--instrument` | — | `String` | `""` | — | Proxy-instrument CSV column (only with --id proxy) |
+| `--instrument` | — | `String` | `""` | — | Proxy-instrument column name inside <data> (not a file path; only with --id proxy) |
 | `--var-lags` | — | `String` | `auto` | — | Factor VAR lag order (positive integer or auto\|aic\|bic\|hq) |
 | `--n-perm` | — | `Int64` | `30` | — | Cross-sectional permutations for --method fhlz |
 | `--p-max` | — | `Int64` | — | — | Maximum lag order for automatic/FHLZ lag selection |
 | `--target` | — | `String` | `""` | — | Target variable name or 1-based index (for --id max-share) |
-| `--horizons` | — | `Int64` | `20` | — | HD horizon (periods decomposed) |
-| `--config` | — | `String` | `""` | — | TOML config for sign restrictions |
+| `--horizons` | `-H` | `Int64` | `20` | — | HD horizon (periods decomposed) *(aliases: `--hor`)* |
+| `--config` | `-C` | `String` | `""` | — | TOML config for sign restrictions *(aliases: `--cfg`)* |
 | `--space` | — | `String` | `panel` | `panel`, `factor` | Decomposition space: panel\|factor |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 | `--no-idiosyncratic` | — | Drop the idiosyncratic column (panel space only) |
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `StructuralDFM`; result types: `HistoricalDecomposition`
 
@@ -213,24 +215,24 @@ Compute historical decomposition of shocks
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto) |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|proxy\|max-share\|gmm-moments\|lewis-tvv\|sv-em\|fastica\|jade\|sobi\|dcov\|hsic\|cvm\|student-t\|mixture-normal\|mixture-normal-asym\|pml\|skew-normal\|lms\|markov-switching\|garch-id |
-| `--config` | — | `String` | `""` | — | TOML config for identification |
-| `--instrument` | — | `String` | `""` | — | Proxy-instrument CSV column (only with --id proxy) |
+| `--id` | `-i` | `String` | `cholesky` | `cholesky`, `sign`, `narrative`, `longrun`, `proxy`, `max-share`, `gmm-moments`, `lewis-tvv`, `sv-em`, `fastica`, `jade`, `sobi`, `dcov`, `hsic`, `cvm`, `student-t`, `mixture-normal`, `mixture-normal-asym`, `pml`, `skew-normal`, `lms`, `markov-switching`, `garch-id` | cholesky\|sign\|narrative\|longrun\|proxy\|max-share\|gmm-moments\|lewis-tvv\|sv-em\|fastica\|jade\|sobi\|dcov\|hsic\|cvm\|student-t\|mixture-normal\|mixture-normal-asym\|pml\|skew-normal\|lms\|markov-switching\|garch-id |
+| `--config` | `-C` | `String` | `""` | — | TOML config for identification *(aliases: `--cfg`)* |
+| `--instrument` | — | `String` | `""` | — | Proxy-instrument column name inside <data> (not a file path; only with --id proxy) |
 | `--target-var` | — | `String` | `""` | — | Max-share target: column name or 1-based index (only with --id max-share) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--plot` | `-g` | Open interactive plot in browser |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `VARModel`, `SVARModel`, `LMSSVARResult`, `LanneLuotoGMMResult`; result types: `HistoricalDecomposition`
 
@@ -248,23 +250,23 @@ Compute historical decomposition via VECM → VAR representation (direct VECM un
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | `2` | — | Lag order (in levels) |
 | `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto\|1\|2\|...) |
-| `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|narrative\|longrun\|fastica\|jade\|sobi\|dcov\|hsic\|cvm\|student-t\|mixture-normal\|mixture-normal-asym\|pml\|skew-normal\|lms\|markov-switching\|garch-id\|uhlig\|lewis-tvv\|sv-em\|svec (uhlig: generic path) |
-| `--config` | — | `String` | `""` | — | TOML config for identification |
+| `--deterministic` | — | `String` | `constant` | `none`, `constant`, `trend` | none\|constant\|trend *(aliases: `--det`)* |
+| `--id` | `-i` | `String` | `cholesky` | `cholesky`, `sign`, `narrative`, `longrun`, `fastica`, `jade`, `sobi`, `dcov`, `hsic`, `cvm`, `student-t`, `mixture-normal`, `mixture-normal-asym`, `pml`, `skew-normal`, `lms`, `markov-switching`, `garch-id`, `uhlig`, `lewis-tvv`, `sv-em`, `svec` | cholesky\|sign\|narrative\|longrun\|fastica\|jade\|sobi\|dcov\|hsic\|cvm\|student-t\|mixture-normal\|mixture-normal-asym\|pml\|skew-normal\|lms\|markov-switching\|garch-id\|uhlig\|lewis-tvv\|sv-em\|svec (uhlig: generic path) |
+| `--config` | `-C` | `String` | `""` | — | TOML config for identification *(aliases: `--cfg`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--plot` | `-g` | Open interactive plot in browser |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `VECMModel`, `SVECResult`; result types: `HistoricalDecomposition`
 

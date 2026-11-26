@@ -39,14 +39,14 @@ frdc nowcast dfm ragged.csv --monthly-vars 2 --quarterly-vars 1 --factors 1 --la
 ```
 ```text
 Nowcast DFM (r=1, p=1, target=gdp)
-┌────────────────┬──────────┐
-│     metric     │  value   │
-├────────────────┼──────────┤
-│    nowcast     │ 0.197516 │
-│    forecast    │ 0.34259  │
-│ log-likelihood │  -39.06  │
-│ EM iterations  │   50.0   │
-└────────────────┴──────────┘
+┌────────────────┬─────────┐
+│     metric     │  value  │
+├────────────────┼─────────┤
+│    nowcast     │  0.198  │
+│    forecast    │  0.343  │
+│ log-likelihood │ -39.059 │
+│ EM iterations  │ 50.000  │
+└────────────────┴─────────┘
 ```
 
 Under `--format json`, the estimator writes filtered latent factors and the reconstructed low-frequency `gdp` path into `nowcast_dfm` (`nowcast = 0.197516`, `forecast = 0.34259`, `log-likelihood = -39.06`).
@@ -105,20 +105,20 @@ EOF
 frdc forecast evaluate metrics eval.csv --actual y --forecasts f1,f2
 ```
 ```text
-                                                                 Forecast Accuracy Metrics
-┌───────┬───────────┬───────────┬───────────┬─────────┬─────────┬───────────┬───────────┬───────────┬────────────┬────────────────┬──────────────────┬────┐
-│ model │    ME     │    MAE    │   RMSE    │  MAPE   │  sMAPE  │   MASE    │    U1     │    U2     │ theil_bias │ theil_variance │ theil_covariance │ n  │
-├───────┼───────────┼───────────┼───────────┼─────────┼─────────┼───────────┼───────────┼───────────┼────────────┼────────────────┼──────────────────┼────┤
-│  f1   │ 0.0208333 │ 0.0608333 │ 0.0634429 │ 1.0971  │ 1.09893 │ 0.0872447 │ 0.0057637 │ 0.0844527 │  0.107833  │    0.315233    │     0.576934     │ 12 │
-│  f2   │ 0.220833  │  0.5625   │ 0.570694  │ 10.3201 │ 10.5967 │ 0.806714  │ 0.0526496 │ 0.754038  │  0.149735  │    0.181492    │     0.668774     │ 12 │
-└───────┴───────────┴───────────┴───────────┴─────────┴─────────┴───────────┴───────────┴───────────┴────────────┴────────────────┴──────────────────┴────┘
-          Theil MSE Decomposition
-┌───────┬──────────┬──────────┬────────────┐
-│ model │   bias   │ variance │ covariance │
-├───────┼──────────┼──────────┼────────────┤
-│  f1   │ 0.107833 │ 0.315233 │  0.576934  │
-│  f2   │ 0.149735 │ 0.181492 │  0.668774  │
-└───────┴──────────┴──────────┴────────────┘
+                                                    Forecast Accuracy Metrics
+┌───────┬───────┬───────┬───────┬────────┬────────┬───────┬───────┬───────┬────────────┬────────────────┬──────────────────┬────┐
+│ model │  ME   │  MAE  │ RMSE  │  MAPE  │ sMAPE  │ MASE  │  U1   │  U2   │ theil_bias │ theil_variance │ theil_covariance │ n  │
+├───────┼───────┼───────┼───────┼────────┼────────┼───────┼───────┼───────┼────────────┼────────────────┼──────────────────┼────┤
+│  f1   │ 0.021 │ 0.061 │ 0.063 │ 1.097  │ 1.099  │ 0.087 │ 0.006 │ 0.084 │   0.108    │     0.315      │      0.577       │ 12 │
+│  f2   │ 0.221 │ 0.562 │ 0.571 │ 10.320 │ 10.597 │ 0.807 │ 0.053 │ 0.754 │   0.150    │     0.181      │      0.669       │ 12 │
+└───────┴───────┴───────┴───────┴────────┴────────┴───────┴───────┴───────┴────────────┴────────────────┴──────────────────┴────┘
+         Theil MSE Decomposition
+┌───────┬───────┬──────────┬────────────┐
+│ model │ bias  │ variance │ covariance │
+├───────┼───────┼──────────┼────────────┤
+│  f1   │ 0.108 │  0.315   │   0.577    │
+│  f2   │ 0.150 │  0.181   │   0.669    │
+└───────┴───────┴──────────┴────────────┘
 ```
 
 [`forecast evaluate metrics`](@ref ref-forecast-evaluate-metrics) emits `forecast_accuracy_metrics` (`f1` achieves `RMSE = 0.063443` and `MAE = 0.060833` vs. `f2`'s `0.570694` and `0.5625`) together with `theil_mse_decomposition` (`bias = 0.107833`, `variance = 0.315233`, `covariance = 0.576934` shares summing to `1.0`). Follow up with [`dm`](@ref ref-forecast-evaluate-dm), [`clark-west`](@ref ref-forecast-evaluate-clark-west) (nested models), [`mincer-zarnowitz`](@ref ref-forecast-evaluate-mincer-zarnowitz) (bias/efficiency), [`encompassing`](@ref ref-forecast-evaluate-encompassing), or [`combine`](@ref ref-forecast-evaluate-combine) (`--method equal|bates-granger|granger-ramanathan`).

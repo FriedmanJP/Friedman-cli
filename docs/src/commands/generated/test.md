@@ -3,11 +3,15 @@
 
 Generated command reference for `frdc test` (`105` leaves). Back to [CLI Reference Overview](@ref cli-overview).
 
+**Command aliases:** `t`
+
 **Workflow guides:** [Hypothesis Testing & Diagnostics](@ref chap-tests) · [Regression, Systems & GMM/SMM](@ref chap-regression) · [Panel Data, Panel VAR & Causal DiD](@ref chap-panel) · [Univariate, Filters & Spectral](@ref chap-univariate) · [VAR, BVAR, VECM & Factor Models](@ref chap-multivariate)
 
 ---
 
 ## [Cointegration Tests](@id ref-fam-test-coint)
+
+**Family aliases:** `ci`
 
 Cointegration and long-run equilibrium tests (Johansen, Engle-Granger, Gregory-Hansen, Phillips-Ouliaris)
 
@@ -17,26 +21,28 @@ Cointegration and long-run equilibrium tests (Johansen, Engle-Granger, Gregory-H
 
 Pesaran-Shin-Smith ARDL bounds test: F/t vs I(0)/I(1) bounds, no p-value
 
+**Aliases:** `bounds`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent column name (default: first numeric column) |
+| `--dep` | `-y` | `String` | `""` | — | Dependent column name (default: first numeric column) |
 | `--p` | — | `String` | `auto` | — | AR order: auto or an integer ≥ 1 |
 | `--q` | — | `String` | `auto` | — | DL order: auto, an integer, or a comma-separated per-regressor list |
 | `--max-p` | — | `Int64` | `4` | — | Max AR order for auto IC selection |
 | `--max-q` | — | `Int64` | `4` | — | Max DL order for auto IC selection |
 | `--ic` | — | `String` | `aic` | `aic`, `bic` | Selection criterion: aic\|bic |
-| `--trend` | — | `String` | `none` | `none`, `const`, `trend` | Informational trend label: none\|const\|trend |
+| `--trend` | `-e` | `String` | `none` | `none`, `const`, `trend` | Informational trend label: none\|const\|trend |
 | `--case` | — | `Int64` | `3` | — | Pesaran-Shin-Smith deterministic case (1..5) |
 | `--level` | — | `Float64` | `0.05` | — | Decision level: one of 0.10\|0.05\|0.025\|0.01 |
 | `--cv-source` | — | `String` | `pss` | `pss` | Critical-value source (only pss) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `ARDLBoundsTest`
 
@@ -46,20 +52,22 @@ Pesaran-Shin-Smith ARDL bounds test: F/t vs I(0)/I(1) bounds, no p-value
 
 Engle-Granger residual-ADF cointegration test (H0: no cointegration)
 
+**Aliases:** `eg`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
-| `--trend` | — | `String` | `constant` | `none`, `constant`, `trend` | Deterministic terms in the cointegrating regression |
-| `--lags` | — | `String` | `aic` | — | ADF lags on the residuals: aic\|bic or a non-negative integer |
-| `--max-lags` | — | `String` | `""` | — | Upper bound for automatic lag selection |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column (default: first numeric) |
+| `--trend` | `-e` | `String` | `constant` | `none`, `constant`, `trend` | Deterministic terms in the cointegrating regression |
+| `--lags` | `-p` | `String` | `aic` | — | ADF lags on the residuals: aic\|bic or a non-negative integer |
+| `--max-lags` | — | `String` | `""` | — | Upper bound for automatic lag selection *(aliases: `--mlags`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `EngleGrangerResult`
 
@@ -69,22 +77,24 @@ Engle-Granger residual-ADF cointegration test (H0: no cointegration)
 
 Fisher-combined per-unit Johansen panel cointegration test by rank (H0: rank <= r)
 
+**Aliases:** `fj`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to long-format panel CSV |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--id-col` | — | `String` | `""` | — | Panel id column (default: first column) |
-| `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
+| `--id-col` | `-u` | `String` | `""` | — | Panel id column (default: first column) *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Panel time column (default: second column) *(aliases: `--tcol`)* |
 | `--vars` | — | `String` | `""` | — | Comma-separated series (≥ 2; default: every panel variable) |
-| `--deterministic` | — | `String` | `constant` | `none`, `constant`, `trend` | Deterministic terms |
-| `--lags` | — | `Int64` | `2` | — | VECM lag order (≥ 1) |
+| `--deterministic` | — | `String` | `constant` | `none`, `constant`, `trend` | Deterministic terms *(aliases: `--det`)* |
+| `--lags` | `-p` | `Int64` | `2` | — | VECM lag order (≥ 1) |
 | `--combine` | — | `String` | `mw` | `mw`, `choi` | Fisher combination |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:panel`, `:csv`; result types: `FisherJohansenResult`
 
@@ -94,20 +104,22 @@ Fisher-combined per-unit Johansen panel cointegration test by rank (H0: rank <= 
 
 Gregory-Hansen cointegration test with one structural break: ADF*, Zt*, Za* (H0: no cointegration)
 
+**Aliases:** `gh`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--model` | — | `String` | `C` | — | C\|CT\|CS (level shift/trend/regime) |
-| `--lags` | — | `String` | `aic` | — | Lag order (aic\|bic\|N) |
-| `--max-lags` | — | `Int64` | — | — | Max lags (default: auto) |
+| `--model` | `-M` | `String` | `C` | — | C\|CT\|CS (level shift/trend/regime) |
+| `--lags` | `-p` | `String` | `aic` | — | Lag order (aic\|bic\|N) |
+| `--max-lags` | — | `Int64` | — | — | Max lags (default: auto) *(aliases: `--mlags`)* |
 | `--trim` | — | `Float64` | `0.15` | — | Trimming proportion |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `GregoryHansenResult`
 
@@ -124,11 +136,11 @@ Johansen cointegration-rank test: trace and max-eigenvalue tables by rank
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | `2` | — | Lag order |
-| `--trend` | — | `String` | `constant` | — | none\|constant\|trend |
+| `--trend` | `-e` | `String` | `constant` | `none`, `constant`, `trend` | none\|constant\|trend |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `JohansenResult`
 
@@ -144,14 +156,14 @@ Kao DF/ADF residual-based panel cointegration test (H0: no cointegration)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--id-col` | — | `String` | `""` | — | Panel group identifier column (default: first column) |
-| `--time-col` | — | `String` | `""` | — | Time period column (default: second column) |
-| `--dep` | — | `String` | `""` | — | Dependent variable (default: first panel variable) |
-| `--indep` | — | `String` | `""` | — | Comma-separated regressors (default: all other panel variables) |
+| `--id-col` | `-u` | `String` | `""` | — | Panel group identifier column (default: first column) *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Time period column (default: second column) *(aliases: `--tcol`)* |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable (default: first panel variable) |
+| `--indep` | `-x` | `String` | `""` | — | Comma-separated regressors (default: all other panel variables) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:panel`, `:csv`; result types: `KaoResult`
 
@@ -167,15 +179,15 @@ Pedroni residual-based panel cointegration test, seven statistics (H0: no cointe
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--id-col` | — | `String` | `""` | — | Panel group identifier column (default: first column) |
-| `--time-col` | — | `String` | `""` | — | Time period column (default: second column) |
-| `--dep` | — | `String` | `""` | — | Dependent variable (default: first panel variable) |
-| `--indep` | — | `String` | `""` | — | Comma-separated regressors (default: all other panel variables) |
-| `--trend` | — | `String` | `constant` | `none`, `constant`, `trend` | none\|constant\|trend |
+| `--id-col` | `-u` | `String` | `""` | — | Panel group identifier column (default: first column) *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Time period column (default: second column) *(aliases: `--tcol`)* |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable (default: first panel variable) |
+| `--indep` | `-x` | `String` | `""` | — | Comma-separated regressors (default: all other panel variables) |
+| `--trend` | `-e` | `String` | `constant` | `none`, `constant`, `trend` | none\|constant\|trend |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:panel`, `:csv`; result types: `PedroniResult`
 
@@ -185,20 +197,22 @@ Pedroni residual-based panel cointegration test, seven statistics (H0: no cointe
 
 Phillips-Ouliaris semiparametric cointegration test: Z_t and Z_alpha (H0: no cointegration)
 
+**Aliases:** `po`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
-| `--trend` | — | `String` | `constant` | `none`, `constant`, `trend` | Deterministic terms in the cointegrating regression |
-| `--kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `qs`, `tukey-hanning` | HAC kernel for the residual long-run variance |
-| `--bandwidth` | — | `String` | `nw` | — | HAC bandwidth: nw\|andrews\|nw94 or a non-negative number |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column (default: first numeric) |
+| `--trend` | `-e` | `String` | `constant` | `none`, `constant`, `trend` | Deterministic terms in the cointegrating regression |
+| `--kernel` | `-k` | `String` | `bartlett` | `bartlett`, `parzen`, `qs`, `tukey-hanning` | HAC kernel for the residual long-run variance |
+| `--bandwidth` | `-b` | `String` | `nw` | — | HAC bandwidth: nw\|andrews\|nw94 or a non-negative number *(aliases: `--bw`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `PhillipsOuliarisResult`
 
@@ -208,21 +222,23 @@ Phillips-Ouliaris semiparametric cointegration test: Z_t and Z_alpha (H0: no coi
 
 Westerlund ECM panel cointegration test: Gt, Ga, Pt, Pa (H0: no error correction)
 
+**Aliases:** `west`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to panel data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--id-col` | — | `String` | `""` | — | Panel group identifier column (default: first column) |
-| `--time-col` | — | `String` | `""` | — | Time period column (default: second column) |
-| `--dep` | — | `String` | `""` | — | Dependent variable (default: first panel variable) |
-| `--indep` | — | `String` | `""` | — | Comma-separated regressors (default: all other panel variables) |
-| `--trend` | — | `String` | `constant` | `none`, `constant`, `trend` | none\|constant\|trend |
+| `--id-col` | `-u` | `String` | `""` | — | Panel group identifier column (default: first column) *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Time period column (default: second column) *(aliases: `--tcol`)* |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable (default: first panel variable) |
+| `--indep` | `-x` | `String` | `""` | — | Comma-separated regressors (default: all other panel variables) |
+| `--trend` | `-e` | `String` | `constant` | `none`, `constant`, `trend` | none\|constant\|trend |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:panel`, `:csv`; result types: `WesterlundResult`
 
@@ -248,17 +264,17 @@ Goodman-Bacon (2021) decomposition of TWFE into 2x2 DiD comparisons with weights
 |--------|-------|------|---------|---------|-------------|
 | `--outcome` | — | `String` | `""` | — | Outcome variable column name (required) |
 | `--treatment` | — | `String` | `""` | — | Treatment indicator column name (required) |
-| `--id-col` | — | `String` | `""` | — | Panel unit ID column (default: first column) |
-| `--time-col` | — | `String` | `""` | — | Time column (default: second column) |
+| `--id-col` | `-u` | `String` | `""` | — | Panel unit ID column (default: first column) *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Time column (default: second column) *(aliases: `--tcol`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:panel`, `:csv`; result types: `BaconDecomposition`
 
@@ -276,25 +292,25 @@ HonestDiD sensitivity analysis (Rambachan-Roth 2023) with violation bound Mbar
 |--------|-------|------|---------|---------|-------------|
 | `--outcome` | — | `String` | `""` | — | Outcome variable column name (required) |
 | `--treatment` | — | `String` | `""` | — | Treatment indicator column name (required) |
-| `--id-col` | — | `String` | `""` | — | Panel unit ID column (default: first column) |
-| `--time-col` | — | `String` | `""` | — | Time column (default: second column) |
+| `--id-col` | `-u` | `String` | `""` | — | Panel unit ID column (default: first column) *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Time column (default: second column) *(aliases: `--tcol`)* |
 | `--mbar` | — | `Float64` | `1.0` | — | Violation bound M̄ |
 | `--leads` | — | `Int64` | `3` | — | Pre-treatment leads |
-| `--horizons` | — | `Int64` | `5` | — | Post-treatment horizon |
+| `--horizons` | `-H` | `Int64` | `5` | — | Post-treatment horizon *(aliases: `--horizon`, `--hor`)* |
 | `--lags` | `-p` | `Int64` | `4` | — | Control lags (event-study only) |
-| `--cluster` | — | `String` | `unit` | — | unit\|time\|twoway |
-| `--conf-level` | — | `Float64` | `0.95` | — | Confidence level |
-| `--method` | — | `String` | `did` | `did`, `event-study` | did\|event-study |
+| `--cluster` | — | `String` | `unit` | `unit`, `time`, `twoway` | unit\|time\|twoway |
+| `--conf-level` | `-L` | `Float64` | `0.9` | — | Confidence interval level in (0, 1) (default: 0.90) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--method` | `-m` | `String` | `did` | `did`, `event-study` | did\|event-study |
 | `--did-method` | — | `String` | `twfe` | `twfe`, `cs`, `sa`, `bjs`, `dcdh` | twfe\|cs\|sa\|bjs\|dcdh (did method only) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:panel`, `:csv`; result types: `HonestDiDResult`
 
@@ -311,12 +327,12 @@ Negative-weight diagnostic for TWFE (de Chaisemartin-D'Haultfoeuille 2020)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--treatment` | — | `String` | `""` | — | Treatment indicator column name (required) |
-| `--id-col` | — | `String` | `""` | — | Panel unit ID column (default: first column) |
-| `--time-col` | — | `String` | `""` | — | Time column (default: second column) |
+| `--id-col` | `-u` | `String` | `""` | — | Panel unit ID column (default: first column) *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Time column (default: second column) *(aliases: `--tcol`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:panel`, `:csv`; result types: `NegativeWeightResult`
 
@@ -334,19 +350,19 @@ Joint pre-trend (parallel-trends) test from a DiD or event-study fit
 |--------|-------|------|---------|---------|-------------|
 | `--outcome` | — | `String` | `""` | — | Outcome variable column name (required) |
 | `--treatment` | — | `String` | `""` | — | Treatment indicator column name (required) |
-| `--id-col` | — | `String` | `""` | — | Panel unit ID column (default: first column) |
-| `--time-col` | — | `String` | `""` | — | Time column (default: second column) |
+| `--id-col` | `-u` | `String` | `""` | — | Panel unit ID column (default: first column) *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Time column (default: second column) *(aliases: `--tcol`)* |
 | `--leads` | — | `Int64` | `3` | — | Pre-treatment leads |
-| `--horizons` | — | `Int64` | `5` | — | Post-treatment horizon |
+| `--horizons` | `-H` | `Int64` | `5` | — | Post-treatment horizon *(aliases: `--horizon`, `--hor`)* |
 | `--lags` | `-p` | `Int64` | `4` | — | Control lags (event-study only) |
-| `--cluster` | — | `String` | `unit` | — | unit\|time\|twoway |
-| `--conf-level` | — | `Float64` | `0.95` | — | Confidence level |
-| `--method` | — | `String` | `did` | `did`, `event-study` | did\|event-study |
+| `--cluster` | — | `String` | `unit` | `unit`, `time`, `twoway` | unit\|time\|twoway |
+| `--conf-level` | `-L` | `Float64` | `0.9` | — | Confidence interval level in (0, 1) (default: 0.90) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--method` | `-m` | `String` | `did` | `did`, `event-study` | did\|event-study |
 | `--did-method` | — | `String` | `twfe` | `twfe`, `cs`, `sa`, `bjs`, `dcdh` | twfe\|cs\|sa\|bjs\|dcdh (did method only) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:panel`, `:csv`; result types: `PretrendTestResult`
 
@@ -356,6 +372,8 @@ Joint pre-trend (parallel-trends) test from a DiD or event-study fit
 
 ## [Factor & Quantile-Factor Diagnostics](@id ref-fam-test-factor)
 
+**Family aliases:** `fac`
+
 Static, dynamic, and quantile factor rank selection, spanning, and constancy tests
 
 **See guide:** [Hypothesis Testing & Diagnostics](@ref chap-tests) · [VAR, BVAR, VECM & Factor Models](@ref chap-multivariate) · [Structural ID, LP & Innovation Accounting](@ref chap-structural)
@@ -363,6 +381,8 @@ Static, dynamic, and quantile factor rank selection, spanning, and constancy tes
 ### [`frdc test factor ahn-horenstein`](@id ref-test-factor-ahn-horenstein)
 
 Ahn-Horenstein (2013) ER and GR static factor rank selection criteria
+
+**Aliases:** `ah`
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -373,15 +393,15 @@ Ahn-Horenstein (2013) ER and GR static factor rank selection criteria
 | `--k-max` | — | `Int64` | — | — | Maximum candidate static factors (default: min(10, min(T,N)-2)) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--no-demean` | — | Do not demean columns |
-| `--no-standardize` | — | Do not standardize columns |
-| `--plot` | — | Open interactive plot in browser |
+| `--no-standardize` | — | Do not standardize columns *(aliases: `--nostd`)* |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `AhnHorensteinResult`
 
@@ -391,6 +411,8 @@ Ahn-Horenstein (2013) ER and GR static factor rank selection criteria
 
 Onatski (2010) Edge Distribution (ED) static factor rank estimator
 
+**Aliases:** `oed`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
@@ -398,18 +420,18 @@ Onatski (2010) Edge Distribution (ED) static factor rank estimator
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--k-max` | — | `Int64` | — | — | Maximum candidate static factors (default: min(10, min(T,N)-2)) |
-| `--max-iter` | — | `Int64` | `20` | — | Maximum fixed-point iterations |
+| `--max-iter` | `-I` | `Int64` | `20` | — | Maximum fixed-point iterations *(aliases: `--miter`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--no-standardize` | — | Do not standardize columns |
+| `--no-standardize` | — | Do not standardize columns *(aliases: `--nostd`)* |
 | `--no-demean` | — | Do not demean columns |
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `OnatskiEDResult`
 
@@ -429,24 +451,24 @@ Onatski (2009) dynamic factor rank test and sequential selector
 | `--k1` | — | `Int64` | — | — | Alternative max dynamic rank k1 (> k0, <= N-2) |
 | `--k-max` | — | `Int64` | — | — | Maximum candidate dynamic rank for sequential selection |
 | `--alpha` | — | `Float64` | `0.05` | — | Significance level for sequential selection |
-| `--bandwidth` | — | `Int64` | — | — | Lag-window bandwidth M (default: auto) |
+| `--bandwidth` | `-b` | `Int64` | — | — | Lag-window bandwidth M (default: auto) *(aliases: `--bw`)* |
 | `--n-blocks` | — | `Int64` | — | — | Number of disjoint frequency blocks in (0, pi) |
-| `--kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `tukey-hanning` | Spectral kernel: bartlett\|parzen\|tukey-hanning |
+| `--kernel` | `-k` | `String` | `bartlett` | `bartlett`, `parzen`, `tukey-hanning` | Spectral kernel: bartlett\|parzen\|tukey-hanning |
 | `--freq` | — | `Float64` | — | — | Optional single angular frequency in (0, pi) |
 | `--n-sim` | — | `Int64` | `5000` | — | GUE Monte Carlo draws when k1 - k0 > 15 |
 | `--seed` | — | `Int64` | — | — | Optional RNG seed |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--select` | — | Run sequential upward selection (onatski_q_select) |
-| `--no-standardize` | — | Do not standardize columns |
+| `--no-standardize` | — | Do not standardize columns *(aliases: `--nostd`)* |
 | `--no-demean` | — | Do not demean columns |
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `OnatskiQTestResult`
 
@@ -456,6 +478,8 @@ Onatski (2009) dynamic factor rank test and sequential selector
 
 Bootstrap test of quantile factor loading-space constancy across two quantiles
 
+**Aliases:** `qconst`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
@@ -464,23 +488,23 @@ Bootstrap test of quantile factor loading-space constancy across two quantiles
 |--------|-------|------|---------|---------|-------------|
 | `--tau1` | — | `Float64` | `0.1` | — | First quantile level in (0, 1) |
 | `--tau2` | — | `Float64` | `0.9` | — | Second quantile level in (0, 1) |
-| `--factors` | — | `String` | `auto` | — | QFM factor rank (integer or 'auto') when estimating from data |
+| `--factors` | `-q` | `String` | `auto` | — | QFM factor rank (integer or 'auto') when estimating from data |
 | `--n-boot` | — | `Int64` | `299` | — | Bootstrap replications (>= 1) |
 | `--block-length` | — | `Int64` | `0` | — | Moving-block length (0 = ceil(T^(1/3))) |
 | `--bootstrap` | — | `String` | `block` | `block`, `wild` | Bootstrap scheme: block\|wild |
-| `--max-iter` | — | `Int64` | `60` | — | Max IQR iterations per bootstrap draw |
-| `--tol` | — | `Float64` | `1.0e-5` | — | Convergence tolerance per bootstrap draw |
+| `--max-iter` | `-I` | `Int64` | `60` | — | Max IQR iterations per bootstrap draw *(aliases: `--miter`)* |
+| `--tol` | `-T` | `Float64` | `1.0e-5` | — | Convergence tolerance per bootstrap draw |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--standardize` | — | Standardize panel columns before factor extraction |
-| `--plot` | — | Open interactive plot in browser |
+| `--standardize` | — | Standardize panel columns before factor extraction *(aliases: `--std`)* |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `QuantileFactorGrid`; result types: `QFMLoadingConstancyTest`
 
@@ -490,6 +514,8 @@ Bootstrap test of quantile factor loading-space constancy across two quantiles
 
 Test whether quantile factors are spanned by conditional-mean PCA factors (CDG 2021)
 
+**Aliases:** `qspan`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
@@ -498,22 +524,22 @@ Test whether quantile factors are spanned by conditional-mean PCA factors (CDG 2
 |--------|-------|------|---------|---------|-------------|
 | `--tau` | — | `Float64` | `0.5` | — | Single quantile level in (0, 1) (when --taus is empty) |
 | `--taus` | — | `String` | `""` | — | Comma-separated quantiles in (0, 1) to test a QFM grid |
-| `--factors` | — | `String` | `auto` | — | QFM factor count (integer or 'auto') |
+| `--factors` | `-q` | `String` | `auto` | — | QFM factor count (integer or 'auto') |
 | `--r-pca` | — | `String` | `auto` | — | PCA factor count (integer or 'auto' via Bai-Ng) |
 | `--r-max` | — | `Int64` | `0` | — | Max PCA factors when --r-pca auto (0 = library default) |
-| `--criterion` | — | `String` | `ic2` | `ic1`, `ic2`, `ic3` | Bai-Ng criterion for --r-pca auto: ic1\|ic2\|ic3 |
+| `--criterion` | — | `String` | `ic2` | `ic1`, `ic2`, `ic3` | Bai-Ng criterion for --r-pca auto: ic1\|ic2\|ic3 *(aliases: `--crit`)* |
 | `--threshold` | — | `Float64` | `0.5` | — | OLS R² cutoff in [0, 1] flagging unspanned tail factors |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--standardize` | — | Standardize panel columns before factor extraction |
-| `--plot` | — | Open interactive plot in browser |
+| `--standardize` | — | Standardize panel columns before factor extraction *(aliases: `--std`)* |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `QuantileFactorModel`, `QuantileFactorGrid`; result types: `QFMSpanningResult`
 
@@ -531,25 +557,27 @@ Instrumental-variables weak-ID, overidentification, endogeneity, and Anderson-Ru
 
 Weak-instrument-robust Anderson-Rubin test + inverted confidence set
 
+**Aliases:** `ar`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
 | `--endogenous` | — | `String` | `""` | — | Endogenous regressor column names, comma-separated (required) |
-| `--instruments` | — | `String` | `""` | — | EXCLUDED instrument column names, comma-separated (required; other numeric cols are exogenous regressors — include a `const` for an intercept) |
-| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | Covariance weighting the AR statistic; cluster additionally needs --clusters |
-| `--clusters` | — | `String` | `""` | — | Cluster column name (required for --cov-type cluster) |
+| `--instruments` | `-Z` | `String` | `""` | — | EXCLUDED instrument column names, comma-separated (required; other numeric cols are exogenous regressors — include a `const` for an intercept) *(aliases: `--iv`)* |
+| `--cov-type` | `-v` | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | Covariance weighting the AR statistic; cluster additionally needs --clusters *(aliases: `--cov`)* |
+| `--clusters` | `-U` | `String` | `""` | — | Cluster column name (required for --cov-type cluster) *(aliases: `--clst`)* |
 | `--beta0` | — | `String` | `""` | — | Hypothesized coefficient value(s) on the endogenous regressors, comma-separated (default: 0 for each) |
-| `--conf-level` | — | `Float64` | `0.95` | — | Nominal coverage of the confidence set |
+| `--conf-level` | `-L` | `Float64` | `0.9` | — | Nominal coverage of the confidence set in (0, 1) (default: 0.90) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--n-grid` | — | `Int64` | `1001` | — | Grid points used to invert the AR test |
 | `--span` | — | `Float64` | `20.0` | — | Search half-width around the 2SLS estimate, in standard errors |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -563,21 +591,23 @@ Weak-instrument-robust Anderson-Rubin test + inverted confidence set
 
 Stock-Yogo weak-instrument diagnostics for 2SLS
 
+**Aliases:** `weak-iv`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
 | `--endogenous` | — | `String` | `""` | — | Endogenous regressor column names, comma-separated (required) |
-| `--instruments` | — | `String` | `""` | — | EXCLUDED instrument column names, comma-separated (required; other numeric cols are exogenous regressors — include a `const` for an intercept) |
-| `--cov-type` | — | `String` | `hc1` | — | ols\|hc0\|hc1\|hc2\|hc3 |
+| `--instruments` | `-Z` | `String` | `""` | — | EXCLUDED instrument column names, comma-separated (required; other numeric cols are exogenous regressors — include a `const` for an intercept) *(aliases: `--iv`)* |
+| `--cov-type` | `-v` | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3` | ols\|hc0\|hc1\|hc2\|hc3 *(aliases: `--cov`)* |
 | `--threshold` | — | `Float64` | `10.0` | — | First-stage F rule-of-thumb (used if no Stock-Yogo CV) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`; result types: `MontielOleaPfluegerF`
 
@@ -587,25 +617,27 @@ Stock-Yogo weak-instrument diagnostics for 2SLS
 
 Wild cluster bootstrap (WCR/WCU) inference for one coefficient
 
+**Aliases:** `wc`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
-| `--clusters` | — | `String` | `""` | — | Cluster column name (required) |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--clusters` | `-U` | `String` | `""` | — | Cluster column name (required) *(aliases: `--clst`)* |
 | `--coefficient` | — | `String` | `""` | — | Regressor to test, by name (default: the first regressor) |
 | `--null` | — | `Float64` | `0.0` | — | Hypothesized value r in H0: beta_j = r |
 | `--boot-reps` | — | `Int64` | `999` | — | Bootstrap replications (ignored when the 2^G sign space is enumerated) |
 | `--boot-weights` | — | `String` | `rademacher` | `rademacher`, `webb` | Bootstrap weights; webb (6-point) is preferred when the cluster count is very small |
-| `--conf-level` | — | `Float64` | `0.95` | — | Coverage of the inverted-test confidence interval |
+| `--conf-level` | `-L` | `Float64` | `0.9` | — | Coverage of the inverted-test confidence interval in (0, 1) (default: 0.90) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--ci-gridpoints` | — | `Int64` | `25` | — | Grid used to bracket the CI crossings |
 | `--enumerate-signs` | — | `String` | `auto` | `auto`, `yes`, `no` | Exact enumeration of the 2^G Rademacher sign vectors: auto enumerates whenever possible |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -620,6 +652,8 @@ Wild cluster bootstrap (WCR/WCU) inference for one coefficient
 
 ## [Multivariate](@id ref-fam-test-multivariate)
 
+**Family aliases:** `mv`
+
 VAR/VECM lag selection, Granger causality, residual diagnostics, and SVAR identification tests
 
 **See guide:** [Hypothesis Testing & Diagnostics](@ref chap-tests) · [VAR, BVAR, VECM & Factor Models](@ref chap-multivariate) · [Structural ID, LP & Innovation Accounting](@ref chap-structural)
@@ -627,6 +661,8 @@ VAR/VECM lag selection, Granger causality, residual diagnostics, and SVAR identi
 ### [`frdc test multivariate fundamentalness`](@id ref-test-multivariate-fundamentalness)
 
 Chen-Choi-Escanciano (2017) non-Gaussian fundamentalness test
+
+**Aliases:** `fund`
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -640,14 +676,14 @@ Chen-Choi-Escanciano (2017) non-Gaussian fundamentalness test
 | `--n-boot` | — | `Int64` | `499` | — | Bootstrap replications |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `VARModel`, `SVARMAModel`, `ARIMAModel`, `ARMAModel`, `ARModel`, `MAModel`; result types: `FundamentalnessTestResult`
 
@@ -657,6 +693,8 @@ Chen-Choi-Escanciano (2017) non-Gaussian fundamentalness test
 
 Lanne-Luoto (2021) co-kurtosis GMM moment selection (Andrews MSC + Hall RMSC)
 
+**Aliases:** `gmm-mom`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
@@ -665,24 +703,24 @@ Lanne-Luoto (2021) co-kurtosis GMM moment selection (Andrews MSC + Hall RMSC)
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | — | — | VAR lag order (default: auto via AIC) |
 | `--form` | — | `String` | `b-model` | `b-model`, `a-model` | Structural form: b-model\|a-model |
-| `--weighting` | — | `String` | `two-step` | `two-step`, `iterated`, `cue` | GMM weighting: two-step\|iterated\|cue |
-| `--method` | — | `String` | `msc-rmsc` | `msc-rmsc`, `rmsc-seq` | Selection algorithm: msc-rmsc\|rmsc-seq |
-| `--kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `qs`, `quadratic-spectral`, `tukey-hanning` | HAC kernel |
-| `--bandwidth` | — | `String` | `auto` | — | HAC truncation lag: auto\|nw94\|andrews or integer ≥ 0 |
+| `--weighting` | `-w` | `String` | `two-step` | `two-step`, `iterated`, `cue` | GMM weighting: two-step\|iterated\|cue |
+| `--method` | `-m` | `String` | `msc-rmsc` | `msc-rmsc`, `rmsc-seq` | Selection algorithm: msc-rmsc\|rmsc-seq |
+| `--kernel` | `-k` | `String` | `bartlett` | `bartlett`, `parzen`, `qs`, `quadratic-spectral`, `tukey-hanning` | HAC kernel |
+| `--bandwidth` | `-b` | `String` | `auto` | — | HAC truncation lag: auto\|nw94\|andrews or integer ≥ 0 *(aliases: `--bw`)* |
 | `--alpha` | — | `Float64` | `0.05` | — | Hansen J significance level for RMSC screening (0 < alpha < 1) |
-| `--max-iter` | — | `Int64` | `100` | — | Maximum optimization iterations |
-| `--tol` | — | `Float64` | `1.0e-7` | — | Convergence tolerance |
+| `--max-iter` | `-I` | `Int64` | `100` | — | Maximum optimization iterations *(aliases: `--miter`)* |
+| `--tol` | `-T` | `Float64` | `1.0e-7` | — | Convergence tolerance |
 | `--n-starts` | — | `Int64` | `5` | — | Multi-start count |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `VARModel`; result types: `GMMMomentSelectionResult`
 
@@ -702,12 +740,12 @@ Granger causality (VAR pairwise incl. --all, or VECM short/long-run/joint)
 | `--effect` | — | `Int64` | `2` | — | Effect variable index (1-based) |
 | `--lags` | `-p` | `Int64` | `2` | — | Lag order (in levels) |
 | `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto\|1\|2\|...) (vecm only; ignored with --model var) |
-| `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend (vecm only; ignored with --model var) |
-| `--model` | — | `String` | `""` | — | var\|vecm or path/stem to saved VARModel/VECMModel (default: vecm) |
+| `--deterministic` | — | `String` | `constant` | `none`, `constant`, `trend` | none\|constant\|trend (vecm only; ignored with --model var) *(aliases: `--det`)* |
+| `--model` | `-M` | `String` | `""` | — | var\|vecm or path/stem to saved VARModel/VECMModel (default: vecm) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -727,12 +765,12 @@ VAR lag-order selection by AIC/BIC/HQC
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--max-lags` | — | `Int64` | `12` | — | Maximum lag order to test |
-| `--criterion` | — | `String` | `aic` | — | aic\|bic\|hqc |
+| `--max-lags` | — | `Int64` | `12` | — | Maximum lag order to test *(aliases: `--mlags`)* |
+| `--criterion` | — | `String` | `aic` | `aic`, `bic`, `hqc` | aic\|bic\|hqc *(aliases: `--crit`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `ARIMAOrderSelection`
 
@@ -753,8 +791,8 @@ Lagrange-multiplier test of VAR restrictions (restricted vs unrestricted data)
 | `--lags2` | — | `Int64` | — | — | Lag order for unrestricted model (default: auto) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `LMTestResult`
 
@@ -775,8 +813,8 @@ Likelihood-ratio test of VAR restrictions (restricted vs unrestricted data)
 | `--lags2` | — | `Int64` | — | — | Lag order for unrestricted model (default: auto) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `LRTestResult`
 
@@ -785,6 +823,8 @@ Likelihood-ratio test of VAR restrictions (restricted vs unrestricted data)
 ### [`frdc test multivariate nongaussian-diag`](@id ref-test-multivariate-nongaussian-diag)
 
 LMS (2017) non-Gaussian SVAR residual specification & identification diagnostics
+
+**Aliases:** `ng-diag`
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -797,14 +837,14 @@ LMS (2017) non-Gaussian SVAR residual specification & identification diagnostics
 | `--diag-lags` | — | `Int64` | `4` | — | Lag order for Ljung-Box and multivariate Portmanteau diagnostics |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `LMSSVARResult`; result types: `NonGaussianDiagnostics`
 
@@ -823,8 +863,8 @@ VAR stability check via companion-matrix eigenvalues
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto via AIC) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `StabilityResult`, `VARStationarityResult`, `PVARStability`
 
@@ -834,6 +874,8 @@ VAR stability check via companion-matrix eigenvalues
 
 Forni-Gambetti (2014) informational sufficiency test against panel factors
 
+**Aliases:** `suff-info`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to VAR data file or handle stem (.csv, .jld2, .jls) |
@@ -842,19 +884,19 @@ Forni-Gambetti (2014) informational sufficiency test against panel factors
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | — | — | VAR lag order when --model is omitted (default: auto via AIC) |
 | `--panel` | — | `String` | `""` | — | Large informational panel CSV/handle (mutually exclusive with --factors) |
-| `--factors` | — | `String` | `""` | — | Saved FactorModel handle (mutually exclusive with --panel) |
+| `--factors` | `-q` | `String` | `""` | — | Saved FactorModel handle (mutually exclusive with --panel) |
 | `--r-max` | — | `Int64` | `4` | — | Maximum number of principal components r tested |
 | `--p-f` | — | `Int64` | `4` | — | Number of lagged factor blocks included in orthogonality regression |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `VARModel`, `SVARMAModel`, `LMSSVARResult`, `LanneLuotoGMMResult`, `ICASVARResult`, `NonGaussianMLResult`; result types: `SufficientInformationTestResult`
 
@@ -863,6 +905,8 @@ Forni-Gambetti (2014) informational sufficiency test against panel factors
 ### [`frdc test multivariate svar-hypothesis`](@id ref-test-multivariate-svar-hypothesis)
 
 Structural SVAR hypothesis tests (recursiveness, impact, long-run, horizon-IRF, mixed)
+
+**Aliases:** `svar-hyp`
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -874,26 +918,26 @@ Structural SVAR hypothesis tests (recursiveness, impact, long-run, horizon-IRF, 
 | `--estimator` | — | `String` | `lms` | `lms`, `lanne-luoto` | Inline SVAR estimator when --model is omitted: lms\|lanne-luoto |
 | `--distributions` | — | `String` | `student-t` | — | Shock distribution(s) for inline LMS estimation |
 | `--type` | — | `String` | `""` | `recursiveness`, `impact-zero`, `impact-linear`, `long-run`, `horizon-irf`, `mixed` | Hypothesis type (default: recursiveness or [svar_hypothesis].type from --config) |
-| `--config` | — | `String` | `""` | — | TOML config containing [svar_hypothesis] restriction specification |
-| `--method` | — | `String` | `wald` | `wald`, `lr`, `lm`, `gmm-lr` | Test statistic: wald\|lr\|lm (LMS-SVAR) or gmm-lr\|wald (Lanne-Luoto GMM) |
+| `--config` | `-C` | `String` | `""` | — | TOML config containing [svar_hypothesis] restriction specification *(aliases: `--cfg`)* |
+| `--method` | `-m` | `String` | `wald` | `wald`, `lr`, `lm`, `gmm-lr` | Test statistic: wald\|lr\|lm (LMS-SVAR) or gmm-lr\|wald (Lanne-Luoto GMM) |
 | `--bootstrap` | — | `String` | `none` | `none`, `wild`, `iid` | Residual bootstrap scheme under H0 (LMS-SVAR only): none\|wild\|iid |
 | `--n-boot` | — | `Int64` | `499` | — | Bootstrap replications (with --bootstrap wild\|iid) |
-| `--max-iter` | — | `Int64` | `500` | — | Maximum constrained optimizer iterations |
-| `--tol` | — | `Float64` | `1.0e-7` | — | Gradient / optimizer convergence tolerance |
+| `--max-iter` | `-I` | `Int64` | `500` | — | Maximum constrained optimizer iterations *(aliases: `--miter`)* |
+| `--tol` | `-T` | `Float64` | `1.0e-7` | — | Gradient / optimizer convergence tolerance |
 | `--vcov-type` | — | `String` | `""` | `hessian`, `sandwich`, `opg` | Optional covariance override for LMS-SVAR: hessian\|sandwich\|opg |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--plot` | `-g` | Open interactive plot in browser |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `LMSSVARResult`, `LanneLuotoGMMResult`; result types: `SVARHypothesisTest`
 
@@ -903,6 +947,8 @@ Structural SVAR hypothesis tests (recursiveness, impact, long-run, horizon-IRF, 
 
 ## [Panel](@id ref-fam-test-panel)
 
+**Family aliases:** `pan`
+
 Panel specification, Hausman, cross-sectional dependence, serial correlation, and unit-root tests
 
 **See guide:** [Hypothesis Testing & Diagnostics](@ref chap-tests) · [Panel Data, Panel VAR & Causal DiD](@ref chap-panel)
@@ -911,14 +957,16 @@ Panel specification, Hausman, cross-sectional dependence, serial correlation, an
 
 Dumitrescu-Hurlin panel Granger non-causality test for --cause -> --effect
 
+**Aliases:** `dh`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to long-format panel CSV |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--id-col` | — | `String` | `""` | — | Panel id column (default: first column) |
-| `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
+| `--id-col` | `-u` | `String` | `""` | — | Panel id column (default: first column) *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Panel time column (default: second column) *(aliases: `--tcol`)* |
 | `--cause` | — | `String` | `""` | — | Required: candidate causal variable |
 | `--effect` | — | `String` | `""` | — | Required: dependent variable |
 | `--p` | — | `Int64` | `1` | — | Lag order (≥ 1) |
@@ -926,8 +974,8 @@ Dumitrescu-Hurlin panel Granger non-causality test for --cause -> --effect
 | `--seed` | — | `Int64` | `1234` | — | RNG seed for the bootstrap |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:panel`, `:csv`; result types: `DumitrescuHurlinResult`
 
@@ -943,14 +991,14 @@ F test of fixed effects vs pooled OLS on panel data
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (required) |
-| `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
-| `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
-| `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column name (required) |
+| `--indep` | `-x` | `String` | `""` | — | Independent variables (comma-separated) |
+| `--id-col` | `-u` | `String` | `""` | — | Panel group ID column (default: first column) *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Panel time column (default: second column) *(aliases: `--tcol`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:panel`, `:csv`; result types: `PanelTestResult`
 
@@ -966,14 +1014,14 @@ Hausman FE-vs-RE specification test on panel data
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (required) |
-| `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
-| `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
-| `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column name (required) |
+| `--indep` | `-x` | `String` | `""` | — | Independent variables (comma-separated) |
+| `--id-col` | `-u` | `String` | `""` | — | Panel group ID column (default: first column) *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Panel time column (default: second column) *(aliases: `--tcol`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:panel`, `:csv`; result types: `PanelTestResult`
 
@@ -983,20 +1031,22 @@ Hausman FE-vs-RE specification test on panel data
 
 Modified Wald groupwise-heteroskedasticity test on panel FE residuals
 
+**Aliases:** `mwald`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to panel data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (required) |
-| `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
-| `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
-| `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column name (required) |
+| `--indep` | `-x` | `String` | `""` | — | Independent variables (comma-separated) |
+| `--id-col` | `-u` | `String` | `""` | — | Panel group ID column (default: first column) *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Panel time column (default: second column) *(aliases: `--tcol`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:panel`, `:csv`; result types: `PanelTestResult`
 
@@ -1012,14 +1062,14 @@ PANIC panel unit-root test after removing common factors
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--factors` | — | `String` | `auto` | — | Number of factors: auto or a positive integer |
-| `--method` | — | `String` | `pooled` | — | pooled\|individual |
-| `--id-col` | — | `String` | `""` | — | Panel unit ID column (optional) |
-| `--time-col` | — | `String` | `""` | — | Time column (optional) |
+| `--factors` | `-q` | `String` | `auto` | — | Number of factors: auto or a positive integer |
+| `--method` | `-m` | `String` | `pooled` | `pooled`, `individual` | pooled\|individual |
+| `--id-col` | `-u` | `String` | `""` | — | Panel unit ID column (optional) *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Time column (optional) *(aliases: `--tcol`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:panel`, `:csv`; result types: `PANICResult`
 
@@ -1029,20 +1079,22 @@ PANIC panel unit-root test after removing common factors
 
 Pesaran CD cross-sectional-dependence test on panel FE residuals
 
+**Aliases:** `pcd`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to panel data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (required) |
-| `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
-| `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
-| `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column name (required) |
+| `--indep` | `-x` | `String` | `""` | — | Independent variables (comma-separated) |
+| `--id-col` | `-u` | `String` | `""` | — | Panel group ID column (default: first column) *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Panel time column (default: second column) *(aliases: `--tcol`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:panel`, `:csv`; result types: `PanelTestResult`
 
@@ -1052,26 +1104,28 @@ Pesaran CD cross-sectional-dependence test on panel FE residuals
 
 Hausman long-run-homogeneity test (efficient PMG/DFE vs MG)
 
+**Aliases:** `pmgh`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--id-col` | — | `String` | `""` | — | Panel group id column (default: first column) |
-| `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
-| `--dep` | — | `String` | `""` | — | Dependent panel variable (default: first variable) |
-| `--indep` | — | `String` | `""` | — | Long-run regressors, comma-separated (default: all other variables) |
+| `--id-col` | `-u` | `String` | `""` | — | Panel group id column (default: first column) *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Panel time column (default: second column) *(aliases: `--tcol`)* |
+| `--dep` | `-y` | `String` | `""` | — | Dependent panel variable (default: first variable) |
+| `--indep` | `-x` | `String` | `""` | — | Long-run regressors, comma-separated (default: all other variables) |
 | `--efficient` | — | `String` | `pmg` | `pmg`, `dfe` | Estimator efficient under H0: pmg\|dfe (consistent is always MG) |
-| `--trend` | — | `String` | `constant` | `none`, `constant`, `trend` | Per-unit EC deterministics: none\|constant\|trend |
+| `--trend` | `-e` | `String` | `constant` | `none`, `constant`, `trend` | Per-unit EC deterministics: none\|constant\|trend |
 | `--p` | — | `Int64` | `1` | — | Autoregressive order (≥ 1) |
 | `--q` | — | `Int64` | `1` | — | Distributed-lag order for all regressors (≥ 0) |
-| `--max-iter` | — | `Int64` | `100` | — | PMG outer-loop max iterations |
-| `--tol` | — | `Float64` | `1.0e-8` | — | PMG outer-loop convergence tolerance |
+| `--max-iter` | `-I` | `Int64` | `100` | — | PMG outer-loop max iterations *(aliases: `--maxiter`, `--miter`)* |
+| `--tol` | `-T` | `Float64` | `1.0e-8` | — | PMG outer-loop convergence tolerance |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:panel`, `:csv`; result types: `PanelTestResult`
 
@@ -1081,20 +1135,22 @@ Hausman long-run-homogeneity test (efficient PMG/DFE vs MG)
 
 Wooldridge serial-correlation test on panel FE residuals
 
+**Aliases:** `war`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to panel data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (required) |
-| `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
-| `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
-| `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column name (required) |
+| `--indep` | `-x` | `String` | `""` | — | Independent variables (comma-separated) |
+| `--id-col` | `-u` | `String` | `""` | — | Panel group ID column (default: first column) *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Panel time column (default: second column) *(aliases: `--tcol`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:panel`, `:csv`; result types: `PanelTestResult`
 
@@ -1118,14 +1174,14 @@ Hansen J overidentification test for a panel VAR
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--id-col` | — | `String` | `""` | — | Panel group identifier column (required) |
-| `--time-col` | — | `String` | `""` | — | Time period column (required) |
+| `--id-col` | `-u` | `String` | `""` | — | Panel group identifier column (required) *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Time period column (required) *(aliases: `--tcol`)* |
 | `--lags` | `-p` | `Int64` | `1` | — | Lag order |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:panel`, `:csv`; model types: `PVARModel`; result types: `PVARTestResult`
 
@@ -1141,14 +1197,14 @@ Panel VAR lag selection (BIC/AIC/HQIC table + --criterion pick)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--id-col` | — | `String` | `""` | — | Panel group identifier column (required) |
-| `--time-col` | — | `String` | `""` | — | Time period column (required) |
-| `--max-lags` | — | `Int64` | `4` | — | Maximum lag order to test |
-| `--criterion` | — | `String` | `bic` | — | bic\|aic\|hqic |
+| `--id-col` | `-u` | `String` | `""` | — | Panel group identifier column (required) *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Time period column (required) *(aliases: `--tcol`)* |
+| `--max-lags` | — | `Int64` | `4` | — | Maximum lag order to test *(aliases: `--mlags`)* |
+| `--criterion` | — | `String` | `bic` | `bic`, `aic`, `hqic` | bic\|aic\|hqic *(aliases: `--crit`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:panel`, `:csv`; result types: `ARIMAOrderSelection`
 
@@ -1164,15 +1220,15 @@ Panel VAR lag selection (BIC/AIC/HQIC table + --criterion pick)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--id-col` | — | `String` | `""` | — | Panel group identifier column (required) |
-| `--time-col` | — | `String` | `""` | — | Time period column (required) |
-| `--max-lags` | — | `Int64` | `4` | — | Maximum lag order to test |
-| `--criterion` | — | `String` | `bic` | — | bic\|aic\|hqic |
+| `--id-col` | `-u` | `String` | `""` | — | Panel group identifier column (required) *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Time period column (required) *(aliases: `--tcol`)* |
+| `--max-lags` | — | `Int64` | `4` | — | Maximum lag order to test *(aliases: `--mlags`)* |
+| `--criterion` | — | `String` | `bic` | `bic`, `aic`, `hqic` | bic\|aic\|hqic *(aliases: `--crit`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:panel`, `:csv`; model types: `PVARModel`; result types: `PVARTestResult`
 
@@ -1188,13 +1244,13 @@ Panel VAR stability check via companion-matrix eigenvalues
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--id-col` | — | `String` | `""` | — | Panel group identifier column (required) |
-| `--time-col` | — | `String` | `""` | — | Time period column (required) |
+| `--id-col` | `-u` | `String` | `""` | — | Panel group identifier column (required) *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Time period column (required) *(aliases: `--tcol`)* |
 | `--lags` | `-p` | `Int64` | `1` | — | Lag order |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:panel`, `:csv`; result types: `StabilityResult`, `VARStationarityResult`, `PVARStability`
 
@@ -1203,6 +1259,8 @@ Panel VAR stability check via companion-matrix eigenvalues
 ---
 
 ## [Serial](@id ref-fam-test-serial)
+
+**Family aliases:** `ser`
 
 Autocorrelation, white-noise, ARCH-LM, independence, and long-memory tests
 
@@ -1222,7 +1280,7 @@ Engle ARCH-LM test for conditional heteroskedasticity in a series
 | `--lags` | `-p` | `Int64` | `4` | — | Number of lags for ARCH-LM test |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `RegModel`, `VARModel`, `VECMModel`, `ARModel`, `MAModel`, `ARMAModel`, `ARIMAModel`, `SARIMAModel`, `ARCHModel`, `GARCHModel`, `EGARCHModel`, `GJRGARCHModel`
 
@@ -1231,6 +1289,8 @@ Engle ARCH-LM test for conditional heteroskedasticity in a series
 ### [`frdc test serial bartlett-wn`](@id ref-test-serial-bartlett-wn)
 
 Bartlett cumulative-periodogram white-noise test
+
+**Aliases:** `bwn`
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1241,9 +1301,9 @@ Bartlett cumulative-periodogram white-noise test
 | `--column` | `-c` | `Int64` | `1` | — | Column index |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `RegModel`, `VARModel`, `VECMModel`, `ARModel`, `MAModel`, `ARMAModel`, `ARIMAModel`, `SARIMAModel`, `ARCHModel`, `GARCHModel`, `EGARCHModel`, `GJRGARCHModel`; result types: `BartlettWhiteNoiseResult`
 
@@ -1264,8 +1324,8 @@ BDS test for iid against nonlinear dependence by embedding dimension
 | `--eps-frac` | — | `Float64` | `0.7` | — | Distance threshold as a fraction of the sample sd |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `BDSResult`
 
@@ -1274,6 +1334,8 @@ BDS test for iid against nonlinear dependence by embedding dimension
 ### [`frdc test serial box-pierce`](@id ref-test-serial-box-pierce)
 
 Box-Pierce portmanteau test for autocorrelation to --lags
+
+**Aliases:** `boxp`
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1285,9 +1347,9 @@ Box-Pierce portmanteau test for autocorrelation to --lags
 | `--lags` | `-p` | `Int64` | `20` | — | Number of lags |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `RegModel`, `VARModel`, `VECMModel`, `ARModel`, `MAModel`, `ARMAModel`, `ARIMAModel`, `SARIMAModel`, `ARCHModel`, `GARCHModel`, `EGARCHModel`, `GJRGARCHModel`; result types: `BoxPierceResult`
 
@@ -1297,20 +1359,22 @@ Box-Pierce portmanteau test for autocorrelation to --lags
 
 Breusch-Pagan LM test of random effects vs pooled OLS on panel data
 
+**Aliases:** `bp`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to panel data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (required) |
-| `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
-| `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
-| `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column name (required) |
+| `--indep` | `-x` | `String` | `""` | — | Independent variables (comma-separated) |
+| `--id-col` | `-u` | `String` | `""` | — | Panel group ID column (default: first column) *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Panel time column (default: second column) *(aliases: `--tcol`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:panel`, `:csv`; result types: `PanelTestResult`
 
@@ -1319,6 +1383,8 @@ Breusch-Pagan LM test of random effects vs pooled OLS on panel data
 ### [`frdc test serial durbin-watson`](@id ref-test-serial-durbin-watson)
 
 Durbin-Watson first-order autocorrelation diagnostic for a series
+
+**Aliases:** `dw`
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1329,9 +1395,9 @@ Durbin-Watson first-order autocorrelation diagnostic for a series
 | `--column` | `-c` | `Int64` | `1` | — | Column index |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `RegModel`, `VARModel`, `VECMModel`, `ARModel`, `MAModel`, `ARMAModel`, `ARIMAModel`, `SARIMAModel`, `ARCHModel`, `GARCHModel`, `EGARCHModel`, `GJRGARCHModel`; result types: `DurbinWatsonResult`
 
@@ -1347,12 +1413,12 @@ Glejser heteroskedasticity test from an OLS fit
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
-| `--cov-type` | — | `String` | `hc1` | — | Covariance estimator for the OLS fit |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column (default: first numeric) |
+| `--cov-type` | `-v` | `String` | `hc1` | — | Covariance estimator for the OLS fit *(aliases: `--cov`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`; result types: `RegDiagnosticResult`
 
@@ -1368,12 +1434,12 @@ Harvey multiplicative-heteroskedasticity test from an OLS fit
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
-| `--cov-type` | — | `String` | `hc1` | — | Covariance estimator for the OLS fit |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column (default: first numeric) |
+| `--cov-type` | `-v` | `String` | `hc1` | — | Covariance estimator for the OLS fit *(aliases: `--cov`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`; result types: `RegDiagnosticResult`
 
@@ -1383,6 +1449,8 @@ Harvey multiplicative-heteroskedasticity test from an OLS fit
 
 Identify a structural VAR via heteroskedasticity regimes (--method)
 
+**Aliases:** `het`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
@@ -1390,19 +1458,19 @@ Identify a structural VAR via heteroskedasticity regimes (--method)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto via AIC) |
-| `--method` | — | `String` | `markov` | `markov`, `garch`, `smooth_transition`, `external` | markov\|garch\|smooth_transition\|external |
-| `--config` | — | `String` | `""` | — | TOML config (for transition/regime variables) |
+| `--method` | `-m` | `String` | `markov` | `markov`, `garch`, `smooth_transition`, `external` | markov\|garch\|smooth_transition\|external |
+| `--config` | `-C` | `String` | `""` | — | TOML config (for transition/regime variables) *(aliases: `--cfg`)* |
 | `--regimes` | — | `Int64` | `2` | — | Number of regimes (markov/external only) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `IdentificationDiagnostics`
 
@@ -1411,6 +1479,8 @@ Identify a structural VAR via heteroskedasticity regimes (--method)
 ### [`frdc test serial ljung-box`](@id ref-test-serial-ljung-box)
 
 Ljung-Box test on squared residuals for ARCH effects
+
+**Aliases:** `lb`
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1422,9 +1492,9 @@ Ljung-Box test on squared residuals for ARCH effects
 | `--lags` | `-p` | `Int64` | `10` | — | Number of lags for Ljung-Box test |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `RegModel`, `VARModel`, `VECMModel`, `ARModel`, `MAModel`, `ARMAModel`, `ARIMAModel`, `SARIMAModel`, `ARCHModel`, `GARCHModel`, `EGARCHModel`, `GJRGARCHModel`; result types: `LjungBoxResult`
 
@@ -1441,7 +1511,7 @@ Engle-Ng sign/size-bias test on a fitted volatility model
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Return series column (1-based) |
-| `--model` | — | `String` | `garch` | `garch`, `egarch`, `gjr-garch` | Volatility model to fit: garch \| egarch \| gjr-garch |
+| `--model` | `-M` | `String` | `garch` | `garch`, `egarch`, `gjr-garch` | Volatility model to fit: garch \| egarch \| gjr-garch |
 | `--p` | — | `Int64` | `1` | — | GARCH order p |
 | `--q` | — | `Int64` | `1` | — | ARCH order q |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -1461,12 +1531,12 @@ White heteroskedasticity test from an OLS fit (optional cross terms)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
-| `--cov-type` | — | `String` | `hc1` | — | Covariance estimator for the OLS fit |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column (default: first numeric) |
+| `--cov-type` | `-v` | `String` | `hc1` | — | Covariance estimator for the OLS fit *(aliases: `--cov`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -1479,6 +1549,8 @@ White heteroskedasticity test from an OLS fit (optional cross terms)
 ---
 
 ## [Stability](@id ref-fam-test-stability)
+
+**Family aliases:** `stab`
 
 Structural break, parameter constancy, linearity, and functional-form tests
 
@@ -1495,17 +1567,17 @@ Andrews unknown-breakpoint test on a multivariate regression
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--response` | — | `Int64` | `1` | — | Response variable column index (1-based) |
-| `--test` | — | `String` | `supwald` | — | supwald\|suplr\|suplm\|expwald\|explr\|explm\|meanwald\|meanlr\|meanlm |
+| `--test` | — | `String` | `supwald` | `supwald`, `suplr`, `suplm`, `expwald`, `explr`, `explm`, `meanwald`, `meanlr`, `meanlm` | supwald\|suplr\|suplm\|expwald\|explr\|explm\|meanwald\|meanlr\|meanlm |
 | `--trimming` | — | `Float64` | `0.15` | — | Trimming proportion |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `AndrewsResult`
 
@@ -1514,6 +1586,8 @@ Andrews unknown-breakpoint test on a multivariate regression
 ### [`frdc test stability bai-perron`](@id ref-test-stability-bai-perron)
 
 Bai-Perron multiple-break estimation with --criterion selection
+
+**Aliases:** `bp`
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1524,20 +1598,21 @@ Bai-Perron multiple-break estimation with --criterion selection
 | `--response` | — | `Int64` | `1` | — | Response variable column index (1-based) |
 | `--max-breaks` | — | `Int64` | `5` | — | Maximum number of breaks |
 | `--trimming` | — | `Float64` | `0.15` | — | Trimming proportion |
-| `--criterion` | — | `String` | `bic` | — | bic\|lwz |
+| `--criterion` | — | `String` | `bic` | `bic`, `lwz` | bic\|lwz *(aliases: `--crit`)* |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `BaiPerronResult`
 
-**Output tables:** `bai_perron_test` (Number of breaks, the break dates, trimming and sample size)
+**Output tables:** `bai_perron_test` (Number of breaks, break dates, break confidence intervals, confidence level, trimming and sample size)
 
 ### [`frdc test stability chow`](@id ref-test-stability-chow)
 
@@ -1549,15 +1624,15 @@ Chow breakpoint/forecast break test at --break-at from an OLS fit
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
-| `--cov-type` | — | `String` | `hc1` | — | Covariance estimator for the OLS fit |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column (default: first numeric) |
+| `--cov-type` | `-v` | `String` | `hc1` | — | Covariance estimator for the OLS fit *(aliases: `--cov`)* |
 | `--break-at` | — | `String` | `""` | — | Required: 1-based break index, or a comma-separated list for a multi-break test |
 | `--type` | — | `String` | `breakpoint` | `breakpoint`, `forecast` | Chow variant |
 | `--level` | — | `Float64` | `0.05` | — | Significance level in (0,1) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`; result types: `RegDiagnosticResult`
 
@@ -1573,13 +1648,13 @@ Brown-Durbin-Evans CUSUM stability path with significance band
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
-| `--cov-type` | — | `String` | `hc1` | — | Covariance estimator for the OLS fit |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column (default: first numeric) |
+| `--cov-type` | `-v` | `String` | `hc1` | — | Covariance estimator for the OLS fit *(aliases: `--cov`)* |
 | `--level` | — | `Float64` | `0.05` | — | Band significance level in (0,1) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`; result types: `StabilityResult`
 
@@ -1595,13 +1670,13 @@ CUSUM-of-squares stability path with significance band
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
-| `--cov-type` | — | `String` | `hc1` | — | Covariance estimator for the OLS fit |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column (default: first numeric) |
+| `--cov-type` | `-v` | `String` | `hc1` | — | Covariance estimator for the OLS fit *(aliases: `--cov`)* |
 | `--level` | — | `Float64` | `0.05` | — | Band significance level in (0,1) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`; result types: `StabilityResult`
 
@@ -1611,20 +1686,22 @@ CUSUM-of-squares stability path with significance band
 
 Test a panel factor structure for a break (--method)
 
+**Aliases:** `fbreak`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to panel CSV (or T×N matrix CSV) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--factors` | — | `Int64` | `2` | — | Number of factors |
-| `--method` | — | `String` | `breitung_eickmeier` | — | breitung_eickmeier\|chen_dolado_gonzalo\|han_inoue |
-| `--id-col` | — | `String` | `""` | — | Panel unit ID column (optional) |
-| `--time-col` | — | `String` | `""` | — | Time column (optional) |
+| `--factors` | `-q` | `Int64` | `2` | — | Number of factors |
+| `--method` | `-m` | `String` | `breitung_eickmeier` | `breitung_eickmeier`, `chen_dolado_gonzalo`, `han_inoue` | breitung_eickmeier\|chen_dolado_gonzalo\|han_inoue |
+| `--id-col` | `-u` | `String` | `""` | — | Panel unit ID column (optional) *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Time column (optional) *(aliases: `--tcol`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:panel`, `:csv`; result types: `FactorBreakResult`
 
@@ -1643,13 +1720,13 @@ GSADF explosive-bubble test with date-stamped episodes
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
 | `--r0` | — | `String` | `auto` | — | Minimum window fraction: auto or a number in (0,1) |
 | `--adflag` | — | `Int64` | `0` | — | ADF augmentation lags (≥ 0) |
-| `--draws` | — | `Int64` | `999` | — | Monte-Carlo replications for critical values (≥ 1) |
+| `--draws` | `-n` | `Int64` | `999` | — | Monte-Carlo replications for critical values (≥ 1) *(aliases: `--mc-reps`)* |
 | `--cv` | — | `String` | `asymptotic` | `asymptotic`, `wildboot` | Critical-value method |
 | `--seed` | — | `Int64` | `20240716` | — | RNG seed for the critical-value simulation |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `BubbleResult`
 
@@ -1659,23 +1736,25 @@ GSADF explosive-bubble test with date-stamped episodes
 
 Hansen L_c test of stable cointegration on a cointreg fit
 
+**Aliases:** `hansen`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
-| `--method` | — | `String` | `fmols` | `fmols`, `ccr`, `dols` | Cointegrating-regression estimator |
-| `--trend` | — | `String` | `const` | `none`, `const`, `linear` | Deterministic terms (cointreg vocabulary) |
-| `--kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `qs`, `tukey-hanning` | HAC kernel for the fit |
-| `--bandwidth` | — | `String` | `andrews` | — | Fit bandwidth: andrews\|nw94 or a non-negative number |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column (default: first numeric) |
+| `--method` | `-m` | `String` | `fmols` | `fmols`, `ccr`, `dols` | Cointegrating-regression estimator |
+| `--trend` | `-e` | `String` | `const` | `none`, `const`, `linear` | Deterministic terms (cointreg vocabulary) |
+| `--kernel` | `-k` | `String` | `bartlett` | `bartlett`, `parzen`, `qs`, `tukey-hanning` | HAC kernel for the fit |
+| `--bandwidth` | `-b` | `String` | `andrews` | — | Fit bandwidth: andrews\|nw94 or a non-negative number *(aliases: `--bw`)* |
 | `--leads` | — | `String` | `auto` | — | DOLS leads: auto or a non-negative integer |
-| `--lags` | — | `String` | `auto` | — | DOLS lags: auto or a non-negative integer |
+| `--lags` | `-p` | `String` | `auto` | — | DOLS lags: auto or a non-negative integer |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `HansenInstabilityResult`
 
@@ -1692,7 +1771,7 @@ Nyblom parameter-stability test on a fitted volatility model
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Return series column (1-based) |
-| `--model` | — | `String` | `garch` | `garch`, `egarch`, `gjr-garch` | Volatility model to fit: garch \| egarch \| gjr-garch |
+| `--model` | `-M` | `String` | `garch` | `garch`, `egarch`, `gjr-garch` | Volatility model to fit: garch \| egarch \| gjr-garch |
 | `--p` | — | `Int64` | `1` | — | GARCH order p |
 | `--q` | — | `Int64` | `1` | — | ARCH order q |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -1706,14 +1785,16 @@ Nyblom parameter-stability test on a fitted volatility model
 
 Brown-Durbin-Evans recursive residuals from an OLS fit
 
+**Aliases:** `rec-resid`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
-| `--cov-type` | — | `String` | `hc1` | — | Covariance estimator for the OLS fit |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column (default: first numeric) |
+| `--cov-type` | `-v` | `String` | `hc1` | — | Covariance estimator for the OLS fit *(aliases: `--cov`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
@@ -1734,13 +1815,13 @@ SADF explosive-bubble test with date-stamped episodes
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
 | `--r0` | — | `String` | `auto` | — | Minimum window fraction: auto or a number in (0,1) |
 | `--adflag` | — | `Int64` | `0` | — | ADF augmentation lags (≥ 0) |
-| `--draws` | — | `Int64` | `999` | — | Monte-Carlo replications for critical values (≥ 1) |
+| `--draws` | `-n` | `Int64` | `999` | — | Monte-Carlo replications for critical values (≥ 1) *(aliases: `--mc-reps`)* |
 | `--cv` | — | `String` | `asymptotic` | `asymptotic`, `wildboot` | Critical-value method |
 | `--seed` | — | `Int64` | `20240716` | — | RNG seed for the critical-value simulation |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `BubbleResult`
 
@@ -1749,6 +1830,8 @@ SADF explosive-bubble test with date-stamped episodes
 ---
 
 ## [Unit Root Tests](@id ref-fam-test-unit-root)
+
+**Family aliases:** `ur`
 
 Unit-root and stationarity tests (ADF, KPSS, PP, ZA, Ng-Perron, DF-GLS, ERS, structural breaks)
 
@@ -1765,12 +1848,12 @@ Augmented Dickey-Fuller unit-root test on one CSV column (H0: unit root)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
-| `--max-lags` | — | `Int64` | — | — | Fixed augmenting lags (default: automatic AIC selection) |
-| `--trend` | — | `String` | `constant` | `none`, `constant`, `trend` | none\|constant\|trend |
+| `--max-lags` | — | `Int64` | — | — | Fixed augmenting lags (default: automatic AIC selection) *(aliases: `--mlags`)* |
+| `--trend` | `-e` | `String` | `constant` | `none`, `constant`, `trend` | none\|constant\|trend |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `ADFResult`
 
@@ -1780,6 +1863,8 @@ Augmented Dickey-Fuller unit-root test on one CSV column (H0: unit root)
 
 Narayan-Popp two-break ADF unit-root test with both break dates (H0: unit root with breaks)
 
+**Aliases:** `adf2`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
@@ -1787,14 +1872,14 @@ Narayan-Popp two-break ADF unit-root test with both break dates (H0: unit root w
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
-| `--model` | — | `String` | `level` | `level`, `both` | level\|both |
-| `--lags` | — | `String` | `aic` | — | Lag order (aic\|bic\|N) |
-| `--max-lags` | — | `Int64` | — | — | Max lags (default: auto) |
+| `--model` | `-M` | `String` | `level` | `level`, `both` | level\|both |
+| `--lags` | `-p` | `String` | `aic` | — | Lag order (aic\|bic\|N) |
+| `--max-lags` | — | `Int64` | — | — | Max lags (default: auto) *(aliases: `--mlags`)* |
 | `--trim` | — | `Float64` | `0.1` | — | Trimming proportion |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `ADF2BreakResult`
 
@@ -1810,12 +1895,12 @@ Breitung bias-free pooled panel unit-root test (H0: panel unit root)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--deterministic` | — | `String` | `constant` | `none`, `constant`, `trend` | Deterministic terms |
-| `--lags` | — | `Int64` | `0` | — | Augmentation lags (≥ 0) |
+| `--deterministic` | — | `String` | `constant` | `none`, `constant`, `trend` | Deterministic terms *(aliases: `--det`)* |
+| `--lags` | `-p` | `Int64` | `0` | — | Augmentation lags (≥ 0) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -1835,14 +1920,14 @@ Pesaran CIPS cross-sectionally augmented panel unit-root test (H0: all units hav
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--lags` | — | `String` | `auto` | — | Lag order (auto\|N) |
-| `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
-| `--id-col` | — | `String` | `""` | — | Panel unit ID column (optional) |
-| `--time-col` | — | `String` | `""` | — | Time column (optional) |
+| `--lags` | `-p` | `String` | `auto` | — | Lag order (auto\|N) |
+| `--deterministic` | — | `String` | `constant` | `none`, `constant`, `trend` | none\|constant\|trend *(aliases: `--det`)* |
+| `--id-col` | `-u` | `String` | `""` | — | Panel unit ID column (optional) *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Time column (optional) *(aliases: `--tcol`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:panel`, `:csv`; result types: `PesaranCIPSResult`
 
@@ -1859,13 +1944,13 @@ DF-GLS unit-root test with PT and M-GLS statistics (H0: unit root)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
-| `--regression` | — | `String` | `constant` | — | constant\|trend |
-| `--lags` | — | `String` | `aic` | — | Lag order (aic\|bic\|N) |
-| `--max-lags` | — | `Int64` | — | — | Max lags (default: auto) |
+| `--regression` | — | `String` | `constant` | `constant`, `trend` | constant\|trend |
+| `--lags` | `-p` | `String` | `aic` | — | Lag order (aic\|bic\|N) |
+| `--max-lags` | — | `Int64` | — | — | Max lags (default: auto) *(aliases: `--mlags`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `DFGLSResult`
 
@@ -1884,8 +1969,8 @@ ERS point-optimal unit-root test (H0: unit root; small P_T rejects)
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -1899,6 +1984,8 @@ ERS point-optimal unit-root test (H0: unit root; small P_T rejects)
 
 Enders-Lee Fourier ADF unit-root test with smooth breaks (H0: unit root)
 
+**Aliases:** `fadf`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
@@ -1906,15 +1993,15 @@ Enders-Lee Fourier ADF unit-root test with smooth breaks (H0: unit root)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
-| `--regression` | — | `String` | `constant` | — | constant\|trend |
+| `--regression` | — | `String` | `constant` | `constant`, `trend` | constant\|trend |
 | `--fmax` | — | `Int64` | `3` | — | Maximum Fourier frequency (1..5) |
-| `--lags` | — | `String` | `aic` | — | Lag order (aic\|bic\|N) |
-| `--max-lags` | — | `Int64` | — | — | Max lags (default: auto) |
+| `--lags` | `-p` | `String` | `aic` | — | Lag order (aic\|bic\|N) |
+| `--max-lags` | — | `Int64` | — | — | Max lags (default: auto) *(aliases: `--mlags`)* |
 | `--trim` | — | `Float64` | `0.15` | — | Trimming fraction (accepted for API symmetry; unused — frequency chosen by min SSR) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `FourierADFResult`
 
@@ -1924,6 +2011,8 @@ Enders-Lee Fourier ADF unit-root test with smooth breaks (H0: unit root)
 
 Becker-Enders-Lee Fourier KPSS stationarity test with smooth breaks (H0: stationarity)
 
+**Aliases:** `fkpss`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
@@ -1931,13 +2020,13 @@ Becker-Enders-Lee Fourier KPSS stationarity test with smooth breaks (H0: station
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
-| `--regression` | — | `String` | `constant` | — | constant\|trend |
+| `--regression` | — | `String` | `constant` | `constant`, `trend` | constant\|trend |
 | `--fmax` | — | `Int64` | `3` | — | Maximum Fourier frequency |
-| `--bandwidth` | — | `Int64` | — | — | Bandwidth (default: auto) |
+| `--bandwidth` | `-b` | `Int64` | — | — | Bandwidth (default: auto) *(aliases: `--bw`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `FourierKPSSResult`
 
@@ -1953,11 +2042,11 @@ Hadri panel stationarity test over a T-by-N CSV (H0: every unit stationary)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--deterministic` | — | `String` | `constant` | `constant`, `trend` | constant\|trend |
+| `--deterministic` | — | `String` | `constant` | `constant`, `trend` | constant\|trend *(aliases: `--det`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:panel`, `:csv`; result types: `HadriResult`
 
@@ -1975,12 +2064,12 @@ HEGY seasonal unit-root test per frequency with 5% decisions
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
 | `--frequency` | — | `Int64` | `4` | — | Seasonal frequency: 4 (quarterly) or 12 (monthly) |
-| `--deterministic` | — | `String` | `const-trend-seas` | `none`, `const`, `const-seas`, `const-trend`, `const-trend-seas` | Deterministic terms |
-| `--lags` | — | `String` | `auto` | — | Augmentation lags: auto or a non-negative integer |
+| `--deterministic` | — | `String` | `const-trend-seas` | `none`, `const`, `const-seas`, `const-trend`, `const-trend-seas` | Deterministic terms *(aliases: `--det`)* |
+| `--lags` | `-p` | `String` | `auto` | — | Augmentation lags: auto or a non-negative integer |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `HEGYResult`
 
@@ -1996,14 +2085,14 @@ Im-Pesaran-Shin mean-group panel unit-root test with per-unit ADF table (H0: all
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--deterministic` | — | `String` | `constant` | `constant`, `trend` | Deterministic terms |
-| `--lags` | — | `String` | `auto` | — | Augmentation lags: auto or a non-negative integer |
-| `--max-lags` | — | `String` | `""` | — | Upper bound for automatic lag selection |
-| `--criterion` | — | `String` | `aic` | `aic`, `bic`, `hqic` | Lag-selection criterion: aic\|bic\|hqic |
+| `--deterministic` | — | `String` | `constant` | `constant`, `trend` | Deterministic terms *(aliases: `--det`)* |
+| `--lags` | `-p` | `String` | `auto` | — | Augmentation lags: auto or a non-negative integer |
+| `--max-lags` | — | `String` | `""` | — | Upper bound for automatic lag selection *(aliases: `--mlags`)* |
+| `--criterion` | — | `String` | `aic` | `aic`, `bic`, `hqic` | Lag-selection criterion: aic\|bic\|hqic *(aliases: `--crit`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -2024,11 +2113,11 @@ KPSS stationarity test on one CSV column (H0: stationarity)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test |
-| `--trend` | — | `String` | `constant` | — | constant\|trend |
+| `--trend` | `-e` | `String` | `constant` | `constant`, `trend` | constant\|trend |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `KPSSResult`
 
@@ -2044,14 +2133,14 @@ Levin-Lin-Chu panel unit-root test over CSV columns as units (H0: all units have
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--deterministic` | — | `String` | `constant` | `none`, `constant`, `trend` | Deterministic terms |
-| `--lags` | — | `String` | `auto` | — | Augmentation lags: auto or a non-negative integer |
-| `--max-lags` | — | `String` | `""` | — | Upper bound for automatic lag selection |
-| `--criterion` | — | `String` | `aic` | `aic`, `bic`, `hqic` | Lag-selection criterion: aic\|bic\|hqic |
+| `--deterministic` | — | `String` | `constant` | `none`, `constant`, `trend` | Deterministic terms *(aliases: `--det`)* |
+| `--lags` | `-p` | `String` | `auto` | — | Augmentation lags: auto or a non-negative integer |
+| `--max-lags` | — | `String` | `""` | — | Upper bound for automatic lag selection *(aliases: `--mlags`)* |
+| `--criterion` | — | `String` | `aic` | `aic`, `bic`, `hqic` | Lag-selection criterion: aic\|bic\|hqic *(aliases: `--crit`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -2065,6 +2154,8 @@ Levin-Lin-Chu panel unit-root test over CSV columns as units (H0: all units have
 
 Lee-Strazicich LM unit-root test with 0-2 breaks (H0: unit root, breaks under H0)
 
+**Aliases:** `lm`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
@@ -2074,13 +2165,13 @@ Lee-Strazicich LM unit-root test with 0-2 breaks (H0: unit root, breaks under H0
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
 | `--breaks` | — | `Int64` | `0` | — | Number of structural breaks (0\|1\|2) |
 | `--regression` | — | `String` | `level` | `level`, `both` | level\|both |
-| `--lags` | — | `String` | `aic` | — | Lag order (aic\|bic\|N) |
-| `--max-lags` | — | `Int64` | — | — | Max lags (default: auto) |
+| `--lags` | `-p` | `String` | `aic` | — | Lag order (aic\|bic\|N) |
+| `--max-lags` | — | `Int64` | — | — | Max lags (default: auto) *(aliases: `--mlags`)* |
 | `--trim` | — | `Float64` | `0.15` | — | Trimming proportion |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `LMUnitRootResult`
 
@@ -2090,19 +2181,21 @@ Lee-Strazicich LM unit-root test with 0-2 breaks (H0: unit root, breaks under H0
 
 Moon-Perron factor-adjusted panel unit-root test: t_a*, t_b* (H0: all units have unit roots)
 
+**Aliases:** `mp`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to CSV data file in T-by-N matrix form, or long-format panel CSV with --id-col/--time-col |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--factors` | — | `String` | `auto` | — | Number of factors (auto\|N) |
-| `--id-col` | — | `String` | `""` | — | Panel unit ID column (optional) |
-| `--time-col` | — | `String` | `""` | — | Time column (optional) |
+| `--factors` | `-q` | `String` | `auto` | — | Number of factors (auto\|N) |
+| `--id-col` | `-u` | `String` | `""` | — | Panel unit ID column (optional) *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Time column (optional) *(aliases: `--tcol`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:panel`, `:csv`; result types: `MoonPerronResult`
 
@@ -2119,11 +2212,11 @@ Ng-Perron GLS-detrended unit-root test: MZa, MZt, MSB, MPT (H0: unit root)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test |
-| `--trend` | — | `String` | `constant` | — | constant\|trend |
+| `--trend` | `-e` | `String` | `constant` | `constant`, `trend` | constant\|trend |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `NgPerronResult`
 
@@ -2140,11 +2233,11 @@ Phillips-Perron unit-root test on one CSV column (H0: unit root)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test |
-| `--trend` | — | `String` | `constant` | — | none\|constant\|trend |
+| `--trend` | `-e` | `String` | `constant` | `none`, `constant`, `trend` | none\|constant\|trend |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `PPResult`
 
@@ -2161,12 +2254,12 @@ Zivot-Andrews unit-root test with one endogenous break (H0: unit root, no break)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test |
-| `--trend` | — | `String` | `both` | `constant`, `trend`, `both` | constant\|trend\|both |
+| `--trend` | `-e` | `String` | `both` | `constant`, `trend`, `both` | constant\|trend\|both |
 | `--trim` | — | `Float64` | `0.15` | — | Trimming proportion |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `ZAResult`
 
@@ -2190,23 +2283,23 @@ Johansen LR test of alpha = A*psi on a fitted VECM
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--config` | — | `String` | `""` | — | TOML config with [vecm_restriction] A = [[...],...] (p×a, a≥r) |
+| `--config` | `-C` | `String` | `""` | — | TOML config with [vecm_restriction] A = [[...],...] (p×a, a≥r) *(aliases: `--cfg`)* |
 | `--lags` | `-p` | `Int64` | `2` | — | Lag order (in levels, VECM uses p-1) |
 | `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto\|1\|2\|...) |
-| `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
-| `--method` | — | `String` | `johansen` | — | johansen\|engle_granger |
+| `--deterministic` | — | `String` | `constant` | `none`, `constant`, `trend` | none\|constant\|trend *(aliases: `--det`)* |
+| `--method` | `-m` | `String` | `johansen` | `johansen`, `engle_granger` | johansen\|engle_granger |
 | `--significance` | — | `Float64` | `0.05` | — | Significance level for rank selection |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `VECMModel`; result types: `VECMRestrictionTest`
 
@@ -2222,23 +2315,23 @@ Johansen LR test of beta = H*phi on a fitted VECM
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--config` | — | `String` | `""` | — | TOML config with [vecm_restriction] H = [[...],...] (p×s, s≥r) |
+| `--config` | `-C` | `String` | `""` | — | TOML config with [vecm_restriction] H = [[...],...] (p×s, s≥r) *(aliases: `--cfg`)* |
 | `--lags` | `-p` | `Int64` | `2` | — | Lag order (in levels, VECM uses p-1) |
 | `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto\|1\|2\|...) |
-| `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
-| `--method` | — | `String` | `johansen` | — | johansen\|engle_granger |
+| `--deterministic` | — | `String` | `constant` | `none`, `constant`, `trend` | none\|constant\|trend *(aliases: `--det`)* |
+| `--method` | `-m` | `String` | `johansen` | `johansen`, `engle_granger` | johansen\|engle_granger |
 | `--significance` | — | `Float64` | `0.05` | — | Significance level for rank selection |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `VECMModel`; result types: `VECMRestrictionTest`
 
@@ -2254,23 +2347,23 @@ Joint Johansen LR test of beta and alpha restrictions on a fitted VECM
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--config` | — | `String` | `""` | — | TOML config with [vecm_restriction] both H and A matrices |
+| `--config` | `-C` | `String` | `""` | — | TOML config with [vecm_restriction] both H and A matrices *(aliases: `--cfg`)* |
 | `--lags` | `-p` | `Int64` | `2` | — | Lag order (in levels, VECM uses p-1) |
 | `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto\|1\|2\|...) |
-| `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
-| `--method` | — | `String` | `johansen` | — | johansen\|engle_granger |
+| `--deterministic` | — | `String` | `constant` | `none`, `constant`, `trend` | none\|constant\|trend *(aliases: `--det`)* |
+| `--method` | `-m` | `String` | `johansen` | `johansen`, `engle_granger` | johansen\|engle_granger |
 | `--significance` | — | `Float64` | `0.05` | — | Significance level for rank selection |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `VECMModel`; result types: `VECMRestrictionTest`
 
@@ -2280,29 +2373,31 @@ Joint Johansen LR test of beta and alpha restrictions on a fitted VECM
 
 Johansen LR test of fully specified beta = b on a fitted VECM
 
+**Aliases:** `kbeta`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--config` | — | `String` | `""` | — | TOML config with [vecm_restriction] b = [[...],...] (p×r, exactly r cols) |
+| `--config` | `-C` | `String` | `""` | — | TOML config with [vecm_restriction] b = [[...],...] (p×r, exactly r cols) *(aliases: `--cfg`)* |
 | `--lags` | `-p` | `Int64` | `2` | — | Lag order (in levels, VECM uses p-1) |
 | `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto\|1\|2\|...) |
-| `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
-| `--method` | — | `String` | `johansen` | — | johansen\|engle_granger |
+| `--deterministic` | — | `String` | `constant` | `none`, `constant`, `trend` | none\|constant\|trend *(aliases: `--det`)* |
+| `--method` | `-m` | `String` | `johansen` | `johansen`, `engle_granger` | johansen\|engle_granger |
 | `--significance` | — | `Float64` | `0.05` | — | Significance level for rank selection |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `VECMModel`; result types: `VECMRestrictionTest`
 
@@ -2321,14 +2416,14 @@ Johansen LR weak-exogeneity test for --vars on a fitted VECM
 | `--vars` | — | `String` | `""` | — | Comma-separated variable indices or names to test for weak exogeneity |
 | `--lags` | `-p` | `Int64` | `2` | — | Lag order (in levels, VECM uses p-1) |
 | `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto\|1\|2\|...) |
-| `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
-| `--method` | — | `String` | `johansen` | — | johansen\|engle_granger |
+| `--deterministic` | — | `String` | `constant` | `none`, `constant`, `trend` | none\|constant\|trend *(aliases: `--det`)* |
+| `--method` | `-m` | `String` | `johansen` | `johansen`, `engle_granger` | johansen\|engle_granger |
 | `--significance` | — | `Float64` | `0.05` | — | Significance level for rank selection |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `VECMModel`; result types: `VECMRestrictionTest`
 
@@ -2350,8 +2445,8 @@ Brant parallel-regression test for ordered logit
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable |
-| `--cov-type` | — | `String` | `hc1` | — | Covariance type |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable |
+| `--cov-type` | `-v` | `String` | `hc1` | — | Covariance type *(aliases: `--cov`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
@@ -2369,19 +2464,19 @@ Cameron-Trivedi overdispersion test on a Poisson fit (directional decision)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent count column (default: first numeric column) |
+| `--dep` | `-y` | `String` | `""` | — | Dependent count column (default: first numeric column) |
 | `--offset` | — | `String` | `""` | — | Offset column, already on the log scale (exclusive with --exposure) |
 | `--exposure` | — | `String` | `""` | — | Exposure column, strictly positive; enters as log(exposure) |
-| `--cov-type` | — | `String` | `robust` | `robust`, `mle`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | Covariance estimator for the auxiliary Poisson fit |
-| `--clusters` | — | `String` | `""` | — | Cluster variable column name |
-| `--max-iter` | — | `Int64` | `100` | — | Maximum IRLS iterations (≥ 1) |
-| `--tol` | — | `Float64` | `1.0e-10` | — | Convergence tolerance (> 0) |
+| `--cov-type` | `-v` | `String` | `robust` | `robust`, `mle`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | Covariance estimator for the auxiliary Poisson fit *(aliases: `--cov`)* |
+| `--clusters` | `-U` | `String` | `""` | — | Cluster variable column name *(aliases: `--clst`)* |
+| `--max-iter` | `-I` | `Int64` | `100` | — | Maximum IRLS iterations (≥ 1) *(aliases: `--maxiter`, `--miter`)* |
+| `--tol` | `-T` | `Float64` | `1.0e-10` | — | Convergence tolerance (> 0) |
 | `--alpha` | — | `Float64` | `0.05` | — | Significance level for the decision column (0 < alpha < 1) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`; model types: `PoissonModel`; result types: `DispersionTest`
 
@@ -2404,8 +2499,8 @@ EDF goodness-of-fit test for --dist
 | `--theta` | — | `String` | `""` | — | Comma-separated parameters (required with --params specified) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`; result types: `EDFTestResult`
 
@@ -2424,8 +2519,8 @@ Fisher periodicity test for a hidden cycle
 | `--column` | `-c` | `Int64` | `1` | — | Column index |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `FisherPanelResult`, `FisherTestResult`
 
@@ -2442,12 +2537,12 @@ GPH log-periodogram estimate of long-memory d
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test |
-| `--bandwidth` | — | `Int64` | — | — | Number of Fourier frequencies (default: floor(sqrt(T))) |
+| `--bandwidth` | `-b` | `Int64` | — | — | Number of Fourier frequencies (default: floor(sqrt(T))) *(aliases: `--bw`)* |
 | `--trim` | — | `Int64` | `0` | — | Trim the first N frequencies |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `GPHResult`
 
@@ -2467,11 +2562,11 @@ Hansen sup-LM/sup-Wald linearity test vs two-regime SETAR
 | `--p` | — | `Int64` | `1` | — | AR order for the SETAR design (≥ 1) |
 | `--d` | — | `Int64` | `1` | — | Delay lag for the threshold variable q=y[t-d] (≥ 1) |
 | `--trim` | — | `Float64` | `0.15` | — | Trimming fraction for the threshold grid (0 < trim < 0.5) |
-| `--draws` | — | `Int64` | `1000` | — | Fixed-regressor bootstrap replications (≥ 1) |
+| `--draws` | `-n` | `Int64` | `1000` | — | Fixed-regressor bootstrap replications (≥ 1) *(aliases: `--reps`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `HansenLinearityTest`
 
@@ -2487,7 +2582,7 @@ Hausman-McFadden IIA test omitting one mlogit category
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable |
 | `--omit-category` | — | `Int64` | — | — | Category to omit for IIA test (required) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
@@ -2507,9 +2602,9 @@ Non-Gaussian/SVAR identification diagnostics battery for a VAR
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto via AIC) |
-| `--test` | — | `String` | `all` | — | strength\|gaussianity\|independence\|overidentification\|lambda-distinct\|gaussian-count\|label-stability\|all (the last three are opt-in only) |
-| `--method` | — | `String` | `fastica` | `fastica`, `jade`, `sobi`, `dcov`, `hsic`, `cvm` | fastica\|jade\|sobi\|dcov\|hsic\|cvm (for gaussianity/independence/overidentification tests; label-stability bootstraps the chosen estimator) |
-| `--contrast` | — | `String` | `logcosh` | — | logcosh\|exp\|kurtosis (for FastICA) |
+| `--test` | — | `String` | `all` | `strength`, `gaussianity`, `independence`, `overidentification`, `lambda-distinct`, `gaussian-count`, `label-stability`, `all` | strength\|gaussianity\|independence\|overidentification\|lambda-distinct\|gaussian-count\|label-stability\|all (the last three are opt-in only) |
+| `--method` | `-m` | `String` | `fastica` | `fastica`, `jade`, `sobi`, `dcov`, `hsic`, `cvm` | fastica\|jade\|sobi\|dcov\|hsic\|cvm (for gaussianity/independence/overidentification tests; label-stability bootstraps the chosen estimator) |
+| `--contrast` | — | `String` | `logcosh` | `logcosh`, `exp`, `kurtosis` | logcosh\|exp\|kurtosis (for FastICA) |
 | `--n-starts` | — | `Int64` | `3` | — | Additional random starts (for --method cvm) |
 | `--n-bootstrap` | — | `Int64` | `999` | — | Bootstrap replications (for label-stability) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
@@ -2529,12 +2624,12 @@ OLS influence diagnostics (leverage, studentized residuals, DFFITS, Cook D)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
-| `--cov-type` | — | `String` | `hc1` | — | Covariance estimator for the OLS fit |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column (default: first numeric) |
+| `--cov-type` | `-v` | `String` | `hc1` | — | Covariance estimator for the OLS fit *(aliases: `--cov`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`; result types: `InfluenceStats`
 
@@ -2551,11 +2646,11 @@ Local Whittle estimate of long-memory d
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test |
-| `--bandwidth` | — | `Int64` | — | — | Number of Fourier frequencies (default: floor(sqrt(T))) |
+| `--bandwidth` | `-b` | `Int64` | — | — | Number of Fourier frequencies (default: floor(sqrt(T))) *(aliases: `--bw`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `LocalWhittleResult`
 
@@ -2571,7 +2666,7 @@ NARDL long/short-run symmetry Wald tests per asymmetric regressor
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent column name (default: first numeric column) |
+| `--dep` | `-y` | `String` | `""` | — | Dependent column name (default: first numeric column) |
 | `--asymmetric` | — | `String` | `all` | — | 'all' or comma-separated 1-based regressor indices to split into +/- |
 | `--p` | — | `String` | `auto` | — | AR order: auto or an integer ≥ 1 |
 | `--q` | — | `String` | `auto` | — | DL order: auto, an integer, or a comma-separated list |
@@ -2581,8 +2676,8 @@ NARDL long/short-run symmetry Wald tests per asymmetric regressor
 | `--case` | — | `Int64` | `3` | — | Pesaran-Shin-Smith deterministic case (1..5) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `NARDLSymmetryTest`
 
@@ -2601,8 +2696,8 @@ VAR-residual normality test suite
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto via AIC) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `NormalityTestResult`, `NormalityTestSuite`
 
@@ -2618,20 +2713,20 @@ Park added-variables test of genuine vs spurious cointegration
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
-| `--method` | — | `String` | `fmols` | `fmols`, `ccr`, `dols` | Cointegrating-regression estimator |
-| `--trend` | — | `String` | `const` | `none`, `const`, `linear` | Deterministic terms (cointreg vocabulary) |
-| `--kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `qs`, `tukey-hanning` | HAC kernel for the fit |
-| `--bandwidth` | — | `String` | `andrews` | — | Fit bandwidth: andrews\|nw94 or a non-negative number |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column (default: first numeric) |
+| `--method` | `-m` | `String` | `fmols` | `fmols`, `ccr`, `dols` | Cointegrating-regression estimator |
+| `--trend` | `-e` | `String` | `const` | `none`, `const`, `linear` | Deterministic terms (cointreg vocabulary) |
+| `--kernel` | `-k` | `String` | `bartlett` | `bartlett`, `parzen`, `qs`, `tukey-hanning` | HAC kernel for the fit |
+| `--bandwidth` | `-b` | `String` | `andrews` | — | Fit bandwidth: andrews\|nw94 or a non-negative number *(aliases: `--bw`)* |
 | `--leads` | — | `String` | `auto` | — | DOLS leads: auto or a non-negative integer |
-| `--lags` | — | `String` | `auto` | — | DOLS lags: auto or a non-negative integer |
+| `--lags` | `-p` | `String` | `auto` | — | DOLS lags: auto or a non-negative integer |
 | `--q-add` | — | `Int64` | `2` | — | Number of superfluous trends added (≥ 1; the test df) |
 | `--hac-kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `qs`, `tukey-hanning` | HAC kernel for the test statistic |
 | `--hac-bandwidth` | — | `String` | `nw` | — | HAC bandwidth for the test: nw\|andrews\|nw94 or a non-negative number |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `ParkAddedResult`
 
@@ -2653,8 +2748,8 @@ STAR LM3 linearity test vs smooth-transition alternative
 | `--transition-col` | — | `Int64` | `0` | — | Column index of an external transition var s (0 = self-exciting y[t-d]) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `HansenLinearityTest`
 
@@ -2671,12 +2766,12 @@ Variance-ratio random-walk test (individual + Chow-Denning joint)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index to test (1-based) |
-| `--horizons` | — | `String` | `2,4,8,16` | — | Comma-separated holding periods q (each ≥ 2) |
-| `--method` | — | `String` | `lomackinlay` | `lomackinlay`, `wright` | lomackinlay\|wright |
+| `--horizons` | `-H` | `String` | `2,4,8,16` | — | Comma-separated holding periods q (each ≥ 2) *(aliases: `--hor`)* |
+| `--method` | `-m` | `String` | `lomackinlay` | `lomackinlay`, `wright` | lomackinlay\|wright |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `VarianceRatioResult`
 
@@ -2692,11 +2787,11 @@ Variance-inflation factors from an OLS fit
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable name (default: first numeric column) |
-| `--cov-type` | — | `String` | `hc1` | — | Covariance estimator (ols\|hc0\|hc1\|hc2\|hc3) |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable name (default: first numeric column) |
+| `--cov-type` | `-v` | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3` | Covariance estimator (ols\|hc0\|hc1\|hc2\|hc3) *(aliases: `--cov`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`; model types: `RegModel`
 

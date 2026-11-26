@@ -32,12 +32,19 @@ frdc dsge solve rbc_lin.jl --method gensys --periods 6
 │   solver   │                gensys                │
 └────────────┴──────────────────────────────────────┘
 DSGE Solution (method=gensys)
-┌──────────┬─────────┬───────┐
-│ variable │  G1_y   │ G1_pi │
-├──────────┼─────────┼───────┤
-│    y     │  0.85   │ -0.0  │
-│    pi    │ 1.34069 │ -0.0  │
-└──────────┴─────────┴───────┘
+┌──────────┬───────┬───────┐
+│ variable │ G1_y  │ G1_pi │
+├──────────┼───────┼───────┤
+│    y     │ 0.850 │ 0.000 │
+│    pi    │ 1.341 │ 0.000 │
+└──────────┴───────┴───────┘
+DSGE Shock Impact (method=gensys)
+┌──────────┬────────────┐
+│ variable │ impact_e_a │
+├──────────┼────────────┤
+│    y     │   0.020    │
+│    pi    │   0.032    │
+└──────────┴────────────┘
 ```
 
 Under `--format json`, [`dsge solve`](@ref ref-dsge-solve) emits `dsge_solution`, `perturbation_policy_gx`, and `determinacy_verdict` (unique stable equilibrium with `G1_y = 0.85` and `G1_pi = 1.34069` under `gensys`).
@@ -79,28 +86,28 @@ EOF
 frdc dsge irf nk_occ.jl --method gensys --horizon 6 --constraint 'c[t] >= 0.0'
 ```
 ```text
-         OccBin IRF: y ← e
-┌─────────┬───────────┬───────────┐
-│ horizon │  linear   │ piecewise │
-├─────────┼───────────┼───────────┤
-│    0    │   0.01    │   0.01    │
-│    1    │   0.008   │   0.008   │
-│    2    │  0.0064   │  0.0064   │
-│    3    │  0.00512  │  0.00512  │
-│    4    │ 0.004096  │ 0.004096  │
-│    5    │ 0.0032768 │ 0.0032768 │
-└─────────┴───────────┴───────────┘
-         OccBin IRF: c ← e
-┌─────────┬───────────┬───────────┐
-│ horizon │  linear   │ piecewise │
-├─────────┼───────────┼───────────┤
-│    0    │   0.01    │   0.01    │
-│    1    │   0.008   │   0.008   │
-│    2    │  0.0064   │  0.0064   │
-│    3    │  0.00512  │  0.00512  │
-│    4    │ 0.004096  │ 0.004096  │
-│    5    │ 0.0032768 │ 0.0032768 │
-└─────────┴───────────┴───────────┘
+       OccBin IRF: y ← e
+┌─────────┬────────┬───────────┐
+│ horizon │ linear │ piecewise │
+├─────────┼────────┼───────────┤
+│    0    │ 0.010  │   0.010   │
+│    1    │ 0.008  │   0.008   │
+│    2    │ 0.006  │   0.006   │
+│    3    │ 0.005  │   0.005   │
+│    4    │ 0.004  │   0.004   │
+│    5    │ 0.003  │   0.003   │
+└─────────┴────────┴───────────┘
+       OccBin IRF: c ← e
+┌─────────┬────────┬───────────┐
+│ horizon │ linear │ piecewise │
+├─────────┼────────┼───────────┤
+│    0    │ 0.010  │   0.010   │
+│    1    │ 0.008  │   0.008   │
+│    2    │ 0.006  │   0.006   │
+│    3    │ 0.005  │   0.005   │
+│    4    │ 0.004  │   0.004   │
+│    5    │ 0.003  │   0.003   │
+└─────────┴────────┴───────────┘
 ```
 
 Applying the one-sided OccBin floor keeps `c` bounded from below across horizons in `occbin_irf` (`dsge_irf` for unconstrained IRFs).
@@ -136,22 +143,22 @@ frdc dsge bayes identification ar_id.jl --params rho,sigma --observables y
 ```
 ```text
 Identification Diagnostics
-┌────────────┬────────────┐
-│   metric   │   value    │
-├────────────┼────────────┤
-│    rank    │     2      │
-│  n_params  │     2      │
-│ n_moments  │     4      │
-│   n_lags   │     2      │
-│ identified │    true    │
-│    tol     │ 1.86918e-9 │
-└────────────┴────────────┘
+┌────────────┬───────┐
+│   metric   │ value │
+├────────────┼───────┤
+│    rank    │   2   │
+│  n_params  │   2   │
+│ n_moments  │   4   │
+│   n_lags   │   2   │
+│ identified │ true  │
+│    tol     │ 0.000 │
+└────────────┴───────┘
      Singular Values
 ┌───────┬────────────────┐
 │ index │ singular_value │
 ├───────┼────────────────┤
-│   1   │    0.125439    │
-│   2   │   0.00125848   │
+│   1   │     0.125      │
+│   2   │     0.001      │
 └───────┴────────────────┘
 ```
 
@@ -171,12 +178,12 @@ Linearized DSGE solutions map directly into a canonical Fernández-Villaverde–
 frdc dsge abcd invertibility rbc_lin.jl --observables y
 ```
 ```text
-              FVRSW Poor Man's Invertibility Test (invertible)
-┌────────────┬─────┬─────┬─────────┬────────────┬────────────┬─────────────┐
-│ zero_index │ re  │ im  │ modulus │ invertible │   status   │ max_modulus │
-├────────────┼─────┼─────┼─────────┼────────────┼────────────┼─────────────┤
-│     1      │ 0.0 │ 0.0 │   0.0   │    true    │ invertible │     0.0     │
-└────────────┴─────┴─────┴─────────┴────────────┴────────────┴─────────────┘
+                                   FVRSW Poor Man's Invertibility Test (invertible)
+┌────────────┬───────┬───────┬─────────┬────────────┬────────────┬─────────────┬──────────┬───────┬──────────┬────────┐
+│ zero_index │  re   │  im   │ modulus │ invertible │   status   │ max_modulus │ n_states │ n_obs │ n_shocks │ rank_D │
+├────────────┼───────┼───────┼─────────┼────────────┼────────────┼─────────────┼──────────┼───────┼──────────┼────────┤
+│     1      │ 0.000 │ 0.000 │  0.000  │    true    │ invertible │    0.000    │    1     │   1   │    1     │   1    │
+└────────────┴───────┴───────┴─────────┴────────────┴────────────┴─────────────┴──────────┴───────┴──────────┴────────┘
 ```
 
 The [`dsge abcd invertibility`](@ref ref-dsge-abcd-invertibility) check extracts the canonical $(A, B, C, D)$ matrices for observable `y` and reports the maximum eigenvalue modulus of $A - B D^{-1} C$, verifying whether a VAR in `y` can recover the structural shock `e_a` without fundamentalness distortion.
@@ -185,9 +192,10 @@ The [`dsge abcd invertibility`](@ref ref-dsge-abcd-invertibility) check extracts
 
 ## Common Pitfalls
 
-1. **Passing `--config`, mixing `priors:` with `constraints:`, or putting `priors:` on `bayes identification`:** No `dsge` leaf takes `--config`. Place priors above `@dsge` (for sampling commands such as `prior-predictive`, `posterior-mode`, and `estimate`) or pass repeatable `--prior`/`--constraint` flags and `--priors`/`--constraints` TOML files—never combine `priors:` and `constraints:` in one `.jl` file, and omit `priors:` when running `dsge bayes identification` ([DSGE Specs, Priors & OccBin Constraints](@ref cfg-dsge)).
+1. **Misusing `--config`, mixing `priors:` with `constraints:`, or putting `priors:` on `bayes identification`:** Only the four grid/identification/calibration DSGE leaves — [`dsge determinacy-map`](@ref ref-dsge-determinacy-map), [`dsge abcd audit-irf`](@ref ref-dsge-abcd-audit-irf), [`dsge lifecycle steady-state`](@ref ref-dsge-lifecycle-steady-state), and [`dsge lifecycle transition`](@ref ref-dsge-lifecycle-transition) — accept `--config <toml>`. Representative-agent solver and Bayesian estimation leaves (`dsge solve`, `irf`, `steady-state`, `perfect-foresight`, `dsge bayes *`) do not take `--config`: place `priors:` or `constraints:` above `@dsge`, or pass repeatable `--prior`/`--constraint` flags and `--priors`/`--constraints` TOML files—never combine `priors:` and `constraints:` in one `.jl` file, and omit `priors:` when running `dsge bayes identification` ([DSGE Specs, Priors & OccBin Constraints](@ref cfg-dsge)).
 2. **Omitting `[t]` timing or writing `E[t](...)`:** Bare symbols or `(+1)`/`(-1)` syntax trigger `config/invalid` (exit `4`); index every endogenous variable by `[t]`, `[t-1]`, or `[t+1]` and exogenous shocks strictly by `[t]`.
-3. **Stochastic singularity (`model/stochastic-singularity`, exit `5`) in Bayesian estimation:** When `--observables` lists more data series than structural shocks in `exogenous:`, either add measurement error (`--measurement-error auto` / explicit values) or reduce the observable subset.
+3. **Stochastic singularity (`model/stochastic-singularity`, exit `5`) in Bayesian estimation:** When `--observables` lists more data series than structural shocks in `exogenous:`, either add measurement error (`--measurement-error auto` / explicit values) or reduce the observable subset. Note also that Bayesian DSGE and DSGE-VAR leaves report **68% credible bands** (`--conf-level 0.68` / `--quantiles 0.16,0.5,0.84`) by default; override with `-L`/`--conf-level` or `-Q`/`--quantiles`.
+4. **Projection & VFI solver tuning:** [`dsge solve`](@ref ref-dsge-solve) accepts `--max-iter`, `--tol`, `--scale`, and `--n-quad` under `--method projection` as well as VFI/PFI, while VFI/PFI-only knobs (`--damping`, `--next-state`) raise typed `usage/invalid` on projection. Built-in defaults for [`dsge firm steady-state`](@ref ref-dsge-firm-steady-state) and [`dsge lifecycle steady-state`](@ref ref-dsge-lifecycle-steady-state) are tuned to converge cleanly out of the box.
 
 ---
 

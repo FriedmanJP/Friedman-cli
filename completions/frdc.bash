@@ -19,11 +19,212 @@ _frdc() {
       continue
     fi
     case "$w" in
-      --seed) expect_val=1; ((i++)); continue ;;
-      --*=*|-f=*|-H=*|-o=*|-p=*) ((i++)); continue ;;
+      --seed|--digits) expect_val=1; ((i++)); continue ;;
+      --*=*|-*=*) ((i++)); continue ;;
       --*|-*) ((i++)); continue ;;
     esac
     if [[ $is_leaf -eq 0 ]]; then
+      case "$path|$w" in
+        "|comp") w="completions" ;;
+        "|d") w="data" ;;
+        "|e") w="estimate" ;;
+        "|est") w="estimate" ;;
+        "|fc") w="forecast" ;;
+        "|fcst") w="forecast" ;;
+        "|flt") w="filter" ;;
+        "|ha") w="hadsge" ;;
+        "|m") w="model" ;;
+        "|mod") w="model" ;;
+        "|nc") w="nowcast" ;;
+        "|pol") w="policy" ;;
+        "|pr") w="predict" ;;
+        "|pred") w="predict" ;;
+        "|res") w="residuals" ;;
+        "|resid") w="residuals" ;;
+        "|sch") w="schema" ;;
+        "|sh") w="show" ;;
+        "|sp") w="spectral" ;;
+        "|spec") w="spectral" ;;
+        "|srv") w="serve" ;;
+        "|t") w="test" ;;
+        "data|bal") w="balance" ;;
+        "data|desc") w="describe" ;;
+        "data|diag") w="diagnose" ;;
+        "data|exp") w="export" ;;
+        "data|imp") w="import" ;;
+        "data|ls") w="list" ;;
+        "data|sim") w="simulate" ;;
+        "data|tr") w="transform" ;;
+        "data|val") w="validate" ;;
+        "data simulate|cs") w="cross-section" ;;
+        "data simulate|gdfm-inf") w="gdfm-infinite" ;;
+        "data simulate|het-var") w="heteroskedastic-var" ;;
+        "did|es") w="event-study" ;;
+        "did|est") w="estimate" ;;
+        "did|lp") w="lp-did" ;;
+        "dsge|b") w="bayes" ;;
+        "dsge|detmap") w="determinacy-map" ;;
+        "dsge|est") w="estimate" ;;
+        "dsge|lc") w="lifecycle" ;;
+        "dsge|pf") w="perfect-foresight" ;;
+        "dsge|sim") w="simulate" ;;
+        "dsge|ss") w="steady-state" ;;
+        "dsge abcd|innov") w="innovations" ;;
+        "dsge abcd|inv") w="invertibility" ;;
+        "dsge abcd|pop-var") w="population-var" ;;
+        "dsge abcd|rec") w="recoverability" ;;
+        "dsge abcd|search") w="search-observables" ;;
+        "dsge bank|ss") w="steady-state" ;;
+        "dsge bank|tr") w="transition" ;;
+        "dsge bayes|id") w="identification" ;;
+        "dsge bayes|lr") w="learning-rate" ;;
+        "dsge bayes|mlik") w="marginal-lik" ;;
+        "dsge bayes|mode") w="posterior-mode" ;;
+        "dsge bayes|pred") w="predictive" ;;
+        "dsge bayes|prior-pred") w="prior-predictive" ;;
+        "dsge ct|tr") w="transition" ;;
+        "dsge dcegm|ss") w="steady-state" ;;
+        "dsge dcegm|tr") w="transition" ;;
+        "dsge firm|ss") w="steady-state" ;;
+        "dsge firm|tr") w="transition" ;;
+        "dsge lifecycle|ss") w="steady-state" ;;
+        "dsge lifecycle|tr") w="transition" ;;
+        "estimate|ch") w="choice" ;;
+        "estimate|fac") w="factor" ;;
+        "estimate|mv") w="multivariate" ;;
+        "estimate|pan") w="panel" ;;
+        "estimate|regr") w="regression" ;;
+        "estimate|rgm") w="regime" ;;
+        "estimate|uv") w="univariate" ;;
+        "estimate|vol") w="volatility" ;;
+        "estimate multivariate|ll") w="lanne-luoto" ;;
+        "estimate panel|xtcr") w="xtcointreg" ;;
+        "estimate regression|enet") w="elastic-net" ;;
+        "estimate regression|kreg") w="kernel-reg" ;;
+        "estimate regression|ss") w="statespace" ;;
+        "estimate volatility|gm") w="garch-midas" ;;
+        "filter|bp-gdfm") w="bandpass-gdfm" ;;
+        "forecast|eval") w="evaluate" ;;
+        "forecast|fac") w="factor" ;;
+        "forecast|mv") w="multivariate" ;;
+        "forecast|rgm") w="regime" ;;
+        "forecast|uv") w="univariate" ;;
+        "forecast|vol") w="volatility" ;;
+        "forecast evaluate|cw") w="clark-west" ;;
+        "forecast evaluate|enc") w="encompassing" ;;
+        "forecast evaluate|mz") w="mincer-zarnowitz" ;;
+        "forecast factor|gar") w="growth-at-risk" ;;
+        "forecast volatility|gm") w="garch-midas" ;;
+        "hadsge|acc") w="accuracy" ;;
+        "hadsge|dist-irf") w="distribution-irf" ;;
+        "hadsge|est") w="estimate" ;;
+        "hadsge|ineq-irf") w="inequality-irf" ;;
+        "hadsge|sim") w="simulate" ;;
+        "hadsge|sim-panel") w="simulate-panel" ;;
+        "hadsge|ss") w="steady-state" ;;
+        "io|agg") w="aggregate" ;;
+        "io|bf-full") w="baqaee-farhi" ;;
+        "io|bilat") w="bilateral-trade" ;;
+        "io|dl") w="download" ;;
+        "io|exp-decomp") w="export-decomposition" ;;
+        "io|ext") w="extract" ;;
+        "io|fp") w="footprint" ;;
+        "io|keys") w="key-sectors" ;;
+        "io|link") w="linkages" ;;
+        "io|mult") w="multipliers" ;;
+        "io|net") w="network-stats" ;;
+        "io|vs") w="vertical-specialization" ;;
+        "io bf|elast") w="elasticities" ;;
+        "io bf|eq") w="equilibrium" ;;
+        "io bf|misalloc") w="misallocation" ;;
+        "io bf|scurve") w="shock-curve" ;;
+        "model|conv") w="convert" ;;
+        "model|repro") w="reproduce" ;;
+        "policy|cf") w="counterfactual" ;;
+        "policy|eff") w="effects" ;;
+        "policy|hist") w="history" ;;
+        "policy|jac") w="jacobian" ;;
+        "policy|mom") w="moments" ;;
+        "policy|opp-seq") w="opp-sequence" ;;
+        "policy|opt") w="optimal" ;;
+        "policy|span") w="spanning" ;;
+        "policy|suff") w="sufficiency" ;;
+        "predict|ch") w="choice" ;;
+        "predict|fac") w="factor" ;;
+        "predict|mv") w="multivariate" ;;
+        "predict|pan") w="panel" ;;
+        "predict|regr") w="regression" ;;
+        "predict|rgm") w="regime" ;;
+        "predict|uv") w="univariate" ;;
+        "predict|vol") w="volatility" ;;
+        "predict regression|ss") w="statespace" ;;
+        "predict volatility|gm") w="garch-midas" ;;
+        "residuals|ch") w="choice" ;;
+        "residuals|fac") w="factor" ;;
+        "residuals|mv") w="multivariate" ;;
+        "residuals|pan") w="panel" ;;
+        "residuals|regr") w="regression" ;;
+        "residuals|rgm") w="regime" ;;
+        "residuals|uv") w="univariate" ;;
+        "residuals|vol") w="volatility" ;;
+        "residuals multivariate|ll") w="lanne-luoto" ;;
+        "residuals regression|ss") w="statespace" ;;
+        "residuals volatility|gm") w="garch-midas" ;;
+        "ri|disc") w="discrete" ;;
+        "ri|est") w="estimate" ;;
+        "ri|sim") w="simulate" ;;
+        "ri|ss") w="statespace" ;;
+        "ri|trans") w="transition" ;;
+        "spectral|dens") w="density" ;;
+        "spectral|pgram") w="periodogram" ;;
+        "spectral|tf") w="transfer" ;;
+        "test|ci") w="coint" ;;
+        "test|fac") w="factor" ;;
+        "test|mv") w="multivariate" ;;
+        "test|pan") w="panel" ;;
+        "test|ser") w="serial" ;;
+        "test|stab") w="stability" ;;
+        "test|ur") w="unit-root" ;;
+        "test coint|bounds") w="ardl-bounds" ;;
+        "test coint|eg") w="engle-granger" ;;
+        "test coint|fj") w="fisher-johansen" ;;
+        "test coint|gh") w="gregory-hansen" ;;
+        "test coint|po") w="phillips-ouliaris" ;;
+        "test coint|west") w="westerlund" ;;
+        "test factor|ah") w="ahn-horenstein" ;;
+        "test factor|oed") w="onatski-ed" ;;
+        "test factor|qconst") w="qfm-constancy" ;;
+        "test factor|qspan") w="qfm-spanning" ;;
+        "test iv|ar") w="anderson-rubin" ;;
+        "test iv|wc") w="wild-cluster" ;;
+        "test iv|weak-iv") w="weak-instrument" ;;
+        "test multivariate|fund") w="fundamentalness" ;;
+        "test multivariate|gmm-mom") w="gmm-moments" ;;
+        "test multivariate|ng-diag") w="nongaussian-diag" ;;
+        "test multivariate|suff-info") w="sufficient-info" ;;
+        "test multivariate|svar-hyp") w="svar-hypothesis" ;;
+        "test panel|dh") w="dh-causality" ;;
+        "test panel|mwald") w="modified-wald" ;;
+        "test panel|pcd") w="pesaran-cd" ;;
+        "test panel|pmgh") w="pmg-hausman" ;;
+        "test panel|war") w="wooldridge-ar" ;;
+        "test serial|boxp") w="box-pierce" ;;
+        "test serial|bp") w="breusch-pagan" ;;
+        "test serial|bwn") w="bartlett-wn" ;;
+        "test serial|dw") w="durbin-watson" ;;
+        "test serial|het") w="heteroskedasticity" ;;
+        "test serial|lb") w="ljung-box" ;;
+        "test stability|bp") w="bai-perron" ;;
+        "test stability|fbreak") w="factor-break" ;;
+        "test stability|hansen") w="hansen-instability" ;;
+        "test stability|rec-resid") w="recursive-residuals" ;;
+        "test unit-root|adf2") w="adf-2break" ;;
+        "test unit-root|fadf") w="fourier-adf" ;;
+        "test unit-root|fkpss") w="fourier-kpss" ;;
+        "test unit-root|lm") w="lm-unitroot" ;;
+        "test unit-root|mp") w="moon-perron" ;;
+        "test vecm|kbeta") w="known-beta" ;;
+      esac
       local cand=""
       if [[ -z "$path" ]]; then cand="$w"; else cand="$path $w"; fi
       case "$cand" in
@@ -678,8 +879,10 @@ _frdc() {
 
   case "$path" in
     "")
-      if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--help -h --version -V --warranty --conditions --quiet -q --no-color --json --compact --seed" -- "$cur") )
+      if [[ "$prev" == "--digits" ]]; then
+        COMPREPLY=( $(compgen -W "0 1 2 3 4 6 full" -- "$cur") )
+      elif [[ "$cur" == -* ]]; then
+        COMPREPLY=( $(compgen -W "--help -h --version -V --warranty --conditions --quiet -q --no-color --json -J --compact --seed --digits" -- "$cur") )
       else
         COMPREPLY=( $(compgen -W "completions data did dsge estimate fevd filter forecast hadsge hd io irf model nowcast policy predict repl residuals ri schema serve show spectral test" -- "$cur") )
       fi ;;
@@ -1207,11 +1410,11 @@ _frdc() {
       fi ;;
     "data balance")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "dfm" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "dfm" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--method --factors --lags -p --output -o --format -f --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--method -m --factors -q --lags -p --output -o --format -f --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1268,7 +1471,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--method -m --component --lambda -l --horizons --lags -p --columns --output -o --format -f --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--method -m --component --lambda -l --horizons -H --lags -p --columns --output -o --format -f --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1293,7 +1496,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--kind --frequency --dates --id-col --time-col --vars --tcodes --note --output -o --format -f --strict-missing --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--kind --frequency --dates --id-col -u --time-col -t --vars --tcodes --note --output -o --format -f --strict-missing --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1338,7 +1541,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--phi --beta0 --beta1 --periods --burn --seed --save-data --format -f --output -o --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--phi --beta0 --beta1 --periods -N --burn -B --seed --save-data --format -f --output -o --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1349,7 +1552,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--phi --theta --diff --sigma --drift --periods --burn --seed --save-data --format -f --output -o --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--phi --theta --diff --sigma --drift --periods -N --burn -B --seed --save-data --format -f --output -o --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1360,7 +1563,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--endog-rho --sigma-u --periods --seed --save-data --format -f --output -o --spurious --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--endog-rho --sigma-u --periods -N --seed --save-data --format -f --output -o --spurious --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1383,7 +1586,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--alpha --rho --sigma --delta --z --shock-size --grid-size --a-max --max-iter --tol --dt --periods --seed --save-data --format -f --output -o --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--alpha --rho --sigma --delta --z --shock-size --grid-size --a-max --max-iter -I --tol -T --dt --periods -N --seed --save-data --format -f --output -o --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1394,7 +1597,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--n --periods --seed --save-data --format -f --output -o --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--n --periods -N --seed --save-data --format -f --output -o --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1402,11 +1605,11 @@ _frdc() {
       fi ;;
     "data simulate dsge")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "gensys klein perturbation projection pfi vfi blanchard-kahn" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "gensys klein perturbation projection pfi vfi blanchard-kahn" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--method --order --meas-sd --periods --burn --seed --save-data --format -f --output -o --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--method -m --order -O --meas-sd --periods -N --burn -B --seed --save-data --format -f --output -o --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1417,7 +1620,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--series --periods --burn --seed --save-data --format -f --output -o --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--series --periods -N --burn -B --seed --save-data --format -f --output -o --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1429,7 +1632,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--kind --periods --burn --seed --save-data --format -f --output -o --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--kind --periods -N --burn -B --seed --save-data --format -f --output -o --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1440,7 +1643,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--periods --series --dynamic-rank --a-coef --b-coef --n-permanent --signal-share --idio-ar --burn --seed --save-data --format -f --output -o --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--periods -N --series --dynamic-rank --a-coef --b-coef --n-permanent --signal-share --idio-ar --burn -B --seed --save-data --format -f --output -o --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1460,13 +1663,13 @@ _frdc() {
       fi ;;
     "data simulate ha")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "ssj reiter krusell-smith" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "ssj reiter krusell-smith" -- "$cur") ); return ;;
         --distribution) COMPREPLY=( $(compgen -W "young winberry" -- "$cur") ); return ;;
         --hh-solver) COMPREPLY=( $(compgen -W "egm vfi" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--method --n-reduced --distribution --hh-solver --periods --seed --save-data --format -f --output -o --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--method -m --n-reduced --distribution --hh-solver --periods -N --seed --save-data --format -f --output -o --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1478,7 +1681,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--kind --periods --burn --seed --save-data --format -f --output -o --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--kind --periods -N --burn -B --seed --save-data --format -f --output -o --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1489,7 +1692,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--pi1 --theta --periods --seed --save-data --format -f --output -o --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--pi1 --theta --periods -N --seed --save-data --format -f --output -o --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1500,7 +1703,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--alpha --beta --delta --gamma --z --debt --k0 --periods --seed --save-data --format -f --output -o --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--alpha --beta --delta --gamma --z --debt --k0 --periods -N --seed --save-data --format -f --output -o --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1512,7 +1715,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--kind --n --periods --seed --save-data --format -f --output -o --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--kind --n --periods -N --seed --save-data --format -f --output -o --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1523,7 +1726,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--n --periods --seed --save-data --format -f --output -o --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--n --periods -N --seed --save-data --format -f --output -o --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1534,7 +1737,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--periods --series --factors --lags --n-key --df-idio --tail-amplification --burn --seed --save-data --format -f --output -o --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--periods -N --series --factors -q --lags -p --n-key --df-idio --tail-amplification --burn -B --seed --save-data --format -f --output -o --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1545,7 +1748,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--periods --series --location-factors --scale-factors --asym-factors --df-idio --idio-scale --loadings-scale --seed --save-data --format -f --output -o --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--periods -N --series --location-factors --scale-factors --asym-factors --df-idio --idio-scale --loadings-scale --seed --save-data --format -f --output -o --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1557,7 +1760,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--kind --periods --burn --seed --save-data --format -f --output -o --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--kind --periods -N --burn -B --seed --save-data --format -f --output -o --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1569,7 +1772,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--periods --dist --nu --skew --burn --config --seed --save-data --format -f --output -o --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--periods -N --dist --nu --skew --burn -B --config -C --seed --save-data --format -f --output -o --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1580,7 +1783,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--mu --phi --sigma-eta --periods --burn --seed --save-data --format -f --output -o --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--mu --phi --sigma-eta --periods -N --burn -B --seed --save-data --format -f --output -o --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1592,7 +1795,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dist --nu --periods --burn --seed --save-data --format -f --output -o --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dist --nu --periods -N --burn -B --seed --save-data --format -f --output -o --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1603,7 +1806,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--periods --burn --seed --save-data --format -f --output -o --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--periods -N --burn -B --seed --save-data --format -f --output -o --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1614,7 +1817,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--periods --burn --seed --save-data --format -f --output -o --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--periods -N --burn -B --seed --save-data --format -f --output -o --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1633,11 +1836,11 @@ _frdc() {
       fi ;;
     "data validate")
       case "$prev" in
-        --model) COMPREPLY=( $(compgen -W "var bvar vecm arima garch sv lp gmm factor arch egarch gjr-garch gjr_garch static dynamic gdfm" -- "$cur") ); return ;;
+        --model|-M) COMPREPLY=( $(compgen -W "var bvar vecm arima garch sv lp gmm factor arch egarch gjr-garch gjr_garch static dynamic gdfm" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--model --format -f --output -o --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--model -M --format -f --output -o --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1645,14 +1848,14 @@ _frdc() {
       fi ;;
     "did estimate")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "twfe cs sa bjs dcdh" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "twfe cs sa bjs dcdh" -- "$cur") ); return ;;
         --control-group) COMPREPLY=( $(compgen -W "never_treated not_yet_treated" -- "$cur") ); return ;;
         --cluster) COMPREPLY=( $(compgen -W "unit time twoway" -- "$cur") ); return ;;
         --base-period) COMPREPLY=( $(compgen -W "varying universal" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--outcome --treatment --method --id-col --time-col --leads --horizons --covariates --control-group --cluster --conf-level --n-boot --base-period --output -o --format -f --plot-save --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--outcome --treatment --method -m --id-col -u --time-col -t --leads --horizons -H --covariates --control-group --cluster --conf-level -L --n-boot --base-period --output -o --format -f --plot-save -G --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1660,10 +1863,11 @@ _frdc() {
       fi ;;
     "did event-study")
       case "$prev" in
+        --cluster) COMPREPLY=( $(compgen -W "unit time twoway" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--outcome --treatment --id-col --time-col --leads --horizons --lags -p --covariates --cluster --conf-level --output -o --format -f --plot-save --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--outcome --treatment --id-col -u --time-col -t --leads --horizons -H --lags -p --covariates --cluster --conf-level -L --output -o --format -f --plot-save -G --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1671,10 +1875,11 @@ _frdc() {
       fi ;;
     "did lp-did")
       case "$prev" in
+        --cluster) COMPREPLY=( $(compgen -W "unit time twoway" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--outcome --treatment --id-col --time-col --horizons --pre-window --post-window --ylags --dylags --covariates --cluster --conf-level --pmd --nonabsorbing --output -o --format -f --plot-save --result --save-result --plot --reweight --nocomp --notyet --nevertreated --firsttreat --oneoff --only-pooled --only-event --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--outcome --treatment --id-col -u --time-col -t --horizons -H --pre-window --post-window --ylags --dylags --covariates --cluster --conf-level -L --pmd --nonabsorbing --output -o --format -f --plot-save -G --result -R --save-result -W --plot -g --reweight --nocomp --notyet --nevertreated --firsttreat --oneoff --only-pooled --only-event --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1682,13 +1887,13 @@ _frdc() {
       fi ;;
     "dsge abcd audit-irf")
       case "$prev" in
-        --id) COMPREPLY=( $(compgen -W "best-rotation cholesky long-run sign" -- "$cur") ); return ;;
+        --id|-i) COMPREPLY=( $(compgen -W "best-rotation cholesky long-run sign" -- "$cur") ); return ;;
         --reduction) COMPREPLY=( $(compgen -W "minimal predetermined none" -- "$cur") ); return ;;
-        --solver) COMPREPLY=( $(compgen -W "gensys klein perturbation blanchard-kahn" -- "$cur") ); return ;;
+        --solver|-s) COMPREPLY=( $(compgen -W "gensys klein perturbation blanchard-kahn" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--model --lags -p --horizons --id --config --observables --n-obs-effective --unit-root-damping --rcond-tol --max-draws --reduction --measurement-error --solver --order --result --save-result --format -f --output -o --plot-save --config-json --set --plot --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--model -M --lags -p --horizons -H --id -i --config -C --observables --n-obs-effective --unit-root-damping --rcond-tol --max-draws --reduction --measurement-error --solver -s --order -O --result -R --save-result -W --format -f --output -o --plot-save -G --config-json --set --plot -g --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1697,11 +1902,11 @@ _frdc() {
     "dsge abcd extract")
       case "$prev" in
         --reduction) COMPREPLY=( $(compgen -W "predetermined minimal none" -- "$cur") ); return ;;
-        --solver) COMPREPLY=( $(compgen -W "gensys klein perturbation blanchard-kahn" -- "$cur") ); return ;;
+        --solver|-s) COMPREPLY=( $(compgen -W "gensys klein perturbation blanchard-kahn" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--model --observables --reduction --measurement-error --tol --solver --order --save-model --format -f --output -o --plot-save --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--model -M --observables --reduction --measurement-error --tol -T --solver -s --order -O --save-model -S --format -f --output -o --plot-save -G --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1710,11 +1915,11 @@ _frdc() {
     "dsge abcd innovations")
       case "$prev" in
         --reduction) COMPREPLY=( $(compgen -W "predetermined minimal none" -- "$cur") ); return ;;
-        --solver) COMPREPLY=( $(compgen -W "gensys klein perturbation blanchard-kahn" -- "$cur") ); return ;;
+        --solver|-s) COMPREPLY=( $(compgen -W "gensys klein perturbation blanchard-kahn" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--model --observables --reduction --measurement-error --rcond-tol --solver --order --save-model --format -f --output -o --plot-save --as-abcd --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--model -M --observables --reduction --measurement-error --rcond-tol --solver -s --order -O --save-model -S --format -f --output -o --plot-save -G --as-abcd --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1723,11 +1928,11 @@ _frdc() {
     "dsge abcd invertibility")
       case "$prev" in
         --reduction) COMPREPLY=( $(compgen -W "predetermined minimal none" -- "$cur") ); return ;;
-        --solver) COMPREPLY=( $(compgen -W "gensys klein perturbation blanchard-kahn" -- "$cur") ); return ;;
+        --solver|-s) COMPREPLY=( $(compgen -W "gensys klein perturbation blanchard-kahn" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--model --observables --reduction --measurement-error --tol --max-var-lags --solver --order --result --save-result --format -f --output -o --plot-save --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--model -M --observables --reduction --measurement-error --tol -T --max-var-lags --solver -s --order -O --result -R --save-result -W --format -f --output -o --plot-save -G --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1736,11 +1941,11 @@ _frdc() {
     "dsge abcd population-var")
       case "$prev" in
         --reduction) COMPREPLY=( $(compgen -W "minimal predetermined none" -- "$cur") ); return ;;
-        --solver) COMPREPLY=( $(compgen -W "gensys klein perturbation blanchard-kahn" -- "$cur") ); return ;;
+        --solver|-s) COMPREPLY=( $(compgen -W "gensys klein perturbation blanchard-kahn" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--model --lags -p --observables --n-obs-effective --unit-root-damping --reduction --measurement-error --solver --order --save-model --format -f --output -o --plot-save --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--model -M --lags -p --observables --n-obs-effective --unit-root-damping --reduction --measurement-error --solver -s --order -O --save-model -S --format -f --output -o --plot-save -G --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1749,11 +1954,11 @@ _frdc() {
     "dsge abcd recoverability")
       case "$prev" in
         --reduction) COMPREPLY=( $(compgen -W "minimal predetermined none" -- "$cur") ); return ;;
-        --solver) COMPREPLY=( $(compgen -W "gensys klein perturbation blanchard-kahn" -- "$cur") ); return ;;
+        --solver|-s) COMPREPLY=( $(compgen -W "gensys klein perturbation blanchard-kahn" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--model --observables --max-lead --reduction --measurement-error --rcond-tol --solver --order --result --save-result --format -f --output -o --plot-save --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--model -M --observables --max-lead --reduction --measurement-error --rcond-tol --solver -s --order -O --result -R --save-result -W --format -f --output -o --plot-save -G --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1762,11 +1967,11 @@ _frdc() {
     "dsge abcd search-observables")
       case "$prev" in
         --reduction) COMPREPLY=( $(compgen -W "minimal predetermined none" -- "$cur") ); return ;;
-        --solver) COMPREPLY=( $(compgen -W "gensys klein perturbation blanchard-kahn" -- "$cur") ); return ;;
+        --solver|-s) COMPREPLY=( $(compgen -W "gensys klein perturbation blanchard-kahn" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--model --k --candidates --must-include --target-shocks --max-combinations --measurement-error --reduction --tol --rcond-tol --solver --order --result --save-result --format -f --output -o --plot-save --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--model -M --k --candidates --must-include --target-shocks --max-combinations --measurement-error --reduction --tol -T --rcond-tol --solver -s --order -O --result -R --save-result -W --format -f --output -o --plot-save -G --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1777,7 +1982,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--horizons --shock-size --persist --n-n --n-xi --z --output -o --format -f --plot-save --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--horizons -H --shock-size --persist --n-n --n-xi --z --output -o --format -f --plot-save -G --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1788,7 +1993,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--n-n --n-xi --n-min --n-max --beta --sigma --lambda --zeta1 --zeta2 --r --rk --z --alpha --max-iter --tol --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--n-n --n-xi --n-min --n-max --beta --sigma --lambda -l --zeta1 --zeta2 --r --rk --z --alpha --max-iter -I --tol -T --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1799,7 +2004,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--n-n --n-xi --n-min --n-max --beta --sigma --lambda --r --z --alpha --r-lo --r-hi --tol --max-iter --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--n-n --n-xi --n-min --n-max --beta --sigma --lambda -l --r --z --alpha --r-lo --r-hi --tol -T --max-iter -I --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1810,7 +2015,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--z-path --n-n --n-xi --z --output -o --format -f --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--z-path --n-n --n-xi --z --output -o --format -f --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1819,12 +2024,13 @@ _frdc() {
     "dsge bayes compare")
       case "$prev" in
         --sampler) COMPREPLY=( $(compgen -W "smc smc2 mh" -- "$cur") ); return ;;
-        --solver) COMPREPLY=( $(compgen -W "gensys klein perturbation" -- "$cur") ); return ;;
+        --solver|-s) COMPREPLY=( $(compgen -W "gensys klein perturbation" -- "$cur") ); return ;;
+        --constraint-solver) COMPREPLY=( $(compgen -W "nonlinearsolve optim nlopt madnlp ipopt path" -- "$cur") ); return ;;
         --prefilter) COMPREPLY=( $(compgen -W "none demean first-difference linear-detrend hp" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--data -d --params --priors --prior --sampler --n-smc --n-particles --draws --burnin --ess-target --observables --solver --order --constraint-solver --prefilter --hp-lambda --measurement-error --output -o --format -f --model2 --params2 --priors2 --delayed-acceptance --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--data -d --params --priors --prior --sampler --n-smc --n-particles --draws -n --burnin -B --ess-target --observables --solver -s --order -O --constraint-solver --prefilter --hp-lambda --measurement-error --output -o --format -f --model2 --params2 --priors2 --delayed-acceptance --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1833,12 +2039,13 @@ _frdc() {
     "dsge bayes estimate")
       case "$prev" in
         --sampler) COMPREPLY=( $(compgen -W "smc smc2 mh" -- "$cur") ); return ;;
-        --solver) COMPREPLY=( $(compgen -W "gensys klein perturbation" -- "$cur") ); return ;;
+        --solver|-s) COMPREPLY=( $(compgen -W "gensys klein perturbation" -- "$cur") ); return ;;
+        --constraint-solver) COMPREPLY=( $(compgen -W "nonlinearsolve optim nlopt madnlp ipopt path" -- "$cur") ); return ;;
         --prefilter) COMPREPLY=( $(compgen -W "none demean first-difference linear-detrend hp" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--data -d --params --priors --prior --sampler --n-smc --n-particles --draws --burnin --ess-target --observables --solver --order --constraint-solver --prefilter --hp-lambda --measurement-error --output -o --format -f --save-model --delayed-acceptance --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--data -d --params --priors --prior --sampler --n-smc --n-particles --draws -n --burnin -B --ess-target --observables --solver -s --order -O --constraint-solver --prefilter --hp-lambda --measurement-error --output -o --format -f --conf-level -L --quantiles -Q --save-model -S --delayed-acceptance --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1847,12 +2054,13 @@ _frdc() {
     "dsge bayes fevd")
       case "$prev" in
         --sampler) COMPREPLY=( $(compgen -W "smc smc2 mh" -- "$cur") ); return ;;
-        --solver) COMPREPLY=( $(compgen -W "gensys klein perturbation" -- "$cur") ); return ;;
+        --solver|-s) COMPREPLY=( $(compgen -W "gensys klein perturbation" -- "$cur") ); return ;;
+        --constraint-solver) COMPREPLY=( $(compgen -W "nonlinearsolve optim nlopt madnlp ipopt path" -- "$cur") ); return ;;
         --prefilter) COMPREPLY=( $(compgen -W "none demean first-difference linear-detrend hp" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--data -d --params --priors --prior --sampler --n-smc --n-particles --draws --burnin --ess-target --observables --solver --order --constraint-solver --prefilter --hp-lambda --measurement-error --output -o --format -f --horizons --plot-save --delayed-acceptance --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--data -d --params --priors --prior --sampler --n-smc --n-particles --draws -n --burnin -B --ess-target --observables --solver -s --order -O --constraint-solver --prefilter --hp-lambda --measurement-error --output -o --format -f --horizons -H --conf-level -L --quantiles -Q --plot-save -G --delayed-acceptance --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1861,12 +2069,13 @@ _frdc() {
     "dsge bayes hd")
       case "$prev" in
         --sampler) COMPREPLY=( $(compgen -W "smc smc2 mh" -- "$cur") ); return ;;
-        --solver) COMPREPLY=( $(compgen -W "gensys klein perturbation" -- "$cur") ); return ;;
+        --solver|-s) COMPREPLY=( $(compgen -W "gensys klein perturbation" -- "$cur") ); return ;;
+        --constraint-solver) COMPREPLY=( $(compgen -W "nonlinearsolve optim nlopt madnlp ipopt path" -- "$cur") ); return ;;
         --prefilter) COMPREPLY=( $(compgen -W "none demean first-difference linear-detrend hp" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--data -d --params --priors --prior --sampler --n-smc --n-particles --draws --burnin --ess-target --solver --order --constraint-solver --prefilter --hp-lambda --measurement-error --output -o --format -f --observables --n-hd-draws --quantiles --horizons --plot-save --mode-only --delayed-acceptance --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--data -d --params --priors --prior --sampler --n-smc --n-particles --draws -n --burnin -B --ess-target --solver -s --order -O --constraint-solver --prefilter --hp-lambda --measurement-error --output -o --format -f --observables --n-hd-draws --conf-level -L --quantiles -Q --horizons -H --plot-save -G --mode-only --delayed-acceptance --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1874,11 +2083,11 @@ _frdc() {
       fi ;;
     "dsge bayes identification")
       case "$prev" in
-        --solver) COMPREPLY=( $(compgen -W "gensys klein perturbation" -- "$cur") ); return ;;
+        --solver|-s) COMPREPLY=( $(compgen -W "gensys klein perturbation" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--params --observables --solver --order --n-lags --output -o --format -f --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--params --observables --solver -s --order -O --n-lags --output -o --format -f --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1887,12 +2096,13 @@ _frdc() {
     "dsge bayes irf")
       case "$prev" in
         --sampler) COMPREPLY=( $(compgen -W "smc smc2 mh" -- "$cur") ); return ;;
-        --solver) COMPREPLY=( $(compgen -W "gensys klein perturbation" -- "$cur") ); return ;;
+        --solver|-s) COMPREPLY=( $(compgen -W "gensys klein perturbation" -- "$cur") ); return ;;
+        --constraint-solver) COMPREPLY=( $(compgen -W "nonlinearsolve optim nlopt madnlp ipopt path" -- "$cur") ); return ;;
         --prefilter) COMPREPLY=( $(compgen -W "none demean first-difference linear-detrend hp" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--data -d --params --priors --prior --sampler --n-smc --n-particles --draws --burnin --ess-target --observables --solver --order --constraint-solver --prefilter --hp-lambda --measurement-error --output -o --format -f --horizons --plot-save --delayed-acceptance --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--data -d --params --priors --prior --sampler --n-smc --n-particles --draws -n --burnin -B --ess-target --observables --solver -s --order -O --constraint-solver --prefilter --hp-lambda --measurement-error --output -o --format -f --horizons -H --conf-level -L --quantiles -Q --plot-save -G --delayed-acceptance --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1901,12 +2111,13 @@ _frdc() {
     "dsge bayes learning-rate")
       case "$prev" in
         --sampler) COMPREPLY=( $(compgen -W "smc smc2 mh" -- "$cur") ); return ;;
-        --solver) COMPREPLY=( $(compgen -W "gensys klein perturbation" -- "$cur") ); return ;;
+        --solver|-s) COMPREPLY=( $(compgen -W "gensys klein perturbation" -- "$cur") ); return ;;
+        --constraint-solver) COMPREPLY=( $(compgen -W "nonlinearsolve optim nlopt madnlp ipopt path" -- "$cur") ); return ;;
         --prefilter) COMPREPLY=( $(compgen -W "none demean first-difference linear-detrend hp" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--data -d --params --priors --prior --sampler --n-smc --n-particles --draws --burnin --ess-target --observables --solver --order --constraint-solver --prefilter --hp-lambda --measurement-error --output -o --format -f --fractions --threshold --refit-n-smc --delayed-acceptance --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--data -d --params --priors --prior --sampler --n-smc --n-particles --draws -n --burnin -B --ess-target --observables --solver -s --order -O --constraint-solver --prefilter --hp-lambda --measurement-error --output -o --format -f --fractions --threshold --refit-n-smc --delayed-acceptance --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1915,13 +2126,14 @@ _frdc() {
     "dsge bayes marginal-lik")
       case "$prev" in
         --sampler) COMPREPLY=( $(compgen -W "smc smc2 mh" -- "$cur") ); return ;;
-        --solver) COMPREPLY=( $(compgen -W "gensys klein perturbation" -- "$cur") ); return ;;
+        --solver|-s) COMPREPLY=( $(compgen -W "gensys klein perturbation" -- "$cur") ); return ;;
+        --constraint-solver) COMPREPLY=( $(compgen -W "nonlinearsolve optim nlopt madnlp ipopt path" -- "$cur") ); return ;;
         --prefilter) COMPREPLY=( $(compgen -W "none demean first-difference linear-detrend hp" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
         --proposal) COMPREPLY=( $(compgen -W "normal t" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--data -d --params --priors --prior --sampler --n-smc --n-particles --draws --burnin --ess-target --observables --solver --order --constraint-solver --prefilter --hp-lambda --measurement-error --output -o --format -f --proposal --df --delayed-acceptance --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--data -d --params --priors --prior --sampler --n-smc --n-particles --draws -n --burnin -B --ess-target --observables --solver -s --order -O --constraint-solver --prefilter --hp-lambda --measurement-error --output -o --format -f --proposal --df --delayed-acceptance --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1930,12 +2142,13 @@ _frdc() {
     "dsge bayes mcmc-diag")
       case "$prev" in
         --sampler) COMPREPLY=( $(compgen -W "smc smc2 mh" -- "$cur") ); return ;;
-        --solver) COMPREPLY=( $(compgen -W "gensys klein perturbation" -- "$cur") ); return ;;
+        --solver|-s) COMPREPLY=( $(compgen -W "gensys klein perturbation" -- "$cur") ); return ;;
+        --constraint-solver) COMPREPLY=( $(compgen -W "nonlinearsolve optim nlopt madnlp ipopt path" -- "$cur") ); return ;;
         --prefilter) COMPREPLY=( $(compgen -W "none demean first-difference linear-detrend hp" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--data -d --params --priors --prior --sampler --n-smc --n-particles --draws --burnin --ess-target --observables --solver --order --constraint-solver --prefilter --hp-lambda --measurement-error --output -o --format -f --delayed-acceptance --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--data -d --params --priors --prior --sampler --n-smc --n-particles --draws -n --burnin -B --ess-target --observables --solver -s --order -O --constraint-solver --prefilter --hp-lambda --measurement-error --output -o --format -f --delayed-acceptance --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1944,12 +2157,13 @@ _frdc() {
     "dsge bayes overlap")
       case "$prev" in
         --sampler) COMPREPLY=( $(compgen -W "smc smc2 mh" -- "$cur") ); return ;;
-        --solver) COMPREPLY=( $(compgen -W "gensys klein perturbation" -- "$cur") ); return ;;
+        --solver|-s) COMPREPLY=( $(compgen -W "gensys klein perturbation" -- "$cur") ); return ;;
+        --constraint-solver) COMPREPLY=( $(compgen -W "nonlinearsolve optim nlopt madnlp ipopt path" -- "$cur") ); return ;;
         --prefilter) COMPREPLY=( $(compgen -W "none demean first-difference linear-detrend hp" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--data -d --params --priors --prior --sampler --n-smc --n-particles --draws --burnin --ess-target --observables --solver --order --constraint-solver --prefilter --hp-lambda --measurement-error --output -o --format -f --threshold --n-grid --delayed-acceptance --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--data -d --params --priors --prior --sampler --n-smc --n-particles --draws -n --burnin -B --ess-target --observables --solver -s --order -O --constraint-solver --prefilter --hp-lambda --measurement-error --output -o --format -f --threshold --n-grid --delayed-acceptance --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1957,11 +2171,12 @@ _frdc() {
       fi ;;
     "dsge bayes posterior-mode")
       case "$prev" in
-        --solver) COMPREPLY=( $(compgen -W "gensys klein perturbation" -- "$cur") ); return ;;
+        --solver|-s) COMPREPLY=( $(compgen -W "gensys klein perturbation" -- "$cur") ); return ;;
+        --constraint-solver) COMPREPLY=( $(compgen -W "nonlinearsolve optim nlopt madnlp ipopt path" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--data -d --params --priors --prior --observables --solver --order --constraint-solver --output -o --format -f --max-iter --f-reltol --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--data -d --params --priors --prior --observables --solver -s --order -O --constraint-solver --measurement-error --output -o --format -f --max-iter -I --f-reltol --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1970,12 +2185,13 @@ _frdc() {
     "dsge bayes predictive")
       case "$prev" in
         --sampler) COMPREPLY=( $(compgen -W "smc smc2 mh" -- "$cur") ); return ;;
-        --solver) COMPREPLY=( $(compgen -W "gensys klein perturbation" -- "$cur") ); return ;;
+        --solver|-s) COMPREPLY=( $(compgen -W "gensys klein perturbation" -- "$cur") ); return ;;
+        --constraint-solver) COMPREPLY=( $(compgen -W "nonlinearsolve optim nlopt madnlp ipopt path" -- "$cur") ); return ;;
         --prefilter) COMPREPLY=( $(compgen -W "none demean first-difference linear-detrend hp" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--data -d --params --priors --prior --sampler --n-smc --n-particles --draws --burnin --ess-target --observables --solver --order --constraint-solver --prefilter --hp-lambda --measurement-error --output -o --format -f --n-sim --periods --plot-save --delayed-acceptance --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--data -d --params --priors --prior --sampler --n-smc --n-particles --draws -n --burnin -B --ess-target --observables --solver -s --order -O --constraint-solver --prefilter --hp-lambda --measurement-error --output -o --format -f --n-sim --periods -N --plot-save -G --delayed-acceptance --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1983,11 +2199,12 @@ _frdc() {
       fi ;;
     "dsge bayes prior-predictive")
       case "$prev" in
-        --solver) COMPREPLY=( $(compgen -W "gensys klein perturbation" -- "$cur") ); return ;;
+        --solver|-s) COMPREPLY=( $(compgen -W "gensys klein perturbation" -- "$cur") ); return ;;
+        --constraint-solver) COMPREPLY=( $(compgen -W "nonlinearsolve optim nlopt madnlp ipopt path" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--params --priors --prior --observables --solver --order --constraint-solver --draws --output -o --format -f --periods --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--params --priors --prior --observables --solver -s --order -O --constraint-solver --draws -n --output -o --format -f --periods -N --conf-level -L --quantiles -Q --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -1996,12 +2213,13 @@ _frdc() {
     "dsge bayes simulate")
       case "$prev" in
         --sampler) COMPREPLY=( $(compgen -W "smc smc2 mh" -- "$cur") ); return ;;
-        --solver) COMPREPLY=( $(compgen -W "gensys klein perturbation" -- "$cur") ); return ;;
+        --solver|-s) COMPREPLY=( $(compgen -W "gensys klein perturbation" -- "$cur") ); return ;;
+        --constraint-solver) COMPREPLY=( $(compgen -W "nonlinearsolve optim nlopt madnlp ipopt path" -- "$cur") ); return ;;
         --prefilter) COMPREPLY=( $(compgen -W "none demean first-difference linear-detrend hp" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--data -d --params --priors --prior --sampler --n-smc --n-particles --draws --burnin --ess-target --observables --solver --order --constraint-solver --prefilter --hp-lambda --measurement-error --output -o --format -f --periods --plot-save --delayed-acceptance --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--data -d --params --priors --prior --sampler --n-smc --n-particles --draws -n --burnin -B --ess-target --observables --solver -s --order -O --constraint-solver --prefilter --hp-lambda --measurement-error --output -o --format -f --periods -N --conf-level -L --quantiles -Q --plot-save -G --delayed-acceptance --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2010,12 +2228,13 @@ _frdc() {
     "dsge bayes summary")
       case "$prev" in
         --sampler) COMPREPLY=( $(compgen -W "smc smc2 mh" -- "$cur") ); return ;;
-        --solver) COMPREPLY=( $(compgen -W "gensys klein perturbation" -- "$cur") ); return ;;
+        --solver|-s) COMPREPLY=( $(compgen -W "gensys klein perturbation" -- "$cur") ); return ;;
+        --constraint-solver) COMPREPLY=( $(compgen -W "nonlinearsolve optim nlopt madnlp ipopt path" -- "$cur") ); return ;;
         --prefilter) COMPREPLY=( $(compgen -W "none demean first-difference linear-detrend hp" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--data -d --params --priors --prior --sampler --n-smc --n-particles --draws --burnin --ess-target --observables --solver --order --constraint-solver --prefilter --hp-lambda --measurement-error --output -o --format -f --delayed-acceptance --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--data -d --params --priors --prior --sampler --n-smc --n-particles --draws -n --burnin -B --ess-target --observables --solver -s --order -O --constraint-solver --prefilter --hp-lambda --measurement-error --output -o --format -f --conf-level -L --quantiles -Q --delayed-acceptance --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2026,7 +2245,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--alpha --rho --sigma --delta --z --horizons --shock-size --persist --dt --grid-size --output -o --format -f --plot-save --result --save-result --two-asset --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--alpha --rho --sigma --delta --z --horizons -H --shock-size --persist --dt --grid-size --output -o --format -f --plot-save -G --result -R --save-result -W --two-asset --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2037,7 +2256,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--alpha --rho --sigma --delta --z --horizons --shock-size --persist --dt --grid-size --output -o --format -f --plot-save --result --save-result --two-asset --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--alpha --rho --sigma --delta --z --horizons -H --shock-size --persist --dt --grid-size --output -o --format -f --plot-save -G --result -R --save-result -W --two-asset --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2048,7 +2267,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--alpha --rho --sigma --delta --z --a-min --a-max --grid-size --max-iter --tol --output -o --format -f --save-model --two-asset --ge --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--alpha --rho --sigma --delta --z --a-min --a-max --grid-size --max-iter -I --tol -T --output -o --format -f --save-model -S --two-asset --ge --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2059,7 +2278,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--alpha --rho --sigma --delta --z --shock-size --periods --dt --a-max --grid-size --max-iter --tol --output -o --format -f --z-path --plot-save --result --save-result --plot --two-asset --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--alpha --rho --sigma --delta --z --shock-size --periods -N --dt --a-max --grid-size --max-iter -I --tol -T --output -o --format -f --z-path --plot-save -G --result -R --save-result -W --plot -g --two-asset --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2070,7 +2289,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--n-periods --beta --wage --n-a --a-max --alpha --delta --z --horizons --shock-size --persist --output -o --format -f --plot-save --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--n-periods --beta --wage --n-a --a-max --alpha --delta --z --horizons -H --shock-size --persist --output -o --format -f --plot-save -G --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2081,7 +2300,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--n-periods --beta --wage --n-a --a-max --alpha --delta --z --horizons --shock-size --persist --output -o --format -f --plot-save --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--n-periods --beta --wage --n-a --a-max --alpha --delta --z --horizons -H --shock-size --persist --output -o --format -f --plot-save -G --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2092,7 +2311,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--n-periods --beta --wage --n-a --a-max --alpha --delta --z --periods --shock-size --persist --output -o --format -f --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--n-periods --beta --wage --n-a --a-max --alpha --delta --z --periods -N --shock-size --persist --output -o --format -f --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2104,7 +2323,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--n-periods --beta --r --wage --disutility --sigma --n-shocks --taste-shock-scale --a-max --n-a --pension --credit-limit --curvature --max-iter --tol --period --income --view --output -o --format -f --plot-save --save-model --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--n-periods --beta --r --wage --disutility --sigma --n-shocks --taste-shock-scale --a-max --n-a --pension --credit-limit --curvature --max-iter -I --tol -T --period --income --view --output -o --format -f --plot-save -G --save-model -S --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2116,7 +2335,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--n-periods --beta --r --wage --disutility --sigma --n-shocks --taste-shock-scale --a-max --n-a --pension --credit-limit --curvature --alpha --delta --z --l --r-lo --r-hi --labor --work-option --n-sim --tol --max-iter --output -o --format -f --save-model --reprice-wage --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--n-periods --beta --r --wage --disutility --sigma --n-shocks --taste-shock-scale --a-max --n-a --pension --credit-limit --curvature --alpha --delta --z --l --r-lo --r-hi --labor --work-option --n-sim --tol -T --max-iter -I --output -o --format -f --save-model -S --reprice-wage --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2127,7 +2346,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--z-path --n-periods --beta --wage --n-a --a-max --alpha --delta --z --output -o --format -f --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--z-path --n-periods --beta --wage --n-a --a-max --alpha --delta --z --output -o --format -f --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2138,7 +2357,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--config --rank-rtol --output -o --format -f --plot-save --result --save-result --threaded --verbose-solver --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--config -C --rank-rtol --output -o --format -f --plot-save -G --result -R --save-result -W --threaded --verbose-solver --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2146,11 +2365,12 @@ _frdc() {
       fi ;;
     "dsge estimate")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "irf_matching euler_gmm smm analytical_gmm" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "irf_matching euler_gmm smm analytical_gmm" -- "$cur") ); return ;;
+        --weighting|-w) COMPREPLY=( $(compgen -W "identity optimal diagonal two_step efficient cee" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--data -d --method --params --solve-method --solve-order --weighting --irf-horizon --var-lags --sim-ratio --bounds --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--data -d --method -m --params --solve-method --solve-order --weighting -w --irf-horizon --var-lags --sim-ratio --bounds --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2158,12 +2378,14 @@ _frdc() {
       fi ;;
     "dsge fevd")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "gensys klein perturbation projection pfi vfi blanchard-kahn" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "gensys klein perturbation projection pfi vfi blanchard-kahn" -- "$cur") ); return ;;
+        --grid) COMPREPLY=( $(compgen -W "auto chebyshev smolyak tensor" -- "$cur") ); return ;;
+        --next-state) COMPREPLY=( $(compgen -W "auto linear residual policy nonlinear" -- "$cur") ); return ;;
         --optimizer) COMPREPLY=( $(compgen -W "auto grid1d fminbox-nm fminbox-lbfgs" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--method --order --degree --grid --next-state --howard-steps --n-grid --n-choice --optimizer --smolyak-mu --n-quad --scale --tol --max-iter --damping --anderson-m --horizons --output -o --format -f --plot-save --result --save-result --unconditional --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--method -m --order -O --degree --grid --next-state --howard-steps --n-grid --n-choice --optimizer --smolyak-mu --n-quad --scale --tol -T --max-iter -I --damping --anderson-m --horizons -H --output -o --format -f --plot-save -G --result -R --save-result -W --unconditional --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2175,7 +2397,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--horizons --shock-size --persist --prices --n-k --n-eps --z --output -o --format -f --plot-save --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--horizons -H --shock-size --persist --prices --n-k --n-eps --z --output -o --format -f --plot-save -G --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2186,7 +2408,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--n-k --n-eps --alpha --nu --delta --beta --gamma --xi-bar --b --phi --rho-z --sigma-z --rho-e --sigma-e --z --tol --max-iter --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--n-k --n-eps --alpha --nu --delta --beta --gamma --xi-bar --b --phi --rho-z --sigma-z --rho-e --sigma-e --z --tol -T --max-iter -I --dampen --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2198,7 +2420,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--z-path --prices --n-k --n-eps --z --output -o --format -f --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--z-path --prices --n-k --n-eps --z --output -o --format -f --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2206,12 +2428,15 @@ _frdc() {
       fi ;;
     "dsge hd")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "gensys klein perturbation projection pfi vfi blanchard-kahn" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "gensys klein perturbation projection pfi vfi blanchard-kahn" -- "$cur") ); return ;;
+        --grid) COMPREPLY=( $(compgen -W "auto chebyshev smolyak tensor" -- "$cur") ); return ;;
+        --next-state) COMPREPLY=( $(compgen -W "auto linear residual policy nonlinear" -- "$cur") ); return ;;
         --optimizer) COMPREPLY=( $(compgen -W "auto grid1d fminbox-nm fminbox-lbfgs" -- "$cur") ); return ;;
+        --states) COMPREPLY=( $(compgen -W "observables all" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--method --order --grid --next-state --howard-steps --n-grid --n-choice --optimizer --smolyak-mu --n-quad --scale --tol --max-iter --damping --anderson-m --data -d --observables --states --measurement-error --output -o --format -f --plot-save --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--method -m --order -O --grid --next-state --howard-steps --n-grid --n-choice --optimizer --smolyak-mu --n-quad --scale --tol -T --max-iter -I --damping --anderson-m --data -d --observables --states --measurement-error --output -o --format -f --plot-save -G --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2219,12 +2444,14 @@ _frdc() {
       fi ;;
     "dsge irf")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "gensys klein perturbation projection pfi vfi blanchard-kahn" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "gensys klein perturbation projection pfi vfi blanchard-kahn" -- "$cur") ); return ;;
+        --grid) COMPREPLY=( $(compgen -W "auto chebyshev smolyak tensor" -- "$cur") ); return ;;
+        --next-state) COMPREPLY=( $(compgen -W "auto linear residual policy nonlinear" -- "$cur") ); return ;;
         --optimizer) COMPREPLY=( $(compgen -W "auto grid1d fminbox-nm fminbox-lbfgs" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--method --order --degree --grid --next-state --howard-steps --n-grid --n-choice --optimizer --smolyak-mu --n-quad --scale --tol --max-iter --damping --anderson-m --horizons --shock-size --n-sim --constraints --constraint --output -o --format -f --plot-save --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--method -m --order -O --degree --grid --next-state --howard-steps --n-grid --n-choice --optimizer --smolyak-mu --n-quad --scale --tol -T --max-iter -I --damping --anderson-m --horizons -H --shock-size --n-sim --constraints --constraint --output -o --format -f --plot-save -G --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2235,7 +2462,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--j --j-retire --n-a --income-states --horizons --shock-size --persist --output -o --format -f --plot-save --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--j --j-retire --n-a --income-states --horizons -H --shock-size --persist --output -o --format -f --plot-save -G --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2246,7 +2473,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--j --j-retire --n-a --income-states --horizons --shock-size --persist --output -o --format -f --plot-save --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--j --j-retire --n-a --income-states --horizons -H --shock-size --persist --output -o --format -f --plot-save -G --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2257,7 +2484,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--j --j-retire --n-a --income-states --periods --shock-size --persist --output -o --format -f --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--j --j-retire --n-a --income-states --periods -N --shock-size --persist --output -o --format -f --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2268,7 +2495,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--j --j-retire --survival --a-max --n-a --beta --sigma --alpha --delta --z --n-pop --replacement --credit-limit --income-rho --income-sigma --income-states --config --r-lo --r-hi --tol --max-iter --bequest-iter --output -o --format -f --plot-save --save-model --no-annuities --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--j --j-retire --survival --a-max --n-a --beta --sigma --alpha --delta --z --n-pop --replacement --credit-limit --income-rho --income-sigma --income-states --config -C --r-lo --r-hi --tol -T --max-iter -I --bequest-iter --output -o --format -f --plot-save -G --save-model -S --no-annuities --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2279,7 +2506,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--j --j-retire --survival --a-max --n-a --beta --sigma --alpha --delta --z --income-rho --income-sigma --income-states --config --k0 --z-path --horizons --tol --max-iter --relax --output -o --format -f --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--j --j-retire --survival --a-max --n-a --beta --sigma --alpha --delta --z --income-rho --income-sigma --income-states --config -C --k0 --z-path --horizons -H --tol -T --max-iter -I --relax --output -o --format -f --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2290,7 +2517,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--method --order --lags --output -o --format -f --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--method -m --order -O --lags -p --output -o --format -f --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2301,7 +2528,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--alpha --beta --delta --gamma --z --debt --rho-z --sigma-z --horizons --kappa --phi-pi --phi-y --rho-i --sigma-i --omega --output -o --format -f --plot-save --result --save-result --nk --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--alpha --beta --delta --gamma --z --debt --rho-z --sigma-z --horizons -H --kappa --phi-pi --phi-y --rho-i --sigma-i --omega --output -o --format -f --plot-save -G --result -R --save-result -W --nk --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2312,7 +2539,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--alpha --beta --delta --gamma --z --debt --rho-z --sigma-z --horizons --shock-size --kappa --phi-pi --phi-y --rho-i --sigma-i --omega --output -o --format -f --plot-save --result --save-result --nk --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--alpha --beta --delta --gamma --z --debt --rho-z --sigma-z --horizons -H --shock-size --kappa --phi-pi --phi-y --rho-i --sigma-i --omega --output -o --format -f --plot-save -G --result -R --save-result -W --nk --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2323,7 +2550,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--alpha --beta --delta --gamma --z --debt --k0 --horizons --output -o --format -f --plot-save --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--alpha --beta --delta --gamma --z --debt --k0 --horizons -H --output -o --format -f --plot-save -G --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2334,7 +2561,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--alpha --beta --delta --gamma --z --debt --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--alpha --beta --delta --gamma --z --debt --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2342,11 +2569,12 @@ _frdc() {
       fi ;;
     "dsge perfect-foresight")
       case "$prev" in
+        --constraint-solver) COMPREPLY=( $(compgen -W "nonlinearsolve optim nlopt madnlp ipopt path" -- "$cur") ); return ;;
         --sparsity) COMPREPLY=( $(compgen -W "auto dense" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--shocks --constraints --constraint --constraint-solver --periods --sparsity --max-iter --tol --output -o --format -f --plot-save --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--shocks --constraints --constraint --constraint-solver --periods -N --sparsity --max-iter -I --tol -T --output -o --format -f --plot-save -G --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2354,12 +2582,14 @@ _frdc() {
       fi ;;
     "dsge simulate")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "gensys klein perturbation projection pfi vfi blanchard-kahn" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "gensys klein perturbation projection pfi vfi blanchard-kahn" -- "$cur") ); return ;;
+        --grid) COMPREPLY=( $(compgen -W "auto chebyshev smolyak tensor" -- "$cur") ); return ;;
+        --next-state) COMPREPLY=( $(compgen -W "auto linear residual policy nonlinear" -- "$cur") ); return ;;
         --optimizer) COMPREPLY=( $(compgen -W "auto grid1d fminbox-nm fminbox-lbfgs" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--method --order --degree --grid --next-state --howard-steps --n-grid --n-choice --optimizer --smolyak-mu --n-quad --scale --tol --max-iter --damping --anderson-m --periods --burn --seed --output -o --format -f --plot-save --antithetic --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--method -m --order -O --degree --grid --next-state --howard-steps --n-grid --n-choice --optimizer --smolyak-mu --n-quad --scale --tol -T --max-iter -I --damping --anderson-m --periods -N --burn -B --seed --output -o --format -f --plot-save -G --antithetic --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2367,12 +2597,15 @@ _frdc() {
       fi ;;
     "dsge solve")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "gensys klein perturbation projection pfi vfi blanchard-kahn" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "gensys klein perturbation projection pfi vfi blanchard-kahn" -- "$cur") ); return ;;
+        --grid) COMPREPLY=( $(compgen -W "auto chebyshev smolyak tensor" -- "$cur") ); return ;;
+        --next-state) COMPREPLY=( $(compgen -W "auto linear residual policy nonlinear" -- "$cur") ); return ;;
         --optimizer) COMPREPLY=( $(compgen -W "auto grid1d fminbox-nm fminbox-lbfgs" -- "$cur") ); return ;;
+        --constraint-solver) COMPREPLY=( $(compgen -W "nonlinearsolve optim nlopt madnlp ipopt path" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--method --order --degree --grid --next-state --howard-steps --n-grid --n-choice --optimizer --smolyak-mu --n-quad --scale --tol --max-iter --damping --anderson-m --evaluate-at --constraints --constraint --constraint-solver --periods --output -o --format -f --plot-save --save-model --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--method -m --order -O --degree --grid --next-state --howard-steps --n-grid --n-choice --optimizer --smolyak-mu --n-quad --scale --tol -T --max-iter -I --damping --anderson-m --evaluate-at --constraints --constraint --constraint-solver --periods -N --output -o --format -f --plot-save -G --save-model -S --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2380,6 +2613,7 @@ _frdc() {
       fi ;;
     "dsge steady-state")
       case "$prev" in
+        --constraint-solver) COMPREPLY=( $(compgen -W "nonlinearsolve optim nlopt madnlp ipopt path" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
@@ -2391,12 +2625,12 @@ _frdc() {
       fi ;;
     "dsge var estimate")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "rwmh smc" -- "$cur") ); return ;;
-        --solver) COMPREPLY=( $(compgen -W "gensys klein perturbation blanchard-kahn" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "rwmh smc" -- "$cur") ); return ;;
+        --solver|-s) COMPREPLY=( $(compgen -W "gensys klein perturbation blanchard-kahn" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--model --data -d --lags -p --lambda --draws --priors --prior --method --burnin --n-particles --step-scale --observables --measurement-jitter --solver --order --save-model --format -f --output -o --plot-save --no-intercept --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--model -M --data -d --lags -p --lambda -l --draws -n --priors --prior --method -m --burnin -B --n-particles --step-scale --observables --measurement-jitter --solver -s --order -O --conf-level -L --save-model -S --format -f --output -o --plot-save -G --no-intercept --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2404,14 +2638,14 @@ _frdc() {
       fi ;;
     "dsge var fevd")
       case "$prev" in
-        --id) COMPREPLY=( $(compgen -W "dsge-qr cholesky long-run" -- "$cur") ); return ;;
+        --id|-i) COMPREPLY=( $(compgen -W "dsge-qr cholesky long-run" -- "$cur") ); return ;;
         --point-estimate) COMPREPLY=( $(compgen -W "mean median" -- "$cur") ); return ;;
-        --method) COMPREPLY=( $(compgen -W "rwmh smc" -- "$cur") ); return ;;
-        --solver) COMPREPLY=( $(compgen -W "gensys klein perturbation blanchard-kahn" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "rwmh smc" -- "$cur") ); return ;;
+        --solver|-s) COMPREPLY=( $(compgen -W "gensys klein perturbation blanchard-kahn" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--model --id --horizons --quantiles --point-estimate --data -d --lags -p --lambda --draws --priors --prior --method --burnin --n-particles --step-scale --observables --measurement-jitter --solver --order --result --save-result --format -f --output -o --plot-save --no-intercept --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--model -M --id -i --horizons -H --conf-level -L --quantiles -Q --point-estimate --data -d --lags -p --lambda -l --draws -n --priors --prior --method -m --burnin -B --n-particles --step-scale --observables --measurement-jitter --solver -s --order -O --result -R --save-result -W --format -f --output -o --plot-save -G --no-intercept --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2420,12 +2654,12 @@ _frdc() {
     "dsge var forecast")
       case "$prev" in
         --point-estimate) COMPREPLY=( $(compgen -W "mean median" -- "$cur") ); return ;;
-        --method) COMPREPLY=( $(compgen -W "rwmh smc" -- "$cur") ); return ;;
-        --solver) COMPREPLY=( $(compgen -W "gensys klein perturbation blanchard-kahn" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "rwmh smc" -- "$cur") ); return ;;
+        --solver|-s) COMPREPLY=( $(compgen -W "gensys klein perturbation blanchard-kahn" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--model --horizons --quantiles --conf-level --point-estimate --data -d --lags -p --lambda --draws --priors --prior --method --burnin --n-particles --step-scale --observables --measurement-jitter --solver --order --result --save-result --format -f --output -o --plot-save --no-intercept --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--model -M --horizons -H --conf-level -L --quantiles -Q --point-estimate --data -d --lags -p --lambda -l --draws -n --priors --prior --method -m --burnin -B --n-particles --step-scale --observables --measurement-jitter --solver -s --order -O --result -R --save-result -W --format -f --output -o --plot-save -G --no-intercept --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2433,14 +2667,14 @@ _frdc() {
       fi ;;
     "dsge var hd")
       case "$prev" in
-        --id) COMPREPLY=( $(compgen -W "dsge-qr cholesky long-run" -- "$cur") ); return ;;
+        --id|-i) COMPREPLY=( $(compgen -W "dsge-qr cholesky long-run" -- "$cur") ); return ;;
         --point-estimate) COMPREPLY=( $(compgen -W "mean median" -- "$cur") ); return ;;
-        --method) COMPREPLY=( $(compgen -W "rwmh smc" -- "$cur") ); return ;;
-        --solver) COMPREPLY=( $(compgen -W "gensys klein perturbation blanchard-kahn" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "rwmh smc" -- "$cur") ); return ;;
+        --solver|-s) COMPREPLY=( $(compgen -W "gensys klein perturbation blanchard-kahn" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--model --id --horizons --quantiles --point-estimate --data -d --lags -p --lambda --draws --priors --prior --method --burnin --n-particles --step-scale --observables --measurement-jitter --solver --order --result --save-result --format -f --output -o --plot-save --no-intercept --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--model -M --id -i --horizons -H --conf-level -L --quantiles -Q --point-estimate --data -d --lags -p --lambda -l --draws -n --priors --prior --method -m --burnin -B --n-particles --step-scale --observables --measurement-jitter --solver -s --order -O --result -R --save-result -W --format -f --output -o --plot-save -G --no-intercept --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2448,14 +2682,14 @@ _frdc() {
       fi ;;
     "dsge var irf")
       case "$prev" in
-        --id) COMPREPLY=( $(compgen -W "dsge-qr cholesky long-run" -- "$cur") ); return ;;
+        --id|-i) COMPREPLY=( $(compgen -W "dsge-qr cholesky long-run" -- "$cur") ); return ;;
         --point-estimate) COMPREPLY=( $(compgen -W "mean median" -- "$cur") ); return ;;
-        --method) COMPREPLY=( $(compgen -W "rwmh smc" -- "$cur") ); return ;;
-        --solver) COMPREPLY=( $(compgen -W "gensys klein perturbation blanchard-kahn" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "rwmh smc" -- "$cur") ); return ;;
+        --solver|-s) COMPREPLY=( $(compgen -W "gensys klein perturbation blanchard-kahn" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--model --id --horizons --shock --quantiles --point-estimate --data -d --lags -p --lambda --draws --priors --prior --method --burnin --n-particles --step-scale --observables --measurement-jitter --solver --order --result --save-result --format -f --output -o --plot-save --no-intercept --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--model -M --id -i --horizons -H --shock -K --conf-level -L --quantiles -Q --point-estimate --data -d --lags -p --lambda -l --draws -n --priors --prior --method -m --burnin -B --n-particles --step-scale --observables --measurement-jitter --solver -s --order -O --result -R --save-result -W --format -f --output -o --plot-save -G --no-intercept --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2463,11 +2697,11 @@ _frdc() {
       fi ;;
     "dsge var lambda")
       case "$prev" in
-        --solver) COMPREPLY=( $(compgen -W "gensys klein perturbation blanchard-kahn" -- "$cur") ); return ;;
+        --solver|-s) COMPREPLY=( $(compgen -W "gensys klein perturbation blanchard-kahn" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--model --data -d --lags -p --lambda --lambda-grid --observables --measurement-jitter --solver --order --result --save-result --format -f --output -o --plot-save --no-refine --no-intercept --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--model -M --data -d --lags -p --lambda -l --lambda-grid --observables --measurement-jitter --solver -s --order -O --result -R --save-result -W --format -f --output -o --plot-save -G --no-refine --no-intercept --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2475,11 +2709,11 @@ _frdc() {
       fi ;;
     "dsge var prior")
       case "$prev" in
-        --solver) COMPREPLY=( $(compgen -W "gensys klein perturbation blanchard-kahn" -- "$cur") ); return ;;
+        --solver|-s) COMPREPLY=( $(compgen -W "gensys klein perturbation blanchard-kahn" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--model --lags -p --lambda --t-obs --observables --measurement-jitter --solver --order --save-model --format -f --output -o --plot-save --no-intercept --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--model -M --lags -p --lambda -l --t-obs --observables --measurement-jitter --solver -s --order -O --save-model -S --format -f --output -o --plot-save -G --no-intercept --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2487,11 +2721,11 @@ _frdc() {
       fi ;;
     "estimate choice logit")
       case "$prev" in
-        --cov-type) COMPREPLY=( $(compgen -W "ols hc0 hc1 hc2 hc3 cluster" -- "$cur") ); return ;;
+        --cov-type|-v) COMPREPLY=( $(compgen -W "ols hc0 hc1 hc2 hc3 cluster" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --cov-type --clusters --output -o --format -f --max-iter --tol --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --cov-type -v --clusters -U --output -o --format -f --max-iter -I --tol -T --conf-level -L --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2499,10 +2733,11 @@ _frdc() {
       fi ;;
     "estimate choice mlogit")
       case "$prev" in
+        --cov-type|-v) COMPREPLY=( $(compgen -W "ols hc0 hc1 cluster" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --cov-type --clusters --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --cov-type -v --clusters -U --conf-level -L --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2513,7 +2748,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --offset --exposure --max-iter --tol --conf-level --output -o --format -f --save-model --irr --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --offset --exposure --max-iter -I --tol -T --conf-level -L --output -o --format -f --save-model -S --irr --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2521,11 +2756,11 @@ _frdc() {
       fi ;;
     "estimate choice ologit")
       case "$prev" in
-        --cov-type) COMPREPLY=( $(compgen -W "ols hc0 hc1 cluster" -- "$cur") ); return ;;
+        --cov-type|-v) COMPREPLY=( $(compgen -W "ols hc0 hc1 cluster" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --cov-type --clusters --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --cov-type -v --clusters -U --output -o --format -f --conf-level -L --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2533,11 +2768,11 @@ _frdc() {
       fi ;;
     "estimate choice oprobit")
       case "$prev" in
-        --cov-type) COMPREPLY=( $(compgen -W "ols hc0 hc1 cluster" -- "$cur") ); return ;;
+        --cov-type|-v) COMPREPLY=( $(compgen -W "ols hc0 hc1 cluster" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --cov-type --clusters --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --cov-type -v --clusters -U --output -o --format -f --conf-level -L --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2545,11 +2780,11 @@ _frdc() {
       fi ;;
     "estimate choice poisson")
       case "$prev" in
-        --cov-type) COMPREPLY=( $(compgen -W "robust mle hc0 hc1 hc2 hc3 cluster" -- "$cur") ); return ;;
+        --cov-type|-v) COMPREPLY=( $(compgen -W "robust mle hc0 hc1 hc2 hc3 cluster" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --offset --exposure --cov-type --clusters --max-iter --tol --conf-level --output -o --format -f --save-model --irr --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --offset --exposure --cov-type -v --clusters -U --max-iter -I --tol -T --conf-level -L --output -o --format -f --save-model -S --irr --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2557,11 +2792,11 @@ _frdc() {
       fi ;;
     "estimate choice probit")
       case "$prev" in
-        --cov-type) COMPREPLY=( $(compgen -W "ols hc0 hc1 hc2 hc3 cluster" -- "$cur") ); return ;;
+        --cov-type|-v) COMPREPLY=( $(compgen -W "ols hc0 hc1 hc2 hc3 cluster" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --cov-type --clusters --output -o --format -f --max-iter --tol --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --cov-type -v --clusters -U --output -o --format -f --max-iter -I --tol -T --conf-level -L --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2570,11 +2805,11 @@ _frdc() {
     "estimate choice ri-logit")
       case "$prev" in
         --normalize) COMPREPLY=( $(compgen -W "auto omega-one none first-coef" -- "$cur") ); return ;;
-        --cov-type) COMPREPLY=( $(compgen -W "hessian sandwich" -- "$cur") ); return ;;
+        --cov-type|-v) COMPREPLY=( $(compgen -W "hessian sandwich" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--env-col --choice-col --alt-col --state-col --obs-col --attr-cols --config --priors --normalize --cov-type --tol --max-iter --format -f --output -o --plot-save --save-model --config-json --set --unobserved-state --plot --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--env-col --choice-col --alt-col --state-col --obs-col --attr-cols --config -C --priors --normalize --cov-type -v --tol -T --max-iter -I --conf-level -L --format -f --output -o --plot-save -G --save-model -S --config-json --set --unobserved-state --plot -g --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2582,11 +2817,11 @@ _frdc() {
       fi ;;
     "estimate factor dynamic")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "twostep em" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "twostep em" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--nfactors --factor-lags --method --output -o --format -f --plot-save --save-model --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--nfactors --factor-lags --method -m --output -o --format -f --plot-save -G --save-model -S --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2594,11 +2829,12 @@ _frdc() {
       fi ;;
     "estimate factor fastica")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "fastica jade sobi dcov hsic cvm" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "fastica jade sobi dcov hsic cvm" -- "$cur") ); return ;;
+        --contrast) COMPREPLY=( $(compgen -W "logcosh exp kurtosis" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --method --contrast --n-starts --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --method -m --contrast --n-starts --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2606,12 +2842,12 @@ _frdc() {
       fi ;;
     "estimate factor fhlz")
       case "$prev" in
-        --kernel) COMPREPLY=( $(compgen -W "bartlett parzen tukey" -- "$cur") ); return ;;
+        --kernel|-k) COMPREPLY=( $(compgen -W "bartlett parzen tukey" -- "$cur") ); return ;;
         --lag-criterion) COMPREPLY=( $(compgen -W "bic aic" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dynamic-rank --bandwidth --kernel --p-max --lag-criterion --n-perm --irf-horizon --em-max-iter --em-tol --seed --format -f --output -o --plot-save --save-model --allow-missing --no-standardize --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dynamic-rank --bandwidth -b --kernel -k --p-max --lag-criterion --n-perm --irf-horizon --em-max-iter --em-tol --seed --format -f --output -o --plot-save -G --save-model -S --allow-missing --no-standardize --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2620,11 +2856,11 @@ _frdc() {
     "estimate factor gdfm")
       case "$prev" in
         --spectral) COMPREPLY=( $(compgen -W "lag-window smoothed-periodogram" -- "$cur") ); return ;;
-        --kernel) COMPREPLY=( $(compgen -W "bartlett parzen tukey" -- "$cur") ); return ;;
+        --kernel|-k) COMPREPLY=( $(compgen -W "bartlett parzen tukey" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--nfactors --dynamic-rank --spectral --bandwidth --kernel --em-max-iter --em-tol --n-lags-proj --output -o --format -f --plot-save --save-model --allow-missing --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--nfactors --dynamic-rank --spectral --bandwidth -b --kernel -k --em-max-iter --em-tol --n-lags-proj --output -o --format -f --plot-save -G --save-model -S --allow-missing --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2632,14 +2868,14 @@ _frdc() {
       fi ;;
     "estimate factor gdfm-i1")
       case "$prev" in
-        --id) COMPREPLY=( $(compgen -W "permanent-transitory cholesky longrun sign proxy" -- "$cur") ); return ;;
+        --id|-i) COMPREPLY=( $(compgen -W "permanent-transitory cholesky longrun sign proxy" -- "$cur") ); return ;;
         --det-trend) COMPREPLY=( $(compgen -W "none constant linear trend" -- "$cur") ); return ;;
-        --kernel) COMPREPLY=( $(compgen -W "bartlett parzen tukey" -- "$cur") ); return ;;
+        --kernel|-k) COMPREPLY=( $(compgen -W "bartlett parzen tukey" -- "$cur") ); return ;;
         --lag-criterion) COMPREPLY=( $(compgen -W "bic aic" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dynamic-rank --n-permanent --id --det-trend --p-max --n-perm --bandwidth --kernel --lag-criterion --irf-horizon --config --instrument --seed --format -f --output -o --plot-save --save-model --config-json --set --no-standardize --plot --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dynamic-rank --n-permanent --id -i --det-trend --p-max --n-perm --bandwidth -b --kernel -k --lag-criterion --irf-horizon --config -C --instrument --seed --format -f --output -o --plot-save -G --save-model -S --config-json --set --no-standardize --plot -g --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2648,14 +2884,14 @@ _frdc() {
     "estimate factor qfm")
       case "$prev" in
         --criterion) COMPREPLY=( $(compgen -W "rank ic1 ic2 ic3" -- "$cur") ); return ;;
-        --method) COMPREPLY=( $(compgen -W "iqr smoothed" -- "$cur") ); return ;;
-        --kernel) COMPREPLY=( $(compgen -W "gaussian epanechnikov logistic" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "iqr smoothed" -- "$cur") ); return ;;
+        --kernel|-k) COMPREPLY=( $(compgen -W "gaussian epanechnikov logistic" -- "$cur") ); return ;;
         --se) COMPREPLY=( $(compgen -W "none asymptotic bootstrap" -- "$cur") ); return ;;
         --init) COMPREPLY=( $(compgen -W "pca quantile-svd random" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--tau --taus --factors --r-max --criterion --threshold-scale --method --bandwidth --kernel --se --hac-bandwidth --n-boot --init --n-starts --max-iter --tol --format -f --output -o --plot-save --save-model --standardize --no-robust-scale --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--tau --taus --factors -q --r-max --criterion --threshold-scale --method -m --bandwidth -b --kernel -k --se --hac-bandwidth --n-boot --init --n-starts --max-iter -I --tol -T --format -f --output -o --plot-save -G --save-model -S --standardize --no-robust-scale --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2663,14 +2899,15 @@ _frdc() {
       fi ;;
     "estimate factor sdfm")
       case "$prev" in
+        --id|-i) COMPREPLY=( $(compgen -W "cholesky sign longrun max-share proxy lewis-tvv sv-em gmm-moments" -- "$cur") ); return ;;
         --q-method) COMPREPLY=( $(compgen -W "hallin-liska bai-ng amengual-watson" -- "$cur") ); return ;;
-        --method) COMPREPLY=( $(compgen -W "fglr fhlz gdfm-var" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "fglr fhlz gdfm-var" -- "$cur") ); return ;;
         --spectral) COMPREPLY=( $(compgen -W "lag-window smoothed-periodogram" -- "$cur") ); return ;;
-        --kernel) COMPREPLY=( $(compgen -W "bartlett parzen tukey" -- "$cur") ); return ;;
+        --kernel|-k) COMPREPLY=( $(compgen -W "bartlett parzen tukey" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--factors -q --id --q-method --method --spectral --instrument --var-lags --n-perm --p-max --target --horizons --config --bandwidth --kernel --output -o --format -f --plot-save --save-model --config-json --set --plot --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--factors -q --id -i --q-method --method -m --spectral --instrument --var-lags --n-perm --p-max --target --horizons -H --config -C --bandwidth -b --kernel -k --output -o --format -f --plot-save -G --save-model -S --config-json --set --plot -g --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2682,7 +2919,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--nfactors --criterion --output -o --format -f --plot-save --save-model --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--nfactors --criterion --output -o --format -f --plot-save -G --save-model -S --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2695,7 +2932,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dynamic-rank --time-bandwidth --lag-bandwidth --time-kernel --lag-kernel --n-grid --format -f --output -o --plot-save --save-model --no-standardize --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dynamic-rank --time-bandwidth --lag-bandwidth --time-kernel --lag-kernel --n-grid --format -f --output -o --plot-save -G --save-model -S --no-standardize --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2705,12 +2942,12 @@ _frdc() {
       case "$prev" in
         --prior) COMPREPLY=( $(compgen -W "minnesota normal" -- "$cur") ); return ;;
         --sampler) COMPREPLY=( $(compgen -W "direct gibbs" -- "$cur") ); return ;;
-        --method) COMPREPLY=( $(compgen -W "mean median" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "mean median" -- "$cur") ); return ;;
         --hyperopt) COMPREPLY=( $(compgen -W "glp grid" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --prior --draws -n --sampler --method --hyperopt --config --output -o --format -f --save-model --config-json --set --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --prior --draws -n --sampler --method -m --hyperopt --config -C --conf-level -L --output -o --format -f --save-model -S --config-json --set --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2718,11 +2955,11 @@ _frdc() {
       fi ;;
     "estimate multivariate favar")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "two_step bayesian" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "two_step bayesian" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--factors --lags -p --key-vars --method --draws -n --output -o --format -f --plot-save --save-model --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--factors -q --lags -p --key-vars --method -m --draws -n --conf-level -L --output -o --format -f --plot-save -G --save-model -S --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2731,13 +2968,13 @@ _frdc() {
     "estimate multivariate lanne-luoto")
       case "$prev" in
         --form) COMPREPLY=( $(compgen -W "b-model a-model" -- "$cur") ); return ;;
-        --weighting) COMPREPLY=( $(compgen -W "two-step iterated cue" -- "$cur") ); return ;;
+        --weighting|-w) COMPREPLY=( $(compgen -W "two-step iterated cue" -- "$cur") ); return ;;
         --moment-selection) COMPREPLY=( $(compgen -W "msc-rmsc rmsc-seq none" -- "$cur") ); return ;;
-        --kernel) COMPREPLY=( $(compgen -W "bartlett parzen qs quadratic-spectral tukey-hanning" -- "$cur") ); return ;;
+        --kernel|-k) COMPREPLY=( $(compgen -W "bartlett parzen qs quadratic-spectral tukey-hanning" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --form --weighting --moment-selection --kernel --bandwidth --max-iter --tol --n-starts --shock-names --format -f --output -o --plot-save --save-model --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --form --weighting -w --moment-selection --kernel -k --bandwidth -b --max-iter -I --tol -T --n-starts --shock-names --conf-level -L --format -f --output -o --plot-save -G --save-model -S --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2745,12 +2982,12 @@ _frdc() {
       fi ;;
     "estimate multivariate lms-svar")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "three-step one-step full-ml" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "three-step one-step full-ml" -- "$cur") ); return ;;
         --se) COMPREPLY=( $(compgen -W "hessian sandwich opg" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --distributions --method --se --n-starts --max-iter --tol --shock-names --format -f --output -o --plot-save --save-model --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --distributions --method -m --se --n-starts --max-iter -I --tol -T --shock-names --conf-level -L --format -f --output -o --plot-save -G --save-model -S --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2758,14 +2995,14 @@ _frdc() {
       fi ;;
     "estimate multivariate lp")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "standard iv smooth state propensity robust" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "standard iv smooth state propensity robust" -- "$cur") ); return ;;
         --vcov) COMPREPLY=( $(compgen -W "newey_west white driscoll_kraay" -- "$cur") ); return ;;
         --transition) COMPREPLY=( $(compgen -W "logistic" -- "$cur") ); return ;;
         --score-method) COMPREPLY=( $(compgen -W "logit probit" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--method --shock --horizons --control-lags --vcov --instruments --knots --lambda --state-var --gamma --transition --treatment --score-method --mop-tau --mop-bandwidth --ar-level --ar-grid --ar-span --output -o --format -f --save-model --mop-f --ar-bands --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--method -m --shock -K --horizons -H --control-lags --vcov --instruments -Z --knots --lambda -l --state-var --gamma --transition --treatment --score-method --mop-tau --mop-bandwidth --ar-level --ar-grid --ar-span --conf-level -L --output -o --format -f --save-model -S --mop-f --ar-bands --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2777,7 +3014,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --low-freq --freq-ratio --aggregation --draws -n --burnin --prior --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --low-freq --freq-ratio --aggregation --draws -n --burnin -B --prior --conf-level -L --quantiles -Q --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2785,12 +3022,12 @@ _frdc() {
       fi ;;
     "estimate multivariate qfavar")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "twostep vb" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "twostep vb" -- "$cur") ); return ;;
         --se) COMPREPLY=( $(compgen -W "none asymptotic bootstrap" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--factors --lags -p --key-vars --taus --method --se --vb-maxiter --vb-tol --n-draws --format -f --output -o --save-model --no-standardize --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--factors -q --lags -p --key-vars --taus --method -m --se --vb-maxiter --vb-tol --n-draws --conf-level -L --format -f --output -o --save-model -S --no-standardize --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2802,7 +3039,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --taus --ordering --se --n-boot --format -f --output -o --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --taus --ordering --se --n-boot --conf-level -L --format -f --output -o --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2810,13 +3047,13 @@ _frdc() {
       fi ;;
     "estimate multivariate ssvarma")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "pml ml gmm gmm-2sls" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "pml ml gmm gmm-2sls" -- "$cur") ); return ;;
         --distribution) COMPREPLY=( $(compgen -W "student-t mixture-normal mixture-normal-asym pearson-iv skew-normal" -- "$cur") ); return ;;
         --se) COMPREPLY=( $(compgen -W "auto hessian sandwich opg" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--ar-lags --ma-lags --method --distribution --k-iv --se --n-starts --max-iter --tol --shock-names --format -f --output -o --plot-save --save-model --blaschke --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--ar-lags --ma-lags --method -m --distribution --k-iv --se --n-starts --max-iter -I --tol -T --shock-names --conf-level -L --format -f --output -o --plot-save -G --save-model -S --blaschke --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2828,7 +3065,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --pattern --config --n-starts --max-iter --output -o --format -f --plot-save --save-model --config-json --set --plot --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --pattern --config -C --n-starts --max-iter -I --conf-level -L --output -o --format -f --plot-save -G --save-model -S --config-json --set --plot -g --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2837,11 +3074,11 @@ _frdc() {
     "estimate multivariate svec")
       case "$prev" in
         --deterministic) COMPREPLY=( $(compgen -W "none constant trend" -- "$cur") ); return ;;
-        --method) COMPREPLY=( $(compgen -W "johansen engle_granger" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "johansen engle_granger" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --rank -r --deterministic --method --significance --config --n-starts --max-iter --output -o --format -f --plot-save --save-model --config-json --set --plot --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --rank -r --deterministic --method -m --significance --config -C --n-starts --max-iter -I --conf-level -L --output -o --format -f --plot-save -G --save-model -S --config-json --set --plot -g --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2852,7 +3089,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --draws -n --burnin --thin --n-train --k-q --k-s --k-w --output -o --format -f --save-model --no-tvp --no-sv --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --draws -n --burnin -B --thin --n-train --k-q --k-s --k-w --conf-level -L --quantiles -Q --output -o --format -f --save-model -S --no-tvp --no-sv --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2863,7 +3100,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --conf-level -L --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2872,11 +3109,11 @@ _frdc() {
     "estimate multivariate vecm")
       case "$prev" in
         --deterministic) COMPREPLY=( $(compgen -W "none constant trend" -- "$cur") ); return ;;
-        --method) COMPREPLY=( $(compgen -W "johansen engle_granger" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "johansen engle_granger" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --rank -r --deterministic --method --significance --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --rank -r --deterministic --method -m --significance --conf-level -L --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2885,11 +3122,11 @@ _frdc() {
     "estimate panel piv")
       case "$prev" in
         --method|-m) COMPREPLY=( $(compgen -W "fe re fd hausman-taylor" -- "$cur") ); return ;;
-        --cov-type) COMPREPLY=( $(compgen -W "ols cluster twoway driscoll-kraay" -- "$cur") ); return ;;
+        --cov-type|-v) COMPREPLY=( $(compgen -W "ols cluster twoway driscoll-kraay" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --exog --endog --instruments --method -m --cov-type --id-col --time-col --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --exog --endog --instruments -Z --method -m --cov-type -v --id-col -u --time-col -t --conf-level -L --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2897,11 +3134,11 @@ _frdc() {
       fi ;;
     "estimate panel plogit")
       case "$prev" in
-        --cov-type) COMPREPLY=( $(compgen -W "ols cluster" -- "$cur") ); return ;;
+        --cov-type|-v) COMPREPLY=( $(compgen -W "ols cluster" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --indep --id-col --time-col --cov-type --method -m --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --indep -x --id-col -u --time-col -t --cov-type -v --method -m --output -o --format -f --conf-level -L --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2909,12 +3146,12 @@ _frdc() {
       fi ;;
     "estimate panel pmg")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "pmg mg dfe" -- "$cur") ); return ;;
-        --trend) COMPREPLY=( $(compgen -W "none constant trend" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "pmg mg dfe" -- "$cur") ); return ;;
+        --trend|-e) COMPREPLY=( $(compgen -W "none constant trend" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--id-col --time-col --dep --indep --method --trend --p --q --max-iter --tol --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--id-col -u --time-col -t --dep -y --indep -x --method -m --trend -e --p --q --max-iter -I --tol -T --conf-level -L --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2922,12 +3159,12 @@ _frdc() {
       fi ;;
     "estimate panel pprobit")
       case "$prev" in
-        --cov-type) COMPREPLY=( $(compgen -W "ols cluster" -- "$cur") ); return ;;
+        --cov-type|-v) COMPREPLY=( $(compgen -W "ols cluster" -- "$cur") ); return ;;
         --method|-m) COMPREPLY=( $(compgen -W "pooled re cre" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --indep --id-col --time-col --cov-type --method -m --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --indep -x --id-col -u --time-col -t --cov-type -v --method -m --output -o --format -f --conf-level -L --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2935,13 +3172,13 @@ _frdc() {
       fi ;;
     "estimate panel preg")
       case "$prev" in
-        --cov-type) COMPREPLY=( $(compgen -W "ols cluster twoway driscoll-kraay pcse" -- "$cur") ); return ;;
+        --cov-type|-v) COMPREPLY=( $(compgen -W "ols cluster twoway driscoll-kraay pcse" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
         --ar1) COMPREPLY=( $(compgen -W "none common panel-specific" -- "$cur") ); return ;;
         --pcse-unbalanced) COMPREPLY=( $(compgen -W "casewise pairwise" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --indep --id-col --time-col --cov-type --method -m --output -o --format -f --ar1 --pcse-unbalanced --absorb --hdfe-tol --hdfe-maxiter --min-lag-endo --max-lag-endo --save-model --twoway --collapse --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --indep -x --id-col -u --time-col -t --cov-type -v --method -m --output -o --format -f --ar1 --pcse-unbalanced --absorb --hdfe-tol --hdfe-maxiter --min-lag-endo --max-lag-endo --conf-level -L --save-model -S --twoway --collapse --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2949,10 +3186,13 @@ _frdc() {
       fi ;;
     "estimate panel pvar")
       case "$prev" in
+        --transformation) COMPREPLY=( $(compgen -W "fd fod" -- "$cur") ); return ;;
+        --steps) COMPREPLY=( $(compgen -W "onestep twostep" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "gmm feols" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--id-col --time-col --lags -p --dependent --predet --exog --transformation --steps --method --min-lag-endo --max-lag-endo --output -o --format -f --save-model --system --collapse --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--id-col -u --time-col -t --lags -p --dependent --predet --exog --transformation --steps --method -m --min-lag-endo --max-lag-endo --conf-level -L --output -o --format -f --save-model -S --system --collapse --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2960,16 +3200,16 @@ _frdc() {
       fi ;;
     "estimate panel xtcointreg")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "fmols dols" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "fmols dols" -- "$cur") ); return ;;
         --pooling) COMPREPLY=( $(compgen -W "group pooled" -- "$cur") ); return ;;
-        --trend) COMPREPLY=( $(compgen -W "none const linear" -- "$cur") ); return ;;
-        --kernel) COMPREPLY=( $(compgen -W "bartlett parzen qs tukey-hanning" -- "$cur") ); return ;;
+        --trend|-e) COMPREPLY=( $(compgen -W "none const linear" -- "$cur") ); return ;;
+        --kernel|-k) COMPREPLY=( $(compgen -W "bartlett parzen qs tukey-hanning" -- "$cur") ); return ;;
         --ic) COMPREPLY=( $(compgen -W "aic bic" -- "$cur") ); return ;;
         --dols-se) COMPREPLY=( $(compgen -W "lrv robust" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--id-col --time-col --dep --indep --method --pooling --trend --kernel --bandwidth --leads --lags --ic --dols-se --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--id-col -u --time-col -t --dep -y --indep -x --method -m --pooling --trend -e --kernel -k --bandwidth -b --leads --lags -p --ic --dols-se --conf-level -L --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2982,7 +3222,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --indep --id-col --time-col --factors --tau --slope --se --n-boot --r-max --max-iter --tol --format -f --output -o --plot-save --save-model --no-bias-correct --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --indep -x --id-col -u --time-col -t --factors -q --tau --slope --se --n-boot --r-max --max-iter -I --tol -T --conf-level -L --format -f --output -o --plot-save -G --save-model -S --no-bias-correct --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -2993,7 +3233,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --k-regimes --max-iter --tol --output -o --format -f --plot-save --save-model --switching-variance --no-switching-variance --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --k-regimes --max-iter -I --tol -T --output -o --format -f --plot-save -G --save-model -S --switching-variance --no-switching-variance --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3004,7 +3244,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --k-regimes --max-iter --output -o --format -f --plot-save --save-model --switching-variance --no-switching-variance --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --k-regimes --max-iter -I --output -o --format -f --plot-save -G --save-model -S --switching-variance --no-switching-variance --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3012,11 +3252,10 @@ _frdc() {
       fi ;;
     "estimate regime setar")
       case "$prev" in
-        --conf-level) COMPREPLY=( $(compgen -W "0.90 0.95 0.99" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --d --trim --draws --conf-level --output -o --format -f --plot-save --save-model --het --no-linearity --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --d --trim --draws -n --conf-level -L --output -o --format -f --plot-save -G --save-model -S --het --no-linearity --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3028,7 +3267,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --d --type --n-gamma --n-c --transition-col --output -o --format -f --plot-save --save-model --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --d --type --n-gamma --n-c --transition-col --output -o --format -f --plot-save -G --save-model -S --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3036,11 +3275,10 @@ _frdc() {
       fi ;;
     "estimate regime threshold")
       case "$prev" in
-        --conf-level) COMPREPLY=( $(compgen -W "0.90 0.95 0.99" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --threshold-col --trim --draws --conf-level --output -o --format -f --plot-save --save-model --het --no-linearity --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --threshold-col --trim --draws -n --conf-level -L --output -o --format -f --plot-save -G --save-model -S --het --no-linearity --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3052,7 +3290,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --init-mode --kappa --output -o --format -f --save-model --no-intercept --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --init-mode --kappa --output -o --format -f --save-model -S --no-intercept --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3060,11 +3298,11 @@ _frdc() {
       fi ;;
     "estimate regression 3sls")
       case "$prev" in
-        --instruments) COMPREPLY=( $(compgen -W "common perequation" -- "$cur") ); return ;;
+        --instruments|-Z) COMPREPLY=( $(compgen -W "common perequation" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--config --instruments --output -o --format -f --save-model --config-json --set --no-intercept --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--config -C --instruments -Z --conf-level -L --output -o --format -f --save-model -S --config-json --set --no-intercept --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3072,15 +3310,15 @@ _frdc() {
       fi ;;
     "estimate regression cointreg")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "fmols ccr dols" -- "$cur") ); return ;;
-        --trend) COMPREPLY=( $(compgen -W "none const linear" -- "$cur") ); return ;;
-        --kernel) COMPREPLY=( $(compgen -W "bartlett parzen qs tukey-hanning" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "fmols ccr dols" -- "$cur") ); return ;;
+        --trend|-e) COMPREPLY=( $(compgen -W "none const linear" -- "$cur") ); return ;;
+        --kernel|-k) COMPREPLY=( $(compgen -W "bartlett parzen qs tukey-hanning" -- "$cur") ); return ;;
         --ic) COMPREPLY=( $(compgen -W "aic bic" -- "$cur") ); return ;;
         --dols-se) COMPREPLY=( $(compgen -W "lrv robust" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --method --trend --kernel --bandwidth --leads --lags --ic --dols-se --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --method -m --trend -e --kernel -k --bandwidth -b --leads --lags -p --ic --dols-se --conf-level -L --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3092,7 +3330,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --alpha --lambda --select --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --alpha --lambda -l --select --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3104,7 +3342,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--config --weighting -w --output -o --format -f --save-model --config-json --set --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--config -C --weighting -w --conf-level -L --output -o --format -f --save-model -S --config-json --set --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3112,11 +3350,11 @@ _frdc() {
       fi ;;
     "estimate regression heckman")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "twostep mle" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "twostep mle" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --select --outcome-vars --select-vars --method --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --select --outcome-vars --select-vars --method -m --conf-level -L --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3124,11 +3362,12 @@ _frdc() {
       fi ;;
     "estimate regression iv")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "tsls liml fuller kclass" -- "$cur") ); return ;;
+        --cov-type|-v) COMPREPLY=( $(compgen -W "ols hc0 hc1 hc2 hc3" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "tsls liml fuller kclass" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --endogenous --instruments --cov-type --method --k --fuller-a --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --endogenous --instruments -Z --cov-type -v --method -m --k --fuller-a --conf-level -L --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3136,11 +3375,11 @@ _frdc() {
       fi ;;
     "estimate regression kde")
       case "$prev" in
-        --kernel) COMPREPLY=( $(compgen -W "gaussian epanechnikov triangular uniform" -- "$cur") ); return ;;
+        --kernel|-k) COMPREPLY=( $(compgen -W "gaussian epanechnikov triangular uniform" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --kernel --bw --npoints --cut --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --kernel -k --bw --npoints --cut --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3148,12 +3387,12 @@ _frdc() {
       fi ;;
     "estimate regression kernel-reg")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "nw ll lp" -- "$cur") ); return ;;
-        --kernel) COMPREPLY=( $(compgen -W "gaussian epanechnikov triangular uniform" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "nw ll lp" -- "$cur") ); return ;;
+        --kernel|-k) COMPREPLY=( $(compgen -W "gaussian epanechnikov triangular uniform" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --indep --method --degree --bw --kernel --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --indep -x --method -m --degree --bw --kernel -k --conf-level -L --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3165,7 +3404,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --lambda --select --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --lambda -l --select --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3176,7 +3415,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --indep --frac --iter --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --indep -x --frac --iter --conf-level -L --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3189,7 +3428,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --distribution --vcov-type --n-starts --max-iter --tol --output -o --format -f --save-model --asymmetric --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --distribution --vcov-type --n-starts --max-iter -I --tol -T --output -o --format -f --save-model -S --asymmetric --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3198,11 +3437,11 @@ _frdc() {
     "estimate regression qreg")
       case "$prev" in
         --se) COMPREPLY=( $(compgen -W "iid robust boot" -- "$cur") ); return ;;
-        --solver) COMPREPLY=( $(compgen -W "ipm irls" -- "$cur") ); return ;;
+        --solver|-s) COMPREPLY=( $(compgen -W "ipm irls" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --tau --se --solver --n-boot --alpha --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --tau --se --solver -s --n-boot --conf-level -L --alpha --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3210,11 +3449,11 @@ _frdc() {
       fi ;;
     "estimate regression rdd")
       case "$prev" in
-        --kernel) COMPREPLY=( $(compgen -W "triangular epanechnikov uniform" -- "$cur") ); return ;;
+        --kernel|-k) COMPREPLY=( $(compgen -W "triangular epanechnikov uniform" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--outcome --running --fuzzy --cutoff --bandwidth --bias-bandwidth --kernel --order --conf-level --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--outcome --running --fuzzy --cutoff --bandwidth -b --bias-bandwidth --kernel -k --order -O --conf-level -L --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3222,13 +3461,13 @@ _frdc() {
       fi ;;
     "estimate regression reg")
       case "$prev" in
-        --cov-type) COMPREPLY=( $(compgen -W "ols hc0 hc1 hc2 hc3 cluster conley" -- "$cur") ); return ;;
+        --cov-type|-v) COMPREPLY=( $(compgen -W "ols hc0 hc1 hc2 hc3 cluster conley" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
         --conley-kernel) COMPREPLY=( $(compgen -W "bartlett uniform" -- "$cur") ); return ;;
         --conley-metric) COMPREPLY=( $(compgen -W "euclidean haversine" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --cov-type --clusters --output -o --format -f --weights --lat --lon --dist-cutoff --conley-kernel --conley-metric --time-col --time-cutoff --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --cov-type -v --clusters -U --output -o --format -f --weights --lat --lon --dist-cutoff --conley-kernel --conley-metric --time-col -t --time-cutoff --conf-level -L --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3240,7 +3479,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --lambda --select --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --lambda -l --select --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3249,11 +3488,11 @@ _frdc() {
     "estimate regression robust")
       case "$prev" in
         --psi) COMPREPLY=( $(compgen -W "huber bisquare" -- "$cur") ); return ;;
-        --method) COMPREPLY=( $(compgen -W "m mm" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "m mm" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --psi --method --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --psi --method -m --conf-level -L --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3261,12 +3500,12 @@ _frdc() {
       fi ;;
     "estimate regression select")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "forward backward bidirectional best-subset gets" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "forward backward bidirectional best-subset gets" -- "$cur") ); return ;;
         --criterion) COMPREPLY=( $(compgen -W "pvalue aic bic" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --method --criterion --p-enter --p-remove --keep --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --method -m --criterion --p-enter --p-remove --keep --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3274,10 +3513,11 @@ _frdc() {
       fi ;;
     "estimate regression smm")
       case "$prev" in
+        --weighting|-w) COMPREPLY=( $(compgen -W "identity two_step optimal iterated twostep" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--config --weighting --sim-ratio --burn --output -o --format -f --save-model --config-json --set --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--config -C --weighting -w --sim-ratio --burn -B --conf-level -L --output -o --format -f --save-model -S --config-json --set --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3285,12 +3525,12 @@ _frdc() {
       fi ;;
     "estimate regression statespace")
       case "$prev" in
-        --model) COMPREPLY=( $(compgen -W "local-level local-linear-trend" -- "$cur") ); return ;;
+        --model|-M) COMPREPLY=( $(compgen -W "local-level local-linear-trend" -- "$cur") ); return ;;
         --init-mode) COMPREPLY=( $(compgen -W "kappa diffuse" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --model --init-mode --kappa --config --output -o --format -f --plot-save --save-model --config-json --set --steady-state --plot --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --model -M --init-mode --kappa --config -C --output -o --format -f --plot-save -G --save-model -S --config-json --set --steady-state --plot -g --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3301,7 +3541,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--config --output -o --format -f --save-model --config-json --set --iterate --no-intercept --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--config -C --conf-level -L --output -o --format -f --save-model -S --config-json --set --iterate --no-intercept --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3312,7 +3552,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --lower --upper --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --lower --upper --conf-level -L --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3323,7 +3563,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --lower --upper --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --lower --upper --conf-level -L --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3332,11 +3572,11 @@ _frdc() {
     "estimate univariate ardl")
       case "$prev" in
         --ic) COMPREPLY=( $(compgen -W "aic bic" -- "$cur") ); return ;;
-        --trend) COMPREPLY=( $(compgen -W "none const trend" -- "$cur") ); return ;;
+        --trend|-e) COMPREPLY=( $(compgen -W "none const trend" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --p --q --max-p --max-q --ic --case --trend --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --p --q --max-p --max-q --ic --case --trend -e --conf-level -L --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3348,7 +3588,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --q --method -m --d0 --max-iter --format -f --output -o --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --q --method -m --d0 --max-iter -I --conf-level -L --format -f --output -o --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3356,10 +3596,12 @@ _frdc() {
       fi ;;
     "estimate univariate arima")
       case "$prev" in
+        --criterion) COMPREPLY=( $(compgen -W "aic bic" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "ols css mle css_mle" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --d --q --max-p --max-d --max-q --criterion --method -m --format -f --output -o --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --d --q --max-p --max-d --max-q --criterion --method -m --conf-level -L --format -f --output -o --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3371,7 +3613,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column --hf-data --hf-column --m --k --weights --p-ar --poly-degree --horizons --max-iter --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --hf-data --hf-column --m --k --weights --p-ar --poly-degree --horizons -H --max-iter -I --conf-level -L --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3383,7 +3625,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --asymmetric --p --q --max-p --max-q --ic --case --horizons --nreps --conf-level --plot-save --output -o --format -f --save-model --no-bootstrap --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --asymmetric --p --q --max-p --max-q --ic --case --horizons -H --nreps --conf-level -L --plot-save -G --output -o --format -f --save-model -S --no-bootstrap --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3392,11 +3634,11 @@ _frdc() {
     "estimate univariate sarima")
       case "$prev" in
         --criterion) COMPREPLY=( $(compgen -W "aic bic" -- "$cur") ); return ;;
-        --method) COMPREPLY=( $(compgen -W "css_mle mle css" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "css_mle mle css" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --d --q --P --D --Q --s --max-p --max-q --max-P --max-Q --criterion --method --max-iter --output -o --format -f --plot-save --save-model --auto --no-intercept --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --d --q --P --D --Q --s --max-p --max-q --max-P --max-Q --criterion --method -m --max-iter -I --conf-level -L --output -o --format -f --plot-save -G --save-model -S --auto --no-intercept --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3407,7 +3649,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --q --fix-delta --fix-gamma --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --q --fix-delta --fix-gamma --conf-level -L --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3418,7 +3660,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --q --output -o --format -f --plot-save --save-model --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --q --conf-level -L --output -o --format -f --plot-save -G --save-model -S --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3430,7 +3672,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--kind --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--kind --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3441,7 +3683,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--p --q --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--p --q --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3452,7 +3694,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --conf-level -L --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3464,7 +3706,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--p --q --correction --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--p --q --correction --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3476,7 +3718,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --q --dist --output -o --format -f --plot-save --save-model --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --q --dist --conf-level -L --output -o --format -f --plot-save -G --save-model -S --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3488,7 +3730,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --q --d0 --truncation --dist --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --q --d0 --truncation --dist --conf-level -L --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3500,7 +3742,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --q --d0 --truncation --dist --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --q --d0 --truncation --dist --conf-level -L --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3512,7 +3754,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --q --dist --output -o --format -f --plot-save --save-model --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --q --dist --conf-level -L --output -o --format -f --plot-save -G --save-model -S --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3525,7 +3767,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --m-freq --k --rv --span --config --output -o --format -f --save-model --config-json --set --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --m-freq --k --rv --span --config -C --conf-level -L --output -o --format -f --save-model -S --config-json --set --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3537,7 +3779,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --q --dist --output -o --format -f --plot-save --save-model --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --q --dist --conf-level -L --output -o --format -f --plot-save -G --save-model -S --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3548,7 +3790,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --q --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --q --conf-level -L --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3559,7 +3801,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --draws -n --output -o --format -f --plot-save --save-model --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --draws -n --conf-level -L --output -o --format -f --plot-save -G --save-model -S --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3567,10 +3809,12 @@ _frdc() {
       fi ;;
     "fevd bvar")
       case "$prev" in
+        --id|-i) COMPREPLY=( $(compgen -W "cholesky sign narrative longrun fastica jade sobi dcov hsic cvm student-t mixture-normal mixture-normal-asym pml skew-normal lms markov-switching garch-id uhlig lewis-tvv sv-em" -- "$cur") ); return ;;
+        --sampler) COMPREPLY=( $(compgen -W "direct gibbs" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --horizons --id --draws -n --sampler --config --output -o --format -f --plot-save --model --config-json --set --result --save-result --save-model --plot --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --horizons -H --id -i --draws -n --sampler --conf-level -L --quantiles -Q --config -C --output -o --format -f --plot-save -G --model -M --config-json --set --result -R --save-result -W --save-model -S --plot -g --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3578,10 +3822,11 @@ _frdc() {
       fi ;;
     "fevd favar")
       case "$prev" in
+        --id|-i) COMPREPLY=( $(compgen -W "cholesky sign narrative longrun fastica jade sobi dcov hsic cvm student-t mixture-normal mixture-normal-asym pml skew-normal lms markov-switching garch-id uhlig lewis-tvv sv-em" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--factors --lags -p --key-vars --horizons --id --config --output -o --format -f --plot-save --model --config-json --set --result --save-result --save-model --plot --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--factors -q --lags -p --key-vars --horizons -H --id -i --config -C --output -o --format -f --plot-save -G --model -M --config-json --set --result -R --save-result -W --save-model -S --plot -g --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3589,14 +3834,14 @@ _frdc() {
       fi ;;
     "fevd gdfm-i1")
       case "$prev" in
-        --id) COMPREPLY=( $(compgen -W "permanent-transitory cholesky longrun sign proxy" -- "$cur") ); return ;;
+        --id|-i) COMPREPLY=( $(compgen -W "permanent-transitory cholesky longrun sign proxy" -- "$cur") ); return ;;
         --det-trend) COMPREPLY=( $(compgen -W "none constant linear trend" -- "$cur") ); return ;;
-        --kernel) COMPREPLY=( $(compgen -W "bartlett parzen tukey" -- "$cur") ); return ;;
+        --kernel|-k) COMPREPLY=( $(compgen -W "bartlett parzen tukey" -- "$cur") ); return ;;
         --lag-criterion) COMPREPLY=( $(compgen -W "bic aic" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dynamic-rank --n-permanent --id --det-trend --p-max --n-perm --bandwidth --kernel --lag-criterion --irf-horizon --config --instrument --seed --horizons --format -f --output -o --plot-save --model --config-json --set --result --save-result --save-model --no-standardize --include-idiosyncratic --plot --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dynamic-rank --n-permanent --id -i --det-trend --p-max --n-perm --bandwidth -b --kernel -k --lag-criterion --irf-horizon --config -C --instrument --seed --horizons -H --format -f --output -o --plot-save -G --model -M --config-json --set --result -R --save-result -W --save-model -S --no-standardize --include-idiosyncratic --plot -g --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3604,10 +3849,12 @@ _frdc() {
       fi ;;
     "fevd lp")
       case "$prev" in
+        --id|-i) COMPREPLY=( $(compgen -W "cholesky sign narrative longrun fastica jade sobi dcov hsic cvm student-t mixture-normal mixture-normal-asym pml skew-normal lms markov-switching garch-id uhlig lewis-tvv sv-em" -- "$cur") ); return ;;
+        --vcov) COMPREPLY=( $(compgen -W "newey_west white driscoll_kraay" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--horizons --lags -p --var-lags --id --vcov --config --output -o --format -f --plot-save --model --config-json --set --result --save-result --save-model --plot --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--horizons -H --lags -p --var-lags --id -i --vcov --conf-level -L --config -C --output -o --format -f --plot-save -G --model -M --config-json --set --result -R --save-result -W --save-model -S --plot -g --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3618,7 +3865,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--id-col --time-col --lags -p --horizons --output -o --format -f --plot-save --model --result --save-result --save-model --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--id-col -u --time-col -t --lags -p --horizons -H --output -o --format -f --plot-save -G --model -M --result -R --save-result -W --save-model -S --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3626,13 +3873,14 @@ _frdc() {
       fi ;;
     "fevd sdfm")
       case "$prev" in
+        --id|-i) COMPREPLY=( $(compgen -W "cholesky sign longrun max-share proxy lewis-tvv sv-em gmm-moments" -- "$cur") ); return ;;
         --q-method) COMPREPLY=( $(compgen -W "hallin-liska bai-ng amengual-watson" -- "$cur") ); return ;;
-        --method) COMPREPLY=( $(compgen -W "fglr fhlz gdfm-var" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "fglr fhlz gdfm-var" -- "$cur") ); return ;;
         --spectral) COMPREPLY=( $(compgen -W "lag-window smoothed-periodogram" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--factors -q --id --q-method --method --spectral --instrument --var-lags --n-perm --p-max --target --horizons --config --output -o --format -f --plot-save --model --config-json --set --result --save-result --save-model --plot --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--factors -q --id -i --q-method --method -m --spectral --instrument --var-lags --n-perm --p-max --target --horizons -H --config -C --output -o --format -f --plot-save -G --model -M --config-json --set --result -R --save-result -W --save-model -S --plot -g --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3640,13 +3888,13 @@ _frdc() {
       fi ;;
     "fevd ssvarma")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "pml ml gmm gmm-2sls" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "pml ml gmm gmm-2sls" -- "$cur") ); return ;;
         --distribution) COMPREPLY=( $(compgen -W "student-t mixture-normal mixture-normal-asym pearson-iv skew-normal" -- "$cur") ); return ;;
         --se) COMPREPLY=( $(compgen -W "auto hessian sandwich opg" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--ar-lags --ma-lags --method --distribution --k-iv --se --n-starts --max-iter --tol --horizons --format -f --output -o --plot-save --model --result --save-result --save-model --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--ar-lags --ma-lags --method -m --distribution --k-iv --se --n-starts --max-iter -I --tol -T --horizons -H --format -f --output -o --plot-save -G --model -M --result -R --save-result -W --save-model -S --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3654,10 +3902,11 @@ _frdc() {
       fi ;;
     "fevd var")
       case "$prev" in
+        --id|-i) COMPREPLY=( $(compgen -W "cholesky sign narrative longrun arias uhlig proxy max-share gmm-moments narrative-adrr lewis-tvv sv-em fastica jade sobi dcov hsic cvm student-t mixture-normal mixture-normal-asym pml skew-normal lms markov-switching garch-id" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --horizons --id --config --instrument --target-var --output -o --format -f --plot-save --model --config-json --set --result --save-result --save-model --plot --generalized --normalize --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --horizons -H --id -i --config -C --instrument --target-var --output -o --format -f --plot-save -G --model -M --config-json --set --result -R --save-result -W --save-model -S --plot -g --generalized --normalize --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3665,10 +3914,12 @@ _frdc() {
       fi ;;
     "fevd vecm")
       case "$prev" in
+        --deterministic) COMPREPLY=( $(compgen -W "none constant trend" -- "$cur") ); return ;;
+        --id|-i) COMPREPLY=( $(compgen -W "cholesky sign narrative longrun fastica jade sobi dcov hsic cvm student-t mixture-normal mixture-normal-asym pml skew-normal lms markov-switching garch-id uhlig lewis-tvv sv-em svec" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --rank -r --deterministic --horizons --id --config --output -o --format -f --plot-save --model --config-json --set --result --save-result --save-model --plot --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --rank -r --deterministic --horizons -H --id -i --config -C --output -o --format -f --plot-save -G --model -M --config-json --set --result -R --save-result -W --save-model -S --plot -g --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3676,12 +3927,12 @@ _frdc() {
       fi ;;
     "filter bandpass-gdfm")
       case "$prev" in
-        --kernel) COMPREPLY=( $(compgen -W "bartlett parzen tukey" -- "$cur") ); return ;;
+        --kernel|-k) COMPREPLY=( $(compgen -W "bartlett parzen tukey" -- "$cur") ); return ;;
         --spectral) COMPREPLY=( $(compgen -W "lag-window smoothed-periodogram" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dynamic-rank --nfactors --pl --pu --band-low --band-high --bandwidth --kernel --spectral --format -f --output -o --plot-save --result --save-result --model --save-model --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dynamic-rank --nfactors --pl --pu --band-low --band-high --bandwidth -b --kernel -k --spectral --format -f --output -o --plot-save -G --result -R --save-result -W --model -M --save-model -S --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3693,7 +3944,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lambda -l --stopping --max-iter --sig-p --columns --format -f --output -o --plot-save --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lambda -l --stopping --max-iter -I --sig-p --columns --format -f --output -o --plot-save -G --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3704,7 +3955,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--pl --pu --K --columns --format -f --output -o --plot-save --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--pl --pu --K --columns --format -f --output -o --plot-save -G --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3712,11 +3963,11 @@ _frdc() {
       fi ;;
     "filter bn")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "arima statespace" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "arima statespace" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--method --p --q --columns --format -f --output -o --plot-save --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--method -m --p --q --columns --format -f --output -o --plot-save -G --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3724,11 +3975,11 @@ _frdc() {
       fi ;;
     "filter eurocoin")
       case "$prev" in
-        --kernel) COMPREPLY=( $(compgen -W "bartlett parzen tukey" -- "$cur") ); return ;;
+        --kernel|-k) COMPREPLY=( $(compgen -W "bartlett parzen tukey" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--target --dynamic-rank --nfactors --cutoff --bandwidth --kernel --format -f --output -o --plot-save --result --save-result --no-standardize --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--target --dynamic-rank --nfactors --cutoff --bandwidth -b --kernel -k --format -f --output -o --plot-save -G --result -R --save-result -W --no-standardize --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3739,7 +3990,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--horizons --lags -p --columns --format -f --output -o --plot-save --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--horizons -H --lags -p --columns --format -f --output -o --plot-save -G --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3750,7 +4001,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lambda -l --columns --format -f --output -o --plot-save --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lambda -l --columns --format -f --output -o --plot-save -G --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3758,13 +4009,13 @@ _frdc() {
       fi ;;
     "filter x13")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "seats x11" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "seats x11" -- "$cur") ); return ;;
         --transform) COMPREPLY=( $(compgen -W "auto log none" -- "$cur") ); return ;;
         --outliers) COMPREPLY=( $(compgen -W "true false" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--frequency --method --transform --critical-value --outliers --columns --format -f --output -o --plot-save --result --save-result --trading-day --easter --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--frequency --method -m --transform --critical-value --outliers --columns --format -f --output -o --plot-save -G --result -R --save-result -W --trading-day --easter --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3776,7 +4027,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--actual --forecasts --result --horizons --alternative --format -f --output -o --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--actual --forecasts --result -R --horizons -H --alternative --format -f --output -o --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3784,11 +4035,11 @@ _frdc() {
       fi ;;
     "forecast evaluate combine")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "equal bates-granger granger-ramanathan" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "equal bates-granger granger-ramanathan" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--actual --forecasts --result --method --format -f --output -o --emit-series --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--actual --forecasts --result -R --method -m --format -f --output -o --emit-series --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3801,7 +4052,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--actual --forecasts --result --loss --horizons --alternative --format -f --output -o --no-hln --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--actual --forecasts --result -R --loss --horizons -H --alternative --format -f --output -o --no-hln --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3809,11 +4060,11 @@ _frdc() {
       fi ;;
     "forecast evaluate encompassing")
       case "$prev" in
-        --kernel) COMPREPLY=( $(compgen -W "bartlett parzen quadratic_spectral tukey_hanning" -- "$cur") ); return ;;
+        --kernel|-k) COMPREPLY=( $(compgen -W "bartlett parzen quadratic_spectral tukey_hanning" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--actual --forecasts --result --lags --kernel --format -f --output -o --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--actual --forecasts --result -R --lags -p --kernel -k --format -f --output -o --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3824,7 +4075,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--actual --forecasts --result --seasonal-period --plot-save --format -f --output -o --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--actual --forecasts --result -R --seasonal-period --plot-save -G --format -f --output -o --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3832,11 +4083,11 @@ _frdc() {
       fi ;;
     "forecast evaluate mincer-zarnowitz")
       case "$prev" in
-        --kernel) COMPREPLY=( $(compgen -W "bartlett parzen quadratic_spectral tukey_hanning" -- "$cur") ); return ;;
+        --kernel|-k) COMPREPLY=( $(compgen -W "bartlett parzen quadratic_spectral tukey_hanning" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--actual --forecasts --result --lags --kernel --format -f --output -o --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--actual --forecasts --result -R --lags -p --kernel -k --format -f --output -o --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3844,10 +4095,11 @@ _frdc() {
       fi ;;
     "forecast factor dynamic")
       case "$prev" in
+        --method|-m) COMPREPLY=( $(compgen -W "twostep em" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--nfactors --horizons --factor-lags --method --output -o --format -f --plot-save --model --result --save-result --save-model --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--nfactors --horizons -H --factor-lags --method -m --conf-level -L --output -o --format -f --plot-save -G --model -M --result -R --save-result -W --save-model -S --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3855,12 +4107,12 @@ _frdc() {
       fi ;;
     "forecast factor gdfm")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "ar one-sided spectral" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "ar one-sided spectral" -- "$cur") ); return ;;
         --spectral) COMPREPLY=( $(compgen -W "lag-window smoothed-periodogram" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--nfactors --dynamic-rank --horizons --method --spectral --n-lags-proj --output -o --format -f --plot-save --model --result --save-result --save-model --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--nfactors --dynamic-rank --horizons -H --method -m --spectral --n-lags-proj --conf-level -L --output -o --format -f --plot-save -G --model -M --result -R --save-result -W --save-model -S --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3868,15 +4120,15 @@ _frdc() {
       fi ;;
     "forecast factor gdfm-i1")
       case "$prev" in
-        --id) COMPREPLY=( $(compgen -W "permanent-transitory cholesky longrun sign proxy" -- "$cur") ); return ;;
+        --id|-i) COMPREPLY=( $(compgen -W "permanent-transitory cholesky longrun sign proxy" -- "$cur") ); return ;;
         --det-trend) COMPREPLY=( $(compgen -W "none constant linear trend" -- "$cur") ); return ;;
-        --kernel) COMPREPLY=( $(compgen -W "bartlett parzen tukey" -- "$cur") ); return ;;
+        --kernel|-k) COMPREPLY=( $(compgen -W "bartlett parzen tukey" -- "$cur") ); return ;;
         --lag-criterion) COMPREPLY=( $(compgen -W "bic aic" -- "$cur") ); return ;;
         --ci) COMPREPLY=( $(compgen -W "none theoretical bootstrap" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dynamic-rank --n-permanent --id --det-trend --p-max --n-perm --bandwidth --kernel --lag-criterion --irf-horizon --config --instrument --seed --horizons --ci --draws --conf-level --format -f --output -o --plot-save --model --result --save-result --config-json --set --save-model --no-standardize --plot --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dynamic-rank --n-permanent --id -i --det-trend --p-max --n-perm --bandwidth -b --kernel -k --lag-criterion --irf-horizon --config -C --instrument --seed --horizons -H --ci --draws -n --conf-level -L --format -f --output -o --plot-save -G --model -M --result -R --save-result -W --config-json --set --save-model -S --no-standardize --plot -g --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3888,7 +4140,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--target --horizons --factors --taus --lags -p --alpha --density --oos-split --format -f --output -o --plot-save --model --result --save-result --save-model --no-rearrange --no-standardize --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--target --horizons -H --factors -q --taus --lags -p --alpha --density --oos-split --format -f --output -o --plot-save -G --model -M --result -R --save-result -W --save-model -S --no-rearrange --no-standardize --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3900,7 +4152,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--tau --taus --factors --horizons --lags -p --ci-method --n-boot --conf-level --format -f --output -o --plot-save --model --result --save-result --save-model --no-rearrange --standardize --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--tau --taus --factors -q --horizons -H --lags -p --ci-method --n-boot --conf-level -L --format -f --output -o --plot-save -G --model -M --result -R --save-result -W --save-model -S --no-rearrange --standardize --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3908,14 +4160,15 @@ _frdc() {
       fi ;;
     "forecast factor sdfm")
       case "$prev" in
+        --id|-i) COMPREPLY=( $(compgen -W "cholesky sign longrun max-share proxy lewis-tvv sv-em gmm-moments" -- "$cur") ); return ;;
         --q-method) COMPREPLY=( $(compgen -W "hallin-liska bai-ng amengual-watson" -- "$cur") ); return ;;
-        --method) COMPREPLY=( $(compgen -W "fglr fhlz gdfm-var" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "fglr fhlz gdfm-var" -- "$cur") ); return ;;
         --spectral) COMPREPLY=( $(compgen -W "lag-window smoothed-periodogram" -- "$cur") ); return ;;
         --ci) COMPREPLY=( $(compgen -W "none bootstrap" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--factors -q --id --q-method --method --spectral --instrument --var-lags --n-perm --p-max --target --horizons --config --ci --draws --output -o --format -f --plot-save --model --result --save-result --config-json --set --save-model --plot --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--factors -q --id -i --q-method --method -m --spectral --instrument --var-lags --n-perm --p-max --target --horizons -H --config -C --ci --draws -n --conf-level -L --output -o --format -f --plot-save -G --model -M --result -R --save-result -W --config-json --set --save-model -S --plot -g --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3923,10 +4176,11 @@ _frdc() {
       fi ;;
     "forecast factor static")
       case "$prev" in
+        --ci-method) COMPREPLY=( $(compgen -W "none bootstrap parametric" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--nfactors --horizons --ci-method --conf-level --output -o --format -f --plot-save --model --result --save-result --save-model --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--nfactors --horizons -H --ci-method --conf-level -L --output -o --format -f --plot-save -G --model -M --result -R --save-result -W --save-model -S --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3934,10 +4188,11 @@ _frdc() {
       fi ;;
     "forecast multivariate bvar")
       case "$prev" in
+        --sampler) COMPREPLY=( $(compgen -W "direct gibbs" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --horizons --draws -n --sampler --config --output -o --format -f --plot-save --model --result --save-result --config-json --set --save-model --plot --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --horizons -H --draws -n --sampler --conf-level -L --config -C --output -o --format -f --plot-save -G --model -M --result -R --save-result -W --config-json --set --save-model -S --plot -g --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3948,7 +4203,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--factors --lags -p --key-vars --horizons --output -o --format -f --plot-save --model --result --save-result --save-model --panel-forecast --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--factors -q --lags -p --key-vars --horizons -H --conf-level -L --output -o --format -f --plot-save -G --model -M --result -R --save-result -W --save-model -S --panel-forecast --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3956,10 +4211,12 @@ _frdc() {
       fi ;;
     "forecast multivariate lp")
       case "$prev" in
+        --vcov) COMPREPLY=( $(compgen -W "newey_west white driscoll_kraay" -- "$cur") ); return ;;
+        --ci-method) COMPREPLY=( $(compgen -W "analytical bootstrap none" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--shock --horizons --shock-size --lags -p --vcov --ci-method --conf-level --n-boot --output -o --format -f --plot-save --model --result --save-result --save-model --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--shock -K --horizons -H --shock-size --lags -p --vcov --ci-method --conf-level -L --n-boot --output -o --format -f --plot-save -G --model -M --result -R --save-result -W --save-model -S --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3967,11 +4224,11 @@ _frdc() {
       fi ;;
     "forecast multivariate qfavar")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "twostep vb" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "twostep vb" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--factors --lags -p --key-vars --taus --method --horizons --format -f --output -o --model --result --save-result --save-model --no-rearrange --no-standardize --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--factors -q --lags -p --key-vars --taus --method -m --horizons -H --format -f --output -o --model -M --result -R --save-result -W --save-model -S --no-rearrange --no-standardize --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3979,11 +4236,12 @@ _frdc() {
       fi ;;
     "forecast multivariate scenario")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "var bvar" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "var bvar" -- "$cur") ); return ;;
+        --sampler) COMPREPLY=( $(compgen -W "direct gibbs" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--conditions-file --method --lags -p --horizons --replications --conf-level --draws -n --sampler --config --output -o --format -f --plot-save --model --result --save-result --config-json --set --save-model --plot --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--conditions-file --method -m --lags -p --horizons -H --replications --conf-level -L --draws -n --sampler --config -C --output -o --format -f --plot-save -G --model -M --result -R --save-result -W --config-json --set --save-model -S --plot -g --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -3995,7 +4253,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --horizons --conf-level --ci-method --output -o --format -f --plot-save --model --result --save-result --save-model --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --horizons -H --conf-level -L --ci-method --output -o --format -f --plot-save -G --model -M --result -R --save-result -W --save-model -S --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4003,10 +4261,12 @@ _frdc() {
       fi ;;
     "forecast multivariate vecm")
       case "$prev" in
+        --deterministic) COMPREPLY=( $(compgen -W "none constant trend" -- "$cur") ); return ;;
+        --ci-method) COMPREPLY=( $(compgen -W "none bootstrap parametric" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --rank -r --deterministic --horizons --ci-method --draws --conf-level --output -o --format -f --plot-save --model --result --save-result --save-model --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --rank -r --deterministic --horizons -H --ci-method --draws -n --conf-level -L --output -o --format -f --plot-save -G --model -M --result -R --save-result -W --save-model -S --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4017,7 +4277,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --k-regimes --max-iter --tol --horizons --x-future --draws --conf-level --output -o --format -f --model --result --save-result --save-model --switching-variance --no-switching-variance --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --k-regimes --max-iter -I --tol -T --horizons -H --x-future --draws -n --conf-level -L --output -o --format -f --model -M --result -R --save-result -W --save-model -S --switching-variance --no-switching-variance --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4028,7 +4288,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --k-regimes --max-iter --horizons --draws --conf-level --output -o --format -f --model --result --save-result --save-model --switching-variance --no-switching-variance --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --k-regimes --max-iter -I --horizons -H --draws -n --conf-level -L --output -o --format -f --model -M --result -R --save-result -W --save-model -S --switching-variance --no-switching-variance --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4036,11 +4296,10 @@ _frdc() {
       fi ;;
     "forecast regime setar")
       case "$prev" in
-        --conf-level) COMPREPLY=( $(compgen -W "0.90 0.95 0.99" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --d --horizons --draws --conf-level --output -o --format -f --model --result --save-result --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --d --horizons -H --draws -n --conf-level -L --output -o --format -f --model -M --result -R --save-result -W --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4049,11 +4308,10 @@ _frdc() {
     "forecast regime star")
       case "$prev" in
         --type) COMPREPLY=( $(compgen -W "lstr1 lstr2 estr auto" -- "$cur") ); return ;;
-        --conf-level) COMPREPLY=( $(compgen -W "0.90 0.95 0.99" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --d --type --horizons --draws --conf-level --output -o --format -f --model --result --save-result --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --d --type --horizons -H --draws -n --conf-level -L --output -o --format -f --model -M --result -R --save-result -W --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4065,7 +4323,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --q --method -m --d0 --max-iter --horizons -H --conf-level --trunc-lag --output -o --format -f --plot-save --model --result --save-result --save-model --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --q --method -m --d0 --max-iter -I --horizons -H --conf-level -L --trunc-lag --output -o --format -f --plot-save -G --model -M --result -R --save-result -W --save-model -S --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4073,10 +4331,12 @@ _frdc() {
       fi ;;
     "forecast univariate arima")
       case "$prev" in
+        --criterion) COMPREPLY=( $(compgen -W "aic bic" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "ols css mle css_mle" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --d --q --max-p --max-d --max-q --criterion --horizons --conf-level --method -m --output -o --format -f --plot-save --model --result --save-result --save-model --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --d --q --max-p --max-d --max-q --criterion --horizons -H --conf-level -L --method -m --output -o --format -f --plot-save -G --model -M --result -R --save-result -W --save-model -S --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4088,7 +4348,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --hf-data --hf-column --m --k --weights --p-ar --poly-degree --horizons --max-iter --conf-level --output -o --format -f --model --result --save-result --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --hf-data --hf-column --m --k --weights --p-ar --poly-degree --horizons -H --max-iter -I --conf-level -L --output -o --format -f --model -M --result -R --save-result -W --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4097,11 +4357,11 @@ _frdc() {
     "forecast univariate sarima")
       case "$prev" in
         --criterion) COMPREPLY=( $(compgen -W "aic bic" -- "$cur") ); return ;;
-        --method) COMPREPLY=( $(compgen -W "css_mle mle css" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "css_mle mle css" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --d --q --P --D --Q --s --max-p --max-q --max-P --max-Q --criterion --method --max-iter --horizons --conf-level --output -o --format -f --plot-save --model --result --save-result --save-model --auto --no-intercept --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --d --q --P --D --Q --s --max-p --max-q --max-P --max-Q --criterion --method -m --max-iter -I --horizons -H --conf-level -L --output -o --format -f --plot-save -G --model -M --result -R --save-result -W --save-model -S --auto --no-intercept --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4112,7 +4372,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --q --fix-delta --fix-gamma --horizons -H --conf-level --output -o --format -f --plot-save --model --result --save-result --save-model --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --q --fix-delta --fix-gamma --horizons -H --conf-level -L --output -o --format -f --plot-save -G --model -M --result -R --save-result -W --save-model -S --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4123,7 +4383,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --q --horizons --output -o --format -f --plot-save --model --result --save-result --save-model --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --q --horizons -H --conf-level -L --output -o --format -f --plot-save -G --model -M --result -R --save-result -W --save-model -S --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4134,7 +4394,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --horizons -H --conf-level --output -o --format -f --plot-save --model --result --save-result --save-model --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --horizons -H --conf-level -L --output -o --format -f --plot-save -G --model -M --result -R --save-result -W --save-model -S --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4146,7 +4406,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --q --horizons --dist --output -o --format -f --plot-save --model --result --save-result --save-model --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --q --horizons -H --conf-level -L --dist --output -o --format -f --plot-save -G --model -M --result -R --save-result -W --save-model -S --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4158,7 +4418,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --q --d0 --truncation --dist --horizons -H --conf-level --output -o --format -f --plot-save --model --result --save-result --save-model --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --q --d0 --truncation --dist --horizons -H --conf-level -L --output -o --format -f --plot-save -G --model -M --result -R --save-result -W --save-model -S --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4170,7 +4430,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --q --d0 --truncation --dist --horizons -H --conf-level --output -o --format -f --plot-save --model --result --save-result --save-model --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --q --d0 --truncation --dist --horizons -H --conf-level -L --output -o --format -f --plot-save -G --model -M --result -R --save-result -W --save-model -S --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4182,7 +4442,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --q --horizons --dist --output -o --format -f --plot-save --model --result --save-result --save-model --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --q --horizons -H --conf-level -L --dist --output -o --format -f --plot-save -G --model -M --result -R --save-result -W --save-model -S --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4195,7 +4455,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --m-freq --k --rv --span --config --horizons -H --output -o --format -f --model --config-json --set --save-model --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --m-freq --k --rv --span --config -C --horizons -H --output -o --format -f --model -M --config-json --set --save-model -S --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4207,7 +4467,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --q --horizons --dist --output -o --format -f --plot-save --model --result --save-result --save-model --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --q --horizons -H --conf-level -L --dist --output -o --format -f --plot-save -G --model -M --result -R --save-result -W --save-model -S --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4218,7 +4478,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --q --horizons -H --conf-level --output -o --format -f --plot-save --model --result --save-result --save-model --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --q --horizons -H --conf-level -L --output -o --format -f --plot-save -G --model -M --result -R --save-result -W --save-model -S --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4229,7 +4489,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --draws -n --horizons --output -o --format -f --plot-save --model --result --save-result --save-model --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --draws -n --horizons -H --conf-level -L --output -o --format -f --plot-save -G --model -M --result -R --save-result -W --save-model -S --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4239,11 +4499,11 @@ _frdc() {
       case "$prev" in
         --hh-solver) COMPREPLY=( $(compgen -W "egm vfi" -- "$cur") ); return ;;
         --distribution) COMPREPLY=( $(compgen -W "young winberry" -- "$cur") ); return ;;
-        --method) COMPREPLY=( $(compgen -W "krusell-smith ssj reiter" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "krusell-smith ssj reiter" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--hh-solver --distribution --method --n-reduced --t-sim --t-burn --t-fit --rho-z --sigma-z --seed --output -o --format -f --plot-save --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--hh-solver --distribution --method -m --n-reduced --t-sim --t-burn --t-fit --rho-z --sigma-z --seed --output -o --format -f --plot-save -G --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4253,11 +4513,11 @@ _frdc() {
       case "$prev" in
         --hh-solver) COMPREPLY=( $(compgen -W "egm vfi" -- "$cur") ); return ;;
         --distribution) COMPREPLY=( $(compgen -W "young winberry" -- "$cur") ); return ;;
-        --method) COMPREPLY=( $(compgen -W "reiter" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "reiter" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--hh-solver --distribution --method --horizons --shock-index --shock-size --n-reduced --output -o --format -f --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--hh-solver --distribution --method -m --horizons -H --shock-index --shock-size --n-reduced --output -o --format -f --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4267,13 +4527,13 @@ _frdc() {
       case "$prev" in
         --hh-solver) COMPREPLY=( $(compgen -W "egm vfi" -- "$cur") ); return ;;
         --distribution) COMPREPLY=( $(compgen -W "young winberry" -- "$cur") ); return ;;
-        --method) COMPREPLY=( $(compgen -W "ssj reiter" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "ssj reiter" -- "$cur") ); return ;;
         --sampler) COMPREPLY=( $(compgen -W "mh smc" -- "$cur") ); return ;;
         --measurement-error) COMPREPLY=( $(compgen -W "none auto" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--hh-solver --distribution --data --priors --prior --observables --method --sampler --draws --burnin --n-smc --n-mh-steps --ess-target --t-horizon --n-reduced --proposal-scale --adapt-interval --measurement-error --seed --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--hh-solver --distribution --data -d --priors --prior --observables --method -m --sampler --draws -n --burnin -B --n-smc --n-mh-steps --ess-target --t-horizon --n-reduced --proposal-scale --adapt-interval --measurement-error --seed --conf-level -L --quantiles -Q --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4283,11 +4543,11 @@ _frdc() {
       case "$prev" in
         --hh-solver) COMPREPLY=( $(compgen -W "egm vfi" -- "$cur") ); return ;;
         --distribution) COMPREPLY=( $(compgen -W "young winberry" -- "$cur") ); return ;;
-        --method) COMPREPLY=( $(compgen -W "ssj reiter" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "ssj reiter" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--hh-solver --distribution --method --horizons --n-reduced --output -o --format -f --plot-save --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--hh-solver --distribution --method -m --horizons -H --n-reduced --output -o --format -f --plot-save -G --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4297,11 +4557,11 @@ _frdc() {
       case "$prev" in
         --hh-solver) COMPREPLY=( $(compgen -W "egm vfi" -- "$cur") ); return ;;
         --distribution) COMPREPLY=( $(compgen -W "young winberry" -- "$cur") ); return ;;
-        --method) COMPREPLY=( $(compgen -W "ssj reiter" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "ssj reiter" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--hh-solver --distribution --method --data -d --observables --measurement-error --n-reduced --t-horizon --output -o --format -f --plot-save --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--hh-solver --distribution --method -m --data -d --observables --measurement-error --n-reduced --t-horizon --output -o --format -f --plot-save -G --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4311,11 +4571,11 @@ _frdc() {
       case "$prev" in
         --hh-solver) COMPREPLY=( $(compgen -W "egm vfi" -- "$cur") ); return ;;
         --distribution) COMPREPLY=( $(compgen -W "young winberry" -- "$cur") ); return ;;
-        --method) COMPREPLY=( $(compgen -W "reiter" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "reiter" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--hh-solver --distribution --method --horizons --shock-index --shock-size --n-reduced --output -o --format -f --plot-save --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--hh-solver --distribution --method -m --horizons -H --shock-index --shock-size --n-reduced --output -o --format -f --plot-save -G --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4325,11 +4585,11 @@ _frdc() {
       case "$prev" in
         --hh-solver) COMPREPLY=( $(compgen -W "egm vfi" -- "$cur") ); return ;;
         --distribution) COMPREPLY=( $(compgen -W "young winberry" -- "$cur") ); return ;;
-        --method) COMPREPLY=( $(compgen -W "ssj reiter" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "ssj reiter" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--hh-solver --distribution --method --horizons --n-reduced --output -o --format -f --plot-save --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--hh-solver --distribution --method -m --horizons -H --n-reduced --output -o --format -f --plot-save -G --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4339,11 +4599,11 @@ _frdc() {
       case "$prev" in
         --hh-solver) COMPREPLY=( $(compgen -W "egm vfi" -- "$cur") ); return ;;
         --distribution) COMPREPLY=( $(compgen -W "young winberry" -- "$cur") ); return ;;
-        --method) COMPREPLY=( $(compgen -W "ssj reiter" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "ssj reiter" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--hh-solver --distribution --method --periods --seed --n-reduced --output -o --format -f --plot-save --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--hh-solver --distribution --method -m --periods -N --seed --n-reduced --output -o --format -f --plot-save -G --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4356,7 +4616,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--hh-solver --distribution --n-agents --periods --seed --output -o --format -f --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--hh-solver --distribution --n-agents --periods -N --seed --output -o --format -f --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4366,11 +4626,11 @@ _frdc() {
       case "$prev" in
         --hh-solver) COMPREPLY=( $(compgen -W "egm vfi" -- "$cur") ); return ;;
         --distribution) COMPREPLY=( $(compgen -W "young winberry" -- "$cur") ); return ;;
-        --method) COMPREPLY=( $(compgen -W "ssj reiter krusell-smith" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "ssj reiter krusell-smith" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--hh-solver --distribution --method --n-reduced --t-horizon --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--hh-solver --distribution --method -m --n-reduced --t-horizon --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4384,7 +4644,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--hh-solver --distribution --euler-points --max-iter --tol --output -o --format -f --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--hh-solver --distribution --euler-points --max-iter -I --tol -T --output -o --format -f --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4392,10 +4652,12 @@ _frdc() {
       fi ;;
     "hd bvar")
       case "$prev" in
+        --id|-i) COMPREPLY=( $(compgen -W "cholesky sign narrative longrun fastica jade sobi dcov hsic cvm student-t mixture-normal mixture-normal-asym pml skew-normal lms markov-switching garch-id uhlig lewis-tvv sv-em" -- "$cur") ); return ;;
+        --sampler) COMPREPLY=( $(compgen -W "direct gibbs" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --id --draws -n --sampler --config --output -o --format -f --plot-save --model --config-json --set --result --save-result --save-model --plot --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --id -i --draws -n --sampler --conf-level -L --quantiles -Q --config -C --output -o --format -f --plot-save -G --model -M --config-json --set --result -R --save-result -W --save-model -S --plot -g --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4403,10 +4665,11 @@ _frdc() {
       fi ;;
     "hd favar")
       case "$prev" in
+        --id|-i) COMPREPLY=( $(compgen -W "cholesky sign narrative longrun fastica jade sobi dcov hsic cvm student-t mixture-normal mixture-normal-asym pml skew-normal lms markov-switching garch-id uhlig lewis-tvv sv-em" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--factors --lags -p --key-vars --horizons --id --config --output -o --format -f --plot-save --model --config-json --set --result --save-result --save-model --plot --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--factors -q --lags -p --key-vars --horizons -H --id -i --config -C --output -o --format -f --plot-save -G --model -M --config-json --set --result -R --save-result -W --save-model -S --plot -g --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4414,14 +4677,14 @@ _frdc() {
       fi ;;
     "hd gdfm-i1")
       case "$prev" in
-        --id) COMPREPLY=( $(compgen -W "permanent-transitory cholesky longrun sign proxy" -- "$cur") ); return ;;
+        --id|-i) COMPREPLY=( $(compgen -W "permanent-transitory cholesky longrun sign proxy" -- "$cur") ); return ;;
         --det-trend) COMPREPLY=( $(compgen -W "none constant linear trend" -- "$cur") ); return ;;
-        --kernel) COMPREPLY=( $(compgen -W "bartlett parzen tukey" -- "$cur") ); return ;;
+        --kernel|-k) COMPREPLY=( $(compgen -W "bartlett parzen tukey" -- "$cur") ); return ;;
         --lag-criterion) COMPREPLY=( $(compgen -W "bic aic" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dynamic-rank --n-permanent --id --det-trend --p-max --n-perm --bandwidth --kernel --lag-criterion --irf-horizon --config --instrument --seed --horizons --format -f --output -o --plot-save --model --config-json --set --result --save-result --save-model --no-standardize --include-idiosyncratic --plot --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dynamic-rank --n-permanent --id -i --det-trend --p-max --n-perm --bandwidth -b --kernel -k --lag-criterion --irf-horizon --config -C --instrument --seed --horizons -H --format -f --output -o --plot-save -G --model -M --config-json --set --result -R --save-result -W --save-model -S --no-standardize --include-idiosyncratic --plot -g --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4429,10 +4692,12 @@ _frdc() {
       fi ;;
     "hd lp")
       case "$prev" in
+        --id|-i) COMPREPLY=( $(compgen -W "cholesky sign narrative longrun fastica jade sobi dcov hsic cvm student-t mixture-normal mixture-normal-asym pml skew-normal lms markov-switching garch-id uhlig lewis-tvv sv-em" -- "$cur") ); return ;;
+        --vcov) COMPREPLY=( $(compgen -W "newey_west white driscoll_kraay" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --var-lags --id --vcov --config --output -o --format -f --plot-save --model --config-json --set --result --save-result --save-model --plot --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --var-lags --id -i --vcov --config -C --output -o --format -f --plot-save -G --model -M --config-json --set --result -R --save-result -W --save-model -S --plot -g --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4440,14 +4705,15 @@ _frdc() {
       fi ;;
     "hd sdfm")
       case "$prev" in
+        --id|-i) COMPREPLY=( $(compgen -W "cholesky sign longrun max-share proxy lewis-tvv sv-em gmm-moments" -- "$cur") ); return ;;
         --q-method) COMPREPLY=( $(compgen -W "hallin-liska bai-ng amengual-watson" -- "$cur") ); return ;;
-        --method) COMPREPLY=( $(compgen -W "fglr fhlz gdfm-var" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "fglr fhlz gdfm-var" -- "$cur") ); return ;;
         --spectral) COMPREPLY=( $(compgen -W "lag-window smoothed-periodogram" -- "$cur") ); return ;;
         --space) COMPREPLY=( $(compgen -W "panel factor" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--factors -q --id --q-method --method --spectral --instrument --var-lags --n-perm --p-max --target --horizons --config --space --output -o --format -f --plot-save --model --config-json --set --result --save-result --save-model --plot --no-idiosyncratic --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--factors -q --id -i --q-method --method -m --spectral --instrument --var-lags --n-perm --p-max --target --horizons -H --config -C --space --output -o --format -f --plot-save -G --model -M --config-json --set --result -R --save-result -W --save-model -S --plot -g --no-idiosyncratic --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4455,10 +4721,11 @@ _frdc() {
       fi ;;
     "hd var")
       case "$prev" in
+        --id|-i) COMPREPLY=( $(compgen -W "cholesky sign narrative longrun proxy max-share gmm-moments lewis-tvv sv-em fastica jade sobi dcov hsic cvm student-t mixture-normal mixture-normal-asym pml skew-normal lms markov-switching garch-id" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --id --config --instrument --target-var --output -o --format -f --plot-save --model --config-json --set --result --save-result --save-model --plot --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --id -i --config -C --instrument --target-var --output -o --format -f --plot-save -G --model -M --config-json --set --result -R --save-result -W --save-model -S --plot -g --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4466,10 +4733,12 @@ _frdc() {
       fi ;;
     "hd vecm")
       case "$prev" in
+        --deterministic) COMPREPLY=( $(compgen -W "none constant trend" -- "$cur") ); return ;;
+        --id|-i) COMPREPLY=( $(compgen -W "cholesky sign narrative longrun fastica jade sobi dcov hsic cvm student-t mixture-normal mixture-normal-asym pml skew-normal lms markov-switching garch-id uhlig lewis-tvv sv-em svec" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --rank -r --deterministic --id --config --output -o --format -f --plot-save --model --config-json --set --result --save-result --save-model --plot --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --rank -r --deterministic --id -i --config -C --output -o --format -f --plot-save -G --model -M --config-json --set --result -R --save-result -W --save-model -S --plot -g --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4481,7 +4750,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--data --n-sectors --n-fd --sectors --parser --region-map --sector-map --format -f --output -o --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--data -d --n-sectors --n-fd --sectors --parser --region-map --sector-map --format -f --output -o --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4490,11 +4759,11 @@ _frdc() {
     "io balance")
       case "$prev" in
         --parser) COMPREPLY=( $(compgen -W "csv icio" -- "$cur") ); return ;;
-        --method) COMPREPLY=( $(compgen -W "ras gras" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "ras gras" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--data --n-sectors --n-fd --sectors --parser --method --tol --max-iter --format -f --output -o --save-model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--data -d --n-sectors --n-fd --sectors --parser --method -m --tol -T --max-iter -I --format -f --output -o --save-model -S --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4505,7 +4774,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--data --n-sectors --n-fd --sectors --theta --sigma --format -f --output -o --second-order --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--data -d --n-sectors --n-fd --sectors --theta --sigma --format -f --output -o --second-order --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4515,11 +4784,11 @@ _frdc() {
       case "$prev" in
         --parser) COMPREPLY=( $(compgen -W "csv icio" -- "$cur") ); return ;;
         --nests) COMPREPLY=( $(compgen -W "single two" -- "$cur") ); return ;;
-        --factors) COMPREPLY=( $(compgen -W "single va-cats" -- "$cur") ); return ;;
+        --factors|-q) COMPREPLY=( $(compgen -W "single va-cats" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--data --n-sectors --n-fd --sectors --parser --theta --sigma --epsilon --eta --nests --factors --mu --format -f --output -o --plot-save --model --no-check --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--data -d --n-sectors --n-fd --sectors --parser --theta --sigma --epsilon --eta --nests --factors -q --mu --format -f --output -o --plot-save -G --model -M --no-check --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4529,12 +4798,12 @@ _frdc() {
       case "$prev" in
         --parser) COMPREPLY=( $(compgen -W "csv icio" -- "$cur") ); return ;;
         --nests) COMPREPLY=( $(compgen -W "single two" -- "$cur") ); return ;;
-        --factors) COMPREPLY=( $(compgen -W "single va-cats" -- "$cur") ); return ;;
-        --method) COMPREPLY=( $(compgen -W "newton fixedpoint" -- "$cur") ); return ;;
+        --factors|-q) COMPREPLY=( $(compgen -W "single va-cats" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "newton fixedpoint" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--data --n-sectors --n-fd --sectors --parser --theta --sigma --epsilon --eta --nests --factors --mu --dlog-a --dlog-l --dlog-mu --method --tol --max-iter --damping --format -f --output -o --plot-save --model --no-check --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--data -d --n-sectors --n-fd --sectors --parser --theta --sigma --epsilon --eta --nests --factors -q --mu --dlog-a --dlog-l --dlog-mu --method -m --tol -T --max-iter -I --damping --format -f --output -o --plot-save -G --model -M --no-check --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4544,12 +4813,12 @@ _frdc() {
       case "$prev" in
         --parser) COMPREPLY=( $(compgen -W "csv icio" -- "$cur") ); return ;;
         --nests) COMPREPLY=( $(compgen -W "single two" -- "$cur") ); return ;;
-        --factors) COMPREPLY=( $(compgen -W "single va-cats" -- "$cur") ); return ;;
+        --factors|-q) COMPREPLY=( $(compgen -W "single va-cats" -- "$cur") ); return ;;
         --hessian) COMPREPLY=( $(compgen -W "auto full none" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--data --n-sectors --n-fd --sectors --parser --theta --sigma --epsilon --eta --nests --factors --mu --hessian --format -f --output -o --plot-save --model --no-check --no-elasticities --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--data -d --n-sectors --n-fd --sectors --parser --theta --sigma --epsilon --eta --nests --factors -q --mu --hessian --format -f --output -o --plot-save -G --model -M --no-check --no-elasticities --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4559,13 +4828,13 @@ _frdc() {
       case "$prev" in
         --parser) COMPREPLY=( $(compgen -W "csv icio" -- "$cur") ); return ;;
         --nests) COMPREPLY=( $(compgen -W "single two" -- "$cur") ); return ;;
-        --factors) COMPREPLY=( $(compgen -W "single va-cats" -- "$cur") ); return ;;
+        --factors|-q) COMPREPLY=( $(compgen -W "single va-cats" -- "$cur") ); return ;;
         --point) COMPREPLY=( $(compgen -W "efficient observed" -- "$cur") ); return ;;
         --hessian) COMPREPLY=( $(compgen -W "auto full none" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--data --n-sectors --n-fd --sectors --parser --theta --sigma --epsilon --eta --nests --factors --mu --point --hessian --format -f --output -o --plot-save --model --no-check --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--data -d --n-sectors --n-fd --sectors --parser --theta --sigma --epsilon --eta --nests --factors -q --mu --point --hessian --format -f --output -o --plot-save -G --model -M --no-check --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4575,11 +4844,11 @@ _frdc() {
       case "$prev" in
         --parser) COMPREPLY=( $(compgen -W "csv icio" -- "$cur") ); return ;;
         --nests) COMPREPLY=( $(compgen -W "single two" -- "$cur") ); return ;;
-        --factors) COMPREPLY=( $(compgen -W "single va-cats" -- "$cur") ); return ;;
+        --factors|-q) COMPREPLY=( $(compgen -W "single va-cats" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--data --n-sectors --n-fd --sectors --parser --theta --sigma --epsilon --eta --nests --factors --mu --format -f --output -o --plot-save --save-model --no-check --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--data -d --n-sectors --n-fd --sectors --parser --theta --sigma --epsilon --eta --nests --factors -q --mu --format -f --output -o --plot-save -G --save-model -S --no-check --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4589,11 +4858,11 @@ _frdc() {
       case "$prev" in
         --parser) COMPREPLY=( $(compgen -W "csv icio" -- "$cur") ); return ;;
         --nests) COMPREPLY=( $(compgen -W "single two" -- "$cur") ); return ;;
-        --factors) COMPREPLY=( $(compgen -W "single va-cats" -- "$cur") ); return ;;
+        --factors|-q) COMPREPLY=( $(compgen -W "single va-cats" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--data --n-sectors --n-fd --sectors --parser --theta --sigma --epsilon --eta --nests --factors --mu --sector --range --points --format -f --output -o --plot-save --model --no-check --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--data -d --n-sectors --n-fd --sectors --parser --theta --sigma --epsilon --eta --nests --factors -q --mu --sector --range --points --format -f --output -o --plot-save -G --model -M --no-check --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4603,11 +4872,11 @@ _frdc() {
       case "$prev" in
         --parser) COMPREPLY=( $(compgen -W "csv icio" -- "$cur") ); return ;;
         --nests) COMPREPLY=( $(compgen -W "single two" -- "$cur") ); return ;;
-        --factors) COMPREPLY=( $(compgen -W "single va-cats" -- "$cur") ); return ;;
+        --factors|-q) COMPREPLY=( $(compgen -W "single va-cats" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--data --n-sectors --n-fd --sectors --parser --theta --sigma --epsilon --eta --nests --factors --mu --dlog-a --dlog-l --dlog-mu --format -f --output -o --plot-save --model --no-check --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--data -d --n-sectors --n-fd --sectors --parser --theta --sigma --epsilon --eta --nests --factors -q --mu --dlog-a --dlog-l --dlog-mu --format -f --output -o --plot-save -G --model -M --no-check --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4620,7 +4889,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--data --n-sectors --n-fd --sectors --parser --exporter --importer --kind --format -f --output -o --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--data -d --n-sectors --n-fd --sectors --parser --exporter --importer --kind --format -f --output -o --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4645,7 +4914,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--data --n-sectors --n-fd --sectors --parser --region --format -f --output -o --plot-save --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--data -d --n-sectors --n-fd --sectors --parser --region --format -f --output -o --plot-save -G --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4657,7 +4926,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--data --n-sectors --n-fd --sectors --sectors-extract --mode --share --region --format -f --output -o --plot-save --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--data -d --n-sectors --n-fd --sectors --sectors-extract --mode --share --region --format -f --output -o --plot-save -G --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4669,7 +4938,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--data --n-sectors --n-fd --sectors --account --by --format -f --output -o --detail --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--data -d --n-sectors --n-fd --sectors --account --by --format -f --output -o --detail --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4681,7 +4950,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--data --n-sectors --n-fd --sectors --matrix --format -f --output -o --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--data -d --n-sectors --n-fd --sectors --matrix --format -f --output -o --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4694,7 +4963,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--data --n-sectors --n-fd --sectors --parser --dy --kind --type --format -f --output -o --plot-save --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--data -d --n-sectors --n-fd --sectors --parser --dy --kind --type --format -f --output -o --plot-save -G --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4706,7 +4975,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--data --n-sectors --n-fd --sectors --forward --format -f --output -o --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--data -d --n-sectors --n-fd --sectors --forward --format -f --output -o --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4718,7 +4987,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--data --n-sectors --n-fd --sectors --matrix --format -f --output -o --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--data -d --n-sectors --n-fd --sectors --matrix --format -f --output -o --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4730,7 +4999,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--data --n-sectors --n-fd --sectors --forward --format -f --output -o --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--data -d --n-sectors --n-fd --sectors --forward --format -f --output -o --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4742,7 +5011,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--data --n-sectors --n-fd --sectors --parser --year --member --format -f --output -o --save-model --no-aggregate-cn-mx --check --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--data -d --n-sectors --n-fd --sectors --parser --year --member --format -f --output -o --save-model -S --no-aggregate-cn-mx --check --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4755,7 +5024,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--data --n-sectors --n-fd --sectors --kind --type --format -f --output -o --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--data -d --n-sectors --n-fd --sectors --kind --type --format -f --output -o --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4767,7 +5036,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--data --n-sectors --n-fd --sectors --parser --format -f --output -o --plot-save --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--data -d --n-sectors --n-fd --sectors --parser --format -f --output -o --plot-save -G --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4780,7 +5049,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--data --n-sectors --n-fd --sectors --parser --dva --dtax --mode --format -f --output -o --plot-save --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--data -d --n-sectors --n-fd --sectors --parser --dva --dtax --mode --format -f --output -o --plot-save -G --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4788,11 +5057,11 @@ _frdc() {
       fi ;;
     "io sda")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "additive multiplicative" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "additive multiplicative" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--data --n-sectors --n-fd --sectors --data2 --method --factors --on --format -f --output -o --plot-save --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--data -d --n-sectors --n-fd --sectors --data2 --method -m --factors -q --on --format -f --output -o --plot-save -G --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4815,7 +5084,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--data --n-sectors --n-fd --sectors --parser --region --format -f --output -o --plot-save --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--data -d --n-sectors --n-fd --sectors --parser --region --format -f --output -o --plot-save -G --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4823,10 +5092,12 @@ _frdc() {
       fi ;;
     "irf bvar")
       case "$prev" in
+        --id|-i) COMPREPLY=( $(compgen -W "cholesky sign narrative longrun fastica jade sobi dcov hsic cvm student-t mixture-normal mixture-normal-asym pml skew-normal lms markov-switching garch-id uhlig lewis-tvv sv-em robust-bayes" -- "$cur") ); return ;;
+        --sampler) COMPREPLY=( $(compgen -W "direct gibbs" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --shock --horizons --id --draws -n --sampler --config --output -o --format -f --plot-save --model --config-json --set --result --save-result --save-model --plot --cumulative --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --shock -K --horizons -H --id -i --draws -n --sampler --conf-level -L --quantiles -Q --config -C --output -o --format -f --plot-save -G --model -M --config-json --set --result -R --save-result -W --save-model -S --plot -g --cumulative --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4834,10 +5105,11 @@ _frdc() {
       fi ;;
     "irf favar")
       case "$prev" in
+        --id|-i) COMPREPLY=( $(compgen -W "cholesky sign narrative longrun fastica jade sobi dcov hsic cvm student-t mixture-normal mixture-normal-asym pml skew-normal lms markov-switching garch-id uhlig lewis-tvv sv-em" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--factors --lags -p --key-vars --horizons --id --config --output -o --format -f --plot-save --model --config-json --set --result --save-result --save-model --panel-irf --plot --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--factors -q --lags -p --key-vars --horizons -H --id -i --conf-level -L --config -C --output -o --format -f --plot-save -G --model -M --config-json --set --result -R --save-result -W --save-model -S --panel-irf --plot -g --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4845,14 +5117,14 @@ _frdc() {
       fi ;;
     "irf gdfm-i1")
       case "$prev" in
-        --id) COMPREPLY=( $(compgen -W "permanent-transitory cholesky longrun sign proxy" -- "$cur") ); return ;;
+        --id|-i) COMPREPLY=( $(compgen -W "permanent-transitory cholesky longrun sign proxy" -- "$cur") ); return ;;
         --det-trend) COMPREPLY=( $(compgen -W "none constant linear trend" -- "$cur") ); return ;;
-        --kernel) COMPREPLY=( $(compgen -W "bartlett parzen tukey" -- "$cur") ); return ;;
+        --kernel|-k) COMPREPLY=( $(compgen -W "bartlett parzen tukey" -- "$cur") ); return ;;
         --lag-criterion) COMPREPLY=( $(compgen -W "bic aic" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dynamic-rank --n-permanent --id --det-trend --p-max --n-perm --bandwidth --kernel --lag-criterion --irf-horizon --config --instrument --seed --horizons --format -f --output -o --plot-save --model --config-json --set --result --save-result --save-model --no-standardize --plot --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dynamic-rank --n-permanent --id -i --det-trend --p-max --n-perm --bandwidth -b --kernel -k --lag-criterion --irf-horizon --config -C --instrument --seed --horizons -H --format -f --output -o --plot-save -G --model -M --config-json --set --result -R --save-result -W --save-model -S --no-standardize --plot -g --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4860,10 +5132,13 @@ _frdc() {
       fi ;;
     "irf lp")
       case "$prev" in
+        --id|-i) COMPREPLY=( $(compgen -W "cholesky sign narrative longrun fastica jade sobi dcov hsic cvm student-t mixture-normal mixture-normal-asym pml skew-normal lms markov-switching garch-id uhlig lewis-tvv sv-em" -- "$cur") ); return ;;
+        --ci) COMPREPLY=( $(compgen -W "none bootstrap" -- "$cur") ); return ;;
+        --vcov) COMPREPLY=( $(compgen -W "newey_west white driscoll_kraay" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--shock --shocks --horizons --lags -p --var-lags --id --ci --draws --conf-level --vcov --config --output -o --format -f --plot-save --model --config-json --set --result --save-result --save-model --plot --cumulative --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--shock -K --shocks --horizons -H --lags -p --var-lags --id -i --ci --draws -n --conf-level -L --vcov --config -C --output -o --format -f --plot-save -G --model -M --config-json --set --result -R --save-result -W --save-model -S --plot -g --cumulative --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4871,10 +5146,11 @@ _frdc() {
       fi ;;
     "irf pvar")
       case "$prev" in
+        --irf-type) COMPREPLY=( $(compgen -W "oirf girf" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--id-col --time-col --lags -p --horizons --irf-type --draws --conf-level --output -o --format -f --plot-save --model --result --save-result --save-model --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--id-col -u --time-col -t --lags -p --horizons -H --irf-type --draws -n --conf-level -L --output -o --format -f --plot-save -G --model -M --result -R --save-result -W --save-model -S --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4883,12 +5159,12 @@ _frdc() {
     "irf qfavar")
       case "$prev" in
         --est-method) COMPREPLY=( $(compgen -W "twostep vb" -- "$cur") ); return ;;
-        --method) COMPREPLY=( $(compgen -W "analytical simulation monte-carlo" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "analytical simulation monte-carlo" -- "$cur") ); return ;;
         --ci-type) COMPREPLY=( $(compgen -W "none bootstrap credible" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--factors --lags -p --key-vars --taus --est-method --horizons --shock --shock-size --tau-profile --baseline-tau --method --ci-type --n-boot --conf-level --format -f --output -o --plot-save --model --result --save-result --save-model --no-standardize --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--factors -q --lags -p --key-vars --taus --est-method --horizons -H --shock -K --shock-size --tau-profile --baseline-tau --method -m --ci-type --n-boot --conf-level -L --format -f --output -o --plot-save -G --model -M --result -R --save-result -W --save-model -S --no-standardize --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4896,12 +5172,12 @@ _frdc() {
       fi ;;
     "irf qvar")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "analytical simulation monte-carlo" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "analytical simulation monte-carlo" -- "$cur") ); return ;;
         --ci-type) COMPREPLY=( $(compgen -W "none bootstrap" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --taus --ordering --horizons --shock --shock-size --tau-profile --baseline-tau --method --ci-type --n-boot --conf-level --format -f --output -o --plot-save --model --result --save-result --save-model --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --taus --ordering --horizons -H --shock -K --shock-size --tau-profile --baseline-tau --method -m --ci-type --n-boot --conf-level -L --format -f --output -o --plot-save -G --model -M --result -R --save-result -W --save-model -S --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4909,14 +5185,15 @@ _frdc() {
       fi ;;
     "irf sdfm")
       case "$prev" in
+        --id|-i) COMPREPLY=( $(compgen -W "cholesky sign longrun max-share proxy lewis-tvv sv-em gmm-moments" -- "$cur") ); return ;;
         --q-method) COMPREPLY=( $(compgen -W "hallin-liska bai-ng amengual-watson" -- "$cur") ); return ;;
-        --method) COMPREPLY=( $(compgen -W "fglr fhlz gdfm-var" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "fglr fhlz gdfm-var" -- "$cur") ); return ;;
         --spectral) COMPREPLY=( $(compgen -W "lag-window smoothed-periodogram" -- "$cur") ); return ;;
         --ci) COMPREPLY=( $(compgen -W "none bootstrap" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--factors -q --id --q-method --method --spectral --instrument --var-lags --n-perm --p-max --target --horizons --config --ci --draws --output -o --format -f --plot-save --model --config-json --set --result --save-result --save-model --plot --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--factors -q --id -i --q-method --method -m --spectral --instrument --var-lags --n-perm --p-max --target --horizons -H --config -C --ci --draws -n --conf-level -L --output -o --format -f --plot-save -G --model -M --config-json --set --result -R --save-result -W --save-model -S --plot -g --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4924,13 +5201,13 @@ _frdc() {
       fi ;;
     "irf ssvarma")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "pml ml gmm gmm-2sls" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "pml ml gmm gmm-2sls" -- "$cur") ); return ;;
         --distribution) COMPREPLY=( $(compgen -W "student-t mixture-normal mixture-normal-asym pearson-iv skew-normal" -- "$cur") ); return ;;
         --se) COMPREPLY=( $(compgen -W "auto hessian sandwich opg" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--ar-lags --ma-lags --method --distribution --k-iv --se --n-starts --max-iter --tol --shock --horizons --format -f --output -o --plot-save --model --result --save-result --save-model --cumulative --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--ar-lags --ma-lags --method -m --distribution --k-iv --se --n-starts --max-iter -I --tol -T --shock -K --horizons -H --format -f --output -o --plot-save -G --model -M --result -R --save-result -W --save-model -S --cumulative --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4941,7 +5218,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--date --horizons --shock --lags -p --draws -n --burnin --thin --n-train --k-q --k-s --k-w --irf-draws --output -o --format -f --model --result --save-result --save-model --no-tvp --no-sv --no-stationary-only --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--date --horizons -H --shock -K --lags -p --draws -n --burnin -B --thin --n-train --k-q --k-s --k-w --irf-draws --conf-level -L --quantiles -Q --output -o --format -f --model -M --result -R --save-result -W --save-model -S --no-tvp --no-sv --no-stationary-only --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4949,13 +5226,15 @@ _frdc() {
       fi ;;
     "irf var")
       case "$prev" in
+        --id|-i) COMPREPLY=( $(compgen -W "cholesky sign narrative longrun arias uhlig proxy max-share gmm-moments narrative-adrr lewis-tvv sv-em fastica jade sobi dcov hsic cvm student-t mixture-normal mixture-normal-asym pml skew-normal lms markov-switching garch-id" -- "$cur") ); return ;;
+        --ci) COMPREPLY=( $(compgen -W "none bootstrap theoretical" -- "$cur") ); return ;;
         --bootstrap) COMPREPLY=( $(compgen -W "iid wild block" -- "$cur") ); return ;;
         --wild-dist) COMPREPLY=( $(compgen -W "rademacher mammen" -- "$cur") ); return ;;
         --summary) COMPREPLY=( $(compgen -W "none median-target modal-model joint-band sup-t-band" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --shock --horizons --id --ci --draws --instrument --target-var --bootstrap --block-length --wild-dist --bias-reps --config --summary --output -o --format -f --plot-save --model --config-json --set --result --save-result --save-model --plot --cumulative --identified-set --stationary-only --bias-correct --bootstrap-across-rotations --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --shock -K --horizons -H --id -i --ci --draws -n --conf-level -L --instrument --target-var --bootstrap --block-length --wild-dist --bias-reps --config -C --summary --output -o --format -f --plot-save -G --model -M --config-json --set --result -R --save-result -W --save-model -S --plot -g --cumulative --identified-set --stationary-only --bias-correct --bootstrap-across-rotations --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -4963,10 +5242,13 @@ _frdc() {
       fi ;;
     "irf vecm")
       case "$prev" in
+        --deterministic) COMPREPLY=( $(compgen -W "none constant trend" -- "$cur") ); return ;;
+        --id|-i) COMPREPLY=( $(compgen -W "cholesky sign narrative longrun fastica jade sobi dcov hsic cvm student-t mixture-normal mixture-normal-asym pml skew-normal lms markov-switching garch-id uhlig lewis-tvv sv-em svec" -- "$cur") ); return ;;
+        --ci) COMPREPLY=( $(compgen -W "none bootstrap theoretical" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --rank -r --deterministic --shock --horizons --id --ci --draws --config --output -o --format -f --plot-save --model --config-json --set --result --save-result --save-model --plot --bootstrap-across-rotations --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --rank -r --deterministic --shock -K --horizons -H --id -i --ci --draws -n --conf-level -L --config -C --output -o --format -f --plot-save -G --model -M --config-json --set --result -R --save-result -W --save-model -S --plot -g --bootstrap-across-rotations --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5011,7 +5293,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--model --tol --output -o --format -f --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--model -M --tol -T --output -o --format -f --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5022,7 +5304,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--monthly-vars --quarterly-vars --lag-m --lag-q --lag-y --target-var --output -o --format -f --save-model --model --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--monthly-vars --quarterly-vars --lag-m --lag-q --lag-y --target-var --output -o --format -f --save-model -S --model -M --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5034,7 +5316,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--monthly-vars --quarterly-vars --lags -p --target-var --prior --theta-cross --lambda0 --theta0 --miu0 --alpha0 --output -o --format -f --save-model --model --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--monthly-vars --quarterly-vars --lags -p --target-var --prior --theta-cross --lambda0 --theta0 --miu0 --alpha0 --output -o --format -f --save-model -S --model -M --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5042,10 +5324,11 @@ _frdc() {
       fi ;;
     "nowcast dfm")
       case "$prev" in
+        --idio) COMPREPLY=( $(compgen -W "ar1 iid" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--monthly-vars --quarterly-vars --factors --lags -p --idio --max-iter --target-var --output -o --format -f --plot-save --save-model --model --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--monthly-vars --quarterly-vars --factors -q --lags -p --idio --max-iter -I --target-var --output -o --format -f --plot-save -G --save-model -S --model -M --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5053,11 +5336,11 @@ _frdc() {
       fi ;;
     "nowcast forecast")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "dfm bvar bridge" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "dfm bvar bridge" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--monthly-vars --quarterly-vars --method --factors --lags -p --horizons --target-var --output -o --format -f --plot-save --save-model --model --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--monthly-vars --quarterly-vars --method -m --factors -q --lags -p --horizons -H --target-var --output -o --format -f --plot-save -G --save-model -S --model -M --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5065,12 +5348,12 @@ _frdc() {
       fi ;;
     "nowcast gdfm")
       case "$prev" in
-        --kernel) COMPREPLY=( $(compgen -W "bartlett parzen tukey" -- "$cur") ); return ;;
+        --kernel|-k) COMPREPLY=( $(compgen -W "bartlett parzen tukey" -- "$cur") ); return ;;
         --spectral) COMPREPLY=( $(compgen -W "lag-window smoothed-periodogram" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dynamic-rank --nfactors --horizons --n-lags --bandwidth --kernel --spectral --em-max-iter --em-tol --format -f --output -o --plot-save --model --result --save-result --save-model --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dynamic-rank --nfactors --horizons -H --n-lags --bandwidth -b --kernel -k --spectral --em-max-iter --em-tol --format -f --output -o --plot-save -G --model -M --result -R --save-result -W --save-model -S --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5078,11 +5361,11 @@ _frdc() {
       fi ;;
     "nowcast news")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "dfm bvar" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "dfm bvar" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--data-new --data-old --monthly-vars --quarterly-vars --method --factors --lags -p --target-period --target-var --output -o --format -f --plot-save --save-model --model --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--data-new --data-old --monthly-vars --quarterly-vars --method -m --factors -q --lags -p --target-period --target-var --output -o --format -f --plot-save -G --save-model -S --model -M --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5091,13 +5374,14 @@ _frdc() {
     "policy counterfactual bvar")
       case "$prev" in
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
-        --method) COMPREPLY=( $(compgen -W "auto ls exact" -- "$cur") ); return ;;
+        --rule) COMPREPLY=( $(compgen -W "rate-peg inflation-target output-gap ngdp taylor" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "auto ls exact" -- "$cur") ); return ;;
         --use-draws) COMPREPLY=( $(compgen -W "auto on off" -- "$cur") ); return ;;
         --baseline-draws) COMPREPLY=( $(compgen -W "fixed match" -- "$cur") ); return ;;
         --normalize) COMPREPLY=( $(compgen -W "none instrument-impact" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--horizons --shocks --outcomes --instruments --output -o --format -f --lags -p --draws -n --config --nonpolicy-shock --rule --rule-config --method --use-draws --baseline-draws --quantiles --spanned-tol --normalize --plot-save --model --result --save-result --negate --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--horizons -H --shocks --outcomes --instruments -Z --output -o --format -f --lags -p --draws -n --config -C --nonpolicy-shock --rule --rule-config --method -m --use-draws --baseline-draws --conf-level -L --quantiles -Q --spanned-tol --normalize --plot-save -G --model -M --result -R --save-result -W --negate --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5106,13 +5390,14 @@ _frdc() {
     "policy counterfactual lp")
       case "$prev" in
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
-        --method) COMPREPLY=( $(compgen -W "auto ls exact" -- "$cur") ); return ;;
+        --rule) COMPREPLY=( $(compgen -W "rate-peg inflation-target output-gap ngdp taylor" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "auto ls exact" -- "$cur") ); return ;;
         --use-draws) COMPREPLY=( $(compgen -W "auto on off" -- "$cur") ); return ;;
         --baseline-draws) COMPREPLY=( $(compgen -W "fixed match" -- "$cur") ); return ;;
         --normalize) COMPREPLY=( $(compgen -W "none instrument-impact" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--horizons --shocks --outcomes --instruments --output -o --format -f --lags -p --draws --config --nonpolicy-shock --rule --rule-config --method --use-draws --baseline-draws --quantiles --spanned-tol --normalize --plot-save --model --result --save-result --negate --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--horizons -H --shocks --outcomes --instruments -Z --output -o --format -f --lags -p --draws -n --config -C --nonpolicy-shock --rule --rule-config --method -m --use-draws --baseline-draws --conf-level -L --quantiles -Q --spanned-tol --normalize --plot-save -G --model -M --result -R --save-result -W --negate --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5121,13 +5406,14 @@ _frdc() {
     "policy counterfactual var")
       case "$prev" in
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
-        --method) COMPREPLY=( $(compgen -W "auto ls exact" -- "$cur") ); return ;;
+        --rule) COMPREPLY=( $(compgen -W "rate-peg inflation-target output-gap ngdp taylor" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "auto ls exact" -- "$cur") ); return ;;
         --use-draws) COMPREPLY=( $(compgen -W "auto on off" -- "$cur") ); return ;;
         --baseline-draws) COMPREPLY=( $(compgen -W "fixed match" -- "$cur") ); return ;;
         --normalize) COMPREPLY=( $(compgen -W "none instrument-impact" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--horizons --shocks --outcomes --instruments --output -o --format -f --lags -p --draws --nonpolicy-shock --rule --rule-config --method --use-draws --baseline-draws --quantiles --spanned-tol --normalize --plot-save --model --result --save-result --negate --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--horizons -H --shocks --outcomes --instruments -Z --output -o --format -f --lags -p --draws -n --nonpolicy-shock --rule --rule-config --method -m --use-draws --baseline-draws --conf-level -L --quantiles -Q --spanned-tol --normalize --plot-save -G --model -M --result -R --save-result -W --negate --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5139,7 +5425,7 @@ _frdc() {
         --normalize) COMPREPLY=( $(compgen -W "none instrument-impact" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--horizons --shocks --outcomes --instruments --output -o --format -f --lags -p --draws -n --config --normalize --model --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--horizons -H --shocks --outcomes --instruments -Z --output -o --format -f --lags -p --draws -n --config -C --normalize --model -M --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5151,7 +5437,7 @@ _frdc() {
         --normalize) COMPREPLY=( $(compgen -W "none instrument-impact" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--horizons --shocks --outcomes --instruments --output -o --format -f --lags -p --draws --config --normalize --model --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--horizons -H --shocks --outcomes --instruments -Z --output -o --format -f --lags -p --draws -n --config -C --normalize --model -M --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5163,7 +5449,7 @@ _frdc() {
         --normalize) COMPREPLY=( $(compgen -W "none instrument-impact" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--horizons --shocks --outcomes --instruments --output -o --format -f --lags -p --draws --config --normalize --model --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--horizons -H --shocks --outcomes --instruments -Z --output -o --format -f --lags -p --draws -n --config -C --normalize --model -M --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5175,7 +5461,7 @@ _frdc() {
         --normalize) COMPREPLY=( $(compgen -W "none instrument-impact" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--horizons --shocks --outcomes --instruments --output -o --format -f --lags -p --draws --normalize --model --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--horizons -H --shocks --outcomes --instruments -Z --output -o --format -f --lags -p --draws -n --normalize --model -M --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5188,7 +5474,7 @@ _frdc() {
         --normalize) COMPREPLY=( $(compgen -W "none instrument-impact" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--horizons --shocks --outcomes --instruments --output -o --format -f --lags -p --draws -n --config --t-range --rule --rule-config --loss-config --use-draws --quantiles --normalize --plot-save --model --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--horizons -H --shocks --outcomes --instruments -Z --output -o --format -f --lags -p --draws -n --config -C --t-range --rule --rule-config --loss-config --use-draws --conf-level -L --quantiles -Q --normalize --plot-save -G --model -M --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5201,7 +5487,7 @@ _frdc() {
         --normalize) COMPREPLY=( $(compgen -W "none instrument-impact" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--horizons --shocks --outcomes --instruments --output -o --format -f --lags -p --draws --t-range --rule --rule-config --loss-config --use-draws --quantiles --normalize --plot-save --model --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--horizons -H --shocks --outcomes --instruments -Z --output -o --format -f --lags -p --draws -n --t-range --rule --rule-config --loss-config --use-draws --conf-level -L --quantiles -Q --normalize --plot-save -G --model -M --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5213,7 +5499,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--input --jac-output --t-horizon --dx --output -o --format -f --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--input --jac-output --t-horizon --dx --output -o --format -f --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5227,7 +5513,7 @@ _frdc() {
         --plot-view) COMPREPLY=( $(compgen -W "sd corr" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--horizons --shocks --outcomes --instruments --output -o --format -f --lags -p --draws -n --config --rule --rule-config --loss-config --use-draws --draw-source --quantiles --frequencies --plot-view --plot-save --model --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--horizons -H --shocks --outcomes --instruments -Z --output -o --format -f --lags -p --draws -n --config -C --rule --rule-config --loss-config --use-draws --draw-source --conf-level -L --quantiles -Q --frequencies --plot-view --plot-save -G --model -M --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5241,7 +5527,7 @@ _frdc() {
         --plot-view) COMPREPLY=( $(compgen -W "sd corr" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--horizons --shocks --outcomes --instruments --output -o --format -f --lags -p --draws --rule --rule-config --loss-config --use-draws --draw-source --quantiles --frequencies --plot-view --plot-save --model --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--horizons -H --shocks --outcomes --instruments -Z --output -o --format -f --lags -p --draws -n --rule --rule-config --loss-config --use-draws --draw-source --conf-level -L --quantiles -Q --frequencies --plot-view --plot-save -G --model -M --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5249,11 +5535,11 @@ _frdc() {
       fi ;;
     "policy news dsge")
       case "$prev" in
-        --solver) COMPREPLY=( $(compgen -W "gensys klein blanchard-kahn" -- "$cur") ); return ;;
+        --solver|-s) COMPREPLY=( $(compgen -W "gensys klein blanchard-kahn" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--policy-shock --outcomes --instruments --horizons --solver --chunk --behavioral-m --behavioral-theta --behavioral-ri-gain --behavioral-ri-rho --output -o --format -f --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--policy-shock --outcomes --instruments -Z --horizons -H --solver -s --chunk --behavioral-m --behavioral-theta --behavioral-ri-gain --behavioral-ri-rho --output -o --format -f --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5265,7 +5551,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--outcomes --instruments --horizons --t-horizon --rule-closure --dx --behavioral-m --behavioral-theta --behavioral-ri-gain --behavioral-ri-rho --output -o --format -f --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--outcomes --instruments -Z --horizons -H --t-horizon --rule-closure --dx --behavioral-m --behavioral-theta --behavioral-ri-gain --behavioral-ri-rho --output -o --format -f --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5275,11 +5561,11 @@ _frdc() {
       case "$prev" in
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
         --normalize) COMPREPLY=( $(compgen -W "none instrument-impact" -- "$cur") ); return ;;
-        --method) COMPREPLY=( $(compgen -W "auto slsqp projection" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "auto slsqp projection" -- "$cur") ); return ;;
         --plot-view) COMPREPLY=( $(compgen -W "delta paths" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--horizons --shocks --outcomes --instruments --output -o --format -f --lags -p --draws -n --config --loss-config --n-sim --levels --normalize --targets --values-file --sd --rho --cross-corr-file --min-sd --origin --instrument-path --constraints-file --method --plot-view --plot-save --model --result --save-result --matched-draws --interp-quarterly --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--horizons -H --shocks --outcomes --instruments -Z --output -o --format -f --lags -p --draws -n --config -C --loss-config --n-sim --levels --normalize --targets --values-file --sd --rho --cross-corr-file --min-sd --origin --instrument-path --constraints-file --method -m --plot-view --plot-save -G --model -M --result -R --save-result -W --matched-draws --interp-quarterly --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5289,11 +5575,11 @@ _frdc() {
       case "$prev" in
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
         --normalize) COMPREPLY=( $(compgen -W "none instrument-impact" -- "$cur") ); return ;;
-        --method) COMPREPLY=( $(compgen -W "auto slsqp projection" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "auto slsqp projection" -- "$cur") ); return ;;
         --plot-view) COMPREPLY=( $(compgen -W "delta paths" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--horizons --shocks --outcomes --instruments --output -o --format -f --lags -p --draws --loss-config --n-sim --levels --normalize --targets --values-file --sd --rho --cross-corr-file --min-sd --origin --instrument-path --constraints-file --method --plot-view --plot-save --model --result --save-result --matched-draws --interp-quarterly --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--horizons -H --shocks --outcomes --instruments -Z --output -o --format -f --lags -p --draws -n --loss-config --n-sim --levels --normalize --targets --values-file --sd --rho --cross-corr-file --min-sd --origin --instrument-path --constraints-file --method -m --plot-view --plot-save -G --model -M --result -R --save-result -W --matched-draws --interp-quarterly --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5306,7 +5592,7 @@ _frdc() {
         --plot-view) COMPREPLY=( $(compgen -W "fan decomposition" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--horizons --shocks --outcomes --instruments --output -o --format -f --lags -p --draws -n --config --loss-config --forecasts-dir --sd --rho --n-sim --levels --normalize --plot-view --plot-save --model --result --save-result --matched-draws --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--horizons -H --shocks --outcomes --instruments -Z --output -o --format -f --lags -p --draws -n --config -C --loss-config --forecasts-dir --sd --rho --n-sim --levels --normalize --plot-view --plot-save -G --model -M --result -R --save-result -W --matched-draws --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5319,7 +5605,7 @@ _frdc() {
         --plot-view) COMPREPLY=( $(compgen -W "fan decomposition" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--horizons --shocks --outcomes --instruments --output -o --format -f --lags -p --draws --loss-config --forecasts-dir --sd --rho --n-sim --levels --normalize --plot-view --plot-save --model --result --save-result --matched-draws --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--horizons -H --shocks --outcomes --instruments -Z --output -o --format -f --lags -p --draws -n --loss-config --forecasts-dir --sd --rho --n-sim --levels --normalize --plot-view --plot-save -G --model -M --result -R --save-result -W --matched-draws --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5333,7 +5619,7 @@ _frdc() {
         --normalize) COMPREPLY=( $(compgen -W "none instrument-impact" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--horizons --shocks --outcomes --instruments --output -o --format -f --lags -p --draws -n --config --nonpolicy-shock --loss-config --use-draws --baseline-draws --quantiles --normalize --plot-save --model --result --save-result --negate --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--horizons -H --shocks --outcomes --instruments -Z --output -o --format -f --lags -p --draws -n --config -C --nonpolicy-shock --loss-config --use-draws --baseline-draws --conf-level -L --quantiles -Q --normalize --plot-save -G --model -M --result -R --save-result -W --negate --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5347,7 +5633,7 @@ _frdc() {
         --normalize) COMPREPLY=( $(compgen -W "none instrument-impact" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--horizons --shocks --outcomes --instruments --output -o --format -f --lags -p --draws --config --nonpolicy-shock --loss-config --use-draws --baseline-draws --quantiles --normalize --plot-save --model --result --save-result --negate --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--horizons -H --shocks --outcomes --instruments -Z --output -o --format -f --lags -p --draws -n --config -C --nonpolicy-shock --loss-config --use-draws --baseline-draws --conf-level -L --quantiles -Q --normalize --plot-save -G --model -M --result -R --save-result -W --negate --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5361,7 +5647,7 @@ _frdc() {
         --normalize) COMPREPLY=( $(compgen -W "none instrument-impact" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--horizons --shocks --outcomes --instruments --output -o --format -f --lags -p --draws --nonpolicy-shock --loss-config --use-draws --baseline-draws --quantiles --normalize --plot-save --model --result --save-result --negate --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--horizons -H --shocks --outcomes --instruments -Z --output -o --format -f --lags -p --draws -n --nonpolicy-shock --loss-config --use-draws --baseline-draws --conf-level -L --quantiles -Q --normalize --plot-save -G --model -M --result -R --save-result -W --negate --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5370,10 +5656,10 @@ _frdc() {
     "policy spanning var")
       case "$prev" in
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
-        --solver) COMPREPLY=( $(compgen -W "gensys klein blanchard-kahn" -- "$cur") ); return ;;
+        --solver|-s) COMPREPLY=( $(compgen -W "gensys klein blanchard-kahn" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--horizons --shocks --outcomes --instruments --output -o --format -f --lags -p --draws --nonpolicy-shock --model-outcomes --model-instruments --policy-shock --solver --rule --rule-config --tol --n-sim --quantiles --plot-save --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--horizons -H --shocks --outcomes --instruments -Z --output -o --format -f --lags -p --draws -n --nonpolicy-shock --model-outcomes --model-instruments --policy-shock --solver -s --rule --rule-config --tol -T --n-sim --conf-level -L --quantiles -Q --plot-save -G --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5384,7 +5670,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--observables --horizons --method --output -o --format -f --plot-save --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--observables --horizons -H --method -m --output -o --format -f --plot-save -G --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5392,11 +5678,11 @@ _frdc() {
       fi ;;
     "predict choice logit")
       case "$prev" in
-        --cov-type) COMPREPLY=( $(compgen -W "ols hc0 hc1 hc2 hc3 cluster" -- "$cur") ); return ;;
+        --cov-type|-v) COMPREPLY=( $(compgen -W "ols hc0 hc1 hc2 hc3 cluster" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --cov-type --clusters --output -o --format -f --threshold --model --marginal-effects --odds-ratio --classification-table --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --cov-type -v --clusters -U --output -o --format -f --threshold --conf-level -L --model -M --marginal-effects --odds-ratio --classification-table --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5404,11 +5690,11 @@ _frdc() {
       fi ;;
     "predict choice mlogit")
       case "$prev" in
-        --cov-type) COMPREPLY=( $(compgen -W "ols hc0 hc1 hc2 hc3 cluster" -- "$cur") ); return ;;
+        --cov-type|-v) COMPREPLY=( $(compgen -W "ols hc0 hc1 hc2 hc3 cluster" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --cov-type --clusters --output -o --format -f --model --marginal-effects --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --cov-type -v --clusters -U --output -o --format -f --conf-level -L --model -M --marginal-effects --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5419,7 +5705,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --offset --exposure --max-iter --tol --format -f --output -o --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --offset --exposure --max-iter -I --tol -T --format -f --output -o --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5427,11 +5713,11 @@ _frdc() {
       fi ;;
     "predict choice ologit")
       case "$prev" in
-        --cov-type) COMPREPLY=( $(compgen -W "ols hc0 hc1 hc2 hc3 cluster" -- "$cur") ); return ;;
+        --cov-type|-v) COMPREPLY=( $(compgen -W "ols hc0 hc1 hc2 hc3 cluster" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --cov-type --clusters --output -o --format -f --model --marginal-effects --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --cov-type -v --clusters -U --output -o --format -f --conf-level -L --model -M --marginal-effects --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5439,11 +5725,11 @@ _frdc() {
       fi ;;
     "predict choice oprobit")
       case "$prev" in
-        --cov-type) COMPREPLY=( $(compgen -W "ols hc0 hc1 hc2 hc3 cluster" -- "$cur") ); return ;;
+        --cov-type|-v) COMPREPLY=( $(compgen -W "ols hc0 hc1 hc2 hc3 cluster" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --cov-type --clusters --output -o --format -f --model --marginal-effects --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --cov-type -v --clusters -U --output -o --format -f --conf-level -L --model -M --marginal-effects --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5451,11 +5737,11 @@ _frdc() {
       fi ;;
     "predict choice poisson")
       case "$prev" in
-        --cov-type) COMPREPLY=( $(compgen -W "robust mle hc0 hc1 hc2 hc3 cluster" -- "$cur") ); return ;;
+        --cov-type|-v) COMPREPLY=( $(compgen -W "robust mle hc0 hc1 hc2 hc3 cluster" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --offset --exposure --cov-type --clusters --max-iter --tol --format -f --output -o --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --offset --exposure --cov-type -v --clusters -U --max-iter -I --tol -T --format -f --output -o --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5463,11 +5749,11 @@ _frdc() {
       fi ;;
     "predict choice probit")
       case "$prev" in
-        --cov-type) COMPREPLY=( $(compgen -W "ols hc0 hc1 hc2 hc3 cluster" -- "$cur") ); return ;;
+        --cov-type|-v) COMPREPLY=( $(compgen -W "ols hc0 hc1 hc2 hc3 cluster" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --cov-type --clusters --output -o --format -f --threshold --model --marginal-effects --classification-table --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --cov-type -v --clusters -U --output -o --format -f --threshold --conf-level -L --model -M --marginal-effects --classification-table --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5476,12 +5762,12 @@ _frdc() {
     "predict choice ri-logit")
       case "$prev" in
         --normalize) COMPREPLY=( $(compgen -W "auto omega-one none first-coef" -- "$cur") ); return ;;
-        --cov-type) COMPREPLY=( $(compgen -W "hessian sandwich" -- "$cur") ); return ;;
+        --cov-type|-v) COMPREPLY=( $(compgen -W "hessian sandwich" -- "$cur") ); return ;;
         --kind) COMPREPLY=( $(compgen -W "auto conditional unconditional" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--env-col --choice-col --alt-col --state-col --obs-col --attr-cols --config --priors --normalize --cov-type --tol --max-iter --kind --format -f --output -o --model --config-json --set --unobserved-state --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--env-col --choice-col --alt-col --state-col --obs-col --attr-cols --config -C --priors --normalize --cov-type -v --tol -T --max-iter -I --kind --format -f --output -o --model -M --config-json --set --unobserved-state --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5489,10 +5775,11 @@ _frdc() {
       fi ;;
     "predict factor dynamic")
       case "$prev" in
+        --method|-m) COMPREPLY=( $(compgen -W "twostep qml" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--nfactors --factor-lags --method --format -f --output -o --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--nfactors --factor-lags --method -m --format -f --output -o --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5500,12 +5787,12 @@ _frdc() {
       fi ;;
     "predict factor fhlz")
       case "$prev" in
-        --kernel) COMPREPLY=( $(compgen -W "bartlett parzen tukey" -- "$cur") ); return ;;
+        --kernel|-k) COMPREPLY=( $(compgen -W "bartlett parzen tukey" -- "$cur") ); return ;;
         --lag-criterion) COMPREPLY=( $(compgen -W "bic aic" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dynamic-rank --bandwidth --kernel --p-max --lag-criterion --n-perm --irf-horizon --em-max-iter --em-tol --seed --format -f --output -o --model --allow-missing --no-standardize --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dynamic-rank --bandwidth -b --kernel -k --p-max --lag-criterion --n-perm --irf-horizon --em-max-iter --em-tol --seed --format -f --output -o --model -M --allow-missing --no-standardize --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5516,7 +5803,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--nfactors --dynamic-rank --format -f --output -o --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--nfactors --dynamic-rank --format -f --output -o --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5524,14 +5811,14 @@ _frdc() {
       fi ;;
     "predict factor gdfm-i1")
       case "$prev" in
-        --id) COMPREPLY=( $(compgen -W "permanent-transitory cholesky longrun sign proxy" -- "$cur") ); return ;;
+        --id|-i) COMPREPLY=( $(compgen -W "permanent-transitory cholesky longrun sign proxy" -- "$cur") ); return ;;
         --det-trend) COMPREPLY=( $(compgen -W "none constant linear trend" -- "$cur") ); return ;;
-        --kernel) COMPREPLY=( $(compgen -W "bartlett parzen tukey" -- "$cur") ); return ;;
+        --kernel|-k) COMPREPLY=( $(compgen -W "bartlett parzen tukey" -- "$cur") ); return ;;
         --lag-criterion) COMPREPLY=( $(compgen -W "bic aic" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dynamic-rank --n-permanent --id --det-trend --p-max --n-perm --bandwidth --kernel --lag-criterion --irf-horizon --config --instrument --seed --format -f --output -o --model --config-json --set --no-standardize --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dynamic-rank --n-permanent --id -i --det-trend --p-max --n-perm --bandwidth -b --kernel -k --lag-criterion --irf-horizon --config -C --instrument --seed --format -f --output -o --model -M --config-json --set --no-standardize --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5539,11 +5826,11 @@ _frdc() {
       fi ;;
     "predict factor qfm")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "iqr smoothed" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "iqr smoothed" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--tau --factors --method --format -f --output -o --model --standardize --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--tau --factors -q --method -m --format -f --output -o --model -M --standardize --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5554,7 +5841,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--nfactors --format -f --output -o --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--nfactors --format -f --output -o --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5567,7 +5854,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dynamic-rank --time-bandwidth --lag-bandwidth --time-kernel --lag-kernel --n-grid --format -f --output -o --model --no-standardize --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dynamic-rank --time-bandwidth --lag-bandwidth --time-kernel --lag-kernel --n-grid --format -f --output -o --model -M --no-standardize --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5575,10 +5862,11 @@ _frdc() {
       fi ;;
     "predict multivariate bvar")
       case "$prev" in
+        --sampler) COMPREPLY=( $(compgen -W "direct gibbs" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --draws -n --sampler --config --format -f --output -o --model --config-json --set --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --draws -n --sampler --config -C --format -f --output -o --model -M --config-json --set --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5589,7 +5877,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--factors --lags -p --key-vars --format -f --output -o --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--factors -q --lags -p --key-vars --format -f --output -o --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5600,7 +5888,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --format -f --output -o --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --format -f --output -o --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5608,10 +5896,11 @@ _frdc() {
       fi ;;
     "predict multivariate vecm")
       case "$prev" in
+        --deterministic) COMPREPLY=( $(compgen -W "none constant trend" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --rank -r --deterministic --format -f --output -o --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --rank -r --deterministic --format -f --output -o --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5619,10 +5908,12 @@ _frdc() {
       fi ;;
     "predict panel piv")
       case "$prev" in
+        --method|-m) COMPREPLY=( $(compgen -W "fe re fd hausman-taylor" -- "$cur") ); return ;;
+        --cov-type|-v) COMPREPLY=( $(compgen -W "ols cluster twoway driscoll-kraay" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --exog --endog --instruments --method -m --cov-type --id-col --time-col --format -f --output -o --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --exog --endog --instruments -Z --method -m --cov-type -v --id-col -u --time-col -t --format -f --output -o --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5630,11 +5921,11 @@ _frdc() {
       fi ;;
     "predict panel plogit")
       case "$prev" in
-        --cov-type) COMPREPLY=( $(compgen -W "ols cluster twoway driscoll-kraay" -- "$cur") ); return ;;
+        --cov-type|-v) COMPREPLY=( $(compgen -W "ols cluster twoway driscoll-kraay" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --indep --id-col --time-col --cov-type --method -m --output -o --format -f --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --indep -x --id-col -u --time-col -t --cov-type -v --method -m --output -o --format -f --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5642,11 +5933,11 @@ _frdc() {
       fi ;;
     "predict panel pprobit")
       case "$prev" in
-        --cov-type) COMPREPLY=( $(compgen -W "ols cluster twoway driscoll-kraay" -- "$cur") ); return ;;
+        --cov-type|-v) COMPREPLY=( $(compgen -W "ols cluster twoway driscoll-kraay" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --indep --id-col --time-col --cov-type --method -m --output -o --format -f --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --indep -x --id-col -u --time-col -t --cov-type -v --method -m --output -o --format -f --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5654,11 +5945,11 @@ _frdc() {
       fi ;;
     "predict panel preg")
       case "$prev" in
-        --cov-type) COMPREPLY=( $(compgen -W "ols cluster twoway driscoll-kraay" -- "$cur") ); return ;;
+        --cov-type|-v) COMPREPLY=( $(compgen -W "ols cluster twoway driscoll-kraay" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --indep --id-col --time-col --cov-type --method -m --output -o --format -f --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --indep -x --id-col -u --time-col -t --cov-type -v --method -m --output -o --format -f --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5670,7 +5961,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --indep --id-col --time-col --factors --tau --slope --format -f --output -o --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --indep -x --id-col -u --time-col -t --factors -q --tau --slope --format -f --output -o --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5682,7 +5973,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --k-regimes --max-iter --tol --probs --output -o --format -f --model --switching-variance --no-switching-variance --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --k-regimes --max-iter -I --tol -T --probs --output -o --format -f --model -M --switching-variance --no-switching-variance --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5694,7 +5985,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --k-regimes --max-iter --probs --output -o --format -f --model --switching-variance --no-switching-variance --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --k-regimes --max-iter -I --probs --output -o --format -f --model -M --switching-variance --no-switching-variance --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5702,11 +5993,11 @@ _frdc() {
       fi ;;
     "predict regression 3sls")
       case "$prev" in
-        --instruments) COMPREPLY=( $(compgen -W "common perequation" -- "$cur") ); return ;;
+        --instruments|-Z) COMPREPLY=( $(compgen -W "common perequation" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--config --instruments --output -o --format -f --model --config-json --set --no-intercept --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--config -C --instruments -Z --output -o --format -f --model -M --config-json --set --no-intercept --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5714,11 +6005,11 @@ _frdc() {
       fi ;;
     "predict regression reg")
       case "$prev" in
-        --cov-type) COMPREPLY=( $(compgen -W "ols hc0 hc1 hc2 hc3 cluster" -- "$cur") ); return ;;
+        --cov-type|-v) COMPREPLY=( $(compgen -W "ols hc0 hc1 hc2 hc3 cluster" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --cov-type --clusters --output -o --format -f --weights --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --cov-type -v --clusters -U --output -o --format -f --weights --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5732,7 +6023,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --kind --init-mode --kappa --state --output -o --format -f --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --kind --init-mode --kappa --state --output -o --format -f --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5743,7 +6034,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--config --output -o --format -f --model --config-json --set --iterate --no-intercept --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--config -C --output -o --format -f --model -M --config-json --set --iterate --no-intercept --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5755,7 +6046,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --q --method -m --d0 --max-iter --output -o --format -f --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --q --method -m --d0 --max-iter -I --output -o --format -f --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5763,10 +6054,11 @@ _frdc() {
       fi ;;
     "predict univariate arima")
       case "$prev" in
+        --method|-m) COMPREPLY=( $(compgen -W "ols css mle css_mle" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --d --q --method -m --format -f --output -o --model --auto --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --d --q --method -m --format -f --output -o --model -M --auto --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5775,11 +6067,11 @@ _frdc() {
     "predict univariate sarima")
       case "$prev" in
         --criterion) COMPREPLY=( $(compgen -W "aic bic" -- "$cur") ); return ;;
-        --method) COMPREPLY=( $(compgen -W "css_mle mle css" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "css_mle mle css" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --d --q --P --D --Q --s --max-p --max-q --max-P --max-Q --criterion --method --max-iter --format -f --output -o --model --auto --no-intercept --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --d --q --P --D --Q --s --max-p --max-q --max-P --max-Q --criterion --method -m --max-iter -I --format -f --output -o --model -M --auto --no-intercept --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5790,7 +6082,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --q --fix-delta --fix-gamma --output -o --format -f --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --q --fix-delta --fix-gamma --output -o --format -f --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5801,7 +6093,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --q --format -f --output -o --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --q --format -f --output -o --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5812,7 +6104,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --output -o --format -f --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --output -o --format -f --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5823,7 +6115,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --q --format -f --output -o --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --q --format -f --output -o --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5835,7 +6127,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --q --d0 --truncation --dist --output -o --format -f --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --q --d0 --truncation --dist --output -o --format -f --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5847,7 +6139,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --q --d0 --truncation --dist --output -o --format -f --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --q --d0 --truncation --dist --output -o --format -f --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5858,7 +6150,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --q --format -f --output -o --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --q --format -f --output -o --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5871,7 +6163,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --m-freq --k --rv --span --config --output -o --format -f --model --config-json --set --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --m-freq --k --rv --span --config -C --output -o --format -f --model -M --config-json --set --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5882,7 +6174,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --q --format -f --output -o --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --q --format -f --output -o --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5893,7 +6185,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --q --output -o --format -f --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --q --output -o --format -f --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5904,7 +6196,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --draws -n --format -f --output -o --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --draws -n --format -f --output -o --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5912,11 +6204,11 @@ _frdc() {
       fi ;;
     "residuals choice logit")
       case "$prev" in
-        --cov-type) COMPREPLY=( $(compgen -W "ols hc0 hc1 hc2 hc3 cluster" -- "$cur") ); return ;;
+        --cov-type|-v) COMPREPLY=( $(compgen -W "ols hc0 hc1 hc2 hc3 cluster" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --cov-type --clusters --output -o --format -f --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --cov-type -v --clusters -U --output -o --format -f --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5924,12 +6216,12 @@ _frdc() {
       fi ;;
     "residuals choice mlogit")
       case "$prev" in
-        --cov-type) COMPREPLY=( $(compgen -W "ols hc0 hc1 hc2 hc3 cluster" -- "$cur") ); return ;;
+        --cov-type|-v) COMPREPLY=( $(compgen -W "ols hc0 hc1 hc2 hc3 cluster" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
         --kind) COMPREPLY=( $(compgen -W "response pearson deviance" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --cov-type --clusters --output -o --format -f --kind --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --cov-type -v --clusters -U --output -o --format -f --kind --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5940,7 +6232,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --offset --exposure --max-iter --tol --format -f --output -o --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --offset --exposure --max-iter -I --tol -T --format -f --output -o --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5948,12 +6240,12 @@ _frdc() {
       fi ;;
     "residuals choice ologit")
       case "$prev" in
-        --cov-type) COMPREPLY=( $(compgen -W "ols hc0 hc1 hc2 hc3 cluster" -- "$cur") ); return ;;
+        --cov-type|-v) COMPREPLY=( $(compgen -W "ols hc0 hc1 hc2 hc3 cluster" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
         --kind) COMPREPLY=( $(compgen -W "response pearson deviance" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --cov-type --clusters --output -o --format -f --kind --model --generalized --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --cov-type -v --clusters -U --output -o --format -f --kind --model -M --generalized --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5961,12 +6253,12 @@ _frdc() {
       fi ;;
     "residuals choice oprobit")
       case "$prev" in
-        --cov-type) COMPREPLY=( $(compgen -W "ols hc0 hc1 hc2 hc3 cluster" -- "$cur") ); return ;;
+        --cov-type|-v) COMPREPLY=( $(compgen -W "ols hc0 hc1 hc2 hc3 cluster" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
         --kind) COMPREPLY=( $(compgen -W "response pearson deviance" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --cov-type --clusters --output -o --format -f --kind --model --generalized --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --cov-type -v --clusters -U --output -o --format -f --kind --model -M --generalized --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5974,11 +6266,11 @@ _frdc() {
       fi ;;
     "residuals choice poisson")
       case "$prev" in
-        --cov-type) COMPREPLY=( $(compgen -W "robust mle hc0 hc1 hc2 hc3 cluster" -- "$cur") ); return ;;
+        --cov-type|-v) COMPREPLY=( $(compgen -W "robust mle hc0 hc1 hc2 hc3 cluster" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --offset --exposure --cov-type --clusters --max-iter --tol --format -f --output -o --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --offset --exposure --cov-type -v --clusters -U --max-iter -I --tol -T --format -f --output -o --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5986,11 +6278,11 @@ _frdc() {
       fi ;;
     "residuals choice probit")
       case "$prev" in
-        --cov-type) COMPREPLY=( $(compgen -W "ols hc0 hc1 hc2 hc3 cluster" -- "$cur") ); return ;;
+        --cov-type|-v) COMPREPLY=( $(compgen -W "ols hc0 hc1 hc2 hc3 cluster" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --cov-type --clusters --output -o --format -f --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --cov-type -v --clusters -U --output -o --format -f --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -5998,10 +6290,11 @@ _frdc() {
       fi ;;
     "residuals factor dynamic")
       case "$prev" in
+        --method|-m) COMPREPLY=( $(compgen -W "twostep qml" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--nfactors --factor-lags --method --format -f --output -o --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--nfactors --factor-lags --method -m --format -f --output -o --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6009,12 +6302,12 @@ _frdc() {
       fi ;;
     "residuals factor fhlz")
       case "$prev" in
-        --kernel) COMPREPLY=( $(compgen -W "bartlett parzen tukey" -- "$cur") ); return ;;
+        --kernel|-k) COMPREPLY=( $(compgen -W "bartlett parzen tukey" -- "$cur") ); return ;;
         --lag-criterion) COMPREPLY=( $(compgen -W "bic aic" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dynamic-rank --bandwidth --kernel --p-max --lag-criterion --n-perm --irf-horizon --em-max-iter --em-tol --seed --format -f --output -o --model --allow-missing --no-standardize --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dynamic-rank --bandwidth -b --kernel -k --p-max --lag-criterion --n-perm --irf-horizon --em-max-iter --em-tol --seed --format -f --output -o --model -M --allow-missing --no-standardize --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6025,7 +6318,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--nfactors --dynamic-rank --format -f --output -o --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--nfactors --dynamic-rank --format -f --output -o --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6033,14 +6326,14 @@ _frdc() {
       fi ;;
     "residuals factor gdfm-i1")
       case "$prev" in
-        --id) COMPREPLY=( $(compgen -W "permanent-transitory cholesky longrun sign proxy" -- "$cur") ); return ;;
+        --id|-i) COMPREPLY=( $(compgen -W "permanent-transitory cholesky longrun sign proxy" -- "$cur") ); return ;;
         --det-trend) COMPREPLY=( $(compgen -W "none constant linear trend" -- "$cur") ); return ;;
-        --kernel) COMPREPLY=( $(compgen -W "bartlett parzen tukey" -- "$cur") ); return ;;
+        --kernel|-k) COMPREPLY=( $(compgen -W "bartlett parzen tukey" -- "$cur") ); return ;;
         --lag-criterion) COMPREPLY=( $(compgen -W "bic aic" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dynamic-rank --n-permanent --id --det-trend --p-max --n-perm --bandwidth --kernel --lag-criterion --irf-horizon --config --instrument --seed --format -f --output -o --model --config-json --set --no-standardize --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dynamic-rank --n-permanent --id -i --det-trend --p-max --n-perm --bandwidth -b --kernel -k --lag-criterion --irf-horizon --config -C --instrument --seed --format -f --output -o --model -M --config-json --set --no-standardize --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6048,11 +6341,11 @@ _frdc() {
       fi ;;
     "residuals factor qfm")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "iqr smoothed" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "iqr smoothed" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--tau --factors --method --format -f --output -o --model --standardize --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--tau --factors -q --method -m --format -f --output -o --model -M --standardize --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6063,7 +6356,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--nfactors --format -f --output -o --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--nfactors --format -f --output -o --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6076,7 +6369,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dynamic-rank --time-bandwidth --lag-bandwidth --time-kernel --lag-kernel --n-grid --format -f --output -o --model --no-standardize --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dynamic-rank --time-bandwidth --lag-bandwidth --time-kernel --lag-kernel --n-grid --format -f --output -o --model -M --no-standardize --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6084,10 +6377,11 @@ _frdc() {
       fi ;;
     "residuals multivariate bvar")
       case "$prev" in
+        --sampler) COMPREPLY=( $(compgen -W "direct gibbs" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --draws -n --sampler --config --format -f --output -o --model --config-json --set --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --draws -n --sampler --config -C --format -f --output -o --model -M --config-json --set --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6098,7 +6392,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--factors --lags -p --key-vars --format -f --output -o --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--factors -q --lags -p --key-vars --format -f --output -o --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6107,13 +6401,13 @@ _frdc() {
     "residuals multivariate lanne-luoto")
       case "$prev" in
         --form) COMPREPLY=( $(compgen -W "b-model a-model" -- "$cur") ); return ;;
-        --weighting) COMPREPLY=( $(compgen -W "two-step iterated cue" -- "$cur") ); return ;;
+        --weighting|-w) COMPREPLY=( $(compgen -W "two-step iterated cue" -- "$cur") ); return ;;
         --moment-selection) COMPREPLY=( $(compgen -W "msc-rmsc rmsc-seq none" -- "$cur") ); return ;;
-        --kernel) COMPREPLY=( $(compgen -W "bartlett parzen qs quadratic-spectral tukey-hanning" -- "$cur") ); return ;;
+        --kernel|-k) COMPREPLY=( $(compgen -W "bartlett parzen qs quadratic-spectral tukey-hanning" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --form --weighting --moment-selection --kernel --bandwidth --max-iter --tol --n-starts --shock-names --format -f --output -o --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --form --weighting -w --moment-selection --kernel -k --bandwidth -b --max-iter -I --tol -T --n-starts --shock-names --format -f --output -o --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6121,12 +6415,12 @@ _frdc() {
       fi ;;
     "residuals multivariate lms-svar")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "three-step one-step full-ml" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "three-step one-step full-ml" -- "$cur") ); return ;;
         --se) COMPREPLY=( $(compgen -W "hessian sandwich opg" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --distributions --method --se --n-starts --max-iter --tol --shock-names --format -f --output -o --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --distributions --method -m --se --n-starts --max-iter -I --tol -T --shock-names --format -f --output -o --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6137,7 +6431,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --taus --ordering --format -f --output -o --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --taus --ordering --format -f --output -o --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6145,13 +6439,13 @@ _frdc() {
       fi ;;
     "residuals multivariate ssvarma")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "pml ml gmm gmm-2sls" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "pml ml gmm gmm-2sls" -- "$cur") ); return ;;
         --distribution) COMPREPLY=( $(compgen -W "student-t mixture-normal mixture-normal-asym pearson-iv skew-normal" -- "$cur") ); return ;;
         --se) COMPREPLY=( $(compgen -W "auto hessian sandwich opg" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--ar-lags --ma-lags --method --distribution --k-iv --se --n-starts --max-iter --tol --shock-names --format -f --output -o --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--ar-lags --ma-lags --method -m --distribution --k-iv --se --n-starts --max-iter -I --tol -T --shock-names --format -f --output -o --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6162,7 +6456,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --format -f --output -o --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --format -f --output -o --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6170,10 +6464,11 @@ _frdc() {
       fi ;;
     "residuals multivariate vecm")
       case "$prev" in
+        --deterministic) COMPREPLY=( $(compgen -W "none constant trend" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --rank -r --deterministic --format -f --output -o --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --rank -r --deterministic --format -f --output -o --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6181,10 +6476,12 @@ _frdc() {
       fi ;;
     "residuals panel piv")
       case "$prev" in
+        --method|-m) COMPREPLY=( $(compgen -W "fe re fd hausman-taylor" -- "$cur") ); return ;;
+        --cov-type|-v) COMPREPLY=( $(compgen -W "ols cluster twoway driscoll-kraay" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --exog --endog --instruments --method -m --cov-type --id-col --time-col --format -f --output -o --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --exog --endog --instruments -Z --method -m --cov-type -v --id-col -u --time-col -t --format -f --output -o --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6192,11 +6489,11 @@ _frdc() {
       fi ;;
     "residuals panel plogit")
       case "$prev" in
-        --cov-type) COMPREPLY=( $(compgen -W "ols cluster twoway driscoll-kraay" -- "$cur") ); return ;;
+        --cov-type|-v) COMPREPLY=( $(compgen -W "ols cluster twoway driscoll-kraay" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --indep --id-col --time-col --cov-type --method -m --output -o --format -f --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --indep -x --id-col -u --time-col -t --cov-type -v --method -m --output -o --format -f --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6204,11 +6501,11 @@ _frdc() {
       fi ;;
     "residuals panel pprobit")
       case "$prev" in
-        --cov-type) COMPREPLY=( $(compgen -W "ols cluster twoway driscoll-kraay" -- "$cur") ); return ;;
+        --cov-type|-v) COMPREPLY=( $(compgen -W "ols cluster twoway driscoll-kraay" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --indep --id-col --time-col --cov-type --method -m --output -o --format -f --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --indep -x --id-col -u --time-col -t --cov-type -v --method -m --output -o --format -f --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6216,11 +6513,11 @@ _frdc() {
       fi ;;
     "residuals panel preg")
       case "$prev" in
-        --cov-type) COMPREPLY=( $(compgen -W "ols cluster twoway driscoll-kraay" -- "$cur") ); return ;;
+        --cov-type|-v) COMPREPLY=( $(compgen -W "ols cluster twoway driscoll-kraay" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --indep --id-col --time-col --cov-type --method -m --output -o --format -f --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --indep -x --id-col -u --time-col -t --cov-type -v --method -m --output -o --format -f --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6232,7 +6529,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --indep --id-col --time-col --factors --tau --slope --format -f --output -o --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --indep -x --id-col -u --time-col -t --factors -q --tau --slope --format -f --output -o --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6243,7 +6540,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --k-regimes --max-iter --tol --output -o --format -f --model --switching-variance --no-switching-variance --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --k-regimes --max-iter -I --tol -T --output -o --format -f --model -M --switching-variance --no-switching-variance --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6254,7 +6551,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --k-regimes --max-iter --output -o --format -f --model --switching-variance --no-switching-variance --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --k-regimes --max-iter -I --output -o --format -f --model -M --switching-variance --no-switching-variance --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6265,7 +6562,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --d --trim --output -o --format -f --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --d --trim --output -o --format -f --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6277,7 +6574,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --d --type --n-gamma --n-c --transition-col --output -o --format -f --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --d --type --n-gamma --n-c --transition-col --output -o --format -f --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6285,11 +6582,11 @@ _frdc() {
       fi ;;
     "residuals regression 3sls")
       case "$prev" in
-        --instruments) COMPREPLY=( $(compgen -W "common perequation" -- "$cur") ); return ;;
+        --instruments|-Z) COMPREPLY=( $(compgen -W "common perequation" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--config --instruments --output -o --format -f --model --config-json --set --no-intercept --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--config -C --instruments -Z --output -o --format -f --model -M --config-json --set --no-intercept --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6297,11 +6594,11 @@ _frdc() {
       fi ;;
     "residuals regression reg")
       case "$prev" in
-        --cov-type) COMPREPLY=( $(compgen -W "ols hc0 hc1 hc2 hc3 cluster" -- "$cur") ); return ;;
+        --cov-type|-v) COMPREPLY=( $(compgen -W "ols hc0 hc1 hc2 hc3 cluster" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --cov-type --clusters --output -o --format -f --weights --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --cov-type -v --clusters -U --output -o --format -f --weights --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6314,7 +6611,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --kind --init-mode --kappa --output -o --format -f --model --standardized --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --kind --init-mode --kappa --output -o --format -f --model -M --standardized --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6325,7 +6622,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--config --output -o --format -f --model --config-json --set --iterate --no-intercept --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--config -C --output -o --format -f --model -M --config-json --set --iterate --no-intercept --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6337,7 +6634,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --q --method -m --d0 --max-iter --output -o --format -f --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --q --method -m --d0 --max-iter -I --output -o --format -f --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6345,10 +6642,11 @@ _frdc() {
       fi ;;
     "residuals univariate arima")
       case "$prev" in
+        --method|-m) COMPREPLY=( $(compgen -W "ols css mle css_mle" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --d --q --method -m --format -f --output -o --model --auto --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --d --q --method -m --format -f --output -o --model -M --auto --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6357,11 +6655,11 @@ _frdc() {
     "residuals univariate sarima")
       case "$prev" in
         --criterion) COMPREPLY=( $(compgen -W "aic bic" -- "$cur") ); return ;;
-        --method) COMPREPLY=( $(compgen -W "css_mle mle css" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "css_mle mle css" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --d --q --P --D --Q --s --max-p --max-q --max-P --max-Q --criterion --method --max-iter --format -f --output -o --model --auto --no-intercept --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --d --q --P --D --Q --s --max-p --max-q --max-P --max-Q --criterion --method -m --max-iter -I --format -f --output -o --model -M --auto --no-intercept --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6372,7 +6670,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --q --fix-delta --fix-gamma --output -o --format -f --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --q --fix-delta --fix-gamma --output -o --format -f --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6383,7 +6681,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --q --format -f --output -o --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --q --format -f --output -o --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6394,7 +6692,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --output -o --format -f --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --output -o --format -f --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6405,7 +6703,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --q --format -f --output -o --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --q --format -f --output -o --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6417,7 +6715,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --q --d0 --truncation --dist --output -o --format -f --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --q --d0 --truncation --dist --output -o --format -f --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6429,7 +6727,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --q --d0 --truncation --dist --output -o --format -f --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --q --d0 --truncation --dist --output -o --format -f --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6440,7 +6738,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --q --format -f --output -o --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --q --format -f --output -o --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6453,7 +6751,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --m-freq --k --rv --span --config --output -o --format -f --model --config-json --set --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --m-freq --k --rv --span --config -C --output -o --format -f --model -M --config-json --set --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6464,7 +6762,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --q --format -f --output -o --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --q --format -f --output -o --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6475,7 +6773,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --q --output -o --format -f --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --q --output -o --format -f --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6486,7 +6784,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --draws -n --format -f --output -o --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --draws -n --format -f --output -o --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6497,7 +6795,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--realized --forecast-now --forecast-lag --hac-lags --horizon --model --format -f --output -o --plot-save --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--realized --forecast-now --forecast-lag --hac-lags --horizon -H --conf-level -L --model -M --format -f --output -o --plot-save -G --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6508,7 +6806,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--config --omega --capacity --units --tol --max-iter --format -f --output -o --plot-save --save-model --config-json --set --result --save-result --plot --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--config -C --omega --capacity --units --tol -T --max-iter -I --format -f --output -o --plot-save -G --save-model -S --config-json --set --result -R --save-result -W --plot -g --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6518,11 +6816,11 @@ _frdc() {
       case "$prev" in
         --method|-m) COMPREPLY=( $(compgen -W "mle bayes" -- "$cur") ); return ;;
         --estimate-param) COMPREPLY=( $(compgen -W "capacity omega" -- "$cur") ); return ;;
-        --cov-type) COMPREPLY=( $(compgen -W "hessian sandwich" -- "$cur") ); return ;;
+        --cov-type|-v) COMPREPLY=( $(compgen -W "hessian sandwich" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--config --model --method -m --estimate-param --cov-type --observables --init-param --measurement-error --draws --burnin --step-scale --format -f --output -o --plot-save --save-model --config-json --set --result --save-result --plot --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--config -C --model -M --method -m --estimate-param --cov-type -v --observables --init-param --measurement-error --draws -n --burnin -B --step-scale --conf-level -L --format -f --output -o --plot-save -G --save-model -S --config-json --set --result -R --save-result -W --plot -g --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6534,7 +6832,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--config --model --horizons --observables --format -f --output -o --plot-save --config-json --set --result --save-result --plot --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--config -C --model -M --horizons -H --observables --format -f --output -o --plot-save -G --config-json --set --result -R --save-result -W --plot -g --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6545,7 +6843,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--config --omega --capacity --units --tol --format -f --output -o --plot-save --config-json --set --result --save-result --plot --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--config -C --omega --capacity --units --tol -T --format -f --output -o --plot-save -G --config-json --set --result -R --save-result -W --plot -g --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6557,7 +6855,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--config --model --horizons --observables --format -f --output -o --plot-save --config-json --set --result --save-result --plot --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--config -C --model -M --horizons -H --observables --format -f --output -o --plot-save -G --config-json --set --result -R --save-result -W --plot -g --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6568,7 +6866,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--config --capacity --omega --strategic-complementarity --horizons --tol --max-iter --format -f --output -o --plot-save --save-model --config-json --set --result --save-result --plot --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--config -C --capacity --omega --strategic-complementarity --horizons -H --tol -T --max-iter -I --format -f --output -o --plot-save -G --save-model -S --config-json --set --result -R --save-result -W --plot -g --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6579,7 +6877,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--config --model --periods --burn --seed --save-data --format -f --output -o --config-json --set --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--config -C --model -M --periods -N --burn -B --seed --save-data --format -f --output -o --config-json --set --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6591,7 +6889,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--config --method -m --capacity --omega --units --tol --max-iter --format -f --output -o --plot-save --save-model --config-json --set --result --save-result --problem-only --plot --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--config -C --method -m --capacity --omega --units --tol -T --max-iter -I --format -f --output -o --plot-save -G --save-model -S --config-json --set --result -R --save-result -W --problem-only --plot -g --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6604,7 +6902,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--config --model --observables --as --init-mode --kappa --format -f --output -o --plot-save --save-model --config-json --set --result --save-result --plot --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--config -C --model -M --observables --as --init-mode --kappa --format -f --output -o --plot-save -G --save-model -S --config-json --set --result -R --save-result -W --plot -g --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6615,7 +6913,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--config --model --t-path --damping --tol --max-iter --capacity --omega --format -f --output -o --plot-save --save-model --config-json --set --result --save-result --plot --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--config -C --model -M --t-path --damping --tol -T --max-iter -I --capacity --omega --format -f --output -o --plot-save -G --save-model -S --config-json --set --result -R --save-result -W --plot -g --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6643,7 +6941,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--max-rows --max-cols --output -o --format -f --plot-save --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--max-rows --max-cols --output -o --format -f --plot-save -G --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6654,7 +6952,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --max-lag --ccf-with --format -f --output -o --plot-save --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --max-lag --ccf-with --conf-level -L --format -f --output -o --plot-save -G --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6665,7 +6963,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--var1 --var2 --format -f --output -o --plot-save --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--var1 --var2 --conf-level -L --format -f --output -o --plot-save -G --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6677,7 +6975,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --method -m --bandwidth --format -f --output -o --plot-save --result --save-result --plot --log-scale --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --method -m --bandwidth -b --conf-level -L --format -f --output -o --plot-save -G --result -R --save-result -W --plot -g --log-scale --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6685,14 +6983,15 @@ _frdc() {
       fi ;;
     "spectral fevd")
       case "$prev" in
+        --id|-i) COMPREPLY=( $(compgen -W "cholesky sign longrun max-share proxy lewis-tvv sv-em gmm-moments" -- "$cur") ); return ;;
         --q-method) COMPREPLY=( $(compgen -W "hallin-liska bai-ng amengual-watson" -- "$cur") ); return ;;
-        --method) COMPREPLY=( $(compgen -W "fglr fhlz gdfm-var" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "fglr fhlz gdfm-var" -- "$cur") ); return ;;
         --spectral) COMPREPLY=( $(compgen -W "lag-window smoothed-periodogram" -- "$cur") ); return ;;
-        --kernel) COMPREPLY=( $(compgen -W "bartlett parzen tukey" -- "$cur") ); return ;;
+        --kernel|-k) COMPREPLY=( $(compgen -W "bartlett parzen tukey" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--factors -q --id --q-method --method --spectral --instrument --var-lags --n-perm --p-max --target --horizons --config --bandwidth --kernel --pl --pu --band-low --band-high --format -f --output -o --plot-save --model --result --save-result --config-json --set --save-model --include-idiosyncratic --plot --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--factors -q --id -i --q-method --method -m --spectral --instrument --var-lags --n-perm --p-max --target --horizons -H --config -C --bandwidth -b --kernel -k --pl --pu --band-low --band-high --format -f --output -o --plot-save -G --model -M --result -R --save-result -W --config-json --set --save-model -S --include-idiosyncratic --plot -g --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6703,7 +7002,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --format -f --output -o --plot-save --result --save-result --plot --log-scale --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --conf-level -L --format -f --output -o --plot-save -G --result -R --save-result -W --plot -g --log-scale --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6715,7 +7014,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--filter --lambda --n-freq --format -f --output -o --plot-save --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--filter --lambda -l --n-freq --format -f --output -o --plot-save -G --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6726,7 +7025,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --cov-type --format -f --output -o --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --cov-type -v --format -f --output -o --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6735,12 +7034,12 @@ _frdc() {
     "test coint ardl-bounds")
       case "$prev" in
         --ic) COMPREPLY=( $(compgen -W "aic bic" -- "$cur") ); return ;;
-        --trend) COMPREPLY=( $(compgen -W "none const trend" -- "$cur") ); return ;;
+        --trend|-e) COMPREPLY=( $(compgen -W "none const trend" -- "$cur") ); return ;;
         --cv-source) COMPREPLY=( $(compgen -W "pss" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --p --q --max-p --max-q --ic --trend --case --level --cv-source --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --p --q --max-p --max-q --ic --trend -e --case --level --cv-source --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6748,11 +7047,11 @@ _frdc() {
       fi ;;
     "test coint engle-granger")
       case "$prev" in
-        --trend) COMPREPLY=( $(compgen -W "none constant trend" -- "$cur") ); return ;;
+        --trend|-e) COMPREPLY=( $(compgen -W "none constant trend" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --trend --lags --max-lags --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --trend -e --lags -p --max-lags --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6765,7 +7064,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--id-col --time-col --vars --deterministic --lags --combine --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--id-col -u --time-col -t --vars --deterministic --lags -p --combine --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6776,7 +7075,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--model --lags --max-lags --trim --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--model -M --lags -p --max-lags --trim --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6784,10 +7083,11 @@ _frdc() {
       fi ;;
     "test coint johansen")
       case "$prev" in
+        --trend|-e) COMPREPLY=( $(compgen -W "none constant trend" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --trend --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --trend -e --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6798,7 +7098,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--id-col --time-col --dep --indep --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--id-col -u --time-col -t --dep -y --indep -x --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6806,11 +7106,11 @@ _frdc() {
       fi ;;
     "test coint pedroni")
       case "$prev" in
-        --trend) COMPREPLY=( $(compgen -W "none constant trend" -- "$cur") ); return ;;
+        --trend|-e) COMPREPLY=( $(compgen -W "none constant trend" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--id-col --time-col --dep --indep --trend --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--id-col -u --time-col -t --dep -y --indep -x --trend -e --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6818,12 +7118,12 @@ _frdc() {
       fi ;;
     "test coint phillips-ouliaris")
       case "$prev" in
-        --trend) COMPREPLY=( $(compgen -W "none constant trend" -- "$cur") ); return ;;
-        --kernel) COMPREPLY=( $(compgen -W "bartlett parzen qs tukey-hanning" -- "$cur") ); return ;;
+        --trend|-e) COMPREPLY=( $(compgen -W "none constant trend" -- "$cur") ); return ;;
+        --kernel|-k) COMPREPLY=( $(compgen -W "bartlett parzen qs tukey-hanning" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --trend --kernel --bandwidth --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --trend -e --kernel -k --bandwidth -b --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6831,11 +7131,11 @@ _frdc() {
       fi ;;
     "test coint westerlund")
       case "$prev" in
-        --trend) COMPREPLY=( $(compgen -W "none constant trend" -- "$cur") ); return ;;
+        --trend|-e) COMPREPLY=( $(compgen -W "none constant trend" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--id-col --time-col --dep --indep --trend --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--id-col -u --time-col -t --dep -y --indep -x --trend -e --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6846,7 +7146,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--outcome --treatment --id-col --time-col --output -o --format -f --plot-save --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--outcome --treatment --id-col -u --time-col -t --output -o --format -f --plot-save -G --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6854,12 +7154,13 @@ _frdc() {
       fi ;;
     "test did honest")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "did event-study" -- "$cur") ); return ;;
+        --cluster) COMPREPLY=( $(compgen -W "unit time twoway" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "did event-study" -- "$cur") ); return ;;
         --did-method) COMPREPLY=( $(compgen -W "twfe cs sa bjs dcdh" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--outcome --treatment --id-col --time-col --mbar --leads --horizons --lags -p --cluster --conf-level --method --did-method --output -o --format -f --plot-save --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--outcome --treatment --id-col -u --time-col -t --mbar --leads --horizons -H --lags -p --cluster --conf-level -L --method -m --did-method --output -o --format -f --plot-save -G --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6870,7 +7171,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--treatment --id-col --time-col --output -o --format -f --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--treatment --id-col -u --time-col -t --output -o --format -f --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6878,12 +7179,13 @@ _frdc() {
       fi ;;
     "test did pretrend")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "did event-study" -- "$cur") ); return ;;
+        --cluster) COMPREPLY=( $(compgen -W "unit time twoway" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "did event-study" -- "$cur") ); return ;;
         --did-method) COMPREPLY=( $(compgen -W "twfe cs sa bjs dcdh" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--outcome --treatment --id-col --time-col --leads --horizons --lags -p --cluster --conf-level --method --did-method --output -o --format -f --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--outcome --treatment --id-col -u --time-col -t --leads --horizons -H --lags -p --cluster --conf-level -L --method -m --did-method --output -o --format -f --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6891,11 +7193,11 @@ _frdc() {
       fi ;;
     "test dispersion")
       case "$prev" in
-        --cov-type) COMPREPLY=( $(compgen -W "robust mle hc0 hc1 hc2 hc3 cluster" -- "$cur") ); return ;;
+        --cov-type|-v) COMPREPLY=( $(compgen -W "robust mle hc0 hc1 hc2 hc3 cluster" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --offset --exposure --cov-type --clusters --max-iter --tol --alpha --format -f --output -o --model --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --offset --exposure --cov-type -v --clusters -U --max-iter -I --tol -T --alpha --format -f --output -o --model -M --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6909,7 +7211,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --dist --test --params --theta --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --dist --test --params --theta --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6920,7 +7222,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--k-max --format -f --output -o --plot-save --result --save-result --no-demean --no-standardize --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--k-max --format -f --output -o --plot-save -G --result -R --save-result -W --no-demean --no-standardize --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6931,7 +7233,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--k-max --max-iter --format -f --output -o --plot-save --result --save-result --no-standardize --no-demean --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--k-max --max-iter -I --format -f --output -o --plot-save -G --result -R --save-result -W --no-standardize --no-demean --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6939,11 +7241,11 @@ _frdc() {
       fi ;;
     "test factor onatski-q")
       case "$prev" in
-        --kernel) COMPREPLY=( $(compgen -W "bartlett parzen tukey-hanning" -- "$cur") ); return ;;
+        --kernel|-k) COMPREPLY=( $(compgen -W "bartlett parzen tukey-hanning" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--k0 --k1 --k-max --alpha --bandwidth --n-blocks --kernel --freq --n-sim --seed --format -f --output -o --plot-save --result --save-result --select --no-standardize --no-demean --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--k0 --k1 --k-max --alpha --bandwidth -b --n-blocks --kernel -k --freq --n-sim --seed --format -f --output -o --plot-save -G --result -R --save-result -W --select --no-standardize --no-demean --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6955,7 +7257,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--tau1 --tau2 --factors --n-boot --block-length --bootstrap --max-iter --tol --format -f --output -o --plot-save --model --result --save-result --standardize --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--tau1 --tau2 --factors -q --n-boot --block-length --bootstrap --max-iter -I --tol -T --format -f --output -o --plot-save -G --model -M --result -R --save-result -W --standardize --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6967,7 +7269,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--tau --taus --factors --r-pca --r-max --criterion --threshold --format -f --output -o --plot-save --model --result --save-result --standardize --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--tau --taus --factors -q --r-pca --r-max --criterion --threshold --format -f --output -o --plot-save -G --model -M --result -R --save-result -W --standardize --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6978,7 +7280,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -6989,7 +7291,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --bandwidth --trim --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --bandwidth -b --trim --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7000,7 +7302,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --d --trim --draws --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --d --trim --draws -n --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7011,7 +7313,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --omit-category --format -f --output -o --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --omit-category --format -f --output -o --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7019,11 +7321,13 @@ _frdc() {
       fi ;;
     "test identifiability")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "fastica jade sobi dcov hsic cvm" -- "$cur") ); return ;;
+        --test) COMPREPLY=( $(compgen -W "strength gaussianity independence overidentification lambda-distinct gaussian-count label-stability all" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "fastica jade sobi dcov hsic cvm" -- "$cur") ); return ;;
+        --contrast) COMPREPLY=( $(compgen -W "logcosh exp kurtosis" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --test --method --contrast --n-starts --n-bootstrap --output -o --format -f --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --test --method -m --contrast --n-starts --n-bootstrap --output -o --format -f --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7034,7 +7338,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --cov-type --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --cov-type -v --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7042,11 +7346,11 @@ _frdc() {
       fi ;;
     "test iv anderson-rubin")
       case "$prev" in
-        --cov-type) COMPREPLY=( $(compgen -W "ols hc0 hc1 hc2 hc3 cluster" -- "$cur") ); return ;;
+        --cov-type|-v) COMPREPLY=( $(compgen -W "ols hc0 hc1 hc2 hc3 cluster" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --endogenous --instruments --cov-type --clusters --beta0 --conf-level --n-grid --span --format -f --output -o --result --save-result --no-ci --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --endogenous --instruments -Z --cov-type -v --clusters -U --beta0 --conf-level -L --n-grid --span --format -f --output -o --result -R --save-result -W --no-ci --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7054,10 +7358,11 @@ _frdc() {
       fi ;;
     "test iv weak-instrument")
       case "$prev" in
+        --cov-type|-v) COMPREPLY=( $(compgen -W "ols hc0 hc1 hc2 hc3" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --endogenous --instruments --cov-type --threshold --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --endogenous --instruments -Z --cov-type -v --threshold --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7070,7 +7375,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --clusters --coefficient --null --boot-reps --boot-weights --conf-level --ci-gridpoints --enumerate-signs --format -f --output -o --result --save-result --no-impose-null --no-ci --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --clusters -U --coefficient --null --boot-reps --boot-weights --conf-level -L --ci-gridpoints --enumerate-signs --format -f --output -o --result -R --save-result -W --no-impose-null --no-ci --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7081,7 +7386,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --bandwidth --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --bandwidth -b --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7092,7 +7397,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --max-lag --moments --n-boot --format -f --output -o --plot-save --model --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --max-lag --moments --n-boot --format -f --output -o --plot-save -G --model -M --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7101,13 +7406,13 @@ _frdc() {
     "test multivariate gmm-moments")
       case "$prev" in
         --form) COMPREPLY=( $(compgen -W "b-model a-model" -- "$cur") ); return ;;
-        --weighting) COMPREPLY=( $(compgen -W "two-step iterated cue" -- "$cur") ); return ;;
-        --method) COMPREPLY=( $(compgen -W "msc-rmsc rmsc-seq" -- "$cur") ); return ;;
-        --kernel) COMPREPLY=( $(compgen -W "bartlett parzen qs quadratic-spectral tukey-hanning" -- "$cur") ); return ;;
+        --weighting|-w) COMPREPLY=( $(compgen -W "two-step iterated cue" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "msc-rmsc rmsc-seq" -- "$cur") ); return ;;
+        --kernel|-k) COMPREPLY=( $(compgen -W "bartlett parzen qs quadratic-spectral tukey-hanning" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --form --weighting --method --kernel --bandwidth --alpha --max-iter --tol --n-starts --format -f --output -o --plot-save --model --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --form --weighting -w --method -m --kernel -k --bandwidth -b --alpha --max-iter -I --tol -T --n-starts --format -f --output -o --plot-save -G --model -M --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7115,10 +7420,11 @@ _frdc() {
       fi ;;
     "test multivariate granger")
       case "$prev" in
+        --deterministic) COMPREPLY=( $(compgen -W "none constant trend" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--cause --effect --lags -p --rank -r --deterministic --model --format -f --output -o --result --save-result --all --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--cause --effect --lags -p --rank -r --deterministic --model -M --format -f --output -o --result -R --save-result -W --all --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7126,10 +7432,11 @@ _frdc() {
       fi ;;
     "test multivariate lagselect")
       case "$prev" in
+        --criterion) COMPREPLY=( $(compgen -W "aic bic hqc" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--max-lags --criterion --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--max-lags --criterion --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7140,7 +7447,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags1 --lags2 --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags1 --lags2 --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7151,7 +7458,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags1 --lags2 --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags1 --lags2 --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7162,7 +7469,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --distributions --diag-lags --format -f --output -o --plot-save --model --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --distributions --diag-lags --format -f --output -o --plot-save -G --model -M --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7173,7 +7480,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7184,7 +7491,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --panel --factors --r-max --p-f --format -f --output -o --plot-save --model --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --panel --factors -q --r-max --p-f --format -f --output -o --plot-save -G --model -M --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7194,13 +7501,13 @@ _frdc() {
       case "$prev" in
         --estimator) COMPREPLY=( $(compgen -W "lms lanne-luoto" -- "$cur") ); return ;;
         --type) COMPREPLY=( $(compgen -W "recursiveness impact-zero impact-linear long-run horizon-irf mixed" -- "$cur") ); return ;;
-        --method) COMPREPLY=( $(compgen -W "wald lr lm gmm-lr" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "wald lr lm gmm-lr" -- "$cur") ); return ;;
         --bootstrap) COMPREPLY=( $(compgen -W "none wild iid" -- "$cur") ); return ;;
         --vcov-type) COMPREPLY=( $(compgen -W "hessian sandwich opg" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --estimator --distributions --type --config --method --bootstrap --n-boot --max-iter --tol --vcov-type --format -f --output -o --plot-save --model --config-json --set --result --save-result --plot --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --estimator --distributions --type --config -C --method -m --bootstrap --n-boot --max-iter -I --tol -T --vcov-type --format -f --output -o --plot-save -G --model -M --config-json --set --result -R --save-result -W --plot -g --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7212,7 +7519,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --asymmetric --p --q --max-p --max-q --ic --case --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --asymmetric --p --q --max-p --max-q --ic --case --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7223,7 +7530,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --output -o --format -f --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --output -o --format -f --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7234,7 +7541,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--id-col --time-col --cause --effect --p --bootstrap --seed --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--id-col -u --time-col -t --cause --effect --p --bootstrap --seed --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7245,7 +7552,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --indep --id-col --time-col --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --indep -x --id-col -u --time-col -t --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7256,7 +7563,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --indep --id-col --time-col --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --indep -x --id-col -u --time-col -t --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7267,7 +7574,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --indep --id-col --time-col --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --indep -x --id-col -u --time-col -t --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7275,10 +7582,11 @@ _frdc() {
       fi ;;
     "test panel panic")
       case "$prev" in
+        --method|-m) COMPREPLY=( $(compgen -W "pooled individual" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--factors --method --id-col --time-col --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--factors -q --method -m --id-col -u --time-col -t --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7289,7 +7597,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --indep --id-col --time-col --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --indep -x --id-col -u --time-col -t --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7298,11 +7606,11 @@ _frdc() {
     "test panel pmg-hausman")
       case "$prev" in
         --efficient) COMPREPLY=( $(compgen -W "pmg dfe" -- "$cur") ); return ;;
-        --trend) COMPREPLY=( $(compgen -W "none constant trend" -- "$cur") ); return ;;
+        --trend|-e) COMPREPLY=( $(compgen -W "none constant trend" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--id-col --time-col --dep --indep --efficient --trend --p --q --max-iter --tol --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--id-col -u --time-col -t --dep -y --indep -x --efficient --trend -e --p --q --max-iter -I --tol -T --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7313,7 +7621,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --indep --id-col --time-col --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --indep -x --id-col -u --time-col -t --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7321,14 +7629,14 @@ _frdc() {
       fi ;;
     "test park-added")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "fmols ccr dols" -- "$cur") ); return ;;
-        --trend) COMPREPLY=( $(compgen -W "none const linear" -- "$cur") ); return ;;
-        --kernel) COMPREPLY=( $(compgen -W "bartlett parzen qs tukey-hanning" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "fmols ccr dols" -- "$cur") ); return ;;
+        --trend|-e) COMPREPLY=( $(compgen -W "none const linear" -- "$cur") ); return ;;
+        --kernel|-k) COMPREPLY=( $(compgen -W "bartlett parzen qs tukey-hanning" -- "$cur") ); return ;;
         --hac-kernel) COMPREPLY=( $(compgen -W "bartlett parzen qs tukey-hanning" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --method --trend --kernel --bandwidth --leads --lags --q-add --hac-kernel --hac-bandwidth --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --method -m --trend -e --kernel -k --bandwidth -b --leads --lags -p --q-add --hac-kernel --hac-bandwidth --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7339,7 +7647,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--id-col --time-col --lags -p --format -f --output -o --model --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--id-col -u --time-col -t --lags -p --format -f --output -o --model -M --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7347,10 +7655,11 @@ _frdc() {
       fi ;;
     "test pvar lagselect")
       case "$prev" in
+        --criterion) COMPREPLY=( $(compgen -W "bic aic hqic" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--id-col --time-col --max-lags --criterion --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--id-col -u --time-col -t --max-lags --criterion --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7358,10 +7667,11 @@ _frdc() {
       fi ;;
     "test pvar mmsc")
       case "$prev" in
+        --criterion) COMPREPLY=( $(compgen -W "bic aic hqic" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--id-col --time-col --max-lags --criterion --format -f --output -o --model --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--id-col -u --time-col -t --max-lags --criterion --format -f --output -o --model -M --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7372,7 +7682,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--id-col --time-col --lags -p --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--id-col -u --time-col -t --lags -p --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7383,7 +7693,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --lags -p --format -f --output -o --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --lags -p --format -f --output -o --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7394,7 +7704,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --format -f --output -o --model --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --format -f --output -o --model -M --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7405,7 +7715,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --max-dim --eps-frac --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --max-dim --eps-frac --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7416,7 +7726,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --lags -p --format -f --output -o --model --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --lags -p --format -f --output -o --model -M --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7427,7 +7737,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --indep --id-col --time-col --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --indep -x --id-col -u --time-col -t --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7438,7 +7748,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --format -f --output -o --model --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --format -f --output -o --model -M --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7449,7 +7759,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --cov-type --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --cov-type -v --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7460,7 +7770,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --cov-type --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --cov-type -v --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7468,11 +7778,11 @@ _frdc() {
       fi ;;
     "test serial heteroskedasticity")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "markov garch smooth_transition external" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "markov garch smooth_transition external" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags -p --method --config --regimes --output -o --format -f --config-json --set --result --save-result --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --method -m --config -C --regimes --output -o --format -f --config-json --set --result -R --save-result -W --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7483,7 +7793,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --lags -p --format -f --output -o --model --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --lags -p --format -f --output -o --model -M --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7491,11 +7801,11 @@ _frdc() {
       fi ;;
     "test serial sign-bias")
       case "$prev" in
-        --model) COMPREPLY=( $(compgen -W "garch egarch gjr-garch" -- "$cur") ); return ;;
+        --model|-M) COMPREPLY=( $(compgen -W "garch egarch gjr-garch" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --model --p --q --format -f --output -o --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --model -M --p --q --format -f --output -o --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7506,7 +7816,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --cov-type --format -f --output -o --result --save-result --no-cross-terms --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --cov-type -v --format -f --output -o --result -R --save-result -W --no-cross-terms --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7514,10 +7824,11 @@ _frdc() {
       fi ;;
     "test stability andrews")
       case "$prev" in
+        --test) COMPREPLY=( $(compgen -W "supwald suplr suplm expwald explr explm meanwald meanlr meanlm" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--response --test --trimming --format -f --output -o --plot-save --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--response --test --trimming --format -f --output -o --plot-save -G --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7525,10 +7836,11 @@ _frdc() {
       fi ;;
     "test stability bai-perron")
       case "$prev" in
+        --criterion) COMPREPLY=( $(compgen -W "bic lwz" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--response --max-breaks --trimming --criterion --format -f --output -o --plot-save --result --save-result --plot --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--response --max-breaks --trimming --criterion --conf-level -L --format -f --output -o --plot-save -G --result -R --save-result -W --plot -g --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7540,7 +7852,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --cov-type --break-at --type --level --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --cov-type -v --break-at --type --level --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7551,7 +7863,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --cov-type --level --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --cov-type -v --level --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7562,7 +7874,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --cov-type --level --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --cov-type -v --level --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7570,10 +7882,11 @@ _frdc() {
       fi ;;
     "test stability factor-break")
       case "$prev" in
+        --method|-m) COMPREPLY=( $(compgen -W "breitung_eickmeier chen_dolado_gonzalo han_inoue" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--factors --method --id-col --time-col --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--factors -q --method -m --id-col -u --time-col -t --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7585,7 +7898,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --r0 --adflag --draws --cv --seed --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --r0 --adflag --draws -n --cv --seed --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7593,13 +7906,13 @@ _frdc() {
       fi ;;
     "test stability hansen-instability")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "fmols ccr dols" -- "$cur") ); return ;;
-        --trend) COMPREPLY=( $(compgen -W "none const linear" -- "$cur") ); return ;;
-        --kernel) COMPREPLY=( $(compgen -W "bartlett parzen qs tukey-hanning" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "fmols ccr dols" -- "$cur") ); return ;;
+        --trend|-e) COMPREPLY=( $(compgen -W "none const linear" -- "$cur") ); return ;;
+        --kernel|-k) COMPREPLY=( $(compgen -W "bartlett parzen qs tukey-hanning" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --method --trend --kernel --bandwidth --leads --lags --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --method -m --trend -e --kernel -k --bandwidth -b --leads --lags -p --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7607,11 +7920,11 @@ _frdc() {
       fi ;;
     "test stability nyblom")
       case "$prev" in
-        --model) COMPREPLY=( $(compgen -W "garch egarch gjr-garch" -- "$cur") ); return ;;
+        --model|-M) COMPREPLY=( $(compgen -W "garch egarch gjr-garch" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --model --p --q --format -f --output -o --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --model -M --p --q --format -f --output -o --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7622,7 +7935,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --cov-type --format -f --output -o --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --cov-type -v --format -f --output -o --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7634,7 +7947,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --r0 --adflag --draws --cv --seed --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --r0 --adflag --draws -n --cv --seed --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7645,7 +7958,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --p --d --transition-col --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --p --d --transition-col --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7653,11 +7966,11 @@ _frdc() {
       fi ;;
     "test unit-root adf")
       case "$prev" in
-        --trend) COMPREPLY=( $(compgen -W "none constant trend" -- "$cur") ); return ;;
+        --trend|-e) COMPREPLY=( $(compgen -W "none constant trend" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --max-lags --trend --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --max-lags --trend -e --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7665,11 +7978,11 @@ _frdc() {
       fi ;;
     "test unit-root adf-2break")
       case "$prev" in
-        --model) COMPREPLY=( $(compgen -W "level both" -- "$cur") ); return ;;
+        --model|-M) COMPREPLY=( $(compgen -W "level both" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --model --lags --max-lags --trim --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --model -M --lags -p --max-lags --trim --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7681,7 +7994,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--deterministic --lags --format -f --output -o --result --save-result --cs-demean --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--deterministic --lags -p --format -f --output -o --result -R --save-result -W --cs-demean --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7689,10 +8002,11 @@ _frdc() {
       fi ;;
     "test unit-root cips")
       case "$prev" in
+        --deterministic) COMPREPLY=( $(compgen -W "none constant trend" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--lags --deterministic --id-col --time-col --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--lags -p --deterministic --id-col -u --time-col -t --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7700,10 +8014,11 @@ _frdc() {
       fi ;;
     "test unit-root dfgls")
       case "$prev" in
+        --regression) COMPREPLY=( $(compgen -W "constant trend" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --regression --lags --max-lags --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --regression --lags -p --max-lags --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7714,7 +8029,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --format -f --output -o --result --save-result --trend --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --format -f --output -o --result -R --save-result -W --trend --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7722,10 +8037,11 @@ _frdc() {
       fi ;;
     "test unit-root fourier-adf")
       case "$prev" in
+        --regression) COMPREPLY=( $(compgen -W "constant trend" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --regression --fmax --lags --max-lags --trim --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --regression --fmax --lags -p --max-lags --trim --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7733,10 +8049,11 @@ _frdc() {
       fi ;;
     "test unit-root fourier-kpss")
       case "$prev" in
+        --regression) COMPREPLY=( $(compgen -W "constant trend" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --regression --fmax --bandwidth --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --regression --fmax --bandwidth -b --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7748,7 +8065,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--deterministic --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--deterministic --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7760,7 +8077,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --frequency --deterministic --lags --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --frequency --deterministic --lags -p --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7773,7 +8090,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--deterministic --lags --max-lags --criterion --format -f --output -o --result --save-result --cs-demean --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--deterministic --lags -p --max-lags --criterion --format -f --output -o --result -R --save-result -W --cs-demean --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7781,10 +8098,11 @@ _frdc() {
       fi ;;
     "test unit-root kpss")
       case "$prev" in
+        --trend|-e) COMPREPLY=( $(compgen -W "constant trend" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --trend --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --trend -e --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7797,7 +8115,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--deterministic --lags --max-lags --criterion --format -f --output -o --result --save-result --cs-demean --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--deterministic --lags -p --max-lags --criterion --format -f --output -o --result -R --save-result -W --cs-demean --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7809,7 +8127,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --breaks --regression --lags --max-lags --trim --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --breaks --regression --lags -p --max-lags --trim --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7820,7 +8138,7 @@ _frdc() {
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--factors --id-col --time-col --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--factors -q --id-col -u --time-col -t --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7828,10 +8146,11 @@ _frdc() {
       fi ;;
     "test unit-root np")
       case "$prev" in
+        --trend|-e) COMPREPLY=( $(compgen -W "constant trend" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --trend --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --trend -e --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7839,10 +8158,11 @@ _frdc() {
       fi ;;
     "test unit-root pp")
       case "$prev" in
+        --trend|-e) COMPREPLY=( $(compgen -W "none constant trend" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --trend --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --trend -e --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7850,11 +8170,11 @@ _frdc() {
       fi ;;
     "test unit-root za")
       case "$prev" in
-        --trend) COMPREPLY=( $(compgen -W "constant trend both" -- "$cur") ); return ;;
+        --trend|-e) COMPREPLY=( $(compgen -W "constant trend both" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --trend --trim --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --trend -e --trim --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7862,11 +8182,11 @@ _frdc() {
       fi ;;
     "test variance-ratio")
       case "$prev" in
-        --method) COMPREPLY=( $(compgen -W "lomackinlay wright" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "lomackinlay wright" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--column -c --horizons --method --format -f --output -o --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--column -c --horizons -H --method -m --format -f --output -o --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7874,10 +8194,12 @@ _frdc() {
       fi ;;
     "test vecm alpha")
       case "$prev" in
+        --deterministic) COMPREPLY=( $(compgen -W "none constant trend" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "johansen engle_granger" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--config --lags -p --rank -r --deterministic --method --significance --format -f --output -o --model --config-json --set --result --save-result --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--config -C --lags -p --rank -r --deterministic --method -m --significance --format -f --output -o --model -M --config-json --set --result -R --save-result -W --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7885,10 +8207,12 @@ _frdc() {
       fi ;;
     "test vecm beta")
       case "$prev" in
+        --deterministic) COMPREPLY=( $(compgen -W "none constant trend" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "johansen engle_granger" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--config --lags -p --rank -r --deterministic --method --significance --format -f --output -o --model --config-json --set --result --save-result --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--config -C --lags -p --rank -r --deterministic --method -m --significance --format -f --output -o --model -M --config-json --set --result -R --save-result -W --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7896,10 +8220,12 @@ _frdc() {
       fi ;;
     "test vecm joint")
       case "$prev" in
+        --deterministic) COMPREPLY=( $(compgen -W "none constant trend" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "johansen engle_granger" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--config --lags -p --rank -r --deterministic --method --significance --format -f --output -o --model --config-json --set --result --save-result --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--config -C --lags -p --rank -r --deterministic --method -m --significance --format -f --output -o --model -M --config-json --set --result -R --save-result -W --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7907,10 +8233,12 @@ _frdc() {
       fi ;;
     "test vecm known-beta")
       case "$prev" in
+        --deterministic) COMPREPLY=( $(compgen -W "none constant trend" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "johansen engle_granger" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--config --lags -p --rank -r --deterministic --method --significance --format -f --output -o --model --config-json --set --result --save-result --strict --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--config -C --lags -p --rank -r --deterministic --method -m --significance --format -f --output -o --model -M --config-json --set --result -R --save-result -W --strict -X --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7918,10 +8246,12 @@ _frdc() {
       fi ;;
     "test vecm weak-exog")
       case "$prev" in
+        --deterministic) COMPREPLY=( $(compgen -W "none constant trend" -- "$cur") ); return ;;
+        --method|-m) COMPREPLY=( $(compgen -W "johansen engle_granger" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--vars --lags -p --rank -r --deterministic --method --significance --format -f --output -o --model --result --save-result --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--vars --lags -p --rank -r --deterministic --method -m --significance --format -f --output -o --model -M --result -R --save-result -W --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else
@@ -7929,10 +8259,11 @@ _frdc() {
       fi ;;
     "test vif")
       case "$prev" in
+        --cov-type|-v) COMPREPLY=( $(compgen -W "ols hc0 hc1 hc2 hc3" -- "$cur") ); return ;;
         --format|-f) COMPREPLY=( $(compgen -W "table csv json" -- "$cur") ); return ;;
       esac
       if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--dep --cov-type --format -f --output -o --model --help -h" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--dep -y --cov-type -v --format -f --output -o --model -M --help -h" -- "$cur") )
       elif [[ "$cur" == :* ]]; then
         COMPREPLY=( $(compgen -W ":ddcg :denmark :fred_md :fred_qd :gnp_hamilton :grunfeld :mp_shocks :mpdta :mroz :nile :pwt :stackloss" -- "$cur") )
       else

@@ -3,6 +3,8 @@
 
 Generated command reference for `frdc filter` (`8` leaves). Back to [CLI Reference Overview](@ref cli-overview).
 
+**Command aliases:** `flt`
+
 **Workflow guides:** [Univariate, Filters & Spectral](@ref chap-univariate) · [Nowcasting & Forecast Evaluation](@ref chap-nowcast)
 
 ---
@@ -15,32 +17,34 @@ Generated command reference for `frdc filter` (`8` leaves). Back to [CLI Referen
 
 Frequency-band GDFM decomposition (two-sided and one-sided FHLR)
 
+**Aliases:** `bp-gdfm`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dynamic-rank` | — | `Int64` | — | — | Dynamic rank q when estimating from data (default: auto) |
+| `--dynamic-rank` | — | `Int64` | — | — | Dynamic rank q when estimating from data (default: auto) *(aliases: `--drank`)* |
 | `--nfactors` | — | `Int64` | — | — | Static rank r for one-sided projection (default: gdfm.r or auto) |
 | `--pl` | — | `Float64` | `6.0` | — | Minimum period of oscillation (converted to 2pi/pl) |
 | `--pu` | — | `Float64` | `32.0` | — | Maximum period of oscillation (converted to 2pi/pu) |
 | `--band-low` | — | `Float64` | — | — | Explicit lower angular frequency in [0, pi) (radians) |
 | `--band-high` | — | `Float64` | — | — | Explicit upper angular frequency in (0, pi] (radians) |
-| `--bandwidth` | — | `Int64` | `0` | — | Spectral lag-window bandwidth when estimating from data (0=auto) |
-| `--kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `tukey` | Spectral kernel: bartlett\|parzen\|tukey |
+| `--bandwidth` | `-b` | `Int64` | `0` | — | Spectral lag-window bandwidth when estimating from data (0=auto) *(aliases: `--bw`)* |
+| `--kernel` | `-k` | `String` | `bartlett` | `bartlett`, `parzen`, `tukey` | Spectral kernel: bartlett\|parzen\|tukey |
 | `--spectral` | — | `String` | `lag-window` | `lag-window`, `smoothed-periodogram` | GDFM spectrum: lag-window\|smoothed-periodogram |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `GeneralizedDynamicFactorModel`; result types: `BandPassGDFMResult`
 
@@ -58,18 +62,18 @@ Boosted HP filter (Phillips & Shi 2021)
 |--------|-------|------|---------|---------|-------------|
 | `--lambda` | `-l` | `Float64` | `1600.0` | — | Smoothing parameter |
 | `--stopping` | — | `String` | `BIC` | `BIC`, `ADF`, `fixed` | BIC\|ADF\|fixed |
-| `--max-iter` | — | `Int64` | `100` | — | Maximum boosting iterations |
+| `--max-iter` | `-I` | `Int64` | `100` | — | Maximum boosting iterations *(aliases: `--miter`)* |
 | `--sig-p` | — | `Float64` | `0.05` | — | ADF significance level |
 | `--columns` | — | `String` | `""` | — | Column indices, comma-separated (default: all numeric) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `BoostedHPResult`
 
@@ -91,13 +95,13 @@ Baxter-King band-pass filter
 | `--columns` | — | `String` | `""` | — | Column indices, comma-separated (default: all numeric) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `BaxterKingResult`
 
@@ -113,19 +117,19 @@ Beveridge-Nelson decomposition
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--method` | — | `String` | `arima` | `arima`, `statespace` | arima\|statespace |
+| `--method` | `-m` | `String` | `arima` | `arima`, `statespace` | arima\|statespace |
 | `--p` | — | `Int64` | — | — | AR order (default: auto; arima method only, ignored with statespace) |
 | `--q` | — | `Int64` | — | — | MA order (default: auto; arima method only, ignored with statespace) |
 | `--columns` | — | `String` | `""` | — | Column indices, comma-separated (default: all numeric) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `BeveridgeNelsonResult`
 
@@ -142,21 +146,21 @@ Altissimo et al. (2010) real-time Eurocoin low-frequency growth indicator
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--target` | — | `String` | `""` | — | Target series column name or 1-based index (default: 1) |
-| `--dynamic-rank` | — | `Int64` | — | — | Number of dynamic common shocks q (default: auto) |
+| `--dynamic-rank` | — | `Int64` | — | — | Number of dynamic common shocks q (default: auto) *(aliases: `--drank`)* |
 | `--nfactors` | — | `Int64` | `0` | — | Static rank r for one-sided projection (0 defaults to q) |
 | `--cutoff` | — | `Float64` | `0.5235987755982988` | — | Angular frequency low-pass cutoff in (0, pi) (default: pi/6) |
-| `--bandwidth` | — | `Int64` | `0` | — | Spectral lag-window bandwidth (0=auto) |
-| `--kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `tukey` | Spectral kernel: bartlett\|parzen\|tukey |
+| `--bandwidth` | `-b` | `Int64` | `0` | — | Spectral lag-window bandwidth (0=auto) *(aliases: `--bw`)* |
+| `--kernel` | `-k` | `String` | `bartlett` | `bartlett`, `parzen`, `tukey` | Spectral kernel: bartlett\|parzen\|tukey |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--no-standardize` | — | Do not standardize panel columns |
-| `--plot` | — | Open interactive plot in browser |
+| `--no-standardize` | — | Do not standardize panel columns *(aliases: `--nostd`)* |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `EurocoinResult`
 
@@ -172,18 +176,18 @@ Hamilton (2018) regression filter
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizons` | — | `Int64` | `8` | — | Forecast horizon |
+| `--horizons` | `-H` | `Int64` | `8` | — | Forecast horizon *(aliases: `--horizon`, `--hor`)* |
 | `--lags` | `-p` | `Int64` | `4` | — | Number of lags in regression |
 | `--columns` | — | `String` | `""` | — | Column indices, comma-separated (default: all numeric) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `HamiltonFilterResult`
 
@@ -203,13 +207,13 @@ Hodrick-Prescott filter
 | `--columns` | — | `String` | `""` | — | Column indices, comma-separated (default: all numeric) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `HPFilterResult`
 
@@ -226,22 +230,22 @@ X-13ARIMA-SEATS seasonal adjustment (X-11 / SEATS)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--frequency` | — | `Int64` | `12` | — | Seasonal period: 4 (quarterly) or 12 (monthly) |
-| `--method` | — | `String` | `seats` | `seats`, `x11` | Preferred decomposition: seats\|x11 |
+| `--method` | `-m` | `String` | `seats` | `seats`, `x11` | Preferred decomposition: seats\|x11 |
 | `--transform` | — | `String` | `auto` | `auto`, `log`, `none` | Pre-transformation |
 | `--critical-value` | — | `Float64` | `0.0` | — | Outlier critical value (0 = automatic) |
 | `--outliers` | — | `String` | `true` | `true`, `false` | Detect AO/LS/TC outliers |
 | `--columns` | — | `String` | `""` | — | Column indices, comma-separated (default: all numeric) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--trading-day` | — | Include trading-day regressors |
 | `--easter` | — | Include Easter effect regressor |
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; result types: `X13FilterResult`
 

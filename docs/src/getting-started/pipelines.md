@@ -30,42 +30,44 @@ frdc --quiet model info var_fit.jld2
 frdc irf var --model var_fit.jld2 --horizons 4 --shock 1 --ci none
 ```
 ```text
-           IRF to LRM shock (cholesky identification)
-┌─────────┬──────────┬───────┬──────────────┬─────────┬─────────┐
-│ horizon │ variable │ shock │    value     │  lower  │  upper  │
-├─────────┼──────────┼───────┼──────────────┼─────────┼─────────┤
-│    1    │   LRM    │  LRM  │  0.0211523   │ missing │ missing │
-│    1    │   LRY    │  LRM  │  0.00867905  │ missing │ missing │
-│    1    │   LPY    │  LRM  │ -0.00301527  │ missing │ missing │
-│    1    │   IBO    │  LRM  │ -0.00275231  │ missing │ missing │
-│    1    │   IDE    │  LRM  │ -0.000271827 │ missing │ missing │
-│    2    │   LRM    │  LRM  │  0.0125777   │ missing │ missing │
-│    2    │   LRY    │  LRM  │  0.0111191   │ missing │ missing │
-│    2    │   LPY    │  LRM  │ -0.00343509  │ missing │ missing │
-│    2    │   IBO    │  LRM  │ -0.00214358  │ missing │ missing │
-│    2    │   IDE    │  LRM  │ -0.000878119 │ missing │ missing │
-│    3    │   LRM    │  LRM  │  0.0143858   │ missing │ missing │
-│    3    │   LRY    │  LRM  │  0.0067444   │ missing │ missing │
-│    3    │   LPY    │  LRM  │  -0.0032946  │ missing │ missing │
-│    3    │   IBO    │  LRM  │ -0.00134605  │ missing │ missing │
-│    3    │   IDE    │  LRM  │ -0.00103512  │ missing │ missing │
-│    4    │   LRM    │  LRM  │  0.0102766   │ missing │ missing │
-│    4    │   LRY    │  LRM  │  0.00552347  │ missing │ missing │
-│    4    │   LPY    │  LRM  │ -0.00329447  │ missing │ missing │
-│    4    │   IBO    │  LRM  │ -0.00141897  │ missing │ missing │
-│    4    │   IDE    │  LRM  │ -0.000667991 │ missing │ missing │
-└─────────┴──────────┴───────┴──────────────┴─────────┴─────────┘
+        IRF to LRM shock (cholesky identification)
+┌─────────┬──────────┬───────┬────────┬─────────┬─────────┐
+│ horizon │ variable │ shock │ value  │  lower  │  upper  │
+├─────────┼──────────┼───────┼────────┼─────────┼─────────┤
+│    1    │   LRM    │  LRM  │ 0.021  │ missing │ missing │
+│    1    │   LRY    │  LRM  │ 0.009  │ missing │ missing │
+│    1    │   LPY    │  LRM  │ -0.003 │ missing │ missing │
+│    1    │   IBO    │  LRM  │ -0.003 │ missing │ missing │
+│    1    │   IDE    │  LRM  │ 0.000  │ missing │ missing │
+│    2    │   LRM    │  LRM  │ 0.013  │ missing │ missing │
+│    2    │   LRY    │  LRM  │ 0.011  │ missing │ missing │
+│    2    │   LPY    │  LRM  │ -0.003 │ missing │ missing │
+│    2    │   IBO    │  LRM  │ -0.002 │ missing │ missing │
+│    2    │   IDE    │  LRM  │ -0.001 │ missing │ missing │
+│    3    │   LRM    │  LRM  │ 0.014  │ missing │ missing │
+│    3    │   LRY    │  LRM  │ 0.007  │ missing │ missing │
+│    3    │   LPY    │  LRM  │ -0.003 │ missing │ missing │
+│    3    │   IBO    │  LRM  │ -0.001 │ missing │ missing │
+│    3    │   IDE    │  LRM  │ -0.001 │ missing │ missing │
+│    4    │   LRM    │  LRM  │ 0.010  │ missing │ missing │
+│    4    │   LRY    │  LRM  │ 0.006  │ missing │ missing │
+│    4    │   LPY    │  LRM  │ -0.003 │ missing │ missing │
+│    4    │   IBO    │  LRM  │ -0.001 │ missing │ missing │
+│    4    │   IDE    │  LRM  │ -0.001 │ missing │ missing │
+└─────────┴──────────┴───────┴────────┴─────────┴─────────┘
 ```
 
-At horizon `1`, a one-standard-deviation Cholesky shock to `LRM` raises `LRM` by `0.0211523` and `LRY` by `0.00867905` while lowering `IBO` by `-0.00275231`. Chaining `--save-model` to `--model` skips OLS estimation during `irf`, guarantees the exact same lag structure and covariance matrix across `irf`, `fevd`, `hd`, and `forecast` (JSON key `irf`), and accepts `-f json` or `-f csv` identically on every leaf.
+At horizon `1`, a one-standard-deviation Cholesky shock to `LRM` raises `LRM` by `0.021` and `LRY` by `0.009` while lowering `IBO` by `-0.003` (displayed at 3 decimal places; `--format json` and `--format csv` preserve full IEEE-754 precision). Chaining `--save-model` to `--model` skips OLS estimation during `irf`, guarantees the exact same lag structure and covariance matrix across `irf`, `fevd`, `hd`, and `forecast` (JSON key `irf`), and accepts `-f json` or `-f csv` identically on every leaf.
 
 ---
 
-## Reproducibility & JSON Envelopes
+## Reproducibility, Precision & JSON Envelopes
 
-Under `--seed <int>` (a **leading global** placed before the subcommand), Friedman-cli seeds the process RNG, forwards `seed=` to stochastic estimators, records `meta.seed` and `meta.manifest` (package versions, thread count, OS, git state, and RNG seed) in both native `.jld2` handles and JSON output, and allows bit-for-bit verification with [`frdc model reproduce`](@ref ref-model-reproduce).
+Under `--seed <int>`, Friedman-cli seeds the process RNG, forwards `seed=` to stochastic estimators, records `meta.seed` and `meta.manifest` (package versions, thread count, OS, git state, and RNG seed) in both native `.jld2` handles and JSON output, and allows bit-for-bit verification with [`frdc model reproduce`](@ref ref-model-reproduce).
 
-Every command emitting `--format json` (or leading `--json`) produces exactly **one JSON object on stdout** while keeping progress messages on **stderr**. The example below extracts two variables (`LRM`, `LRY`) from `denmark` and emits the complete JSON v1 envelope for a `VAR(1)`:
+Human `--format table` output applies a presentation-only 3-decimal formatter by default (override per call with `--digits <0..16|full>` or globally with `FRDC_DIGITS`), whereas `--format json` (`-J`), `--format csv`, MCP tool responses, and saved `.jld2`/`.jls` handles always persist **exact unrounded IEEE-754 `Float64`** values. For automated pipelines and archiving, prefer `--format json`, `--format csv`, or `.jld2` handles rather than scraping formatted table text.
+
+Every command emitting `--format json` (or `--json` / `-J`) produces exactly **one JSON object on stdout** while keeping progress messages on **stderr**. The example below extracts two variables (`LRM`, `LRY`) from `denmark` and emits the complete JSON v1 envelope for a `VAR(1)`:
 
 <!-- capture -->
 ```bash
@@ -89,12 +91,12 @@ frdc --seed 42 --json estimate multivariate var tiny.csv --lags 1
     "var_coefficients": {
       "columns": ["equation", "term", "estimate", "std_error", "stat", "p_value", "ci_lower", "ci_upper"],
       "rows": [
-        ["LRM", "(Intercept)", 0.22484791, 0.36958612, 0.60837758, 0.54563721, -0.51712719, 0.96682301],
-        ["LRM", "LRM.L1", 1.0767316, 0.058551789, 18.389388, 0, 0.95918394, 1.1942792],
-        ["LRM", "LRY.L1", -0.1881037, 0.12128629, -1.5509066, 0.12710806, -0.43159608, 0.055388684],
-        ["LRY", "(Intercept)", 0.15830798, 0.2675591, 0.59167481, 0.55668216, -0.37883932, 0.69545528],
-        ["LRY", "LRM.L1", 0.12027868, 0.042388128, 2.8375559, 0.0065080586, 0.035180964, 0.2053764],
-        ["LRY", "LRY.L1", 0.73636016, 0.087804296, 8.3863796, 3.6341818e-11, 0.56008568, 0.91263464]
+        ["LRM", "(Intercept)", 0.22484791, 0.36958612, 0.60837758, 0.54563721, -0.14630839, 0.59600421],
+        ["LRM", "LRM.L1", 1.0767316, 0.058551789, 18.389388, 0, 1.017931, 1.1355321],
+        ["LRM", "LRY.L1", -0.1881037, 0.12128629, -1.5509066, 0.12710806, -0.30990527, -0.066302128],
+        ["LRY", "(Intercept)", 0.15830798, 0.2675591, 0.59167481, 0.55668216, -0.11038784, 0.42700379],
+        ["LRY", "LRM.L1", 0.12027868, 0.042388128, 2.8375559, 0.0065080586, 0.077710468, 0.16284689],
+        ["LRY", "LRY.L1", 0.73636016, 0.087804296, 8.3863796, 3.6341818e-11, 0.64818283, 0.82453749]
       ]
     }
   },

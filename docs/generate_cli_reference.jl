@@ -202,9 +202,27 @@ function _fmt_guide_links(keys::Vector{String})::String
     return join([_CHAPTER_REF_LABELS[k] for k in keys if haskey(_CHAPTER_REF_LABELS, k)], " · ")
 end
 
+function _aliases_at_path(path::Vector{String})::Vector{String}
+    isempty(path) && return String[]
+    cur::Any = Friedman.APP.root
+    for seg in path[1:end-1]
+        cur isa Friedman.NodeCommand || return String[]
+        cur = get(cur.subcmds, seg, nothing)
+        cur === nothing && return String[]
+    end
+    cur isa Friedman.NodeCommand || return String[]
+    return Friedman._aliases_for(cur, path[end])
+end
+
+function _fmt_aliases(als::Vector{String}; prefix::String="")::String
+    isempty(als) && return ""
+    return join(["`$(prefix)$(a)`" for a in als], ", ")
+end
+
 # ── Markdown emitters ─────────────────────────────────────────
 
-function _leaf_md(spec::Friedman.CommandSpec)::String
+function _leaf_md(raw_spec::Friedman.CommandSpec)::String
+    spec = Friedman._apply_canonical_abbrevs(raw_spec)
     io = IOBuffer()
     path = join(spec.path, " ")
     slug = _anchor_slug(join(spec.path, "-"))
@@ -213,6 +231,11 @@ function _leaf_md(spec::Friedman.CommandSpec)::String
     println(io)
     println(io, spec.summary)
     println(io)
+    leaf_als = _aliases_at_path(spec.path)
+    if !isempty(leaf_als)
+        println(io, "**Aliases:** ", _fmt_aliases(leaf_als))
+        println(io)
+    end
     if !isempty(spec.args)
         println(io, "| Argument | Type | Required | Default | Description |")
         println(io, "|----------|------|----------|---------|-------------|")
@@ -229,7 +252,11 @@ function _leaf_md(spec::Friedman.CommandSpec)::String
             short = isempty(o.short) ? "—" : "`-$(o.short)`"
             typ = "`$(_type_name(o.type))`" * (o.repeatable ? " *(repeatable)*" : "")
             choices = _md_cell(_fmt_choices(o.choices))
-            println(io, "| `--$(o.name)` | $short | $typ | $(_fmt_default(o.default)) | $choices | $(_md_cell(o.description)) |")
+            desc = _md_cell(o.description)
+            if !isempty(o.aliases)
+                desc *= " *(aliases: " * _fmt_aliases(o.aliases; prefix="--") * ")*"
+            end
+            println(io, "| `--$(o.name)` | $short | $typ | $(_fmt_default(o.default)) | $choices | $desc |")
         end
         println(io)
     end
@@ -238,7 +265,11 @@ function _leaf_md(spec::Friedman.CommandSpec)::String
         println(io, "|------|-------|-------------|")
         for f in spec.flags
             short = isempty(f.short) ? "—" : "`-$(f.short)`"
-            println(io, "| `--$(f.name)` | $short | $(_md_cell(f.description)) |")
+            desc = _md_cell(f.description)
+            if !isempty(f.aliases)
+                desc *= " *(aliases: " * _fmt_aliases(f.aliases; prefix="--") * ")*"
+            end
+            println(io, "| `--$(f.name)` | $short | $desc |")
         end
         println(io)
     end
@@ -265,6 +296,11 @@ function _top_page(top::String, leaves::Vector{Friedman.CommandSpec})::String
     println(io, "# [`$top`](@id ref-$top_slug)")
     println(io)
     println(io, "Generated command reference for `frdc $top` (`$(length(leaves))` $(length(leaves) == 1 ? "leaf" : "leaves")). Back to [CLI Reference Overview](@ref cli-overview).")
+    top_als = _aliases_at_path([top])
+    if !isempty(top_als)
+        println(io)
+        println(io, "**Command aliases:** ", _fmt_aliases(top_als))
+    end
     top_guides = _fmt_guide_links(get(_TOP_GUIDES, top, String[]))
     if !isempty(top_guides)
         println(io)
@@ -289,6 +325,8 @@ function _top_page(top::String, leaves::Vector{Friedman.CommandSpec})::String
         println(io)
         println(io, "## [$(_family_title(fam))](@id ref-fam-$fam_slug)")
         println(io)
+        fam_als = _aliases_at_path([top, fam])
+        isempty(fam_als) || (println(io, "**Family aliases:** ", _fmt_aliases(fam_als)); println(io))
         desc = get(Friedman._NODE_DESCRIPTIONS, (top, fam), "")
         isempty(desc) || (println(io, desc); println(io))
         fam_guides = _fmt_guide_links(get(_FAMILY_GUIDES, (top, fam), get(_TOP_GUIDES, top, String[])))
@@ -361,11 +399,11 @@ function _overview_md(specs::Vector{Friedman.CommandSpec})::String
     println(io)
     println(io, "---")
     println(io)
-    println(io, "## Common Options & Globals")
+    println(io, "## Common Options, Globals & Abbreviations")
     println(io)
-    println(io, "Every leaf that produces tabular output supports `--format`/`-f` (`table`|`csv`|`json`) and `--output`/`-o` (`<path>` to write to a file instead of stdout). Leaves accepting structured specifications add `--config <path>` (see [Model Cards & Config Grammar](@ref cfg-overview)); plot-capable leaves add `--plot` and `--plot-save <path>`.")
+    println(io, "Every leaf that produces tabular output supports `--format`/`-f` (`table`|`csv`|`json`) and `--output`/`-o` (`<path>` to write to a file instead of stdout). Human tables display 3 decimal places by default (overridable via `--digits <0..16|full>` or `FRDC_DIGITS`), while `--format json`, `--format csv`, MCP responses, and `.jld2`/`.jls` handles always preserve full IEEE-754 `Float64` precision. Confidence intervals default to **68%** (`-L`/`--conf-level 0.68`, `--quantiles 0.16,0.5,0.84`) for macroeconometric leaves (including `did lp-did`) and **90%** (`-L`/`--conf-level 0.90`) for microeconometric leaves; hypothesis-test significance levels remain 5%. Leaves accepting structured specifications add `--config`/`-C <path>` (see [Model Cards & Config Grammar](@ref cfg-overview)); plot-capable leaves add `--plot`/`-g` and `--plot-save`/`-G <path>`.")
     println(io)
-    println(io, "Leading agent globals go **before** the command: `--seed N`, `--quiet`/`-q`, `--json`, and `--no-color`. See [Pipelines, Handles & Reproducibility](@ref gs-pipelines) and the [Agent Guide](../agent-guide.md) for the complete JSON envelope and typed handle contract.")
+    println(io, "All top-level commands, family groups, long leaves, and common options provide zero-collision coexisting abbreviations (for example `frdc est mv var :denmark -p 2 -J`, `frdc fc uv arima :nile -H 6 -L 0.68`, `frdc t ur adf :nile`, `frdc d desc :denmark`, `frdc sch est mv var`) that dispatch identically and emit canonical `command` names in JSON envelopes. Leading/mid-argv agent globals include `--seed N`, `--quiet`/`-q`, `--json`/`-J`, `--digits <0..16|full>`, `--compact`, and `--no-color`. See [Pipelines, Handles & Reproducibility](@ref gs-pipelines) and the [Agent Guide](../agent-guide.md) for the complete JSON envelope and typed handle contract.")
     println(io)
     println(io, "---")
     println(io)

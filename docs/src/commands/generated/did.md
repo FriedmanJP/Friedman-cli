@@ -15,6 +15,8 @@ Generated command reference for `frdc did` (`3` leaves). Back to [CLI Reference 
 
 Staggered-adoption DiD estimation (twfe|cs|sa|bjs|dcdh) with event-time and overall ATT
 
+**Aliases:** `est`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to panel data file or handle stem (.csv, .jld2, .jls) |
@@ -23,26 +25,26 @@ Staggered-adoption DiD estimation (twfe|cs|sa|bjs|dcdh) with event-time and over
 |--------|-------|------|---------|---------|-------------|
 | `--outcome` | — | `String` | `""` | — | Outcome variable column name (required) |
 | `--treatment` | — | `String` | `""` | — | Treatment indicator column name (required) |
-| `--method` | — | `String` | `twfe` | `twfe`, `cs`, `sa`, `bjs`, `dcdh` | twfe\|cs\|sa\|bjs\|dcdh |
-| `--id-col` | — | `String` | `""` | — | Panel unit ID column (default: first column) |
-| `--time-col` | — | `String` | `""` | — | Time column (default: second column) |
+| `--method` | `-m` | `String` | `twfe` | `twfe`, `cs`, `sa`, `bjs`, `dcdh` | twfe\|cs\|sa\|bjs\|dcdh |
+| `--id-col` | `-u` | `String` | `""` | — | Panel unit ID column (default: first column) *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Time column (default: second column) *(aliases: `--tcol`)* |
 | `--leads` | — | `Int64` | `0` | — | Pre-treatment periods |
-| `--horizons` | — | `Int64` | `5` | — | Post-treatment periods |
+| `--horizons` | `-H` | `Int64` | `5` | — | Post-treatment periods *(aliases: `--horizon`, `--hor`)* |
 | `--covariates` | — | `String` | `""` | — | Comma-separated covariate column names |
 | `--control-group` | — | `String` | `never_treated` | `never_treated`, `not_yet_treated` | never_treated\|not_yet_treated |
 | `--cluster` | — | `String` | `unit` | `unit`, `time`, `twoway` | unit\|time\|twoway |
-| `--conf-level` | — | `Float64` | `0.95` | — | Confidence level |
+| `--conf-level` | `-L` | `Float64` | `0.9` | — | Confidence interval level in (0, 1) (default: 0.90) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--n-boot` | — | `Int64` | `200` | — | Bootstrap replications (dcdh only) |
 | `--base-period` | — | `String` | `varying` | `varying`, `universal` | varying\|universal (Callaway-Sant'Anna only) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:panel`, `:csv`; result types: `DIDResult`
 
@@ -52,6 +54,8 @@ Staggered-adoption DiD estimation (twfe|cs|sa|bjs|dcdh) with event-time and over
 
 Local-projection event-study DiD with pre-trend leads and post-treatment horizon
 
+**Aliases:** `es`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to panel data file or handle stem (.csv, .jld2, .jls) |
@@ -60,23 +64,23 @@ Local-projection event-study DiD with pre-trend leads and post-treatment horizon
 |--------|-------|------|---------|---------|-------------|
 | `--outcome` | — | `String` | `""` | — | Outcome variable column name (required) |
 | `--treatment` | — | `String` | `""` | — | Treatment indicator column name (required) |
-| `--id-col` | — | `String` | `""` | — | Panel unit ID column (default: first column) |
-| `--time-col` | — | `String` | `""` | — | Time column (default: second column) |
+| `--id-col` | `-u` | `String` | `""` | — | Panel unit ID column (default: first column) *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Time column (default: second column) *(aliases: `--tcol`)* |
 | `--leads` | — | `Int64` | `3` | — | Pre-treatment leads |
-| `--horizons` | — | `Int64` | `5` | — | Post-treatment horizon |
+| `--horizons` | `-H` | `Int64` | `5` | — | Post-treatment horizon *(aliases: `--horizon`, `--hor`)* |
 | `--lags` | `-p` | `Int64` | `4` | — | Control lags |
 | `--covariates` | — | `String` | `""` | — | Comma-separated covariate column names |
-| `--cluster` | — | `String` | `unit` | — | unit\|time\|twoway |
-| `--conf-level` | — | `Float64` | `0.95` | — | Confidence level |
+| `--cluster` | — | `String` | `unit` | `unit`, `time`, `twoway` | unit\|time\|twoway |
+| `--conf-level` | `-L` | `Float64` | `0.9` | — | Confidence interval level in (0, 1) (default: 0.90) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:panel`, `:csv`; result types: `EventStudyLP`
 
@@ -86,6 +90,8 @@ Local-projection event-study DiD with pre-trend leads and post-treatment horizon
 
 LP-DiD estimation (Dube et al. 2023) with pre/post windows and clean-control options
 
+**Aliases:** `lp`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to panel data file or handle stem (.csv, .jld2, .jls) |
@@ -94,27 +100,27 @@ LP-DiD estimation (Dube et al. 2023) with pre/post windows and clean-control opt
 |--------|-------|------|---------|---------|-------------|
 | `--outcome` | — | `String` | `""` | — | Outcome variable column name (required) |
 | `--treatment` | — | `String` | `""` | — | Treatment indicator column name (required) |
-| `--id-col` | — | `String` | `""` | — | Panel unit ID column (default: first column) |
-| `--time-col` | — | `String` | `""` | — | Time column (default: second column) |
-| `--horizons` | — | `Int64` | `5` | — | Post-treatment horizon |
+| `--id-col` | `-u` | `String` | `""` | — | Panel unit ID column (default: first column) *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Time column (default: second column) *(aliases: `--tcol`)* |
+| `--horizons` | `-H` | `Int64` | `5` | — | Post-treatment horizon *(aliases: `--horizon`, `--hor`)* |
 | `--pre-window` | — | `Int64` | `3` | — | Pre-treatment window |
 | `--post-window` | — | `Int64` | `0` | — | Post-treatment window (0 = use horizon) |
 | `--ylags` | — | `Int64` | `0` | — | Outcome lags |
 | `--dylags` | — | `Int64` | `0` | — | Differenced outcome lags |
 | `--covariates` | — | `String` | `""` | — | Comma-separated covariate column names |
-| `--cluster` | — | `String` | `unit` | — | unit\|time\|twoway |
-| `--conf-level` | — | `Float64` | `0.95` | — | Confidence level |
+| `--cluster` | — | `String` | `unit` | `unit`, `time`, `twoway` | unit\|time\|twoway |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--pmd` | — | `String` | `""` | — | Pre-treatment matching: ccs\|ipw\|<integer> |
 | `--nonabsorbing` | — | `String` | `""` | — | Non-absorbing treatment (integer periods) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 | `--reweight` | — | Reweight observations |
 | `--nocomp` | — | No composition adjustment |
 | `--notyet` | — | Use not-yet-treated as controls |

@@ -1,6 +1,6 @@
 # [Panel Data, Panel VAR & Causal DiD](@id chap-panel)
 
-Longitudinal micro- and macro-panel estimators ([`estimate panel`](@ref ref-fam-estimate-panel)), panel vector autoregressions ([`estimate panel pvar`](@ref ref-estimate-panel-pvar), [`irf pvar`](@ref ref-irf-pvar), [`fevd pvar`](@ref ref-fevd-pvar)), staggered difference-in-differences and local-projection DiD ([`did`](@ref ref-did)), and panel/DiD specification diagnostics ([`test panel`](@ref ref-fam-test-panel), [`test pvar`](@ref ref-fam-test-pvar), [`test did`](@ref ref-fam-test-did)) handle correlated unit effects, dynamic GMM instruments, and heterogeneous treatment timing. See [MacroEconometricModels.jl — Panel & DiD](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/panel/).
+Longitudinal micro- and macro-panel estimators ([`estimate panel`](@ref ref-fam-estimate-panel)), panel vector autoregressions ([`estimate panel pvar`](@ref ref-estimate-panel-pvar), [`irf pvar`](@ref ref-irf-pvar), [`fevd pvar`](@ref ref-fevd-pvar)), staggered difference-in-differences and local-projection DiD ([`did`](@ref ref-did)), and panel/DiD specification diagnostics ([`test panel`](@ref ref-fam-test-panel), [`test pvar`](@ref ref-fam-test-pvar), [`test did`](@ref ref-fam-test-did)) handle correlated unit effects, dynamic GMM instruments, and heterogeneous treatment timing. Micro-panel estimators (`preg`, `piv`, `plogit`, `pprobit`, `xtqreg`) and standard DiD (`did estimate`, `did event-study`, `test did honest|pretrend`) default to **90%** confidence intervals, whereas macro-panel leaves (`pvar`, `pmg`, `xtcointreg`) and macro local-projection DiD ([`did lp-did`](@ref ref-did-lp-did)) default to **68%** (override any leaf via `-L`/`--conf-level`). See [MacroEconometricModels.jl — Panel & DiD](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/panel/).
 
 ## Quick Start
 
@@ -12,25 +12,25 @@ frdc --quiet data simulate panel --kind linear --n 20 --periods 10 --seed 1 --sa
 frdc estimate panel preg pan_sim --dep y --indep x1,x2 --id-col id --time-col time --method fe --cov-type cluster
 ```
 ```text
-                     Panel Regression Coefficients (fe)
-┌──────┬──────────┬───────────┬─────────┬────────────┬──────────┬──────────┐
-│ term │ estimate │ std_error │  stat   │  p_value   │ ci_lower │ ci_upper │
-├──────┼──────────┼───────────┼─────────┼────────────┼──────────┼──────────┤
-│  x1  │ 0.978915 │ 0.0871942 │ 11.2268 │    0.0     │ 0.806847 │ 1.15098  │
-│  x2  │ 0.509885 │ 0.102251  │ 4.98659 │ 1.45153e-6 │ 0.308105 │ 0.711666 │
-└──────┴──────────┴───────────┴─────────┴────────────┴──────────┴──────────┘
-     Model Statistics
-┌──────────────┬──────────┐
-│    metric    │  value   │
-├──────────────┼──────────┤
-│ R2 (within)  │ 0.518109 │
-│ R2 (between) │ 0.027024 │
-│ R2 (overall) │ 0.349904 │
-│ F-statistic  │ 65.0384  │
-│  F p-value   │   0.0    │
-│    N obs     │   200    │
-│   N groups   │    20    │
-└──────────────┴──────────┘
+                   Panel Regression Coefficients (fe)
+┌──────┬──────────┬───────────┬────────┬─────────┬──────────┬──────────┐
+│ term │ estimate │ std_error │  stat  │ p_value │ ci_lower │ ci_upper │
+├──────┼──────────┼───────────┼────────┼─────────┼──────────┼──────────┤
+│  x1  │  0.979   │   0.087   │ 11.227 │  0.000  │  0.835   │  1.123   │
+│  x2  │  0.510   │   0.102   │ 4.987  │  0.000  │  0.341   │  0.679   │
+└──────┴──────────┴───────────┴────────┴─────────┴──────────┴──────────┘
+    Model Statistics
+┌──────────────┬────────┐
+│    metric    │ value  │
+├──────────────┼────────┤
+│ R2 (within)  │ 0.518  │
+│ R2 (between) │ 0.027  │
+│ R2 (overall) │ 0.350  │
+│ F-statistic  │ 65.038 │
+│  F p-value   │ 0.000  │
+│    N obs     │  200   │
+│   N groups   │   20   │
+└──────────────┴────────┘
 ```
 
 The command returns `panel_regression_coefficients` (`x1 = 0.978915`, `x2 = 0.509885`) and `model_statistics` (`R2 (within) = 0.518109`, `F = 65.0384` across `20` groups); pass `--save-model` to reuse the panel fit in [`predict panel preg`](@ref ref-predict-panel-preg) and [`residuals panel preg`](@ref ref-residuals-panel-preg), or switch `--cov-type` to `twoway`, `driscoll-kraay`, or `pcse`.
@@ -68,13 +68,13 @@ frdc --quiet data simulate pvar --n 15 --periods 12 --seed 42 --save-data pvar_s
 frdc estimate panel pvar pvar_sim --id-col id --time-col time --lags 1 --dependent y1,y2 --steps twostep
 ```
 ```text
-                        Panel VAR(1) Coefficients (gmm)
-┌───────────┬───────────┬──────────┬─────────┬───────────┬──────────┬─────────┐
-│ parameter │  y1_coef  │  y1_se   │ y1_pval │  y2_coef  │  y2_se   │ y2_pval │
-├───────────┼───────────┼──────────┼─────────┼───────────┼──────────┼─────────┤
-│   y1_L1   │ -0.001107 │ 0.577666 │ 0.9985  │ 0.123591  │ 1.07025  │ 0.9081  │
-│   y2_L1   │  0.27905  │ 0.569436 │ 0.6241  │ -0.067277 │ 0.470728 │ 0.8864  │
-└───────────┴───────────┴──────────┴─────────┴───────────┴──────────┴─────────┘
+                                               Panel VAR(1) Coefficients (gmm)
+┌───────────┬─────────┬───────┬─────────┬─────────────┬─────────────┬─────────┬───────┬─────────┬─────────────┬─────────────┐
+│ parameter │ y1_coef │ y1_se │ y1_pval │ y1_ci_lower │ y1_ci_upper │ y2_coef │ y2_se │ y2_pval │ y2_ci_lower │ y2_ci_upper │
+├───────────┼─────────┼───────┼─────────┼─────────────┼─────────────┼─────────┼───────┼─────────┼─────────────┼─────────────┤
+│   y1_L1   │ -0.001  │ 0.578 │  0.998  │   -0.576    │    0.573    │  0.124  │ 1.070 │  0.908  │   -0.941    │    1.188    │
+│   y2_L1   │  0.279  │ 0.569 │  0.624  │   -0.287    │    0.845    │ -0.067  │ 0.471 │  0.886  │   -0.535    │    0.401    │
+└───────────┴─────────┴───────┴─────────┴─────────────┴─────────────┴─────────┴───────┴─────────┴─────────────┴─────────────┘
          Panel Summary
 ┌────────────────────┬────────┐
 │       metric       │ value  │
@@ -107,24 +107,24 @@ frdc --quiet data simulate did --n 60 --periods 12 --seed 17 --save-data did_sim
 frdc did estimate did_sim --outcome y --treatment cohort --id-col id --time-col time --method cs --control-group never_treated
 ```
 ```text
-                                     DID Estimation — CS
-┌────────────┬──────┬──────────┬───────────┬─────────┬─────────────┬─────────────┬──────────┐
-│ event_time │ term │ estimate │ std_error │  stat   │   p_value   │  ci_lower   │ ci_upper │
-├────────────┼──────┼──────────┼───────────┼─────────┼─────────────┼─────────────┼──────────┤
-│     0      │ e=0  │ 0.763798 │ 0.350845  │ 2.17703 │  0.0294786  │  0.0761552  │ 1.45144  │
-│     1      │ e=1  │ 0.957665 │ 0.345358  │ 2.77297 │ 0.00555477  │  0.280777   │ 1.63455  │
-│     2      │ e=2  │ 1.16403  │ 0.391289  │ 2.97487 │ 0.00293115  │  0.397121   │ 1.93094  │
-│     3      │ e=3  │ 0.893037 │ 0.455184  │ 1.96192 │  0.0497712  │ 0.000892606 │ 1.78518  │
-│     4      │ e=4  │ 1.23652  │  0.36613  │ 3.37728 │ 0.000732074 │   0.51892   │ 1.95412  │
-│     5      │ e=5  │ 1.02538  │ 0.399674  │ 2.56553 │  0.0103019  │  0.242029   │ 1.80872  │
-└────────────┴──────┴──────────┴───────────┴─────────┴─────────────┴─────────────┴──────────┘
-                                                         Group-Time ATT (Callaway-Sant'Anna)
-┌────────┬──────────┬───────────┬───────────┬───────────┬──────────┬──────────┬───────────┬──────────┬───────────┬───────────┬───────────┬───────────┐
-│ Cohort │ period_1 │ period_2  │ period_3  │ period_4  │ period_5 │ period_6 │ period_7  │ period_8 │ period_9  │ period_10 │ period_11 │ period_12 │
-├────────┼──────────┼───────────┼───────────┼───────────┼──────────┼──────────┼───────────┼──────────┼───────────┼───────────┼───────────┼───────────┤
-│   6    │   NaN    │ -0.569572 │ -0.166391 │ 0.0853322 │ 0.313836 │ 0.636727 │ 0.880373  │ 1.16403  │ 0.893037  │  1.23652  │  1.02538  │  1.12371  │
-│   11   │   NaN    │ 0.602757  │ -0.372398 │ -0.673512 │ 0.326186 │ 0.24115  │ -0.137092 │ 0.39422  │ -0.280536 │ -0.105313 │ 0.970289  │  1.08326  │
-└────────┴──────────┴───────────┴───────────┴───────────┴──────────┴──────────┴───────────┴──────────┴───────────┴───────────┴───────────┴───────────┘
+                                DID Estimation — CS
+┌────────────┬──────┬──────────┬───────────┬───────┬─────────┬──────────┬──────────┐
+│ event_time │ term │ estimate │ std_error │ stat  │ p_value │ ci_lower │ ci_upper │
+├────────────┼──────┼──────────┼───────────┼───────┼─────────┼──────────┼──────────┤
+│     0      │ e=0  │  0.764   │   0.351   │ 2.177 │  0.029  │  0.187   │  1.341   │
+│     1      │ e=1  │  0.958   │   0.345   │ 2.773 │  0.006  │  0.390   │  1.526   │
+│     2      │ e=2  │  1.164   │   0.391   │ 2.975 │  0.003  │  0.520   │  1.808   │
+│     3      │ e=3  │  0.893   │   0.455   │ 1.962 │  0.050  │  0.144   │  1.642   │
+│     4      │ e=4  │  1.237   │   0.366   │ 3.377 │  0.001  │  0.634   │  1.839   │
+│     5      │ e=5  │  1.025   │   0.400   │ 2.566 │  0.010  │  0.368   │  1.683   │
+└────────────┴──────┴──────────┴───────────┴───────┴─────────┴──────────┴──────────┘
+                                                       Group-Time ATT (Callaway-Sant'Anna)
+┌────────┬──────────┬──────────┬──────────┬──────────┬──────────┬──────────┬──────────┬──────────┬──────────┬───────────┬───────────┬───────────┐
+│ Cohort │ period_1 │ period_2 │ period_3 │ period_4 │ period_5 │ period_6 │ period_7 │ period_8 │ period_9 │ period_10 │ period_11 │ period_12 │
+├────────┼──────────┼──────────┼──────────┼──────────┼──────────┼──────────┼──────────┼──────────┼──────────┼───────────┼───────────┼───────────┤
+│   6    │   NaN    │  -0.570  │  -0.166  │  0.085   │  0.314   │  0.637   │  0.880   │  1.164   │  0.893   │   1.237   │   1.025   │   1.124   │
+│   11   │   NaN    │  0.603   │  -0.372  │  -0.674  │  0.326   │  0.241   │  -0.137  │  0.394   │  -0.281  │  -0.105   │   0.970   │   1.083   │
+└────────┴──────────┴──────────┴──────────┴──────────┴──────────┴──────────┴──────────┴──────────┴──────────┴───────────┴───────────┴───────────┘
 ```
 
 The command populates `did_estimation` (positive ATT rising from `0.763798` at `e=0` to `1.23652` at `e=4`) and cohort-period cells in `group_time_att_callaway_sant_anna` (`Cohorts` `6` and `11`). Diagnose negative TWFE weights via [`test did negweight`](@ref ref-test-did-negweight), Goodman–Bacon 2×2 variance decomposition via [`test did bacon`](@ref ref-test-did-bacon), joint pre-trends via [`test did pretrend`](@ref ref-test-did-pretrend), and Rambachan–Roth bounded sensitivity via [`test did honest`](@ref ref-test-did-honest).

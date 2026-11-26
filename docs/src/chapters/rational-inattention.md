@@ -1,6 +1,6 @@
 # [Rational Inattention](@id chap-ri)
 
-Information-constrained decision making—covering linear-quadratic-Gaussian (LQG) dynamic tracking, finite-horizon attention transitions, state-space & structural estimation, Coibion–Gorodnichenko expectation-rigidity tests, Maćkowiak–Wiederholt multi-block attention allocation, Matějka–McKay discrete choice, and structural RI-logit—lives across the 11 leaves under [`frdc ri`](@ref ref-ri) together with [`estimate choice ri-logit`](@ref ref-estimate-choice-ri-logit) and [`predict choice ri-logit`](@ref ref-predict-choice-ri-logit). Configure `[ri]`, `[ri.mw]`, `[ri.discrete]`, and `[ri.logit]` TOML sections via [GMM, SMM, Systems, State-Space & Policy](@ref cfg-models-policy). See [MacroEconometricModels.jl — Rational Inattention](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/ri/) for full derivations.
+Information-constrained decision making—covering linear-quadratic-Gaussian (LQG) dynamic tracking, finite-horizon attention transitions, state-space & structural estimation, Coibion–Gorodnichenko expectation-rigidity tests, Maćkowiak–Wiederholt multi-block attention allocation, Matějka–McKay discrete choice, and structural RI-logit—lives across the 11 leaves under [`frdc ri`](@ref ref-ri) together with [`estimate choice ri-logit`](@ref ref-estimate-choice-ri-logit) and [`predict choice ri-logit`](@ref ref-predict-choice-ri-logit). Macro RI estimation and expectation-rigidity leaves (`ri estimate`, `ri cg-test`) default to **68%** confidence intervals (`-L`/`--conf-level 0.68`), while discrete-choice `estimate choice ri-logit` defaults to **90%**. Configure `[ri]`, `[ri.mw]`, `[ri.discrete]`, and `[ri.logit]` TOML sections via [GMM, SMM, Systems, State-Space & Policy](@ref cfg-models-policy). See [MacroEconometricModels.jl — Rational Inattention](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/ri/) for full derivations.
 
 ## Quick Start
 
@@ -23,12 +23,12 @@ EOF
 frdc ri solve --config ri_lqg.toml --save-model ri_sol
 ```
 ```text
-                           Sims (2003) RI Kalman Solution
-┌───────┬────────┬────────┬──────────┬───────────────┬─────────────┬───────────────┐
-│ state │ signal │ K_gain │  omega   │ capacity_bits │ signal_rank │ expected_loss │
-├───────┼────────┼────────┼──────────┼───────────────┼─────────────┼───────────────┤
-│   x   │   1    │  0.5   │ 0.609297 │      0.5      │      1      │   0.195695    │
-└───────┴────────┴────────┴──────────┴───────────────┴─────────────┴───────────────┘
+                         Sims (2003) RI Kalman Solution
+┌───────┬────────┬────────┬───────┬───────────────┬─────────────┬───────────────┐
+│ state │ signal │ K_gain │ omega │ capacity_bits │ signal_rank │ expected_loss │
+├───────┼────────┼────────┼───────┼───────────────┼─────────────┼───────────────┤
+│   x   │   1    │ 0.500  │ 0.609 │     0.500     │      1      │     0.196     │
+└───────┴────────┴────────┴───────┴───────────────┴─────────────┴───────────────┘
            RI Summary
 ┌───────────────┬───────────────┐
 │    metric     │     value     │
@@ -36,11 +36,11 @@ frdc ri solve --config ri_lqg.toml --save-model ri_sol
 │    method     │ water_filling │
 │   converged   │     true      │
 │  iterations   │       1       │
-│     omega     │   0.609297    │
-│ capacity_bits │      0.5      │
-│ capacity_nats │   0.346574    │
+│     omega     │     0.609     │
+│ capacity_bits │     0.500     │
+│ capacity_nats │     0.347     │
 │  signal_rank  │       1       │
-│ expected_loss │   0.195695    │
+│ expected_loss │     0.196     │
 └───────────────┴───────────────┘
 ```
 
@@ -101,31 +101,31 @@ EOF
 frdc ri mw --config ri_mw.toml --horizons 6
 ```
 ```text
-                          Maćkowiak-Wiederholt (2009) Attention Allocation
-┌─────────┬───────────────┬────────────────┬─────────────────┬───────────┬────────────┬────────────┐
-│ horizon │ agg_price_irf │ idio_price_irf │ real_output_irf │ kappa_agg │ kappa_idio │   omega    │
-├─────────┼───────────────┼────────────────┼─────────────────┼───────────┼────────────┼────────────┤
-│    0    │  0.000980532  │   0.0928576    │   0.00901947    │ 0.0962803 │  1.90372   │ 0.00148063 │
-│    1    │  0.00169244   │   0.0497449    │   0.00730756    │ 0.0962803 │  1.90372   │ 0.00148063 │
-│    2    │   0.0021909   │   0.0249909    │    0.0059091    │ 0.0962803 │  1.90372   │ 0.00148063 │
-│    3    │  0.00252111   │   0.0124997    │   0.00476889    │ 0.0962803 │  1.90372   │ 0.00148063 │
-│    4    │  0.00271998   │   0.00624999   │   0.00384102    │ 0.0962803 │  1.90372   │ 0.00148063 │
-│    5    │   0.0028175   │    0.003125    │    0.0030874    │ 0.0962803 │  1.90372   │ 0.00148063 │
-└─────────┴───────────────┴────────────────┴─────────────────┴───────────┴────────────┴────────────┘
-          MW Attention Summary
-┌───────────────────────────┬──────────┐
-│          metric           │  value   │
-├───────────────────────────┼──────────┤
-│         kappa_agg         │ 0.09628  │
-│        kappa_idio         │ 1.90372  │
-│        total_kappa        │   2.0    │
-│    agg_attention_share    │ 0.04814  │
-│           omega           │ 0.001481 │
-│ strategic_complementarity │   0.25   │
-│           units           │   bits   │
-│         converged         │   true   │
-│        iterations         │    7     │
-└───────────────────────────┴──────────┘
+                       Maćkowiak-Wiederholt (2009) Attention Allocation
+┌─────────┬───────────────┬────────────────┬─────────────────┬───────────┬────────────┬───────┐
+│ horizon │ agg_price_irf │ idio_price_irf │ real_output_irf │ kappa_agg │ kappa_idio │ omega │
+├─────────┼───────────────┼────────────────┼─────────────────┼───────────┼────────────┼───────┤
+│    0    │     0.001     │     0.093      │      0.009      │   0.096   │   1.904    │ 0.001 │
+│    1    │     0.002     │     0.050      │      0.007      │   0.096   │   1.904    │ 0.001 │
+│    2    │     0.002     │     0.025      │      0.006      │   0.096   │   1.904    │ 0.001 │
+│    3    │     0.003     │     0.012      │      0.005      │   0.096   │   1.904    │ 0.001 │
+│    4    │     0.003     │     0.006      │      0.004      │   0.096   │   1.904    │ 0.001 │
+│    5    │     0.003     │     0.003      │      0.003      │   0.096   │   1.904    │ 0.001 │
+└─────────┴───────────────┴────────────────┴─────────────────┴───────────┴────────────┴───────┘
+        MW Attention Summary
+┌───────────────────────────┬───────┐
+│          metric           │ value │
+├───────────────────────────┼───────┤
+│         kappa_agg         │ 0.096 │
+│        kappa_idio         │ 1.904 │
+│        total_kappa        │ 2.000 │
+│    agg_attention_share    │ 0.048 │
+│           omega           │ 0.001 │
+│ strategic_complementarity │ 0.250 │
+│           units           │ bits  │
+│         converged         │ true  │
+│        iterations         │   7   │
+└───────────────────────────┴───────┘
 ```
 
 The `ri_mw_allocation` and `ri_mw_summary` tables report how the `2.0`-bit budget splits between aggregate and idiosyncratic blocks (`kappa_agg`, `kappa_idio`, `agg_attention_share`) together with the equilibrium shadow cost `omega`.
@@ -162,28 +162,28 @@ frdc ri discrete --config ri_disc.toml
 ┌───────┬────────┬────────┬───────────┬─────────────┐
 │ state │ action │ payoff │ cond_prob │ uncond_prob │
 ├───────┼────────┼────────┼───────────┼─────────────┤
-│   1   │   1    │  2.0   │ 0.924142  │     0.5     │
-│   2   │   1    │  0.0   │ 0.0758582 │     0.5     │
-│   3   │   1    │  0.5   │    0.0    │     0.5     │
-│   1   │   2    │  0.0   │ 0.0758582 │     0.5     │
-│   2   │   2    │  2.0   │ 0.924142  │     0.5     │
-│   3   │   2    │  0.5   │    0.0    │     0.5     │
+│   1   │   1    │ 2.000  │   0.924   │    0.500    │
+│   2   │   1    │ 0.000  │   0.076   │    0.500    │
+│   3   │   1    │ 0.500  │   0.000   │    0.500    │
+│   1   │   2    │ 0.000  │   0.076   │    0.500    │
+│   2   │   2    │ 2.000  │   0.924   │    0.500    │
+│   3   │   2    │ 0.500  │   0.000   │    0.500    │
 └───────┴────────┴────────┴───────────┴─────────────┘
-      Discrete RI Summary
-┌───────────────────┬──────────┐
-│      metric       │  value   │
-├───────────────────┼──────────┤
-│   alternatives    │    3     │
-│      states       │    2     │
-│       omega       │   0.8    │
-│ consideration_set │   1,2    │
-│ mutual_info_bits  │ 0.612586 │
-│ mutual_info_nats  │ 0.424612 │
-│ expected_utility  │ 1.84828  │
-│    net_welfare    │ 1.50859  │
-│     converged     │   true   │
-│    iterations     │    3     │
-└───────────────────┴──────────┘
+     Discrete RI Summary
+┌───────────────────┬───────┐
+│      metric       │ value │
+├───────────────────┼───────┤
+│   alternatives    │   3   │
+│      states       │   2   │
+│       omega       │ 0.800 │
+│ consideration_set │  1,2  │
+│ mutual_info_bits  │ 0.613 │
+│ mutual_info_nats  │ 0.425 │
+│ expected_utility  │ 1.848 │
+│    net_welfare    │ 1.509 │
+│     converged     │ true  │
+│    iterations     │   3   │
+└───────────────────┴───────┘
 ```
 
 The `ri_discrete_choice` and `ri_discrete_summary` tables display the endogenous consideration set, conditional choice probabilities across payoff states, achieved mutual information (`mutual_info_bits`, `mutual_info_nats`), and `net_welfare`.

@@ -23,32 +23,32 @@ Audit DSGE true IRFs against Wold innovations and population SVAR(p) IRFs (Raven
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--lags` | `-p` | `Int64` | `4` | — | Population VAR lag order p (>= 1) |
-| `--horizons` | — | `Int64` | `20` | — | IRF horizon H (>= 1) |
-| `--id` | — | `String` | `best-rotation` | `best-rotation`, `cholesky`, `long-run`, `sign` | SVAR identification scheme: best-rotation\|cholesky\|long-run\|sign |
-| `--config` | — | `String` | `""` | — | TOML identification config with sign restrictions (required for --id sign) |
-| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
+| `--horizons` | `-H` | `Int64` | `20` | — | IRF horizon H (>= 1) *(aliases: `--horizon`, `--hor`)* |
+| `--id` | `-i` | `String` | `best-rotation` | `best-rotation`, `cholesky`, `long-run`, `sign` | SVAR identification scheme: best-rotation\|cholesky\|long-run\|sign |
+| `--config` | `-C` | `String` | `""` | — | TOML identification config with sign restrictions (required for --id sign) *(aliases: `--cfg`)* |
+| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) *(aliases: `--obs`)* |
 | `--n-obs-effective` | — | `Int64` | `1000` | — | Effective sample size for population VAR(p) |
 | `--unit-root-damping` | — | `Float64` | `1.0e-5` | — | Stationary damping applied when A contains unit roots |
 | `--rcond-tol` | — | `Float64` | `1.0e-12` | — | Conditioning threshold for the Wold innovations DARE solver |
 | `--max-draws` | — | `Int64` | `1000` | — | Maximum Haar draws for --id sign |
 | `--reduction` | — | `String` | `minimal` | `minimal`, `predetermined`, `none` | State-space reduction mode: minimal\|predetermined\|none |
-| `--measurement-error` | — | `String` | `""` | — | Measurement error standard deviations (comma-separated) |
-| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `blanchard-kahn` | DSGE linear solver when given a model file: gensys\|klein\|perturbation\|blanchard-kahn |
-| `--order` | — | `Int64` | `1` | — | Perturbation order when --solver perturbation (1, 2, or 3) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--measurement-error` | — | `String` | `""` | — | Measurement error standard deviations (comma-separated) *(aliases: `--me`)* |
+| `--solver` | `-s` | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `blanchard-kahn` | DSGE linear solver when given a model file: gensys\|klein\|perturbation\|blanchard-kahn |
+| `--order` | `-O` | `Int64` | `1` | — | Perturbation order when --solver perturbation (1, 2, or 3) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--plot` | `-g` | Open interactive plot in browser |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** model types: `ABCDSystem`, `DSGESolution`, `PerturbationSolution`, `HADSGESolution`, `StateSpaceModel`; result types: `DSGEVARIRFAudit`
 
@@ -64,21 +64,21 @@ Extract the canonical FVRSW (2007) ABCD state-space representation from a DSGE o
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated; empty = all observables) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated; empty = all observables) *(aliases: `--obs`)* |
 | `--reduction` | — | `String` | `predetermined` | `predetermined`, `minimal`, `none` | State-space reduction mode: predetermined\|minimal\|none |
-| `--measurement-error` | — | `String` | `""` | — | Measurement error standard deviations (comma-separated) |
-| `--tol` | — | `Float64` | `1.0e-10` | — | Tolerance for predetermined-column detection and staircase SVD |
-| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `blanchard-kahn` | DSGE linear solver when given a model file: gensys\|klein\|perturbation\|blanchard-kahn |
-| `--order` | — | `Int64` | `1` | — | Perturbation order when --solver perturbation (1, 2, or 3) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--measurement-error` | — | `String` | `""` | — | Measurement error standard deviations (comma-separated) *(aliases: `--me`)* |
+| `--tol` | `-T` | `Float64` | `1.0e-10` | — | Tolerance for predetermined-column detection and staircase SVD |
+| `--solver` | `-s` | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `blanchard-kahn` | DSGE linear solver when given a model file: gensys\|klein\|perturbation\|blanchard-kahn |
+| `--order` | `-O` | `Int64` | `1` | — | Perturbation order when --solver perturbation (1, 2, or 3) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** model types: `DSGESolution`, `PerturbationSolution`, `HADSGESolution`, `StateSpaceModel`
 
@@ -88,28 +88,30 @@ Extract the canonical FVRSW (2007) ABCD state-space representation from a DSGE o
 
 Compute the Hansen-Sargent DARE Wold innovations representation (and optional canonical ABCDSystem)
 
+**Aliases:** `innov`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `file` | `String` | no | `""` | Path to DSGE model file (.toml or .jl) or saved handle (.jld2/.jls/.fmod) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) *(aliases: `--obs`)* |
 | `--reduction` | — | `String` | `predetermined` | `predetermined`, `minimal`, `none` | State-space reduction mode: predetermined\|minimal\|none |
-| `--measurement-error` | — | `String` | `""` | — | Measurement error standard deviations (comma-separated) |
+| `--measurement-error` | — | `String` | `""` | — | Measurement error standard deviations (comma-separated) *(aliases: `--me`)* |
 | `--rcond-tol` | — | `Float64` | `1.0e-12` | — | Conditioning threshold for the generalized Schur DARE solver |
-| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `blanchard-kahn` | DSGE linear solver when given a model file: gensys\|klein\|perturbation\|blanchard-kahn |
-| `--order` | — | `Int64` | `1` | — | Perturbation order when --solver perturbation (1, 2, or 3) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--solver` | `-s` | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `blanchard-kahn` | DSGE linear solver when given a model file: gensys\|klein\|perturbation\|blanchard-kahn |
+| `--order` | `-O` | `Int64` | `1` | — | Perturbation order when --solver perturbation (1, 2, or 3) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--as-abcd` | — | Convert the InnovationsRepresentation to a canonical ABCDSystem via to_abcd |
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** model types: `ABCDSystem`, `DSGESolution`, `PerturbationSolution`, `HADSGESolution`, `StateSpaceModel`
 
@@ -119,61 +121,65 @@ Compute the Hansen-Sargent DARE Wold innovations representation (and optional ca
 
 Evaluate FVRSW (2007) Poor Man's Invertibility Condition and Komunjer-Ng (2011) transmission zeros
 
+**Aliases:** `inv`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `file` | `String` | no | `""` | Path to DSGE model file (.toml or .jl) or saved handle (.jld2/.jls/.fmod) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) *(aliases: `--obs`)* |
 | `--reduction` | — | `String` | `predetermined` | `predetermined`, `minimal`, `none` | State-space reduction mode: predetermined\|minimal\|none |
-| `--measurement-error` | — | `String` | `""` | — | Measurement error standard deviations (comma-separated) |
-| `--tol` | — | `Float64` | `1.0e-8` | — | Unit-circle classification tolerance (>= 0) |
+| `--measurement-error` | — | `String` | `""` | — | Measurement error standard deviations (comma-separated) *(aliases: `--me`)* |
+| `--tol` | `-T` | `Float64` | `1.0e-8` | — | Unit-circle classification tolerance (>= 0) |
 | `--max-var-lags` | — | `Int64` | `50` | — | Maximum convergent VAR(inf) lag matrices to compute when invertible |
-| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `blanchard-kahn` | DSGE linear solver when given a model file: gensys\|klein\|perturbation\|blanchard-kahn |
-| `--order` | — | `Int64` | `1` | — | Perturbation order when --solver perturbation (1, 2, or 3) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--solver` | `-s` | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `blanchard-kahn` | DSGE linear solver when given a model file: gensys\|klein\|perturbation\|blanchard-kahn |
+| `--order` | `-O` | `Int64` | `1` | — | Perturbation order when --solver perturbation (1, 2, or 3) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** model types: `ABCDSystem`, `DSGESolution`, `PerturbationSolution`, `HADSGESolution`, `StateSpaceModel`; result types: `InvertibilityResult`
 
-**Output tables:** `abcd_invertibility` (Finite eigenvalues / transmission zeros, spectral radius, status, and invertibility verdict)
+**Output tables:** `abcd_invertibility` (Finite eigenvalues / transmission zeros, spectral radius, status, invertibility verdict, and ABCD dimensions (n_states, n_obs, n_shocks, rank_D))
 
 ### [`frdc dsge abcd population-var`](@id ref-dsge-abcd-population-var)
 
 Compute the exact population VAR(p) Yule-Walker projection of a DSGE or ABCD system
 
+**Aliases:** `pop-var`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `file` | `String` | no | `""` | Path to DSGE model file (.toml or .jl) or saved handle (.jld2/.jls/.fmod) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--lags` | `-p` | `Int64` | `4` | — | Population VAR lag order p (>= 1) |
-| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
+| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) *(aliases: `--obs`)* |
 | `--n-obs-effective` | — | `Int64` | `1000` | — | Effective sample size carried by the population VARModel |
 | `--unit-root-damping` | — | `Float64` | `1.0e-5` | — | Stationary damping applied when A contains unit roots |
 | `--reduction` | — | `String` | `minimal` | `minimal`, `predetermined`, `none` | State-space reduction mode: minimal\|predetermined\|none |
-| `--measurement-error` | — | `String` | `""` | — | Measurement error standard deviations (comma-separated) |
-| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `blanchard-kahn` | DSGE linear solver when given a model file: gensys\|klein\|perturbation\|blanchard-kahn |
-| `--order` | — | `Int64` | `1` | — | Perturbation order when --solver perturbation (1, 2, or 3) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--measurement-error` | — | `String` | `""` | — | Measurement error standard deviations (comma-separated) *(aliases: `--me`)* |
+| `--solver` | `-s` | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `blanchard-kahn` | DSGE linear solver when given a model file: gensys\|klein\|perturbation\|blanchard-kahn |
+| `--order` | `-O` | `Int64` | `1` | — | Perturbation order when --solver perturbation (1, 2, or 3) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** model types: `ABCDSystem`, `DSGESolution`, `PerturbationSolution`, `HADSGESolution`, `StateSpaceModel`
 
@@ -183,29 +189,31 @@ Compute the exact population VAR(p) Yule-Walker projection of a DSGE or ABCD sys
 
 Compute Sims (2012) / Forni-Gambetti-Sala shock recoverability R^2_j(k) across lead horizons
 
+**Aliases:** `rec`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `file` | `String` | no | `""` | Path to DSGE model file (.toml or .jl) or saved handle (.jld2/.jls/.fmod) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) *(aliases: `--obs`)* |
 | `--max-lead` | — | `Int64` | `12` | — | Maximum future observable lead horizon k (>= 0) |
 | `--reduction` | — | `String` | `minimal` | `minimal`, `predetermined`, `none` | State-space reduction mode: minimal\|predetermined\|none |
-| `--measurement-error` | — | `String` | `""` | — | Measurement error standard deviations (comma-separated) |
+| `--measurement-error` | — | `String` | `""` | — | Measurement error standard deviations (comma-separated) *(aliases: `--me`)* |
 | `--rcond-tol` | — | `Float64` | `1.0e-12` | — | Conditioning threshold for the Wold innovations DARE solver |
-| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `blanchard-kahn` | DSGE linear solver when given a model file: gensys\|klein\|perturbation\|blanchard-kahn |
-| `--order` | — | `Int64` | `1` | — | Perturbation order when --solver perturbation (1, 2, or 3) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--solver` | `-s` | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `blanchard-kahn` | DSGE linear solver when given a model file: gensys\|klein\|perturbation\|blanchard-kahn |
+| `--order` | `-O` | `Int64` | `1` | — | Perturbation order when --solver perturbation (1, 2, or 3) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** model types: `ABCDSystem`, `DSGESolution`, `PerturbationSolution`, `HADSGESolution`, `StateSpaceModel`; result types: `ShockRecoverabilityResult`
 
@@ -215,33 +223,35 @@ Compute Sims (2012) / Forni-Gambetti-Sala shock recoverability R^2_j(k) across l
 
 Search and rank candidate k-element observable subsets by invertibility and shock recoverability
 
+**Aliases:** `search`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `file` | `String` | no | `""` | Path to DSGE model file (.toml or .jl) or saved handle (.jld2/.jls/.fmod) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--k` | — | `Int64` | `0` | — | Observable subset size k (0 = default nshocks) |
 | `--candidates` | — | `String` | `""` | — | Candidate observable variable names (comma-separated; empty = all model observables) |
 | `--must-include` | — | `String` | `""` | — | Observables required in every candidate subset (comma-separated) |
 | `--target-shocks` | — | `String` | `""` | — | Target structural shock names or 1-based indices to score (comma-separated) |
 | `--max-combinations` | — | `Int64` | `2000` | — | Maximum exhaustive combinations before greedy/beam search fallback |
-| `--measurement-error` | — | `String` | `""` | — | Measurement error standard deviations (comma-separated) |
+| `--measurement-error` | — | `String` | `""` | — | Measurement error standard deviations (comma-separated) *(aliases: `--me`)* |
 | `--reduction` | — | `String` | `minimal` | `minimal`, `predetermined`, `none` | State-space reduction mode: minimal\|predetermined\|none |
-| `--tol` | — | `Float64` | `1.0e-8` | — | Unit-circle classification tolerance |
+| `--tol` | `-T` | `Float64` | `1.0e-8` | — | Unit-circle classification tolerance |
 | `--rcond-tol` | — | `Float64` | `1.0e-12` | — | Conditioning threshold for shock recoverability |
-| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `blanchard-kahn` | DSGE linear solver when given a model file: gensys\|klein\|perturbation\|blanchard-kahn |
-| `--order` | — | `Int64` | `1` | — | Perturbation order when --solver perturbation (1, 2, or 3) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--solver` | `-s` | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `blanchard-kahn` | DSGE linear solver when given a model file: gensys\|klein\|perturbation\|blanchard-kahn |
+| `--order` | `-O` | `Int64` | `1` | — | Perturbation order when --solver perturbation (1, 2, or 3) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** model types: `ABCDSystem`, `DSGESolution`, `PerturbationSolution`, `HADSGESolution`, `StateSpaceModel`; result types: `ObservableSearchResult`
 
@@ -261,21 +271,21 @@ Bewley-bank MIT IRF (variable names from the ImpulseResponse)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizons` | — | `Int64` | `20` | — | IRF horizon (≥ 2) |
-| `--shock-size` | — | `Float64` | `0.01` | — | TFP impulse size |
+| `--horizons` | `-H` | `Int64` | `20` | — | IRF horizon (≥ 2) *(aliases: `--horizon`, `--hor`)* |
+| `--shock-size` | — | `Float64` | `0.01` | — | TFP impulse size *(aliases: `--ssize`)* |
 | `--persist` | — | `Float64` | `0.5` | — | AR(1) persistence decay |
 | `--n-n` | — | `Int64` | `25` | — | Net-worth grid points (≥ 3) |
 | `--n-xi` | — | `Int64` | `3` | — | Idiosyncratic ξ states |
 | `--z` | — | `Float64` | `0.25` | — | Steady-state TFP |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser (ImpulseResponse) |
+| `--plot` | `-g` | Open interactive plot in browser (ImpulseResponse) |
 
 **Handles:** result types: `ImpulseResponse`
 
@@ -293,24 +303,26 @@ Bewley-bank partial equilibrium at given (R, rᵏ)
 | `--n-max` | — | `Float64` | `8.0` | — | Net-worth grid upper bound (must exceed --n-min) |
 | `--beta` | — | `Float64` | `0.99` | — | Discount factor in (0,1) |
 | `--sigma` | — | `Float64` | `0.95` | — | Survival probability in (0,1] |
-| `--lambda` | — | `Float64` | `0.2` | — | Diversion parameter (> 0) |
+| `--lambda` | `-l` | `Float64` | `0.2` | — | Diversion parameter (> 0) |
 | `--zeta1` | — | `Float64` | `0.02` | — | Operating-cost scale (≥ 0) |
 | `--zeta2` | — | `Float64` | `2.0` | — | Operating-cost curvature (> 1) |
 | `--r` | — | `Float64` | `1.01` | — | Gross deposit rate R (> 0) |
 | `--rk` | — | `Float64` | `0.05` | — | Net claim return rᵏ |
 | `--z` | — | `Float64` | `0.25` | — | Total factor productivity (TFP) level |
 | `--alpha` | — | `Float64` | `0.33` | — | Capital share in (0,1) |
-| `--max-iter` | — | `Int64` | `250` | — | PE VFI iterations |
-| `--tol` | — | `Float64` | `1.0e-6` | — | PE VFI tolerance |
+| `--max-iter` | `-I` | `Int64` | `250` | — | PE VFI iterations *(aliases: `--miter`)* |
+| `--tol` | `-T` | `Float64` | `1.0e-6` | — | PE VFI tolerance |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Output tables:** `bewley_banks_pe` (PE prices, convergence and iterations); `bewley_banks_pe_policy` (Lending and deposit policy over the net-worth grid)
 
 ### [`frdc dsge bank steady-state`](@id ref-dsge-bank-steady-state)
 
 Bewley-bank credit-market stationary equilibrium
+
+**Aliases:** `ss`
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -320,23 +332,25 @@ Bewley-bank credit-market stationary equilibrium
 | `--n-max` | — | `Float64` | `8.0` | — | Net-worth grid upper bound (must exceed --n-min) |
 | `--beta` | — | `Float64` | `0.99` | — | Discount factor |
 | `--sigma` | — | `Float64` | `0.95` | — | Survival probability |
-| `--lambda` | — | `Float64` | `0.2` | — | Diversion parameter |
+| `--lambda` | `-l` | `Float64` | `0.2` | — | Diversion parameter |
 | `--r` | — | `Float64` | `1.01` | — | Gross deposit rate R (held fixed) |
 | `--z` | — | `Float64` | `0.25` | — | Total factor productivity (TFP) level |
 | `--alpha` | — | `Float64` | `0.33` | — | Capital share |
 | `--r-lo` | — | `Float64` | `NaN` | — | rᵏ bracket lower end (NaN = default) |
 | `--r-hi` | — | `Float64` | `NaN` | — | rᵏ bracket upper end (NaN = default) |
-| `--tol` | — | `Float64` | `0.0001` | — | Credit-market tolerance |
-| `--max-iter` | — | `Int64` | `24` | — | Bisection cap |
+| `--tol` | `-T` | `Float64` | `0.0001` | — | Credit-market tolerance |
+| `--max-iter` | `-I` | `Int64` | `24` | — | Bisection cap *(aliases: `--miter`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Output tables:** `bewley_banks_steady_state` (R, rk, L, N, B, leverage, Y, excess demand and convergence); `bewley_banks_steady_state_policy` (Lending and deposit policy over the net-worth grid at SS prices)
 
 ### [`frdc dsge bank transition`](@id ref-dsge-bank-transition)
 
 Bewley-bank MIT TFP path
+
+**Aliases:** `tr`
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -346,8 +360,8 @@ Bewley-bank MIT TFP path
 | `--z` | — | `Float64` | `0.25` | — | Steady-state TFP |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** result types: `IntermediaryTransition`
 
@@ -372,21 +386,21 @@ FEVD from the CT MIT impulse (single TFP shock)
 | `--sigma` | — | `Float64` | `2.0` | — | CRRA risk aversion |
 | `--delta` | — | `Float64` | `0.05` | — | Depreciation |
 | `--z` | — | `Float64` | `1.0` | — | TFP level |
-| `--horizons` | — | `Int64` | `40` | — | FEVD horizon (≥ 2) |
-| `--shock-size` | — | `Float64` | `0.01` | — | TFP impulse size |
+| `--horizons` | `-H` | `Int64` | `40` | — | FEVD horizon (≥ 2) *(aliases: `--horizon`, `--hor`)* |
+| `--shock-size` | — | `Float64` | `0.01` | — | TFP impulse size *(aliases: `--ssize`)* |
 | `--persist` | — | `Float64` | `0.0` | — | AR(1) decay of the TFP impulse |
 | `--dt` | — | `Float64` | `0.25` | — | Time step |
 | `--grid-size` | — | `Int64` | `100` | — | Asset grid points (one-asset only; ignored with --two-asset) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--two-asset` | — | Two-asset GE FEVD |
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** result types: `FEVD`
 
@@ -403,21 +417,21 @@ MIT impulse response of CT Aiyagari or two-asset GE
 | `--sigma` | — | `Float64` | `2.0` | — | CRRA risk aversion |
 | `--delta` | — | `Float64` | `0.05` | — | Depreciation |
 | `--z` | — | `Float64` | `1.0` | — | TFP level |
-| `--horizons` | — | `Int64` | `40` | — | IRF horizon (≥ 2) |
-| `--shock-size` | — | `Float64` | `0.01` | — | TFP impulse size |
+| `--horizons` | `-H` | `Int64` | `40` | — | IRF horizon (≥ 2) *(aliases: `--horizon`, `--hor`)* |
+| `--shock-size` | — | `Float64` | `0.01` | — | TFP impulse size *(aliases: `--ssize`)* |
 | `--persist` | — | `Float64` | `0.0` | — | AR(1) decay of the TFP impulse |
 | `--dt` | — | `Float64` | `0.25` | — | Time step |
 | `--grid-size` | — | `Int64` | `100` | — | Asset grid points (one-asset only; ignored with --two-asset) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--two-asset` | — | Two-asset GE IRF (K, r_a, r_b, w, B, Z) |
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** result types: `ImpulseResponse`
 
@@ -437,11 +451,11 @@ Continuous-time Aiyagari (or two-asset KMV) stationary equilibrium
 | `--a-min` | — | `Float64` | `0.0` | — | Asset grid lower bound (one-asset only; ignored with --two-asset) |
 | `--a-max` | — | `Float64` | `30.0` | — | Asset grid upper bound (one-asset only; ignored with --two-asset) |
 | `--grid-size` | — | `Int64` | `100` | — | Asset grid points (I) (one-asset only; ignored with --two-asset) |
-| `--max-iter` | — | `Int64` | `100` | — | Outer equilibrium iterations |
-| `--tol` | — | `Float64` | `1.0e-6` | — | Convergence tolerance |
+| `--max-iter` | `-I` | `Int64` | `100` | — | Outer equilibrium iterations *(aliases: `--miter`)* |
+| `--tol` | `-T` | `Float64` | `1.0e-6` | — | Convergence tolerance |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -454,6 +468,8 @@ Continuous-time Aiyagari (or two-asset KMV) stationary equilibrium
 
 MIT-shock perfect-foresight transition (ct_mit_shock; ct_two_asset_mit with --two-asset)
 
+**Aliases:** `tr`
+
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--alpha` | — | `Float64` | `0.36` | — | Capital share |
@@ -461,23 +477,23 @@ MIT-shock perfect-foresight transition (ct_mit_shock; ct_two_asset_mit with --tw
 | `--sigma` | — | `Float64` | `2.0` | — | CRRA risk aversion |
 | `--delta` | — | `Float64` | `0.05` | — | Depreciation |
 | `--z` | — | `Float64` | `1.0` | — | Steady-state TFP |
-| `--shock-size` | — | `Float64` | `0.95` | — | Impact TFP multiplier (Z_0 = shock-size * z) |
-| `--periods` | — | `Int64` | `40` | — | Transition length (time points) |
+| `--shock-size` | — | `Float64` | `0.95` | — | Impact TFP multiplier (Z_0 = shock-size * z) *(aliases: `--ssize`)* |
+| `--periods` | `-N` | `Int64` | `40` | — | Transition length (time points) |
 | `--dt` | — | `Float64` | `0.25` | — | Time step |
 | `--a-max` | — | `Float64` | `30.0` | — | Asset grid upper bound (one-asset only; ignored with --two-asset) |
 | `--grid-size` | — | `Int64` | `100` | — | Asset grid points (one-asset only; ignored with --two-asset) |
-| `--max-iter` | — | `Int64` | `100` | — | Shooting iterations |
-| `--tol` | — | `Float64` | `1.0e-6` | — | Convergence tolerance |
+| `--max-iter` | `-I` | `Int64` | `100` | — | Shooting iterations *(aliases: `--miter`)* |
+| `--tol` | `-T` | `Float64` | `1.0e-6` | — | Convergence tolerance |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--z-path` | — | `String` | `""` | — | CSV of TFP path (required with --two-asset; ignored otherwise; length ≥ 2, all positive) |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Plot the transition table in browser (one-asset only; --two-asset has no plot recipe) |
+| `--plot` | `-g` | Plot the transition table in browser (one-asset only; --two-asset has no plot recipe) |
 | `--two-asset` | — | Two-asset MIT (ct_two_asset_mit; no plot) |
 
 **Handles:** result types: `CTTransition`, `CTTwoAssetTransition`
@@ -510,18 +526,18 @@ FEVD of a DCEGM equilibrium (single TFP shock)
 | `--alpha` | — | `Float64` | `0.36` | — | Firm capital share |
 | `--delta` | — | `Float64` | `0.08` | — | Firm depreciation |
 | `--z` | — | `Float64` | `1.0` | — | Firm TFP |
-| `--horizons` | — | `Int64` | `40` | — | FEVD horizon (≥ 2) |
-| `--shock-size` | — | `Float64` | `0.01` | — | TFP impulse size |
+| `--horizons` | `-H` | `Int64` | `40` | — | FEVD horizon (≥ 2) *(aliases: `--horizon`, `--hor`)* |
+| `--shock-size` | — | `Float64` | `0.01` | — | TFP impulse size *(aliases: `--ssize`)* |
 | `--persist` | — | `Float64` | `0.0` | — | AR(1) decay of the TFP impulse |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** result types: `FEVD`
 
@@ -545,18 +561,18 @@ MIT IRF of a DCEGM equilibrium (needs GE, not DCEGMSolution)
 | `--alpha` | — | `Float64` | `0.36` | — | Firm capital share |
 | `--delta` | — | `Float64` | `0.08` | — | Firm depreciation |
 | `--z` | — | `Float64` | `1.0` | — | Firm TFP |
-| `--horizons` | — | `Int64` | `40` | — | IRF horizon (≥ 2) |
-| `--shock-size` | — | `Float64` | `0.01` | — | TFP impulse size |
+| `--horizons` | `-H` | `Int64` | `40` | — | IRF horizon (≥ 2) *(aliases: `--horizon`, `--hor`)* |
+| `--shock-size` | — | `Float64` | `0.01` | — | TFP impulse size *(aliases: `--ssize`)* |
 | `--persist` | — | `Float64` | `0.0` | — | AR(1) decay of the TFP impulse |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** result types: `ImpulseResponse`
 
@@ -580,13 +596,13 @@ MIT simulation of a DCEGM equilibrium (levels)
 | `--alpha` | — | `Float64` | `0.36` | — | Firm capital share |
 | `--delta` | — | `Float64` | `0.08` | — | Firm depreciation |
 | `--z` | — | `Float64` | `1.0` | — | Firm TFP |
-| `--periods` | — | `Int64` | `40` | — | Simulation length (≥ 2) |
-| `--shock-size` | — | `Float64` | `0.0` | — | TFP impulse size |
+| `--periods` | `-N` | `Int64` | `40` | — | Simulation length (≥ 2) |
+| `--shock-size` | — | `Float64` | `0.0` | — | TFP impulse size *(aliases: `--ssize`)* |
 | `--persist` | — | `Float64` | `0.0` | — | AR(1) decay of the TFP impulse |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** result types: `Matrix`, `TimeSeriesData`
 
@@ -615,25 +631,27 @@ Discrete-continuous EGM household (builtin retirement or .jl DCEGMProblem/DCEGMS
 | `--pension` | — | `Float64` | `0.0` | — | Retirement income |
 | `--credit-limit` | — | `Float64` | `0.0` | — | Borrowing limit |
 | `--curvature` | — | `Float64` | `2.0` | — | Grid curvature (≥ 1) |
-| `--max-iter` | — | `Int64` | `500` | — | Infinite-horizon iteration cap |
-| `--tol` | — | `Float64` | `1.0e-8` | — | Sup-norm policy tolerance (infinite horizon) |
+| `--max-iter` | `-I` | `Int64` | `500` | — | Infinite-horizon iteration cap *(aliases: `--miter`)* |
+| `--tol` | `-T` | `Float64` | `1.0e-8` | — | Sup-norm policy tolerance (infinite horizon) |
 | `--period` | — | `Int64` | `1` | — | Stored period for the policy table (clamped to the solved range) |
 | `--income` | — | `Int64` | `1` | — | Income-state index for the policy table (clamped to the solved range) |
 | `--view` | — | `String` | `policy` | `policy`, `threshold` | plot_result view: policy\|threshold |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser (DCEGMSolution) |
+| `--plot` | `-g` | Open interactive plot in browser (DCEGMSolution) |
 
 **Output tables:** `dcegm_solve_diagnostics` (Convergence, iterations, sup-norm policy change and solved dimensions); `dcegm_policy` (Long policy: one row per option knot at --period/--income); `dcegm_kinks` (Switching-threshold counts per period × option × income)
 
 ### [`frdc dsge dcegm steady-state`](@id ref-dsge-dcegm-steady-state)
 
 DCEGM capital-market equilibrium (dcegm_steady_state)
+
+**Aliases:** `ss`
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -663,11 +681,11 @@ DCEGM capital-market equilibrium (dcegm_steady_state)
 | `--labor` | — | `String` | `exogenous` | `exogenous`, `measured` | Labour: exogenous\|measured |
 | `--work-option` | — | `String` | `work` | — | Discrete option treated as work |
 | `--n-sim` | — | `Int64` | `40` | — | Simulation periods (infinite horizon) |
-| `--tol` | — | `Float64` | `0.0001` | — | \|A − K^d\| tolerance |
-| `--max-iter` | — | `Int64` | `40` | — | Bisection cap |
+| `--tol` | `-T` | `Float64` | `0.0001` | — | \|A − K^d\| tolerance |
+| `--max-iter` | `-I` | `Int64` | `40` | — | Bisection cap *(aliases: `--miter`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -678,6 +696,8 @@ DCEGM capital-market equilibrium (dcegm_steady_state)
 ### [`frdc dsge dcegm transition`](@id ref-dsge-dcegm-transition)
 
 MIT TFP path of a DCEGM equilibrium
+
+**Aliases:** `tr`
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -696,8 +716,8 @@ MIT TFP path of a DCEGM equilibrium
 | `--z` | — | `Float64` | `1.0` | — | Firm TFP |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** result types: `DCEGMTransition`
 
@@ -717,8 +737,8 @@ Khan–Thomas MIT IRF of Y, I, K, N, C, Z
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizons` | — | `Int64` | `20` | — | IRF horizon (≥ 2) |
-| `--shock-size` | — | `Float64` | `0.01` | — | TFP impulse size |
+| `--horizons` | `-H` | `Int64` | `20` | — | IRF horizon (≥ 2) *(aliases: `--horizon`, `--hor`)* |
+| `--shock-size` | — | `Float64` | `0.01` | — | TFP impulse size *(aliases: `--ssize`)* |
 | `--persist` | — | `Float64` | `NaN` | — | AR(1) decay (NaN = firm.rho_z) |
 | `--prices` | — | `String` | `ss` | `ss`, `ge` | Hold (w,p) at SS or iterate GE wages |
 | `--n-k` | — | `Int64` | `16` | — | Capital-grid nodes |
@@ -726,13 +746,13 @@ Khan–Thomas MIT IRF of Y, I, K, N, C, Z
 | `--z` | — | `Float64` | `1.0` | — | Steady-state TFP |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser (ImpulseResponse) |
+| `--plot` | `-g` | Open interactive plot in browser (ImpulseResponse) |
 
 **Handles:** result types: `ImpulseResponse`
 
@@ -742,9 +762,11 @@ Khan–Thomas MIT IRF of Y, I, K, N, C, Z
 
 Khan–Thomas plant-level stationary equilibrium
 
+**Aliases:** `ss`
+
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--n-k` | — | `Int64` | `16` | — | Capital-grid nodes (≥ 3) |
+| `--n-k` | — | `Int64` | `32` | — | Capital-grid nodes (≥ 3) |
 | `--n-eps` | — | `Int64` | `3` | — | Idiosyncratic productivity states |
 | `--alpha` | — | `Float64` | `0.256` | — | Capital exponent (> 0; α+ν<1) |
 | `--nu` | — | `Float64` | `0.64` | — | Labour exponent (> 0) |
@@ -759,17 +781,20 @@ Khan–Thomas plant-level stationary equilibrium
 | `--rho-e` | — | `Float64` | `0.859` | — | Idiosyncratic persistence |
 | `--sigma-e` | — | `Float64` | `0.022` | — | Idiosyncratic s.d. |
 | `--z` | — | `Float64` | `1.0` | — | TFP level (> 0) |
-| `--tol` | — | `Float64` | `1.0e-5` | — | Wage fixed-point tolerance |
-| `--max-iter` | — | `Int64` | `16` | — | Outer wage iterations |
+| `--tol` | `-T` | `Float64` | `1.0e-5` | — | Wage fixed-point tolerance |
+| `--max-iter` | `-I` | `Int64` | `40` | — | Outer wage iterations *(aliases: `--miter`)* |
+| `--dampen` | — | `Float64` | `0.2` | — | Relaxation on the outer wage update in (0, 1] |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Output tables:** `khan_thomas_steady_state` (w, p, K, N, Y, I, C, inaction, convergence); `khan_thomas_policy` (k-grid × ε: unconstrained k*, constrained k' and adjustment probability)
 
 ### [`frdc dsge firm transition`](@id ref-dsge-firm-transition)
 
 Khan–Thomas MIT TFP path (--prices ss|ge)
+
+**Aliases:** `tr`
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -780,8 +805,8 @@ Khan–Thomas MIT TFP path (--prices ss|ge)
 | `--z` | — | `Float64` | `1.0` | — | Steady-state TFP |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** result types: `KhanThomasTransition`
 
@@ -790,6 +815,8 @@ Khan–Thomas MIT TFP path (--prices ss|ge)
 ---
 
 ## [Overlapping-Generations Life-Cycle (`dsge lifecycle`)](@id ref-fam-dsge-lifecycle)
+
+**Family aliases:** `lc`
 
 Overlapping-generations life-cycle household steady state and transition dynamics
 
@@ -805,18 +832,18 @@ FEVD of a life-cycle OLG steady state
 | `--j-retire` | — | `Int64` | `30` | — | Retirement age |
 | `--n-a` | — | `Int64` | `40` | — | Asset grid points |
 | `--income-states` | — | `Int64` | `3` | — | Income states |
-| `--horizons` | — | `Int64` | `20` | — | FEVD horizon (≥ 2) |
-| `--shock-size` | — | `Float64` | `0.01` | — | TFP impulse size |
+| `--horizons` | `-H` | `Int64` | `20` | — | FEVD horizon (≥ 2) *(aliases: `--horizon`, `--hor`)* |
+| `--shock-size` | — | `Float64` | `0.01` | — | TFP impulse size *(aliases: `--ssize`)* |
 | `--persist` | — | `Float64` | `0.0` | — | AR(1) decay of the TFP impulse |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** result types: `FEVD`
 
@@ -832,18 +859,18 @@ MIT IRF of a life-cycle OLG steady state
 | `--j-retire` | — | `Int64` | `30` | — | Retirement age |
 | `--n-a` | — | `Int64` | `40` | — | Asset grid points |
 | `--income-states` | — | `Int64` | `3` | — | Income states |
-| `--horizons` | — | `Int64` | `20` | — | IRF horizon (≥ 2) |
-| `--shock-size` | — | `Float64` | `0.01` | — | TFP impulse size |
+| `--horizons` | `-H` | `Int64` | `20` | — | IRF horizon (≥ 2) *(aliases: `--horizon`, `--hor`)* |
+| `--shock-size` | — | `Float64` | `0.01` | — | TFP impulse size *(aliases: `--ssize`)* |
 | `--persist` | — | `Float64` | `0.0` | — | AR(1) decay of the TFP impulse |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** result types: `ImpulseResponse`
 
@@ -859,13 +886,13 @@ MIT simulation of a life-cycle OLG steady state (levels)
 | `--j-retire` | — | `Int64` | `30` | — | Retirement age |
 | `--n-a` | — | `Int64` | `40` | — | Asset grid points |
 | `--income-states` | — | `Int64` | `3` | — | Income states |
-| `--periods` | — | `Int64` | `20` | — | Simulation length (≥ 2) |
-| `--shock-size` | — | `Float64` | `0.0` | — | TFP impulse size |
+| `--periods` | `-N` | `Int64` | `20` | — | Simulation length (≥ 2) |
+| `--shock-size` | — | `Float64` | `0.0` | — | TFP impulse size *(aliases: `--ssize`)* |
 | `--persist` | — | `Float64` | `0.0` | — | AR(1) decay of the TFP impulse |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** result types: `Matrix`, `TimeSeriesData`
 
@@ -874,6 +901,8 @@ MIT simulation of a life-cycle OLG steady state (levels)
 ### [`frdc dsge lifecycle steady-state`](@id ref-dsge-lifecycle-steady-state)
 
 Life-cycle OLG stationary equilibrium
+
+**Aliases:** `ss`
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -893,27 +922,29 @@ Life-cycle OLG stationary equilibrium
 | `--income-rho` | — | `Float64` | `0.95` | — | Idiosyncratic income persistence |
 | `--income-sigma` | — | `Float64` | `0.2` | — | Idiosyncratic income s.d. |
 | `--income-states` | — | `Int64` | `5` | — | Income states |
-| `--config` | — | `String` | `""` | — | TOML with [lifecycle] survival/earnings vectors |
+| `--config` | `-C` | `String` | `""` | — | TOML with [lifecycle] survival/earnings vectors *(aliases: `--cfg`)* |
 | `--r-lo` | — | `Float64` | `-0.02` | — | Net-return bracket lower end |
-| `--r-hi` | — | `Float64` | `0.1` | — | Net-return bracket upper end |
-| `--tol` | — | `Float64` | `1.0e-6` | — | Excess-demand tolerance |
-| `--max-iter` | — | `Int64` | `60` | — | Bisection cap |
+| `--r-hi` | — | `Float64` | `0.6` | — | Net-return bracket upper end |
+| `--tol` | `-T` | `Float64` | `1.0e-6` | — | Excess-demand tolerance |
+| `--max-iter` | `-I` | `Int64` | `60` | — | Bisection cap *(aliases: `--miter`)* |
 | `--bequest-iter` | — | `Int64` | `50` | — | Inner bequest iterations |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--no-annuities` | — | Turn off perfect annuities |
-| `--plot` | — | Open interactive plot in browser (LifeCycleSteadyState) |
+| `--plot` | `-g` | Open interactive plot in browser (LifeCycleSteadyState) |
 
 **Output tables:** `lifecycle_steady_state` (r, w, K, L, Y, tau, pension, transfer, excess demand and convergence); `lifecycle_age_profiles` (Cohort mass and asset/consumption/income profiles by age)
 
 ### [`frdc dsge lifecycle transition`](@id ref-dsge-lifecycle-transition)
 
 Life-cycle OLG perfect-foresight transition (--k0 XOR --z-path)
+
+**Aliases:** `tr`
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -930,17 +961,17 @@ Life-cycle OLG perfect-foresight transition (--k0 XOR --z-path)
 | `--income-rho` | — | `Float64` | `0.95` | — | Idiosyncratic income persistence |
 | `--income-sigma` | — | `Float64` | `0.2` | — | Idiosyncratic income s.d. |
 | `--income-states` | — | `Int64` | `3` | — | Income states |
-| `--config` | — | `String` | `""` | — | TOML with [lifecycle] survival/earnings vectors |
+| `--config` | `-C` | `String` | `""` | — | TOML with [lifecycle] survival/earnings vectors *(aliases: `--cfg`)* |
 | `--k0` | — | `Float64` | `NaN` | — | Initial capital (XOR --z-path) |
 | `--z-path` | — | `String` | `""` | — | CSV of TFP path (length ≥ 3; XOR --k0) |
-| `--horizons` | — | `Int64` | `80` | — | Transition horizon H (ignored when --z-path is set) |
-| `--tol` | — | `Float64` | `1.0e-5` | — | Shooting tolerance |
-| `--max-iter` | — | `Int64` | `80` | — | Shooting iterations |
+| `--horizons` | `-H` | `Int64` | `80` | — | Transition horizon H (ignored when --z-path is set) *(aliases: `--horizon`, `--hor`)* |
+| `--tol` | `-T` | `Float64` | `1.0e-5` | — | Shooting tolerance |
+| `--max-iter` | `-I` | `Int64` | `80` | — | Shooting iterations *(aliases: `--miter`)* |
 | `--relax` | — | `Float64` | `0.5` | — | Damping on the capital update |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** result types: `LifeCycleTransition`
 
@@ -968,7 +999,7 @@ Blanchard OLG FEVD via to_spec (TFP; NK adds monetary)
 | `--debt` | — | `Float64` | `0.0` | — | Government debt b |
 | `--rho-z` | — | `Float64` | `0.0` | — | TFP persistence |
 | `--sigma-z` | — | `Float64` | `0.0` | — | TFP shock scale |
-| `--horizons` | — | `Int64` | `40` | — | FEVD horizon |
+| `--horizons` | `-H` | `Int64` | `40` | — | FEVD horizon *(aliases: `--horizon`, `--hor`)* |
 | `--kappa` | — | `Float64` | `0.1` | — | NK Phillips slope (--nk) |
 | `--phi-pi` | — | `Float64` | `1.5` | — | NK Taylor φπ (--nk) |
 | `--phi-y` | — | `Float64` | `0.125` | — | NK Taylor φy (--nk) |
@@ -977,14 +1008,14 @@ Blanchard OLG FEVD via to_spec (TFP; NK adds monetary)
 | `--omega` | — | `Float64` | `0.0` | — | NK indexation ω in [0,1] (--nk) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--nk` | — | NK perpetual-youth variant (adds π, i, rr and eps_i) |
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** result types: `FEVD`
 
@@ -1004,8 +1035,8 @@ Blanchard OLG IRF via to_spec (TFP; NK adds monetary)
 | `--debt` | — | `Float64` | `0.0` | — | Government debt b |
 | `--rho-z` | — | `Float64` | `0.0` | — | TFP persistence |
 | `--sigma-z` | — | `Float64` | `0.0` | — | TFP shock scale |
-| `--horizons` | — | `Int64` | `40` | — | IRF horizon |
-| `--shock-size` | — | `Float64` | `1.0` | — | Shock size (std devs) |
+| `--horizons` | `-H` | `Int64` | `40` | — | IRF horizon *(aliases: `--horizon`, `--hor`)* |
+| `--shock-size` | — | `Float64` | `1.0` | — | Shock size (std devs) *(aliases: `--ssize`)* |
 | `--kappa` | — | `Float64` | `0.1` | — | NK Phillips slope (--nk) |
 | `--phi-pi` | — | `Float64` | `1.5` | — | NK Taylor φπ (--nk) |
 | `--phi-y` | — | `Float64` | `0.125` | — | NK Taylor φy (--nk) |
@@ -1014,14 +1045,14 @@ Blanchard OLG IRF via to_spec (TFP; NK adds monetary)
 | `--omega` | — | `Float64` | `0.0` | — | NK indexation ω in [0,1] (--nk) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--nk` | — | NK perpetual-youth variant (adds π, i, rr and eps_i) |
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** result types: `ImpulseResponse`
 
@@ -1040,16 +1071,16 @@ Blanchard OLG transitional dynamics from k0 along the saddle path
 | `--z` | — | `Float64` | `1.0` | — | Total factor productivity (TFP) level |
 | `--debt` | — | `Float64` | `0.0` | — | Government debt b |
 | `--k0` | — | `Float64` | `0.0` | — | Initial capital (0 = 80% of steady-state k) |
-| `--horizons` | — | `Int64` | `50` | — | Transition periods H |
+| `--horizons` | `-H` | `Int64` | `50` | — | Transition periods H *(aliases: `--horizon`, `--hor`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** result types: `Matrix`, `TimeSeriesData`
 
@@ -1069,7 +1100,7 @@ Blanchard perpetual-youth OLG: steady state + saddle path
 | `--debt` | — | `Float64` | `0.0` | — | Government debt b (see MEMs#237 if b≠0) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Output tables:** `blanchard_olg_steady_state` (Steady-state k, C, r, w, human wealth, MPC, debt and convergence); `blanchard_olg_dynamics` (Stable eigenvalue, policy slope, determinacy verdict and both eigenvalue moduli)
 
@@ -1089,23 +1120,23 @@ Estimate two DSGE models with Bayesian sampling and compare log marginal likelih
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
+| `--data` | `-d` | `String` | `""` | — | Path to data file (.csv, .jld2, .jls, :example, or data:// session URI) |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
 | `--prior` | — | `String` *(repeatable)* | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
-| `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
-| `--draws` | — | `Int64` | `10000` | — | Total posterior draws |
-| `--burnin` | — | `Int64` | `5000` | — | Burn-in draws |
+| `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) *(aliases: `--npart`)* |
+| `--draws` | `-n` | `Int64` | `10000` | — | Total posterior draws *(aliases: `--n-draws`)* |
+| `--burnin` | `-B` | `Int64` | `5000` | — | Burn-in draws |
 | `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
-| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
-| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
-| `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
-| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) |
-| `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
-| `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
-| `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
+| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) *(aliases: `--obs`)* |
+| `--solver` | `-s` | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
+| `--order` | `-O` | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
+| `--constraint-solver` | — | `String` | `""` | `nonlinearsolve`, `optim`, `nlopt`, `madnlp`, `ipopt`, `path` | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) *(aliases: `--csolv`)* |
+| `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) *(aliases: `--pf`)* |
+| `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) *(aliases: `--hplam`)* |
+| `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) *(aliases: `--me`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--model2` | — | `String` | `""` | — | Path to second DSGE model file |
@@ -1114,7 +1145,7 @@ Estimate two DSGE models with Bayesian sampling and compare log marginal likelih
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--delayed-acceptance` | — | Use delayed acceptance for MH |
+| `--delayed-acceptance` | — | Use delayed acceptance for MH *(aliases: `--da`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `BayesianDSGE`
 
@@ -1130,34 +1161,36 @@ Estimate a DSGE model with Bayesian sampling and report the posterior
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
+| `--data` | `-d` | `String` | `""` | — | Path to data file (.csv, .jld2, .jls, :example, or data:// session URI) |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
 | `--prior` | — | `String` *(repeatable)* | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
-| `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
-| `--draws` | — | `Int64` | `10000` | — | Total posterior draws |
-| `--burnin` | — | `Int64` | `5000` | — | Burn-in draws |
+| `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) *(aliases: `--npart`)* |
+| `--draws` | `-n` | `Int64` | `10000` | — | Total posterior draws *(aliases: `--n-draws`)* |
+| `--burnin` | `-B` | `Int64` | `5000` | — | Burn-in draws |
 | `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
-| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
-| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
-| `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
-| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) |
-| `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
-| `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
-| `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
+| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) *(aliases: `--obs`)* |
+| `--solver` | `-s` | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
+| `--order` | `-O` | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
+| `--constraint-solver` | — | `String` | `""` | `nonlinearsolve`, `optim`, `nlopt`, `madnlp`, `ipopt`, `path` | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) *(aliases: `--csolv`)* |
+| `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) *(aliases: `--pf`)* |
+| `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) *(aliases: `--hplam`)* |
+| `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) *(aliases: `--me`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--quantiles` | `-Q` | `String` | `0.16,0.5,0.84` | — | Posterior/bootstrap band quantiles in (0, 1) (default: 0.16,0.5,0.84 = 68% band) *(aliases: `--qtl`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--delayed-acceptance` | — | Use delayed acceptance for MH (Christen & Fox 2005) |
+| `--delayed-acceptance` | — | Use delayed acceptance for MH (Christen & Fox 2005) *(aliases: `--da`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
-**Output tables:** `bayesian_dsge_posterior` (Posterior mean, std, median and 5/95% quantiles per estimated parameter)
+**Output tables:** `bayesian_dsge_posterior` (Posterior mean, std, median and credible interval bounds per estimated parameter)
 
 ### [`frdc dsge bayes fevd`](@id ref-dsge-bayes-fevd)
 
@@ -1169,36 +1202,38 @@ Estimate a DSGE model with Bayesian sampling and report posterior-mean FEVD
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
+| `--data` | `-d` | `String` | `""` | — | Path to data file (.csv, .jld2, .jls, :example, or data:// session URI) |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
 | `--prior` | — | `String` *(repeatable)* | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
-| `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
-| `--draws` | — | `Int64` | `10000` | — | Total posterior draws |
-| `--burnin` | — | `Int64` | `5000` | — | Burn-in draws |
+| `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) *(aliases: `--npart`)* |
+| `--draws` | `-n` | `Int64` | `10000` | — | Total posterior draws *(aliases: `--n-draws`)* |
+| `--burnin` | `-B` | `Int64` | `5000` | — | Burn-in draws |
 | `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
-| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
-| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
-| `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
-| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) |
-| `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
-| `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
-| `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
+| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) *(aliases: `--obs`)* |
+| `--solver` | `-s` | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
+| `--order` | `-O` | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
+| `--constraint-solver` | — | `String` | `""` | `nonlinearsolve`, `optim`, `nlopt`, `madnlp`, `ipopt`, `path` | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) *(aliases: `--csolv`)* |
+| `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) *(aliases: `--pf`)* |
+| `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) *(aliases: `--hplam`)* |
+| `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) *(aliases: `--me`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--horizons` | — | `Int64` | `40` | — | FEVD horizon |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--horizons` | `-H` | `Int64` | `40` | — | FEVD horizon *(aliases: `--horizon`, `--hor`)* |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--quantiles` | `-Q` | `String` | `0.16,0.5,0.84` | — | Posterior/bootstrap band quantiles in (0, 1) (default: 0.16,0.5,0.84 = 68% band) *(aliases: `--qtl`)* |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--delayed-acceptance` | — | Use delayed acceptance for MH |
-| `--plot` | — | Open interactive plot in browser |
+| `--delayed-acceptance` | — | Use delayed acceptance for MH *(aliases: `--da`)* |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `BayesianDSGE`
 
-**Output tables:** `bayesian_dsge_fevd_*` (Posterior-mean variance shares by shock across horizons, one table per variable)
+**Output tables:** `bayesian_dsge_fevd_*` (Posterior-mean variance shares and credible bands by shock across horizons, one table per variable)
 
 ### [`frdc dsge bayes hd`](@id ref-dsge-bayes-hd)
 
@@ -1210,35 +1245,36 @@ Estimate a DSGE model with Bayesian sampling and report the posterior-mean histo
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
+| `--data` | `-d` | `String` | `""` | — | Path to data file (.csv, .jld2, .jls, :example, or data:// session URI) |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
 | `--prior` | — | `String` *(repeatable)* | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
-| `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
-| `--draws` | — | `Int64` | `10000` | — | Total posterior draws |
-| `--burnin` | — | `Int64` | `5000` | — | Burn-in draws |
+| `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) *(aliases: `--npart`)* |
+| `--draws` | `-n` | `Int64` | `10000` | — | Total posterior draws *(aliases: `--n-draws`)* |
+| `--burnin` | `-B` | `Int64` | `5000` | — | Burn-in draws |
 | `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
-| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
-| `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
-| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) |
-| `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
-| `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
-| `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
+| `--solver` | `-s` | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
+| `--order` | `-O` | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
+| `--constraint-solver` | — | `String` | `""` | `nonlinearsolve`, `optim`, `nlopt`, `madnlp`, `ipopt`, `path` | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) *(aliases: `--csolv`)* |
+| `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) *(aliases: `--pf`)* |
+| `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) *(aliases: `--hplam`)* |
+| `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) *(aliases: `--me`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--observables` | — | `String` | `""` | — | Observable variable names, comma-separated (required — no default) |
+| `--observables` | — | `String` | `""` | — | Observable variable names, comma-separated (required — no default) *(aliases: `--obs`)* |
 | `--n-hd-draws` | — | `Int64` | `200` | — | Number of posterior draws for HD |
-| `--quantiles` | — | `String` | `0.16,0.5,0.84` | — | Quantile levels |
-| `--horizons` | — | `Int64` | `40` | — | Horizon (accepted but not used: historical decomposition has no horizon setting) |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--quantiles` | `-Q` | `String` | `0.16,0.5,0.84` | — | Posterior/bootstrap band quantiles in (0, 1) (default: 0.16,0.5,0.84 = 68% band) *(aliases: `--qtl`)* |
+| `--horizons` | `-H` | `Int64` | `40` | — | Horizon (accepted but not used: historical decomposition has no horizon setting) *(aliases: `--horizon`, `--hor`)* |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--mode-only` | — | Use posterior mode only (no full posterior) |
-| `--delayed-acceptance` | — | Use delayed acceptance for MH |
-| `--plot` | — | Open interactive plot in browser |
+| `--delayed-acceptance` | — | Use delayed acceptance for MH *(aliases: `--da`)* |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `BayesianDSGE`
 
@@ -1248,6 +1284,8 @@ Estimate a DSGE model with Bayesian sampling and report the posterior-mean histo
 
 Test local DSGE parameter identification with the Iskrev rank test without estimating
 
+**Aliases:** `id`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `model` | `String` | yes | — | Path to DSGE model file (.toml or .jl) |
@@ -1255,9 +1293,9 @@ Test local DSGE parameter identification with the Iskrev rank test without estim
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--params` | — | `String` | `""` | — | Comma-separated estimated parameter names (required) |
-| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated; default: all endogenous) |
-| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
-| `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
+| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated; default: all endogenous) *(aliases: `--obs`)* |
+| `--solver` | `-s` | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
+| `--order` | `-O` | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--n-lags` | — | `Int64` | `2` | — | Autocovariance lags in the Iskrev moment vector |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -1274,40 +1312,44 @@ Estimate a DSGE model with Bayesian sampling and report posterior-mean IRFs
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
+| `--data` | `-d` | `String` | `""` | — | Path to data file (.csv, .jld2, .jls, :example, or data:// session URI) |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
 | `--prior` | — | `String` *(repeatable)* | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
-| `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
-| `--draws` | — | `Int64` | `10000` | — | Total posterior draws |
-| `--burnin` | — | `Int64` | `5000` | — | Burn-in draws |
+| `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) *(aliases: `--npart`)* |
+| `--draws` | `-n` | `Int64` | `10000` | — | Total posterior draws *(aliases: `--n-draws`)* |
+| `--burnin` | `-B` | `Int64` | `5000` | — | Burn-in draws |
 | `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
-| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
-| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
-| `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
-| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) |
-| `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
-| `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
-| `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
+| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) *(aliases: `--obs`)* |
+| `--solver` | `-s` | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
+| `--order` | `-O` | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
+| `--constraint-solver` | — | `String` | `""` | `nonlinearsolve`, `optim`, `nlopt`, `madnlp`, `ipopt`, `path` | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) *(aliases: `--csolv`)* |
+| `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) *(aliases: `--pf`)* |
+| `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) *(aliases: `--hplam`)* |
+| `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) *(aliases: `--me`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--horizons` | — | `Int64` | `40` | — | IRF horizon |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--horizons` | `-H` | `Int64` | `40` | — | IRF horizon *(aliases: `--horizon`, `--hor`)* |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--quantiles` | `-Q` | `String` | `0.16,0.5,0.84` | — | Posterior/bootstrap band quantiles in (0, 1) (default: 0.16,0.5,0.84 = 68% band) *(aliases: `--qtl`)* |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--delayed-acceptance` | — | Use delayed acceptance for MH |
-| `--plot` | — | Open interactive plot in browser |
+| `--delayed-acceptance` | — | Use delayed acceptance for MH *(aliases: `--da`)* |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `BayesianDSGE`
 
-**Output tables:** `bayesian_dsge_irf_*` (Posterior-mean responses of every variable to one shock, one table per shock)
+**Output tables:** `bayesian_dsge_irf_*` (Posterior-mean responses and credible bands of every variable to one shock, one table per shock)
 
 ### [`frdc dsge bayes learning-rate`](@id ref-dsge-bayes-learning-rate)
 
 Estimate a DSGE model with Bayesian sampling and run the Koop-Pesaran-Smith learning-rate check
+
+**Aliases:** `lr`
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1315,23 +1357,23 @@ Estimate a DSGE model with Bayesian sampling and run the Koop-Pesaran-Smith lear
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
+| `--data` | `-d` | `String` | `""` | — | Path to data file (.csv, .jld2, .jls, :example, or data:// session URI) |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
 | `--prior` | — | `String` *(repeatable)* | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
-| `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
-| `--draws` | — | `Int64` | `10000` | — | Total posterior draws |
-| `--burnin` | — | `Int64` | `5000` | — | Burn-in draws |
+| `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) *(aliases: `--npart`)* |
+| `--draws` | `-n` | `Int64` | `10000` | — | Total posterior draws *(aliases: `--n-draws`)* |
+| `--burnin` | `-B` | `Int64` | `5000` | — | Burn-in draws |
 | `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
-| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
-| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
-| `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
-| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) |
-| `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
-| `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
-| `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
+| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) *(aliases: `--obs`)* |
+| `--solver` | `-s` | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
+| `--order` | `-O` | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
+| `--constraint-solver` | — | `String` | `""` | `nonlinearsolve`, `optim`, `nlopt`, `madnlp`, `ipopt`, `path` | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) *(aliases: `--csolv`)* |
+| `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) *(aliases: `--pf`)* |
+| `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) *(aliases: `--hplam`)* |
+| `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) *(aliases: `--me`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--fractions` | — | `String` | `0.5,1.0` | — | Nested subsample fractions (comma-separated, 0 < f <= 1) |
@@ -1340,7 +1382,7 @@ Estimate a DSGE model with Bayesian sampling and run the Koop-Pesaran-Smith lear
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--delayed-acceptance` | — | Use delayed acceptance for MH |
+| `--delayed-acceptance` | — | Use delayed acceptance for MH *(aliases: `--da`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `BayesianDSGE`
 
@@ -1350,29 +1392,31 @@ Estimate a DSGE model with Bayesian sampling and run the Koop-Pesaran-Smith lear
 
 Estimate a DSGE model with Bayesian sampling and report bridge-sampling and SMC log marginal likelihoods
 
+**Aliases:** `mlik`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `model` | `String` | yes | — | Path to DSGE model file (.toml or .jl) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
+| `--data` | `-d` | `String` | `""` | — | Path to data file (.csv, .jld2, .jls, :example, or data:// session URI) |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
 | `--prior` | — | `String` *(repeatable)* | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
-| `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
-| `--draws` | — | `Int64` | `10000` | — | Total posterior draws |
-| `--burnin` | — | `Int64` | `5000` | — | Burn-in draws |
+| `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) *(aliases: `--npart`)* |
+| `--draws` | `-n` | `Int64` | `10000` | — | Total posterior draws *(aliases: `--n-draws`)* |
+| `--burnin` | `-B` | `Int64` | `5000` | — | Burn-in draws |
 | `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
-| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
-| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
-| `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
-| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) |
-| `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
-| `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
-| `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
+| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) *(aliases: `--obs`)* |
+| `--solver` | `-s` | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
+| `--order` | `-O` | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
+| `--constraint-solver` | — | `String` | `""` | `nonlinearsolve`, `optim`, `nlopt`, `madnlp`, `ipopt`, `path` | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) *(aliases: `--csolv`)* |
+| `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) *(aliases: `--pf`)* |
+| `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) *(aliases: `--hplam`)* |
+| `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) *(aliases: `--me`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--proposal` | — | `String` | `normal` | `normal`, `t` | Bridge proposal family: normal\|t |
@@ -1380,7 +1424,7 @@ Estimate a DSGE model with Bayesian sampling and report bridge-sampling and SMC 
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--delayed-acceptance` | — | Use delayed acceptance for MH |
+| `--delayed-acceptance` | — | Use delayed acceptance for MH *(aliases: `--da`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `BayesianDSGE`
 
@@ -1396,29 +1440,29 @@ Estimate a DSGE model with Bayesian sampling and report MCMC convergence diagnos
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
+| `--data` | `-d` | `String` | `""` | — | Path to data file (.csv, .jld2, .jls, :example, or data:// session URI) |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
 | `--prior` | — | `String` *(repeatable)* | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
-| `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
-| `--draws` | — | `Int64` | `10000` | — | Total posterior draws |
-| `--burnin` | — | `Int64` | `5000` | — | Burn-in draws |
+| `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) *(aliases: `--npart`)* |
+| `--draws` | `-n` | `Int64` | `10000` | — | Total posterior draws *(aliases: `--n-draws`)* |
+| `--burnin` | `-B` | `Int64` | `5000` | — | Burn-in draws |
 | `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
-| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
-| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
-| `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
-| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) |
-| `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
-| `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
-| `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
+| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) *(aliases: `--obs`)* |
+| `--solver` | `-s` | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
+| `--order` | `-O` | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
+| `--constraint-solver` | — | `String` | `""` | `nonlinearsolve`, `optim`, `nlopt`, `madnlp`, `ipopt`, `path` | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) *(aliases: `--csolv`)* |
+| `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) *(aliases: `--pf`)* |
+| `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) *(aliases: `--hplam`)* |
+| `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) *(aliases: `--me`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--delayed-acceptance` | — | Use delayed acceptance for MH |
+| `--delayed-acceptance` | — | Use delayed acceptance for MH *(aliases: `--da`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `BayesianDSGE`
 
@@ -1434,23 +1478,23 @@ Estimate a DSGE model with Bayesian sampling and report prior-posterior overlap 
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
+| `--data` | `-d` | `String` | `""` | — | Path to data file (.csv, .jld2, .jls, :example, or data:// session URI) |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
 | `--prior` | — | `String` *(repeatable)* | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
-| `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
-| `--draws` | — | `Int64` | `10000` | — | Total posterior draws |
-| `--burnin` | — | `Int64` | `5000` | — | Burn-in draws |
+| `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) *(aliases: `--npart`)* |
+| `--draws` | `-n` | `Int64` | `10000` | — | Total posterior draws *(aliases: `--n-draws`)* |
+| `--burnin` | `-B` | `Int64` | `5000` | — | Burn-in draws |
 | `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
-| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
-| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
-| `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
-| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) |
-| `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
-| `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
-| `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
+| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) *(aliases: `--obs`)* |
+| `--solver` | `-s` | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
+| `--order` | `-O` | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
+| `--constraint-solver` | — | `String` | `""` | `nonlinearsolve`, `optim`, `nlopt`, `madnlp`, `ipopt`, `path` | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) *(aliases: `--csolv`)* |
+| `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) *(aliases: `--pf`)* |
+| `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) *(aliases: `--hplam`)* |
+| `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) *(aliases: `--me`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--threshold` | — | `Float64` | `0.8` | — | Flag threshold on the prior/posterior overlap |
@@ -1458,7 +1502,7 @@ Estimate a DSGE model with Bayesian sampling and report prior-posterior overlap 
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--delayed-acceptance` | — | Use delayed acceptance for MH |
+| `--delayed-acceptance` | — | Use delayed acceptance for MH *(aliases: `--da`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `BayesianDSGE`
 
@@ -1468,23 +1512,26 @@ Estimate a DSGE model with Bayesian sampling and report prior-posterior overlap 
 
 Maximize the DSGE posterior and report the mode with Laplace standard errors without sampling
 
+**Aliases:** `mode`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `model` | `String` | yes | — | Path to DSGE model file (.toml or .jl) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
+| `--data` | `-d` | `String` | `""` | — | Path to data file (.csv, .jld2, .jls, :example, or data:// session URI) |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
 | `--prior` | — | `String` *(repeatable)* | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
-| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
-| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
-| `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
-| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) |
+| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) *(aliases: `--obs`)* |
+| `--solver` | `-s` | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
+| `--order` | `-O` | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
+| `--constraint-solver` | — | `String` | `""` | `nonlinearsolve`, `optim`, `nlopt`, `madnlp`, `ipopt`, `path` | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) *(aliases: `--csolv`)* |
+| `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) *(aliases: `--me`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--max-iter` | — | `Int64` | `500` | — | Maximum optimizer iterations (≥ 1) |
+| `--max-iter` | `-I` | `Int64` | `500` | — | Maximum optimizer iterations (≥ 1) *(aliases: `--miter`)* |
 | `--f-reltol` | — | `Float64` | `1.0e-8` | — | Relative function tolerance (> 0) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
@@ -1495,39 +1542,41 @@ Maximize the DSGE posterior and report the mode with Laplace standard errors wit
 
 Estimate a DSGE model with Bayesian sampling and report the posterior predictive summary
 
+**Aliases:** `pred`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `model` | `String` | yes | — | Path to DSGE model file (.toml or .jl) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
+| `--data` | `-d` | `String` | `""` | — | Path to data file (.csv, .jld2, .jls, :example, or data:// session URI) |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
 | `--prior` | — | `String` *(repeatable)* | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
-| `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
-| `--draws` | — | `Int64` | `10000` | — | Total posterior draws |
-| `--burnin` | — | `Int64` | `5000` | — | Burn-in draws |
+| `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) *(aliases: `--npart`)* |
+| `--draws` | `-n` | `Int64` | `10000` | — | Total posterior draws *(aliases: `--n-draws`)* |
+| `--burnin` | `-B` | `Int64` | `5000` | — | Burn-in draws |
 | `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
-| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
-| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
-| `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
-| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) |
-| `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
-| `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
-| `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
+| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) *(aliases: `--obs`)* |
+| `--solver` | `-s` | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
+| `--order` | `-O` | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
+| `--constraint-solver` | — | `String` | `""` | `nonlinearsolve`, `optim`, `nlopt`, `madnlp`, `ipopt`, `path` | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) *(aliases: `--csolv`)* |
+| `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) *(aliases: `--pf`)* |
+| `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) *(aliases: `--hplam`)* |
+| `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) *(aliases: `--me`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--n-sim` | — | `Int64` | `500` | — | Number of predictive simulations |
-| `--periods` | — | `Int64` | `100` | — | Periods per simulation |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--periods` | `-N` | `Int64` | `100` | — | Periods per simulation |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--delayed-acceptance` | — | Use delayed acceptance for MH |
-| `--plot` | — | Open interactive plot in browser |
+| `--delayed-acceptance` | — | Use delayed acceptance for MH *(aliases: `--da`)* |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `BayesianDSGE`
 
@@ -1537,6 +1586,8 @@ Estimate a DSGE model with Bayesian sampling and report the posterior predictive
 
 Draw from the DSGE prior and report the prior predictive distribution without data
 
+**Aliases:** `prior-pred`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `model` | `String` | yes | — | Path to DSGE model file (.toml or .jl) |
@@ -1546,16 +1597,18 @@ Draw from the DSGE prior and report the prior predictive distribution without da
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
 | `--prior` | — | `String` *(repeatable)* | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
-| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
-| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
-| `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
-| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) |
-| `--draws` | — | `Int64` | `500` | — | Total posterior draws |
+| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) *(aliases: `--obs`)* |
+| `--solver` | `-s` | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
+| `--order` | `-O` | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
+| `--constraint-solver` | — | `String` | `""` | `nonlinearsolve`, `optim`, `nlopt`, `madnlp`, `ipopt`, `path` | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) *(aliases: `--csolv`)* |
+| `--draws` | `-n` | `Int64` | `500` | — | Number of prior predictive draws *(aliases: `--n-draws`, `--n-sim`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--periods` | — | `Int64` | `200` | — | Periods to simulate per draw (≥ 1) |
+| `--periods` | `-N` | `Int64` | `200` | — | Periods to simulate per draw (≥ 1) |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--quantiles` | `-Q` | `String` | `0.16,0.5,0.84` | — | Posterior/bootstrap band quantiles in (0, 1) (default: 0.16,0.5,0.84 = 68% band) *(aliases: `--qtl`)* |
 
-**Output tables:** `prior_predictive_distribution` (Mean, std, median and 5/95% quantiles of each summary statistic across prior draws); `prior_predictive_summary` (Draws requested, draws that solved and periods simulated per draw)
+**Output tables:** `prior_predictive_distribution` (Mean, std, median and credible interval bounds of each summary statistic across prior draws); `prior_predictive_summary` (Draws requested, draws that solved and periods simulated per draw)
 
 ### [`frdc dsge bayes simulate`](@id ref-dsge-bayes-simulate)
 
@@ -1567,36 +1620,38 @@ Estimate a DSGE model with Bayesian sampling and report posterior-mean simulated
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
+| `--data` | `-d` | `String` | `""` | — | Path to data file (.csv, .jld2, .jls, :example, or data:// session URI) |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
 | `--prior` | — | `String` *(repeatable)* | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
-| `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
-| `--draws` | — | `Int64` | `10000` | — | Total posterior draws |
-| `--burnin` | — | `Int64` | `5000` | — | Burn-in draws |
+| `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) *(aliases: `--npart`)* |
+| `--draws` | `-n` | `Int64` | `10000` | — | Total posterior draws *(aliases: `--n-draws`)* |
+| `--burnin` | `-B` | `Int64` | `5000` | — | Burn-in draws |
 | `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
-| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
-| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
-| `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
-| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) |
-| `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
-| `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
-| `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
+| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) *(aliases: `--obs`)* |
+| `--solver` | `-s` | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
+| `--order` | `-O` | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
+| `--constraint-solver` | — | `String` | `""` | `nonlinearsolve`, `optim`, `nlopt`, `madnlp`, `ipopt`, `path` | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) *(aliases: `--csolv`)* |
+| `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) *(aliases: `--pf`)* |
+| `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) *(aliases: `--hplam`)* |
+| `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) *(aliases: `--me`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--periods` | — | `Int64` | `200` | — | Simulation periods |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--periods` | `-N` | `Int64` | `200` | — | Simulation periods |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--quantiles` | `-Q` | `String` | `0.16,0.5,0.84` | — | Posterior/bootstrap band quantiles in (0, 1) (default: 0.16,0.5,0.84 = 68% band) *(aliases: `--qtl`)* |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--delayed-acceptance` | — | Use delayed acceptance for MH |
-| `--plot` | — | Open interactive plot in browser |
+| `--delayed-acceptance` | — | Use delayed acceptance for MH *(aliases: `--da`)* |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `BayesianDSGE`
 
-**Output tables:** `bayesian_dsge_simulation` (Posterior-mean simulated path of every variable)
+**Output tables:** `bayesian_dsge_simulation` (Posterior-mean simulated path and credible bands of every variable)
 
 ### [`frdc dsge bayes summary`](@id ref-dsge-bayes-summary)
 
@@ -1608,37 +1663,41 @@ Estimate a DSGE model with Bayesian sampling and report the posterior summary wi
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | `-d` | `String` | `""` | — | Path to CSV data file |
+| `--data` | `-d` | `String` | `""` | — | Path to data file (.csv, .jld2, .jls, :example, or data:// session URI) |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file |
 | `--prior` | — | `String` *(repeatable)* | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
 | `--sampler` | — | `String` | `smc` | `smc`, `smc2`, `mh` | smc\|smc2\|mh |
 | `--n-smc` | — | `Int64` | `5000` | — | SMC particles |
-| `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) |
-| `--draws` | — | `Int64` | `10000` | — | Total posterior draws |
-| `--burnin` | — | `Int64` | `5000` | — | Burn-in draws |
+| `--n-particles` | — | `Int64` | `500` | — | Particle filter particles (smc2) *(aliases: `--npart`)* |
+| `--draws` | `-n` | `Int64` | `10000` | — | Total posterior draws *(aliases: `--n-draws`)* |
+| `--burnin` | `-B` | `Int64` | `5000` | — | Burn-in draws |
 | `--ess-target` | — | `Float64` | `0.5` | — | ESS target for resampling |
-| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
-| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
-| `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
-| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) |
-| `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) |
-| `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) |
-| `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) |
+| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) *(aliases: `--obs`)* |
+| `--solver` | `-s` | `String` | `gensys` | `gensys`, `klein`, `perturbation` | gensys\|klein\|perturbation |
+| `--order` | `-O` | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
+| `--constraint-solver` | — | `String` | `""` | `nonlinearsolve`, `optim`, `nlopt`, `madnlp`, `ipopt`, `path` | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) *(aliases: `--csolv`)* |
+| `--prefilter` | — | `String` | `none` | `none`, `demean`, `first-difference`, `linear-detrend`, `hp` | Observable transform applied before estimation (Dynare `prefilter`) *(aliases: `--pf`)* |
+| `--hp-lambda` | — | `Float64` | `1600.0` | — | HP smoothing parameter for --prefilter hp (1600 quarterly, 129600 monthly, 6.25 annual) *(aliases: `--hplam`)* |
+| `--measurement-error` | — | `String` | `none` | — | Measurement error std devs: none\|auto\|comma-separated values (one per observable) *(aliases: `--me`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--quantiles` | `-Q` | `String` | `0.16,0.5,0.84` | — | Posterior/bootstrap band quantiles in (0, 1) (default: 0.16,0.5,0.84 = 68% band) *(aliases: `--qtl`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--delayed-acceptance` | — | Use delayed acceptance for MH |
+| `--delayed-acceptance` | — | Use delayed acceptance for MH *(aliases: `--da`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `BayesianDSGE`
 
-**Output tables:** `bayesian_dsge_posterior_summary` (Posterior mean, median, std and 5/95% quantiles per parameter); `prior_vs_posterior_comparison` (Prior mean/std against posterior mean/std and quantiles per parameter)
+**Output tables:** `bayesian_dsge_posterior_summary` (Posterior mean, median, std and credible interval bounds per parameter); `prior_vs_posterior_comparison` (Prior mean/std against posterior mean/std and credible interval bounds per parameter)
 
 ### [`frdc dsge determinacy-map`](@id ref-dsge-determinacy-map)
 
 Map the DSGE determinacy region over two parameters
+
+**Aliases:** `detmap`
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1646,19 +1705,19 @@ Map the DSGE determinacy region over two parameters
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--config` | — | `String` | `""` | — | TOML with a [determinacy] section (params, lower/upper/points or grids); REQUIRED |
+| `--config` | `-C` | `String` | `""` | — | TOML with a [determinacy] section (params, lower/upper/points or grids); REQUIRED *(aliases: `--cfg`)* |
 | `--rank-rtol` | — | `Float64` | `1.0e-8` | — | Relative tolerance of the Sims rank tests |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--threaded` | — | Evaluate grid points on all available threads (results are identical to the serial sweep) |
 | `--verbose-solver` | — | Do NOT suppress per-grid-point solver warnings |
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** result types: `DeterminacyMap`
 
@@ -1668,6 +1727,8 @@ Map the DSGE determinacy region over two parameters
 
 Estimate DSGE parameters by moment matching
 
+**Aliases:** `est`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `model` | `String` | yes | — | TOML (synthesized @dsge block) or .jl evaluating to a ModelSpec |
@@ -1675,18 +1736,18 @@ Estimate DSGE parameters by moment matching
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--data` | `-d` | `String` | `""` | — | Path to data file or handle stem (.csv, .jld2, .jls) |
-| `--method` | — | `String` | `irf_matching` | `irf_matching`, `euler_gmm`, `smm`, `analytical_gmm` | Estimation method: irf_matching\|euler_gmm\|smm\|analytical_gmm |
+| `--method` | `-m` | `String` | `irf_matching` | `irf_matching`, `euler_gmm`, `smm`, `analytical_gmm` | Estimation method: irf_matching\|euler_gmm\|smm\|analytical_gmm |
 | `--params` | — | `String` | `""` | — | Comma-separated parameter names to estimate |
 | `--solve-method` | — | `String` | `gensys` | — | DSGE solution method (analytical_gmm only) |
 | `--solve-order` | — | `Int64` | `1` | — | Perturbation order for solution (analytical_gmm only) |
-| `--weighting` | — | `String` | `optimal` | — | Weighting matrix: identity\|optimal\|diagonal\|two_step\|efficient\|cee |
+| `--weighting` | `-w` | `String` | `optimal` | `identity`, `optimal`, `diagonal`, `two_step`, `efficient`, `cee` | Weighting matrix: identity\|optimal\|diagonal\|two_step\|efficient\|cee |
 | `--irf-horizon` | — | `Int64` | `20` | — | IRF horizon for matching (irf_matching only) |
 | `--var-lags` | — | `Int64` | `4` | — | VAR lags for empirical IRF (irf_matching only) |
 | `--sim-ratio` | — | `Int64` | `5` | — | Simulation-to-data ratio (smm only) |
 | `--bounds` | — | `String` | `""` | — | Path to parameter bounds TOML (currently not used) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
@@ -1702,33 +1763,33 @@ Decompose the DSGE forecast-error variance by shock
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--method` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi`, `vfi`, `blanchard-kahn` | Solution method: gensys\|klein\|perturbation\|projection\|pfi\|vfi\|blanchard-kahn (fevd/hd reject projection\|pfi\|vfi) |
-| `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
+| `--method` | `-m` | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi`, `vfi`, `blanchard-kahn` | Solution method: gensys\|klein\|perturbation\|projection\|pfi\|vfi\|blanchard-kahn (fevd/hd reject projection\|pfi\|vfi) |
+| `--order` | `-O` | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--degree` | — | `Int64` | `5` | — | Polynomial degree (projection/pfi/vfi) |
-| `--grid` | — | `String` | `auto` | — | Grid type: auto\|chebyshev\|smolyak (vfi: auto\|tensor\|smolyak; auto routes nx≥4 to Smolyak) |
-| `--next-state` | — | `String` | `""` | — | VFI: auto\|linear\|residual; PFI: linear\|policy\|nonlinear |
+| `--grid` | — | `String` | `auto` | `auto`, `chebyshev`, `smolyak`, `tensor` | Grid type: auto\|chebyshev\|smolyak (vfi: auto\|tensor\|smolyak; auto routes nx≥4 to Smolyak) |
+| `--next-state` | — | `String` | `""` | `auto`, `linear`, `residual`, `policy`, `nonlinear` | VFI: auto\|linear\|residual; PFI: linear\|policy\|nonlinear |
 | `--howard-steps` | — | `Int64` | `-1` | — | Howard policy-evaluation steps (vfi default 20, pfi 0; -1 = method default) |
 | `--n-grid` | — | `Int64` | `0` | — | VFI tensor-grid nodes per state (tensor path only; ≥3; 0 = default 12) |
 | `--n-choice` | — | `Int64` | `0` | — | VFI line-search points (grid1d only; ≥3; 0 = default 41) |
 | `--optimizer` | — | `String` | `""` | `auto`, `grid1d`, `fminbox-nm`, `fminbox-lbfgs` | VFI Bellman maximizer: auto (grid1d for 1 control, fminbox-nm for vectors)\|grid1d\|fminbox-nm\|fminbox-lbfgs |
 | `--smolyak-mu` | — | `String` | `""` | — | VFI Smolyak level: scalar μ ≥ 0 or comma-separated per-dimension levels (Smolyak path only; unset = default 2) |
-| `--n-quad` | — | `Int64` | `0` | — | VFI/PFI quadrature nodes per shock (0 = default 5) |
-| `--scale` | — | `Float64` | `0.0` | — | VFI/PFI state-bound scale (0 = default 3.0) |
-| `--tol` | — | `Float64` | `0.0` | — | VFI/PFI convergence tolerance (0 = default 1e-8) |
-| `--max-iter` | — | `Int64` | `0` | — | VFI/PFI max iterations (0 = default 500) |
+| `--n-quad` | — | `Int64` | `0` | — | Projection/VFI/PFI quadrature nodes per shock (0 = default 5) |
+| `--scale` | — | `Float64` | `0.0` | — | Projection/VFI/PFI state-bound scale (0 = default 3.0) |
+| `--tol` | `-T` | `Float64` | `0.0` | — | Projection/VFI/PFI convergence tolerance (0 = default 1e-8) |
+| `--max-iter` | `-I` | `Int64` | `0` | — | Projection/VFI/PFI max iterations (0 = method default: 100 projection, 500 vfi/pfi) *(aliases: `--miter`)* |
 | `--damping` | — | `Float64` | `0.0` | — | VFI/PFI mixing factor (0 = default 1.0) |
 | `--anderson-m` | — | `Int64` | `0` | — | PFI Anderson acceleration memory (PFI only) |
-| `--horizons` | — | `Int64` | `40` | — | FEVD horizon |
+| `--horizons` | `-H` | `Int64` | `40` | — | FEVD horizon *(aliases: `--horizon`, `--hor`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--unconditional` | — | Unconditional (asymptotic) FEVD for order≥2 perturbation (Andreasen et al. 2018) |
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** model types: `DSGESolution`, `PerturbationSolution`; result types: `FEVD`
 
@@ -1744,34 +1805,34 @@ Decompose DSGE observables into historical shock contributions
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--method` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi`, `vfi`, `blanchard-kahn` | Solution method: gensys\|klein\|perturbation\|projection\|pfi\|vfi\|blanchard-kahn (fevd/hd reject projection\|pfi\|vfi) |
-| `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
-| `--grid` | — | `String` | `auto` | — | Grid type: auto\|chebyshev\|smolyak (vfi: auto\|tensor\|smolyak; auto routes nx≥4 to Smolyak) |
-| `--next-state` | — | `String` | `""` | — | VFI: auto\|linear\|residual; PFI: linear\|policy\|nonlinear |
+| `--method` | `-m` | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi`, `vfi`, `blanchard-kahn` | Solution method: gensys\|klein\|perturbation\|projection\|pfi\|vfi\|blanchard-kahn (fevd/hd reject projection\|pfi\|vfi) |
+| `--order` | `-O` | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
+| `--grid` | — | `String` | `auto` | `auto`, `chebyshev`, `smolyak`, `tensor` | Grid type: auto\|chebyshev\|smolyak (vfi: auto\|tensor\|smolyak; auto routes nx≥4 to Smolyak) |
+| `--next-state` | — | `String` | `""` | `auto`, `linear`, `residual`, `policy`, `nonlinear` | VFI: auto\|linear\|residual; PFI: linear\|policy\|nonlinear |
 | `--howard-steps` | — | `Int64` | `-1` | — | Howard policy-evaluation steps (vfi default 20, pfi 0; -1 = method default) |
 | `--n-grid` | — | `Int64` | `0` | — | VFI tensor-grid nodes per state (tensor path only; ≥3; 0 = default 12) |
 | `--n-choice` | — | `Int64` | `0` | — | VFI line-search points (grid1d only; ≥3; 0 = default 41) |
 | `--optimizer` | — | `String` | `""` | `auto`, `grid1d`, `fminbox-nm`, `fminbox-lbfgs` | VFI Bellman maximizer: auto (grid1d for 1 control, fminbox-nm for vectors)\|grid1d\|fminbox-nm\|fminbox-lbfgs |
 | `--smolyak-mu` | — | `String` | `""` | — | VFI Smolyak level: scalar μ ≥ 0 or comma-separated per-dimension levels (Smolyak path only; unset = default 2) |
-| `--n-quad` | — | `Int64` | `0` | — | VFI/PFI quadrature nodes per shock (0 = default 5) |
-| `--scale` | — | `Float64` | `0.0` | — | VFI/PFI state-bound scale (0 = default 3.0) |
-| `--tol` | — | `Float64` | `0.0` | — | VFI/PFI convergence tolerance (0 = default 1e-8) |
-| `--max-iter` | — | `Int64` | `0` | — | VFI/PFI max iterations (0 = default 500) |
+| `--n-quad` | — | `Int64` | `0` | — | Projection/VFI/PFI quadrature nodes per shock (0 = default 5) |
+| `--scale` | — | `Float64` | `0.0` | — | Projection/VFI/PFI state-bound scale (0 = default 3.0) |
+| `--tol` | `-T` | `Float64` | `0.0` | — | Projection/VFI/PFI convergence tolerance (0 = default 1e-8) |
+| `--max-iter` | `-I` | `Int64` | `0` | — | Projection/VFI/PFI max iterations (0 = method default: 100 projection, 500 vfi/pfi) *(aliases: `--miter`)* |
 | `--damping` | — | `Float64` | `0.0` | — | VFI/PFI mixing factor (0 = default 1.0) |
 | `--anderson-m` | — | `Int64` | `0` | — | PFI Anderson acceleration memory (PFI only) |
 | `--data` | `-d` | `String` | `""` | — | Path to data file or handle stem (.csv, .jld2, .jls) |
-| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
-| `--states` | — | `String` | `observables` | — | observables\|all |
-| `--measurement-error` | — | `String` | `""` | — | Measurement error std devs (comma-separated) or auto |
+| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) *(aliases: `--obs`)* |
+| `--states` | — | `String` | `observables` | `observables`, `all` | observables\|all |
+| `--measurement-error` | — | `String` | `""` | — | Measurement error std devs (comma-separated) or auto *(aliases: `--me`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `DSGESolution`, `PerturbationSolution`; result types: `HistoricalDecomposition`
 
@@ -1787,36 +1848,36 @@ Compute DSGE impulse responses to each structural shock
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--method` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi`, `vfi`, `blanchard-kahn` | Solution method: gensys\|klein\|perturbation\|projection\|pfi\|vfi\|blanchard-kahn (fevd/hd reject projection\|pfi\|vfi) |
-| `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
+| `--method` | `-m` | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi`, `vfi`, `blanchard-kahn` | Solution method: gensys\|klein\|perturbation\|projection\|pfi\|vfi\|blanchard-kahn (fevd/hd reject projection\|pfi\|vfi) |
+| `--order` | `-O` | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--degree` | — | `Int64` | `5` | — | Polynomial degree (projection/pfi/vfi) |
-| `--grid` | — | `String` | `auto` | — | Grid type: auto\|chebyshev\|smolyak (vfi: auto\|tensor\|smolyak; auto routes nx≥4 to Smolyak) |
-| `--next-state` | — | `String` | `""` | — | VFI: auto\|linear\|residual; PFI: linear\|policy\|nonlinear |
+| `--grid` | — | `String` | `auto` | `auto`, `chebyshev`, `smolyak`, `tensor` | Grid type: auto\|chebyshev\|smolyak (vfi: auto\|tensor\|smolyak; auto routes nx≥4 to Smolyak) |
+| `--next-state` | — | `String` | `""` | `auto`, `linear`, `residual`, `policy`, `nonlinear` | VFI: auto\|linear\|residual; PFI: linear\|policy\|nonlinear |
 | `--howard-steps` | — | `Int64` | `-1` | — | Howard policy-evaluation steps (vfi default 20, pfi 0; -1 = method default) |
 | `--n-grid` | — | `Int64` | `0` | — | VFI tensor-grid nodes per state (tensor path only; ≥3; 0 = default 12) |
 | `--n-choice` | — | `Int64` | `0` | — | VFI line-search points (grid1d only; ≥3; 0 = default 41) |
 | `--optimizer` | — | `String` | `""` | `auto`, `grid1d`, `fminbox-nm`, `fminbox-lbfgs` | VFI Bellman maximizer: auto (grid1d for 1 control, fminbox-nm for vectors)\|grid1d\|fminbox-nm\|fminbox-lbfgs |
 | `--smolyak-mu` | — | `String` | `""` | — | VFI Smolyak level: scalar μ ≥ 0 or comma-separated per-dimension levels (Smolyak path only; unset = default 2) |
-| `--n-quad` | — | `Int64` | `0` | — | VFI/PFI quadrature nodes per shock (0 = default 5) |
-| `--scale` | — | `Float64` | `0.0` | — | VFI/PFI state-bound scale (0 = default 3.0) |
-| `--tol` | — | `Float64` | `0.0` | — | VFI/PFI convergence tolerance (0 = default 1e-8) |
-| `--max-iter` | — | `Int64` | `0` | — | VFI/PFI max iterations (0 = default 500) |
+| `--n-quad` | — | `Int64` | `0` | — | Projection/VFI/PFI quadrature nodes per shock (0 = default 5) |
+| `--scale` | — | `Float64` | `0.0` | — | Projection/VFI/PFI state-bound scale (0 = default 3.0) |
+| `--tol` | `-T` | `Float64` | `0.0` | — | Projection/VFI/PFI convergence tolerance (0 = default 1e-8) |
+| `--max-iter` | `-I` | `Int64` | `0` | — | Projection/VFI/PFI max iterations (0 = method default: 100 projection, 500 vfi/pfi) *(aliases: `--miter`)* |
 | `--damping` | — | `Float64` | `0.0` | — | VFI/PFI mixing factor (0 = default 1.0) |
 | `--anderson-m` | — | `Int64` | `0` | — | PFI Anderson acceleration memory (PFI only) |
-| `--horizons` | — | `Int64` | `40` | — | IRF horizon |
-| `--shock-size` | — | `Float64` | `1.0` | — | Shock size (std devs; perturbation/projection only; ignored for linear solutions) |
+| `--horizons` | `-H` | `Int64` | `40` | — | IRF horizon *(aliases: `--horizon`, `--hor`)* |
+| `--shock-size` | — | `Float64` | `1.0` | — | Shock size (std devs; perturbation/projection only; ignored for linear solutions) *(aliases: `--ssize`)* |
 | `--n-sim` | — | `Int64` | `0` | — | Simulated-path replications for projection solutions (0 = analytical; ignored for linear/perturbation solutions) |
 | `--constraints` | — | `String` | `""` | — | Path to OccBin constraints TOML (applied to shock 1 only) |
 | `--constraint` | — | `String` *(repeatable)* | `String[]` | — | OccBin bound 'var[t] >= expr' or 'var[t] <= expr'; repeatable; adds to --constraints and the constraints: stanza |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** model types: `DSGESolution`, `PerturbationSolution`, `ProjectionSolution`, `OccBinSolution`; result types: `ImpulseResponse`, `OccBinIRF`
 
@@ -1832,9 +1893,9 @@ Report closed-form DSGE theoretical moments without simulation
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--method` | — | `String` | `perturbation` | — | Solution method: perturbation (the only supported value; moments need a PerturbationSolution) |
-| `--order` | — | `Int64` | `2` | — | Perturbation order: 1, 2 or 3 (for linear models order 2 equals order 1 exactly) |
-| `--lags` | — | `Int64` | `1` | — | Autocovariance lags to report (>= 1) |
+| `--method` | `-m` | `String` | `perturbation` | — | Solution method: perturbation (the only supported value; moments need a PerturbationSolution) |
+| `--order` | `-O` | `Int64` | `2` | — | Perturbation order: 1, 2 or 3 (for linear models order 2 equals order 1 exactly) |
+| `--lags` | `-p` | `Int64` | `1` | — | Autocovariance lags to report (>= 1) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
@@ -1846,6 +1907,8 @@ Report closed-form DSGE theoretical moments without simulation
 
 Solve a DSGE model under perfect foresight along a shock path
 
+**Aliases:** `pf`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `model` | `String` | yes | — | TOML (synthesized @dsge block) or .jl evaluating to a ModelSpec |
@@ -1855,20 +1918,20 @@ Solve a DSGE model under perfect foresight along a shock path
 | `--shocks` | — | `String` | `""` | — | Path to shock sequence CSV |
 | `--constraints` | — | `String` | `""` | — | Path to constraints TOML |
 | `--constraint` | — | `String` *(repeatable)* | `String[]` | — | OccBin bound 'var[t] >= expr' or 'var[t] <= expr'; repeatable; adds to --constraints and the constraints: stanza |
-| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) |
-| `--periods` | — | `Int64` | `100` | — | Simulation periods |
+| `--constraint-solver` | — | `String` | `""` | `nonlinearsolve`, `optim`, `nlopt`, `madnlp`, `ipopt`, `path` | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) *(aliases: `--csolv`)* |
+| `--periods` | `-N` | `Int64` | `100` | — | Simulation periods |
 | `--sparsity` | — | `String` | `auto` | `auto`, `dense` | Jacobian: auto (sparse BT) or dense (nlopt/path/ipopt ignore this) |
-| `--max-iter` | — | `Int64` | `100` | — | Newton iterations (≥ 1) |
-| `--tol` | — | `Float64` | `1.0e-8` | — | Convergence tolerance (> 0) |
+| `--max-iter` | `-I` | `Int64` | `100` | — | Newton iterations (≥ 1) *(aliases: `--miter`)* |
+| `--tol` | `-T` | `Float64` | `1.0e-8` | — | Convergence tolerance (> 0) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** result types: `PerfectForesightPath`
 
@@ -1878,39 +1941,41 @@ Solve a DSGE model under perfect foresight along a shock path
 
 Simulate a DSGE model and report the simulated paths
 
+**Aliases:** `sim`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `model` | `String` | yes | — | TOML (synthesized @dsge block) or .jl evaluating to a ModelSpec |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--method` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi`, `vfi`, `blanchard-kahn` | Solution method: gensys\|klein\|perturbation\|projection\|pfi\|vfi\|blanchard-kahn (fevd/hd reject projection\|pfi\|vfi) |
-| `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
+| `--method` | `-m` | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi`, `vfi`, `blanchard-kahn` | Solution method: gensys\|klein\|perturbation\|projection\|pfi\|vfi\|blanchard-kahn (fevd/hd reject projection\|pfi\|vfi) |
+| `--order` | `-O` | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--degree` | — | `Int64` | `5` | — | Polynomial degree (projection/pfi/vfi) |
-| `--grid` | — | `String` | `auto` | — | Grid type: auto\|chebyshev\|smolyak (vfi: auto\|tensor\|smolyak; auto routes nx≥4 to Smolyak) |
-| `--next-state` | — | `String` | `""` | — | VFI: auto\|linear\|residual; PFI: linear\|policy\|nonlinear |
+| `--grid` | — | `String` | `auto` | `auto`, `chebyshev`, `smolyak`, `tensor` | Grid type: auto\|chebyshev\|smolyak (vfi: auto\|tensor\|smolyak; auto routes nx≥4 to Smolyak) |
+| `--next-state` | — | `String` | `""` | `auto`, `linear`, `residual`, `policy`, `nonlinear` | VFI: auto\|linear\|residual; PFI: linear\|policy\|nonlinear |
 | `--howard-steps` | — | `Int64` | `-1` | — | Howard policy-evaluation steps (vfi default 20, pfi 0; -1 = method default) |
 | `--n-grid` | — | `Int64` | `0` | — | VFI tensor-grid nodes per state (tensor path only; ≥3; 0 = default 12) |
 | `--n-choice` | — | `Int64` | `0` | — | VFI line-search points (grid1d only; ≥3; 0 = default 41) |
 | `--optimizer` | — | `String` | `""` | `auto`, `grid1d`, `fminbox-nm`, `fminbox-lbfgs` | VFI Bellman maximizer: auto (grid1d for 1 control, fminbox-nm for vectors)\|grid1d\|fminbox-nm\|fminbox-lbfgs |
 | `--smolyak-mu` | — | `String` | `""` | — | VFI Smolyak level: scalar μ ≥ 0 or comma-separated per-dimension levels (Smolyak path only; unset = default 2) |
-| `--n-quad` | — | `Int64` | `0` | — | VFI/PFI quadrature nodes per shock (0 = default 5) |
-| `--scale` | — | `Float64` | `0.0` | — | VFI/PFI state-bound scale (0 = default 3.0) |
-| `--tol` | — | `Float64` | `0.0` | — | VFI/PFI convergence tolerance (0 = default 1e-8) |
-| `--max-iter` | — | `Int64` | `0` | — | VFI/PFI max iterations (0 = default 500) |
+| `--n-quad` | — | `Int64` | `0` | — | Projection/VFI/PFI quadrature nodes per shock (0 = default 5) |
+| `--scale` | — | `Float64` | `0.0` | — | Projection/VFI/PFI state-bound scale (0 = default 3.0) |
+| `--tol` | `-T` | `Float64` | `0.0` | — | Projection/VFI/PFI convergence tolerance (0 = default 1e-8) |
+| `--max-iter` | `-I` | `Int64` | `0` | — | Projection/VFI/PFI max iterations (0 = method default: 100 projection, 500 vfi/pfi) *(aliases: `--miter`)* |
 | `--damping` | — | `Float64` | `0.0` | — | VFI/PFI mixing factor (0 = default 1.0) |
 | `--anderson-m` | — | `Int64` | `0` | — | PFI Anderson acceleration memory (PFI only) |
-| `--periods` | — | `Int64` | `200` | — | Simulation periods (after burn-in) |
-| `--burn` | — | `Int64` | `100` | — | Burn-in periods to discard |
+| `--periods` | `-N` | `Int64` | `200` | — | Simulation periods (after burn-in) |
+| `--burn` | `-B` | `Int64` | `100` | — | Burn-in periods to discard |
 | `--seed` | — | `Int64` | `0` | — | Random seed (0=no seed) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--antithetic` | — | Use antithetic sampling for variance reduction (perturbation solutions order >= 2 only) |
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** model types: `DSGESolution`, `PerturbationSolution`, `ProjectionSolution`
 
@@ -1926,41 +1991,43 @@ Solve a DSGE model and report the policy solution
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--method` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi`, `vfi`, `blanchard-kahn` | Solution method: gensys\|klein\|perturbation\|projection\|pfi\|vfi\|blanchard-kahn (fevd/hd reject projection\|pfi\|vfi) |
-| `--order` | — | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
+| `--method` | `-m` | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi`, `vfi`, `blanchard-kahn` | Solution method: gensys\|klein\|perturbation\|projection\|pfi\|vfi\|blanchard-kahn (fevd/hd reject projection\|pfi\|vfi) |
+| `--order` | `-O` | `Int64` | `1` | — | Perturbation order (1, 2, or 3) |
 | `--degree` | — | `Int64` | `5` | — | Polynomial degree (projection/pfi/vfi) |
-| `--grid` | — | `String` | `auto` | — | Grid type: auto\|chebyshev\|smolyak (vfi: auto\|tensor\|smolyak; auto routes nx≥4 to Smolyak) |
-| `--next-state` | — | `String` | `""` | — | VFI: auto\|linear\|residual; PFI: linear\|policy\|nonlinear |
+| `--grid` | — | `String` | `auto` | `auto`, `chebyshev`, `smolyak`, `tensor` | Grid type: auto\|chebyshev\|smolyak (vfi: auto\|tensor\|smolyak; auto routes nx≥4 to Smolyak) |
+| `--next-state` | — | `String` | `""` | `auto`, `linear`, `residual`, `policy`, `nonlinear` | VFI: auto\|linear\|residual; PFI: linear\|policy\|nonlinear |
 | `--howard-steps` | — | `Int64` | `-1` | — | Howard policy-evaluation steps (vfi default 20, pfi 0; -1 = method default) |
 | `--n-grid` | — | `Int64` | `0` | — | VFI tensor-grid nodes per state (tensor path only; ≥3; 0 = default 12) |
 | `--n-choice` | — | `Int64` | `0` | — | VFI line-search points (grid1d only; ≥3; 0 = default 41) |
 | `--optimizer` | — | `String` | `""` | `auto`, `grid1d`, `fminbox-nm`, `fminbox-lbfgs` | VFI Bellman maximizer: auto (grid1d for 1 control, fminbox-nm for vectors)\|grid1d\|fminbox-nm\|fminbox-lbfgs |
 | `--smolyak-mu` | — | `String` | `""` | — | VFI Smolyak level: scalar μ ≥ 0 or comma-separated per-dimension levels (Smolyak path only; unset = default 2) |
-| `--n-quad` | — | `Int64` | `0` | — | VFI/PFI quadrature nodes per shock (0 = default 5) |
-| `--scale` | — | `Float64` | `0.0` | — | VFI/PFI state-bound scale (0 = default 3.0) |
-| `--tol` | — | `Float64` | `0.0` | — | VFI/PFI convergence tolerance (0 = default 1e-8) |
-| `--max-iter` | — | `Int64` | `0` | — | VFI/PFI max iterations (0 = default 500) |
+| `--n-quad` | — | `Int64` | `0` | — | Projection/VFI/PFI quadrature nodes per shock (0 = default 5) |
+| `--scale` | — | `Float64` | `0.0` | — | Projection/VFI/PFI state-bound scale (0 = default 3.0) |
+| `--tol` | `-T` | `Float64` | `0.0` | — | Projection/VFI/PFI convergence tolerance (0 = default 1e-8) |
+| `--max-iter` | `-I` | `Int64` | `0` | — | Projection/VFI/PFI max iterations (0 = method default: 100 projection, 500 vfi/pfi) *(aliases: `--miter`)* |
 | `--damping` | — | `Float64` | `0.0` | — | VFI/PFI mixing factor (0 = default 1.0) |
 | `--anderson-m` | — | `Int64` | `0` | — | PFI Anderson acceleration memory (PFI only) |
 | `--evaluate-at` | — | `String` | `""` | — | State vector x1,x2,… at which to evaluate the VFI value function |
 | `--constraints` | — | `String` | `""` | — | Path to OccBin constraints TOML |
 | `--constraint` | — | `String` *(repeatable)* | `String[]` | — | OccBin bound 'var[t] >= expr' or 'var[t] <= expr'; repeatable; adds to --constraints and the constraints: stanza |
-| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) |
-| `--periods` | — | `Int64` | `40` | — | Number of periods for the OccBin path (--constraints without --constraint-solver; ignored otherwise) |
+| `--constraint-solver` | — | `String` | `""` | `nonlinearsolve`, `optim`, `nlopt`, `madnlp`, `ipopt`, `path` | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) *(aliases: `--csolv`)* |
+| `--periods` | `-N` | `Int64` | `40` | — | Number of periods for the OccBin path (--constraints without --constraint-solver; ignored otherwise) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
-**Output tables:** `dsge_solution` (Gensys/Klein/Blanchard-Kahn state-transition policy matrix G1, one column per variable); `perturbation_policy_gx` (Perturbation control policy gx: control responses to states and shocks); `projection_solution` (Projection/PFI/VFI basis coefficients, one row per control); `projection_diagnostics` (Projection/PFI/VFI convergence, iterations, residual norm, grid and degree); `vfi_value_function` (Bellman value on physical collocation nodes (--method vfi)); `vfi_value_coefficients` (Chebyshev coefficients of the Bellman value (--method vfi)); `vfi_value_at` (evaluate_value at --evaluate-at (--method vfi)); `determinacy_verdict` (Sims existence/uniqueness pair and the collapsed determinacy verdict); `dsge_occbin_solution` (OccBin piecewise path per variable (--constraints without --constraint-solver))
+**Output tables:** `dsge_solution` (Gensys/Klein/Blanchard-Kahn state-transition policy matrix G1, one column per variable); `dsge_shock_impact` (Gensys/Klein/Blanchard-Kahn shock-impact matrix, one column per structural shock); `perturbation_policy_gx` (Perturbation control policy gx: control responses to states and shocks); `projection_solution` (Projection/PFI/VFI basis coefficients, one row per control); `projection_diagnostics` (Projection/PFI/VFI convergence, iterations, residual norm, grid and degree); `vfi_value_function` (Bellman value on physical collocation nodes (--method vfi)); `vfi_value_coefficients` (Chebyshev coefficients of the Bellman value (--method vfi)); `vfi_value_at` (evaluate_value at --evaluate-at (--method vfi)); `determinacy_verdict` (Sims existence/uniqueness pair and the collapsed determinacy verdict); `dsge_occbin_solution` (OccBin piecewise path per variable (--constraints without --constraint-solver))
 
 ### [`frdc dsge steady-state`](@id ref-dsge-steady-state)
 
 Compute the DSGE steady state
+
+**Aliases:** `ss`
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1970,7 +2037,7 @@ Compute the DSGE steady state
 |--------|-------|------|---------|---------|-------------|
 | `--constraints` | — | `String` | `""` | — | Path to OccBin constraints TOML |
 | `--constraint` | — | `String` *(repeatable)* | `String[]` | — | OccBin bound 'var[t] >= expr' or 'var[t] <= expr'; repeatable; adds to --constraints and the constraints: stanza |
-| `--constraint-solver` | — | `String` | `""` | — | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) |
+| `--constraint-solver` | — | `String` | `""` | `nonlinearsolve`, `optim`, `nlopt`, `madnlp`, `ipopt`, `path` | Constraint solver: nonlinearsolve\|optim\|nlopt\|madnlp\|ipopt\|path (madnlp default for nonlinear constraints) *(aliases: `--csolv`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 
@@ -1994,34 +2061,35 @@ Estimate a Bayesian DSGE-VAR(lambda) posterior (fixed-parameter conjugate NIW or
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--data` | `-d` | `String` | `""` | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 | `--lags` | `-p` | `Int64` | `4` | — | VAR lag order p (>= 1) |
-| `--lambda` | — | `String` | `auto` | — | DSGE prior weight: auto, positive float >= lambda_min, or inf |
-| `--draws` | — | `Int64` | `1000` | — | Number of posterior draws |
+| `--lambda` | `-l` | `String` | `auto` | — | DSGE prior weight: auto, positive float >= lambda_min, or inf |
+| `--draws` | `-n` | `Int64` | `1000` | — | Number of posterior draws *(aliases: `--n-draws`)* |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file (enables full Bayesian ModelSpec route) |
 | `--prior` | — | `String` *(repeatable)* | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
-| `--method` | — | `String` | `rwmh` | `rwmh`, `smc` | Joint-mode posterior sampler over DSGE parameters: rwmh\|smc |
-| `--burnin` | — | `Int64` | `150` | — | Burn-in draws for RWMH (joint mode) |
-| `--n-particles` | — | `Int64` | `150` | — | SMC particle count for --method smc (joint mode) |
+| `--method` | `-m` | `String` | `rwmh` | `rwmh`, `smc` | Joint-mode posterior sampler over DSGE parameters: rwmh\|smc |
+| `--burnin` | `-B` | `Int64` | `150` | — | Burn-in draws for RWMH (joint mode) |
+| `--n-particles` | — | `Int64` | `150` | — | SMC particle count for --method smc (joint mode) *(aliases: `--npart`)* |
 | `--step-scale` | — | `Float64` | `0.05` | — | RWMH proposal step scale in unconstrained space (joint mode) |
-| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
+| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) *(aliases: `--obs`)* |
 | `--measurement-jitter` | — | `Float64` | `1.0e-8` | — | Minimal diagonal regularization when n > m or singular |
-| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `blanchard-kahn` | DSGE linear solver when given a model file: gensys\|klein\|perturbation\|blanchard-kahn |
-| `--order` | — | `Int64` | `1` | — | Perturbation order when --solver perturbation (1, 2, or 3) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--solver` | `-s` | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `blanchard-kahn` | DSGE linear solver when given a model file: gensys\|klein\|perturbation\|blanchard-kahn |
+| `--order` | `-O` | `Int64` | `1` | — | Perturbation order when --solver perturbation (1, 2, or 3) |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--no-intercept` | — | Exclude the constant intercept from the VAR design matrix |
-| `--plot` | — | Open interactive plot in browser |
+| `--no-intercept` | — | Exclude the constant intercept from the VAR design matrix *(aliases: `--noint`)* |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `ABCDSystem`, `DSGESolution`, `PerturbationSolution`, `HADSGESolution`, `StateSpaceModel`, `ModelSpec`
 
-**Output tables:** `dsge_var_posterior` (Bayesian DSGE-VAR(lambda) posterior parameter summary (mean, std, 5%/50%/95% quantiles))
+**Output tables:** `dsge_var_posterior` (Bayesian DSGE-VAR(lambda) posterior parameter summary (mean, std, median and credible interval bounds))
 
 ### [`frdc dsge var fevd`](@id ref-dsge-var-fevd)
 
@@ -2033,35 +2101,36 @@ Compute Bayesian forecast error variance decomposition from a DSGE-VAR(lambda) p
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--id` | — | `String` | `dsge-qr` | `dsge-qr`, `cholesky`, `long-run` | Structural identification: dsge-qr\|cholesky\|long-run |
-| `--horizons` | — | `Int64` | `20` | — | FEVD horizon H (>= 1) |
-| `--quantiles` | — | `String` | `0.16,0.5,0.84` | — | Comma-separated posterior credible quantiles in (0, 1) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--id` | `-i` | `String` | `dsge-qr` | `dsge-qr`, `cholesky`, `long-run` | Structural identification: dsge-qr\|cholesky\|long-run |
+| `--horizons` | `-H` | `Int64` | `20` | — | FEVD horizon H (>= 1) *(aliases: `--horizon`, `--hor`)* |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--quantiles` | `-Q` | `String` | `0.16,0.5,0.84` | — | Posterior/bootstrap band quantiles in (0, 1) (default: 0.16,0.5,0.84 = 68% band) *(aliases: `--qtl`)* |
 | `--point-estimate` | — | `String` | `mean` | `mean`, `median` | Central posterior summary: mean\|median |
 | `--data` | `-d` | `String` | `""` | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 | `--lags` | `-p` | `Int64` | `4` | — | VAR lag order p (>= 1) |
-| `--lambda` | — | `String` | `auto` | — | DSGE prior weight: auto, positive float >= lambda_min, or inf |
-| `--draws` | — | `Int64` | `1000` | — | Number of posterior draws |
+| `--lambda` | `-l` | `String` | `auto` | — | DSGE prior weight: auto, positive float >= lambda_min, or inf |
+| `--draws` | `-n` | `Int64` | `1000` | — | Number of posterior draws *(aliases: `--n-draws`)* |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file (enables full Bayesian ModelSpec route) |
 | `--prior` | — | `String` *(repeatable)* | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
-| `--method` | — | `String` | `rwmh` | `rwmh`, `smc` | Joint-mode posterior sampler over DSGE parameters: rwmh\|smc |
-| `--burnin` | — | `Int64` | `150` | — | Burn-in draws for RWMH (joint mode) |
-| `--n-particles` | — | `Int64` | `150` | — | SMC particle count for --method smc (joint mode) |
+| `--method` | `-m` | `String` | `rwmh` | `rwmh`, `smc` | Joint-mode posterior sampler over DSGE parameters: rwmh\|smc |
+| `--burnin` | `-B` | `Int64` | `150` | — | Burn-in draws for RWMH (joint mode) |
+| `--n-particles` | — | `Int64` | `150` | — | SMC particle count for --method smc (joint mode) *(aliases: `--npart`)* |
 | `--step-scale` | — | `Float64` | `0.05` | — | RWMH proposal step scale in unconstrained space (joint mode) |
-| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
+| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) *(aliases: `--obs`)* |
 | `--measurement-jitter` | — | `Float64` | `1.0e-8` | — | Minimal diagonal regularization when n > m or singular |
-| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `blanchard-kahn` | DSGE linear solver when given a model file: gensys\|klein\|perturbation\|blanchard-kahn |
-| `--order` | — | `Int64` | `1` | — | Perturbation order when --solver perturbation (1, 2, or 3) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--solver` | `-s` | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `blanchard-kahn` | DSGE linear solver when given a model file: gensys\|klein\|perturbation\|blanchard-kahn |
+| `--order` | `-O` | `Int64` | `1` | — | Perturbation order when --solver perturbation (1, 2, or 3) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--no-intercept` | — | Exclude the constant intercept when estimating inline |
-| `--plot` | — | Open interactive plot in browser |
+| `--no-intercept` | — | Exclude the constant intercept when estimating inline *(aliases: `--noint`)* |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `DSGEVARPosterior`, `ABCDSystem`, `DSGESolution`, `PerturbationSolution`, `HADSGESolution`, `StateSpaceModel`, `ModelSpec`; result types: `BayesianFEVD`
 
@@ -2077,35 +2146,35 @@ Compute out-of-sample multi-step density forecasts from a DSGE-VAR(lambda) poste
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--horizons` | — | `Int64` | `12` | — | Forecast horizon h (>= 1) |
-| `--quantiles` | — | `String` | `0.16,0.5,0.84` | — | Credible band quantiles in (0, 1) (outer span sets conf_level unless --conf-level is given) |
-| `--conf-level` | — | `Float64` | `0.0` | — | Explicit credible interval width in (0, 1) (0 = derive from --quantiles) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--horizons` | `-H` | `Int64` | `12` | — | Forecast horizon h (>= 1) *(aliases: `--horizon`, `--hor`)* |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--quantiles` | `-Q` | `String` | `0.16,0.5,0.84` | — | Posterior/bootstrap band quantiles in (0, 1) (default: 0.16,0.5,0.84 = 68% band) *(aliases: `--qtl`)* |
 | `--point-estimate` | — | `String` | `mean` | `mean`, `median` | Central posterior summary: mean\|median |
 | `--data` | `-d` | `String` | `""` | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 | `--lags` | `-p` | `Int64` | `4` | — | VAR lag order p (>= 1) |
-| `--lambda` | — | `String` | `auto` | — | DSGE prior weight: auto, positive float >= lambda_min, or inf |
-| `--draws` | — | `Int64` | `1000` | — | Number of posterior draws |
+| `--lambda` | `-l` | `String` | `auto` | — | DSGE prior weight: auto, positive float >= lambda_min, or inf |
+| `--draws` | `-n` | `Int64` | `1000` | — | Number of posterior draws *(aliases: `--n-draws`)* |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file (enables full Bayesian ModelSpec route) |
 | `--prior` | — | `String` *(repeatable)* | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
-| `--method` | — | `String` | `rwmh` | `rwmh`, `smc` | Joint-mode posterior sampler over DSGE parameters: rwmh\|smc |
-| `--burnin` | — | `Int64` | `150` | — | Burn-in draws for RWMH (joint mode) |
-| `--n-particles` | — | `Int64` | `150` | — | SMC particle count for --method smc (joint mode) |
+| `--method` | `-m` | `String` | `rwmh` | `rwmh`, `smc` | Joint-mode posterior sampler over DSGE parameters: rwmh\|smc |
+| `--burnin` | `-B` | `Int64` | `150` | — | Burn-in draws for RWMH (joint mode) |
+| `--n-particles` | — | `Int64` | `150` | — | SMC particle count for --method smc (joint mode) *(aliases: `--npart`)* |
 | `--step-scale` | — | `Float64` | `0.05` | — | RWMH proposal step scale in unconstrained space (joint mode) |
-| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
+| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) *(aliases: `--obs`)* |
 | `--measurement-jitter` | — | `Float64` | `1.0e-8` | — | Minimal diagonal regularization when n > m or singular |
-| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `blanchard-kahn` | DSGE linear solver when given a model file: gensys\|klein\|perturbation\|blanchard-kahn |
-| `--order` | — | `Int64` | `1` | — | Perturbation order when --solver perturbation (1, 2, or 3) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--solver` | `-s` | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `blanchard-kahn` | DSGE linear solver when given a model file: gensys\|klein\|perturbation\|blanchard-kahn |
+| `--order` | `-O` | `Int64` | `1` | — | Perturbation order when --solver perturbation (1, 2, or 3) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--no-intercept` | — | Exclude the constant intercept when estimating inline |
-| `--plot` | — | Open interactive plot in browser |
+| `--no-intercept` | — | Exclude the constant intercept when estimating inline *(aliases: `--noint`)* |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `DSGEVARPosterior`, `ABCDSystem`, `DSGESolution`, `PerturbationSolution`, `HADSGESolution`, `StateSpaceModel`, `ModelSpec`; result types: `BVARForecast`
 
@@ -2121,35 +2190,36 @@ Compute Bayesian historical shock decomposition from a DSGE-VAR(lambda) posterio
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--id` | — | `String` | `dsge-qr` | `dsge-qr`, `cholesky`, `long-run` | Structural identification: dsge-qr\|cholesky\|long-run |
-| `--horizons` | — | `Int64` | `0` | — | Truncation horizon (0 = full effective sample) |
-| `--quantiles` | — | `String` | `0.16,0.5,0.84` | — | Comma-separated posterior credible quantiles in (0, 1) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--id` | `-i` | `String` | `dsge-qr` | `dsge-qr`, `cholesky`, `long-run` | Structural identification: dsge-qr\|cholesky\|long-run |
+| `--horizons` | `-H` | `Int64` | `0` | — | Truncation horizon (0 = full effective sample) *(aliases: `--horizon`, `--hor`)* |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--quantiles` | `-Q` | `String` | `0.16,0.5,0.84` | — | Posterior/bootstrap band quantiles in (0, 1) (default: 0.16,0.5,0.84 = 68% band) *(aliases: `--qtl`)* |
 | `--point-estimate` | — | `String` | `mean` | `mean`, `median` | Central posterior summary: mean\|median |
 | `--data` | `-d` | `String` | `""` | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 | `--lags` | `-p` | `Int64` | `4` | — | VAR lag order p (>= 1) |
-| `--lambda` | — | `String` | `auto` | — | DSGE prior weight: auto, positive float >= lambda_min, or inf |
-| `--draws` | — | `Int64` | `1000` | — | Number of posterior draws |
+| `--lambda` | `-l` | `String` | `auto` | — | DSGE prior weight: auto, positive float >= lambda_min, or inf |
+| `--draws` | `-n` | `Int64` | `1000` | — | Number of posterior draws *(aliases: `--n-draws`)* |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file (enables full Bayesian ModelSpec route) |
 | `--prior` | — | `String` *(repeatable)* | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
-| `--method` | — | `String` | `rwmh` | `rwmh`, `smc` | Joint-mode posterior sampler over DSGE parameters: rwmh\|smc |
-| `--burnin` | — | `Int64` | `150` | — | Burn-in draws for RWMH (joint mode) |
-| `--n-particles` | — | `Int64` | `150` | — | SMC particle count for --method smc (joint mode) |
+| `--method` | `-m` | `String` | `rwmh` | `rwmh`, `smc` | Joint-mode posterior sampler over DSGE parameters: rwmh\|smc |
+| `--burnin` | `-B` | `Int64` | `150` | — | Burn-in draws for RWMH (joint mode) |
+| `--n-particles` | — | `Int64` | `150` | — | SMC particle count for --method smc (joint mode) *(aliases: `--npart`)* |
 | `--step-scale` | — | `Float64` | `0.05` | — | RWMH proposal step scale in unconstrained space (joint mode) |
-| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
+| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) *(aliases: `--obs`)* |
 | `--measurement-jitter` | — | `Float64` | `1.0e-8` | — | Minimal diagonal regularization when n > m or singular |
-| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `blanchard-kahn` | DSGE linear solver when given a model file: gensys\|klein\|perturbation\|blanchard-kahn |
-| `--order` | — | `Int64` | `1` | — | Perturbation order when --solver perturbation (1, 2, or 3) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--solver` | `-s` | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `blanchard-kahn` | DSGE linear solver when given a model file: gensys\|klein\|perturbation\|blanchard-kahn |
+| `--order` | `-O` | `Int64` | `1` | — | Perturbation order when --solver perturbation (1, 2, or 3) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--no-intercept` | — | Exclude the constant intercept when estimating inline |
-| `--plot` | — | Open interactive plot in browser |
+| `--no-intercept` | — | Exclude the constant intercept when estimating inline *(aliases: `--noint`)* |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `DSGEVARPosterior`, `ABCDSystem`, `DSGESolution`, `PerturbationSolution`, `HADSGESolution`, `StateSpaceModel`, `ModelSpec`; result types: `BayesianHistoricalDecomposition`
 
@@ -2165,36 +2235,37 @@ Compute Bayesian structural impulse responses from a DSGE-VAR(lambda) posterior 
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--id` | — | `String` | `dsge-qr` | `dsge-qr`, `cholesky`, `long-run` | Structural identification: dsge-qr\|cholesky\|long-run |
-| `--horizons` | — | `Int64` | `20` | — | IRF horizon H (>= 1) |
-| `--shock` | — | `Int64` | `0` | — | Filter output to 1-based shock index (0 = all shocks) |
-| `--quantiles` | — | `String` | `0.16,0.5,0.84` | — | Comma-separated posterior credible quantiles in (0, 1) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--id` | `-i` | `String` | `dsge-qr` | `dsge-qr`, `cholesky`, `long-run` | Structural identification: dsge-qr\|cholesky\|long-run |
+| `--horizons` | `-H` | `Int64` | `20` | — | IRF horizon H (>= 1) *(aliases: `--horizon`, `--hor`)* |
+| `--shock` | `-K` | `Int64` | `0` | — | Filter output to 1-based shock index (0 = all shocks) |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--quantiles` | `-Q` | `String` | `0.16,0.5,0.84` | — | Posterior/bootstrap band quantiles in (0, 1) (default: 0.16,0.5,0.84 = 68% band) *(aliases: `--qtl`)* |
 | `--point-estimate` | — | `String` | `mean` | `mean`, `median` | Central posterior summary: mean\|median |
 | `--data` | `-d` | `String` | `""` | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 | `--lags` | `-p` | `Int64` | `4` | — | VAR lag order p (>= 1) |
-| `--lambda` | — | `String` | `auto` | — | DSGE prior weight: auto, positive float >= lambda_min, or inf |
-| `--draws` | — | `Int64` | `1000` | — | Number of posterior draws |
+| `--lambda` | `-l` | `String` | `auto` | — | DSGE prior weight: auto, positive float >= lambda_min, or inf |
+| `--draws` | `-n` | `Int64` | `1000` | — | Number of posterior draws *(aliases: `--n-draws`)* |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML file (enables full Bayesian ModelSpec route) |
 | `--prior` | — | `String` *(repeatable)* | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
-| `--method` | — | `String` | `rwmh` | `rwmh`, `smc` | Joint-mode posterior sampler over DSGE parameters: rwmh\|smc |
-| `--burnin` | — | `Int64` | `150` | — | Burn-in draws for RWMH (joint mode) |
-| `--n-particles` | — | `Int64` | `150` | — | SMC particle count for --method smc (joint mode) |
+| `--method` | `-m` | `String` | `rwmh` | `rwmh`, `smc` | Joint-mode posterior sampler over DSGE parameters: rwmh\|smc |
+| `--burnin` | `-B` | `Int64` | `150` | — | Burn-in draws for RWMH (joint mode) |
+| `--n-particles` | — | `Int64` | `150` | — | SMC particle count for --method smc (joint mode) *(aliases: `--npart`)* |
 | `--step-scale` | — | `Float64` | `0.05` | — | RWMH proposal step scale in unconstrained space (joint mode) |
-| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
+| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) *(aliases: `--obs`)* |
 | `--measurement-jitter` | — | `Float64` | `1.0e-8` | — | Minimal diagonal regularization when n > m or singular |
-| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `blanchard-kahn` | DSGE linear solver when given a model file: gensys\|klein\|perturbation\|blanchard-kahn |
-| `--order` | — | `Int64` | `1` | — | Perturbation order when --solver perturbation (1, 2, or 3) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--solver` | `-s` | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `blanchard-kahn` | DSGE linear solver when given a model file: gensys\|klein\|perturbation\|blanchard-kahn |
+| `--order` | `-O` | `Int64` | `1` | — | Perturbation order when --solver perturbation (1, 2, or 3) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--no-intercept` | — | Exclude the constant intercept when estimating inline |
-| `--plot` | — | Open interactive plot in browser |
+| `--no-intercept` | — | Exclude the constant intercept when estimating inline *(aliases: `--noint`)* |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `DSGEVARPosterior`, `ABCDSystem`, `DSGESolution`, `PerturbationSolution`, `HADSGESolution`, `StateSpaceModel`, `ModelSpec`; result types: `BayesianImpulseResponse`
 
@@ -2210,26 +2281,26 @@ Profile the closed-form DSGE-VAR(lambda) log marginal likelihood and select opti
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--data` | `-d` | `String` | `""` | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 | `--lags` | `-p` | `Int64` | `4` | — | VAR lag order p (>= 1) |
-| `--lambda` | — | `String` | `""` | — | Single lambda value (or inf) to evaluate directly via dsge_var_logml |
+| `--lambda` | `-l` | `String` | `""` | — | Single lambda value (or inf) to evaluate directly via dsge_var_logml |
 | `--lambda-grid` | — | `String` | `""` | — | Comma-separated candidate lambda grid values |
-| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
+| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) *(aliases: `--obs`)* |
 | `--measurement-jitter` | — | `Float64` | `1.0e-8` | — | Minimal diagonal regularization when n > m or singular |
-| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `blanchard-kahn` | DSGE linear solver when given a model file: gensys\|klein\|perturbation\|blanchard-kahn |
-| `--order` | — | `Int64` | `1` | — | Perturbation order when --solver perturbation (1, 2, or 3) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--solver` | `-s` | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `blanchard-kahn` | DSGE linear solver when given a model file: gensys\|klein\|perturbation\|blanchard-kahn |
+| `--order` | `-O` | `Int64` | `1` | — | Perturbation order when --solver perturbation (1, 2, or 3) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--no-refine` | — | Disable Brent refinement around the best finite grid point |
-| `--no-intercept` | — | Exclude the constant intercept from the VAR design matrix |
-| `--plot` | — | Open interactive plot in browser |
+| `--no-intercept` | — | Exclude the constant intercept from the VAR design matrix *(aliases: `--noint`)* |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `ABCDSystem`, `DSGESolution`, `PerturbationSolution`, `HADSGESolution`, `StateSpaceModel`, `ModelSpec`; result types: `DSGEVARLambdaProfile`
 
@@ -2245,23 +2316,23 @@ Construct the Del Negro-Schorfheide (2004) Normal-Inverse-Wishart DSGE-VAR(lambd
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--lags` | `-p` | `Int64` | `4` | — | VAR lag order p (>= 1) |
-| `--lambda` | — | `String` | `1.0` | — | DSGE prior weight (>= lambda_min, or inf for dogmatic DSGE limit) |
+| `--lambda` | `-l` | `String` | `1.0` | — | DSGE prior weight (>= lambda_min, or inf for dogmatic DSGE limit) |
 | `--t-obs` | — | `Int64` | `200` | — | Effective VAR sample size T_obs (>= 1) |
-| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) |
+| `--observables` | — | `String` | `""` | — | Observable variable names (comma-separated) *(aliases: `--obs`)* |
 | `--measurement-jitter` | — | `Float64` | `1.0e-8` | — | Minimal diagonal regularization when n > m or singular |
-| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `blanchard-kahn` | DSGE linear solver when given a model file: gensys\|klein\|perturbation\|blanchard-kahn |
-| `--order` | — | `Int64` | `1` | — | Perturbation order when --solver perturbation (1, 2, or 3) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--solver` | `-s` | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `blanchard-kahn` | DSGE linear solver when given a model file: gensys\|klein\|perturbation\|blanchard-kahn |
+| `--order` | `-O` | `Int64` | `1` | — | Perturbation order when --solver perturbation (1, 2, or 3) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--no-intercept` | — | Exclude the constant intercept from the VAR design matrix |
-| `--plot` | — | Open interactive plot in browser |
+| `--no-intercept` | — | Exclude the constant intercept from the VAR design matrix *(aliases: `--noint`)* |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** model types: `ABCDSystem`, `DSGESolution`, `PerturbationSolution`, `HADSGESolution`, `StateSpaceModel`, `ModelSpec`
 

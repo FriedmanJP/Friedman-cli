@@ -1,6 +1,6 @@
 # [Policy Counterfactuals & Optimal Policy](@id chap-policy)
 
-Forward-looking monetary/fiscal policy counterfactuals, structural-vs-sufficient causal effect menus, counterfactual history decompositions, sequence-space HA/DSGE news shocks, and quadratic-loss optimal policy projections (McKay & Wolf 2023; de Groot et al. 2021) span [`frdc policy`](@ref ref-policy). Configure `[rule]`, `[loss]`, `[loss.smoothing]`, and OPP floor/ZLB `[[constraint]]` blocks via [GMM, SMM, Systems, State-Space & Policy](@ref cfg-models-policy). See [MacroEconometricModels.jl — Policy Counterfactuals](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/policy/).
+Forward-looking monetary/fiscal policy counterfactuals, structural-vs-sufficient causal effect menus, counterfactual history decompositions, sequence-space HA/DSGE news shocks, and quadratic-loss optimal policy projections (McKay & Wolf 2023; de Groot et al. 2021) span [`frdc policy`](@ref ref-policy), reporting **68%** posterior/bootstrap uncertainty bands by default (`-L`/`--conf-level 0.68`, `-Q`/`--quantiles 0.16,0.5,0.84`). Configure `[rule]`, `[loss]`, `[loss.smoothing]`, and OPP floor/ZLB `[[constraint]]` blocks via [GMM, SMM, Systems, State-Space & Policy](@ref cfg-models-policy). See [MacroEconometricModels.jl — Policy Counterfactuals](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/policy/).
 
 ## Quick Start
 
@@ -12,53 +12,53 @@ frdc --quiet data simulate var --periods 150 --burn 50 --seed 7 --save-data pol_
 frdc policy counterfactual var pol_sim --shocks 3 --nonpolicy-shock 1 --outcomes y1=1,y2=2 --instruments y3=3 --horizon 6 --rule rate-peg
 ```
 ```text
-                            Policy Counterfactual Paths
-┌────────┬──────────┬────────────┬───────────┬────────────────┬─────────┬─────────┐
-│ period │ variable │    role    │ baseline  │ counterfactual │  lower  │  upper  │
-├────────┼──────────┼────────────┼───────────┼────────────────┼─────────┼─────────┤
-│   1    │    y1    │  outcome   │  1.05875  │    1.05875     │ missing │ missing │
-│   2    │    y1    │  outcome   │ 0.553439  │    0.594849    │ missing │ missing │
-│   3    │    y1    │  outcome   │ 0.386411  │    0.406534    │ missing │ missing │
-│   4    │    y1    │  outcome   │ 0.269918  │    0.281265    │ missing │ missing │
-│   5    │    y1    │  outcome   │ 0.189571  │    0.19652     │ missing │ missing │
-│   6    │    y1    │  outcome   │ 0.133503  │    0.13802     │ missing │ missing │
-│   1    │    y2    │  outcome   │ 0.424755  │    0.424755    │ missing │ missing │
-│   2    │    y2    │  outcome   │ 0.478048  │    0.457307    │ missing │ missing │
-│   3    │    y2    │  outcome   │ 0.346778  │    0.345005    │ missing │ missing │
-│   4    │    y2    │  outcome   │  0.24945  │    0.252524    │ missing │ missing │
-│   5    │    y2    │  outcome   │ 0.177835  │    0.181609    │ missing │ missing │
-│   6    │    y2    │  outcome   │ 0.126217  │    0.129473    │ missing │ missing │
-│   1    │    y3    │ instrument │ 0.336632  │  -0.00101535   │ missing │ missing │
-│   2    │    y3    │ instrument │ 0.0531898 │   -0.0188509   │ missing │ missing │
-│   3    │    y3    │ instrument │ 0.0700966 │   0.0440045    │ missing │ missing │
-│   4    │    y3    │ instrument │ 0.059453  │   0.0508975    │ missing │ missing │
-│   5    │    y3    │ instrument │ 0.0456978 │   0.0432771    │ missing │ missing │
-│   6    │    y3    │ instrument │ 0.033642  │   0.0332668    │ missing │ missing │
-└────────┴──────────┴────────────┴───────────┴────────────────┴─────────┴─────────┘
+                           Policy Counterfactual Paths
+┌────────┬──────────┬────────────┬──────────┬────────────────┬─────────┬─────────┐
+│ period │ variable │    role    │ baseline │ counterfactual │  lower  │  upper  │
+├────────┼──────────┼────────────┼──────────┼────────────────┼─────────┼─────────┤
+│   1    │    y1    │  outcome   │  1.059   │     1.059      │ missing │ missing │
+│   2    │    y1    │  outcome   │  0.553   │     0.595      │ missing │ missing │
+│   3    │    y1    │  outcome   │  0.386   │     0.407      │ missing │ missing │
+│   4    │    y1    │  outcome   │  0.270   │     0.281      │ missing │ missing │
+│   5    │    y1    │  outcome   │  0.190   │     0.197      │ missing │ missing │
+│   6    │    y1    │  outcome   │  0.134   │     0.138      │ missing │ missing │
+│   1    │    y2    │  outcome   │  0.425   │     0.425      │ missing │ missing │
+│   2    │    y2    │  outcome   │  0.478   │     0.457      │ missing │ missing │
+│   3    │    y2    │  outcome   │  0.347   │     0.345      │ missing │ missing │
+│   4    │    y2    │  outcome   │  0.249   │     0.253      │ missing │ missing │
+│   5    │    y2    │  outcome   │  0.178   │     0.182      │ missing │ missing │
+│   6    │    y2    │  outcome   │  0.126   │     0.129      │ missing │ missing │
+│   1    │    y3    │ instrument │  0.337   │     -0.001     │ missing │ missing │
+│   2    │    y3    │ instrument │  0.053   │     -0.019     │ missing │ missing │
+│   3    │    y3    │ instrument │  0.070   │     0.044      │ missing │ missing │
+│   4    │    y3    │ instrument │  0.059   │     0.051      │ missing │ missing │
+│   5    │    y3    │ instrument │  0.046   │     0.043      │ missing │ missing │
+│   6    │    y3    │ instrument │  0.034   │     0.033      │ missing │ missing │
+└────────┴──────────┴────────────┴──────────┴────────────────┴─────────┴─────────┘
 Enforcing Policy Shocks (nu)
-┌───────┬───────────┐
-│ shock │    nu     │
-├───────┼───────────┤
-│  y3   │ -0.370186 │
-└───────┴───────────┘
+┌───────┬────────┐
+│ shock │   nu   │
+├───────┼────────┤
+│  y3   │ -0.370 │
+└───────┴────────┘
 Implementation Error Path
-┌───────┬───────────┐
-│ index │   error   │
-├───────┼───────────┤
-│   1   │ -0.001015 │
-│   2   │ -0.018851 │
-│   3   │ 0.044004  │
-│   4   │ 0.050898  │
-│   5   │ 0.043277  │
-│   6   │ 0.033267  │
-└───────┴───────────┘
+┌───────┬────────┐
+│ index │ error  │
+├───────┼────────┤
+│   1   │ -0.001 │
+│   2   │ -0.019 │
+│   3   │ 0.044  │
+│   4   │ 0.051  │
+│   5   │ 0.043  │
+│   6   │ 0.033  │
+└───────┴────────┘
                                                                     Counterfactual Summary
 ┌─────────────────┬───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │     metric      │                                                                   value                                                                   │
 ├─────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
 │      rule       │                                                                 rate peg                                                                  │
 │        H        │                                                                     6                                                                     │
-│  rel_residual   │                                                                 0.248025                                                                  │
+│  rel_residual   │                                                                   0.248                                                                   │
 │     spanned     │                                                                   false                                                                   │
 │  n_draws_used   │                                                                     0                                                                     │
 │ n_draws_failed  │                                                                     0                                                                     │
@@ -94,29 +94,29 @@ frdc --quiet data simulate var --periods 150 --burn 50 --seed 7 --save-data pol_
 frdc policy effects var pol_sim2 --shocks 3 --outcomes y1=1,y2=2 --instruments y3=3 --horizon 6 --normalize instrument-impact
 ```
 ```text
-              Policy Causal Effects Menu
-┌──────────┬────────────┬───────┬─────────┬───────────┐
-│ variable │    role    │ shock │ horizon │   value   │
-├──────────┼────────────┼───────┼─────────┼───────────┤
-│    y1    │  outcome   │  y3   │    1    │    0.0    │
-│    y1    │  outcome   │  y3   │    2    │ -0.12264  │
-│    y1    │  outcome   │  y3   │    3    │ -0.059599 │
-│    y1    │  outcome   │  y3   │    4    │ -0.033609 │
-│    y1    │  outcome   │  y3   │    5    │ -0.020582 │
-│    y1    │  outcome   │  y3   │    6    │ -0.013376 │
-│    y2    │  outcome   │  y3   │    1    │    0.0    │
-│    y2    │  outcome   │  y3   │    2    │ 0.061427  │
-│    y2    │  outcome   │  y3   │    3    │ 0.005253  │
-│    y2    │  outcome   │  y3   │    4    │ -0.009104 │
-│    y2    │  outcome   │  y3   │    5    │ -0.011176 │
-│    y2    │  outcome   │  y3   │    6    │ -0.009641 │
-│    y3    │ instrument │  y3   │    1    │    1.0    │
-│    y3    │ instrument │  y3   │    2    │ 0.213361  │
-│    y3    │ instrument │  y3   │    3    │ 0.077276  │
-│    y3    │ instrument │  y3   │    4    │ 0.025338  │
-│    y3    │ instrument │  y3   │    5    │ 0.007169  │
-│    y3    │ instrument │  y3   │    6    │ 0.001111  │
-└──────────┴────────────┴───────┴─────────┴───────────┘
+             Policy Causal Effects Menu
+┌──────────┬────────────┬───────┬─────────┬────────┐
+│ variable │    role    │ shock │ horizon │ value  │
+├──────────┼────────────┼───────┼─────────┼────────┤
+│    y1    │  outcome   │  y3   │    1    │ 0.000  │
+│    y1    │  outcome   │  y3   │    2    │ -0.123 │
+│    y1    │  outcome   │  y3   │    3    │ -0.060 │
+│    y1    │  outcome   │  y3   │    4    │ -0.034 │
+│    y1    │  outcome   │  y3   │    5    │ -0.021 │
+│    y1    │  outcome   │  y3   │    6    │ -0.013 │
+│    y2    │  outcome   │  y3   │    1    │ 0.000  │
+│    y2    │  outcome   │  y3   │    2    │ 0.061  │
+│    y2    │  outcome   │  y3   │    3    │ 0.005  │
+│    y2    │  outcome   │  y3   │    4    │ -0.009 │
+│    y2    │  outcome   │  y3   │    5    │ -0.011 │
+│    y2    │  outcome   │  y3   │    6    │ -0.010 │
+│    y3    │ instrument │  y3   │    1    │ 1.000  │
+│    y3    │ instrument │  y3   │    2    │ 0.213  │
+│    y3    │ instrument │  y3   │    3    │ 0.077  │
+│    y3    │ instrument │  y3   │    4    │ 0.025  │
+│    y3    │ instrument │  y3   │    5    │ 0.007  │
+│    y3    │ instrument │  y3   │    6    │ 0.001  │
+└──────────┴────────────┴───────┴─────────┴────────┘
    Policy Causal Effects Summary
 ┌──────────────┬───────────────────┐
 │    metric    │       value       │

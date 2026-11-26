@@ -1,6 +1,6 @@
 # [VAR, BVAR, VECM & Factor Models](@id chap-multivariate)
 
-Reduced-form and high-dimensional multivariate time-series models capture joint lag feedback, Bayesian shrinkage, long-run cointegration, mixed-frequency ragged edges, drifting parameters, and pervasive factor comovement across [`estimate multivariate`](@ref ref-fam-estimate-multivariate) and [`estimate factor`](@ref ref-fam-estimate-factor), paired with [`forecast`](@ref ref-forecast), [`predict`](@ref ref-predict), and [`residuals`](@ref ref-residuals). See [MacroEconometricModels.jl — VAR & VECM](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/var/) and [Factor Models](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/factors/).
+Reduced-form and high-dimensional multivariate time-series models capture joint lag feedback, Bayesian shrinkage, long-run cointegration, mixed-frequency ragged edges, drifting parameters, and pervasive factor comovement across [`estimate multivariate`](@ref ref-fam-estimate-multivariate) and [`estimate factor`](@ref ref-fam-estimate-factor), paired with [`forecast`](@ref ref-forecast), [`predict`](@ref ref-predict), and [`residuals`](@ref ref-residuals). All multivariate estimators, IRFs, FEVDs, HDs, and forecasts report **68%** confidence/credible bands by default (`-L`/`--conf-level 0.68`, `-Q`/`--quantiles 0.16,0.5,0.84`). See [MacroEconometricModels.jl — VAR & VECM](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/var/) and [Factor Models](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/factors/).
 
 ## Quick Start
 
@@ -13,34 +13,34 @@ frdc --seed 42 --quiet estimate multivariate var macro --lags 2 --save-model var
 frdc forecast multivariate var --model var_fit.jld2 --horizons 4 --ci-method analytical
 ```
 ```text
-              VAR(2) Forecast (h=4, 95% CI)
-┌─────────┬──────────┬───────────┬───────────┬───────────┐
-│ horizon │ variable │   value   │   lower   │   upper   │
-├─────────┼──────────┼───────────┼───────────┼───────────┤
-│    1    │   LRM    │  12.0431  │  12.0017  │  12.0846  │
-│    1    │   LRY    │  6.06282  │  6.02513  │  6.10051  │
-│    1    │   LPY    │ 0.477316  │ 0.463932  │ 0.490701  │
-│    1    │   IBO    │ 0.116264  │  0.10072  │ 0.131807  │
-│    1    │   IDE    │ 0.074713  │ 0.0652152 │ 0.0842107 │
-│    2    │   LRM    │  12.0441  │  11.9899  │  12.0983  │
-│    2    │   LRY    │  6.07882  │  6.02663  │  6.13101  │
-│    2    │   LPY    │ 0.485872  │ 0.466562  │ 0.505182  │
-│    2    │   IBO    │ 0.116847  │ 0.0904624 │ 0.143231  │
-│    2    │   IDE    │ 0.0751382 │ 0.0603916 │ 0.0898848 │
-│    3    │   LRM    │  12.0551  │  11.9834  │  12.1269  │
-│    3    │   LRY    │  6.08565  │  6.02649  │  6.14481  │
-│    3    │   LPY    │ 0.495256  │ 0.471094  │ 0.519417  │
-│    3    │   IBO    │  0.11898  │ 0.0841536 │ 0.153806  │
-│    3    │   IDE    │ 0.0758145 │ 0.0573776 │ 0.0942515 │
-│    4    │   LRM    │  12.0546  │  11.9636  │  12.1457  │
-│    4    │   LRY    │  6.09093  │  6.0274   │  6.15446  │
-│    4    │   LPY    │  0.50496  │ 0.476321  │ 0.533598  │
-│    4    │   IBO    │ 0.120596  │ 0.079573  │ 0.161619  │
-│    4    │   IDE    │ 0.0773089 │ 0.0562775 │ 0.0983403 │
-└─────────┴──────────┴───────────┴───────────┴───────────┘
+          VAR(2) Forecast (h=4, 68% CI)
+┌─────────┬──────────┬────────┬────────┬────────┐
+│ horizon │ variable │ value  │ lower  │ upper  │
+├─────────┼──────────┼────────┼────────┼────────┤
+│    1    │   LRM    │ 12.043 │ 12.022 │ 12.064 │
+│    1    │   LRY    │ 6.063  │ 6.044  │ 6.082  │
+│    1    │   LPY    │ 0.477  │ 0.471  │ 0.484  │
+│    1    │   IBO    │ 0.116  │ 0.108  │ 0.124  │
+│    1    │   IDE    │ 0.075  │ 0.070  │ 0.080  │
+│    2    │   LRM    │ 12.044 │ 12.017 │ 12.072 │
+│    2    │   LRY    │ 6.079  │ 6.052  │ 6.105  │
+│    2    │   LPY    │ 0.486  │ 0.476  │ 0.496  │
+│    2    │   IBO    │ 0.117  │ 0.103  │ 0.130  │
+│    2    │   IDE    │ 0.075  │ 0.068  │ 0.083  │
+│    3    │   LRM    │ 12.055 │ 12.019 │ 12.092 │
+│    3    │   LRY    │ 6.086  │ 6.056  │ 6.116  │
+│    3    │   LPY    │ 0.495  │ 0.483  │ 0.508  │
+│    3    │   IBO    │ 0.119  │ 0.101  │ 0.137  │
+│    3    │   IDE    │ 0.076  │ 0.066  │ 0.085  │
+│    4    │   LRM    │ 12.055 │ 12.008 │ 12.101 │
+│    4    │   LRY    │ 6.091  │ 6.059  │ 6.123  │
+│    4    │   LPY    │ 0.505  │ 0.490  │ 0.519  │
+│    4    │   IBO    │ 0.121  │ 0.100  │ 0.141  │
+│    4    │   IDE    │ 0.077  │ 0.067  │ 0.088  │
+└─────────┴──────────┴────────┴────────┴────────┘
 ```
 
-The command populates `var_forecast` in `--format json` (`LRM = 12.0431` with 95% analytical CI `[12.0017, 12.0846]` and `LRY = 6.06282` at horizon 1), while saving `var_fit.jld2` avoids redundant OLS estimation when moving to [`irf var`](@ref ref-irf-var), [`fevd var`](@ref ref-fevd-var), and [`hd var`](@ref ref-hd-var).
+The command populates `var_forecast` in `--format json` (`LRM = 12.043` with 68% analytical CI `[12.022, 12.064]` and `LRY = 6.063` at horizon 1), while saving `var_fit.jld2` avoids redundant OLS estimation when moving to [`irf var`](@ref ref-irf-var), [`fevd var`](@ref ref-fevd-var), and [`hd var`](@ref ref-hd-var).
 
 ---
 
@@ -63,41 +63,41 @@ y_t = c + A_1 y_{t-1} + \dots + A_p y_{t-p} + u_t, \qquad u_t \sim (0, \Sigma).
 frdc --seed 42 estimate multivariate bvar :denmark --lags 2 --draws 300 --sampler direct
 ```
 ```text
-                                                            BVAR(2) Posterior Mean Coefficients
-┌──────────┬──────────────┬────────────┬───────────┬────────────┬────────────┬───────────┬───────────┬────────────┬─────────────┬────────────┬────────────┐
-│ equation │    const     │   LRM_L1   │  LRY_L1   │   LPY_L1   │   IBO_L1   │  IDE_L1   │  LRM_L2   │   LRY_L2   │   LPY_L2    │   IBO_L2   │   IDE_L2   │
-├──────────┼──────────────┼────────────┼───────────┼────────────┼────────────┼───────────┼───────────┼────────────┼─────────────┼────────────┼────────────┤
-│   LRM    │  0.0119857   │  0.877118  │ 0.067989  │ -0.170647  │ -0.243739  │ -0.162389 │ 0.122886  │ -0.0679922 │  0.170749   │  0.24229   │  0.161367  │
-│   LRY    │  0.00464019  │  0.170573  │ 0.878546  │ -0.104794  │ -0.0559101 │ -0.103104 │ -0.170566 │  0.121446  │  0.104554   │ 0.0560048  │  0.10113   │
-│   LPY    │   0.025765   │ -0.0522971 │ -0.017193 │  0.695814  │ 0.0536953  │ 0.0197322 │ 0.052289  │ 0.0171971  │   0.30337   │ -0.0527678 │ -0.018495  │
-│   IBO    │ -0.00111207  │ -0.0203468 │ 0.0780604 │ 0.00957638 │  0.714109  │ 0.0361603 │ 0.0203441 │ -0.0780697 │ -0.00973801 │  0.284686  │ -0.0369764 │
-│   IDE    │ -0.000842009 │ -0.014142  │ 0.0138447 │ 0.0359852  │  0.092833  │ 0.589778  │ 0.0141426 │ -0.0138534 │ -0.0359335  │ -0.0928275 │  0.407752  │
-└──────────┴──────────────┴────────────┴───────────┴────────────┴────────────┴───────────┴───────────┴────────────┴─────────────┴────────────┴────────────┘
+                                      BVAR(2) Posterior Mean Coefficients
+┌──────────┬────────┬────────┬────────┬────────┬────────┬────────┬────────┬────────┬────────┬────────┬────────┐
+│ equation │ const  │ LRM_L1 │ LRY_L1 │ LPY_L1 │ IBO_L1 │ IDE_L1 │ LRM_L2 │ LRY_L2 │ LPY_L2 │ IBO_L2 │ IDE_L2 │
+├──────────┼────────┼────────┼────────┼────────┼────────┼────────┼────────┼────────┼────────┼────────┼────────┤
+│   LRM    │ 0.012  │ 0.877  │ 0.068  │ -0.171 │ -0.244 │ -0.162 │ 0.123  │ -0.068 │ 0.171  │ 0.242  │ 0.161  │
+│   LRY    │ 0.005  │ 0.171  │ 0.879  │ -0.105 │ -0.056 │ -0.103 │ -0.171 │ 0.121  │ 0.105  │ 0.056  │ 0.101  │
+│   LPY    │ 0.026  │ -0.052 │ -0.017 │ 0.696  │ 0.054  │ 0.020  │ 0.052  │ 0.017  │ 0.303  │ -0.053 │ -0.018 │
+│   IBO    │ -0.001 │ -0.020 │ 0.078  │ 0.010  │ 0.714  │ 0.036  │ 0.020  │ -0.078 │ -0.010 │ 0.285  │ -0.037 │
+│   IDE    │ -0.001 │ -0.014 │ 0.014  │ 0.036  │ 0.093  │ 0.590  │ 0.014  │ -0.014 │ -0.036 │ -0.093 │ 0.408  │
+└──────────┴────────┴────────┴────────┴────────┴────────┴────────┴────────┴────────┴────────┴────────┴────────┘
 Minnesota Hyperparameters (glp)
-┌────────────────┬───────────┐
-│   parameter    │   value   │
-├────────────────┼───────────┤
-│      tau       │ 0.358498  │
-│     decay      │    0.5    │
-│     lambda     │ 0.0577708 │
-│       mu       │ 0.987902  │
-│     omega      │    1.0    │
-│     log_ml     │  766.07   │
-│ log_ml_default │  697.472  │
-│ log_posterior  │  761.733  │
-│   converged    │    1.0    │
-│    at_bound    │    0.0    │
-│   iterations   │   273.0   │
-└────────────────┴───────────┘
+┌────────────────┬─────────┐
+│   parameter    │  value  │
+├────────────────┼─────────┤
+│      tau       │  0.358  │
+│     decay      │  0.500  │
+│     lambda     │  0.058  │
+│       mu       │  0.988  │
+│     omega      │  1.000  │
+│     log_ml     │ 766.070 │
+│ log_ml_default │ 697.472 │
+│ log_posterior  │ 761.733 │
+│   converged    │  1.000  │
+│    at_bound    │  0.000  │
+│   iterations   │ 273.000 │
+└────────────────┴─────────┘
 Information Criteria (Posterior Mean)
-┌────────────────┬──────────┐
-│     metric     │  value   │
-├────────────────┼──────────┤
-│      AIC       │ -39.4682 │
-│      BIC       │ -37.4235 │
-│      HQC       │ -38.6819 │
-│ Log-likelihood │ 724.887  │
-└────────────────┴──────────┘
+┌────────────────┬─────────┐
+│     metric     │  value  │
+├────────────────┼─────────┤
+│      AIC       │ -39.468 │
+│      BIC       │ -37.424 │
+│      HQC       │ -38.682 │
+│ Log-likelihood │ 724.887 │
+└────────────────┴─────────┘
 ```
 
 The `bvar_coefficients`, `minnesota_hyperparameters`, and `information_criteria` tables show shrunk cross-lag responses alongside GLP-optimized overall tightness `tau = 0.358498` (`log_ml = 766.07` vs default `697.472`, `Log-likelihood = 724.887`).
@@ -121,35 +121,35 @@ where $\beta$ ($N \times r$) holds cointegrating vectors and $\alpha$ ($N \times
 frdc estimate multivariate vecm :denmark --lags 2 --deterministic constant
 ```
 ```text
-      Cointegrating Vectors (beta)
-┌──────────┬─────────────┬─────────────┐
-│ variable │     CV1     │     CV2     │
-├──────────┼─────────────┼─────────────┤
-│   LRM    │     1.0     │ 5.24407e-17 │
-│   LRY    │ -1.2858e-16 │     1.0     │
-│   LPY    │ -0.0723162  │  0.0598584  │
-│   IBO    │   4.38496   │  -1.11514   │
-│   IDE    │   -1.3413   │   0.73811   │
-└──────────┴─────────────┴─────────────┘
-   Adjustment Coefficients (alpha)
-┌──────────┬────────────┬────────────┐
-│ equation │    CV1     │    CV2     │
-├──────────┼────────────┼────────────┤
-│   LRM    │ -0.332801  │ 0.0659877  │
-│   LRY    │ -0.0234682 │ -0.0481643 │
-│   LPY    │ 0.0223528  │ -0.0634239 │
-│   IBO    │ 0.00148706 │ 0.0127652  │
-│   IDE    │ 0.0103393  │ 0.00686566 │
-└──────────┴────────────┴────────────┘
+ Cointegrating Vectors (beta)
+┌──────────┬────────┬────────┐
+│ variable │  CV1   │  CV2   │
+├──────────┼────────┼────────┤
+│   LRM    │ 1.000  │ 0.000  │
+│   LRY    │ 0.000  │ 1.000  │
+│   LPY    │ -0.072 │ 0.060  │
+│   IBO    │ 4.385  │ -1.115 │
+│   IDE    │ -1.341 │ 0.738  │
+└──────────┴────────┴────────┘
+Adjustment Coefficients (alpha)
+┌──────────┬────────┬────────┐
+│ equation │  CV1   │  CV2   │
+├──────────┼────────┼────────┤
+│   LRM    │ -0.333 │ 0.066  │
+│   LRY    │ -0.023 │ -0.048 │
+│   LPY    │ 0.022  │ -0.063 │
+│   IBO    │ 0.001  │ 0.013  │
+│   IDE    │ 0.010  │ 0.007  │
+└──────────┴────────┴────────┘
     Information Criteria
-┌────────────────┬──────────┐
-│     metric     │  value   │
-├────────────────┼──────────┤
-│      AIC       │ -44.9501 │
-│      BIC       │ -43.4631 │
-│      HQC       │ -44.3783 │
-│ Log-likelihood │ 855.159  │
-└────────────────┴──────────┘
+┌────────────────┬─────────┐
+│     metric     │  value  │
+├────────────────┼─────────┤
+│      AIC       │ -44.950 │
+│      BIC       │ -43.463 │
+│      HQC       │ -44.378 │
+│ Log-likelihood │ 855.159 │
+└────────────────┴─────────┘
 ```
 
 The output surfaces `cointegrating_vectors_beta`, `adjustment_coefficients_alpha` (`LRM` error-corrects significantly to `CV1` with `alpha = -0.332801`), and `information_criteria` (`AIC = -44.9501`, `Log-likelihood = 855.159`); verify Johansen rank selection independently with [`test coint johansen`](@ref ref-test-coint-johansen).
@@ -188,32 +188,32 @@ Scree Data (Eigenvalues & Variance Shares)
 ┌───────────┬────────────┬────────────┐
 │ component │ eigenvalue │ cumulative │
 ├───────────┼────────────┼────────────┤
-│     1     │  0.511257  │  0.511257  │
-│     2     │  0.284355  │  0.795612  │
-│     3     │ 0.0495776  │  0.845189  │
-│     4     │ 0.0340355  │  0.879225  │
-│     5     │ 0.0277125  │  0.906937  │
-│     6     │ 0.0255505  │  0.932488  │
-│     7     │ 0.0200195  │  0.952507  │
-│     8     │ 0.0191272  │  0.971635  │
-│     9     │ 0.0168665  │  0.988501  │
-│    10     │  0.011499  │    1.0     │
+│     1     │   0.511    │   0.511    │
+│     2     │   0.284    │   0.796    │
+│     3     │   0.050    │   0.845    │
+│     4     │   0.034    │   0.879    │
+│     5     │   0.028    │   0.907    │
+│     6     │   0.026    │   0.932    │
+│     7     │   0.020    │   0.953    │
+│     8     │   0.019    │   0.972    │
+│     9     │   0.017    │   0.989    │
+│    10     │   0.011    │   1.000    │
 └───────────┴────────────┴────────────┘
-           Factor Loadings
-┌──────────┬───────────┬────────────┐
-│ variable │    F1     │     F2     │
-├──────────┼───────────┼────────────┤
-│    x1    │ 0.795769  │ -0.393819  │
-│    x2    │ 0.254682  │  0.865641  │
-│    x3    │ -0.847457 │ -0.342054  │
-│    x4    │ 0.900288  │ 0.0999792  │
-│    x5    │ 0.668674  │ -0.535883  │
-│    x6    │ 0.450025  │ -0.695123  │
-│    x7    │ -0.612411 │ -0.682591  │
-│    x8    │  0.88683  │ -0.0876232 │
-│    x9    │ -0.75204  │ -0.516101  │
-│   x10    │ -0.667175 │  0.515989  │
-└──────────┴───────────┴────────────┘
+       Factor Loadings
+┌──────────┬────────┬────────┐
+│ variable │   F1   │   F2   │
+├──────────┼────────┼────────┤
+│    x1    │ 0.796  │ -0.394 │
+│    x2    │ 0.255  │ 0.866  │
+│    x3    │ -0.847 │ -0.342 │
+│    x4    │ 0.900  │ 0.100  │
+│    x5    │ 0.669  │ -0.536 │
+│    x6    │ 0.450  │ -0.695 │
+│    x7    │ -0.612 │ -0.683 │
+│    x8    │ 0.887  │ -0.088 │
+│    x9    │ -0.752 │ -0.516 │
+│   x10    │ -0.667 │ 0.516  │
+└──────────┴────────┴────────┘
 ```
 
 Extracting two static factors (`--nfactors 2`; omit `--nfactors` to select rank automatically via `--criterion ic1|ic2|ic3`), the first two components explain `0.795612` (`0.511257` + `0.284355`) cumulative variance share in `scree_data_eigenvalues_variance_shares` alongside loadings in `factor_loadings`.
@@ -227,26 +227,26 @@ frdc estimate factor qfm qfm_sim --tau 0.5 --factors 2 --standardize
 ```
 ```text
           Quantile Factor Model Loadings (r=2, τ=0.5)
-┌──────────┬────────┬─────┬───────────┬───────────┬───────────┐
-│ variable │ factor │ tau │  loading  │ std_error │ pseudo_r2 │
-├──────────┼────────┼─────┼───────────┼───────────┼───────────┤
-│    x1    │   1    │ 0.5 │ 0.891479  │  missing  │ 0.650092  │
-│    x2    │   1    │ 0.5 │ 0.827479  │  missing  │ 0.442992  │
-│    x3    │   1    │ 0.5 │ -1.38318  │  missing  │    1.0    │
-│    x4    │   1    │ 0.5 │ 0.917918  │  missing  │ 0.588681  │
-│    x5    │   1    │ 0.5 │ 0.890507  │  missing  │ 0.326975  │
-│    x6    │   1    │ 0.5 │ -0.649163 │  missing  │ 0.265572  │
-│    x7    │   1    │ 0.5 │ -0.898455 │  missing  │ 0.502982  │
-│    x8    │   1    │ 0.5 │ 0.679897  │  missing  │ 0.385191  │
-│    x1    │   2    │ 0.5 │ 0.463891  │  missing  │ 0.650092  │
-│    x2    │   2    │ 0.5 │ 0.459483  │  missing  │ 0.442992  │
-│    x3    │   2    │ 0.5 │  1.69163  │  missing  │    1.0    │
-│    x4    │   2    │ 0.5 │ 0.418849  │  missing  │ 0.588681  │
-│    x5    │   2    │ 0.5 │ 0.265324  │  missing  │ 0.326975  │
-│    x6    │   2    │ 0.5 │ -0.299927 │  missing  │ 0.265572  │
-│    x7    │   2    │ 0.5 │  -0.4654  │  missing  │ 0.502982  │
-│    x8    │   2    │ 0.5 │ 0.459612  │  missing  │ 0.385191  │
-└──────────┴────────┴─────┴───────────┴───────────┴───────────┘
+┌──────────┬────────┬───────┬─────────┬───────────┬───────────┐
+│ variable │ factor │  tau  │ loading │ std_error │ pseudo_r2 │
+├──────────┼────────┼───────┼─────────┼───────────┼───────────┤
+│    x1    │   1    │ 0.500 │  0.891  │  missing  │   0.650   │
+│    x2    │   1    │ 0.500 │  0.827  │  missing  │   0.443   │
+│    x3    │   1    │ 0.500 │ -1.383  │  missing  │   1.000   │
+│    x4    │   1    │ 0.500 │  0.918  │  missing  │   0.589   │
+│    x5    │   1    │ 0.500 │  0.891  │  missing  │   0.327   │
+│    x6    │   1    │ 0.500 │ -0.649  │  missing  │   0.266   │
+│    x7    │   1    │ 0.500 │ -0.898  │  missing  │   0.503   │
+│    x8    │   1    │ 0.500 │  0.680  │  missing  │   0.385   │
+│    x1    │   2    │ 0.500 │  0.464  │  missing  │   0.650   │
+│    x2    │   2    │ 0.500 │  0.459  │  missing  │   0.443   │
+│    x3    │   2    │ 0.500 │  1.692  │  missing  │   1.000   │
+│    x4    │   2    │ 0.500 │  0.419  │  missing  │   0.589   │
+│    x5    │   2    │ 0.500 │  0.265  │  missing  │   0.327   │
+│    x6    │   2    │ 0.500 │ -0.300  │  missing  │   0.266   │
+│    x7    │   2    │ 0.500 │ -0.465  │  missing  │   0.503   │
+│    x8    │   2    │ 0.500 │  0.460  │  missing  │   0.385   │
+└──────────┴────────┴───────┴─────────┴───────────┴───────────┘
 ```
 
 The quantile factor fit emits `qfm_summary` and `qfm_loadings` at the requested quantile(s), feeding [`forecast factor qfm`](@ref ref-forecast-factor-qfm), [`forecast factor growth-at-risk`](@ref ref-forecast-factor-growth-at-risk), and [`test factor qfm-spanning`](@ref ref-test-factor-qfm-spanning).

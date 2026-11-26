@@ -3,6 +3,8 @@
 
 Generated command reference for `frdc completions` (`3` leaves). Back to [CLI Reference Overview](@ref cli-overview).
 
+**Command aliases:** `comp`
+
 **Workflow guides:** [Installation & Quickstart](@ref gs-installation)
 
 ---

@@ -15,9 +15,11 @@ Generated command reference for `frdc io` (`27` leaves). Back to [CLI Reference 
 
 Aggregate an IO/MRIO table over regions and/or sector types
 
+**Aliases:** `agg`
+
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
+| `--data` | `-d` | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -26,7 +28,7 @@ Aggregate an IO/MRIO table over regions and/or sector types
 | `--sector-map` | — | `String` | `""` | — | old=new sector-type pairs, comma-separated |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:io`, `:csv`
 
@@ -38,17 +40,17 @@ Repair intermediate flows so row and column accounts close (RAS/GRAS)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
+| `--data` | `-d` | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
 | `--parser` | — | `String` | `csv` | `csv`, `icio` | Input parser: csv (parse_io) \| icio (OECD ICIO text) |
-| `--method` | — | `String` | `ras` | `ras`, `gras` | ras (non-negative Z) \| gras (sign-preserving) |
-| `--tol` | — | `Float64` | `1.0e-10` | — | Biproportional convergence tolerance |
-| `--max-iter` | — | `Int64` | `1000` | — | Maximum RAS/GRAS iterations |
+| `--method` | `-m` | `String` | `ras` | `ras`, `gras` | ras (non-negative Z) \| gras (sign-preserving) |
+| `--tol` | `-T` | `Float64` | `1.0e-10` | — | Biproportional convergence tolerance |
+| `--max-iter` | `-I` | `Int64` | `1000` | — | Maximum RAS/GRAS iterations *(aliases: `--maxiter`, `--miter`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:io`, `:csv`
 
@@ -58,9 +60,11 @@ Repair intermediate flows so row and column accounts close (RAS/GRAS)
 
 Baqaee & Farhi (2019) nonlinear IO: Domar weights, centralities
 
+**Aliases:** `bf-full`
+
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
+| `--data` | `-d` | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -81,9 +85,11 @@ Baqaee & Farhi (2019) nonlinear IO: Domar weights, centralities
 
 Bilateral intermediate/final/total trade from exporter to importer
 
+**Aliases:** `bilat`
+
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
+| `--data` | `-d` | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -101,6 +107,8 @@ Bilateral intermediate/final/total trade from exporter to importer
 ### [`frdc io download`](@id ref-io-download)
 
 Download an IO/MRIO table (network); respects --offline
+
+**Aliases:** `dl`
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -126,9 +134,11 @@ Download an IO/MRIO table (network); respects --offline
 
 Koopman–Wang–Wei (2014) DVA/RDV/FVA/PDC decomposition of gross exports
 
+**Aliases:** `exp-decomp`
+
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
+| `--data` | `-d` | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -136,11 +146,11 @@ Koopman–Wang–Wei (2014) DVA/RDV/FVA/PDC decomposition of gross exports
 | `--region` | — | `String` | `""` | — | Region name or 1-based index (required when nregions>1) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:io`, `:csv`
 
@@ -150,9 +160,11 @@ Koopman–Wang–Wei (2014) DVA/RDV/FVA/PDC decomposition of gross exports
 
 Hypothetical extraction: output loss from removing sector(s)
 
+**Aliases:** `ext`
+
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
+| `--data` | `-d` | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -162,11 +174,11 @@ Hypothetical extraction: output loss from removing sector(s)
 | `--region` | — | `String` | `""` | — | Extract a whole MRIO region block |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:io`, `:csv`
 
@@ -176,9 +188,11 @@ Hypothetical extraction: output loss from removing sector(s)
 
 Consumption-based footprint of a satellite (environmental) account
 
+**Aliases:** `fp`
+
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
+| `--data` | `-d` | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -201,7 +215,7 @@ Ghosh (supply-driven) representation: B and inverse G
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
+| `--data` | `-d` | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -219,7 +233,7 @@ Final-demand impact / scenario through the (extended) Leontief inverse
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
+| `--data` | `-d` | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -229,11 +243,11 @@ Final-demand impact / scenario through the (extended) Leontief inverse
 | `--type` | — | `String` | `I` | `I`, `II` | Type I (open) \| Type II (household-closed) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:io`, `:csv`
 
@@ -243,9 +257,11 @@ Final-demand impact / scenario through the (extended) Leontief inverse
 
 Key-sector classification (Rasmussen quadrants)
 
+**Aliases:** `keys`
+
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
+| `--data` | `-d` | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -263,7 +279,7 @@ Leontief (demand-driven) representation: A and inverse L
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
+| `--data` | `-d` | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -279,9 +295,11 @@ Leontief (demand-driven) representation: A and inverse L
 
 Backward/forward linkages + Rasmussen dispersion indices
 
+**Aliases:** `link`
+
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
+| `--data` | `-d` | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -299,7 +317,7 @@ Parse/inspect an IO table: dimensions and per-sector totals
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
+| `--data` | `-d` | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -308,7 +326,7 @@ Parse/inspect an IO table: dimensions and per-sector totals
 | `--member` | — | `String` | `""` | — | ICIO member filter |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -323,9 +341,11 @@ Parse/inspect an IO table: dimensions and per-sector totals
 
 Sectoral output/income/employment multipliers (Type I & II)
 
+**Aliases:** `mult`
+
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
+| `--data` | `-d` | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -342,20 +362,22 @@ Sectoral output/income/employment multipliers (Type I & II)
 
 Domar weights, Herfindahl, degrees, upstreamness/downstreamness
 
+**Aliases:** `net`
+
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
+| `--data` | `-d` | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
 | `--parser` | — | `String` | `csv` | `csv`, `icio` | Input parser: csv (parse_io) \| icio (OECD ICIO text) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:io`, `:csv`
 
@@ -367,7 +389,7 @@ Leontief cost-push (or Ghosh dual) price model
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
+| `--data` | `-d` | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -377,11 +399,11 @@ Leontief cost-push (or Ghosh dual) price model
 | `--mode` | — | `String` | `leontief` | `leontief`, `ghosh` | leontief (cost-push dual) \| ghosh (descriptive dual) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:io`, `:csv`
 
@@ -393,21 +415,21 @@ Structural decomposition of Δoutput (or Δemissions with --on) between two peri
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
+| `--data` | `-d` | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
 | `--data2` | — | `String` | `""` | — | Second-period IO table (CSV path / :example; default: same as --data) |
-| `--method` | — | `String` | `additive` | `additive`, `multiplicative` | additive (exact, zero residual) \| multiplicative (two-factor output path only) |
-| `--factors` | — | `String` | `""` | — | Comma-separated SDA factors (kebab); omit for legacy L_effect/Y_effect |
+| `--method` | `-m` | `String` | `additive` | `additive`, `multiplicative` | additive (exact, zero residual) \| multiplicative (two-factor output path only) |
+| `--factors` | `-q` | `String` | `""` | — | Comma-separated SDA factors (kebab); omit for legacy L_effect/Y_effect |
 | `--on` | — | `String` | `output` | — | output \| satellite account name (emission SDA) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:io`, `:csv`
 
@@ -428,9 +450,11 @@ List downloadable IO/MRIO sources (offline catalog)
 
 Hummels–Ishii–Yi / KWW import content of exports
 
+**Aliases:** `vs`
+
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
+| `--data` | `-d` | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -438,11 +462,11 @@ Hummels–Ishii–Yi / KWW import content of exports
 | `--region` | — | `String` | `""` | — | Region name or 1-based index (required when nregions>1) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:io`, `:csv`
 
@@ -460,9 +484,11 @@ Baqaee-Farhi nonlinear production-network equilibrium, elasticities, wedges, and
 
 Factor-price and goods-price incidence at the base point
 
+**Aliases:** `elast`
+
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
+| `--data` | `-d` | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -472,17 +498,17 @@ Factor-price and goods-price incidence at the base point
 | `--epsilon` | — | `String` | `1.0` | — | Outer VA-vs-intermediate elasticity (:two nests; scalar or comma list) |
 | `--eta` | — | `String` | `1.0` | — | Across-factor elasticity inside the VA bundle (:two nests; scalar or comma list) |
 | `--nests` | — | `String` | `single` | `single`, `two` | Nesting scheme: single \| two |
-| `--factors` | — | `String` | `single` | `single`, `va-cats` | Factor mapping: single (sum VA rows) \| va-cats (one factor per VA row) |
+| `--factors` | `-q` | `String` | `single` | `single`, `va-cats` | Factor mapping: single (sum VA rows) \| va-cats (one factor per VA row) |
 | `--mu` | — | `String` | `1.0` | — | Sectoral markups μ≥1 (scalar or per-sector comma list; 1 = efficient) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--no-check` | — | Allow clipped negative cost shares above 1% of the row |
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:io`, `:csv`; model types: `ProductionNetwork`
 
@@ -492,9 +518,11 @@ Factor-price and goods-price incidence at the base point
 
 Exact nested-CES counterfactual equilibrium (Baqaee–Farhi 2019/2020)
 
+**Aliases:** `eq`
+
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
+| `--data` | `-d` | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -504,24 +532,24 @@ Exact nested-CES counterfactual equilibrium (Baqaee–Farhi 2019/2020)
 | `--epsilon` | — | `String` | `1.0` | — | Outer VA-vs-intermediate elasticity (:two nests; scalar or comma list) |
 | `--eta` | — | `String` | `1.0` | — | Across-factor elasticity inside the VA bundle (:two nests; scalar or comma list) |
 | `--nests` | — | `String` | `single` | `single`, `two` | Nesting scheme: single \| two |
-| `--factors` | — | `String` | `single` | `single`, `va-cats` | Factor mapping: single (sum VA rows) \| va-cats (one factor per VA row) |
+| `--factors` | `-q` | `String` | `single` | `single`, `va-cats` | Factor mapping: single (sum VA rows) \| va-cats (one factor per VA row) |
 | `--mu` | — | `String` | `1.0` | — | Sectoral markups μ≥1 (scalar or per-sector comma list; 1 = efficient) |
 | `--dlog-a` | — | `String` | `""` | — | Hicks-neutral productivity shocks (scalar or comma list; default 0) |
 | `--dlog-l` | — | `String` | `""` | — | Factor-supply shocks (scalar or comma list; default 0) |
 | `--dlog-mu` | — | `String` | `""` | — | Markup shocks (scalar or comma list; default 0) |
-| `--method` | — | `String` | `newton` | `newton`, `fixedpoint` | Inner price solver: newton \| fixedpoint |
-| `--tol` | — | `Float64` | `1.0e-10` | — | Solver tolerance |
-| `--max-iter` | — | `Int64` | `500` | — | Maximum solver iterations |
+| `--method` | `-m` | `String` | `newton` | `newton`, `fixedpoint` | Inner price solver: newton \| fixedpoint |
+| `--tol` | `-T` | `Float64` | `1.0e-10` | — | Solver tolerance |
+| `--max-iter` | `-I` | `Int64` | `500` | — | Maximum solver iterations *(aliases: `--maxiter`, `--miter`)* |
 | `--damping` | — | `Float64` | `0.5` | — | Quasi-Newton damping in (0, 1] |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--no-check` | — | Allow clipped negative cost shares above 1% of the row |
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:io`, `:csv`; model types: `ProductionNetwork`
 
@@ -533,7 +561,7 @@ Local Hulten + second-order Hessian on a ProductionNetwork
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
+| `--data` | `-d` | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -543,19 +571,19 @@ Local Hulten + second-order Hessian on a ProductionNetwork
 | `--epsilon` | — | `String` | `1.0` | — | Outer VA-vs-intermediate elasticity (:two nests; scalar or comma list) |
 | `--eta` | — | `String` | `1.0` | — | Across-factor elasticity inside the VA bundle (:two nests; scalar or comma list) |
 | `--nests` | — | `String` | `single` | `single`, `two` | Nesting scheme: single \| two |
-| `--factors` | — | `String` | `single` | `single`, `va-cats` | Factor mapping: single (sum VA rows) \| va-cats (one factor per VA row) |
+| `--factors` | `-q` | `String` | `single` | `single`, `va-cats` | Factor mapping: single (sum VA rows) \| va-cats (one factor per VA row) |
 | `--mu` | — | `String` | `1.0` | — | Sectoral markups μ≥1 (scalar or per-sector comma list; 1 = efficient) |
 | `--hessian` | — | `String` | `auto` | `auto`, `full`, `none` | Form n×n Hessian: auto (n≤500) \| full \| none |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--no-check` | — | Allow clipped negative cost shares above 1% of the row |
 | `--no-elasticities` | — | Skip the attached BFElasticities block |
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:io`, `:csv`; model types: `ProductionNetwork`
 
@@ -565,9 +593,11 @@ Local Hulten + second-order Hessian on a ProductionNetwork
 
 Baqaee–Farhi (2020) Prop. 5 Harberger misallocation distance
 
+**Aliases:** `misalloc`
+
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
+| `--data` | `-d` | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -577,19 +607,19 @@ Baqaee–Farhi (2020) Prop. 5 Harberger misallocation distance
 | `--epsilon` | — | `String` | `1.0` | — | Outer VA-vs-intermediate elasticity (:two nests; scalar or comma list) |
 | `--eta` | — | `String` | `1.0` | — | Across-factor elasticity inside the VA bundle (:two nests; scalar or comma list) |
 | `--nests` | — | `String` | `single` | `single`, `two` | Nesting scheme: single \| two |
-| `--factors` | — | `String` | `single` | `single`, `va-cats` | Factor mapping: single (sum VA rows) \| va-cats (one factor per VA row) |
+| `--factors` | `-q` | `String` | `single` | `single`, `va-cats` | Factor mapping: single (sum VA rows) \| va-cats (one factor per VA row) |
 | `--mu` | — | `String` | `1.0` | — | Sectoral markups μ≥1 (scalar or per-sector comma list; 1 = efficient) |
 | `--point` | — | `String` | `efficient` | `efficient`, `observed` | Evaluation point: efficient \| observed |
 | `--hessian` | — | `String` | `auto` | `auto`, `full`, `none` | Form n×n H_μ: auto (n≤500) \| full \| none |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--no-check` | — | Allow clipped negative cost shares above 1% of the row |
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:io`, `:csv`; model types: `ProductionNetwork`
 
@@ -601,7 +631,7 @@ Calibrate a Baqaee–Farhi ProductionNetwork from an IO table
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
+| `--data` | `-d` | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -611,17 +641,17 @@ Calibrate a Baqaee–Farhi ProductionNetwork from an IO table
 | `--epsilon` | — | `String` | `1.0` | — | Outer VA-vs-intermediate elasticity (:two nests; scalar or comma list) |
 | `--eta` | — | `String` | `1.0` | — | Across-factor elasticity inside the VA bundle (:two nests; scalar or comma list) |
 | `--nests` | — | `String` | `single` | `single`, `two` | Nesting scheme: single \| two |
-| `--factors` | — | `String` | `single` | `single`, `va-cats` | Factor mapping: single (sum VA rows) \| va-cats (one factor per VA row) |
+| `--factors` | `-q` | `String` | `single` | `single`, `va-cats` | Factor mapping: single (sum VA rows) \| va-cats (one factor per VA row) |
 | `--mu` | — | `String` | `1.0` | — | Sectoral markups μ≥1 (scalar or per-sector comma list; 1 = efficient) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--no-check` | — | Allow clipped negative cost shares above 1% of the row |
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:io`, `:csv`
 
@@ -631,9 +661,11 @@ Calibrate a Baqaee–Farhi ProductionNetwork from an IO table
 
 One-sector productivity shock: exact vs Hulten vs second-order Taylor
 
+**Aliases:** `scurve`
+
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
+| `--data` | `-d` | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -643,20 +675,20 @@ One-sector productivity shock: exact vs Hulten vs second-order Taylor
 | `--epsilon` | — | `String` | `1.0` | — | Outer VA-vs-intermediate elasticity (:two nests; scalar or comma list) |
 | `--eta` | — | `String` | `1.0` | — | Across-factor elasticity inside the VA bundle (:two nests; scalar or comma list) |
 | `--nests` | — | `String` | `single` | `single`, `two` | Nesting scheme: single \| two |
-| `--factors` | — | `String` | `single` | `single`, `va-cats` | Factor mapping: single (sum VA rows) \| va-cats (one factor per VA row) |
+| `--factors` | `-q` | `String` | `single` | `single`, `va-cats` | Factor mapping: single (sum VA rows) \| va-cats (one factor per VA row) |
 | `--mu` | — | `String` | `1.0` | — | Sectoral markups μ≥1 (scalar or per-sector comma list; 1 = efficient) |
 | `--sector` | — | `String` | `""` | — | Shocked sector: name or 1-based index (required) |
 | `--range` | — | `String` | `-0.5,0.5` | — | (lo,hi) grid for Δ log A |
 | `--points` | — | `Int64` | `41` | — | Number of grid points (≥ 2) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--no-check` | — | Allow clipped negative cost shares above 1% of the row |
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:io`, `:csv`; model types: `ProductionNetwork`
 
@@ -668,7 +700,7 @@ Baqaee–Farhi (2020) Theorem 1 technology vs allocative-efficiency split
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--data` | — | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
+| `--data` | `-d` | `String` | `""` | — | IO table: CSV path, .jld2 handle, :wiot (bundled example, the default), or another :example |
 | `--n-sectors` | — | `Int64` | `0` | — | Number of sectors (CSV: Z is the first n_sectors columns) |
 | `--n-fd` | — | `Int64` | `1` | — | Number of final-demand columns (CSV) |
 | `--sectors` | — | `String` | `""` | — | Comma-separated sector labels (CSV; default: sector1..sectorN) |
@@ -678,20 +710,20 @@ Baqaee–Farhi (2020) Theorem 1 technology vs allocative-efficiency split
 | `--epsilon` | — | `String` | `1.0` | — | Outer VA-vs-intermediate elasticity (:two nests; scalar or comma list) |
 | `--eta` | — | `String` | `1.0` | — | Across-factor elasticity inside the VA bundle (:two nests; scalar or comma list) |
 | `--nests` | — | `String` | `single` | `single`, `two` | Nesting scheme: single \| two |
-| `--factors` | — | `String` | `single` | `single`, `va-cats` | Factor mapping: single (sum VA rows) \| va-cats (one factor per VA row) |
+| `--factors` | `-q` | `String` | `single` | `single`, `va-cats` | Factor mapping: single (sum VA rows) \| va-cats (one factor per VA row) |
 | `--mu` | — | `String` | `1.0` | — | Sectoral markups μ≥1 (scalar or per-sector comma list; 1 = efficient) |
 | `--dlog-a` | — | `String` | `""` | — | Productivity shocks (scalar or comma list; default 0) |
 | `--dlog-l` | — | `String` | `""` | — | Factor-supply shocks (scalar or comma list; default 0) |
 | `--dlog-mu` | — | `String` | `""` | — | Markup shocks (scalar or comma list; default 0) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--no-check` | — | Allow clipped negative cost shares above 1% of the row |
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:io`, `:csv`; model types: `ProductionNetwork`
 

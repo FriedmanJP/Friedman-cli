@@ -9,23 +9,23 @@ Friedman-cli is a Julia CLI application built around a custom declarative comman
 Standalone release builds ship a **two-binary Pure C99 thin front-end** (`bin/frdc` → `bin/frdc-core` + `share/frdc/cli_cache.bin`) so static metadata invocations avoid booting `libjulia` and decompressing the PackageCompiler sysimage:
 
 ```text
-bin/frdc ARGS  (Pure C99 thin wrapper; ~52 KiB; bypassed if FRDC_NO_FASTPATH=1 or --julia-args)
-  ├─ Tier 1–4 fast paths (<10 ms) from single-source FRDCACHE v1 pack (share/frdc/cli_cache.bin):
-  │    --version/-V, --warranty, --conditions, root/node/leaf/repl --help,
+bin/frdc ARGS  (Pure C99 thin wrapper; ~55 KiB; bypassed if FRDC_NO_FASTPATH=1 or --julia-args)
+  ├─ Tier 1–4 fast paths (<10 ms) from single-source FRDCACHE v2 pack (share/frdc/cli_cache.bin):
+  │    --version/-V, --warranty, --conditions, root/node/leaf/repl --help (with full alias resolution),
   │    schema [path...] [--docs], completions bash|zsh|fish,
   │    data list, io sources (table|csv|json envelope), unknown-command fast-fail (exit 2),
-  │    serve --mcp State 0 lazy JSON-RPC proxy (initialize, ping, tools/list, unknown-tool -32602;
-  │    lazily spawns frdc-core on first valid tools/call with half-duplex stdin pump)
+  │    serve --mcp State 0 lazy JSON-RPC proxy (initialize with instructions, ping, scoped tools/list,
+  │    unknown-tool -32602; lazily spawns frdc-core on first valid tools/call with half-duplex stdin pump)
   └─ Fail-open execv / CreateProcessW → bin/frdc-core ARGS  (or julia --project bin/frdc in source dev)
        → Friedman.main(ARGS) → run_cli(ARGS)
          → Friedman.APP                         # Entry built once (const APP = build_app())
-           # build_app() registers every top-level command group once
+           # build_app() registers every top-level command group + coexisting alias tables once
          → dispatch(APP, args)
-           → dispatch_node()                    # walks the NodeCommand tree by matching tokens
+           → dispatch_node()                    # walks NodeCommand tree resolving canonical names & aliases
            → dispatch_leaf()                    # tokenize → bind_args → leaf.handler(; bound...)
 ```
 
-`cli_cache.bin` is generated directly from `Friedman.APP` and `Friedman.REGISTRY` by `tools/gen_fastpath_pack.jl` with per-block zlib compression and IEEE CRC32 verification; any missing, version-mismatched, or corrupt pack fails open directly to `frdc-core`. Set `FRDC_NO_FASTPATH=1` (legacy fallback `FRIEDMAN_NO_FASTPATH=1`) to force every invocation through `frdc-core`.
+`cli_cache.bin` uses the deterministic little-endian **`FRDCACHE` v2** format generated directly from `Friedman.APP` and `Friedman.REGISTRY` by `tools/gen_fastpath_pack.jl` with a sorted binary-search `alias_tbl` (command, family, and long-leaf abbreviations), per-block zlib compression, and IEEE CRC32 verification; any missing, version-mismatched, or corrupt pack fails open directly to `frdc-core`. Set `FRDC_NO_FASTPATH=1` (legacy fallback `FRIEDMAN_NO_FASTPATH=1`) to force every invocation through `frdc-core`.
 
 See [Automated Pipelines & JSON Envelopes](@ref gs-pipelines) for exit codes and envelope schemas.
 
@@ -81,13 +81,19 @@ forecast evaluate metrics STEM --actual gdp --result fcst_var,fcst_bvar
 
 If both `macro.jld2` and `macro.csv` exist, the typed handle wins on data slots. Explicit suffixes bypass stem search, while `:example` datasets (such as `:denmark` and `:fred_md`) resolve directly. Central resolution and validation live in `src/handles.jl` and `src/model_handle.jl`.
 
-### Result Rendering
+### Result Rendering & Presentation-Only Display Rounding
 
-Every handler emits results through `output_result` (`:table` via PrettyTables, `:csv` via CSV.jl, `:json` via the frozen v1 envelope) after converting structs in `_emit_result` (`src/commands/shared.jl`) using explicit type unions matching `MacroEconometricModels.jl` 1:1:
+Every handler emits unrounded IEEE-754 `Float64` `DataFrame`s through `output_result` (`:table` via PrettyTables, `:csv` via CSV.jl, `:json` via the frozen v1 envelope) after converting structs in `_emit_result` (`src/commands/shared.jl`) using explicit type unions matching `MacroEconometricModels.jl` 1:1:
 
 1. **`long_table(result)`:** Tidy long-format converter for array-valued outputs (`irf`, `fevd`, `forecast` across VAR/BVAR/VECM/LP/TVPVAR/FAVAR/SDFM, univariate ARIMA/SARIMA/ARFIMA/MIDAS, factor models, and nonlinear forecasting).
 2. **`DataFrame(model)`:** Upstream coefficient-table converter for regression, VAR, choice, panel, and event-study estimators yielding uniform `term|estimate|std_error|stat|p_value|ci_lower|ci_upper` schemas.
 3. **Hand-built `DataFrame(...)`:** Used only where upstream omits a `Tables.jl` registration (for example `pvar` dynamics, `hd`, `predict`/`residuals`, Arias/Uhlig/sign set-identified IRFs, the entire `io` family, `mgarch` conditional correlations, penalized/tobit/heckman/quantile/GMM/SMM regressions, state-space/TVP, nonparametric smoothers, cointegrating/ARDL/NARDL/PMG models, nonlinear regime summaries, and `volatility` forecast variance/volatility tables).
+
+**Presentation-only rounding boundary:** All table display formatting lives exclusively inside `_render_table` / `_format_display_float` (`src/output/render.jl`), using a non-mutating PrettyTables formatter dispatched strictly on `AbstractFloat` (default 3 decimal places, `-0.000 → 0.000`, scientific `%.3e` at `>= 1e9`, configurable via global `--digits <0..16|full>` and `FRDC_DIGITS`). `--compact` adjusts TTY table width only and never mutates cell values. Handlers must never pre-round data columns; this invariant is enforced permanently in CI by `test/tools/check_lossless_handlers.jl`.
+
+### Coexisting Abbreviations & Uniform Short Flags
+
+Command, family, and long-leaf aliases live in single-source tables (`_TOP_ALIASES`, `_FAMILY_ALIASES`, `_LEAF_ALIASES` in `src/registry/families.jl`) mounted onto `NodeCommand.aliases` through the hard build-time collision guard `_register_node_alias!` (rejecting overlaps with sibling primaries, sibling aliases, REPL built-ins, and `_PATH_REPLACEMENTS` migration hints). Canonical option and flag short flags (`_CANONICAL_SHORTS`, `_CANONICAL_FLAG_SHORTS`) and long aliases (`_CANONICAL_OPTION_ALIASES`, `_CANONICAL_FLAG_ALIASES` in `src/registry/adapter.jl`) are injected uniformly across all leaves at registration without shadowing single-letter long options (`--P`, `--Q`, `--z`) or reserved globals (`-h`, `-V`, `-J`), and enforced in CI by `test/tools/check_abbreviations.jl`. Both `dispatch_node` and `FRDCACHE` v2 resolve aliases to canonical names before executing or reporting `command` in envelopes.
 
 ---
 

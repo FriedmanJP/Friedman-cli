@@ -31,8 +31,8 @@ Example shape (fields abbreviated):
   "command": "frdc estimate multivariate var",
   "status": "ok",
   "meta": {
-    "cli_version": "1.1.0",
-    "mems_version": "1.1.1",
+    "cli_version": "1.2.0",
+    "mems_version": "1.1.2",
     "julia": "1.13.0",
     "seed": null,
     "argv": ["estimate", "multivariate", "var", "data.csv", "--lags", "1", "--format", "json"],
@@ -427,12 +427,18 @@ the stanza and the commands that can read it, so nothing is silently dropped.
 3. **On an existing run flag** — `--method`, `--order`, `--prior-scale`, and
    the rest of the run surface override nothing; they are the way to vary a
    setting between runs of the same model.
-4. **As a file** — `--config <path>` is the only flag that takes a whole card,
-   and only `estimate regression gmm`, `smm`, `sur` and `3sls` declare it
-   (it carries `gmm lp:`, `gmm iv:`, `smm:`, `equations:` and `instruments:`).
-   No `dsge` command takes `--config`: a `priors:` or `constraints:` card goes
-   in the model file's preamble above the `@dsge` block, or on the command line
-   with `--prior` / `--constraint`. `--constraints` reads TOML only.
+4. **As a file** — `--config <path>` carries structured TOML/card specs. For
+   regression/system estimators (`estimate regression gmm`, `smm`, `sur`, `3sls`),
+   `--config` accepts either a model card (`gmm lp:`, `gmm iv:`, `smm:`,
+   `equations:`, `instruments:`) or TOML. Among `dsge` leaves, the four
+   grid/identification/calibration commands — `dsge determinacy-map`,
+   `dsge abcd audit-irf`, `dsge lifecycle steady-state`, and
+   `dsge lifecycle transition` — accept `--config <toml>`; representative-agent
+   estimation and solver leaves (`dsge solve`, `irf`, `steady-state`,
+   `perfect-foresight`, `dsge bayes *`) do **not** take `--config` — place
+   `priors:` or `constraints:` in the model file's preamble above `@dsge`, pass
+   repeatable `--prior` / `--constraint` flags, or pass `--priors` /
+   `--constraints` TOML files. `--constraints` reads TOML only.
 
 Grammar: a prior is `name ~ dist(a, b)`; a constraint is `var[t] >= expr` or
 `var[t] <= expr`. The two-sided form `lo <= var[t] <= hi` is accepted only by
@@ -483,18 +489,73 @@ the docs site.
 
 | Global | Effect |
 |------|--------|
-| `--seed <int>` / `--seed=<int>` | seed the process RNG; forwarded as the estimator's own `seed=` where supported; echoed in `meta.seed` |
+| `--seed <int>` / `--seed=<int>` | seed the process RNG; forwarded as the estimator's own `seed=` where supported; echoed in `meta.seed` (rejected on `serve --mcp` with exit `2`; pass per-call `seed` in `tools/call` arguments instead) |
 | `--quiet` / `-q` | suppress CLI status on stderr (runtime warnings emitted via `always_stderr=true` still surface and populate `warnings`) |
 | `--no-color` | disable ANSI (also honors `NO_COLOR`) |
-| `--json` | alias that sets `--format json` when no explicit `--format` was given (conflicts with explicit `--format csv` or `table` → exit `2`) |
-| `--compact` | format floats cleanly (4 significant digits) and fit tables to TTY width in table output |
+| `--json` / `-J` | alias that sets `--format json` when no explicit `--format` was given (conflicts with explicit `--format csv` or `table` → exit `2`) |
+| `--digits <0..16\|full>` | override human `--format table` decimal precision (default `3`, also configurable via `FRDC_DIGITS`; invalid values emit typed `usage/bad-digits` exit `2`). Never alters `--format json`, `--format csv`, MCP payloads, or `.jld2`/`.jls` handles |
+| `--compact` | fit `--format table` output to terminal TTY width without rounding or mutating data (on `serve --mcp`, compacts MCP tool parameter descriptions instead) |
 
-All five globals are accepted anywhere before `--` while preserving leaf-owned mid-argv
+All globals are accepted anywhere before `--` while preserving leaf-owned mid-argv
 `--seed`, `-q`, or `--compact`. With `--format json -o <file>`, the complete multi-table
 `envelope-v1.json` document is written to `<file>` cleanly; with `--format csv` to stdout,
 the single primary RFC 4180 table is emitted (with a stderr note when secondary tables exist,
 or pass `-o <file.csv>` to write per-table CSV files). `-o` data outputs and saved plots
 (`--plot-save`) are recorded in `artifacts`.
+
+---
+
+## Display precision vs lossless storage
+
+Table rendering (`--format table`) applies a **presentation-only** float formatter
+defaulting to **3 decimal places** (switching to `%.3e` at magnitude `>= 1e9`, normalizing
+`-0.000` to `0.000`, and printing integers, booleans, strings, and `missing` verbatim).
+Adjust table display precision with `--digits <0..16|full>` or `FRDC_DIGITS` (CLI flag
+takes precedence over the environment variable).
+
+**Machine outputs and persisted handles are strictly lossless:** `--format json` (`-J`),
+`--format csv`, `serve --mcp` tool responses, and saved `.jld2`/`.jls`/session handles
+always carry exact unrounded IEEE-754 `Float64` values regardless of `--digits`,
+`FRDC_DIGITS`, or `--compact`. `frdc schema | jq '.contract.display_precision'` advertises
+this contract programmatically.
+
+---
+
+## Confidence interval defaults (68% macro / 90% micro)
+
+All confidence-interval and credible-band leaves follow econometric convention by default
+and expose universal `--conf-level <p>` (`-L`, aliases `--cl`, `--ci-level`, `--confidence`,
+`--level`) and/or `--quantiles <csv>` (`-Q`, alias `--qtl`) overrides:
+
+- **Macroeconometric leaves — 68% default** (`--conf-level 0.68`, posterior bands
+  `--quantiles 0.16,0.5,0.84`): VAR/BVAR/VECM/SVAR/LP/FAVAR/TVP-VAR/QVAR/QFAVAR/LMS-SVAR/SSVARMA
+  estimators, IRFs, FEVDs, HDs, forecasts, univariate ARIMA/SARIMA/ARFIMA/ARDL/NARDL/MIDAS,
+  volatility models, macro panels (`pvar`, `pmg`, `xtcointreg`, `cointreg`), `estimate regime setar`,
+  `test stability bai-perron`, `dsge bayes|var *`, `hadsge estimate`, `policy *`, `spectral *`,
+  `ri estimate|cg-test`, and **`did lp-did`** (macro local-projection DiD).
+- **Microeconometric leaves — 90% default** (`--conf-level 0.90`): cross-sectional regressions
+  (`reg`, `iv`, `qreg`, `rdd`, `robust`, `tobit`, `truncreg`, `heckman`, `sur`, `3sls`, `gmm`,
+  `smm`, `kernel-reg`, `lowess`), `estimate regime threshold`, discrete choice & count models
+  (`logit`, `probit`, `ologit`, `oprobit`, `mlogit`, `poisson`, `nbreg`, `ri-logit`, and choice
+  `predict` marginal effects/odds ratios), micro panels (`preg`, `piv`, `plogit`, `pprobit`,
+  `xtqreg`), IV confidence sets (`test iv anderson-rubin|wild-cluster`), and standard DiD
+  (`did estimate`, `did event-study`, `test did honest|pretrend`).
+- **Hypothesis test significance levels remain 5%** (`--level 0.05` on `test coint ardl-bounds`
+  and `test stability chow|cusum|cusumsq`; `--alpha 0.05` on `forecast factor growth-at-risk`).
+
+---
+
+## Coexisting abbreviations
+
+Every top-level command, family group, long leaf, and common option/flag provides zero-collision
+coexisting short spellings alongside its full canonical name (for example `frdc est mv var :denmark -p 2 -J`
+is completely equivalent to `frdc estimate multivariate var :denmark --lags 2 --format json`;
+`frdc fc uv arima`, `frdc t ur adf`, `frdc d desc`, `frdc est regr qreg`, `frdc sch est mv var`,
+and handle shorts `-M`/`-R`/`-S`/`-W`/`-C`/`-L`/`-H`/`-g`/`-G`/`-X`). Aliased invocations
+always resolve to the canonical command and emit the canonical `command` string in JSON envelopes
+(e.g. `"frdc estimate multivariate var"`), never the alias. Machine callers and MCP clients should
+prefer canonical names; inspect `frdc schema <path>` for `aliases` metadata (omitted from MCP
+`tools/list` schemas to keep tool payloads compact).
 
 ---
 

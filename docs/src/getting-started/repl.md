@@ -10,18 +10,18 @@ Start the REPL from any terminal:
 frdc repl
 ```
 
-Run any `Friedman-cli` command without the `frdc` prefix (single- and double-quoted paths with UTF-8 spaces or characters are preserved):
+Run any `Friedman-cli` command without the `frdc` prefix using either full canonical names or coexisting short abbreviations (single- and double-quoted paths with UTF-8 spaces or characters are preserved):
 
 ```text
 frdc> data use :denmark
   Loaded :denmark (55 × 5, vars: LRM, LRY, LPY, IBO, IDE)
-frdc> estimate multivariate var --lags 2
-frdc> irf var --shock 1 --horizons 8
-frdc> fevd var --horizons 8
+frdc> estimate multivariate var --lags 2     # or: est mv var -p 2
+frdc> irf var --shock 1 --horizons 8         # or: irf var -K 1 -H 8
+frdc> fevd var --horizons 8                  # or: fevd var -H 8
 frdc> exit
 ```
 
-Press **Tab** at any point to complete command verbs, family names, subcommands (depth 1–3), options/flags, built-in `:datasets`, `data use`/`current`/`clear`, `exit`/`quit`, and filesystem paths, or press **Up/Down** to search persistent history saved at `~/.frdc_history` (overridable via `FRDC_HISTFILE`, with `FRDC_HISTORY_FILE` fallback). Type `exit`, `quit`, or press `Ctrl-D` to leave. For scripted multi-step workflows, keep `frdc repl` or a persistent `frdc serve --mcp` session active to amortize Julia startup and JIT compilation overhead.
+Press **Tab** at any point to complete command verbs, family names, subcommands (depth 1–3, including alias prefixes such as `est `, `fc `, `t ur `, `d `), options/flags, built-in `:datasets`, `data use`/`current`/`clear` (or `d use`/`current`/`clear`), `exit`/`quit`, and filesystem paths, or press **Up/Down** to search persistent history saved at `~/.frdc_history` (overridable via `FRDC_HISTFILE`, with `FRDC_HISTORY_FILE` fallback). Type `exit`, `quit`, or press `Ctrl-D` to leave. For scripted multi-step workflows, keep `frdc repl` or a persistent `frdc serve --mcp` session active to amortize Julia startup and JIT compilation overhead.
 
 ---
 
@@ -37,14 +37,15 @@ Once an estimator runs during a session (`estimate multivariate var`, `estimate 
 
 ---
 
-## Plotting & File Export in the REPL
+## Plotting, Precision & File Export in the REPL
 
-All standard output and plot modifiers work directly inside the REPL:
+All standard output, display-precision, and plot modifiers work directly inside the REPL (tables display 3 decimal places by default via `--digits` / `FRDC_DIGITS`, while `-f csv`, `-f json`/`-J`, and saved `.jld2` handles preserve exact unrounded IEEE-754 floats; per-command `--digits` and `--compact` overrides restore cleanly after each prompt):
 
 ```text
 frdc> irf var --shock 1 --horizons 12 --plot
 frdc> irf var --shock 1 --horizons 12 --plot-save irf_plot.html
-frdc> irf var --shock 1 --horizons 12 -f csv -o irf_table.csv
+frdc> --digits 6 irf var -K 1 -H 12
+frdc> irf var -K 1 -H 12 -f csv -o irf_table.csv
 ```
 
 Use [Interactive REPL](@ref gs-repl) for interactive model exploration, then move tested commands into reproducible scripts or `.jld2` handle pipelines via [Pipelines, Handles & Reproducibility](@ref gs-pipelines).

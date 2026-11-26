@@ -3,6 +3,8 @@
 
 Generated command reference for `frdc show` (`1` leaf). Back to [CLI Reference Overview](@ref cli-overview).
 
+**Command aliases:** `sh`
+
 **Workflow guides:** [Pipelines, Handles & Reproducibility](@ref gs-pipelines)
 
 ---
@@ -15,6 +17,8 @@ Generated command reference for `frdc show` (`1` leaf). Back to [CLI Reference O
 
 Render bounded structured summary of any loadable handle (data, model, result, archive#key, or session URI)
 
+**Aliases:** `sh`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `path` | `String` | yes | — | Handle stem, path, archive.jld2#key, or session URI |
@@ -25,11 +29,11 @@ Render bounded structured summary of any loadable handle (data, model, result, a
 | `--max-cols` | — | `Int64` | `12` | — | Maximum preview columns to display (0 = unlimited; default: 12) |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot if a recipe exists |
+| `--plot` | `-g` | Open interactive plot if a recipe exists |
 
 **Output tables:** `show_payload` (Bounded structured summary or preview of the handle)
 

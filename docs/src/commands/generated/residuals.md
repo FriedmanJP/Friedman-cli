@@ -3,11 +3,15 @@
 
 Generated command reference for `frdc residuals` (`49` leaves). Back to [CLI Reference Overview](@ref cli-overview).
 
+**Command aliases:** `res`, `resid`
+
 **Workflow guides:** [Univariate, Filters & Spectral](@ref chap-univariate) · [Volatility & Multivariate GARCH](@ref chap-volatility) · [Regime-Switching & Nonlinear TS](@ref chap-nonlinear) · [VAR, BVAR, VECM & Factor Models](@ref chap-multivariate) · [Regression, Systems & GMM/SMM](@ref chap-regression) · [Discrete Choice, Count & Selection](@ref chap-choice) · [Panel Data, Panel VAR & Causal DiD](@ref chap-panel)
 
 ---
 
 ## [Choice](@id ref-fam-residuals-choice)
+
+**Family aliases:** `ch`
 
 Deviance, Pearson, and response residuals for discrete-choice models
 
@@ -23,12 +27,12 @@ Model residuals (logit)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
-| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster |
-| `--clusters` | — | `String` | `""` | — | Cluster variable column name |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--cov-type` | `-v` | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster *(aliases: `--cov`)* |
+| `--clusters` | `-U` | `String` | `""` | — | Cluster variable column name *(aliases: `--clst`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`; model types: `LogitModel`
 
@@ -44,13 +48,13 @@ Model residuals (mlogit)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
-| `--cov-type` | — | `String` | `ols` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster |
-| `--clusters` | — | `String` | `""` | — | Cluster variable column name |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--cov-type` | `-v` | `String` | `ols` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster *(aliases: `--cov`)* |
+| `--clusters` | `-U` | `String` | `""` | — | Cluster variable column name *(aliases: `--clst`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--kind` | — | `String` | `response` | `response`, `pearson`, `deviance` | Residual type: response (d-P, rows sum to zero) \| pearson \| deviance |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`; model types: `MultinomialLogitModel`
 
@@ -66,14 +70,14 @@ Model residuals (negative-binomial)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent count column (default: first numeric column) |
+| `--dep` | `-y` | `String` | `""` | — | Dependent count column (default: first numeric column) |
 | `--offset` | — | `String` | `""` | — | Offset column, already on the log scale (exclusive with --exposure) |
 | `--exposure` | — | `String` | `""` | — | Exposure column, strictly positive; enters as log(exposure) |
-| `--max-iter` | — | `Int64` | `1000` | — | Maximum iterations (≥ 1) |
-| `--tol` | — | `Float64` | `1.0e-10` | — | Convergence tolerance (> 0) |
+| `--max-iter` | `-I` | `Int64` | `1000` | — | Maximum iterations (≥ 1) *(aliases: `--maxiter`, `--miter`)* |
+| `--tol` | `-T` | `Float64` | `1.0e-10` | — | Convergence tolerance (> 0) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`; model types: `NegBinModel`
 
@@ -89,17 +93,17 @@ Model residuals (ologit)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
-| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster |
-| `--clusters` | — | `String` | `""` | — | Cluster variable column name |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--cov-type` | `-v` | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster *(aliases: `--cov`)* |
+| `--clusters` | `-U` | `String` | `""` | — | Cluster variable column name *(aliases: `--clst`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--kind` | — | `String` | `response` | `response`, `pearson`, `deviance` | Residual type: response (d-P, rows sum to zero) \| pearson \| deviance |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--generalized` | — | Length-n generalized (score) residual instead of the per-category matrix |
+| `--generalized` | — | Length-n generalized (score) residual instead of the per-category matrix *(aliases: `--gen`)* |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`; model types: `OrderedLogitModel`
 
@@ -115,17 +119,17 @@ Model residuals (oprobit)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
-| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster |
-| `--clusters` | — | `String` | `""` | — | Cluster variable column name |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--cov-type` | `-v` | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster *(aliases: `--cov`)* |
+| `--clusters` | `-U` | `String` | `""` | — | Cluster variable column name *(aliases: `--clst`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--kind` | — | `String` | `response` | `response`, `pearson`, `deviance` | Residual type: response (d-P, rows sum to zero) \| pearson \| deviance |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--generalized` | — | Length-n generalized (score) residual instead of the per-category matrix |
+| `--generalized` | — | Length-n generalized (score) residual instead of the per-category matrix *(aliases: `--gen`)* |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`; model types: `OrderedProbitModel`
 
@@ -141,16 +145,16 @@ Model residuals (poisson)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent count column (default: first numeric column) |
+| `--dep` | `-y` | `String` | `""` | — | Dependent count column (default: first numeric column) |
 | `--offset` | — | `String` | `""` | — | Offset column, already on the log scale (exclusive with --exposure) |
 | `--exposure` | — | `String` | `""` | — | Exposure column, strictly positive; enters as log(exposure) |
-| `--cov-type` | — | `String` | `robust` | `robust`, `mle`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | robust (QMLE sandwich, default), mle, hc0-hc3, cluster |
-| `--clusters` | — | `String` | `""` | — | Cluster variable column name |
-| `--max-iter` | — | `Int64` | `100` | — | Maximum IRLS iterations (≥ 1) |
-| `--tol` | — | `Float64` | `1.0e-10` | — | Convergence tolerance (> 0) |
+| `--cov-type` | `-v` | `String` | `robust` | `robust`, `mle`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | robust (QMLE sandwich, default), mle, hc0-hc3, cluster *(aliases: `--cov`)* |
+| `--clusters` | `-U` | `String` | `""` | — | Cluster variable column name *(aliases: `--clst`)* |
+| `--max-iter` | `-I` | `Int64` | `100` | — | Maximum IRLS iterations (≥ 1) *(aliases: `--maxiter`, `--miter`)* |
+| `--tol` | `-T` | `Float64` | `1.0e-10` | — | Convergence tolerance (> 0) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`; model types: `PoissonModel`
 
@@ -166,12 +170,12 @@ Model residuals (probit)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
-| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster |
-| `--clusters` | — | `String` | `""` | — | Cluster variable column name |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--cov-type` | `-v` | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster *(aliases: `--cov`)* |
+| `--clusters` | `-U` | `String` | `""` | — | Cluster variable column name *(aliases: `--clst`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`; model types: `ProbitModel`
 
@@ -180,6 +184,8 @@ Model residuals (probit)
 ---
 
 ## [Factor & Quantile-Factor Diagnostics](@id ref-fam-residuals-factor)
+
+**Family aliases:** `fac`
 
 Idiosyncratic residual components from estimated factor models
 
@@ -197,10 +203,10 @@ Model residuals (dynamic)
 |--------|-------|------|---------|---------|-------------|
 | `--nfactors` | — | `Int64` | — | — | Number of factors (default: auto via IC) |
 | `--factor-lags` | — | `Int64` | `1` | — | Factor VAR lag order |
-| `--method` | — | `String` | `twostep` | — | twostep\|qml estimation method |
+| `--method` | `-m` | `String` | `twostep` | `twostep`, `qml` | twostep\|qml estimation method |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `DynamicFactorModel`
 
@@ -216,9 +222,9 @@ Idiosyncratic residuals from FHLZ one-sided GDFM
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dynamic-rank` | — | `Int64` | — | — | Number of dynamic shocks q (default: auto) |
-| `--bandwidth` | — | `Int64` | `0` | — | Spectral lag-window bandwidth M (0=auto) |
-| `--kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `tukey` | Spectral kernel: bartlett\|parzen\|tukey |
+| `--dynamic-rank` | — | `Int64` | — | — | Number of dynamic shocks q (default: auto) *(aliases: `--drank`)* |
+| `--bandwidth` | `-b` | `Int64` | `0` | — | Spectral lag-window bandwidth M (0=auto) *(aliases: `--bw`)* |
+| `--kernel` | `-k` | `String` | `bartlett` | `bartlett`, `parzen`, `tukey` | Spectral kernel: bartlett\|parzen\|tukey |
 | `--p-max` | — | `Int64` | `5` | — | Maximum block VAR lag order |
 | `--lag-criterion` | — | `String` | `bic` | `bic`, `aic` | Block VAR lag criterion: bic\|aic |
 | `--n-perm` | — | `Int64` | `30` | — | Cross-sectional permutations to average |
@@ -228,12 +234,12 @@ Idiosyncratic residuals from FHLZ one-sided GDFM
 | `--seed` | — | `Int64` | — | — | Optional RNG seed for cross-sectional permutations |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--allow-missing` | — | Allow missing/NaN entries via EM-FHLZ imputation |
-| `--no-standardize` | — | Do not standardize series before estimation |
+| `--allow-missing` | — | Allow missing/NaN entries via EM-FHLZ imputation *(aliases: `--amiss`)* |
+| `--no-standardize` | — | Do not standardize series before estimation *(aliases: `--nostd`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `FHLZModel`
 
@@ -250,10 +256,10 @@ Model residuals (gdfm)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--nfactors` | — | `Int64` | — | — | Number of static factors (accepted but has no effect: the number of factors is chosen automatically) |
-| `--dynamic-rank` | — | `Int64` | — | — | Dynamic rank (default: auto) |
+| `--dynamic-rank` | — | `Int64` | — | — | Dynamic rank (default: auto) *(aliases: `--drank`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `GeneralizedDynamicFactorModel`
 
@@ -269,29 +275,29 @@ Stationary idiosyncratic residuals from I(1) cointegrated GDFM
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dynamic-rank` | — | `Int64` | — | — | Number of dynamic shocks q (default: auto on first differences) |
+| `--dynamic-rank` | — | `Int64` | — | — | Number of dynamic shocks q (default: auto on first differences) *(aliases: `--drank`)* |
 | `--n-permanent` | — | `Int64` | — | — | Number of permanent I(1) stochastic trends (0..q; default: auto) |
-| `--id` | — | `String` | `permanent-transitory` | `permanent-transitory`, `cholesky`, `longrun`, `sign`, `proxy` | Identification: permanent-transitory\|cholesky\|longrun\|sign\|proxy |
+| `--id` | `-i` | `String` | `permanent-transitory` | `permanent-transitory`, `cholesky`, `longrun`, `sign`, `proxy` | Identification: permanent-transitory\|cholesky\|longrun\|sign\|proxy |
 | `--det-trend` | — | `String` | `constant` | `none`, `constant`, `linear`, `trend` | Deterministic trend: none\|constant\|linear\|trend (trend aliases linear) |
 | `--p-max` | — | `Int64` | `4` | — | Maximum block VECM VAR lag order in levels |
 | `--n-perm` | — | `Int64` | `25` | — | Cross-sectional permutations to average |
-| `--bandwidth` | — | `Int64` | `0` | — | Spectral lag-window bandwidth M (0=auto) |
-| `--kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `tukey` | Spectral kernel: bartlett\|parzen\|tukey |
+| `--bandwidth` | `-b` | `Int64` | `0` | — | Spectral lag-window bandwidth M (0=auto) *(aliases: `--bw`)* |
+| `--kernel` | `-k` | `String` | `bartlett` | `bartlett`, `parzen`, `tukey` | Spectral kernel: bartlett\|parzen\|tukey |
 | `--lag-criterion` | — | `String` | `bic` | `bic`, `aic` | Block VECM lag criterion: bic\|aic |
 | `--irf-horizon` | — | `Int64` | `40` | — | Maximum stored level IRF horizon |
-| `--config` | — | `String` | `""` | — | TOML config for sign restrictions (--id sign) |
+| `--config` | `-C` | `String` | `""` | — | TOML config for sign restrictions (--id sign) *(aliases: `--cfg`)* |
 | `--instrument` | — | `String` | `""` | — | External instrument CSV column (--id proxy) |
 | `--seed` | — | `Int64` | — | — | Optional RNG seed |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--no-standardize` | — | Do not scale series by first-difference standard deviation |
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--no-standardize` | — | Do not scale series by first-difference standard deviation *(aliases: `--nostd`)* |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `CointegratedGDFM`
 
@@ -308,15 +314,15 @@ Quantile factor model idiosyncratic residuals
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--tau` | — | `Float64` | `0.5` | — | Quantile level in (0, 1) |
-| `--factors` | — | `String` | `auto` | — | Number of quantile factors (integer or 'auto') |
-| `--method` | — | `String` | `iqr` | `iqr`, `smoothed` | Estimator: iqr\|smoothed |
+| `--factors` | `-q` | `String` | `auto` | — | Number of quantile factors (integer or 'auto') |
+| `--method` | `-m` | `String` | `iqr` | `iqr`, `smoothed` | Estimator: iqr\|smoothed |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--standardize` | — | Standardize panel columns before estimation |
+| `--standardize` | — | Standardize panel columns before estimation *(aliases: `--std`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `QuantileFactorModel`, `QuantileFactorGrid`
 
@@ -335,7 +341,7 @@ Model residuals (static)
 | `--nfactors` | — | `Int64` | — | — | Number of factors (default: auto via IC) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `FactorModel`
 
@@ -351,7 +357,7 @@ Idiosyncratic residuals from time-varying GDFM
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dynamic-rank` | — | `Int64` | — | — | Number of dynamic common factors q (default: auto) |
+| `--dynamic-rank` | — | `Int64` | — | — | Number of dynamic common factors q (default: auto) *(aliases: `--drank`)* |
 | `--time-bandwidth` | — | `Float64` | `0.0` | — | Local time-kernel bandwidth b_T (0=auto) |
 | `--lag-bandwidth` | — | `Int64` | `0` | — | Spectral lag-window truncation M_T (0=auto) |
 | `--time-kernel` | — | `String` | `epanechnikov` | `epanechnikov`, `gaussian`, `uniform` | Local time kernel: epanechnikov\|gaussian\|uniform |
@@ -359,11 +365,11 @@ Idiosyncratic residuals from time-varying GDFM
 | `--n-grid` | — | `Int64` | `25` | — | Number of rescaled time grid points in (0, 1) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--no-standardize` | — | Do not standardize panel columns before filtering |
+| `--no-standardize` | — | Do not standardize panel columns before filtering *(aliases: `--nostd`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `TimeVaryingGDFM`
 
@@ -372,6 +378,8 @@ Idiosyncratic residuals from time-varying GDFM
 ---
 
 ## [Multivariate](@id ref-fam-residuals-multivariate)
+
+**Family aliases:** `mv`
 
 Reduced-form and structural innovations for multivariate models
 
@@ -389,17 +397,17 @@ Model residuals (bvar)
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | `4` | — | Lag order |
 | `--draws` | `-n` | `Int64` | `2000` | — | MCMC draws |
-| `--sampler` | — | `String` | `direct` | — | Sampler |
-| `--config` | — | `String` | `""` | — | TOML prior config |
+| `--sampler` | — | `String` | `direct` | `direct`, `gibbs` | Sampler |
+| `--config` | `-C` | `String` | `""` | — | TOML prior config *(aliases: `--cfg`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `BVARPosterior`
 
@@ -415,12 +423,12 @@ Model residuals (favar)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--factors` | — | `Int64` | — | — | Number of factors |
+| `--factors` | `-q` | `Int64` | — | — | Number of factors |
 | `--lags` | `-p` | `Int64` | `2` | — | VAR lags |
 | `--key-vars` | — | `String` | `""` | — | Key variables |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `FAVARModel`
 
@@ -430,6 +438,8 @@ Model residuals (favar)
 
 Structural shocks from a Lanne-Luoto co-kurtosis GMM SVAR
 
+**Aliases:** `ll`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
@@ -438,17 +448,17 @@ Structural shocks from a Lanne-Luoto co-kurtosis GMM SVAR
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | — | — | VAR lag order (default: auto via AIC) |
 | `--form` | — | `String` | `b-model` | `b-model`, `a-model` | b-model\|a-model |
-| `--weighting` | — | `String` | `two-step` | `two-step`, `iterated`, `cue` | two-step\|iterated\|cue |
+| `--weighting` | `-w` | `String` | `two-step` | `two-step`, `iterated`, `cue` | two-step\|iterated\|cue |
 | `--moment-selection` | — | `String` | `msc-rmsc` | `msc-rmsc`, `rmsc-seq`, `none` | msc-rmsc\|rmsc-seq\|none |
-| `--kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `qs`, `quadratic-spectral`, `tukey-hanning` | HAC kernel |
-| `--bandwidth` | — | `String` | `auto` | — | HAC truncation lag |
-| `--max-iter` | — | `Int64` | `100` | — | Maximum iterations |
-| `--tol` | — | `Float64` | `1.0e-7` | — | Convergence tolerance |
+| `--kernel` | `-k` | `String` | `bartlett` | `bartlett`, `parzen`, `qs`, `quadratic-spectral`, `tukey-hanning` | HAC kernel |
+| `--bandwidth` | `-b` | `String` | `auto` | — | HAC truncation lag *(aliases: `--bw`)* |
+| `--max-iter` | `-I` | `Int64` | `100` | — | Maximum iterations *(aliases: `--miter`)* |
+| `--tol` | `-T` | `Float64` | `1.0e-7` | — | Convergence tolerance |
 | `--n-starts` | — | `Int64` | `5` | — | Multi-start count |
 | `--shock-names` | — | `String` | `""` | — | Comma-separated structural shock labels |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `LanneLuotoGMMResult`
 
@@ -466,15 +476,15 @@ Standardized structural shocks from an LMS non-Gaussian SVAR
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | — | — | VAR lag order (default: auto via AIC) |
 | `--distributions` | — | `String` | `student-t` | — | Single token or comma-separated per-shock list |
-| `--method` | — | `String` | `three-step` | `three-step`, `one-step`, `full-ml` | three-step\|one-step\|full-ml |
+| `--method` | `-m` | `String` | `three-step` | `three-step`, `one-step`, `full-ml` | three-step\|one-step\|full-ml |
 | `--se` | — | `String` | `hessian` | `hessian`, `sandwich`, `opg` | hessian\|sandwich\|opg |
 | `--n-starts` | — | `Int64` | `5` | — | Multi-start count |
-| `--max-iter` | — | `Int64` | `500` | — | Maximum optimizer iterations |
-| `--tol` | — | `Float64` | — | — | Gradient convergence tolerance |
+| `--max-iter` | `-I` | `Int64` | `500` | — | Maximum optimizer iterations *(aliases: `--miter`)* |
+| `--tol` | `-T` | `Float64` | — | — | Gradient convergence tolerance |
 | `--shock-names` | — | `String` | `""` | — | Comma-separated structural shock labels |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `LMSSVARResult`
 
@@ -495,7 +505,7 @@ Quantile VAR structural quantile residuals
 | `--ordering` | — | `String` | `""` | — | Recursive Cholesky variable ordering |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `QuantileVARModel`
 
@@ -513,17 +523,17 @@ Schur-filtered structural shocks from a Strong SVARMA model
 |--------|-------|------|---------|---------|-------------|
 | `--ar-lags` | — | `Int64` | `1` | — | Autoregressive order p (≥ 0) |
 | `--ma-lags` | — | `Int64` | `1` | — | Moving-average order q (≥ 0) |
-| `--method` | — | `String` | `pml` | `pml`, `ml`, `gmm`, `gmm-2sls` | pml\|ml\|gmm\|gmm-2sls |
-| `--distribution` | — | `String` | `student-t` | `student-t`, `mixture-normal`, `mixture-normal-asym`, `pearson-iv`, `skew-normal` | Marginal shock distribution |
+| `--method` | `-m` | `String` | `pml` | `pml`, `ml`, `gmm`, `gmm-2sls` | pml\|ml\|gmm\|gmm-2sls |
+| `--distribution` | — | `String` | `student-t` | `student-t`, `mixture-normal`, `mixture-normal-asym`, `pearson-iv`, `skew-normal` | Marginal shock distribution *(aliases: `--dist`)* |
 | `--k-iv` | — | `Int64` | — | — | Lagged instrument count |
 | `--se` | — | `String` | `auto` | `auto`, `hessian`, `sandwich`, `opg` | Standard error covariance |
 | `--n-starts` | — | `Int64` | `3` | — | Multi-start rotations per regime |
-| `--max-iter` | — | `Int64` | `500` | — | Maximum optimizer iterations |
-| `--tol` | — | `Float64` | `1.0e-6` | — | Convergence tolerance |
+| `--max-iter` | `-I` | `Int64` | `500` | — | Maximum optimizer iterations *(aliases: `--miter`)* |
+| `--tol` | `-T` | `Float64` | `1.0e-6` | — | Convergence tolerance |
 | `--shock-names` | — | `String` | `""` | — | Comma-separated structural shock labels |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `SVARMAModel`
 
@@ -542,7 +552,7 @@ Model residuals (var)
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `VARModel`
 
@@ -560,10 +570,10 @@ Model residuals (vecm)
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | `2` | — | Lag order |
 | `--rank` | `-r` | `String` | `auto` | — | Cointegration rank |
-| `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
+| `--deterministic` | — | `String` | `constant` | `none`, `constant`, `trend` | none\|constant\|trend *(aliases: `--det`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `VECMModel`
 
@@ -572,6 +582,8 @@ Model residuals (vecm)
 ---
 
 ## [Panel](@id ref-fam-residuals-panel)
+
+**Family aliases:** `pan`
 
 Idiosyncratic and equation residuals for panel and system models
 
@@ -587,17 +599,17 @@ Model residuals (piv)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column name |
 | `--exog` | — | `String` | `""` | — | Exogenous variables (comma-separated) |
 | `--endog` | — | `String` | `""` | — | Endogenous variables (comma-separated) |
-| `--instruments` | — | `String` | `""` | — | Instruments (comma-separated) |
-| `--method` | `-m` | `String` | `fe` | — | fe\|re\|fd\|hausman-taylor |
-| `--cov-type` | — | `String` | `cluster` | — | ols\|cluster\|twoway\|driscoll-kraay |
-| `--id-col` | — | `String` | `""` | — | Panel group ID column |
-| `--time-col` | — | `String` | `""` | — | Panel time column |
+| `--instruments` | `-Z` | `String` | `""` | — | Instruments (comma-separated) *(aliases: `--iv`)* |
+| `--method` | `-m` | `String` | `fe` | `fe`, `re`, `fd`, `hausman-taylor` | fe\|re\|fd\|hausman-taylor |
+| `--cov-type` | `-v` | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay` | ols\|cluster\|twoway\|driscoll-kraay *(aliases: `--cov`)* |
+| `--id-col` | `-u` | `String` | `""` | — | Panel group ID column *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Panel time column *(aliases: `--tcol`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:panel`, `:csv`; model types: `PanelIVModel`
 
@@ -613,15 +625,15 @@ Model residuals (plogit)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (required) |
-| `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
-| `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
-| `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
-| `--cov-type` | — | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay` | ols\|cluster\|twoway\|driscoll-kraay |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column name (required) |
+| `--indep` | `-x` | `String` | `""` | — | Independent variables (comma-separated) |
+| `--id-col` | `-u` | `String` | `""` | — | Panel group ID column (default: first column) *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Panel time column (default: second column) *(aliases: `--tcol`)* |
+| `--cov-type` | `-v` | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay` | ols\|cluster\|twoway\|driscoll-kraay *(aliases: `--cov`)* |
 | `--method` | `-m` | `String` | `pooled` | — | Estimation method |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:panel`, `:csv`; model types: `PanelLogitModel`
 
@@ -637,15 +649,15 @@ Model residuals (pprobit)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (required) |
-| `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
-| `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
-| `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
-| `--cov-type` | — | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay` | ols\|cluster\|twoway\|driscoll-kraay |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column name (required) |
+| `--indep` | `-x` | `String` | `""` | — | Independent variables (comma-separated) |
+| `--id-col` | `-u` | `String` | `""` | — | Panel group ID column (default: first column) *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Panel time column (default: second column) *(aliases: `--tcol`)* |
+| `--cov-type` | `-v` | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay` | ols\|cluster\|twoway\|driscoll-kraay *(aliases: `--cov`)* |
 | `--method` | `-m` | `String` | `pooled` | — | Estimation method |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:panel`, `:csv`; model types: `PanelProbitModel`
 
@@ -661,15 +673,15 @@ Model residuals (preg)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (required) |
-| `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
-| `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
-| `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
-| `--cov-type` | — | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay` | ols\|cluster\|twoway\|driscoll-kraay |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column name (required) |
+| `--indep` | `-x` | `String` | `""` | — | Independent variables (comma-separated) |
+| `--id-col` | `-u` | `String` | `""` | — | Panel group ID column (default: first column) *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Panel time column (default: second column) *(aliases: `--tcol`)* |
+| `--cov-type` | `-v` | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay` | ols\|cluster\|twoway\|driscoll-kraay *(aliases: `--cov`)* |
 | `--method` | `-m` | `String` | `fe` | — | Estimation method |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:panel`, `:csv`; model types: `PanelRegModel`
 
@@ -685,16 +697,16 @@ Interactive panel quantile regression idiosyncratic residuals
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name |
-| `--indep` | — | `String` | `""` | — | Independent regressor columns (comma-separated) |
-| `--id-col` | — | `String` | `""` | — | Panel group ID column |
-| `--time-col` | — | `String` | `""` | — | Panel time column |
-| `--factors` | — | `String` | `1` | — | Number of latent quantile factors (integer or 'auto') |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column name |
+| `--indep` | `-x` | `String` | `""` | — | Independent regressor columns (comma-separated) |
+| `--id-col` | `-u` | `String` | `""` | — | Panel group ID column *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Panel time column *(aliases: `--tcol`)* |
+| `--factors` | `-q` | `String` | `1` | — | Number of latent quantile factors (integer or 'auto') |
 | `--tau` | — | `Float64` | `0.5` | — | Quantile level strictly in (0, 1) |
 | `--slope` | — | `String` | `homogeneous` | `homogeneous`, `heterogeneous` | Slope specification: homogeneous\|heterogeneous |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:panel`, `:csv`; model types: `QuantileFactorPanelModel`
 
@@ -703,6 +715,8 @@ Interactive panel quantile regression idiosyncratic residuals
 ---
 
 ## [Regime](@id ref-fam-residuals-regime)
+
+**Family aliases:** `rgm`
 
 Regime-weighted residuals for Markov-switching, STAR, and TAR models
 
@@ -718,13 +732,13 @@ Model residuals (ms, smoothed-probability weighted)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column (default: first numeric) |
 | `--k-regimes` | — | `Int64` | `2` | — | Number of regimes (≥ 2) |
-| `--max-iter` | — | `Int64` | `500` | — | Max EM iterations (≥ 1) |
-| `--tol` | — | `Float64` | `1.0e-8` | — | EM convergence tolerance (> 0) |
+| `--max-iter` | `-I` | `Int64` | `500` | — | Max EM iterations (≥ 1) *(aliases: `--miter`)* |
+| `--tol` | `-T` | `Float64` | `1.0e-8` | — | EM convergence tolerance (> 0) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -748,10 +762,10 @@ Model residuals (ms-ar, smoothed-probability weighted)
 | `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
 | `--p` | — | `Int64` | `1` | — | AR order (≥ 1) |
 | `--k-regimes` | — | `Int64` | `2` | — | Number of regimes (≥ 2) |
-| `--max-iter` | — | `Int64` | `1000` | — | Max EM iterations (≥ 1) |
+| `--max-iter` | `-I` | `Int64` | `1000` | — | Max EM iterations (≥ 1) *(aliases: `--miter`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -778,7 +792,7 @@ Model residuals (setar, effective-sample errors)
 | `--trim` | — | `Float64` | `0.15` | — | Trimming fraction for the threshold grid (0 < trim < 0.5) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `ThresholdModel`
 
@@ -803,7 +817,7 @@ Model residuals (star, effective-sample errors)
 | `--transition-col` | — | `Int64` | `0` | — | Column index of an external transition var s (0 = self-exciting y[t-d]) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `STARModel`
 
@@ -812,6 +826,8 @@ Model residuals (star, effective-sample errors)
 ---
 
 ## [Regression](@id ref-fam-residuals-regression)
+
+**Family aliases:** `regr`
 
 Regression, deviance, and martingale residuals for cross-section and count models
 
@@ -827,18 +843,18 @@ Model residuals (3sls, long per-equation)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--config` | — | `String` | `""` | — | System TOML or model card with [[equations]] and instruments (required without --model) |
-| `--instruments` | — | `String` | `common` | `common`, `perequation` | Instrument mode |
+| `--config` | `-C` | `String` | `""` | — | System TOML or model card with [[equations]] and instruments (required without --model) *(aliases: `--cfg`)* |
+| `--instruments` | `-Z` | `String` | `common` | `common`, `perequation` | Instrument mode *(aliases: `--iv`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--no-intercept` | — | Do not add an intercept to each equation |
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--no-intercept` | — | Do not add an intercept to each equation *(aliases: `--noint`)* |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`; model types: `ThreeSLSModel`
 
@@ -854,13 +870,13 @@ Model residuals (reg)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
-| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster |
-| `--clusters` | — | `String` | `""` | — | Cluster variable column name |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--cov-type` | `-v` | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster *(aliases: `--cov`)* |
+| `--clusters` | `-U` | `String` | `""` | — | Cluster variable column name *(aliases: `--clst`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--weights` | — | `String` | `""` | — | Weights column |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`; model types: `RegModel`
 
@@ -869,6 +885,8 @@ Model residuals (reg)
 ### [`frdc residuals regression statespace`](@id ref-residuals-regression-statespace)
 
 State-space innovations (raw or standardized one-step prediction errors)
+
+**Aliases:** `ss`
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -882,7 +900,7 @@ State-space innovations (raw or standardized one-step prediction errors)
 | `--kappa` | — | `Float64` | `1.0e6` | — | Large-kappa diffuse prior variance |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -902,18 +920,18 @@ Model residuals (sur, long per-equation)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--config` | — | `String` | `""` | — | System TOML or model card with [[equations]] blocks (required without --model) |
+| `--config` | `-C` | `String` | `""` | — | System TOML or model card with [[equations]] blocks (required without --model) *(aliases: `--cfg`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--iterate` | — | Iterate the SUR feasible-GLS step to convergence |
-| `--no-intercept` | — | Do not add an intercept to each equation |
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--no-intercept` | — | Do not add an intercept to each equation *(aliases: `--noint`)* |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`; model types: `SURModel`
 
@@ -922,6 +940,8 @@ Model residuals (sur, long per-equation)
 ---
 
 ## [Univariate](@id ref-fam-residuals-univariate)
+
+**Family aliases:** `uv`
 
 Innovation residuals from univariate time-series models
 
@@ -942,10 +962,10 @@ Model residuals (arfima)
 | `--q` | — | `Int64` | `0` | — | MA order |
 | `--method` | `-m` | `String` | `css` | `css`, `mle` | css\|mle (fractional-integration estimator) |
 | `--d0` | — | `Float64` | — | — | Starting value for d (default: GPH pre-estimate) |
-| `--max-iter` | — | `Int64` | `500` | — | Maximum optimizer iterations |
+| `--max-iter` | `-I` | `Int64` | `500` | — | Maximum optimizer iterations *(aliases: `--miter`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `ARFIMAModel`
 
@@ -965,10 +985,10 @@ Model residuals (arima)
 | `--p` | — | `Int64` | — | — | AR order (default: auto selection) |
 | `--d` | — | `Int64` | `0` | — | Differencing order |
 | `--q` | — | `Int64` | `0` | — | MA order |
-| `--method` | `-m` | `String` | `css_mle` | — | ols\|css\|mle\|css_mle |
+| `--method` | `-m` | `String` | `css_mle` | `ols`, `css`, `mle`, `css_mle` | ols\|css\|mle\|css_mle |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -1000,17 +1020,17 @@ Model residuals (sarima)
 | `--max-q` | — | `Int64` | `2` | — | Auto search bound for q |
 | `--max-P` | — | `Int64` | `1` | — | Auto search bound for seasonal P |
 | `--max-Q` | — | `Int64` | `1` | — | Auto search bound for seasonal Q |
-| `--criterion` | — | `String` | `aic` | `aic`, `bic` | Auto-selection criterion |
-| `--method` | — | `String` | `css_mle` | `css_mle`, `mle`, `css` | Estimation method |
-| `--max-iter` | — | `Int64` | `500` | — | Maximum optimiser iterations |
+| `--criterion` | — | `String` | `aic` | `aic`, `bic` | Auto-selection criterion *(aliases: `--crit`)* |
+| `--method` | `-m` | `String` | `css_mle` | `css_mle`, `mle`, `css` | Estimation method |
+| `--max-iter` | `-I` | `Int64` | `500` | — | Maximum optimiser iterations *(aliases: `--miter`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--auto` | — | Force automatic order selection (auto_sarima) |
-| `--no-intercept` | — | Exclude the intercept term |
+| `--no-intercept` | — | Exclude the intercept term *(aliases: `--noint`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `SARIMAModel`
 
@@ -1019,6 +1039,8 @@ Model residuals (sarima)
 ---
 
 ## [Volatility](@id ref-fam-residuals-volatility)
+
+**Family aliases:** `vol`
 
 Standardized innovations from estimated conditional volatility models
 
@@ -1041,7 +1063,7 @@ Model residuals (aparch, standardized)
 | `--fix-gamma` | — | `Float64` | — | — | Fix the asymmetry parameter gamma |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `APARCHModel`
 
@@ -1061,7 +1083,7 @@ Model residuals (arch)
 | `--q` | — | `Int64` | `1` | — | ARCH order |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `ARCHModel`
 
@@ -1080,7 +1102,7 @@ Model residuals (cgarch, standardized)
 | `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `CGARCHModel`
 
@@ -1101,7 +1123,7 @@ Model residuals (egarch)
 | `--q` | — | `Int64` | `1` | — | ARCH order |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `EGARCHModel`
 
@@ -1125,7 +1147,7 @@ Model residuals (fiegarch, standardized)
 | `--dist` | — | `String` | `normal` | `normal` | Innovation distribution (Gaussian QMLE) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `FIEGARCHModel`
 
@@ -1149,7 +1171,7 @@ Model residuals (figarch, standardized)
 | `--dist` | — | `String` | `normal` | `normal` | Innovation distribution (Gaussian QMLE) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `FIGARCHModel`
 
@@ -1170,7 +1192,7 @@ Model residuals (garch)
 | `--q` | — | `Int64` | `1` | — | ARCH order |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `GARCHModel`
 
@@ -1179,6 +1201,8 @@ Model residuals (garch)
 ### [`frdc residuals volatility garch-midas`](@id ref-residuals-volatility-garch-midas)
 
 Model residuals (garch-midas, standardized)
+
+**Aliases:** `gm`
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1191,16 +1215,16 @@ Model residuals (garch-midas, standardized)
 | `--k` | — | `Int64` | `12` | — | Number of MIDAS lags |
 | `--rv` | — | `String` | `realized` | `realized`, `macro` | Long-run driver |
 | `--span` | — | `String` | `fixed` | `fixed`, `rolling` | Forecast span window scheme |
-| `--config` | — | `String` | `""` | — | TOML with [garch_midas] x_lf (required for --rv macro) |
+| `--config` | `-C` | `String` | `""` | — | TOML with [garch_midas] x_lf (required for --rv macro) *(aliases: `--cfg`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `GarchMidasModel`
 
@@ -1221,7 +1245,7 @@ Model residuals (gjr-garch)
 | `--q` | — | `Int64` | `1` | — | ARCH order |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `GJRGARCHModel`
 
@@ -1242,7 +1266,7 @@ Model residuals (igarch, standardized)
 | `--q` | — | `Int64` | `1` | — | ARCH order q |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `IGARCHModel`
 
@@ -1262,7 +1286,7 @@ Model residuals (sv)
 | `--draws` | `-n` | `Int64` | `5000` | — | MCMC draws |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `SVModel`
 

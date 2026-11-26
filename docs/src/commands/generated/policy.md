@@ -3,11 +3,15 @@
 
 Generated command reference for `frdc policy` (`23` leaves). Back to [CLI Reference Overview](@ref cli-overview).
 
+**Command aliases:** `pol`
+
 **Workflow guides:** [Policy Counterfactuals & Optimal Policy](@ref chap-policy)
 
 ---
 
 ## [Counterfactual](@id ref-fam-policy-counterfactual)
+
+**Family aliases:** `cf`
 
 Counterfactual rule swaps on historical paths, theoretical moments, and shock propagation
 
@@ -23,33 +27,34 @@ Rule counterfactual: enforce a PolicyRule on the menu with exact/ls projection
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizons` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--horizons` | `-H` | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) *(aliases: `--horizon`, `--hor`)* |
 | `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
 | `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
-| `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
+| `--instruments` | `-Z` | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 *(aliases: `--iv`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
 | `--draws` | `-n` | `Int64` | `2000` | — | Posterior draws |
-| `--config` | — | `String` | `""` | — | TOML prior config |
+| `--config` | `-C` | `String` | `""` | — | TOML prior config *(aliases: `--cfg`)* |
 | `--nonpolicy-shock` | — | `String` | `""` | — | The ONE non-policy shock the rule responds to (index or name; REQUIRED) |
-| `--rule` | — | `String` | `""` | — | Builtin rule: rate-peg\|inflation-target\|output-gap\|ngdp\|taylor (taylor = TEXTBOOK rho/phi, not CMW — use --rule-config for that) |
+| `--rule` | — | `String` | `""` | `rate-peg`, `inflation-target`, `output-gap`, `ngdp`, `taylor` | Builtin rule: rate-peg\|inflation-target\|output-gap\|ngdp\|taylor (taylor = TEXTBOOK rho/phi, not CMW — use --rule-config for that) |
 | `--rule-config` | — | `String` | `""` | — | TOML [rule] section (rate-target paths, CMW taylor, custom pi_var/y_var) |
-| `--method` | — | `String` | `auto` | `auto`, `ls`, `exact` | Projection: auto (exact when square) \| ls \| exact |
+| `--method` | `-m` | `String` | `auto` | `auto`, `ls`, `exact` | Projection: auto (exact when square) \| ls \| exact |
 | `--use-draws` | — | `String` | `auto` | `auto`, `on`, `off` | Propagate menu draws into bands: auto\|on\|off |
 | `--baseline-draws` | — | `String` | `fixed` | `fixed`, `match` | fixed (MW convention, separate estimations) \| match (pair draw d with draw d; equal counts enforced) |
-| `--quantiles` | — | `String` | `0.16,0.5,0.84` | — | Band quantiles, comma-separated in (0,1) |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--quantiles` | `-Q` | `String` | `0.16,0.5,0.84` | — | Posterior/bootstrap band quantiles in (0, 1) (default: 0.16,0.5,0.84 = 68% band) *(aliases: `--qtl`)* |
 | `--spanned-tol` | — | `Float64` | `0.05` | — | rel_residual threshold for the spanned flag |
 | `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--negate` | — | Flip the non-policy shock's sign (e.g. the contractionary version) |
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `BVARPosterior`; result types: `PolicyCounterfactual`
 
@@ -65,33 +70,34 @@ Rule counterfactual: enforce a PolicyRule on the menu with exact/ls projection
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizons` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--horizons` | `-H` | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) *(aliases: `--horizon`, `--hor`)* |
 | `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
 | `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
-| `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
+| `--instruments` | `-Z` | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 *(aliases: `--iv`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
-| `--draws` | — | `Int64` | `500` | — | Independent-normal N(value, se) draws (pointwise approximation, NOT a joint posterior) |
-| `--config` | — | `String` | `""` | — | TOML identification config |
+| `--draws` | `-n` | `Int64` | `500` | — | Independent-normal N(value, se) draws (pointwise approximation, NOT a joint posterior) *(aliases: `--n-draws`)* |
+| `--config` | `-C` | `String` | `""` | — | TOML identification config *(aliases: `--cfg`)* |
 | `--nonpolicy-shock` | — | `String` | `""` | — | The ONE non-policy shock the rule responds to (index or name; REQUIRED) |
-| `--rule` | — | `String` | `""` | — | Builtin rule: rate-peg\|inflation-target\|output-gap\|ngdp\|taylor (taylor = TEXTBOOK rho/phi, not CMW — use --rule-config for that) |
+| `--rule` | — | `String` | `""` | `rate-peg`, `inflation-target`, `output-gap`, `ngdp`, `taylor` | Builtin rule: rate-peg\|inflation-target\|output-gap\|ngdp\|taylor (taylor = TEXTBOOK rho/phi, not CMW — use --rule-config for that) |
 | `--rule-config` | — | `String` | `""` | — | TOML [rule] section (rate-target paths, CMW taylor, custom pi_var/y_var) |
-| `--method` | — | `String` | `auto` | `auto`, `ls`, `exact` | Projection: auto (exact when square) \| ls \| exact |
+| `--method` | `-m` | `String` | `auto` | `auto`, `ls`, `exact` | Projection: auto (exact when square) \| ls \| exact |
 | `--use-draws` | — | `String` | `auto` | `auto`, `on`, `off` | Propagate menu draws into bands: auto\|on\|off |
 | `--baseline-draws` | — | `String` | `fixed` | `fixed`, `match` | fixed (MW convention, separate estimations) \| match (pair draw d with draw d; equal counts enforced) |
-| `--quantiles` | — | `String` | `0.16,0.5,0.84` | — | Band quantiles, comma-separated in (0,1) |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--quantiles` | `-Q` | `String` | `0.16,0.5,0.84` | — | Posterior/bootstrap band quantiles in (0, 1) (default: 0.16,0.5,0.84 = 68% band) *(aliases: `--qtl`)* |
 | `--spanned-tol` | — | `Float64` | `0.05` | — | rel_residual threshold for the spanned flag |
 | `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none (the lp route keeps the estimator's scale; instrument-impact is var\|bvar\|sign only) |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--negate` | — | Flip the non-policy shock's sign (e.g. the contractionary version) |
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `StructuralLP`; result types: `PolicyCounterfactual`
 
@@ -107,32 +113,33 @@ Rule counterfactual: enforce a PolicyRule on the menu with exact/ls projection
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizons` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--horizons` | `-H` | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) *(aliases: `--horizon`, `--hor`)* |
 | `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
 | `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
-| `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
+| `--instruments` | `-Z` | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 *(aliases: `--iv`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
-| `--draws` | — | `Int64` | `0` | — | Bootstrap draws for uncertainty bands (0 = point only) |
+| `--draws` | `-n` | `Int64` | `0` | — | Bootstrap draws for uncertainty bands (0 = point only) *(aliases: `--replications`)* |
 | `--nonpolicy-shock` | — | `String` | `""` | — | The ONE non-policy shock the rule responds to (index or name; REQUIRED) |
-| `--rule` | — | `String` | `""` | — | Builtin rule: rate-peg\|inflation-target\|output-gap\|ngdp\|taylor (taylor = TEXTBOOK rho/phi, not CMW — use --rule-config for that) |
+| `--rule` | — | `String` | `""` | `rate-peg`, `inflation-target`, `output-gap`, `ngdp`, `taylor` | Builtin rule: rate-peg\|inflation-target\|output-gap\|ngdp\|taylor (taylor = TEXTBOOK rho/phi, not CMW — use --rule-config for that) |
 | `--rule-config` | — | `String` | `""` | — | TOML [rule] section (rate-target paths, CMW taylor, custom pi_var/y_var) |
-| `--method` | — | `String` | `auto` | `auto`, `ls`, `exact` | Projection: auto (exact when square) \| ls \| exact |
+| `--method` | `-m` | `String` | `auto` | `auto`, `ls`, `exact` | Projection: auto (exact when square) \| ls \| exact |
 | `--use-draws` | — | `String` | `auto` | `auto`, `on`, `off` | Propagate menu draws into bands: auto\|on\|off |
 | `--baseline-draws` | — | `String` | `fixed` | `fixed`, `match` | fixed (MW convention, separate estimations) \| match (pair draw d with draw d; equal counts enforced) |
-| `--quantiles` | — | `String` | `0.16,0.5,0.84` | — | Band quantiles, comma-separated in (0,1) |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--quantiles` | `-Q` | `String` | `0.16,0.5,0.84` | — | Posterior/bootstrap band quantiles in (0, 1) (default: 0.16,0.5,0.84 = 68% band) *(aliases: `--qtl`)* |
 | `--spanned-tol` | — | `Float64` | `0.05` | — | rel_residual threshold for the spanned flag |
 | `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--negate` | — | Flip the non-policy shock's sign (e.g. the contractionary version) |
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `VARModel`, `SVARModel`; result types: `PolicyCounterfactual`
 
@@ -141,6 +148,8 @@ Rule counterfactual: enforce a PolicyRule on the menu with exact/ls projection
 ---
 
 ## [Effects](@id ref-fam-policy-effects)
+
+**Family aliases:** `eff`
 
 Causal policy effects and optimal policy counterfactuals from empirical propagation matrices
 
@@ -156,19 +165,19 @@ McKay-Wolf causal-effects menu (Theta_x/Theta_z) from an estimated IRF
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizons` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--horizons` | `-H` | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) *(aliases: `--horizon`, `--hor`)* |
 | `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
 | `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
-| `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
+| `--instruments` | `-Z` | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 *(aliases: `--iv`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
 | `--draws` | `-n` | `Int64` | `2000` | — | Posterior draws |
-| `--config` | — | `String` | `""` | — | TOML prior config |
+| `--config` | `-C` | `String` | `""` | — | TOML prior config *(aliases: `--cfg`)* |
 | `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact (rescale so the first instrument's impact is +1) |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `BVARPosterior`; result types: `PolicyCausalEffects`
 
@@ -184,19 +193,19 @@ McKay-Wolf causal-effects menu (Theta_x/Theta_z) from an estimated IRF
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizons` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--horizons` | `-H` | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) *(aliases: `--horizon`, `--hor`)* |
 | `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
 | `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
-| `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
+| `--instruments` | `-Z` | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 *(aliases: `--iv`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
-| `--draws` | — | `Int64` | `500` | — | Independent-normal N(value, se) draws (pointwise approximation, NOT a joint posterior) |
-| `--config` | — | `String` | `""` | — | TOML identification config |
+| `--draws` | `-n` | `Int64` | `500` | — | Independent-normal N(value, se) draws (pointwise approximation, NOT a joint posterior) *(aliases: `--n-draws`)* |
+| `--config` | `-C` | `String` | `""` | — | TOML identification config *(aliases: `--cfg`)* |
 | `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none (the lp route keeps the estimator's scale; instrument-impact is var\|bvar\|sign only) |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `StructuralLP`, `LPModel`, `LPIVModel`; result types: `PolicyCausalEffects`
 
@@ -212,19 +221,19 @@ McKay-Wolf causal-effects menu (Theta_x/Theta_z) from an estimated IRF
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizons` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--horizons` | `-H` | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) *(aliases: `--horizon`, `--hor`)* |
 | `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
 | `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
-| `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
+| `--instruments` | `-Z` | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 *(aliases: `--iv`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
-| `--draws` | — | `Int64` | `1000` | — | Candidate rotations |
-| `--config` | — | `String` | `""` | — | TOML sign-restriction config (REQUIRED) |
+| `--draws` | `-n` | `Int64` | `1000` | — | Candidate rotations *(aliases: `--replications`)* |
+| `--config` | `-C` | `String` | `""` | — | TOML sign-restriction config (REQUIRED) *(aliases: `--cfg`)* |
 | `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact (rescale so the first instrument's impact is +1) |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `VARModel`, `SignIdentifiedSet`; result types: `PolicyCausalEffects`
 
@@ -240,18 +249,18 @@ McKay-Wolf causal-effects menu (Theta_x/Theta_z) from an estimated IRF
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizons` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--horizons` | `-H` | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) *(aliases: `--horizon`, `--hor`)* |
 | `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
 | `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
-| `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
+| `--instruments` | `-Z` | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 *(aliases: `--iv`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
-| `--draws` | — | `Int64` | `0` | — | Bootstrap draws for uncertainty bands (0 = point only) |
+| `--draws` | `-n` | `Int64` | `0` | — | Bootstrap draws for uncertainty bands (0 = point only) *(aliases: `--replications`)* |
 | `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact (rescale so the first instrument's impact is +1) |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `VARModel`, `SVARModel`; result types: `PolicyCausalEffects`
 
@@ -260,6 +269,8 @@ McKay-Wolf causal-effects menu (Theta_x/Theta_z) from an estimated IRF
 ---
 
 ## [History](@id ref-fam-policy-history)
+
+**Family aliases:** `hist`
 
 Historical shock decomposition and shock-removal counterfactual paths
 
@@ -275,30 +286,31 @@ Counterfactual history: re-run an observation window under the policy
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizons` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--horizons` | `-H` | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) *(aliases: `--horizon`, `--hor`)* |
 | `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
 | `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
-| `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
+| `--instruments` | `-Z` | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 *(aliases: `--iv`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
 | `--draws` | `-n` | `Int64` | `2000` | — | Posterior draws |
-| `--config` | — | `String` | `""` | — | TOML prior config |
+| `--config` | `-C` | `String` | `""` | — | TOML prior config *(aliases: `--cfg`)* |
 | `--t-range` | — | `String` | `""` | — | Observation window lo:hi to re-run under the rule or optimal policy (REQUIRED; length ≤ H−1) |
 | `--rule` | — | `String` | `""` | — | Builtin counterfactual rule |
 | `--rule-config` | — | `String` | `""` | — | TOML [rule] section |
 | `--loss-config` | — | `String` | `""` | — | TOML [loss] section (rule XOR loss) |
 | `--use-draws` | — | `String` | `auto` | `auto`, `on`, `off` | Propagate draws into bands |
-| `--quantiles` | — | `String` | `0.16,0.5,0.84` | — | Band quantiles in (0,1) |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--quantiles` | `-Q` | `String` | `0.16,0.5,0.84` | — | Posterior/bootstrap band quantiles in (0, 1) (default: 0.16,0.5,0.84 = 68% band) *(aliases: `--qtl`)* |
 | `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `BVARPosterior`; result types: `CounterfactualHistory`
 
@@ -314,29 +326,30 @@ Counterfactual history: re-run an observation window under the policy
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizons` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--horizons` | `-H` | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) *(aliases: `--horizon`, `--hor`)* |
 | `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
 | `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
-| `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
+| `--instruments` | `-Z` | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 *(aliases: `--iv`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
-| `--draws` | — | `Int64` | `0` | — | Bootstrap draws for uncertainty bands (0 = point only) |
+| `--draws` | `-n` | `Int64` | `0` | — | Bootstrap draws for uncertainty bands (0 = point only) *(aliases: `--replications`)* |
 | `--t-range` | — | `String` | `""` | — | Observation window lo:hi to re-run under the rule or optimal policy (REQUIRED; length ≤ H−1) |
 | `--rule` | — | `String` | `""` | — | Builtin counterfactual rule |
 | `--rule-config` | — | `String` | `""` | — | TOML [rule] section |
 | `--loss-config` | — | `String` | `""` | — | TOML [loss] section (rule XOR loss) |
 | `--use-draws` | — | `String` | `auto` | `auto`, `on`, `off` | Propagate draws into bands |
-| `--quantiles` | — | `String` | `0.16,0.5,0.84` | — | Band quantiles in (0,1) |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--quantiles` | `-Q` | `String` | `0.16,0.5,0.84` | — | Posterior/bootstrap band quantiles in (0, 1) (default: 0.16,0.5,0.84 = 68% band) *(aliases: `--qtl`)* |
 | `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `VARModel`, `SVARModel`; result types: `CounterfactualHistory`
 
@@ -345,6 +358,8 @@ Counterfactual history: re-run an observation window under the policy
 ---
 
 ## [Jacobian](@id ref-fam-policy-jacobian)
+
+**Family aliases:** `jac`
 
 Sequence-space policy Jacobians and dynamic causal propagation matrices
 
@@ -366,8 +381,8 @@ Sequence-space household Jacobian d(output)/d(input) as a tidy T² table
 | `--dx` | — | `Float64` | `0.0001` | — | Finite-difference step |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** model types: `HADSGESolution`; result types: `Matrix`, `SSJGEJacobian`
 
@@ -376,6 +391,8 @@ Sequence-space household Jacobian d(output)/d(input) as a tidy T² table
 ---
 
 ## [Moments](@id ref-fam-policy-moments)
+
+**Family aliases:** `mom`
 
 Unconditional variance, shock-share, and welfare moment decompositions under policy rules
 
@@ -391,31 +408,32 @@ Counterfactual second moments (sd/corr), rule XOR loss
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizons` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--horizons` | `-H` | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) *(aliases: `--horizon`, `--hor`)* |
 | `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
 | `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
-| `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
+| `--instruments` | `-Z` | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 *(aliases: `--iv`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
 | `--draws` | `-n` | `Int64` | `2000` | — | Posterior draws |
-| `--config` | — | `String` | `""` | — | TOML prior config |
+| `--config` | `-C` | `String` | `""` | — | TOML prior config *(aliases: `--cfg`)* |
 | `--rule` | — | `String` | `""` | — | Builtin counterfactual rule (see policy counterfactual) |
 | `--rule-config` | — | `String` | `""` | — | TOML [rule] section |
 | `--loss-config` | — | `String` | `""` | — | TOML [loss] section (rule XOR loss) |
 | `--use-draws` | — | `String` | `auto` | `auto`, `on`, `off` | Propagate draws into sd bands: auto\|on\|off |
 | `--draw-source` | — | `String` | `ce` | `ce`, `wold`, `both` | Uncertainty source: ce \| wold \| both (matching counts enforced) |
-| `--quantiles` | — | `String` | `0.16,0.5,0.84` | — | Band quantiles, comma-separated in (0,1) |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--quantiles` | `-Q` | `String` | `0.16,0.5,0.84` | — | Posterior/bootstrap band quantiles in (0, 1) (default: 0.16,0.5,0.84 = 68% band) *(aliases: `--qtl`)* |
 | `--frequencies` | — | `String` | `none` | — | none \| business-cycle (2π/32..2π/6) \| lo,hi in radians (0 ≤ lo < hi ≤ π) |
 | `--plot-view` | — | `String` | `sd` | `sd`, `corr` | Plot panel: sd \| corr |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `BVARPosterior`; result types: `CounterfactualMoments`
 
@@ -431,30 +449,31 @@ Counterfactual second moments (sd/corr), rule XOR loss
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizons` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--horizons` | `-H` | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) *(aliases: `--horizon`, `--hor`)* |
 | `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
 | `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
-| `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
+| `--instruments` | `-Z` | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 *(aliases: `--iv`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
-| `--draws` | — | `Int64` | `0` | — | Bootstrap draws for uncertainty bands (0 = point only) |
+| `--draws` | `-n` | `Int64` | `0` | — | Bootstrap draws for uncertainty bands (0 = point only) *(aliases: `--replications`)* |
 | `--rule` | — | `String` | `""` | — | Builtin counterfactual rule (see policy counterfactual) |
 | `--rule-config` | — | `String` | `""` | — | TOML [rule] section |
 | `--loss-config` | — | `String` | `""` | — | TOML [loss] section (rule XOR loss) |
 | `--use-draws` | — | `String` | `auto` | `auto`, `on`, `off` | Propagate draws into sd bands: auto\|on\|off |
 | `--draw-source` | — | `String` | `ce` | `ce`, `wold`, `both` | Uncertainty source: ce \| wold \| both (matching counts enforced) |
-| `--quantiles` | — | `String` | `0.16,0.5,0.84` | — | Band quantiles, comma-separated in (0,1) |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--quantiles` | `-Q` | `String` | `0.16,0.5,0.84` | — | Posterior/bootstrap band quantiles in (0, 1) (default: 0.16,0.5,0.84 = 68% band) *(aliases: `--qtl`)* |
 | `--frequencies` | — | `String` | `none` | — | none \| business-cycle (2π/32..2π/6) \| lo,hi in radians (0 ≤ lo < hi ≤ π) |
 | `--plot-view` | — | `String` | `sd` | `sd`, `corr` | Plot panel: sd \| corr |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `VARModel`, `SVARModel`; result types: `CounterfactualMoments`
 
@@ -480,9 +499,9 @@ Square DSGE news menu (policy_news_matrix) for one exogenous shock
 |--------|-------|------|---------|---------|-------------|
 | `--policy-shock` | — | `String` | `""` | — | Exogenous shock the news menu perturbs (REQUIRED) |
 | `--outcomes` | — | `String` | `""` | — | name=model_variable map (SYMBOLS; REQUIRED) |
-| `--instruments` | — | `String` | `""` | — | name=model_variable map |
-| `--horizons` | — | `Int64` | `100` | — | News horizon H (one QZ of dimension n+H−1 — MW use 100) |
-| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `blanchard-kahn` | Linear solver (nonlinear menus unsupported upstream) |
+| `--instruments` | `-Z` | `String` | `""` | — | name=model_variable map *(aliases: `--iv`)* |
+| `--horizons` | `-H` | `Int64` | `100` | — | News horizon H (one QZ of dimension n+H−1 — MW use 100) *(aliases: `--horizon`, `--hor`)* |
+| `--solver` | `-s` | `String` | `gensys` | `gensys`, `klein`, `blanchard-kahn` | Linear solver (nonlinear menus unsupported upstream) |
 | `--chunk` | — | `Int64` | `0` | — | Shock columns per solve (0 = all at once) |
 | `--behavioral-m` | — | `Float64` | `NaN` | — | Cognitive discounting m in [0,1] (behavioral operator; square menus only) |
 | `--behavioral-theta` | — | `Float64` | `NaN` | — | Sticky-expectations theta in [0,1] |
@@ -490,8 +509,8 @@ Square DSGE news menu (policy_news_matrix) for one exogenous shock
 | `--behavioral-ri-rho` | — | `Float64` | `NaN` | — | RI anticipation news persistence rho in [0,1] (requires --behavioral-ri-gain; default 0.8) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** model types: `DSGESolution`, `PerturbationSolution`; result types: `PolicyCausalEffects`
 
@@ -508,8 +527,8 @@ Square HA sequence-space news menu under a rate-wedge closure
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--outcomes` | — | `String` | `""` | — | name=model_variable map (SYMBOLS; REQUIRED) |
-| `--instruments` | — | `String` | `""` | — | name=model_variable map (default rate=r) |
-| `--horizons` | — | `Int64` | `100` | — | News horizon H |
+| `--instruments` | `-Z` | `String` | `""` | — | name=model_variable map (default rate=r) *(aliases: `--iv`)* |
+| `--horizons` | `-H` | `Int64` | `100` | — | News horizon H *(aliases: `--horizon`, `--hor`)* |
 | `--t-horizon` | — | `Int64` | `300` | — | Sequence-space truncation (≥ H; < H+50 warns) |
 | `--rule-closure` | — | `String` | `administered` | `administered`, `market` | administered \| market (market: huggett-only; the wedge is exactly neutral there BY CONSTRUCTION) |
 | `--dx` | — | `Float64` | `0.0001` | — | Finite-difference step |
@@ -519,8 +538,8 @@ Square HA sequence-space news menu under a rate-wedge closure
 | `--behavioral-ri-rho` | — | `Float64` | `NaN` | — | RI anticipation news persistence rho in [0,1] (requires --behavioral-ri-gain; default 0.8) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** model types: `HADSGESolution`; result types: `PolicyCausalEffects`
 
@@ -544,15 +563,15 @@ Barnichon-Mesters optimal policy perturbation (unconstrained or constrained)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizons` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--horizons` | `-H` | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) *(aliases: `--horizon`, `--hor`)* |
 | `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
 | `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
-| `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
+| `--instruments` | `-Z` | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 *(aliases: `--iv`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
 | `--draws` | `-n` | `Int64` | `2000` | — | Posterior draws |
-| `--config` | — | `String` | `""` | — | TOML prior config |
+| `--config` | `-C` | `String` | `""` | — | TOML prior config *(aliases: `--cfg`)* |
 | `--loss-config` | — | `String` | `""` | — | TOML [loss] section (REQUIRED) |
 | `--n-sim` | — | `Int64` | `2000` | — | Simulation draws for estimate_opp bands (0 = point only) |
 | `--levels` | — | `String` | `0.6,0.75,0.9` | — | Band levels — BM REVERSED polarity: rejection at the LOWER level is the conservative call |
@@ -566,18 +585,18 @@ Barnichon-Mesters optimal policy perturbation (unconstrained or constrained)
 | `--origin` | — | `String` | `""` | — | Forecast origin label, e.g. 2008M4 |
 | `--instrument-path` | — | `String` | `""` | — | Announced instrument path, comma H values (REQUIRED with --constraints-file) |
 | `--constraints-file` | — | `String` | `""` | — | TOML [[constraint]] tables → constrained OPP (named deliberately: --conditions is swallowed pre-dispatch) |
-| `--method` | — | `String` | `auto` | `auto`, `slsqp`, `projection` | Constrained solver: auto \| slsqp \| projection (crude floor-only fallback) |
+| `--method` | `-m` | `String` | `auto` | `auto`, `slsqp`, `projection` | Constrained solver: auto \| slsqp \| projection (crude floor-only fallback) |
 | `--plot-view` | — | `String` | `delta` | `delta`, `paths` | Plot panel: delta \| paths |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--matched-draws` | — | Pair draw d across sources (independent=false; equal counts enforced) |
 | `--interp-quarterly` | — | External route: interpolate annual SEP paths to quarterly |
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `BVARPosterior`; result types: `OPPResult`
 
@@ -593,14 +612,14 @@ Barnichon-Mesters optimal policy perturbation (unconstrained or constrained)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizons` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--horizons` | `-H` | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) *(aliases: `--horizon`, `--hor`)* |
 | `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
 | `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
-| `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
+| `--instruments` | `-Z` | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 *(aliases: `--iv`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
-| `--draws` | — | `Int64` | `0` | — | Bootstrap draws for uncertainty bands (0 = point only) |
+| `--draws` | `-n` | `Int64` | `0` | — | Bootstrap draws for uncertainty bands (0 = point only) *(aliases: `--replications`)* |
 | `--loss-config` | — | `String` | `""` | — | TOML [loss] section (REQUIRED) |
 | `--n-sim` | — | `Int64` | `2000` | — | Simulation draws for estimate_opp bands (0 = point only) |
 | `--levels` | — | `String` | `0.6,0.75,0.9` | — | Band levels — BM REVERSED polarity: rejection at the LOWER level is the conservative call |
@@ -614,18 +633,18 @@ Barnichon-Mesters optimal policy perturbation (unconstrained or constrained)
 | `--origin` | — | `String` | `""` | — | Forecast origin label, e.g. 2008M4 |
 | `--instrument-path` | — | `String` | `""` | — | Announced instrument path, comma H values (REQUIRED with --constraints-file) |
 | `--constraints-file` | — | `String` | `""` | — | TOML [[constraint]] tables → constrained OPP (named deliberately: --conditions is swallowed pre-dispatch) |
-| `--method` | — | `String` | `auto` | `auto`, `slsqp`, `projection` | Constrained solver: auto \| slsqp \| projection (crude floor-only fallback) |
+| `--method` | `-m` | `String` | `auto` | `auto`, `slsqp`, `projection` | Constrained solver: auto \| slsqp \| projection (crude floor-only fallback) |
 | `--plot-view` | — | `String` | `delta` | `delta`, `paths` | Plot panel: delta \| paths |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--matched-draws` | — | Pair draw d across sources (independent=false; equal counts enforced) |
 | `--interp-quarterly` | — | External route: interpolate annual SEP paths to quarterly |
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `VARModel`, `SVARModel`; result types: `OPPResult`
 
@@ -634,6 +653,8 @@ Barnichon-Mesters optimal policy perturbation (unconstrained or constrained)
 ---
 
 ## [Optimal Policy Perturbation Sequences (`opp-sequence`)](@id ref-fam-policy-opp-sequence)
+
+**Family aliases:** `opp-seq`
 
 Constrained multi-instrument sequence-space optimal policy paths and loss frontiers
 
@@ -649,15 +670,15 @@ OPP rerun over a sequence of dated gap forecasts with news/preference/aging spli
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizons` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--horizons` | `-H` | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) *(aliases: `--horizon`, `--hor`)* |
 | `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
 | `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
-| `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
+| `--instruments` | `-Z` | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 *(aliases: `--iv`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
 | `--draws` | `-n` | `Int64` | `2000` | — | Posterior draws |
-| `--config` | — | `String` | `""` | — | TOML prior config |
+| `--config` | `-C` | `String` | `""` | — | TOML prior config *(aliases: `--cfg`)* |
 | `--loss-config` | — | `String` | `""` | — | TOML [loss] section (REQUIRED) |
 | `--forecasts-dir` | — | `String` | `""` | — | Directory of per-date GAP-path CSVs (sorted filenames = dates; REQUIRED) |
 | `--sd` | — | `String` | `""` | — | Per-outcome forecast sd shared across dates |
@@ -666,15 +687,15 @@ OPP rerun over a sequence of dated gap forecasts with news/preference/aging spli
 | `--levels` | — | `String` | `0.6,0.75,0.9` | — | Band levels (BM reversed polarity) |
 | `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact |
 | `--plot-view` | — | `String` | `fan` | `fan`, `decomposition` | Plot panel: fan \| decomposition |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--matched-draws` | — | Pair draw d across sources (independent=false) |
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `BVARPosterior`; result types: `OPPSequence`
 
@@ -690,14 +711,14 @@ OPP rerun over a sequence of dated gap forecasts with news/preference/aging spli
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizons` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--horizons` | `-H` | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) *(aliases: `--horizon`, `--hor`)* |
 | `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
 | `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
-| `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
+| `--instruments` | `-Z` | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 *(aliases: `--iv`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
-| `--draws` | — | `Int64` | `0` | — | Bootstrap draws for uncertainty bands (0 = point only) |
+| `--draws` | `-n` | `Int64` | `0` | — | Bootstrap draws for uncertainty bands (0 = point only) *(aliases: `--replications`)* |
 | `--loss-config` | — | `String` | `""` | — | TOML [loss] section (REQUIRED) |
 | `--forecasts-dir` | — | `String` | `""` | — | Directory of per-date GAP-path CSVs (sorted filenames = dates; REQUIRED) |
 | `--sd` | — | `String` | `""` | — | Per-outcome forecast sd shared across dates |
@@ -706,15 +727,15 @@ OPP rerun over a sequence of dated gap forecasts with news/preference/aging spli
 | `--levels` | — | `String` | `0.6,0.75,0.9` | — | Band levels (BM reversed polarity) |
 | `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact |
 | `--plot-view` | — | `String` | `fan` | `fan`, `decomposition` | Plot panel: fan \| decomposition |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--matched-draws` | — | Pair draw d across sources (independent=false) |
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `VARModel`, `SVARModel`; result types: `OPPSequence`
 
@@ -723,6 +744,8 @@ OPP rerun over a sequence of dated gap forecasts with news/preference/aging spli
 ---
 
 ## [Optimal](@id ref-fam-policy-optimal)
+
+**Family aliases:** `opt`
 
 Ramsey, timeless-perspective, and simple-rule optimal monetary/fiscal policy solvers
 
@@ -738,30 +761,31 @@ Optimal policy: minimize a quadratic PolicyLoss over the menu (spanned_tol fixed
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizons` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--horizons` | `-H` | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) *(aliases: `--horizon`, `--hor`)* |
 | `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
 | `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
-| `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
+| `--instruments` | `-Z` | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 *(aliases: `--iv`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
 | `--draws` | `-n` | `Int64` | `2000` | — | Posterior draws |
-| `--config` | — | `String` | `""` | — | TOML prior config |
+| `--config` | `-C` | `String` | `""` | — | TOML prior config *(aliases: `--cfg`)* |
 | `--nonpolicy-shock` | — | `String` | `""` | — | The ONE non-policy shock the optimal policy responds to (REQUIRED) |
 | `--loss-config` | — | `String` | `""` | — | TOML [loss] section (REQUIRED; lambda has no default upstream) |
 | `--use-draws` | — | `String` | `auto` | `auto`, `on`, `off` | Propagate menu draws into bands: auto\|on\|off |
 | `--baseline-draws` | — | `String` | `fixed` | `fixed`, `match` | fixed \| match (equal draw counts enforced) |
-| `--quantiles` | — | `String` | `0.16,0.5,0.84` | — | Band quantiles, comma-separated in (0,1) |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--quantiles` | `-Q` | `String` | `0.16,0.5,0.84` | — | Posterior/bootstrap band quantiles in (0, 1) (default: 0.16,0.5,0.84 = 68% band) *(aliases: `--qtl`)* |
 | `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--negate` | — | Flip the non-policy shock's sign |
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `BVARPosterior`; result types: `PolicyCounterfactual`
 
@@ -777,30 +801,31 @@ Optimal policy: minimize a quadratic PolicyLoss over the menu (spanned_tol fixed
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizons` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--horizons` | `-H` | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) *(aliases: `--horizon`, `--hor`)* |
 | `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
 | `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
-| `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
+| `--instruments` | `-Z` | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 *(aliases: `--iv`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
-| `--draws` | — | `Int64` | `500` | — | Independent-normal N(value, se) draws (pointwise approximation, NOT a joint posterior) |
-| `--config` | — | `String` | `""` | — | TOML identification config |
+| `--draws` | `-n` | `Int64` | `500` | — | Independent-normal N(value, se) draws (pointwise approximation, NOT a joint posterior) *(aliases: `--n-draws`)* |
+| `--config` | `-C` | `String` | `""` | — | TOML identification config *(aliases: `--cfg`)* |
 | `--nonpolicy-shock` | — | `String` | `""` | — | The ONE non-policy shock the optimal policy responds to (REQUIRED) |
 | `--loss-config` | — | `String` | `""` | — | TOML [loss] section (REQUIRED; lambda has no default upstream) |
 | `--use-draws` | — | `String` | `auto` | `auto`, `on`, `off` | Propagate menu draws into bands: auto\|on\|off |
 | `--baseline-draws` | — | `String` | `fixed` | `fixed`, `match` | fixed \| match (equal draw counts enforced) |
-| `--quantiles` | — | `String` | `0.16,0.5,0.84` | — | Band quantiles, comma-separated in (0,1) |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--quantiles` | `-Q` | `String` | `0.16,0.5,0.84` | — | Posterior/bootstrap band quantiles in (0, 1) (default: 0.16,0.5,0.84 = 68% band) *(aliases: `--qtl`)* |
 | `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none (the lp route keeps the estimator's scale; instrument-impact is var\|bvar\|sign only) |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--negate` | — | Flip the non-policy shock's sign |
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `StructuralLP`; result types: `PolicyCounterfactual`
 
@@ -816,29 +841,30 @@ Optimal policy: minimize a quadratic PolicyLoss over the menu (spanned_tol fixed
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizons` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--horizons` | `-H` | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) *(aliases: `--horizon`, `--hor`)* |
 | `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
 | `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
-| `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
+| `--instruments` | `-Z` | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 *(aliases: `--iv`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: AIC for var/sign, 4 for bvar/lp) |
-| `--draws` | — | `Int64` | `0` | — | Bootstrap draws for uncertainty bands (0 = point only) |
+| `--draws` | `-n` | `Int64` | `0` | — | Bootstrap draws for uncertainty bands (0 = point only) *(aliases: `--replications`)* |
 | `--nonpolicy-shock` | — | `String` | `""` | — | The ONE non-policy shock the optimal policy responds to (REQUIRED) |
 | `--loss-config` | — | `String` | `""` | — | TOML [loss] section (REQUIRED; lambda has no default upstream) |
 | `--use-draws` | — | `String` | `auto` | `auto`, `on`, `off` | Propagate menu draws into bands: auto\|on\|off |
 | `--baseline-draws` | — | `String` | `fixed` | `fixed`, `match` | fixed \| match (equal draw counts enforced) |
-| `--quantiles` | — | `String` | `0.16,0.5,0.84` | — | Band quantiles, comma-separated in (0,1) |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--quantiles` | `-Q` | `String` | `0.16,0.5,0.84` | — | Posterior/bootstrap band quantiles in (0, 1) (default: 0.16,0.5,0.84 = 68% band) *(aliases: `--qtl`)* |
 | `--normalize` | — | `String` | `none` | `none`, `instrument-impact` | none \| instrument-impact |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--negate` | — | Flip the non-policy shock's sign |
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `VARModel`, `SVARModel`; result types: `PolicyCounterfactual`
 
@@ -847,6 +873,8 @@ Optimal policy: minimize a quadratic PolicyLoss over the menu (spanned_tol fixed
 ---
 
 ## [Spanning](@id ref-fam-policy-spanning)
+
+**Family aliases:** `span`
 
 Instrument spanning diagnostics across target impulse paths
 
@@ -863,31 +891,32 @@ Spanning diagnostic: thin empirical menu vs full DSGE news menu
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--horizons` | — | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) |
+| `--horizons` | `-H` | `Int64` | `20` | — | Truncation horizon H (≥ 1; MW use H=100) *(aliases: `--horizon`, `--hor`)* |
 | `--shocks` | — | `String` | `""` | — | Identified POLICY shock columns (indices or names, comma-separated; REQUIRED) |
 | `--outcomes` | — | `String` | `""` | — | Outcome map name=index-or-column, comma-separated (REQUIRED), e.g. infl=2,ygap=1 |
-| `--instruments` | — | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 |
+| `--instruments` | `-Z` | `String` | `""` | — | Instrument map name=index-or-column, comma-separated, e.g. rate=3 *(aliases: `--iv`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--lags` | `-p` | `Int64` | — | — | VAR lag order (default AIC) |
-| `--draws` | — | `Int64` | `0` | — | Bootstrap draws on the empirical menu |
+| `--draws` | `-n` | `Int64` | `0` | — | Bootstrap draws on the empirical menu *(aliases: `--replications`)* |
 | `--nonpolicy-shock` | — | `String` | `""` | — | Baseline non-policy shock (REQUIRED) |
 | `--model-outcomes` | — | `String` | `""` | — | name=model_variable map for the news menu (SAME names as --outcomes) |
 | `--model-instruments` | — | `String` | `""` | — | name=model_variable map |
 | `--policy-shock` | — | `String` | `""` | — | Model shock behind the full news menu (REQUIRED) |
-| `--solver` | — | `String` | `gensys` | `gensys`, `klein`, `blanchard-kahn` | Linear DSGE solver |
+| `--solver` | `-s` | `String` | `gensys` | `gensys`, `klein`, `blanchard-kahn` | Linear DSGE solver |
 | `--rule` | — | `String` | `""` | — | Builtin counterfactual rule |
 | `--rule-config` | — | `String` | `""` | — | TOML [rule] section |
-| `--tol` | — | `Float64` | `0.1` | — | Spanned-verdict tolerance on gap_rel and the loading share |
+| `--tol` | `-T` | `Float64` | `0.1` | — | Spanned-verdict tolerance on gap_rel and the loading share |
 | `--n-sim` | — | `Int64` | `200` | — | Draw propagation for gap bands |
-| `--quantiles` | — | `String` | `0.16,0.5,0.84` | — | Band quantiles in (0,1) |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--quantiles` | `-Q` | `String` | `0.16,0.5,0.84` | — | Posterior/bootstrap band quantiles in (0, 1) (default: 0.16,0.5,0.84 = 68% band) *(aliases: `--qtl`)* |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `DSGESolution`, `PerturbationSolution`; result types: `SpanningDiagnostic`
 
@@ -896,6 +925,8 @@ Spanning diagnostic: thin empirical menu vs full DSGE news menu
 ---
 
 ## [Sufficiency](@id ref-fam-policy-sufficiency)
+
+**Family aliases:** `suff`
 
 Sufficient-statistic checks for empirical vs structural policy counterfactuals
 
@@ -911,18 +942,18 @@ Forecast-sufficiency FEV ratios for an observable set (population laboratory, no
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--observables` | — | `String` | `""` | — | Comma-separated model variables the econometrician sees (REQUIRED) |
-| `--horizons` | — | `Int64` | `40` | — | FEV comparison horizon |
-| `--method` | — | `String` | `gensys` | — | DSGE solve method |
+| `--observables` | — | `String` | `""` | — | Comma-separated model variables the econometrician sees (REQUIRED) *(aliases: `--obs`)* |
+| `--horizons` | `-H` | `Int64` | `40` | — | FEV comparison horizon *(aliases: `--horizon`, `--hor`)* |
+| `--method` | `-m` | `String` | `gensys` | — | DSGE solve method |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** model types: `DSGESolution`, `PerturbationSolution`; result types: `ForecastSufficiency`
 

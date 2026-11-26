@@ -15,8 +15,8 @@ frdc io leontief --matrix L
 ┌───────────────┬─────────────┬───────────────┐
 │    sector     │ Agriculture │ Manufacturing │
 ├───────────────┼─────────────┼───────────────┤
-│  Agriculture  │   1.25412   │   0.330033    │
-│ Manufacturing │  0.264026   │    1.12211    │
+│  Agriculture  │    1.254    │     0.330     │
+│ Manufacturing │    0.264    │     1.122     │
 └───────────────┴─────────────┴───────────────┘
 ```
 
@@ -46,13 +46,13 @@ L = (I - A)^{-1}, \quad \Delta x = L \, \Delta y; \qquad G = (I - B)^{-1}, \quad
 frdc io linkages --forward ghosh
 ```
 ```text
-                          Linkages (forward=ghosh)
-┌───────────────┬──────────┬─────────┬──────────┬──────────┬────────────────┐
-│    sector     │ backward │ forward │    Ui    │    Uj    │ classification │
-├───────────────┼──────────┼─────────┼──────────┼──────────┼────────────────┤
-│  Agriculture  │ 1.51815  │ 1.91419 │ 1.02222  │ 1.20833  │      key       │
-│ Manufacturing │ 1.45215  │ 1.25413 │ 0.977778 │ 0.791667 │      weak      │
-└───────────────┴──────────┴─────────┴──────────┴──────────┴────────────────┘
+                       Linkages (forward=ghosh)
+┌───────────────┬──────────┬─────────┬───────┬───────┬────────────────┐
+│    sector     │ backward │ forward │  Ui   │  Uj   │ classification │
+├───────────────┼──────────┼─────────┼───────┼───────┼────────────────┤
+│  Agriculture  │  1.518   │  1.914  │ 1.022 │ 1.208 │      key       │
+│ Manufacturing │  1.452   │  1.254  │ 0.978 │ 0.792 │      weak      │
+└───────────────┴──────────┴─────────┴───────┴───────┴────────────────┘
 ```
 
 Under [`io linkages`](@ref ref-io-linkages), each sector is classified (`classification`) using normalized backward dispersion $U_j$ and forward dispersion $U_i$ relative to `1.0` (`Agriculture` has $U_i = 1.02222$, $U_j = 1.20833$ -> `key`, while `Manufacturing` has $0.977778$, $0.791667$ -> `weak`; [`io key-sectors`](@ref ref-io-key-sectors) extracts `key` vs `weak` rankings cleanly).
@@ -77,26 +77,26 @@ frdc --quiet io bf network --theta 0.5,1.2 --save-model bf_net.fmod
 frdc io bf equilibrium --model bf_net.fmod --dlog-a 0.05,0.0 --method newton
 ```
 ```text
-  BF Equilibrium Summary
-┌──────────────┬──────────┐
-│    metric    │  value   │
-├──────────────┼──────────┤
-│    dlogY     │ 0.024402 │
-│    hulten    │ 0.02439  │
-│  technology  │ 0.02439  │
-│  allocative  │   0.0    │
-│ profit_share │   0.0    │
-│  converged   │   true   │
-│  iterations  │    1     │
-│   residual   │   0.0    │
-└──────────────┴──────────┘
-         BF Equilibrium Sectors
-┌───────────────┬──────────┬───────────┐
-│    sector     │  dlog_x  │  dlog_p   │
-├───────────────┼──────────┼───────────┤
-│  Agriculture  │ 0.063594 │ -0.062575 │
-│ Manufacturing │ 0.016442 │ -0.016543 │
-└───────────────┴──────────┴───────────┘
+ BF Equilibrium Summary
+┌──────────────┬───────┐
+│    metric    │ value │
+├──────────────┼───────┤
+│    dlogY     │ 0.024 │
+│    hulten    │ 0.024 │
+│  technology  │ 0.024 │
+│  allocative  │ 0.000 │
+│ profit_share │ 0.000 │
+│  converged   │ true  │
+│  iterations  │   1   │
+│   residual   │ 0.000 │
+└──────────────┴───────┘
+      BF Equilibrium Sectors
+┌───────────────┬────────┬────────┐
+│    sector     │ dlog_x │ dlog_p │
+├───────────────┼────────┼────────┤
+│  Agriculture  │ 0.064  │ -0.063 │
+│ Manufacturing │ 0.016  │ -0.017 │
+└───────────────┴────────┴────────┘
 ```
 
 The exact nonlinear CES general-equilibrium response outputs scalar aggregate `dlogY = 0.024402` (vs Hulten first-order `0.02439`) and convergence metadata (`bf_equilibrium_summary`) alongside per-sector log changes (`Agriculture` `+0.063594` quantity, `-0.062575` price in `bf_equilibrium_sectors`) using the persisted `.fmod` network handle (`--model bf_net.fmod`).

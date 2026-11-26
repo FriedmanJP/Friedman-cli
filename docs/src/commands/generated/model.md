@@ -3,6 +3,8 @@
 
 Generated command reference for `frdc model` (`4` leaves). Back to [CLI Reference Overview](@ref cli-overview).
 
+**Command aliases:** `m`, `mod`
+
 **Workflow guides:** [Pipelines, Handles & Reproducibility](@ref gs-pipelines)
 
 ---
@@ -14,6 +16,8 @@ Generated command reference for `frdc model` (`4` leaves). Back to [CLI Referenc
 ### [`frdc model convert`](@id ref-model-convert)
 
 Convert a handle between formats (.fmod/.jls/.jld2/archive#key/session URI -> .jld2 or .jls) preserving note & provenance
+
+**Aliases:** `conv`
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -67,14 +71,16 @@ List selectable #key entries in a multi-key .jld2 archive, MEMs bundle, .jls Dic
 
 Verify a saved handle by re-running its estimator from recorded seed/provenance across .jld2, .jls, .fmod, and session URIs
 
+**Aliases:** `repro`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `path` | `String` | yes | — | Handle path (.jld2, .jls, .fmod, or session URI) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--model` | — | `String` | `""` | — | Optional source model handle for two-argument reproduce (e.g. bootstrap ImpulseResponse) |
-| `--tol` | — | `Float64` | `1.0e-10` | — | Numeric equality tolerance for CLI-derived comparisons |
+| `--model` | `-M` | `String` | `""` | — | Optional source model handle for two-argument reproduce (e.g. bootstrap ImpulseResponse) |
+| `--tol` | `-T` | `Float64` | `1.0e-10` | — | Numeric equality tolerance for CLI-derived comparisons |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 

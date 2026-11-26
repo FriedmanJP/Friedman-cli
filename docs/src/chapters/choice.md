@@ -1,6 +1,6 @@
 # [Discrete Choice, Count & Selection](@id chap-choice)
 
-Binary, ordered, multinomial, and count outcomes sit under [`estimate choice`](@ref ref-fam-estimate-choice) alongside full fitted-probability/marginal-effect prediction ([`predict choice`](@ref ref-fam-predict-choice)) and residual extraction ([`residuals choice`](@ref ref-fam-residuals-choice)), while censored (`tobit`), truncated (`truncreg`), sample-selected (`heckman`), and stepwise (`select`) regressions sit under [`estimate regression`](@ref ref-fam-estimate-regression). See [MacroEconometricModels.jl — Discrete Choice & Selection](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/discrete/) for full likelihood derivations.
+Binary, ordered, multinomial, and count outcomes sit under [`estimate choice`](@ref ref-fam-estimate-choice) alongside full fitted-probability/marginal-effect prediction ([`predict choice`](@ref ref-fam-predict-choice)) and residual extraction ([`residuals choice`](@ref ref-fam-residuals-choice)), while censored (`tobit`), truncated (`truncreg`), sample-selected (`heckman`), and stepwise (`select`) regressions sit under [`estimate regression`](@ref ref-fam-estimate-regression). All discrete-choice, count, marginal-effect, odds-ratio, and selection leaves report **90%** confidence intervals by default (`-L`/`--conf-level 0.90`). See [MacroEconometricModels.jl — Discrete Choice & Selection](https://friedmanjp.github.io/MacroEconometricModels.jl/dev/discrete/) for full likelihood derivations.
 
 ## Quick Start
 
@@ -12,12 +12,12 @@ frdc --quiet data simulate cross-section --kind logit --n 200 --seed 11 --save-d
 frdc predict choice logit bin_sim --dep y --cov-type hc1 --marginal-effects --classification-table
 ```
 ```text
-                      Average Marginal Effects (Logit)
-┌──────┬──────────┬───────────┬────────┬───────────┬────────────┬──────────┐
-│ term │ estimate │ std_error │  stat  │  p_value  │  ci_lower  │ ci_upper │
-├──────┼──────────┼───────────┼────────┼───────────┼────────────┼──────────┤
-│  x2  │ 0.056878 │ 0.0279252 │ 2.0368 │ 0.0416704 │ 0.00214558 │ 0.11161  │
-└──────┴──────────┴───────────┴────────┴───────────┴────────────┴──────────┘
+                   Average Marginal Effects (Logit)
+┌──────┬──────────┬───────────┬───────┬─────────┬──────────┬──────────┐
+│ term │ estimate │ std_error │ stat  │ p_value │ ci_lower │ ci_upper │
+├──────┼──────────┼───────────┼───────┼─────────┼──────────┼──────────┤
+│  x2  │  0.057   │   0.028   │ 2.037 │  0.042  │  0.011   │  0.103   │
+└──────┴──────────┴───────────┴───────┴─────────┴──────────┴──────────┘
 ```
 
 The command produces predicted probabilities (`logit_fitted_probabilities`), average marginal effects (`average_marginal_effects_logit`, here `x2 = 0.056878`, `p = 0.0416704`), classification accuracy (`classification_metrics`, `confusion_matrix`), and optional odds ratios (`--odds-ratio`).
@@ -41,31 +41,31 @@ frdc --quiet data simulate cross-section --kind ordered --n 200 --seed 17 --save
 frdc estimate choice ologit ord_sim --dep y --cov-type hc1
 ```
 ```text
-       Cutpoints
-┌──────────┬───────────┐
-│ Cutpoint │   Value   │
-├──────────┼───────────┤
-│   cut1   │ -1.69797  │
-│   cut2   │ -0.308124 │
-│   cut3   │  1.32528  │
-└──────────┴───────────┘
-                                 Ordered Logit Coefficients
-┌──────────┬──────┬───────────┬───────────┬──────────┬─────────────┬───────────┬───────────┐
-│  block   │ term │ estimate  │ std_error │   stat   │   p_value   │ ci_lower  │ ci_upper  │
-├──────────┼──────┼───────────┼───────────┼──────────┼─────────────┼───────────┼───────────┤
-│   coef   │  x1  │ 0.680818  │ 0.110363  │ 6.16891  │ 6.87609e-10 │ 0.464511  │ 0.897126  │
-│   coef   │  x2  │  1.16801  │ 0.165612  │  7.0527  │ 1.75482e-12 │ 0.843416  │  1.4926   │
-│ cutpoint │ cut1 │ -1.69797  │ 0.162727  │ -10.4345 │     0.0     │ -2.01691  │ -1.37903  │
-│ cutpoint │ cut2 │ -0.308124 │ 0.103522  │ -2.9764  │ 0.00291654  │ -0.511025 │ -0.105224 │
-│ cutpoint │ cut3 │  1.32528  │ 0.131603  │ 10.0702  │     0.0     │  1.06734  │  1.58321  │
-└──────────┴──────┴───────────┴───────────┴──────────┴─────────────┴───────────┴───────────┘
+      Cutpoints
+┌──────────┬────────┐
+│ Cutpoint │ Value  │
+├──────────┼────────┤
+│   cut1   │ -1.698 │
+│   cut2   │ -0.308 │
+│   cut3   │ 1.325  │
+└──────────┴────────┘
+                             Ordered Logit Coefficients
+┌──────────┬──────┬──────────┬───────────┬─────────┬─────────┬──────────┬──────────┐
+│  block   │ term │ estimate │ std_error │  stat   │ p_value │ ci_lower │ ci_upper │
+├──────────┼──────┼──────────┼───────────┼─────────┼─────────┼──────────┼──────────┤
+│   coef   │  x1  │  0.681   │   0.110   │  6.169  │  0.000  │  0.499   │  0.862   │
+│   coef   │  x2  │  1.168   │   0.166   │  7.053  │  0.000  │  0.896   │  1.440   │
+│ cutpoint │ cut1 │  -1.698  │   0.163   │ -10.434 │  0.000  │  -1.966  │  -1.430  │
+│ cutpoint │ cut2 │  -0.308  │   0.104   │ -2.976  │  0.003  │  -0.478  │  -0.138  │
+│ cutpoint │ cut3 │  1.325   │   0.132   │ 10.070  │  0.000  │  1.109   │  1.542   │
+└──────────┴──────┴──────────┴───────────┴─────────┴─────────┴──────────┴──────────┘
        Fit Statistics
 ┌────────────────┬──────────┐
 │     metric     │  value   │
 ├────────────────┼──────────┤
-│   Pseudo R2    │ 0.117169 │
+│   Pseudo R2    │  0.117   │
 │ Log-likelihood │ -232.635 │
-│      AIC       │  475.27  │
+│      AIC       │ 475.270  │
 │      BIC       │ 491.762  │
 │   Categories   │    4     │
 └────────────────┴──────────┘
@@ -103,22 +103,22 @@ frdc --quiet data simulate cross-section --kind tobit --n 200 --seed 23 --save-d
 frdc estimate regression tobit tob_sim --dep y --lower 0.0
 ```
 ```text
-                   Tobit Coefficients
-┌───────────┬──────────┬───────────┬─────────┬─────────┐
-│ parameter │ estimate │ std_error │ z_stat  │ p_value │
-├───────────┼──────────┼───────────┼─────────┼─────────┤
-│    x1     │ 0.88883  │ 0.081545  │ 10.8999 │   0.0   │
-│    x2     │ 0.506189 │ 0.080424  │  6.294  │   0.0   │
-└───────────┴──────────┴───────────┴─────────┴─────────┘
+                             Tobit Coefficients
+┌───────────┬──────────┬───────────┬────────┬─────────┬──────────┬──────────┐
+│ parameter │ estimate │ std_error │ z_stat │ p_value │ ci_lower │ ci_upper │
+├───────────┼──────────┼───────────┼────────┼─────────┼──────────┼──────────┤
+│    x1     │  0.889   │   0.082   │ 10.900 │  0.000  │  0.755   │  1.023   │
+│    x2     │  0.506   │   0.080   │ 6.294  │  0.000  │  0.374   │  0.638   │
+└───────────┴──────────┴───────────┴────────┴─────────┴──────────┴──────────┘
        Tobit Diagnostics
 ┌──────────────────┬──────────┐
 │      metric      │  value   │
 ├──────────────────┼──────────┤
-│      sigma       │ 1.10693  │
+│      sigma       │  1.107   │
 │      loglik      │ -276.908 │
 │       aic        │ 559.816  │
 │       bic        │ 569.711  │
-│      lower       │   0.0    │
+│      lower       │  0.000   │
 │      upper       │   Inf    │
 │ n_censored_left  │    42    │
 │ n_censored_right │    0     │

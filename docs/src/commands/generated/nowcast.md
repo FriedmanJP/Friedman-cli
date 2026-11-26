@@ -3,6 +3,8 @@
 
 Generated command reference for `frdc nowcast` (`6` leaves). Back to [CLI Reference Overview](@ref cli-overview).
 
+**Command aliases:** `nc`
+
 **Workflow guides:** [Nowcasting & Forecast Evaluation](@ref chap-nowcast)
 
 ---
@@ -29,10 +31,10 @@ Nowcast via bridge equations
 | `--target-var` | — | `Int64` | `0` | — | Target variable index (0=last) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `NowcastBridge`; result types: `NowcastResult`
 
@@ -60,10 +62,10 @@ Nowcast via Bayesian VAR
 | `--alpha0` | — | `Float64` | `2.0` | — | Initial co-persistence weight α |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `NowcastBVAR`; result types: `NowcastResult`
 
@@ -81,22 +83,22 @@ Nowcast via Dynamic Factor Model (EM algorithm)
 |--------|-------|------|---------|---------|-------------|
 | `--monthly-vars` | — | `Int64` | `0` | — | Number of monthly variables (first N columns) |
 | `--quarterly-vars` | — | `Int64` | `0` | — | Number of quarterly variables (remaining columns) |
-| `--factors` | — | `Int64` | `2` | — | Number of factors |
+| `--factors` | `-q` | `Int64` | `2` | — | Number of factors |
 | `--lags` | `-p` | `Int64` | `1` | — | Factor VAR lags |
-| `--idio` | — | `String` | `ar1` | — | Idiosyncratic component: ar1\|iid |
-| `--max-iter` | — | `Int64` | `100` | — | Maximum EM iterations |
+| `--idio` | — | `String` | `ar1` | `ar1`, `iid` | Idiosyncratic component: ar1\|iid |
+| `--max-iter` | `-I` | `Int64` | `100` | — | Maximum EM iterations *(aliases: `--miter`)* |
 | `--target-var` | — | `Int64` | `0` | — | Target variable index (0=last) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `NowcastDFM`; result types: `NowcastResult`
 
@@ -114,22 +116,22 @@ Forecast from a nowcasting model
 |--------|-------|------|---------|---------|-------------|
 | `--monthly-vars` | — | `Int64` | `0` | — | Number of monthly variables |
 | `--quarterly-vars` | — | `Int64` | `0` | — | Number of quarterly variables |
-| `--method` | — | `String` | `dfm` | `dfm`, `bvar`, `bridge` | dfm\|bvar\|bridge |
-| `--factors` | — | `Int64` | `2` | — | Number of factors (DFM only; ignored by bvar/bridge) |
+| `--method` | `-m` | `String` | `dfm` | `dfm`, `bvar`, `bridge` | dfm\|bvar\|bridge |
+| `--factors` | `-q` | `Int64` | `2` | — | Number of factors (DFM only; ignored by bvar/bridge) |
 | `--lags` | `-p` | `Int64` | `1` | — | VAR lags: DFM factor dynamics or BVAR order (ignored by bridge) |
-| `--horizons` | — | `Int64` | `4` | — | Forecast horizon |
+| `--horizons` | `-H` | `Int64` | `4` | — | Forecast horizon *(aliases: `--hor`)* |
 | `--target-var` | — | `Int64` | `0` | — | Target variable index (0=last) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `NowcastDFM`, `NowcastBVAR`, `NowcastBridge`; result types: `NowcastForecast`, `Matrix`
 
@@ -145,26 +147,26 @@ Ragged-edge Wiener-Kolmogorov nowcasting from a Generalized Dynamic Factor Model
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dynamic-rank` | — | `Int64` | — | — | Dynamic rank q when estimating from data (default: auto) |
+| `--dynamic-rank` | — | `Int64` | — | — | Dynamic rank q when estimating from data (default: auto) *(aliases: `--drank`)* |
 | `--nfactors` | — | `Int64` | — | — | Static rank r when estimating from data (default: auto) |
-| `--horizons` | — | `Int64` | `0` | — | Horizon h relative to T_r (0=nowcast, >0=forecast, <0=backcast) |
+| `--horizons` | `-H` | `Int64` | `0` | — | Horizon h relative to T_r (0=nowcast, >0=forecast, <0=backcast) *(aliases: `--horizon`, `--hor`)* |
 | `--n-lags` | — | `Int64` | `2` | — | Past lags included in Wiener-Kolmogorov conditioning window (>= 0) |
-| `--bandwidth` | — | `Int64` | `0` | — | Spectral lag-window bandwidth when estimating from data (0=auto) |
-| `--kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `tukey` | Spectral kernel: bartlett\|parzen\|tukey |
+| `--bandwidth` | `-b` | `Int64` | `0` | — | Spectral lag-window bandwidth when estimating from data (0=auto) *(aliases: `--bw`)* |
+| `--kernel` | `-k` | `String` | `bartlett` | `bartlett`, `parzen`, `tukey` | Spectral kernel: bartlett\|parzen\|tukey |
 | `--spectral` | — | `String` | `lag-window` | `lag-window`, `smoothed-periodogram` | GDFM spectrum: lag-window\|smoothed-periodogram |
 | `--em-max-iter` | — | `Int64` | `50` | — | Maximum EM iterations for ragged-edge estimation |
 | `--em-tol` | — | `Float64` | `0.0001` | — | EM convergence tolerance for ragged-edge estimation |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `GeneralizedDynamicFactorModel`; result types: `GDFMNowcastResult`
 
@@ -180,22 +182,22 @@ Nowcast news decomposition (Banbura & Modugno 2014)
 | `--data-old` | — | `String` | `""` | — | Path to old vintage CSV |
 | `--monthly-vars` | — | `Int64` | `0` | — | Number of monthly variables |
 | `--quarterly-vars` | — | `Int64` | `0` | — | Number of quarterly variables |
-| `--method` | — | `String` | `dfm` | `dfm`, `bvar` | dfm\|bvar |
-| `--factors` | — | `Int64` | `2` | — | Number of factors (DFM only; ignored by bvar) |
+| `--method` | `-m` | `String` | `dfm` | `dfm`, `bvar` | dfm\|bvar |
+| `--factors` | `-q` | `Int64` | `2` | — | Number of factors (DFM only; ignored by bvar) |
 | `--lags` | `-p` | `Int64` | `1` | — | VAR lags: DFM factor dynamics or BVAR order |
 | `--target-period` | — | `Int64` | `0` | — | Target period (0=last) |
 | `--target-var` | — | `Int64` | `0` | — | Target variable index (0=last) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `NowcastDFM`, `NowcastBVAR`; result types: `NowcastNews`
 

@@ -3,6 +3,8 @@
 
 Generated command reference for `frdc serve` (`1` leaf). Back to [CLI Reference Overview](@ref cli-overview).
 
+**Command aliases:** `srv`
+
 **Workflow guides:** [Agent Guide](../../agent-guide.md)
 
 ---
@@ -14,6 +16,8 @@ Generated command reference for `frdc serve` (`1` leaf). Back to [CLI Reference 
 ### [`frdc serve`](@id ref-leaf-serve)
 
 Serve every other command as a Model Context Protocol tool over stdio (--mcp)
+
+**Aliases:** `srv`
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|

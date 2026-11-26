@@ -52,6 +52,8 @@ Each estimator family accepts specific container kinds enforced at dispatch (ret
 
 ---
 
-## Diagnostic Decision Map
+## Diagnostic Decision Map & Confidence Interval Defaults
 
 Unsure which specification test checks unit roots, cointegration rank, lag misspecification, structural breaks, or DiD pre-trends? Use the master test decision matrix in [Hypothesis Testing & Diagnostics](@ref chap-tests).
+
+Across all estimation, innovation-accounting, forecasting, and counterfactual leaves, `Friedman-cli` defaults confidence and credible intervals to domain convention: **68%** (`--conf-level 0.68`, posterior `--quantiles 0.16,0.5,0.84`) for macroeconometric and time-series workflows (including `did lp-did`, `estimate regime setar`, and `test stability bai-perron`), and **90%** (`--conf-level 0.90`) for cross-sectional microeconometric, discrete-choice, micro-panel, IV confidence-set, and standard DiD workflows. Override any leaf with `-L`/`--conf-level` (or `-Q`/`--quantiles`), while hypothesis-test significance levels remain at 5% (`--level 0.05`).

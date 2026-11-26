@@ -3,6 +3,8 @@
 
 Generated command reference for `frdc hadsge` (`11` leaves). Back to [CLI Reference Overview](@ref cli-overview).
 
+**Command aliases:** `ha`
+
 **Workflow guides:** [Heterogeneous-Agent, CT & OLG Models](@ref chap-hadsge)
 
 ---
@@ -15,6 +17,8 @@ Generated command reference for `frdc hadsge` (`11` leaves). Back to [CLI Refere
 
 Den Haan (2010) accuracy of the aggregate law of motion
 
+**Aliases:** `acc`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `model` | `String` | yes | — | Builtin name (krusell-smith\|one-asset-hank recommended; huggett refused) or .jl HA ModelSpec |
@@ -22,24 +26,24 @@ Den Haan (2010) accuracy of the aggregate law of motion
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (not with krusell-smith) |
-| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
-| `--method` | — | `String` | `krusell-smith` | `krusell-smith`, `ssj`, `reiter` | Solution to score: krusell-smith\|ssj\|reiter |
+| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry *(aliases: `--dist`)* |
+| `--method` | `-m` | `String` | `krusell-smith` | `krusell-smith`, `ssj`, `reiter` | Solution to score: krusell-smith\|ssj\|reiter |
 | `--n-reduced` | — | `Int64` | `30` | — | Reduced distribution states |
 | `--t-sim` | — | `Int64` | `10000` | — | Simulation length (must exceed --t-burn by >= 10) |
-| `--t-burn` | — | `Int64` | `1000` | — | Burn-in discarded before scoring |
+| `--t-burn` | — | `Int64` | `-1` | — | Burn-in discarded before scoring (-1 = auto: min(1000, t-sim ÷ 10)) |
 | `--t-fit` | — | `Int64` | `4000` | — | Fitting length for the implied law (> 100; ssj\|reiter only) |
 | `--rho-z` | — | `Float64` | `0.95` | — | Aggregate shock persistence, \|rho\| < 1 |
 | `--sigma-z` | — | `Float64` | `0.007` | — | Aggregate shock s.d. (> 0) |
 | `--seed` | — | `Int64` | `98765` | — | Simulation seed |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** model types: `HADSGESolution`, `KrusellSmithSolution`; result types: `DenHaanAccuracy`
 
@@ -49,6 +53,8 @@ Den Haan (2010) accuracy of the aggregate law of motion
 
 Wealth distribution IRF after an aggregate shock (Reiter only)
 
+**Aliases:** `dist-irf`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `model` | `String` | yes | — | Builtin name or .jl HA ModelSpec |
@@ -56,11 +62,11 @@ Wealth distribution IRF after an aggregate shock (Reiter only)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (not with krusell-smith) |
-| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
-| `--method` | — | `String` | `reiter` | `reiter` | Must be reiter (SSJ has no distribution basis) |
-| `--horizons` | — | `Int64` | `40` | — | IRF horizon |
+| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry *(aliases: `--dist`)* |
+| `--method` | `-m` | `String` | `reiter` | `reiter` | Must be reiter (SSJ has no distribution basis) |
+| `--horizons` | `-H` | `Int64` | `40` | — | IRF horizon *(aliases: `--horizon`, `--hor`)* |
 | `--shock-index` | — | `Int64` | `1` | — | Aggregate shock index (1-based) |
-| `--shock-size` | — | `Float64` | `1.0` | — | Shock size (std devs) |
+| `--shock-size` | — | `Float64` | `1.0` | — | Shock size (std devs) *(aliases: `--ssize`)* |
 | `--n-reduced` | — | `Int64` | `30` | — | Reduced states |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -73,6 +79,8 @@ Wealth distribution IRF after an aggregate shock (Reiter only)
 
 Bayesian estimation of HA-DSGE parameters (MH/SMC)
 
+**Aliases:** `est`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `model` | `String` | yes | — | Builtin name or .jl HA ModelSpec |
@@ -80,15 +88,15 @@ Bayesian estimation of HA-DSGE parameters (MH/SMC)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (not with krusell-smith) |
-| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
-| `--data` | — | `String` | `""` | — | Path to observed aggregates CSV (required) |
+| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry *(aliases: `--dist`)* |
+| `--data` | `-d` | `String` | `""` | — | Path to observed aggregates CSV (required) |
 | `--priors` | — | `String` | `""` | — | Path to priors TOML with [priors] section (required) |
 | `--prior` | — | `String` *(repeatable)* | `String[]` | — | Prior 'name ~ dist(a, b)'; repeatable; adds to --priors and the priors: stanza |
-| `--observables` | — | `String` | `""` | — | Comma-separated observed aggregates (e.g. K,Y); default: first aggregates |
-| `--method` | — | `String` | `ssj` | `ssj`, `reiter` | HA solution method re-solved each draw: ssj\|reiter |
+| `--observables` | — | `String` | `""` | — | Comma-separated observed aggregates (e.g. K,Y); default: first aggregates *(aliases: `--obs`)* |
+| `--method` | `-m` | `String` | `ssj` | `ssj`, `reiter` | HA solution method re-solved each draw: ssj\|reiter |
 | `--sampler` | — | `String` | `mh` | `mh`, `smc` | Posterior sampler: mh (RWMH) or smc |
-| `--draws` | — | `Int64` | `2000` | — | Total RWMH draws (including burn-in) |
-| `--burnin` | — | `Int64` | `500` | — | Burn-in draws to discard |
+| `--draws` | `-n` | `Int64` | `2000` | — | Total RWMH draws (including burn-in) *(aliases: `--n-draws`)* |
+| `--burnin` | `-B` | `Int64` | `500` | — | Burn-in draws to discard |
 | `--n-smc` | — | `Int64` | `500` | — | SMC particles (HA sampler) |
 | `--n-mh-steps` | — | `Int64` | `1` | — | MH mutation steps per SMC stage |
 | `--ess-target` | — | `Float64` | `0.5` | — | ESS target for SMC resampling |
@@ -96,15 +104,17 @@ Bayesian estimation of HA-DSGE parameters (MH/SMC)
 | `--n-reduced` | — | `Int64` | `15` | — | Reduced distribution states |
 | `--proposal-scale` | — | `Float64` | `0.01` | — | Initial RWMH proposal scale |
 | `--adapt-interval` | — | `Int64` | `100` | — | Adapt proposal covariance every N draws |
-| `--measurement-error` | — | `String` | `none` | `none`, `auto` | Measurement error: none\|auto (auto adds 10% per-obs variance) |
+| `--measurement-error` | — | `String` | `none` | `none`, `auto` | Measurement error: none\|auto (auto adds 10% per-obs variance) *(aliases: `--me`)* |
 | `--seed` | — | `Int64` | `0` | — | Random seed (0=no seed) |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--quantiles` | `-Q` | `String` | `0.16,0.5,0.84` | — | Posterior/bootstrap band quantiles in (0, 1) (default: 0.16,0.5,0.84 = 68% band) *(aliases: `--qtl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
-**Output tables:** `ha_dsge_bayesian_posterior` (Posterior mean, std, median and 5/95% quantiles per parameter); `ha_dsge_bayesian_settings` (Sampler, solution method, observables and measurement-error provenance)
+**Output tables:** `ha_dsge_bayesian_posterior` (Posterior mean, std, median and credible interval bounds per parameter); `ha_dsge_bayesian_settings` (Sampler, solution method, observables and measurement-error provenance)
 
 ### [`frdc hadsge fevd`](@id ref-hadsge-fevd)
 
@@ -117,19 +127,19 @@ Aggregate FEVD from linearized HA-DSGE solution
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (not with krusell-smith) |
-| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
-| `--method` | — | `String` | `reiter` | `ssj`, `reiter` | HA solution method: ssj\|reiter |
-| `--horizons` | — | `Int64` | `40` | — | FEVD horizon |
+| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry *(aliases: `--dist`)* |
+| `--method` | `-m` | `String` | `reiter` | `ssj`, `reiter` | HA solution method: ssj\|reiter |
+| `--horizons` | `-H` | `Int64` | `40` | — | FEVD horizon *(aliases: `--horizon`, `--hor`)* |
 | `--n-reduced` | — | `Int64` | `30` | — | Reduced states |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** model types: `HADSGESolution`; result types: `FEVD`
 
@@ -146,22 +156,22 @@ Historical decomposition of HA-DSGE aggregates
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (not with krusell-smith) |
-| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
-| `--method` | — | `String` | `ssj` | `ssj`, `reiter` | HA solution method: ssj\|reiter |
+| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry *(aliases: `--dist`)* |
+| `--method` | `-m` | `String` | `ssj` | `ssj`, `reiter` | HA solution method: ssj\|reiter |
 | `--data` | `-d` | `String` | `""` | — | Path to data file or handle stem (.csv, .jld2, .jls; levels) |
-| `--observables` | — | `String` | `""` | — | Observable aggregates (comma-separated; keys of ss.aggregates/ss.prices) |
-| `--measurement-error` | — | `String` | `""` | — | Measurement error std devs (comma-separated) or auto |
+| `--observables` | — | `String` | `""` | — | Observable aggregates (comma-separated; keys of ss.aggregates/ss.prices) *(aliases: `--obs`)* |
+| `--measurement-error` | — | `String` | `""` | — | Measurement error std devs (comma-separated) or auto *(aliases: `--me`)* |
 | `--n-reduced` | — | `Int64` | `30` | — | Reduced states |
 | `--t-horizon` | — | `Int64` | `300` | — | Sequence-space horizon (SSJ/Reiter) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `HADSGESolution`; result types: `HistoricalDecomposition`
 
@@ -171,6 +181,8 @@ Historical decomposition of HA-DSGE aggregates
 
 Gini and wealth-percentile IRFs after an aggregate shock
 
+**Aliases:** `ineq-irf`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `model` | `String` | yes | — | Builtin name or .jl HA ModelSpec |
@@ -178,19 +190,19 @@ Gini and wealth-percentile IRFs after an aggregate shock
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (not with krusell-smith) |
-| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
-| `--method` | — | `String` | `reiter` | `reiter` | Must be reiter for dynamic inequality IRF |
-| `--horizons` | — | `Int64` | `40` | — | IRF horizon |
+| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry *(aliases: `--dist`)* |
+| `--method` | `-m` | `String` | `reiter` | `reiter` | Must be reiter for dynamic inequality IRF |
+| `--horizons` | `-H` | `Int64` | `40` | — | IRF horizon *(aliases: `--horizon`, `--hor`)* |
 | `--shock-index` | — | `Int64` | `1` | — | Aggregate shock index (1-based) |
-| `--shock-size` | — | `Float64` | `1.0` | — | Shock size (std devs) |
+| `--shock-size` | — | `Float64` | `1.0` | — | Shock size (std devs) *(aliases: `--ssize`)* |
 | `--n-reduced` | — | `Int64` | `30` | — | Reduced states |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** model types: `HADSGESolution`
 
@@ -207,19 +219,19 @@ Aggregate IRFs from linearized HA-DSGE solution
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (not with krusell-smith) |
-| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
-| `--method` | — | `String` | `reiter` | `ssj`, `reiter` | HA solution method: ssj\|reiter (krusell-smith has no linear IRF) |
-| `--horizons` | — | `Int64` | `40` | — | IRF horizon |
+| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry *(aliases: `--dist`)* |
+| `--method` | `-m` | `String` | `reiter` | `ssj`, `reiter` | HA solution method: ssj\|reiter (krusell-smith has no linear IRF) |
+| `--horizons` | `-H` | `Int64` | `40` | — | IRF horizon *(aliases: `--horizon`, `--hor`)* |
 | `--n-reduced` | — | `Int64` | `30` | — | Reduced states |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** model types: `HADSGESolution`; result types: `ImpulseResponse`, `SSJImpulseResponse`
 
@@ -229,6 +241,8 @@ Aggregate IRFs from linearized HA-DSGE solution
 
 Simulate aggregate paths from linearized HA-DSGE
 
+**Aliases:** `sim`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `model` | `String` | yes | — | Builtin name or .jl HA ModelSpec |
@@ -236,18 +250,18 @@ Simulate aggregate paths from linearized HA-DSGE
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (not with krusell-smith) |
-| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
-| `--method` | — | `String` | `reiter` | `ssj`, `reiter` | HA solution method: ssj\|reiter |
-| `--periods` | — | `Int64` | `200` | — | Simulation periods |
+| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry *(aliases: `--dist`)* |
+| `--method` | `-m` | `String` | `reiter` | `ssj`, `reiter` | HA solution method: ssj\|reiter |
+| `--periods` | `-N` | `Int64` | `200` | — | Simulation periods |
 | `--seed` | — | `Int64` | `0` | — | Random seed (0=no seed) |
 | `--n-reduced` | — | `Int64` | `30` | — | Reduced states |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** model types: `HADSGESolution`
 
@@ -257,6 +271,8 @@ Simulate aggregate paths from linearized HA-DSGE
 
 Simulate individual asset holdings from steady-state policies
 
+**Aliases:** `sim-panel`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `model` | `String` | yes | — | Builtin name or .jl HA ModelSpec |
@@ -264,9 +280,9 @@ Simulate individual asset holdings from steady-state policies
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (not with krusell-smith) |
-| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
+| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry *(aliases: `--dist`)* |
 | `--n-agents` | — | `Int64` | `1000` | — | Number of agents |
-| `--periods` | — | `Int64` | `100` | — | Time periods |
+| `--periods` | `-N` | `Int64` | `100` | — | Time periods |
 | `--seed` | — | `Int64` | `0` | — | Random seed (0=no seed) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -286,19 +302,21 @@ Solve HA-DSGE (SSJ / Reiter / Krusell-Smith)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (not with krusell-smith) |
-| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
-| `--method` | — | `String` | `ssj` | `ssj`, `reiter`, `krusell-smith` | HA solution method: ssj\|reiter\|krusell-smith |
+| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry *(aliases: `--dist`)* |
+| `--method` | `-m` | `String` | `ssj` | `ssj`, `reiter`, `krusell-smith` | HA solution method: ssj\|reiter\|krusell-smith |
 | `--n-reduced` | — | `Int64` | `30` | — | Reduced distribution states (SSJ/Reiter) |
 | `--t-horizon` | — | `Int64` | `300` | — | Sequence-space horizon (SSJ/Reiter; ignored with krusell-smith) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Output tables:** `ha_dsge_solve_diagnostics` (Solution method with its size and fit diagnostics); `krusell_smith_plm_coefficients` (Fitted perceived-law-of-motion coefficients (--method krusell-smith)); `ha_steady_state_aggregates` (Steady-state aggregate quantities); `ha_steady_state_prices` (Steady-state prices); `ha_steady_state_diagnostics` (Steady-state convergence, iterations, Euler error and excess demand); `ha_euler_accuracy_log10_by_convention` (log10 Euler errors by convention (one row per measured convention; absent when the steady-state path records no accuracy))
 
 ### [`frdc hadsge steady-state`](@id ref-hadsge-steady-state)
 
 Compute HA-DSGE stationary equilibrium
+
+**Aliases:** `ss`
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -307,13 +325,13 @@ Compute HA-DSGE stationary equilibrium
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | Household solver: egm\|vfi (not with krusell-smith) |
-| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry |
+| `--distribution` | — | `String` | `young` | `young`, `winberry` | Distribution method: young\|winberry *(aliases: `--dist`)* |
 | `--euler-points` | — | `String` | `midpoints` | `midpoints`, `nodes` | Euler-error evaluation points: midpoints\|nodes |
-| `--max-iter` | — | `Int64` | `0` | — | GE iterations (0 = automatic: 200 one-asset, 60 two-asset) |
-| `--tol` | — | `Float64` | `0.0` | — | Market-clearing tolerance (0 = automatic) |
+| `--max-iter` | `-I` | `Int64` | `0` | — | GE iterations (0 = automatic: 200 one-asset, 60 two-asset) *(aliases: `--miter`)* |
+| `--tol` | `-T` | `Float64` | `0.0` | — | Market-clearing tolerance (0 = automatic) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Output tables:** `ha_steady_state_aggregates` (Steady-state aggregate quantities); `ha_steady_state_prices` (Steady-state prices); `ha_steady_state_diagnostics` (Convergence, iterations, Euler error and excess demand); `ha_euler_accuracy_log10_by_convention` (log10 Euler errors by convention (one row per measured convention; absent when the steady-state path records no accuracy))
 

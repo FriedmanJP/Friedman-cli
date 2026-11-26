@@ -17,7 +17,7 @@ frdc test unit-root adf :denmark --column 1 --trend constant
 ├────────────────┼────────┤
 │ Test statistic │ -1.263 │
 │      Lags      │   2    │
-│    p-value     │ 0.6172 │
+│    p-value     │ 0.617  │
 └────────────────┴────────┘
 ```
 
@@ -58,15 +58,17 @@ Classical unit-root tests lose power against trend-stationary alternatives with 
 frdc test stability bai-perron :nile --response 1 --max-breaks 3 --criterion bic
 ```
 ```text
-      Bai-Perron Test
-┌──────────────────┬───────┐
-│      metric      │ value │
-├──────────────────┼───────┤
-│ Number of breaks │   1   │
-│   Break dates    │  28   │
-│     Trimming     │ 0.15  │
-│   Observations   │  100  │
-└──────────────────┴───────┘
+        Bai-Perron Test
+┌──────────────────┬──────────┐
+│      metric      │  value   │
+├──────────────────┼──────────┤
+│ Number of breaks │    1     │
+│   Break dates    │    28    │
+│    Break CIs     │ [27, 29] │
+│ Confidence level │  0.680   │
+│     Trimming     │  0.150   │
+│   Observations   │   100    │
+└──────────────────┴──────────┘
 ```
 
 The `bai_perron_test` table identifies `1` endogenous level shift in `:nile` at observation `28` (out of `100` observations with `0.15` trimming, corresponding to completion of the first Aswan dam) under BIC selection.
@@ -87,21 +89,21 @@ frdc test coint johansen :denmark --lags 2 --trend constant
 ┌──────┬────────────┬─────────┬────────┐
 │ rank │ trace_stat │ p_value │ reject │
 ├──────┼────────────┼─────────┼────────┤
-│  0   │  123.686   │   0.0   │  yes   │
-│  1   │  60.1904   │ 0.0117  │  yes   │
-│  2   │  27.7573   │ 0.2556  │   no   │
-│  3   │  10.2196   │ 0.6242  │   no   │
-│  4   │   1.9722   │ 0.7794  │   no   │
+│  0   │  123.686   │  0.000  │  yes   │
+│  1   │   60.190   │  0.012  │  yes   │
+│  2   │   27.757   │  0.256  │   no   │
+│  3   │   10.220   │  0.624  │   no   │
+│  4   │   1.972    │  0.779  │   no   │
 └──────┴────────────┴─────────┴────────┘
      Johansen Max Eigenvalue Test
 ┌──────┬──────────┬─────────┬────────┐
 │ rank │ max_stat │ p_value │ reject │
 ├──────┼──────────┼─────────┼────────┤
-│  0   │ 63.4959  │   0.0   │  yes   │
-│  1   │ 32.4331  │ 0.0124  │  yes   │
-│  2   │ 17.5377  │  0.21   │   no   │
-│  3   │  8.2474  │ 0.5295  │   no   │
-│  4   │  1.9722  │ 0.7783  │   no   │
+│  0   │  63.496  │  0.000  │  yes   │
+│  1   │  32.433  │  0.012  │  yes   │
+│  2   │  17.538  │  0.210  │   no   │
+│  3   │  8.247   │  0.529  │   no   │
+│  4   │  1.972   │  0.778  │   no   │
 └──────┴──────────┴─────────┴────────┘
 ```
 

@@ -3,6 +3,8 @@
 
 Generated command reference for `frdc data` (`38` leaves). Back to [CLI Reference Overview](@ref cli-overview).
 
+**Command aliases:** `d`
+
 **Workflow guides:** [Data Management & Simulation](@ref chap-data)
 
 ---
@@ -15,14 +17,16 @@ Generated command reference for `frdc data` (`38` leaves). Back to [CLI Referenc
 
 Balance an unbalanced panel via the DFM method
 
+**Aliases:** `bal`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Handle stem or CSV path |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--method` | — | `String` | `dfm` | `dfm` | Missing-value balancing method (dfm = dynamic factor EM) |
-| `--factors` | — | `Int64` | `3` | — | Number of factors |
+| `--method` | `-m` | `String` | `dfm` | `dfm` | Missing-value balancing method (dfm = dynamic factor EM) |
+| `--factors` | `-q` | `Int64` | `3` | — | Number of factors |
 | `--lags` | `-p` | `Int64` | `2` | — | Factor VAR lags |
 | `--output` | `-o` | `String` | `""` | — | Export file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -34,6 +38,8 @@ Balance an unbalanced panel via the DFM method
 ### [`frdc data describe`](@id ref-data-describe)
 
 Per-variable descriptive statistics with first/last finite-row window
+
+**Aliases:** `desc`
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -51,6 +57,8 @@ Per-variable descriptive statistics with first/last finite-row window
 ### [`frdc data diagnose`](@id ref-data-diagnose)
 
 Per-variable NaN/Inf counts and constant-series flags
+
+**Aliases:** `diag`
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -87,6 +95,8 @@ Drop rows containing NaN/Inf, optionally restricted to --vars
 
 Export a typed handle to CSV/JLS/JLD2 (or stream to stdout without -o)
 
+**Aliases:** `exp`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Handle stem/path, or :example dataset |
@@ -117,7 +127,7 @@ Extract the cycle or trend component with a time-series filter
 | `--method` | `-m` | `String` | `hp` | `hp`, `hamilton`, `bn`, `bk`, `bhp` | hp\|hamilton\|bn\|bk\|bhp |
 | `--component` | — | `String` | `cycle` | `cycle`, `trend` | cycle\|trend |
 | `--lambda` | `-l` | `Float64` | `1600.0` | — | Smoothing parameter (HP/BHP) |
-| `--horizons` | — | `Int64` | `8` | — | Forecast horizon (Hamilton) |
+| `--horizons` | `-H` | `Int64` | `8` | — | Forecast horizon (Hamilton) *(aliases: `--horizon`, `--hor`)* |
 | `--lags` | `-p` | `Int64` | `4` | — | Number of lags (Hamilton only) |
 | `--columns` | — | `String` | `""` | — | Column indices, comma-separated (default: all) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
@@ -149,6 +159,8 @@ Repair missing/non-finite cells (listwise, interpolate, or mean)
 
 Import CSV or :example to a typed .jld2 handle
 
+**Aliases:** `imp`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | CSV path, stem, or :example dataset |
@@ -158,8 +170,8 @@ Import CSV or :example to a typed .jld2 handle
 | `--kind` | — | `String` | `""` | `timeseries`, `panel`, `cross-section` | timeseries\|panel\|cross-section (required for CSV) |
 | `--frequency` | — | `String` | `other` | `daily`, `monthly`, `quarterly`, `annual`, `mixed`, `other` | daily\|monthly\|quarterly\|annual\|mixed\|other (must be other for --kind cross-section) |
 | `--dates` | — | `String` | `""` | — | CSV column of date labels (timeseries only) |
-| `--id-col` | — | `String` | `""` | — | Panel group column (required for --kind panel) |
-| `--time-col` | — | `String` | `""` | — | Panel time column (required for --kind panel) |
+| `--id-col` | `-u` | `String` | `""` | — | Panel group column (required for --kind panel) *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Panel time column (required for --kind panel) *(aliases: `--tcol`)* |
 | `--vars` | — | `String` | `""` | — | Comma-separated variable subset |
 | `--tcodes` | — | `String` | `""` | — | Comma-separated FRED tcode per variable (--kind timeseries only) |
 | `--note` | — | `String` | `""` | — | Free-form note stored in the handle header (when the backend supports it) |
@@ -195,6 +207,8 @@ Keep a row subset by range or list
 ### [`frdc data list`](@id ref-data-list)
 
 List bundled example datasets with type, dimensions and description
+
+**Aliases:** `ls`
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
@@ -233,6 +247,8 @@ Load a bundled example dataset or CSV file (stream to stdout, or write to -o)
 
 Apply per-variable FRED transformation codes
 
+**Aliases:** `tr`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Handle stem or CSV path |
@@ -251,13 +267,15 @@ Apply per-variable FRED transformation codes
 
 Check data suitability for an estimator family
 
+**Aliases:** `val`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Handle stem or CSV path |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--model` | — | `String` | `""` | `var`, `bvar`, `vecm`, `arima`, `garch`, `sv`, `lp`, `gmm`, `factor`, `arch`, `egarch`, `gjr-garch`, `gjr_garch`, `static`, `dynamic`, `gdfm` | Model type (required; var\|bvar\|vecm\|arima\|garch\|sv\|lp\|gmm\|factor\|arch\|egarch\|gjr-garch\|static\|dynamic\|gdfm) |
+| `--model` | `-M` | `String` | `""` | `var`, `bvar`, `vecm`, `arima`, `garch`, `sv`, `lp`, `gmm`, `factor`, `arch`, `egarch`, `gjr-garch`, `gjr_garch`, `static`, `dynamic`, `gdfm` | Model type (required; var\|bvar\|vecm\|arima\|garch\|sv\|lp\|gmm\|factor\|arch\|egarch\|gjr-garch\|static\|dynamic\|gdfm) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 
@@ -268,6 +286,8 @@ Check data suitability for an estimator family
 ---
 
 ## [Simulate](@id ref-fam-data-simulate)
+
+**Family aliases:** `sim`
 
 Simulate synthetic datasets from econometric, panel, cross-section, and DSGE/OLG models
 
@@ -282,10 +302,10 @@ ARDL(1,1) with the long-run multiplier theta
 | `--phi` | — | `Float64` | `0.6` | — | Lagged dependent-variable coefficient |
 | `--beta0` | — | `Float64` | `0.8` | — | Contemporaneous regressor coefficient |
 | `--beta1` | — | `Float64` | `0.4` | — | Lagged regressor coefficient |
-| `--periods` | — | `Int64` | `200` | — | Sample length after burn-in |
-| `--burn` | — | `Int64` | `50` | — | Burn-in draws dropped from the sample |
+| `--periods` | `-N` | `Int64` | `200` | — | Sample length after burn-in |
+| `--burn` | `-B` | `Int64` | `50` | — | Burn-in draws dropped from the sample |
 | `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
-| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native container or .jls) |
+| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native, .jls serialized, or data:// session URI) *(aliases: `--sd`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
@@ -302,10 +322,10 @@ Gaussian ARIMA (optional seasonal AR/MA left at zero)
 | `--diff` | — | `Int64` | `0` | — | Integration order d |
 | `--sigma` | — | `Float64` | `1.0` | — | Innovation standard deviation |
 | `--drift` | — | `Float64` | `0.0` | — | Intercept in the stationary representation |
-| `--periods` | — | `Int64` | `200` | — | Sample length after burn-in |
-| `--burn` | — | `Int64` | `50` | — | Burn-in draws dropped from the sample |
+| `--periods` | `-N` | `Int64` | `200` | — | Sample length after burn-in |
+| `--burn` | `-B` | `Int64` | `50` | — | Burn-in draws dropped from the sample |
 | `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
-| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native container or .jls) |
+| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native, .jls serialized, or data:// session URI) *(aliases: `--sd`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
@@ -319,9 +339,9 @@ Cointegrating regression with endogenous regressors
 |--------|-------|------|---------|---------|-------------|
 | `--endog-rho` | — | `Float64` | `0.7` | — | Correlation of the equilibrium error with Δx |
 | `--sigma-u` | — | `Float64` | `1.0` | — | Equilibrium-error scale |
-| `--periods` | — | `Int64` | `200` | — | Sample length |
+| `--periods` | `-N` | `Int64` | `200` | — | Sample length |
 | `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
-| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native container or .jls) |
+| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native, .jls serialized, or data:// session URI) *(aliases: `--sd`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
@@ -335,12 +355,14 @@ Cointegrating regression with endogenous regressors
 
 Cross-section DGP (OLS through RDD)
 
+**Aliases:** `cs`
+
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--kind` | — | `String` | `ols` | `ols`, `hc`, `cluster`, `iv`, `logit`, `probit`, `ordered`, `mlogit`, `poisson`, `nb`, `tobit`, `truncreg`, `heckman`, `qreg`, `rdd` | ols\|hc\|cluster\|iv\|logit\|probit\|ordered\|mlogit\|poisson\|nb\|tobit\|truncreg\|heckman\|qreg\|rdd |
 | `--n` | — | `Int64` | `200` | — | Observations |
 | `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
-| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native container or .jls) |
+| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native, .jls serialized, or data:// session URI) *(aliases: `--sd`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
@@ -357,15 +379,15 @@ Continuous-time Aiyagari MIT transition
 | `--sigma` | — | `Float64` | `2.0` | — | CRRA |
 | `--delta` | — | `Float64` | `0.05` | — | Depreciation |
 | `--z` | — | `Float64` | `1.0` | — | Steady-state TFP |
-| `--shock-size` | — | `Float64` | `0.95` | — | Impact TFP as a fraction of steady-state Z |
+| `--shock-size` | — | `Float64` | `0.95` | — | Impact TFP as a fraction of steady-state Z *(aliases: `--ssize`)* |
 | `--grid-size` | — | `Int64` | `40` | — | Asset grid points |
 | `--a-max` | — | `Float64` | `30.0` | — | Asset-grid upper bound |
-| `--max-iter` | — | `Int64` | `80` | — | Steady-state / transition iterations |
-| `--tol` | — | `Float64` | `1.0e-5` | — | Convergence tolerance |
+| `--max-iter` | `-I` | `Int64` | `80` | — | Steady-state / transition iterations *(aliases: `--miter`)* |
+| `--tol` | `-T` | `Float64` | `1.0e-5` | — | Convergence tolerance |
 | `--dt` | — | `Float64` | `0.25` | — | Transition step |
-| `--periods` | — | `Int64` | `12` | — | Transition horizon in steps (deterministic; no burn-in) |
+| `--periods` | `-N` | `Int64` | `12` | — | Transition horizon in steps (deterministic; no burn-in) |
 | `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
-| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native container or .jls) |
+| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native, .jls serialized, or data:// session URI) *(aliases: `--sd`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
@@ -378,9 +400,9 @@ Staggered adoption with the realized ATT
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--n` | — | `Int64` | `80` | — | Units |
-| `--periods` | — | `Int64` | `20` | — | Sample length |
+| `--periods` | `-N` | `Int64` | `20` | — | Sample length |
 | `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
-| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native container or .jls) |
+| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native, .jls serialized, or data:// session URI) *(aliases: `--sd`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
@@ -396,13 +418,13 @@ Representative-agent DSGE path from solve + simulate
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--method` | — | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi`, `vfi`, `blanchard-kahn` | gensys\|klein\|blanchard-kahn\|perturbation\|projection\|pfi\|vfi |
-| `--order` | — | `Int64` | `1` | — | Perturbation order (1–3; only with --method perturbation) |
+| `--method` | `-m` | `String` | `gensys` | `gensys`, `klein`, `perturbation`, `projection`, `pfi`, `vfi`, `blanchard-kahn` | gensys\|klein\|blanchard-kahn\|perturbation\|projection\|pfi\|vfi |
+| `--order` | `-O` | `Int64` | `1` | — | Perturbation order (1–3; only with --method perturbation) |
 | `--meas-sd` | — | `String` | `""` | — | Measurement-error standard deviations (one value or one per variable) |
-| `--periods` | — | `Int64` | `80` | — | Sample length after burn-in |
-| `--burn` | — | `Int64` | `20` | — | Burn-in draws dropped from the sample |
+| `--periods` | `-N` | `Int64` | `80` | — | Sample length after burn-in |
+| `--burn` | `-B` | `Int64` | `20` | — | Burn-in draws dropped from the sample |
 | `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
-| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native container or .jls) |
+| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native, .jls serialized, or data:// session URI) *(aliases: `--sd`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
@@ -417,10 +439,10 @@ Dynamic factor model (VAR factors, random loadings)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--series` | — | `Int64` | `12` | — | Number of observed series N |
-| `--periods` | — | `Int64` | `80` | — | Sample length after burn-in |
-| `--burn` | — | `Int64` | `20` | — | Burn-in draws dropped from the sample |
+| `--periods` | `-N` | `Int64` | `80` | — | Sample length after burn-in |
+| `--burn` | `-B` | `Int64` | `20` | — | Burn-in draws dropped from the sample |
 | `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
-| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native container or .jls) |
+| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native, .jls serialized, or data:// session URI) *(aliases: `--sd`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
@@ -433,10 +455,10 @@ GARCH-family returns with the conditional-variance path in the truth table
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--kind` | — | `String` | `garch` | `arch`, `garch`, `egarch`, `gjr`, `aparch`, `igarch`, `cgarch`, `figarch`, `fiegarch` | arch\|garch\|egarch\|gjr\|aparch\|igarch\|cgarch\|figarch\|fiegarch |
-| `--periods` | — | `Int64` | `300` | — | Sample length after burn-in |
-| `--burn` | — | `Int64` | `50` | — | Burn-in draws dropped from the sample |
+| `--periods` | `-N` | `Int64` | `300` | — | Sample length after burn-in |
+| `--burn` | `-B` | `Int64` | `50` | — | Burn-in draws dropped from the sample |
 | `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
-| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native container or .jls) |
+| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native, .jls serialized, or data:// session URI) *(aliases: `--sd`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
@@ -446,19 +468,21 @@ GARCH-family returns with the conditional-variance path in the truth table
 
 Infinite-dimensional GDFM with rational transfer filters
 
+**Aliases:** `gdfm-inf`
+
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--periods` | — | `Int64` | `200` | — | Sample length after burn-in |
+| `--periods` | `-N` | `Int64` | `200` | — | Sample length after burn-in |
 | `--series` | — | `Int64` | `50` | — | Number of observed series N |
-| `--dynamic-rank` | — | `Int64` | `2` | — | Dynamic factor rank q |
+| `--dynamic-rank` | — | `Int64` | `2` | — | Dynamic factor rank q *(aliases: `--drank`)* |
 | `--a-coef` | — | `Float64` | `0.5` | — | Rational filter pole bound \|a\| < 1 |
 | `--b-coef` | — | `Float64` | `0.3` | — | Impact loading scale |
 | `--n-permanent` | — | `Int64` | `0` | — | Number of permanent I(1) shocks (0 <= n-permanent <= q) |
 | `--signal-share` | — | `Float64` | `0.75` | — | Common-component variance share in (0, 1] |
 | `--idio-ar` | — | `Float64` | `0.0` | — | Idiosyncratic AR(1) persistence in (-1, 1) |
-| `--burn` | — | `Int64` | `100` | — | Burn-in draws dropped from the sample |
+| `--burn` | `-B` | `Int64` | `100` | — | Burn-in draws dropped from the sample |
 | `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
-| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native container or .jls) |
+| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native, .jls serialized, or data:// session URI) *(aliases: `--sd`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
@@ -474,7 +498,7 @@ Heteroskedastic OLS or IV moments
 | `--n` | — | `Int64` | `200` | — | Observations |
 | `--pi1` | — | `Float64` | `1.0` | — | First-stage strength (--kind iv) |
 | `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
-| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native container or .jls) |
+| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native, .jls serialized, or data:// session URI) *(aliases: `--sd`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
@@ -490,13 +514,13 @@ Heterogeneous-agent aggregate path from solve + simulate
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--method` | — | `String` | `reiter` | `ssj`, `reiter`, `krusell-smith` | ssj\|reiter\|krusell-smith (krusell-smith: no aggregate path; use ssj/reiter) |
+| `--method` | `-m` | `String` | `reiter` | `ssj`, `reiter`, `krusell-smith` | ssj\|reiter\|krusell-smith (krusell-smith: no aggregate path; use ssj/reiter) |
 | `--n-reduced` | — | `Int64` | `10` | — | Reduced states for the linear solution |
-| `--distribution` | — | `String` | `young` | `young`, `winberry` | young\|winberry |
+| `--distribution` | — | `String` | `young` | `young`, `winberry` | young\|winberry *(aliases: `--dist`)* |
 | `--hh-solver` | — | `String` | `egm` | `egm`, `vfi` | egm\|vfi |
-| `--periods` | — | `Int64` | `20` | — | Sample length after burn-in |
+| `--periods` | `-N` | `Int64` | `20` | — | Sample length after burn-in |
 | `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
-| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native container or .jls) |
+| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native, .jls serialized, or data:// session URI) *(aliases: `--sd`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
@@ -508,13 +532,15 @@ Heterogeneous-agent aggregate path from solve + simulate
 
 Heteroskedastic SVAR (markov, garch, smooth, or external regimes)
 
+**Aliases:** `het-var`
+
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--kind` | — | `String` | `markov` | `markov`, `garch`, `smooth`, `external` | markov\|garch\|smooth\|external |
-| `--periods` | — | `Int64` | `200` | — | Sample length after burn-in |
-| `--burn` | — | `Int64` | `50` | — | Burn-in draws dropped from the sample |
+| `--periods` | `-N` | `Int64` | `200` | — | Sample length after burn-in |
+| `--burn` | `-B` | `Int64` | `50` | — | Burn-in draws dropped from the sample |
 | `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
-| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native container or .jls) |
+| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native, .jls serialized, or data:// session URI) *(aliases: `--sd`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
@@ -528,9 +554,9 @@ Local-projection IV (instrument z, endogenous s, outcome y, control x2)
 |--------|-------|------|---------|---------|-------------|
 | `--pi1` | — | `Float64` | `1.5` | — | First-stage coefficient on the instrument |
 | `--theta` | — | `Float64` | `1.0` | — | Impact response of y to s |
-| `--periods` | — | `Int64` | `200` | — | Sample length |
+| `--periods` | `-N` | `Int64` | `200` | — | Sample length |
 | `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
-| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native container or .jls) |
+| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native, .jls serialized, or data:// session URI) *(aliases: `--sd`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
@@ -549,9 +575,9 @@ Blanchard OLG saddle path (deterministic)
 | `--z` | — | `Float64` | `1.0` | — | Total factor productivity (TFP) level |
 | `--debt` | — | `Float64` | `0.0` | — | Government debt b |
 | `--k0` | — | `Float64` | `0.0` | — | Initial capital (0 = 0.8 × steady state) |
-| `--periods` | — | `Int64` | `40` | — | Transition horizon H (emits H+1 rows, t=0:H; deterministic) |
+| `--periods` | `-N` | `Int64` | `40` | — | Transition horizon H (emits H+1 rows, t=0:H; deterministic) |
 | `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
-| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native container or .jls) |
+| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native, .jls serialized, or data:// session URI) *(aliases: `--sd`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
@@ -565,9 +591,9 @@ Linear or binary panel with optional correlated effects
 |--------|-------|------|---------|---------|-------------|
 | `--kind` | — | `String` | `linear` | `linear`, `logit`, `probit` | linear\|logit\|probit |
 | `--n` | — | `Int64` | `30` | — | Cross-sectional units |
-| `--periods` | — | `Int64` | `12` | — | Sample length |
+| `--periods` | `-N` | `Int64` | `12` | — | Sample length |
 | `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
-| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native container or .jls) |
+| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native, .jls serialized, or data:// session URI) *(aliases: `--sd`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
@@ -580,9 +606,9 @@ Panel VAR(1) with random effects
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--n` | — | `Int64` | `15` | — | Cross-sectional units |
-| `--periods` | — | `Int64` | `20` | — | Sample length |
+| `--periods` | `-N` | `Int64` | `20` | — | Sample length |
 | `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
-| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native container or .jls) |
+| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native, .jls serialized, or data:// session URI) *(aliases: `--sd`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
@@ -594,16 +620,16 @@ Quantile Factor-Augmented VAR panel with key observables
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--periods` | — | `Int64` | `250` | — | Sample length after burn-in |
+| `--periods` | `-N` | `Int64` | `250` | — | Sample length after burn-in |
 | `--series` | — | `Int64` | `40` | — | Number of panel series N |
-| `--factors` | — | `Int64` | `2` | — | Number of latent factors r |
-| `--lags` | — | `Int64` | `1` | — | VAR lag order p |
+| `--factors` | `-q` | `Int64` | `2` | — | Number of latent factors r |
+| `--lags` | `-p` | `Int64` | `1` | — | VAR lag order p |
 | `--n-key` | — | `Int64` | `1` | — | Number of key observable series |
 | `--df-idio` | — | `Float64` | `4.0` | — | Idiosyncratic Student-t degrees of freedom |
 | `--tail-amplification` | — | `Float64` | `1.5` | — | Tail amplification factor (> 0) |
-| `--burn` | — | `Int64` | `100` | — | Burn-in draws dropped from the sample |
+| `--burn` | `-B` | `Int64` | `100` | — | Burn-in draws dropped from the sample |
 | `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
-| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native container or .jls) |
+| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native, .jls serialized, or data:// session URI) *(aliases: `--sd`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
@@ -615,7 +641,7 @@ Quantile factor model panel (location, scale, and asymmetry factors)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--periods` | — | `Int64` | `200` | — | Sample length after burn-in |
+| `--periods` | `-N` | `Int64` | `200` | — | Sample length after burn-in |
 | `--series` | — | `Int64` | `80` | — | Number of observed series N |
 | `--location-factors` | — | `Int64` | `1` | — | Number of location factors |
 | `--scale-factors` | — | `Int64` | `1` | — | Number of scale factors |
@@ -624,7 +650,7 @@ Quantile factor model panel (location, scale, and asymmetry factors)
 | `--idio-scale` | — | `Float64` | `1.0` | — | Idiosyncratic shock scale |
 | `--loadings-scale` | — | `Float64` | `1.0` | — | Factor loading scale |
 | `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
-| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native container or .jls) |
+| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native, .jls serialized, or data:// session URI) *(aliases: `--sd`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
@@ -637,10 +663,10 @@ Markov-switching, SETAR, LSTAR, or ESTAR
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--kind` | — | `String` | `ms` | `ms`, `setar`, `lstar`, `estr` | ms\|setar\|lstar\|estr |
-| `--periods` | — | `Int64` | `200` | — | Sample length after burn-in |
-| `--burn` | — | `Int64` | `40` | — | Burn-in draws dropped from the sample |
+| `--periods` | `-N` | `Int64` | `200` | — | Sample length after burn-in |
+| `--burn` | `-B` | `Int64` | `40` | — | Burn-in draws dropped from the sample |
 | `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
-| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native container or .jls) |
+| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native, .jls serialized, or data:// session URI) *(aliases: `--sd`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
@@ -652,14 +678,14 @@ Strong Structural VARMA(p, q) with non-Gaussian independent shocks
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--periods` | — | `Int64` | `400` | — | Sample length after burn-in |
+| `--periods` | `-N` | `Int64` | `400` | — | Sample length after burn-in |
 | `--dist` | — | `String` | `student-t` | `student-t`, `t`, `laplace`, `mixture`, `mixture-normal-asym`, `skew`, `skew-normal`, `ged`, `gauss` | student-t\|t\|laplace\|mixture\|mixture-normal-asym\|skew\|skew-normal\|ged\|gauss |
 | `--nu` | — | `Float64` | `5.0` | — | Degrees of freedom / shape parameter |
 | `--skew` | — | `Float64` | `0.0` | — | Skewness parameter |
-| `--burn` | — | `Int64` | `200` | — | Burn-in draws dropped from the sample |
-| `--config` | — | `String` | `""` | — | Optional TOML file with [ssvarma] Phi, Theta, C, mu matrices |
+| `--burn` | `-B` | `Int64` | `200` | — | Burn-in draws dropped from the sample |
+| `--config` | `-C` | `String` | `""` | — | Optional TOML file with [ssvarma] Phi, Theta, C, mu matrices *(aliases: `--cfg`)* |
 | `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
-| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native container or .jls) |
+| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native, .jls serialized, or data:// session URI) *(aliases: `--sd`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
@@ -674,10 +700,10 @@ Stochastic volatility (Gaussian, no leverage by default)
 | `--mu` | — | `Float64` | `-0.5` | — | Unconditional mean of log variance |
 | `--phi` | — | `Float64` | `0.95` | — | AR(1) persistence of log variance |
 | `--sigma-eta` | — | `Float64` | `0.2` | — | Volatility-of-volatility |
-| `--periods` | — | `Int64` | `200` | — | Sample length after burn-in |
-| `--burn` | — | `Int64` | `50` | — | Burn-in draws dropped from the sample |
+| `--periods` | `-N` | `Int64` | `200` | — | Sample length after burn-in |
+| `--burn` | `-B` | `Int64` | `50` | — | Burn-in draws dropped from the sample |
 | `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
-| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native container or .jls) |
+| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native, .jls serialized, or data:// session URI) *(aliases: `--sd`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
@@ -691,10 +717,10 @@ Non-Gaussian SVAR (independent structural shocks)
 |--------|-------|------|---------|---------|-------------|
 | `--dist` | — | `String` | `t` | `gauss`, `t`, `laplace`, `mixture`, `skew` | gauss\|t\|laplace\|mixture\|skew |
 | `--nu` | — | `Float64` | `5.0` | — | Student-t degrees of freedom (--dist t; must be > 2) |
-| `--periods` | — | `Int64` | `200` | — | Sample length after burn-in |
-| `--burn` | — | `Int64` | `50` | — | Burn-in draws dropped from the sample |
+| `--periods` | `-N` | `Int64` | `200` | — | Sample length after burn-in |
+| `--burn` | `-B` | `Int64` | `50` | — | Burn-in draws dropped from the sample |
 | `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
-| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native container or .jls) |
+| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native, .jls serialized, or data:// session URI) *(aliases: `--sd`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
@@ -706,10 +732,10 @@ Reference stationary VAR(1) with population A, B0, Sigma, c
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--periods` | — | `Int64` | `200` | — | Sample length after burn-in |
-| `--burn` | — | `Int64` | `50` | — | Burn-in draws dropped from the sample |
+| `--periods` | `-N` | `Int64` | `200` | — | Sample length after burn-in |
+| `--burn` | `-B` | `Int64` | `50` | — | Burn-in draws dropped from the sample |
 | `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
-| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native container or .jls) |
+| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native, .jls serialized, or data:// session URI) *(aliases: `--sd`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
@@ -721,10 +747,10 @@ Rank-1 VECM with population alpha, beta, Gamma, mu, Sigma
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--periods` | — | `Int64` | `200` | — | Sample length after burn-in |
-| `--burn` | — | `Int64` | `50` | — | Burn-in draws dropped from the sample |
+| `--periods` | `-N` | `Int64` | `200` | — | Sample length after burn-in |
+| `--burn` | `-B` | `Int64` | `50` | — | Burn-in draws dropped from the sample |
 | `--seed` | — | `Int64` | `0` | — | RNG seed (0 defers to the global --seed, else Xoshiro(0)) |
-| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native container or .jls) |
+| `--save-data` | — | `String` | `""` | — | Save simulated dataset as a handle (.jld2 native, .jls serialized, or data:// session URI) *(aliases: `--sd`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 

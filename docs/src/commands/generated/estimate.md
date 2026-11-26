@@ -3,11 +3,15 @@
 
 Generated command reference for `frdc estimate` (`87` leaves). Back to [CLI Reference Overview](@ref cli-overview).
 
+**Command aliases:** `e`, `est`
+
 **Workflow guides:** [Univariate, Filters & Spectral](@ref chap-univariate) · [Volatility & Multivariate GARCH](@ref chap-volatility) · [Regime-Switching & Nonlinear TS](@ref chap-nonlinear) · [VAR, BVAR, VECM & Factor Models](@ref chap-multivariate) · [Structural ID, LP & Innovation Accounting](@ref chap-structural) · [Regression, Systems & GMM/SMM](@ref chap-regression) · [Discrete Choice, Count & Selection](@ref chap-choice) · [Panel Data, Panel VAR & Causal DiD](@ref chap-panel) · [Rational Inattention](@ref chap-ri)
 
 ---
 
 ## [Choice](@id ref-fam-estimate-choice)
+
+**Family aliases:** `ch`
 
 Discrete and limited dependent variable estimators (logit, probit, multinomial, ordered)
 
@@ -23,14 +27,15 @@ Fit binary logit regression by IRLS
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
-| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster |
-| `--clusters` | — | `String` | `""` | — | Cluster variable column name |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--cov-type` | `-v` | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster *(aliases: `--cov`)* |
+| `--clusters` | `-U` | `String` | `""` | — | Cluster variable column name *(aliases: `--clst`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--max-iter` | — | `Int64` | `100` | — | Maximum IRLS iterations |
-| `--tol` | — | `Float64` | `1.0e-8` | — | Convergence tolerance |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--max-iter` | `-I` | `Int64` | `100` | — | Maximum IRLS iterations *(aliases: `--maxiter`, `--miter`)* |
+| `--tol` | `-T` | `Float64` | `1.0e-8` | — | Convergence tolerance |
+| `--conf-level` | `-L` | `Float64` | `0.9` | — | Confidence interval level in (0, 1) (default: 0.90) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`
 
@@ -46,12 +51,13 @@ Fit multinomial logit regression over unordered categories
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name |
-| `--cov-type` | — | `String` | `ols` | — | ols\|hc0\|hc1\|cluster |
-| `--clusters` | — | `String` | `""` | — | Cluster variable column name |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column name |
+| `--cov-type` | `-v` | `String` | `ols` | `ols`, `hc0`, `hc1`, `cluster` | ols\|hc0\|hc1\|cluster *(aliases: `--cov`)* |
+| `--clusters` | `-U` | `String` | `""` | — | Cluster variable column name *(aliases: `--clst`)* |
+| `--conf-level` | `-L` | `Float64` | `0.9` | — | Confidence interval level in (0, 1) (default: 0.90) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`
 
@@ -67,15 +73,15 @@ Fit negative-binomial (NB2) count regression by MLE with Fisher-information SEs 
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent count column (default: first numeric column) |
+| `--dep` | `-y` | `String` | `""` | — | Dependent count column (default: first numeric column) |
 | `--offset` | — | `String` | `""` | — | Offset column, already on the log scale (exclusive with --exposure) |
 | `--exposure` | — | `String` | `""` | — | Exposure column, strictly positive; enters as log(exposure) |
-| `--max-iter` | — | `Int64` | `1000` | — | Maximum iterations (≥ 1) |
-| `--tol` | — | `Float64` | `1.0e-10` | — | Convergence tolerance (> 0) |
-| `--conf-level` | — | `Float64` | `0.95` | — | Confidence level for the incidence-rate-ratio CI (0 < level < 1) |
+| `--max-iter` | `-I` | `Int64` | `1000` | — | Maximum iterations (≥ 1) *(aliases: `--maxiter`, `--miter`)* |
+| `--tol` | `-T` | `Float64` | `1.0e-10` | — | Convergence tolerance (> 0) |
+| `--conf-level` | `-L` | `Float64` | `0.9` | — | Confidence interval level in (0, 1) (default: 0.90) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table, csv or json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -95,12 +101,13 @@ Fit ordered logit regression with estimated cutpoints
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
-| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `cluster` | ols\|hc0\|hc1\|cluster |
-| `--clusters` | — | `String` | `""` | — | Cluster variable column name |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--cov-type` | `-v` | `String` | `hc1` | `ols`, `hc0`, `hc1`, `cluster` | ols\|hc0\|hc1\|cluster *(aliases: `--cov`)* |
+| `--clusters` | `-U` | `String` | `""` | — | Cluster variable column name *(aliases: `--clst`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--conf-level` | `-L` | `Float64` | `0.9` | — | Confidence interval level in (0, 1) (default: 0.90) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`
 
@@ -116,12 +123,13 @@ Fit ordered probit regression with estimated cutpoints
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
-| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `cluster` | ols\|hc0\|hc1\|cluster |
-| `--clusters` | — | `String` | `""` | — | Cluster variable column name |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--cov-type` | `-v` | `String` | `hc1` | `ols`, `hc0`, `hc1`, `cluster` | ols\|hc0\|hc1\|cluster *(aliases: `--cov`)* |
+| `--clusters` | `-U` | `String` | `""` | — | Cluster variable column name *(aliases: `--clst`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--conf-level` | `-L` | `Float64` | `0.9` | — | Confidence interval level in (0, 1) (default: 0.90) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`
 
@@ -137,17 +145,17 @@ Fit Poisson count regression by pseudo-ML (QMLE sandwich by default)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent count column (default: first numeric column) |
+| `--dep` | `-y` | `String` | `""` | — | Dependent count column (default: first numeric column) |
 | `--offset` | — | `String` | `""` | — | Offset column, already on the log scale (exclusive with --exposure) |
 | `--exposure` | — | `String` | `""` | — | Exposure column, strictly positive; enters as log(exposure) |
-| `--cov-type` | — | `String` | `robust` | `robust`, `mle`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | robust (QMLE sandwich, default), mle, hc0-hc3, cluster |
-| `--clusters` | — | `String` | `""` | — | Cluster variable column name |
-| `--max-iter` | — | `Int64` | `100` | — | Maximum IRLS iterations (≥ 1) |
-| `--tol` | — | `Float64` | `1.0e-10` | — | Convergence tolerance (> 0) |
-| `--conf-level` | — | `Float64` | `0.95` | — | Confidence level for the incidence-rate-ratio CI (0 < level < 1) |
+| `--cov-type` | `-v` | `String` | `robust` | `robust`, `mle`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | robust (QMLE sandwich, default), mle, hc0-hc3, cluster *(aliases: `--cov`)* |
+| `--clusters` | `-U` | `String` | `""` | — | Cluster variable column name *(aliases: `--clst`)* |
+| `--max-iter` | `-I` | `Int64` | `100` | — | Maximum IRLS iterations (≥ 1) *(aliases: `--maxiter`, `--miter`)* |
+| `--tol` | `-T` | `Float64` | `1.0e-10` | — | Convergence tolerance (> 0) |
+| `--conf-level` | `-L` | `Float64` | `0.9` | — | Confidence interval level in (0, 1) (default: 0.90) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table, csv or json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -167,14 +175,15 @@ Fit binary probit regression by IRLS
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
-| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster |
-| `--clusters` | — | `String` | `""` | — | Cluster variable column name |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--cov-type` | `-v` | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster` | ols\|hc0\|hc1\|hc2\|hc3\|cluster *(aliases: `--cov`)* |
+| `--clusters` | `-U` | `String` | `""` | — | Cluster variable column name *(aliases: `--clst`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--max-iter` | — | `Int64` | `100` | — | Maximum IRLS iterations |
-| `--tol` | — | `Float64` | `1.0e-8` | — | Convergence tolerance |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--max-iter` | `-I` | `Int64` | `100` | — | Maximum IRLS iterations *(aliases: `--maxiter`, `--miter`)* |
+| `--tol` | `-T` | `Float64` | `1.0e-8` | — | Convergence tolerance |
+| `--conf-level` | `-L` | `Float64` | `0.9` | — | Confidence interval level in (0, 1) (default: 0.90) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`
 
@@ -196,24 +205,25 @@ Fit Matějka-McKay (2015) Rational Inattention discrete-choice logit model
 | `--state-col` | — | `String` | `state` | — | State ID column name |
 | `--obs-col` | — | `String` | `""` | — | Optional observation ID column name for grouped long-format tables |
 | `--attr-cols` | — | `String` | `""` | — | Comma-separated menu attribute column names (default: remaining numeric columns) |
-| `--config` | — | `String` | `""` | — | Optional TOML with [ri.logit] priors (S×M) and/or base_payoff (J×S×M) |
+| `--config` | `-C` | `String` | `""` | — | Optional TOML with [ri.logit] priors (S×M) and/or base_payoff (J×S×M) *(aliases: `--cfg`)* |
 | `--priors` | — | `String` | `""` | — | Prior mode override: uniform \| empirical (or supply S×M matrix in --config) |
 | `--normalize` | — | `String` | `auto` | `auto`, `omega-one`, `none`, `first-coef` | Scale identification: auto \| omega-one \| none \| first-coef |
-| `--cov-type` | — | `String` | `hessian` | `hessian`, `sandwich` | Covariance estimator: hessian \| sandwich |
-| `--tol` | — | `Float64` | `1.0e-10` | — | Optimizer convergence tolerance (> 0) |
-| `--max-iter` | — | `Int64` | `400` | — | Maximum L-BFGS iterations (≥ 1) |
+| `--cov-type` | `-v` | `String` | `hessian` | `hessian`, `sandwich` | Covariance estimator: hessian \| sandwich *(aliases: `--cov`)* |
+| `--tol` | `-T` | `Float64` | `1.0e-10` | — | Optimizer convergence tolerance (> 0) |
+| `--max-iter` | `-I` | `Int64` | `400` | — | Maximum L-BFGS iterations (≥ 1) *(aliases: `--miter`)* |
+| `--conf-level` | `-L` | `Float64` | `0.9` | — | Confidence interval level in (0, 1) (default: 0.90) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--unobserved-state` | — | Treat state as unobserved by the econometrician (estimate from unconditional shares) |
-| `--plot` | — | Open interactive plot in browser |
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--plot` | `-g` | Open interactive plot in browser |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`
 
@@ -222,6 +232,8 @@ Fit Matějka-McKay (2015) Rational Inattention discrete-choice logit model
 ---
 
 ## [Factor & Quantile-Factor Diagnostics](@id ref-fam-estimate-factor)
+
+**Family aliases:** `fac`
 
 Static, dynamic, generalized dynamic, and Factor-Augmented VAR (FAVAR) factor models
 
@@ -239,15 +251,15 @@ Dynamic factor model (two-step/EM) with IC count selection
 |--------|-------|------|---------|---------|-------------|
 | `--nfactors` | — | `Int64` | — | — | Number of factors (default: auto via IC1) |
 | `--factor-lags` | — | `Int64` | `1` | — | Factor VAR lag order |
-| `--method` | — | `String` | `twostep` | `twostep`, `em` | twostep\|em |
+| `--method` | `-m` | `String` | `twostep` | `twostep`, `em` | twostep\|em |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
@@ -264,12 +276,12 @@ Non-Gaussian SVAR identification (fastica|jade|sobi|dcov|hsic|cvm) on a VAR
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto via AIC) |
-| `--method` | — | `String` | `fastica` | `fastica`, `jade`, `sobi`, `dcov`, `hsic`, `cvm` | fastica\|jade\|sobi\|dcov\|hsic\|cvm |
-| `--contrast` | — | `String` | `logcosh` | — | logcosh\|exp\|kurtosis (for FastICA) |
+| `--method` | `-m` | `String` | `fastica` | `fastica`, `jade`, `sobi`, `dcov`, `hsic`, `cvm` | fastica\|jade\|sobi\|dcov\|hsic\|cvm |
+| `--contrast` | — | `String` | `logcosh` | `logcosh`, `exp`, `kurtosis` | logcosh\|exp\|kurtosis (for FastICA) |
 | `--n-starts` | — | `Int64` | `3` | — | Additional random starts (for --method cvm) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
@@ -285,9 +297,9 @@ FHLZ (2015, 2017) one-sided infinite-dimensional GDFM
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dynamic-rank` | — | `Int64` | — | — | Number of dynamic shocks q (default: auto) |
-| `--bandwidth` | — | `Int64` | `0` | — | Spectral lag-window bandwidth M (0=auto) |
-| `--kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `tukey` | Spectral kernel: bartlett\|parzen\|tukey |
+| `--dynamic-rank` | — | `Int64` | — | — | Number of dynamic shocks q (default: auto) *(aliases: `--drank`)* |
+| `--bandwidth` | `-b` | `Int64` | `0` | — | Spectral lag-window bandwidth M (0=auto) *(aliases: `--bw`)* |
+| `--kernel` | `-k` | `String` | `bartlett` | `bartlett`, `parzen`, `tukey` | Spectral kernel: bartlett\|parzen\|tukey |
 | `--p-max` | — | `Int64` | `5` | — | Maximum block VAR lag order |
 | `--lag-criterion` | — | `String` | `bic` | `bic`, `aic` | Block VAR lag criterion: bic\|aic |
 | `--n-perm` | — | `Int64` | `30` | — | Cross-sectional permutations to average |
@@ -297,14 +309,14 @@ FHLZ (2015, 2017) one-sided infinite-dimensional GDFM
 | `--seed` | — | `Int64` | — | — | Optional RNG seed for cross-sectional permutations |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--allow-missing` | — | Allow missing/NaN entries via EM-FHLZ imputation |
-| `--no-standardize` | — | Do not standardize series before estimation |
-| `--plot` | — | Open interactive plot in browser |
+| `--allow-missing` | — | Allow missing/NaN entries via EM-FHLZ imputation *(aliases: `--amiss`)* |
+| `--no-standardize` | — | Do not standardize series before estimation *(aliases: `--nostd`)* |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
@@ -321,22 +333,22 @@ Generalized dynamic factor model (FHLR) with static/dynamic rank selection
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--nfactors` | — | `Int64` | — | — | Number of static factors (default: auto) |
-| `--dynamic-rank` | — | `Int64` | — | — | Dynamic rank (default: auto) |
+| `--dynamic-rank` | — | `Int64` | — | — | Dynamic rank (default: auto) *(aliases: `--drank`)* |
 | `--spectral` | — | `String` | `lag-window` | `lag-window`, `smoothed-periodogram` | Spectrum: lag-window (FHLR)\|smoothed-periodogram |
-| `--bandwidth` | — | `Int64` | `0` | — | Spectral lag-window bandwidth (0=auto) |
-| `--kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `tukey` | Spectral lag-window kernel: bartlett\|parzen\|tukey |
+| `--bandwidth` | `-b` | `Int64` | `0` | — | Spectral lag-window bandwidth (0=auto) *(aliases: `--bw`)* |
+| `--kernel` | `-k` | `String` | `bartlett` | `bartlett`, `parzen`, `tukey` | Spectral lag-window kernel: bartlett\|parzen\|tukey |
 | `--em-max-iter` | — | `Int64` | `50` | — | Maximum EM iterations for missing-data imputation (with --allow-missing) |
 | `--em-tol` | — | `Float64` | `0.0001` | — | EM convergence tolerance (with --allow-missing) |
 | `--n-lags-proj` | — | `Int64` | `0` | — | Past lags included in stacked FHLR one-sided projection |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--allow-missing` | — | Allow missing/NaN entries (interior or ragged-edge) via EM-spectral imputation |
-| `--plot` | — | Open interactive plot in browser |
+| `--allow-missing` | — | Allow missing/NaN entries (interior or ragged-edge) via EM-spectral imputation *(aliases: `--amiss`)* |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
@@ -352,31 +364,31 @@ Barigozzi-Lippi-Luciani (2021) non-stationary I(1) cointegrated GDFM
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dynamic-rank` | — | `Int64` | — | — | Number of dynamic shocks q (default: auto on first differences) |
+| `--dynamic-rank` | — | `Int64` | — | — | Number of dynamic shocks q (default: auto on first differences) *(aliases: `--drank`)* |
 | `--n-permanent` | — | `Int64` | — | — | Number of permanent I(1) stochastic trends (0..q; default: auto) |
-| `--id` | — | `String` | `permanent-transitory` | `permanent-transitory`, `cholesky`, `longrun`, `sign`, `proxy` | Identification: permanent-transitory\|cholesky\|longrun\|sign\|proxy |
+| `--id` | `-i` | `String` | `permanent-transitory` | `permanent-transitory`, `cholesky`, `longrun`, `sign`, `proxy` | Identification: permanent-transitory\|cholesky\|longrun\|sign\|proxy |
 | `--det-trend` | — | `String` | `constant` | `none`, `constant`, `linear`, `trend` | Deterministic trend: none\|constant\|linear\|trend (trend aliases linear) |
 | `--p-max` | — | `Int64` | `4` | — | Maximum block VECM VAR lag order in levels |
 | `--n-perm` | — | `Int64` | `25` | — | Cross-sectional permutations to average |
-| `--bandwidth` | — | `Int64` | `0` | — | Spectral lag-window bandwidth M (0=auto) |
-| `--kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `tukey` | Spectral kernel: bartlett\|parzen\|tukey |
+| `--bandwidth` | `-b` | `Int64` | `0` | — | Spectral lag-window bandwidth M (0=auto) *(aliases: `--bw`)* |
+| `--kernel` | `-k` | `String` | `bartlett` | `bartlett`, `parzen`, `tukey` | Spectral kernel: bartlett\|parzen\|tukey |
 | `--lag-criterion` | — | `String` | `bic` | `bic`, `aic` | Block VECM lag criterion: bic\|aic |
 | `--irf-horizon` | — | `Int64` | `40` | — | Maximum stored level IRF horizon |
-| `--config` | — | `String` | `""` | — | TOML config for sign restrictions (--id sign) |
+| `--config` | `-C` | `String` | `""` | — | TOML config for sign restrictions (--id sign) *(aliases: `--cfg`)* |
 | `--instrument` | — | `String` | `""` | — | External instrument CSV column (--id proxy) |
 | `--seed` | — | `Int64` | — | — | Optional RNG seed |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--no-standardize` | — | Do not scale series by first-difference standard deviation |
-| `--plot` | — | Open interactive plot in browser |
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--no-standardize` | — | Do not scale series by first-difference standard deviation *(aliases: `--nostd`)* |
+| `--plot` | `-g` | Open interactive plot in browser |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
@@ -394,30 +406,30 @@ Quantile Factor Model (Chen-Dolado-Gonzalo IQR / convolution-smoothed QFA)
 |--------|-------|------|---------|---------|-------------|
 | `--tau` | — | `Float64` | `0.5` | — | Single quantile level in (0, 1) (used when --taus is empty) |
 | `--taus` | — | `String` | `""` | — | Comma-separated quantiles in (0, 1) to fit a QuantileFactorGrid (overrides --tau) |
-| `--factors` | — | `String` | `auto` | — | Number of quantile factors (positive integer or 'auto' via ic_criteria_qfm) |
+| `--factors` | `-q` | `String` | `auto` | — | Number of quantile factors (positive integer or 'auto' via ic_criteria_qfm) |
 | `--r-max` | — | `Int64` | `0` | — | Max factors for auto selection (0 = min(10, min(T,N)-1)) |
-| `--criterion` | — | `String` | `rank` | `rank`, `ic1`, `ic2`, `ic3` | Auto rank selection criterion: rank\|ic1\|ic2\|ic3 |
+| `--criterion` | — | `String` | `rank` | `rank`, `ic1`, `ic2`, `ic3` | Auto rank selection criterion: rank\|ic1\|ic2\|ic3 *(aliases: `--crit`)* |
 | `--threshold-scale` | — | `Float64` | `1.0` | — | Positive multiplier c on CDG rank threshold P_NT |
-| `--method` | — | `String` | `iqr` | `iqr`, `smoothed` | Estimator: iqr (alternating IPM) \| smoothed (convolution-smoothed L-BFGS) |
-| `--bandwidth` | — | `String` | `auto` | — | Smoothing bandwidth for --method smoothed ('auto' or positive number) |
-| `--kernel` | — | `String` | `gaussian` | `gaussian`, `epanechnikov`, `logistic` | Smoothing kernel for --method smoothed: gaussian\|epanechnikov\|logistic |
+| `--method` | `-m` | `String` | `iqr` | `iqr`, `smoothed` | Estimator: iqr (alternating IPM) \| smoothed (convolution-smoothed L-BFGS) |
+| `--bandwidth` | `-b` | `String` | `auto` | — | Smoothing bandwidth for --method smoothed ('auto' or positive number) *(aliases: `--bw`)* |
+| `--kernel` | `-k` | `String` | `gaussian` | `gaussian`, `epanechnikov`, `logistic` | Smoothing kernel for --method smoothed: gaussian\|epanechnikov\|logistic |
 | `--se` | — | `String` | `none` | `none`, `asymptotic`, `bootstrap` | Standard errors: none\|asymptotic\|bootstrap |
 | `--hac-bandwidth` | — | `String` | `auto` | — | Newey-West HAC lag truncation for --se asymptotic ('auto' or integer >= 0) |
 | `--n-boot` | — | `Int64` | `200` | — | Bootstrap replications for --se bootstrap |
 | `--init` | — | `String` | `pca` | `pca`, `quantile-svd`, `random` | Start-1 initialization: pca\|quantile-svd\|random |
 | `--n-starts` | — | `Int64` | `3` | — | Number of multi-start initializations (>= 1) |
-| `--max-iter` | — | `Int64` | `200` | — | Maximum outer iterations (>= 1) |
-| `--tol` | — | `Float64` | `1.0e-7` | — | Convergence tolerance (> 0) |
+| `--max-iter` | `-I` | `Int64` | `200` | — | Maximum outer iterations (>= 1) *(aliases: `--miter`)* |
+| `--tol` | `-T` | `Float64` | `1.0e-7` | — | Convergence tolerance (> 0) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--standardize` | — | Standardize panel columns before estimation |
+| `--standardize` | — | Standardize panel columns before estimation *(aliases: `--std`)* |
 | `--no-robust-scale` | — | Use mean/SD instead of median/IQR when --standardize is set |
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
@@ -434,30 +446,30 @@ Structural DFM (FGLR, FHLZ one-sided, or legacy GDFM-VAR) with q auto-selection
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--factors` | `-q` | `Int64` | — | — | Number of dynamic factors (default: auto via --q-method) |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|longrun\|max-share\|proxy\|lewis-tvv\|sv-em\|gmm-moments (--id proxy requires --instrument) |
+| `--id` | `-i` | `String` | `cholesky` | `cholesky`, `sign`, `longrun`, `max-share`, `proxy`, `lewis-tvv`, `sv-em`, `gmm-moments` | cholesky\|sign\|longrun\|max-share\|proxy\|lewis-tvv\|sv-em\|gmm-moments (--id proxy requires --instrument) |
 | `--q-method` | — | `String` | `hallin-liska` | `hallin-liska`, `bai-ng`, `amengual-watson` | Auto factor selection: hallin-liska\|bai-ng\|amengual-watson |
-| `--method` | — | `String` | `fglr` | `fglr`, `fhlz`, `gdfm-var` | Estimator: fglr\|fhlz\|gdfm-var (fhlz is one-sided infinite-r; gdfm-var is legacy) |
+| `--method` | `-m` | `String` | `fglr` | `fglr`, `fhlz`, `gdfm-var` | Estimator: fglr\|fhlz\|gdfm-var (fhlz is one-sided infinite-r; gdfm-var is legacy) |
 | `--spectral` | — | `String` | `lag-window` | `lag-window`, `smoothed-periodogram` | GDFM spectrum: lag-window (FHLR)\|smoothed-periodogram |
 | `--instrument` | — | `String` | `""` | — | Proxy-instrument CSV column (only with --id proxy) |
 | `--var-lags` | — | `String` | `auto` | — | Factor VAR lag order (positive integer or auto\|aic\|bic\|hq) |
 | `--n-perm` | — | `Int64` | `30` | — | Cross-sectional permutations for --method fhlz |
 | `--p-max` | — | `Int64` | — | — | Maximum lag order for automatic/FHLZ lag selection |
 | `--target` | — | `String` | `""` | — | Target variable name or 1-based index (for --id max-share) |
-| `--horizons` | — | `Int64` | `40` | — | Structural IRF horizon |
-| `--config` | — | `String` | `""` | — | TOML config for sign/narrative checks and --id lewis-tvv\|sv-em knobs |
-| `--bandwidth` | — | `Int64` | `0` | — | Spectral bandwidth (0=auto) |
-| `--kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `tukey` | bartlett\|parzen\|tukey |
+| `--horizons` | `-H` | `Int64` | `40` | — | Structural IRF horizon *(aliases: `--horizon`, `--hor`)* |
+| `--config` | `-C` | `String` | `""` | — | TOML config for sign/narrative checks and --id lewis-tvv\|sv-em knobs *(aliases: `--cfg`)* |
+| `--bandwidth` | `-b` | `Int64` | `0` | — | Spectral bandwidth (0=auto) *(aliases: `--bw`)* |
+| `--kernel` | `-k` | `String` | `bartlett` | `bartlett`, `parzen`, `tukey` | bartlett\|parzen\|tukey |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--plot` | `-g` | Open interactive plot in browser |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
@@ -474,15 +486,15 @@ Static PCA factor model with Bai-Ng count selection
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--nfactors` | — | `Int64` | — | — | Number of factors (default: auto via IC) |
-| `--criterion` | — | `String` | `ic1` | `ic1`, `ic2`, `ic3` | ic1\|ic2\|ic3 for auto selection |
+| `--criterion` | — | `String` | `ic1` | `ic1`, `ic2`, `ic3` | ic1\|ic2\|ic3 for auto selection *(aliases: `--crit`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
@@ -498,7 +510,7 @@ Locally stationary time-varying spectral GDFM (Eichler-Motta-von Sachs)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dynamic-rank` | — | `Int64` | — | — | Number of dynamic common factors q (default: auto) |
+| `--dynamic-rank` | — | `Int64` | — | — | Number of dynamic common factors q (default: auto) *(aliases: `--drank`)* |
 | `--time-bandwidth` | — | `Float64` | `0.0` | — | Local time-kernel bandwidth b_T (0=auto) |
 | `--lag-bandwidth` | — | `Int64` | `0` | — | Spectral lag-window truncation M_T (0=auto) |
 | `--time-kernel` | — | `String` | `epanechnikov` | `epanechnikov`, `gaussian`, `uniform` | Local time kernel: epanechnikov\|gaussian\|uniform |
@@ -506,13 +518,13 @@ Locally stationary time-varying spectral GDFM (Eichler-Motta-von Sachs)
 | `--n-grid` | — | `Int64` | `25` | — | Number of rescaled time grid points in (0, 1) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--no-standardize` | — | Do not standardize panel columns before filtering |
-| `--plot` | — | Open interactive plot in browser |
+| `--no-standardize` | — | Do not standardize panel columns before filtering *(aliases: `--nostd`)* |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
@@ -521,6 +533,8 @@ Locally stationary time-varying spectral GDFM (Eichler-Motta-von Sachs)
 ---
 
 ## [Multivariate](@id ref-fam-estimate-multivariate)
+
+**Family aliases:** `mv`
 
 Multivariate time-series estimators (VAR, BVAR, VECM, LP, FAVAR, MF-VAR, GVAR, SMM, GMM)
 
@@ -540,18 +554,19 @@ Bayesian VAR with Minnesota prior (GLP/grid hyperopt)
 | `--prior` | — | `String` | `minnesota` | `minnesota`, `normal` | Prior: minnesota\|normal |
 | `--draws` | `-n` | `Int64` | `2000` | — | Posterior draws kept (direct: i.i.d.; gibbs: MCMC) |
 | `--sampler` | — | `String` | `direct` | `direct`, `gibbs` | direct\|gibbs |
-| `--method` | — | `String` | `mean` | `mean`, `median` | mean\|median (posterior extraction) |
+| `--method` | `-m` | `String` | `mean` | `mean`, `median` | mean\|median (posterior extraction) |
 | `--hyperopt` | — | `String` | `glp` | `glp`, `grid` | Minnesota hyperparameter selection: glp\|grid |
-| `--config` | — | `String` | `""` | — | TOML config for prior hyperparameters |
+| `--config` | `-C` | `String` | `""` | — | TOML config for prior hyperparameters *(aliases: `--cfg`)* |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
@@ -567,19 +582,20 @@ Factor-augmented VAR (two-step or Bayesian)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--factors` | — | `Int64` | — | — | Number of factors (default: auto via IC) |
+| `--factors` | `-q` | `Int64` | — | — | Number of factors (default: auto via IC) |
 | `--lags` | `-p` | `Int64` | `2` | — | VAR lag order |
 | `--key-vars` | — | `String` | `""` | — | Key variable names or indices (comma-separated) |
-| `--method` | — | `String` | `two_step` | `two_step`, `bayesian` | two_step\|bayesian |
+| `--method` | `-m` | `String` | `two_step` | `two_step`, `bayesian` | two_step\|bayesian |
 | `--draws` | `-n` | `Int64` | `5000` | — | MCMC draws (bayesian only) |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
@@ -589,6 +605,8 @@ Factor-augmented VAR (two-step or Bayesian)
 
 Lanne-Luoto (2021) co-kurtosis GMM non-Gaussian SVAR with MSC/RMSC moment selection
 
+**Aliases:** `ll`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
@@ -597,26 +615,27 @@ Lanne-Luoto (2021) co-kurtosis GMM non-Gaussian SVAR with MSC/RMSC moment select
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | — | — | VAR lag order (default: auto via AIC) |
 | `--form` | — | `String` | `b-model` | `b-model`, `a-model` | Structural parameterization: b-model\|a-model |
-| `--weighting` | — | `String` | `two-step` | `two-step`, `iterated`, `cue` | GMM weighting scheme: two-step\|iterated\|cue |
+| `--weighting` | `-w` | `String` | `two-step` | `two-step`, `iterated`, `cue` | GMM weighting scheme: two-step\|iterated\|cue |
 | `--moment-selection` | — | `String` | `msc-rmsc` | `msc-rmsc`, `rmsc-seq`, `none` | Co-kurtosis moment selection: msc-rmsc\|rmsc-seq\|none |
-| `--kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `qs`, `quadratic-spectral`, `tukey-hanning` | HAC kernel: bartlett\|parzen\|qs\|quadratic-spectral\|tukey-hanning |
-| `--bandwidth` | — | `String` | `auto` | — | HAC truncation lag: auto\|nw94\|andrews or integer ≥ 0 |
-| `--max-iter` | — | `Int64` | `100` | — | Maximum GMM optimization iterations |
-| `--tol` | — | `Float64` | `1.0e-7` | — | Convergence tolerance |
+| `--kernel` | `-k` | `String` | `bartlett` | `bartlett`, `parzen`, `qs`, `quadratic-spectral`, `tukey-hanning` | HAC kernel: bartlett\|parzen\|qs\|quadratic-spectral\|tukey-hanning |
+| `--bandwidth` | `-b` | `String` | `auto` | — | HAC truncation lag: auto\|nw94\|andrews or integer ≥ 0 *(aliases: `--bw`)* |
+| `--max-iter` | `-I` | `Int64` | `100` | — | Maximum GMM optimization iterations *(aliases: `--miter`)* |
+| `--tol` | `-T` | `Float64` | `1.0e-7` | — | Convergence tolerance |
 | `--n-starts` | — | `Int64` | `5` | — | Multi-start count for initial Givens basin search |
 | `--shock-names` | — | `String` | `""` | — | Comma-separated structural shock labels |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
-**Output tables:** `lanne_luoto_gmm_estimates` (Lanne-Luoto co-kurtosis GMM impact matrix B0 estimates with standard errors and Hansen J-test)
+**Output tables:** `lanne_luoto_gmm_estimates` (Lanne-Luoto co-kurtosis GMM impact matrix B0 estimates with standard errors, confidence intervals and Hansen J-test)
 
 ### [`frdc estimate multivariate lms-svar`](@id ref-estimate-multivariate-lms-svar)
 
@@ -630,24 +649,25 @@ Lanne-Meitz-Saikkonen (2017) complete non-Gaussian ML SVAR with 16-block Hessian
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | — | — | VAR lag order (default: auto via AIC) |
 | `--distributions` | — | `String` | `student-t` | — | Single token or comma-separated per-shock list: student-t\|skewed-t\|mixture-normal\|skew-normal\|pearson-iv\|ged |
-| `--method` | — | `String` | `three-step` | `three-step`, `one-step`, `full-ml` | Estimation algorithm: three-step\|one-step\|full-ml |
+| `--method` | `-m` | `String` | `three-step` | `three-step`, `one-step`, `full-ml` | Estimation algorithm: three-step\|one-step\|full-ml |
 | `--se` | — | `String` | `hessian` | `hessian`, `sandwich`, `opg` | Asymptotic SE covariance estimator: hessian\|sandwich\|opg |
 | `--n-starts` | — | `Int64` | `5` | — | Multi-start basin count for non-Gaussian optimization |
-| `--max-iter` | — | `Int64` | `500` | — | Maximum L-BFGS iterations per stage |
-| `--tol` | — | `Float64` | — | — | Gradient convergence tolerance (default: library precision) |
+| `--max-iter` | `-I` | `Int64` | `500` | — | Maximum L-BFGS iterations per stage *(aliases: `--miter`)* |
+| `--tol` | `-T` | `Float64` | — | — | Gradient convergence tolerance (default: library precision) |
 | `--shock-names` | — | `String` | `""` | — | Comma-separated structural shock labels |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
-**Output tables:** `lms_svar_estimates` (LMS non-Gaussian SVAR impact matrix B0 and scale estimates with standard errors)
+**Output tables:** `lms_svar_estimates` (LMS non-Gaussian SVAR impact matrix B0 and scale estimates with standard errors and confidence intervals); `lms_svar_diagnostics` (LMS non-Gaussian SVAR model diagnostics: log-likelihood, Gaussian log-likelihood, AIC, BIC, convergence, iterations, and per-shock distribution parameters (e.g., Student-t nu))
 
 ### [`frdc estimate multivariate lp`](@id ref-estimate-multivariate-lp)
 
@@ -659,14 +679,14 @@ Jorda local projections: standard|iv|smooth|state|propensity|robust
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--method` | — | `String` | `standard` | `standard`, `iv`, `smooth`, `state`, `propensity`, `robust` | standard\|iv\|smooth\|state\|propensity\|robust |
-| `--shock` | — | `Int64` | `1` | — | Shock variable index (1-based) |
-| `--horizons` | — | `Int64` | `20` | — | IRF horizon |
+| `--method` | `-m` | `String` | `standard` | `standard`, `iv`, `smooth`, `state`, `propensity`, `robust` | standard\|iv\|smooth\|state\|propensity\|robust |
+| `--shock` | `-K` | `Int64` | `1` | — | Shock variable index (1-based) |
+| `--horizons` | `-H` | `Int64` | `20` | — | IRF horizon *(aliases: `--hor`)* |
 | `--control-lags` | — | `Int64` | `4` | — | Number of control lags (standard/iv only; ignored by smooth\|state\|propensity\|robust) |
 | `--vcov` | — | `String` | `newey_west` | `newey_west`, `white`, `driscoll_kraay` | newey_west\|white\|driscoll_kraay (standard/iv only; ignored by smooth\|state\|propensity\|robust) |
-| `--instruments` | — | `String` | `""` | — | Path to instruments CSV (iv only) |
+| `--instruments` | `-Z` | `String` | `""` | — | Path to separate instruments CSV file (file path, not a column name in <data>; --method iv only) *(aliases: `--iv`)* |
 | `--knots` | — | `Int64` | `3` | — | Number of B-spline knots (smooth only) |
-| `--lambda` | — | `Float64` | `0.0` | — | Smoothing penalty, 0=auto CV (smooth only) |
+| `--lambda` | `-l` | `Float64` | `0.0` | — | Smoothing penalty, 0=auto CV (smooth only) |
 | `--state-var` | — | `Int64` | — | — | State variable index (state only) |
 | `--gamma` | — | `Float64` | `1.5` | — | Transition steepness (state only) |
 | `--transition` | — | `String` | `logistic` | `logistic` | Transition shape (logistic only) |
@@ -674,12 +694,13 @@ Jorda local projections: standard|iv|smooth|state|propensity|robust
 | `--score-method` | — | `String` | `logit` | `logit`, `probit` | logit\|probit (propensity/robust only) |
 | `--mop-tau` | — | `Float64` | `0.1` | — | MOP worst-case relative-bias target: 0.05\|0.10\|0.20\|0.30 (iv, with --mop-f) |
 | `--mop-bandwidth` | — | `Int64` | `0` | — | HAC lag length for the MOP effective F; 0 = auto (iv, with --mop-f) |
-| `--ar-level` | — | `Float64` | `0.95` | — | Coverage for the AR bands (iv, with --ar-bands) |
+| `--ar-level` | — | `Float64` | `0.68` | — | Coverage for the AR bands in (0, 1) (iv, with --ar-bands; default: 0.68) |
 | `--ar-grid` | — | `Int64` | `401` | — | Grid points per horizon×response when inverting the AR test (iv, with --ar-bands) |
 | `--ar-span` | — | `Float64` | `20.0` | — | AR search half-width in 2SLS standard errors (iv, with --ar-bands) |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -688,7 +709,7 @@ Jorda local projections: standard|iv|smooth|state|propensity|robust
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
-**Output tables:** `lp_coefficients` (Impulse responses by horizon with standard errors and t-statistics, one column per response variable); `lp_coefficients_expansion` (Expansion-regime responses (--method state only)); `lp_coefficients_recession` (Recession-regime responses (--method state only)); `lp_estimation_summary` (Effective sample size, covariance estimator and, for LP-IV, the first-stage F); `montiel_olea_pflueger_effective_f` (Montiel Olea-Pflueger effective first-stage F against its critical value (--mop-f)); `lp_iv_anderson_rubin_bands` (Weak-instrument-robust Anderson-Rubin bands per horizon x response (--ar-bands))
+**Output tables:** `lp_coefficients` (Impulse responses by horizon with standard errors, t-statistics and CIs, one column group per response variable); `lp_coefficients_expansion` (Expansion-regime responses (--method state only)); `lp_coefficients_recession` (Recession-regime responses (--method state only)); `lp_estimation_summary` (Effective sample size, covariance estimator and, for LP-IV, the first-stage F); `montiel_olea_pflueger_effective_f` (Montiel Olea-Pflueger effective first-stage F against its critical value (--mop-f)); `lp_iv_anderson_rubin_bands` (Weak-instrument-robust Anderson-Rubin bands per horizon x response (--ar-bands))
 
 ### [`frdc estimate multivariate mfvar`](@id ref-estimate-multivariate-mfvar)
 
@@ -705,15 +726,17 @@ Mixed-frequency VAR (Schorfheide-Song 2015)
 | `--freq-ratio` | — | `Int64` | `3` | — | High- per low-frequency periods (3 = monthly/quarterly) |
 | `--aggregation` | — | `String` | `growth` | — | stock\|flow\|average\|growth (one, or one per low-freq series) |
 | `--draws` | `-n` | `Int64` | `1000` | — | Retained Gibbs draws |
-| `--burnin` | — | `Int64` | `500` | — | Burn-in sweeps discarded |
+| `--burnin` | `-B` | `Int64` | `500` | — | Burn-in sweeps discarded |
 | `--prior` | — | `String` | `minnesota` | `minnesota`, `diffuse` | minnesota\|diffuse |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--quantiles` | `-Q` | `String` | `0.16,0.5,0.84` | — | Posterior/bootstrap band quantiles in (0, 1) (default: 0.16,0.5,0.84 = 68% band) *(aliases: `--qtl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
-**Output tables:** `mf_var_latent_high_frequency_path_68_credible_band` (Posterior mean and 16/50/84 quantiles of the latent high-frequency path); `mf_var_specification` (Lags, variable count, high-frequency length, low-frequency columns, ratio and aggregation)
+**Output tables:** `mf_var_latent_high_frequency_path_68_credible_band` (Posterior mean and credible-band quantiles (default 68% = 16/50/84) of the latent high-frequency path); `mf_var_specification` (Lags, variable count, high-frequency length, low-frequency columns, ratio and aggregation)
 
 ### [`frdc estimate multivariate qfavar`](@id ref-estimate-multivariate-qfavar)
 
@@ -725,22 +748,23 @@ Quantile Factor-Augmented VAR (two-step IQR or Variational Bayes, Korobilis-Schr
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--factors` | — | `Int64` | `2` | — | Number of latent quantile factors r (>= 1) |
+| `--factors` | `-q` | `Int64` | `2` | — | Number of latent quantile factors r (>= 1) |
 | `--lags` | `-p` | `Int64` | `1` | — | QVAR lag order p (>= 1) |
 | `--key-vars` | — | `String` | `""` | — | Key observed variables (comma-separated names or 1-based indices, required) |
 | `--taus` | — | `String` | `0.1,0.5,0.9` | — | Comma-separated quantile levels strictly in (0, 1) |
-| `--method` | — | `String` | `twostep` | `twostep`, `vb` | Estimation method: twostep\|vb |
+| `--method` | `-m` | `String` | `twostep` | `twostep`, `vb` | Estimation method: twostep\|vb |
 | `--se` | — | `String` | `none` | `none`, `asymptotic`, `bootstrap` | Two-step QVAR standard errors: none\|asymptotic\|bootstrap |
 | `--vb-maxiter` | — | `Int64` | `100` | — | Max CAVI iterations for --method vb |
 | `--vb-tol` | — | `Float64` | `0.0001` | — | CAVI convergence tolerance for --method vb |
 | `--n-draws` | — | `Int64` | `200` | — | Variational posterior draws for --method vb |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--no-standardize` | — | Do not standardize panel columns before factor extraction |
+| `--no-standardize` | — | Do not standardize panel columns before factor extraction *(aliases: `--nostd`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
@@ -761,13 +785,14 @@ Recursive structural Quantile VAR(p) (Chavleishvili-Manganelli)
 | `--ordering` | — | `String` | `""` | — | Recursive Cholesky variable ordering (comma-separated names or 1-based indices) |
 | `--se` | — | `String` | `asymptotic` | `asymptotic`, `bootstrap`, `none` | Standard error method: asymptotic\|bootstrap\|none |
 | `--n-boot` | — | `Int64` | `199` | — | Bootstrap replications for --se bootstrap |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
-**Output tables:** `qvar_coefficients` (Quantile VAR coefficients via Tables.jl: tau | equation | term | estimate | std_error)
+**Output tables:** `qvar_coefficients` (Quantile VAR coefficients via Tables.jl: tau | equation | term | estimate | std_error | ci_lower | ci_upper)
 
 ### [`frdc estimate multivariate ssvarma`](@id ref-estimate-multivariate-ssvarma)
 
@@ -781,23 +806,24 @@ Gouriéroux-Monfort-Renne (2020) non-fundamental Strong SVARMA estimation
 |--------|-------|------|---------|---------|-------------|
 | `--ar-lags` | — | `Int64` | `1` | — | Autoregressive order p (≥ 0) |
 | `--ma-lags` | — | `Int64` | `1` | — | Moving-average order q (≥ 0) |
-| `--method` | — | `String` | `pml` | `pml`, `ml`, `gmm`, `gmm-2sls` | Estimator: pml\|ml\|gmm\|gmm-2sls |
-| `--distribution` | — | `String` | `student-t` | `student-t`, `mixture-normal`, `mixture-normal-asym`, `pearson-iv`, `skew-normal` | Marginal shock distribution for PML/ML |
+| `--method` | `-m` | `String` | `pml` | `pml`, `ml`, `gmm`, `gmm-2sls` | Estimator: pml\|ml\|gmm\|gmm-2sls |
+| `--distribution` | — | `String` | `student-t` | `student-t`, `mixture-normal`, `mixture-normal-asym`, `pearson-iv`, `skew-normal` | Marginal shock distribution for PML/ML *(aliases: `--dist`)* |
 | `--k-iv` | — | `Int64` | — | — | Lagged instrument count for 2SLS step (default: ar-lags + 3) |
 | `--se` | — | `String` | `auto` | `auto`, `hessian`, `sandwich`, `opg` | Standard error covariance: auto\|hessian\|sandwich\|opg |
 | `--n-starts` | — | `Int64` | `3` | — | Additional orthogonal rotations per Blaschke regime |
-| `--max-iter` | — | `Int64` | `500` | — | Maximum optimizer iterations per regime |
-| `--tol` | — | `Float64` | `1.0e-6` | — | Gradient convergence tolerance |
+| `--max-iter` | `-I` | `Int64` | `500` | — | Maximum optimizer iterations per regime *(aliases: `--miter`)* |
+| `--tol` | `-T` | `Float64` | `1.0e-6` | — | Gradient convergence tolerance |
 | `--shock-names` | — | `String` | `""` | — | Comma-separated structural shock labels |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--blaschke` | — | Also emit Blaschke root-flip representations and fundamentalness regime summary |
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
@@ -815,20 +841,21 @@ AB-model SVAR by ML over a recursive/BQ/restriction pattern
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto via AIC) |
 | `--pattern` | — | `String` | `recursive` | `recursive`, `blanchard-quah`, `a-model`, `b-model`, `ab-model` | AB-model pattern: recursive\|blanchard-quah\|a-model\|b-model\|ab-model |
-| `--config` | — | `String` | `""` | — | TOML config with [svar] A/B matrices (a/b/ab-model) |
+| `--config` | `-C` | `String` | `""` | — | TOML config with [svar] A/B matrices (a/b/ab-model) *(aliases: `--cfg`)* |
 | `--n-starts` | — | `Int64` | `5` | — | Optimizer starting values (overidentified patterns) |
-| `--max-iter` | — | `Int64` | `400` | — | Max optimizer iterations per start |
+| `--max-iter` | `-I` | `Int64` | `400` | — | Max optimizer iterations per start *(aliases: `--miter`)* |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--plot` | `-g` | Open interactive plot in browser |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
@@ -846,23 +873,24 @@ Structural VECM (KPSW default or custom long/short-run zeros)
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | `2` | — | Lag order (in levels, VECM uses p-1) |
 | `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto\|0\|1\|2\|…) |
-| `--deterministic` | — | `String` | `constant` | `none`, `constant`, `trend` | none\|constant\|trend |
-| `--method` | — | `String` | `johansen` | `johansen`, `engle_granger` | johansen\|engle_granger |
+| `--deterministic` | — | `String` | `constant` | `none`, `constant`, `trend` | none\|constant\|trend *(aliases: `--det`)* |
+| `--method` | `-m` | `String` | `johansen` | `johansen`, `engle_granger` | johansen\|engle_granger |
 | `--significance` | — | `Float64` | `0.05` | — | Significance level for rank selection |
-| `--config` | — | `String` | `""` | — | TOML config with optional [svec] long/short-run zero matrices |
+| `--config` | `-C` | `String` | `""` | — | TOML config with optional [svec] long/short-run zero matrices *(aliases: `--cfg`)* |
 | `--n-starts` | — | `Int64` | `5` | — | Optimizer starting values (restricted patterns) |
-| `--max-iter` | — | `Int64` | `400` | — | Max optimizer iterations per start |
+| `--max-iter` | `-I` | `Int64` | `400` | — | Max optimizer iterations per start *(aliases: `--miter`)* |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--plot` | `-g` | Open interactive plot in browser |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
@@ -880,15 +908,17 @@ TVP-VAR with stochastic volatility (Primiceri 2005)
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | `2` | — | Lag order |
 | `--draws` | `-n` | `Int64` | `2000` | — | Retained Gibbs draws |
-| `--burnin` | — | `Int64` | `1000` | — | Burn-in sweeps discarded |
+| `--burnin` | `-B` | `Int64` | `1000` | — | Burn-in sweeps discarded |
 | `--thin` | — | `Int64` | `1` | — | Keep every k-th draw |
 | `--n-train` | — | `Int64` | `0` | — | Training observations for prior calibration (0 = auto: max(4p+n+2, T/4)) |
 | `--k-q` | — | `Float64` | `0.01` | — | Coefficient random-walk prior scale (> 0) |
 | `--k-s` | — | `Float64` | `0.1` | — | Covariance random-walk prior scale (> 0) |
 | `--k-w` | — | `Float64` | `0.01` | — | Log-volatility random-walk prior scale (> 0) |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--quantiles` | `-Q` | `String` | `0.16,0.5,0.84` | — | Posterior/bootstrap band quantiles in (0, 1) (default: 0.16,0.5,0.84 = 68% band) *(aliases: `--qtl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -897,7 +927,7 @@ TVP-VAR with stochastic volatility (Primiceri 2005)
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
-**Output tables:** `tvp_var_stochastic_volatility_path_posterior_sd_68_band` (Posterior mean and 16/50/84 quantiles of the stochastic-volatility path, one row per period x variable); `tvp_var_specification` (Lags, variable count, effective sample, training sample, draws and the tvp/sv switches)
+**Output tables:** `tvp_var_stochastic_volatility_path_posterior_sd_68_band` (Posterior mean and credible-band quantiles (default 68% = 16/50/84) of the stochastic-volatility path, one row per period x variable); `tvp_var_specification` (Lags, variable count, effective sample, training sample, draws and the tvp/sv switches)
 
 ### [`frdc estimate multivariate var`](@id ref-estimate-multivariate-var)
 
@@ -910,9 +940,10 @@ Frequentist VAR(p) by OLS with AIC lag auto-selection
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto via AIC) |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
@@ -930,12 +961,13 @@ Johansen/Engle-Granger VECM with automatic rank selection
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | `2` | — | Lag order (in levels, VECM uses p-1) |
 | `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto\|0\|1\|2\|…) |
-| `--deterministic` | — | `String` | `constant` | `none`, `constant`, `trend` | none\|constant\|trend |
-| `--method` | — | `String` | `johansen` | `johansen`, `engle_granger` | johansen\|engle_granger |
+| `--deterministic` | — | `String` | `constant` | `none`, `constant`, `trend` | none\|constant\|trend *(aliases: `--det`)* |
+| `--method` | `-m` | `String` | `johansen` | `johansen`, `engle_granger` | johansen\|engle_granger |
 | `--significance` | — | `Float64` | `0.05` | — | Significance level for rank selection |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
@@ -944,6 +976,8 @@ Johansen/Engle-Granger VECM with automatic rank selection
 ---
 
 ## [Panel](@id ref-fam-estimate-panel)
+
+**Family aliases:** `pan`
 
 Panel data estimators (FE/RE/FD, IV, logit/probit, Tobit, dynamic, PVAR, interactive FE, SUR/3SLS)
 
@@ -959,17 +993,18 @@ Fit panel IV regression (FE-IV, EC2SLS, FD-IV or Hausman-Taylor)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (required) |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column name (required) |
 | `--exog` | — | `String` | `""` | — | Exogenous variables (comma-separated) |
 | `--endog` | — | `String` | `""` | — | Endogenous variables (comma-separated) (required) |
-| `--instruments` | — | `String` | `""` | — | Instruments (comma-separated) |
+| `--instruments` | `-Z` | `String` | `""` | — | Instruments (comma-separated) *(aliases: `--iv`)* |
 | `--method` | `-m` | `String` | `fe` | `fe`, `re`, `fd`, `hausman-taylor` | fe\|re\|fd\|hausman-taylor |
-| `--cov-type` | — | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay` | ols\|cluster\|twoway\|driscoll-kraay |
-| `--id-col` | — | `String` | `""` | — | Panel group ID column |
-| `--time-col` | — | `String` | `""` | — | Panel time column |
+| `--cov-type` | `-v` | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay` | ols\|cluster\|twoway\|driscoll-kraay *(aliases: `--cov`)* |
+| `--id-col` | `-u` | `String` | `""` | — | Panel group ID column *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Panel time column *(aliases: `--tcol`)* |
+| `--conf-level` | `-L` | `Float64` | `0.9` | — | Confidence interval level in (0, 1) (default: 0.90) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:panel`, `:csv`
 
@@ -985,15 +1020,16 @@ Fit panel logit regression (pooled|fe|re|cre)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (required) |
-| `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
-| `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
-| `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
-| `--cov-type` | — | `String` | `cluster` | `ols`, `cluster` | ols\|cluster |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column name (required) |
+| `--indep` | `-x` | `String` | `""` | — | Independent variables (comma-separated) |
+| `--id-col` | `-u` | `String` | `""` | — | Panel group ID column (default: first column) *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Panel time column (default: second column) *(aliases: `--tcol`)* |
+| `--cov-type` | `-v` | `String` | `cluster` | `ols`, `cluster` | ols\|cluster *(aliases: `--cov`)* |
 | `--method` | `-m` | `String` | `pooled` | — | Estimation method |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--conf-level` | `-L` | `Float64` | `0.9` | — | Confidence interval level in (0, 1) (default: 0.90) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:panel`, `:csv`
 
@@ -1009,23 +1045,24 @@ Fit a dynamic heterogeneous-panel ARDL (PMG/MG/DFE)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--id-col` | — | `String` | `""` | — | Panel group id column (default: first column) |
-| `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
-| `--dep` | — | `String` | `""` | — | Dependent panel variable (default: first variable) |
-| `--indep` | — | `String` | `""` | — | Long-run regressors, comma-separated (default: all other variables) |
-| `--method` | — | `String` | `pmg` | `pmg`, `mg`, `dfe` | pmg (pooled mean group) \| mg (mean group) \| dfe (dynamic fixed effects) |
-| `--trend` | — | `String` | `constant` | `none`, `constant`, `trend` | Per-unit EC deterministics: none\|constant\|trend |
+| `--id-col` | `-u` | `String` | `""` | — | Panel group id column (default: first column) *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Panel time column (default: second column) *(aliases: `--tcol`)* |
+| `--dep` | `-y` | `String` | `""` | — | Dependent panel variable (default: first variable) |
+| `--indep` | `-x` | `String` | `""` | — | Long-run regressors, comma-separated (default: all other variables) |
+| `--method` | `-m` | `String` | `pmg` | `pmg`, `mg`, `dfe` | pmg (pooled mean group) \| mg (mean group) \| dfe (dynamic fixed effects) |
+| `--trend` | `-e` | `String` | `constant` | `none`, `constant`, `trend` | Per-unit EC deterministics: none\|constant\|trend |
 | `--p` | — | `Int64` | `1` | — | Autoregressive order (≥ 1) |
 | `--q` | — | `Int64` | `1` | — | Distributed-lag order for all regressors (≥ 0) |
-| `--max-iter` | — | `Int64` | `100` | — | PMG outer-loop max iterations |
-| `--tol` | — | `Float64` | `1.0e-8` | — | PMG outer-loop convergence tolerance |
+| `--max-iter` | `-I` | `Int64` | `100` | — | PMG outer-loop max iterations *(aliases: `--maxiter`, `--miter`)* |
+| `--tol` | `-T` | `Float64` | `1.0e-8` | — | PMG outer-loop convergence tolerance |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:panel`, `:csv`
 
-**Output tables:** `panel_ardl_long_run_coefficients` (Pooled or averaged long-run coefficients theta with standard errors); `panel_ardl_short_run_ec_coefficients` (Error-correction speed phi and the short-run coefficient block); `panel_ardl_diagnostics` (Estimator, unit count, orders, phi with its SE, log-likelihood and convergence)
+**Output tables:** `panel_ardl_long_run_coefficients` (Pooled or averaged long-run coefficients theta with standard errors and CIs); `panel_ardl_short_run_ec_coefficients` (Error-correction speed phi and the short-run coefficient block with CIs); `panel_ardl_diagnostics` (Estimator, unit count, orders, phi with its SE, log-likelihood and convergence)
 
 ### [`frdc estimate panel pprobit`](@id ref-estimate-panel-pprobit)
 
@@ -1037,15 +1074,16 @@ Fit panel probit regression (pooled|re|cre; no within estimator)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (required) |
-| `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
-| `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
-| `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
-| `--cov-type` | — | `String` | `cluster` | `ols`, `cluster` | ols\|cluster |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column name (required) |
+| `--indep` | `-x` | `String` | `""` | — | Independent variables (comma-separated) |
+| `--id-col` | `-u` | `String` | `""` | — | Panel group ID column (default: first column) *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Panel time column (default: second column) *(aliases: `--tcol`)* |
+| `--cov-type` | `-v` | `String` | `cluster` | `ols`, `cluster` | ols\|cluster *(aliases: `--cov`)* |
 | `--method` | `-m` | `String` | `pooled` | `pooled`, `re`, `cre` | pooled\|re\|cre (no within estimator: incidental-parameters problem) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--conf-level` | `-L` | `Float64` | `0.9` | — | Confidence interval level in (0, 1) (default: 0.90) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:panel`, `:csv`
 
@@ -1061,11 +1099,11 @@ Fit panel regression (within/between/RE/FD/CRE/GMM) with cluster-robust SEs
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (required) |
-| `--indep` | — | `String` | `""` | — | Independent variables (comma-separated) |
-| `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
-| `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
-| `--cov-type` | — | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay`, `pcse` | ols\|cluster\|twoway\|driscoll-kraay\|pcse (Beck-Katz panel-corrected SEs) |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column name (required) |
+| `--indep` | `-x` | `String` | `""` | — | Independent variables (comma-separated) |
+| `--id-col` | `-u` | `String` | `""` | — | Panel group ID column (default: first column) *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Panel time column (default: second column) *(aliases: `--tcol`)* |
+| `--cov-type` | `-v` | `String` | `cluster` | `ols`, `cluster`, `twoway`, `driscoll-kraay`, `pcse` | ols\|cluster\|twoway\|driscoll-kraay\|pcse (Beck-Katz panel-corrected SEs) *(aliases: `--cov`)* |
 | `--method` | `-m` | `String` | `fe` | — | Estimation method |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
@@ -1076,7 +1114,8 @@ Fit panel regression (within/between/RE/FD/CRE/GMM) with cluster-robust SEs
 | `--hdfe-maxiter` | — | `Int64` | `1000` | — | Maximum alternating-projection iterations |
 | `--min-lag-endo` | — | `Int64` | `2` | — | First instrument lag for endogenous regressors (--method ab\|bb) |
 | `--max-lag-endo` | — | `Int64` | `99` | — | Last instrument lag for endogenous regressors (--method ab\|bb) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--conf-level` | `-L` | `Float64` | `0.9` | — | Confidence interval level in (0, 1) (default: 0.90) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -1097,20 +1136,21 @@ Fit a panel VAR by GMM (difference/system) or FEOLS
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--id-col` | — | `String` | `""` | — | Panel group identifier column (required) |
-| `--time-col` | — | `String` | `""` | — | Time period column (required) |
+| `--id-col` | `-u` | `String` | `""` | — | Panel group identifier column (required) *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Time period column (required) *(aliases: `--tcol`)* |
 | `--lags` | `-p` | `Int64` | `1` | — | Lag order |
 | `--dependent` | — | `String` | `""` | — | Dependent variables (comma-separated) |
 | `--predet` | — | `String` | `""` | — | Predetermined variables (comma-separated) (GMM only; ignored with --method feols) |
 | `--exog` | — | `String` | `""` | — | Exogenous variables (comma-separated) |
-| `--transformation` | — | `String` | `fd` | — | fd\|fod (first-difference or forward orthogonal) (GMM only; ignored with --method feols) |
-| `--steps` | — | `String` | `twostep` | — | onestep\|twostep (GMM only; ignored with --method feols) |
-| `--method` | — | `String` | `gmm` | — | gmm\|feols |
+| `--transformation` | — | `String` | `fd` | `fd`, `fod` | fd\|fod (first-difference or forward orthogonal) (GMM only; ignored with --method feols) |
+| `--steps` | — | `String` | `twostep` | `onestep`, `twostep` | onestep\|twostep (GMM only; ignored with --method feols) |
+| `--method` | `-m` | `String` | `gmm` | `gmm`, `feols` | gmm\|feols |
 | `--min-lag-endo` | — | `Int64` | `2` | — | Minimum lag for endogenous instruments (GMM only; ignored with --method feols) |
 | `--max-lag-endo` | — | `Int64` | `99` | — | Maximum lag for endogenous instruments (GMM only; ignored with --method feols) |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -1125,32 +1165,35 @@ Fit a panel VAR by GMM (difference/system) or FEOLS
 
 Estimate a panel cointegrating regression by FMOLS/DOLS (group-mean or pooled)
 
+**Aliases:** `xtcr`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--id-col` | — | `String` | `""` | — | Panel group id column (default: first column) |
-| `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
-| `--dep` | — | `String` | `""` | — | Dependent panel variable (default: first variable) |
-| `--indep` | — | `String` | `""` | — | Regressors, comma-separated (default: all other variables) |
-| `--method` | — | `String` | `fmols` | `fmols`, `dols` | fmols\|dols (no ccr for panels) |
+| `--id-col` | `-u` | `String` | `""` | — | Panel group id column (default: first column) *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Panel time column (default: second column) *(aliases: `--tcol`)* |
+| `--dep` | `-y` | `String` | `""` | — | Dependent panel variable (default: first variable) |
+| `--indep` | `-x` | `String` | `""` | — | Regressors, comma-separated (default: all other variables) |
+| `--method` | `-m` | `String` | `fmols` | `fmols`, `dols` | fmols\|dols (no ccr for panels) |
 | `--pooling` | — | `String` | `group` | `group`, `pooled` | group (between) \| pooled (within) |
-| `--trend` | — | `String` | `const` | `none`, `const`, `linear` | Per-unit deterministics: none\|const\|linear |
-| `--kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `qs`, `tukey-hanning` | HAC kernel: bartlett\|parzen\|qs\|tukey-hanning |
-| `--bandwidth` | — | `String` | `andrews` | — | andrews\|nw94 or a fixed truncation lag (>=0) |
+| `--trend` | `-e` | `String` | `const` | `none`, `const`, `linear` | Per-unit deterministics: none\|const\|linear |
+| `--kernel` | `-k` | `String` | `bartlett` | `bartlett`, `parzen`, `qs`, `tukey-hanning` | HAC kernel: bartlett\|parzen\|qs\|tukey-hanning |
+| `--bandwidth` | `-b` | `String` | `andrews` | — | andrews\|nw94 or a fixed truncation lag (>=0) *(aliases: `--bw`)* |
 | `--leads` | — | `String` | `auto` | — | DOLS leads: auto or a non-negative integer |
-| `--lags` | — | `String` | `auto` | — | DOLS lags: auto or a non-negative integer |
+| `--lags` | `-p` | `String` | `auto` | — | DOLS lags: auto or a non-negative integer |
 | `--ic` | — | `String` | `aic` | `aic`, `bic` | DOLS lead/lag selection: aic\|bic |
 | `--dols-se` | — | `String` | `lrv` | `lrv`, `robust` | DOLS standard errors: lrv\|robust |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:panel`, `:csv`
 
-**Output tables:** `panel_cointegrating_regression_coefficients` (Panel FMOLS/DOLS long-run coefficients (group-mean or pooled per --pooling)); `panel_cointegrating_regression_diagnostics` (Method, pooling, trend, kernel, unit count and per-unit sample lengths)
+**Output tables:** `panel_cointegrating_regression_coefficients` (Panel FMOLS/DOLS long-run coefficients (group-mean or pooled per --pooling) with CIs); `panel_cointegrating_regression_diagnostics` (Method, pooling, trend, kernel, unit count and per-unit sample lengths)
 
 ### [`frdc estimate panel xtqreg`](@id ref-estimate-panel-xtqreg)
 
@@ -1162,27 +1205,28 @@ Interactive panel quantile regression with latent quantile factors (Ando-Bai)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first panel variable) |
-| `--indep` | — | `String` | `""` | — | Independent regressor columns (comma-separated; default: all non-dep panel variables) |
-| `--id-col` | — | `String` | `""` | — | Panel group ID column (default: first column) |
-| `--time-col` | — | `String` | `""` | — | Panel time column (default: second column) |
-| `--factors` | — | `String` | `1` | — | Number of latent quantile factors (positive integer or 'auto') |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column name (default: first panel variable) |
+| `--indep` | `-x` | `String` | `""` | — | Independent regressor columns (comma-separated; default: all non-dep panel variables) |
+| `--id-col` | `-u` | `String` | `""` | — | Panel group ID column (default: first column) *(aliases: `--idcol`)* |
+| `--time-col` | `-t` | `String` | `""` | — | Panel time column (default: second column) *(aliases: `--tcol`)* |
+| `--factors` | `-q` | `String` | `1` | — | Number of latent quantile factors (positive integer or 'auto') |
 | `--tau` | — | `Float64` | `0.5` | — | Quantile level strictly in (0, 1) |
 | `--slope` | — | `String` | `homogeneous` | `homogeneous`, `heterogeneous` | Slope specification: homogeneous\|heterogeneous |
 | `--se` | — | `String` | `asymptotic` | `asymptotic`, `bootstrap` | Standard error method: asymptotic\|bootstrap |
 | `--n-boot` | — | `Int64` | `199` | — | Bootstrap replications for --se bootstrap |
 | `--r-max` | — | `Int64` | `6` | — | Max factor count when --factors auto |
-| `--max-iter` | — | `Int64` | `100` | — | Maximum outer alternating iterations |
-| `--tol` | — | `Float64` | `1.0e-5` | — | Convergence tolerance (> 0) |
+| `--max-iter` | `-I` | `Int64` | `100` | — | Maximum outer alternating iterations *(aliases: `--miter`)* |
+| `--tol` | `-T` | `Float64` | `1.0e-5` | — | Convergence tolerance (> 0) |
+| `--conf-level` | `-L` | `Float64` | `0.9` | — | Confidence interval level in (0, 1) (default: 0.90) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--no-bias-correct` | — | Disable split-panel jackknife bias correction for homogeneous slopes |
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:panel`, `:csv`
 
@@ -1191,6 +1235,8 @@ Interactive panel quantile regression with latent quantile factors (Ando-Bai)
 ---
 
 ## [Regime](@id ref-fam-estimate-regime)
+
+**Family aliases:** `rgm`
 
 Regime-switching and nonlinear time-series estimators (Markov-switching, STAR, TAR)
 
@@ -1206,20 +1252,20 @@ Fit K-state Markov-switching regression, all coefficients switch
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column (default: first numeric) |
 | `--k-regimes` | — | `Int64` | `2` | — | Number of regimes (≥ 2) |
-| `--max-iter` | — | `Int64` | `500` | — | Max EM iterations (≥ 1) |
-| `--tol` | — | `Float64` | `1.0e-8` | — | EM convergence tolerance (> 0) |
+| `--max-iter` | `-I` | `Int64` | `500` | — | Max EM iterations (≥ 1) *(aliases: `--miter`)* |
+| `--tol` | `-T` | `Float64` | `1.0e-8` | — | EM convergence tolerance (> 0) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--switching-variance` | — | Let σ² switch across regimes (default for ms: on) |
 | `--no-switching-variance` | — | Force common σ² across regimes |
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
@@ -1238,17 +1284,17 @@ Fit Hamilton mean-switching MS-AR with common AR block
 | `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
 | `--p` | — | `Int64` | `1` | — | AR order (≥ 1) |
 | `--k-regimes` | — | `Int64` | `2` | — | Number of regimes (≥ 2) |
-| `--max-iter` | — | `Int64` | `1000` | — | Max EM iterations (≥ 1) |
+| `--max-iter` | `-I` | `Int64` | `1000` | — | Max EM iterations (≥ 1) *(aliases: `--miter`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--switching-variance` | — | Let σ² switch across regimes (default for ms-ar: off) |
 | `--no-switching-variance` | — | Force common σ² across regimes |
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
@@ -1268,22 +1314,22 @@ Fit two-regime self-exciting SETAR with Hansen CI
 | `--p` | — | `Int64` | `1` | — | AR order (≥ 1) |
 | `--d` | — | `String` | `1` | — | Delay lag: an integer ≥ 1, or 'auto' (=1:p grid) |
 | `--trim` | — | `Float64` | `0.15` | — | Trimming fraction for the threshold grid (0 < trim < 0.5) |
-| `--draws` | — | `Int64` | `1000` | — | Bootstrap replications for the linearity test (>= 1) |
-| `--conf-level` | — | `Float64` | `0.95` | `0.90`, `0.95`, `0.99` | Threshold CI level: 0.90\|0.95\|0.99 |
+| `--draws` | `-n` | `Int64` | `1000` | — | Bootstrap replications for the linearity test (>= 1) *(aliases: `--reps`)* |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence level in (0, 1) for Hansen threshold gamma CI and regime coefficients (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--het` | — | Heteroskedastic (White) bootstrap for the linearity test |
 | `--no-linearity` | — | Skip the attached Hansen (1996) linearity test |
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
-**Output tables:** `setar_coefficients` (Per-regime SETAR coefficients with standard errors, z-statistics and p-values); `setar_diagnostics` (Threshold gamma with its Hansen CI, regime counts, p/d, fit statistics and the linearity test)
+**Output tables:** `setar_coefficients` (Per-regime SETAR coefficients with standard errors, z-statistics, p-values and CIs); `setar_diagnostics` (Threshold gamma with its Hansen CI, regime counts, p/d, fit statistics and the linearity test)
 
 ### [`frdc estimate regime star`](@id ref-estimate-regime-star)
 
@@ -1304,12 +1350,12 @@ Fit smooth-transition STAR with lstr1|lstr2|estr transition
 | `--transition-col` | — | `Int64` | `0` | — | External transition-variable column (1-based; 0 = self-exciting y[t-d]) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
@@ -1325,25 +1371,25 @@ Fit threshold regression splitting the sample at gamma
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column (default: first numeric) |
 | `--threshold-col` | — | `String` | `""` | — | Required: the variable that splits the sample (excluded from the regressors) |
 | `--trim` | — | `Float64` | `0.15` | — | Trimming fraction for the threshold grid (0 < trim < 0.5) |
-| `--draws` | — | `Int64` | `1000` | — | Bootstrap replications for the linearity test (≥ 1) |
-| `--conf-level` | — | `Float64` | `0.95` | `0.90`, `0.95`, `0.99` | Threshold CI level: 0.90\|0.95\|0.99 |
+| `--draws` | `-n` | `Int64` | `1000` | — | Bootstrap replications for the linearity test (≥ 1) *(aliases: `--reps`)* |
+| `--conf-level` | `-L` | `Float64` | `0.9` | — | Confidence interval level in (0, 1) for threshold γ and regime coefficients (default: 0.90) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--het` | — | Heteroskedasticity-robust bootstrap for the linearity test |
 | `--no-linearity` | — | Skip the Hansen (1996) linearity test |
-| `--plot` | — | Display an interactive plot |
+| `--plot` | `-g` | Display an interactive plot |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
-**Output tables:** `threshold_regression_coefficients` (Per-regime coefficients with standard errors, z-statistics and p-values); `threshold_regression_diagnostics` (Threshold gamma with its Hansen CI, per-regime counts, fit statistics and the linearity test)
+**Output tables:** `threshold_regression_coefficients` (Per-regime coefficients with standard errors, z-statistics, p-values and CIs); `threshold_regression_diagnostics` (Threshold gamma with its Hansen CI, per-regime counts, fit statistics and the linearity test)
 
 ### [`frdc estimate regime tvp`](@id ref-estimate-regime-tvp)
 
@@ -1355,16 +1401,16 @@ Fit time-varying-parameter regression with random-walk coefficients
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
 | `--init-mode` | — | `String` | `kappa` | `kappa`, `diffuse` | Kalman initialization: kappa \| diffuse |
 | `--kappa` | — | `Float64` | `1.0e6` | — | Large-variance diffuse-init constant (init-mode=kappa) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--no-intercept` | — | Do NOT prepend a time-varying intercept coefficient |
+| `--no-intercept` | — | Do NOT prepend a time-varying intercept coefficient *(aliases: `--noint`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
@@ -1373,6 +1419,8 @@ Fit time-varying-parameter regression with random-walk coefficients
 ---
 
 ## [Regression](@id ref-fam-estimate-regression)
+
+**Family aliases:** `regr`
 
 Cross-section and time-series regressions (OLS, IV, quantile, Tobit, Heckman, count, nonparametric, survival)
 
@@ -1388,18 +1436,19 @@ Fit three-stage least squares (3SLS) over an instrumented equation system
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--config` | — | `String` | `""` | — | Config file listing the equations as dep = indep, ... plus instruments; required; TOML or a model card |
-| `--instruments` | — | `String` | `common` | `common`, `perequation` | common\|perequation instrument sets |
+| `--config` | `-C` | `String` | `""` | — | Config file listing the equations as dep = indep, ... plus instruments; required; TOML or a model card *(aliases: `--cfg`)* |
+| `--instruments` | `-Z` | `String` | `common` | `common`, `perequation` | common\|perequation instrument sets *(aliases: `--iv`)* |
+| `--conf-level` | `-L` | `Float64` | `0.9` | — | Confidence interval level in (0, 1) (default: 0.90) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--no-intercept` | — | Do not add a per-equation constant |
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--no-intercept` | — | Do not add a per-equation constant *(aliases: `--noint`)* |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`
 
@@ -1415,26 +1464,29 @@ Estimate a cointegrating regression by FMOLS/CCR/DOLS
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent (levels) column name (default: first numeric column) |
-| `--method` | — | `String` | `fmols` | `fmols`, `ccr`, `dols` | fmols\|ccr\|dols |
-| `--trend` | — | `String` | `const` | `none`, `const`, `linear` | Deterministics: none\|const\|linear |
-| `--kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `qs`, `tukey-hanning` | HAC kernel: bartlett\|parzen\|qs\|tukey-hanning |
-| `--bandwidth` | — | `String` | `andrews` | — | andrews\|nw94 or a fixed truncation lag (>=0) |
+| `--dep` | `-y` | `String` | `""` | — | Dependent (levels) column name (default: first numeric column) |
+| `--method` | `-m` | `String` | `fmols` | `fmols`, `ccr`, `dols` | fmols\|ccr\|dols |
+| `--trend` | `-e` | `String` | `const` | `none`, `const`, `linear` | Deterministics: none\|const\|linear |
+| `--kernel` | `-k` | `String` | `bartlett` | `bartlett`, `parzen`, `qs`, `tukey-hanning` | HAC kernel: bartlett\|parzen\|qs\|tukey-hanning |
+| `--bandwidth` | `-b` | `String` | `andrews` | — | andrews\|nw94 or a fixed truncation lag (>=0) *(aliases: `--bw`)* |
 | `--leads` | — | `String` | `auto` | — | DOLS leads: auto or a non-negative integer |
-| `--lags` | — | `String` | `auto` | — | DOLS lags: auto or a non-negative integer |
+| `--lags` | `-p` | `String` | `auto` | — | DOLS lags: auto or a non-negative integer |
 | `--ic` | — | `String` | `aic` | `aic`, `bic` | DOLS lead/lag selection: aic\|bic |
 | `--dols-se` | — | `String` | `lrv` | `lrv`, `robust` | DOLS standard errors: lrv\|robust |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
-**Output tables:** `cointegrating_regression_coefficients` (FMOLS / CCR / DOLS long-run coefficients with long-run-variance standard errors); `cointegrating_regression_diagnostics` (Method, trend, kernel, bandwidth, omega_uv and sample dimensions)
+**Output tables:** `cointegrating_regression_coefficients` (FMOLS / CCR / DOLS long-run coefficients with long-run-variance standard errors and CIs); `cointegrating_regression_diagnostics` (Method, trend, kernel, bandwidth, omega_uv and sample dimensions)
 
 ### [`frdc estimate regression elastic-net`](@id ref-estimate-regression-elastic-net)
 
 Fit elastic-net regression with L1/L2 mixing and CV/IC lambda selection
+
+**Aliases:** `enet`
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1442,13 +1494,13 @@ Fit elastic-net regression with L1/L2 mixing and CV/IC lambda selection
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
 | `--alpha` | — | `Float64` | `0.5` | — | L1/L2 mixing in [0,1] (1=lasso, 0=ridge) |
-| `--lambda` | — | `String` | `auto` | — | Penalty: auto (CV path) or a non-negative number |
+| `--lambda` | `-l` | `String` | `auto` | — | Penalty: auto (CV path) or a non-negative number |
 | `--select` | — | `String` | `cv` | `cv`, `aic`, `bic`, `ebic` | Lambda selection rule: cv\|aic\|bic\|ebic |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`
 
@@ -1464,17 +1516,18 @@ Estimate GMM from TOML moment conditions (identity/optimal/two-step/iterated/cue
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--config` | — | `String` | `""` | — | Config file for moment conditions and instruments; TOML or a model card |
+| `--config` | `-C` | `String` | `""` | — | Config file for moment conditions and instruments; TOML or a model card *(aliases: `--cfg`)* |
 | `--weighting` | `-w` | `String` | `twostep` | `identity`, `optimal`, `twostep`, `iterated`, `cue` | identity\|optimal\|twostep\|iterated\|cue |
+| `--conf-level` | `-L` | `Float64` | `0.9` | — | Confidence interval level in (0, 1) (default: 0.90) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
@@ -1490,14 +1543,15 @@ Fit a Heckman sample-selection model (two-step Heckit or FIML)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Outcome variable column name (default: first numeric column) |
+| `--dep` | `-y` | `String` | `""` | — | Outcome variable column name (default: first numeric column) |
 | `--select` | — | `String` | `""` | — | Binary selection-indicator column (0/1), required |
 | `--outcome-vars` | — | `String` | `""` | — | Outcome-equation regressor columns, comma-separated (required) |
 | `--select-vars` | — | `String` | `""` | — | Selection-equation regressor columns, comma-separated (required) |
-| `--method` | — | `String` | `twostep` | `twostep`, `mle` | twostep (Heckit) \| mle (FIML) |
+| `--method` | `-m` | `String` | `twostep` | `twostep`, `mle` | twostep (Heckit) \| mle (FIML) |
+| `--conf-level` | `-L` | `Float64` | `0.9` | — | Confidence interval level in (0, 1) (default: 0.90) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`
 
@@ -1513,16 +1567,17 @@ Fit 2SLS/LIML/Fuller/k-class IV regression with first-stage diagnostics
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
 | `--endogenous` | — | `String` | `""` | — | Endogenous regressor column names, comma-separated (required) |
-| `--instruments` | — | `String` | `""` | — | EXCLUDED instrument column names, comma-separated (required; other numeric cols are exogenous regressors — include a `const` for an intercept) |
-| `--cov-type` | — | `String` | `hc1` | — | ols\|hc0\|hc1\|hc2\|hc3 |
-| `--method` | — | `String` | `tsls` | `tsls`, `liml`, `fuller`, `kclass` | k-class estimator |
+| `--instruments` | `-Z` | `String` | `""` | — | EXCLUDED instrument column names, comma-separated (required; other numeric cols are exogenous regressors — include a `const` for an intercept) *(aliases: `--iv`)* |
+| `--cov-type` | `-v` | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3` | ols\|hc0\|hc1\|hc2\|hc3 *(aliases: `--cov`)* |
+| `--method` | `-m` | `String` | `tsls` | `tsls`, `liml`, `fuller`, `kclass` | k-class estimator |
 | `--k` | — | `String` | `""` | — | k-class scalar (required with --method kclass; k=0 is OLS, k=1 is 2SLS) |
 | `--fuller-a` | — | `Float64` | `1.0` | — | Fuller adjustment a > 0 (--method fuller only; a=1 is approximately unbiased) |
+| `--conf-level` | `-L` | `Float64` | `0.9` | — | Confidence interval level in (0, 1) (default: 0.90) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`
 
@@ -1539,13 +1594,13 @@ Estimate a univariate kernel density on an evaluation grid
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | 1-based numeric column |
-| `--kernel` | — | `String` | `gaussian` | `gaussian`, `epanechnikov`, `triangular`, `uniform` | gaussian \| epanechnikov \| triangular \| uniform |
+| `--kernel` | `-k` | `String` | `gaussian` | `gaussian`, `epanechnikov`, `triangular`, `uniform` | gaussian \| epanechnikov \| triangular \| uniform |
 | `--bw` | — | `String` | `silverman` | — | Bandwidth: silverman \| sj \| a positive number |
 | `--npoints` | — | `Int64` | `512` | — | Number of grid points |
 | `--cut` | — | `Float64` | `3.0` | — | Grid extends cut·h beyond the data range each side |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`
 
@@ -1555,25 +1610,28 @@ Estimate a univariate kernel density on an evaluation grid
 
 Fit Nadaraya-Watson/local-linear/local-polynomial kernel regression
 
+**Aliases:** `kreg`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Response variable column name (default: first numeric column) |
-| `--indep` | — | `String` | `""` | — | Single predictor column name (required) |
-| `--method` | — | `String` | `ll` | `nw`, `ll`, `lp` | nw (Nadaraya-Watson) \| ll (local linear) \| lp (local polynomial) |
+| `--dep` | `-y` | `String` | `""` | — | Response variable column name (default: first numeric column) |
+| `--indep` | `-x` | `String` | `""` | — | Single predictor column name (required) |
+| `--method` | `-m` | `String` | `ll` | `nw`, `ll`, `lp` | nw (Nadaraya-Watson) \| ll (local linear) \| lp (local polynomial) |
 | `--degree` | — | `Int64` | `1` | — | Local-polynomial degree (method=lp) |
 | `--bw` | — | `String` | `cv` | — | Bandwidth: cv \| rot \| a positive number |
-| `--kernel` | — | `String` | `gaussian` | `gaussian`, `epanechnikov`, `triangular`, `uniform` | gaussian \| epanechnikov \| triangular \| uniform |
+| `--kernel` | `-k` | `String` | `gaussian` | `gaussian`, `epanechnikov`, `triangular`, `uniform` | gaussian \| epanechnikov \| triangular \| uniform |
+| `--conf-level` | `-L` | `Float64` | `0.9` | — | Confidence interval level in (0, 1) (default: 0.90) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`
 
-**Output tables:** `kernel_regression_fit` (Evaluation grid with the fitted conditional mean and its standard error); `kernel_regression_diagnostics` (Method, polynomial degree, kernel, bandwidth rule and selected bandwidth)
+**Output tables:** `kernel_regression_fit` (Evaluation grid with the fitted conditional mean, its standard error and confidence bounds); `kernel_regression_diagnostics` (Method, polynomial degree, kernel, bandwidth rule and selected bandwidth)
 
 ### [`frdc estimate regression lasso`](@id ref-estimate-regression-lasso)
 
@@ -1585,12 +1643,12 @@ Fit L1-penalized (lasso) regression with CV/IC lambda selection
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
-| `--lambda` | — | `String` | `auto` | — | L1 penalty: auto (CV path) or a non-negative number |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--lambda` | `-l` | `String` | `auto` | — | L1 penalty: auto (CV path) or a non-negative number |
 | `--select` | — | `String` | `cv` | `cv`, `aic`, `bic`, `ebic` | Lambda selection rule: cv\|aic\|bic\|ebic |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`
 
@@ -1606,17 +1664,18 @@ Fit LOWESS locally-weighted smoothing with robustifying passes
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Response variable column name (default: first numeric column) |
-| `--indep` | — | `String` | `""` | — | Single predictor column name (required) |
+| `--dep` | `-y` | `String` | `""` | — | Response variable column name (default: first numeric column) |
+| `--indep` | `-x` | `String` | `""` | — | Single predictor column name (required) |
 | `--frac` | — | `Float64` | `0.6667` | — | Smoother span f ∈ (0,1] (fraction of points per window) |
 | `--iter` | — | `Int64` | `3` | — | Number of bisquare robustifying passes |
+| `--conf-level` | `-L` | `Float64` | `0.9` | — | Confidence interval level in (0, 1) (default: 0.90) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`
 
-**Output tables:** `lowess_fit` (Sorted x with the locally-weighted smoothed fit); `lowess_diagnostics` (Smoothing span, robustness iterations and the observation count)
+**Output tables:** `lowess_fit` (Sorted x with the locally-weighted smoothed fit, pointwise standard error and confidence bounds); `lowess_diagnostics` (Smoothing span, robustness iterations and the observation count)
 
 ### [`frdc estimate regression ml`](@id ref-estimate-regression-ml)
 
@@ -1629,14 +1688,14 @@ Non-Gaussian SVAR identification by ML over Student-t/mixture/PML/skew-normal sh
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto via AIC) |
-| `--distribution` | — | `String` | `student_t` | `student_t`, `mixture_normal`, `pml`, `skew_normal` | student_t\|mixture_normal\|pml\|skew_normal |
+| `--distribution` | — | `String` | `student_t` | `student_t`, `mixture_normal`, `pml`, `skew_normal` | student_t\|mixture_normal\|pml\|skew_normal *(aliases: `--dist`)* |
 | `--vcov-type` | — | `String` | `auto` | `auto`, `hessian`, `sandwich`, `opg`, `information` | Covariance estimator: auto\|hessian\|sandwich\|opg\|information |
 | `--n-starts` | — | `Int64` | `5` | — | Multi-start count for L-BFGS optimization |
-| `--max-iter` | — | `Int64` | `500` | — | Maximum L-BFGS iterations per start |
-| `--tol` | — | `Float64` | `1.0e-6` | — | Gradient convergence tolerance |
+| `--max-iter` | `-I` | `Int64` | `500` | — | Maximum L-BFGS iterations per start *(aliases: `--miter`)* |
+| `--tol` | `-T` | `Float64` | `1.0e-6` | — | Gradient convergence tolerance |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -1656,15 +1715,16 @@ Quantile regression (Koenker-Bassett)
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable (default: first numeric column) |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable (default: first numeric column) |
 | `--tau` | — | `String` | `0.5` | — | Quantile(s) in (0,1); one value or a comma-list |
 | `--se` | — | `String` | `iid` | `iid`, `robust`, `boot` | Standard errors: iid\|robust\|boot |
-| `--solver` | — | `String` | `ipm` | `ipm`, `irls` | LP solver: ipm (Frisch-Newton interior point) \| irls |
+| `--solver` | `-s` | `String` | `ipm` | `ipm`, `irls` | LP solver: ipm (Frisch-Newton interior point) \| irls |
 | `--n-boot` | — | `Int64` | `500` | — | Bootstrap replications for --se boot |
-| `--alpha` | — | `Float64` | `0.05` | — | Significance level for the CI, in (0,1) |
+| `--conf-level` | `-L` | `Float64` | `0.9` | — | Confidence interval level in (0, 1) (default: 0.90) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--alpha` | — | `Float64` | `0.1` | — | Backwards-compatible significance level α = 1 - conf_level in (0,1); conflicts with --conf-level |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`
 
@@ -1684,14 +1744,14 @@ Regression discontinuity (Calonico-Cattaneo-Titiunik)
 | `--running` | — | `String` | `""` | — | Running/forcing variable (default: next numeric column) |
 | `--fuzzy` | — | `String` | `""` | — | Treatment column for a FUZZY design (default: sharp) |
 | `--cutoff` | — | `Float64` | `0.0` | — | Threshold on the running variable |
-| `--bandwidth` | — | `Float64` | `0.0` | — | Main bandwidth h (0 = CCT auto-selection) |
+| `--bandwidth` | `-b` | `Float64` | `0.0` | — | Main bandwidth h (0 = CCT auto-selection) *(aliases: `--bw`)* |
 | `--bias-bandwidth` | — | `Float64` | `0.0` | — | Bias bandwidth b (0 = CCT auto-selection) |
-| `--kernel` | — | `String` | `triangular` | `triangular`, `epanechnikov`, `uniform` | triangular\|epanechnikov\|uniform |
-| `--order` | — | `Int64` | `1` | — | Local polynomial order (>= 1) |
-| `--conf-level` | — | `Float64` | `0.95` | — | Confidence level in (0,1) |
+| `--kernel` | `-k` | `String` | `triangular` | `triangular`, `epanechnikov`, `uniform` | triangular\|epanechnikov\|uniform |
+| `--order` | `-O` | `Int64` | `1` | — | Local polynomial order (>= 1) |
+| `--conf-level` | `-L` | `Float64` | `0.9` | — | Confidence interval level in (0, 1) (default: 0.90) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`
 
@@ -1707,9 +1767,9 @@ Fit OLS (or WLS with --weights) linear regression
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
-| `--cov-type` | — | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster`, `conley` | ols\|hc0\|hc1\|hc2\|hc3\|cluster\|conley (Conley spatial HAC; needs --lat/--lon/--dist-cutoff) |
-| `--clusters` | — | `String` | `""` | — | Cluster variable column name |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--cov-type` | `-v` | `String` | `hc1` | `ols`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster`, `conley` | ols\|hc0\|hc1\|hc2\|hc3\|cluster\|conley (Conley spatial HAC; needs --lat/--lon/--dist-cutoff) *(aliases: `--cov`)* |
+| `--clusters` | `-U` | `String` | `""` | — | Cluster variable column name *(aliases: `--clst`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--weights` | — | `String` | `""` | — | Weight column name (WLS) |
@@ -1718,9 +1778,10 @@ Fit OLS (or WLS with --weights) linear regression
 | `--dist-cutoff` | — | `Float64` | `0.0` | — | Conley spatial cutoff: km for --conley-metric haversine, coordinate units for euclidean |
 | `--conley-kernel` | — | `String` | `bartlett` | `bartlett`, `uniform` | Conley spatial kernel: bartlett (tapered) or uniform |
 | `--conley-metric` | — | `String` | `euclidean` | `euclidean`, `haversine` | Distance metric: euclidean (projected coords) or haversine (degrees → km) |
-| `--time-col` | — | `String` | `""` | — | Time column for Conley spatial+serial correlation (needs --time-cutoff) |
+| `--time-col` | `-t` | `String` | `""` | — | Time column for Conley spatial+serial correlation (needs --time-cutoff) *(aliases: `--tcol`)* |
 | `--time-cutoff` | — | `Int64` | `0` | — | Conley serial-correlation lag cutoff (0 = spatial only) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--conf-level` | `-L` | `Float64` | `0.9` | — | Confidence interval level in (0, 1) (default: 0.90) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`
 
@@ -1736,12 +1797,12 @@ Fit L2-penalized (ridge) regression with CV/IC lambda selection
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
-| `--lambda` | — | `String` | `auto` | — | L2 penalty: auto (CV path) or a non-negative number |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--lambda` | `-l` | `String` | `auto` | — | L2 penalty: auto (CV path) or a non-negative number |
 | `--select` | — | `String` | `cv` | `cv`, `aic`, `bic`, `ebic` | Lambda selection rule: cv\|aic\|bic\|ebic |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`
 
@@ -1757,16 +1818,17 @@ Fit robust M/MM regression resistant to outliers
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
 | `--psi` | — | `String` | `huber` | `huber`, `bisquare` | ψ (weight) function: huber\|bisquare |
-| `--method` | — | `String` | `m` | `m`, `mm` | Estimator: m\|mm (MM = high-breakdown) |
+| `--method` | `-m` | `String` | `m` | `m`, `mm` | Estimator: m\|mm (MM = high-breakdown) |
+| `--conf-level` | `-L` | `Float64` | `0.9` | — | Confidence interval level in (0, 1) (default: 0.90) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`
 
-**Output tables:** `robust_regression_coefficients` (M-estimator coefficients with standard errors, z-statistics and p-values); `robust_regression_diagnostics` (psi function, estimator, robust scale, robust R-squared, tuning and convergence)
+**Output tables:** `robust_regression_coefficients` (M-estimator coefficients with standard errors, z-statistics, p-values and CIs); `robust_regression_diagnostics` (psi function, estimator, robust scale, robust R-squared, tuning and convergence)
 
 ### [`frdc estimate regression select`](@id ref-estimate-regression-select)
 
@@ -1778,15 +1840,15 @@ Select regressors by forward/backward/bidirectional/best-subset/GETS search and 
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
-| `--method` | — | `String` | `bidirectional` | `forward`, `backward`, `bidirectional`, `best-subset`, `gets` | Search strategy |
-| `--criterion` | — | `String` | `pvalue` | `pvalue`, `aic`, `bic` | Selection criterion |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column (default: first numeric) |
+| `--method` | `-m` | `String` | `bidirectional` | `forward`, `backward`, `bidirectional`, `best-subset`, `gets` | Search strategy |
+| `--criterion` | — | `String` | `pvalue` | `pvalue`, `aic`, `bic` | Selection criterion *(aliases: `--crit`)* |
 | `--p-enter` | — | `Float64` | `0.05` | — | p-value to enter a regressor (0,1) |
 | `--p-remove` | — | `Float64` | `0.1` | — | p-value to remove a regressor (0,1); must be ≥ --p-enter for bidirectional pvalue |
 | `--keep` | — | `String` | `""` | — | Comma-separated regressor names always retained |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`
 
@@ -1802,19 +1864,20 @@ Estimate SMM by simulating moments from a TOML specification
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--config` | — | `String` | `""` | — | Config file for the SMM specification; TOML or a model card |
-| `--weighting` | — | `String` | `two_step` | — | identity\|two_step (optimal\|iterated\|twostep accepted as aliases of two_step) |
+| `--config` | `-C` | `String` | `""` | — | Config file for the SMM specification; TOML or a model card *(aliases: `--cfg`)* |
+| `--weighting` | `-w` | `String` | `two_step` | `identity`, `two_step`, `optimal`, `iterated`, `twostep` | identity\|two_step (optimal\|iterated\|twostep accepted as aliases of two_step) |
 | `--sim-ratio` | — | `Int64` | `5` | — | Simulation-to-sample ratio |
-| `--burn` | — | `Int64` | `100` | — | Burn-in periods |
+| `--burn` | `-B` | `Int64` | `100` | — | Burn-in periods |
+| `--conf-level` | `-L` | `Float64` | `0.9` | — | Confidence interval level in (0, 1) (default: 0.90) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
@@ -1824,6 +1887,8 @@ Estimate SMM by simulating moments from a TOML specification
 
 Fit a local-level/local-linear-trend (or general --config) state-space model
 
+**Aliases:** `ss`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
@@ -1831,22 +1896,22 @@ Fit a local-level/local-linear-trend (or general --config) state-space model
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | 1-based numeric column to model |
-| `--model` | — | `String` | `local-level` | `local-level`, `local-linear-trend` | local-level \| local-linear-trend (ignored with --config) |
+| `--model` | `-M` | `String` | `local-level` | `local-level`, `local-linear-trend` | local-level \| local-linear-trend (ignored with --config) |
 | `--init-mode` | — | `String` | `kappa` | `kappa`, `diffuse` | Kalman initialization: kappa \| diffuse (--config uses [statespace] init_mode) |
 | `--kappa` | — | `Float64` | `1.0e6` | — | Large-variance diffuse-init constant (init-mode=kappa) |
-| `--config` | — | `String` | `""` | — | TOML with [statespace] Z/H/T/Q (+ d, c, R, G, a1, P1, init_mode) for a general system |
+| `--config` | `-C` | `String` | `""` | — | TOML with [statespace] Z/H/T/Q (+ d, c, R, G, a1, P1, init_mode) for a general system *(aliases: `--cfg`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--steady-state` | — | Also compute SteadyStateKalman via steady_state_kalman (DARE gain, covariances, closed-loop eigenvalues) |
-| `--plot` | — | Open interactive plot in browser |
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--plot` | `-g` | Open interactive plot in browser |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
@@ -1862,18 +1927,19 @@ Fit seemingly-unrelated regressions (SUR) by FGLS over an equation system
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--config` | — | `String` | `""` | — | Config file listing the equations as dep = indep, ...; required; TOML or a model card |
+| `--config` | `-C` | `String` | `""` | — | Config file listing the equations as dep = indep, ...; required; TOML or a model card *(aliases: `--cfg`)* |
+| `--conf-level` | `-L` | `Float64` | `0.9` | — | Confidence interval level in (0, 1) (default: 0.90) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--iterate` | — | Iterate FGLS to the Gaussian MLE |
-| `--no-intercept` | — | Do not add a per-equation constant |
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--no-intercept` | — | Do not add a per-equation constant *(aliases: `--noint`)* |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`
 
@@ -1889,16 +1955,17 @@ Fit censored (tobit) regression with censoring bounds
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
 | `--lower` | — | `Float64` | `0.0` | — | Lower censoring bound |
 | `--upper` | — | `Float64` | `Inf` | — | Upper censoring bound (Inf = uncensored above) |
+| `--conf-level` | `-L` | `Float64` | `0.9` | — | Confidence interval level in (0, 1) (default: 0.90) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`
 
-**Output tables:** `tobit_coefficients` (Censored-regression coefficients with standard errors, z-statistics and p-values); `tobit_diagnostics` (sigma, log-likelihood, AIC/BIC, censoring bounds and left/right censored counts)
+**Output tables:** `tobit_coefficients` (Censored-regression coefficients with standard errors, z-statistics, p-values and CIs); `tobit_diagnostics` (sigma, log-likelihood, AIC/BIC, censoring bounds and left/right censored counts)
 
 ### [`frdc estimate regression truncreg`](@id ref-estimate-regression-truncreg)
 
@@ -1910,20 +1977,23 @@ Fit truncated-normal regression over a strictly interior sample
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column name (default: first numeric column) |
 | `--lower` | — | `Float64` | `0.0` | — | Lower truncation bound |
 | `--upper` | — | `Float64` | `Inf` | — | Upper truncation bound (Inf = untruncated above) |
+| `--conf-level` | `-L` | `Float64` | `0.9` | — | Confidence interval level in (0, 1) (default: 0.90) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:cross_section`, `:timeseries`, `:csv`
 
-**Output tables:** `truncated_regression_coefficients` (Truncated-normal coefficients with standard errors, z-statistics and p-values); `truncated_regression_diagnostics` (sigma and its SE, log-likelihood, AIC/BIC, bounds and the truncated count)
+**Output tables:** `truncated_regression_coefficients` (Truncated-normal coefficients with standard errors, z-statistics, p-values and CIs); `truncated_regression_diagnostics` (sigma and its SE, log-likelihood, AIC/BIC, bounds and the truncated count)
 
 ---
 
 ## [Univariate](@id ref-fam-estimate-univariate)
+
+**Family aliases:** `uv`
 
 Univariate time-series estimators (ARIMA, ARFIMA, ARDL, NARDL, MIDAS, GP)
 
@@ -1939,21 +2009,22 @@ Fit linear ARDL with long-run multipliers and ECM speed
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent column name (default: first numeric column) |
+| `--dep` | `-y` | `String` | `""` | — | Dependent column name (default: first numeric column) |
 | `--p` | — | `String` | `auto` | — | AR order: auto or an integer ≥ 1 |
 | `--q` | — | `String` | `auto` | — | DL order: auto, an integer (all regressors), or a comma-separated per-regressor list |
 | `--max-p` | — | `Int64` | `4` | — | Max AR order for auto IC selection |
 | `--max-q` | — | `Int64` | `4` | — | Max DL order for auto IC selection |
 | `--ic` | — | `String` | `aic` | `aic`, `bic` | Selection criterion: aic\|bic |
 | `--case` | — | `Int64` | `3` | — | Pesaran-Shin-Smith deterministic case (1..5) |
-| `--trend` | — | `String` | `none` | `none`, `const`, `trend` | Informational trend label: none\|const\|trend |
+| `--trend` | `-e` | `String` | `none` | `none`, `const`, `trend` | Informational trend label: none\|const\|trend |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
-**Output tables:** `ardl_coefficients` (Levels-form ARDL coefficients with standard errors, z-statistics and p-values); `ardl_long_run_coefficients` (Long-run level multipliers with delta-method standard errors); `ardl_diagnostics` (Selected p/q, case, trend, information criterion, fit statistics and the ECM speed alpha)
+**Output tables:** `ardl_coefficients` (Levels-form ARDL coefficients with standard errors, z-statistics, p-values and CIs); `ardl_long_run_coefficients` (Long-run level multipliers with delta-method standard errors and CIs); `ardl_diagnostics` (Selected p/q, case, trend, information criterion, fit statistics and the ECM speed alpha)
 
 ### [`frdc estimate univariate arfima`](@id ref-estimate-univariate-arfima)
 
@@ -1970,10 +2041,11 @@ Fit ARFIMA(p,d,q) with fractional integration
 | `--q` | — | `Int64` | `0` | — | MA order |
 | `--method` | `-m` | `String` | `css` | `css`, `mle` | css\|mle (fractional-integration estimator) |
 | `--d0` | — | `Float64` | — | — | Starting value for d (default: GPH pre-estimate) |
-| `--max-iter` | — | `Int64` | `500` | — | Maximum optimizer iterations |
+| `--max-iter` | `-I` | `Int64` | `500` | — | Maximum optimizer iterations *(aliases: `--miter`)* |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
@@ -1996,15 +2068,16 @@ Fit ARIMA(p,d,q) or auto-select by IC
 | `--max-p` | — | `Int64` | `5` | — | Max AR order for auto selection |
 | `--max-d` | — | `Int64` | `2` | — | Max differencing order for auto selection |
 | `--max-q` | — | `Int64` | `5` | — | Max MA order for auto selection |
-| `--criterion` | — | `String` | `bic` | — | aic\|bic (for auto selection) |
-| `--method` | `-m` | `String` | `css_mle` | — | ols\|css\|mle\|css_mle (pure AR fits use MLE) |
+| `--criterion` | — | `String` | `bic` | `aic`, `bic` | aic\|bic (for auto selection) *(aliases: `--crit`)* |
+| `--method` | `-m` | `String` | `css_mle` | `ols`, `css`, `mle`, `css_mle` | ols\|css\|mle\|css_mle (pure AR fits use MLE) |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
-**Output tables:** `arima_coefficients` (AR / MA / constant estimates with standard errors, z-statistics and p-values); `information_criteria` (AIC, BIC and the log-likelihood of the fitted ARIMA)
+**Output tables:** `arima_coefficients` (AR / MA / constant estimates with standard errors, z-statistics, p-values and CIs); `information_criteria` (AIC, BIC and the log-likelihood of the fitted ARIMA)
 
 ### [`frdc estimate univariate midas`](@id ref-estimate-univariate-midas)
 
@@ -2016,7 +2089,7 @@ Fit MIDAS mixed-frequency regression of LF target on HF lags
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--column` | — | `Int64` | `1` | — | Low-frequency target column in --data (1-based) |
+| `--column` | `-c` | `Int64` | `1` | — | Low-frequency target column in --data (1-based) |
 | `--hf-data` | — | `String` | `""` | — | High-frequency indicator CSV (REQUIRED) |
 | `--hf-column` | — | `Int64` | `1` | — | High-frequency indicator column in --hf-data (1-based) |
 | `--m` | — | `Int64` | `0` | — | Frequency ratio HF/LF, e.g. 3 = monthly→quarterly (REQUIRED, ≥ 1) |
@@ -2024,11 +2097,12 @@ Fit MIDAS mixed-frequency regression of LF target on HF lags
 | `--weights` | — | `String` | `expalmon` | `expalmon`, `beta2`, `beta3`, `almon`, `umidas` | Weight scheme: expalmon\|beta2\|beta3\|almon\|umidas |
 | `--p-ar` | — | `Int64` | `0` | — | Autoregressive lags of the target (ADL-MIDAS, ≥ 0) |
 | `--poly-degree` | — | `Int64` | `2` | — | Polynomial degree for --weights almon |
-| `--horizons` | — | `Int64` | `1` | — | Direct forecast horizon h stored in the model (1 = nowcast) |
-| `--max-iter` | — | `Int64` | `500` | — | Optimizer iteration cap (forwarded as max_iter) |
+| `--horizons` | `-H` | `Int64` | `1` | — | Direct forecast horizon h stored in the model (1 = nowcast) *(aliases: `--horizon`, `--hor`)* |
+| `--max-iter` | `-I` | `Int64` | `500` | — | Optimizer iteration cap (forwarded as max_iter) *(aliases: `--miter`)* |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
@@ -2044,7 +2118,7 @@ Fit asymmetric NARDL with theta+/theta- and dynamic multipliers
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent column name (default: first numeric column) |
+| `--dep` | `-y` | `String` | `""` | — | Dependent column name (default: first numeric column) |
 | `--asymmetric` | — | `String` | `all` | — | 'all' or comma-separated 1-based regressor indices to split into +/- partial sums |
 | `--p` | — | `String` | `auto` | — | AR order: auto or an integer ≥ 1 |
 | `--q` | — | `String` | `auto` | — | DL order: auto, an integer (all split regressors), or a comma-separated list |
@@ -2052,22 +2126,22 @@ Fit asymmetric NARDL with theta+/theta- and dynamic multipliers
 | `--max-q` | — | `Int64` | `4` | — | Max DL order for auto IC selection |
 | `--ic` | — | `String` | `aic` | `aic`, `bic` | Selection criterion: aic\|bic |
 | `--case` | — | `Int64` | `3` | — | Pesaran-Shin-Smith deterministic case (1..5) |
-| `--horizons` | — | `Int64` | `12` | — | Max cumulative-multiplier horizon H (≥ 0) |
+| `--horizons` | `-H` | `Int64` | `12` | — | Max cumulative-multiplier horizon H (≥ 0) *(aliases: `--horizon`, `--hor`)* |
 | `--nreps` | — | `Int64` | `500` | — | Bootstrap replications for multiplier bands (0 = no bands) |
-| `--conf-level` | — | `Float64` | `0.95` | — | Bootstrap band coverage level |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/bootstrap band coverage level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--no-bootstrap` | — | Skip bootstrap bands (point multipliers only) |
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
-**Output tables:** `nardl_coefficients` (Levels-form NARDL coefficients on the split (positive/negative) regressor set); `nardl_asymmetric_long_run_coefficients` (Asymmetric long-run multipliers theta+ and theta- with standard errors); `nardl_diagnostics` (Split dimensions, selected orders, fit statistics and the enlarged-k PSS bounds decision); `nardl_cumulative_dynamic_multipliers` (Cumulative m+/m-/asymmetry multipliers by horizon and regressor, with bootstrap bands when requested); `nardl_multipliers_summary` (Multiplier settings and long-run theta+/theta- of the underlying NARDL)
+**Output tables:** `nardl_coefficients` (Levels-form NARDL coefficients on the split (positive/negative) regressor set with CIs); `nardl_asymmetric_long_run_coefficients` (Asymmetric long-run multipliers theta+ and theta- with standard errors and CIs); `nardl_diagnostics` (Split dimensions, selected orders, fit statistics and the enlarged-k PSS bounds decision); `nardl_cumulative_dynamic_multipliers` (Cumulative m+/m-/asymmetry multipliers by horizon and regressor, with bootstrap bands when requested); `nardl_multipliers_summary` (Multiplier settings and long-run theta+/theta- of the underlying NARDL)
 
 ### [`frdc estimate univariate sarima`](@id ref-estimate-univariate-sarima)
 
@@ -2091,19 +2165,20 @@ Fit seasonal SARIMA(p,d,q)(P,D,Q)[s] with auto-selection
 | `--max-q` | — | `Int64` | `2` | — | Auto search bound for q |
 | `--max-P` | — | `Int64` | `1` | — | Auto search bound for seasonal P |
 | `--max-Q` | — | `Int64` | `1` | — | Auto search bound for seasonal Q |
-| `--criterion` | — | `String` | `aic` | `aic`, `bic` | Auto-selection criterion |
-| `--method` | — | `String` | `css_mle` | `css_mle`, `mle`, `css` | Estimation method |
-| `--max-iter` | — | `Int64` | `500` | — | Maximum optimiser iterations |
+| `--criterion` | — | `String` | `aic` | `aic`, `bic` | Auto-selection criterion *(aliases: `--crit`)* |
+| `--method` | `-m` | `String` | `css_mle` | `css_mle`, `mle`, `css` | Estimation method |
+| `--max-iter` | `-I` | `Int64` | `500` | — | Maximum optimiser iterations *(aliases: `--miter`)* |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--auto` | — | Force automatic order selection (auto_sarima) |
-| `--no-intercept` | — | Exclude the intercept term |
-| `--plot` | — | Open interactive plot in browser |
+| `--no-intercept` | — | Exclude the intercept term *(aliases: `--noint`)* |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
@@ -2112,6 +2187,8 @@ Fit seasonal SARIMA(p,d,q)(P,D,Q)[s] with auto-selection
 ---
 
 ## [Volatility](@id ref-fam-estimate-volatility)
+
+**Family aliases:** `vol`
 
 Conditional volatility estimators (ARCH, GARCH, EGARCH, GJR, APARCH, FIGARCH, MGARCH, SV)
 
@@ -2132,13 +2209,14 @@ Estimate an APARCH(p,q) model with power delta and leverage gamma
 | `--q` | — | `Int64` | `1` | — | ARCH order q |
 | `--fix-delta` | — | `Float64` | — | — | Pin power δ (>0); default estimates it |
 | `--fix-gamma` | — | `Float64` | — | — | Pin leverage γ ∈ (-1,1); default estimates it |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
-**Output tables:** `aparch_coefficients` (APARCH parameter estimates including the power delta and asymmetry gamma); `aparch_diagnostics` (Log-likelihood, AIC/BIC, persistence, delta (estimated or fixed) and parameter count)
+**Output tables:** `aparch_coefficients` (APARCH parameter estimates including the power delta and asymmetry gamma with CIs); `aparch_diagnostics` (Log-likelihood, AIC/BIC, persistence, delta (estimated or fixed) and parameter count)
 
 ### [`frdc estimate volatility arch`](@id ref-estimate-volatility-arch)
 
@@ -2152,14 +2230,15 @@ Estimate an ARCH(q) model by Gaussian QMLE
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
 | `--q` | — | `Int64` | `1` | — | ARCH order |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
@@ -2178,7 +2257,7 @@ Estimate a scalar/diagonal BEKK(1,1) multivariate GARCH model
 | `--kind` | — | `String` | `scalar` | `scalar`, `diagonal` | BEKK(1,1) parameterization: scalar \| diagonal |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
@@ -2198,7 +2277,7 @@ Estimate a CCC-GARCH model with constant conditional correlations
 | `--q` | — | `Int64` | `1` | — | ARCH order q for the univariate margins |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
@@ -2215,13 +2294,14 @@ Estimate a Component-GARCH(1,1) model (permanent/transitory decomposition)
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
-**Output tables:** `cgarch_coefficients` (Component-GARCH permanent/transitory parameter estimates with standard errors); `cgarch_diagnostics` (Log-likelihood, AIC/BIC, transitory persistence and unconditional variance)
+**Output tables:** `cgarch_coefficients` (Component-GARCH permanent/transitory parameter estimates with standard errors and CIs); `cgarch_diagnostics` (Log-likelihood, AIC/BIC, transitory persistence and unconditional variance)
 
 ### [`frdc estimate volatility dcc`](@id ref-estimate-volatility-dcc)
 
@@ -2238,7 +2318,7 @@ Estimate a DCC/cDCC-GARCH model with dynamic conditional correlations
 | `--correction` | — | `String` | `none` | `none`, `aielli` | DCC targeting correction: none \| aielli (cDCC) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
@@ -2258,14 +2338,15 @@ Estimate an EGARCH(p,q) model with normal, Student-t or GED innovations
 | `--p` | — | `Int64` | `1` | — | GARCH order |
 | `--q` | — | `Int64` | `1` | — | ARCH order |
 | `--dist` | — | `String` | `normal` | `normal`, `student`, `ged` | Conditional distribution of the innovations |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
@@ -2287,13 +2368,14 @@ Estimate a FIEGARCH(p,d,q) model (fractionally integrated EGARCH, Gaussian QMLE)
 | `--d0` | — | `Float64` | `0.4` | — | Initial fractional-integration order d ∈ (0,1) |
 | `--truncation` | — | `Int64` | `1000` | — | MA(∞) truncation lag |
 | `--dist` | — | `String` | `normal` | `normal` | Innovation distribution (only normal is accepted) |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
-**Output tables:** `fiegarch_coefficients` (FIEGARCH parameter estimates including the fractional-integration d); `fiegarch_diagnostics` (Log-likelihood, AIC/BIC, persistence, d and the truncation lag)
+**Output tables:** `fiegarch_coefficients` (FIEGARCH parameter estimates including the fractional-integration d with CIs); `fiegarch_diagnostics` (Log-likelihood, AIC/BIC, persistence, d and the truncation lag)
 
 ### [`frdc estimate volatility figarch`](@id ref-estimate-volatility-figarch)
 
@@ -2311,13 +2393,14 @@ Estimate a FIGARCH(p,d,q) model (fractionally integrated GARCH, Gaussian QMLE)
 | `--d0` | — | `Float64` | `0.4` | — | Initial fractional-integration order d ∈ (0,1) |
 | `--truncation` | — | `Int64` | `1000` | — | ARCH(∞) truncation lag |
 | `--dist` | — | `String` | `normal` | `normal` | Innovation distribution (only normal is accepted) |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
-**Output tables:** `figarch_coefficients` (FIGARCH parameter estimates including the fractional-integration d); `figarch_diagnostics` (Log-likelihood, AIC/BIC, persistence, d, truncation lag and negative-lambda count)
+**Output tables:** `figarch_coefficients` (FIGARCH parameter estimates including the fractional-integration d with CIs); `figarch_diagnostics` (Log-likelihood, AIC/BIC, persistence, d, truncation lag and negative-lambda count)
 
 ### [`frdc estimate volatility garch`](@id ref-estimate-volatility-garch)
 
@@ -2333,14 +2416,15 @@ Estimate a GARCH(p,q) model with normal, Student-t or GED innovations
 | `--p` | — | `Int64` | `1` | — | GARCH order |
 | `--q` | — | `Int64` | `1` | — | ARCH order |
 | `--dist` | — | `String` | `normal` | `normal`, `student`, `ged` | Conditional distribution of the innovations |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
@@ -2349,6 +2433,8 @@ Estimate a GARCH(p,q) model with normal, Student-t or GED innovations
 ### [`frdc estimate volatility garch-midas`](@id ref-estimate-volatility-garch-midas)
 
 Estimate a GARCH-MIDAS model (short-run GARCH plus MIDAS long-run component)
+
+**Aliases:** `gm`
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -2361,16 +2447,17 @@ Estimate a GARCH-MIDAS model (short-run GARCH plus MIDAS long-run component)
 | `--k` | — | `Int64` | `12` | — | Number of MIDAS lags (K ≥ 2) |
 | `--rv` | — | `String` | `realized` | `realized`, `macro` | Long-run driver: realized (from returns) \| macro (exogenous) |
 | `--span` | — | `String` | `fixed` | `fixed`, `rolling` | τ span: fixed (per block) \| rolling (rolling RV) |
-| `--config` | — | `String` | `""` | — | TOML with [garch_midas] x_lf = [...] (required for --rv macro) |
+| `--config` | `-C` | `String` | `""` | — | TOML with [garch_midas] x_lf = [...] (required for --rv macro) *(aliases: `--cfg`)* |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
@@ -2390,14 +2477,15 @@ Estimate a GJR-GARCH(p,q) model with normal, Student-t or GED innovations
 | `--p` | — | `Int64` | `1` | — | GARCH order |
 | `--q` | — | `Int64` | `1` | — | ARCH order |
 | `--dist` | — | `String` | `normal` | `normal`, `student`, `ged` | Conditional distribution of the innovations |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
@@ -2416,13 +2504,14 @@ Estimate an IGARCH(p,q) model (unit-persistence GARCH)
 | `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
 | `--p` | — | `Int64` | `1` | — | GARCH order p |
 | `--q` | — | `Int64` | `1` | — | ARCH order q |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
-**Output tables:** `igarch_coefficients` (IGARCH parameter estimates with standard errors, z-statistics and p-values); `igarch_diagnostics` (Log-likelihood, AIC/BIC, persistence, convergence and iteration count)
+**Output tables:** `igarch_coefficients` (IGARCH parameter estimates with standard errors, z-statistics, p-values and CIs); `igarch_diagnostics` (Log-likelihood, AIC/BIC, persistence, convergence and iteration count)
 
 ### [`frdc estimate volatility sv`](@id ref-estimate-volatility-sv)
 
@@ -2436,14 +2525,15 @@ Estimate a stochastic-volatility model by MCMC (draws via --draws)
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
 | `--draws` | `-n` | `Int64` | `5000` | — | MCMC draws |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 

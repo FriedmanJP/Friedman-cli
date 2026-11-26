@@ -13,24 +13,24 @@ frdc --quiet estimate regime ms-ar ms_sim --p 1 --k-regimes 2 --switching-varian
 frdc forecast regime ms-ar --model ms_fit.jld2 --horizons 4 --reps 100
 ```
 ```text
-       MS-AR(1) Forecast for model (h=4, 90% CI)
-┌─────────┬──────────┬────────────┬──────────┬─────────┐
-│ horizon │ variable │   value    │  lower   │  upper  │
-├─────────┼──────────┼────────────┼──────────┼─────────┤
-│    1    │    y1    │ -0.410744  │ -1.72644 │ 3.01129 │
-│    2    │    y1    │ -0.320108  │ -2.18986 │ 3.34438 │
-│    3    │    y1    │ -0.184797  │ -1.83901 │ 3.3288  │
-│    4    │    y1    │ -0.0569165 │ -2.19803 │ 3.50492 │
-└─────────┴──────────┴────────────┴──────────┴─────────┘
+    MS-AR(1) Forecast for model (h=4, 68% CI)
+┌─────────┬──────────┬────────┬────────┬────────┐
+│ horizon │ variable │ value  │ lower  │ upper  │
+├─────────┼──────────┼────────┼────────┼────────┤
+│    1    │    y1    │ -0.411 │ -1.449 │ -0.120 │
+│    2    │    y1    │ -0.320 │ -1.504 │ 0.296  │
+│    3    │    y1    │ -0.185 │ -1.529 │ 2.478  │
+│    4    │    y1    │ -0.057 │ -1.759 │ 2.912  │
+└─────────┴──────────┴────────┴────────┴────────┘
 MS-AR(1) Predicted Regime Probabilities
-┌─────────┬──────────┬──────────┐
-│ horizon │ regime1  │ regime2  │
-├─────────┼──────────┼──────────┤
-│    1    │ 0.910561 │ 0.089439 │
-│    2    │ 0.843968 │ 0.156032 │
-│    3    │ 0.794386 │ 0.205614 │
-│    4    │ 0.757469 │ 0.242531 │
-└─────────┴──────────┴──────────┘
+┌─────────┬─────────┬─────────┐
+│ horizon │ regime1 │ regime2 │
+├─────────┼─────────┼─────────┤
+│    1    │  0.911  │  0.089  │
+│    2    │  0.844  │  0.156  │
+│    3    │  0.794  │  0.206  │
+│    4    │  0.757  │  0.243  │
+└─────────┴─────────┴─────────┘
 ```
 
 Pass `--save-model ms_fit` once and reuse `--model ms_fit.jld2` across [`predict regime ms-ar`](@ref ref-predict-regime-ms-ar), [`residuals regime ms-ar`](@ref ref-residuals-regime-ms-ar), and [`forecast regime ms-ar`](@ref ref-forecast-regime-ms-ar) (`ms_ar_forecast`, `ms_ar_predicted_regime_probabilities`), which starts at horizon-1 forecast `-0.410744` with regime 1 probability `0.910561` decaying toward `0.757469` by horizon 4.
@@ -72,37 +72,37 @@ frdc --quiet data simulate regime --kind setar --periods 180 --burn 40 --seed 5 
 frdc estimate regime setar setar_sim --p 1 --d 1 --no-linearity
 ```
 ```text
-                    SETAR(2;1,1) Coefficients (y)
-┌───────────────┬────────┬───────────┬───────────┬─────────┬─────────┐
-│    regime     │  term  │ estimate  │ std_error │ z_stat  │ p_value │
-├───────────────┼────────┼───────────┼───────────┼─────────┼─────────┤
-│ regime1 (q≤γ) │ const  │ -0.971694 │ 0.481228  │ -2.0192 │ 0.0435  │
-│ regime1 (q≤γ) │ y[t-1] │ 0.251097  │ 0.293775  │ 0.8547  │ 0.3927  │
-│ regime2 (q>γ) │ const  │ -0.141521 │ 0.054222  │  -2.61  │ 0.0091  │
-│ regime2 (q>γ) │ y[t-1] │ 0.352641  │ 0.089556  │ 3.9377  │ 0.0001  │
-└───────────────┴────────┴───────────┴───────────┴─────────┴─────────┘
+                              SETAR(2;1,1) Coefficients (y)
+┌───────────────┬────────┬──────────┬───────────┬────────┬─────────┬──────────┬──────────┐
+│    regime     │  term  │ estimate │ std_error │ z_stat │ p_value │ ci_lower │ ci_upper │
+├───────────────┼────────┼──────────┼───────────┼────────┼─────────┼──────────┼──────────┤
+│ regime1 (q≤γ) │ const  │  -0.972  │   0.481   │ -2.019 │  0.043  │  -1.459  │  -0.484  │
+│ regime1 (q≤γ) │ y[t-1] │  0.251   │   0.294   │ 0.855  │  0.393  │  -0.046  │  0.549   │
+│ regime2 (q>γ) │ const  │  -0.142  │   0.054   │ -2.610 │  0.009  │  -0.196  │  -0.087  │
+│ regime2 (q>γ) │ y[t-1] │  0.353   │   0.090   │ 3.938  │  0.000  │  0.263   │  0.442   │
+└───────────────┴────────┴──────────┴───────────┴────────┴─────────┴──────────┴──────────┘
   SETAR(2;1,1) Diagnostics
-┌────────────────┬──────────┐
-│     metric     │  value   │
-├────────────────┼──────────┤
-│     gamma      │ -1.18005 │
-│ gamma_ci_lower │ -1.25629 │
-│ gamma_ci_upper │ 0.400644 │
-│ gamma_ci_level │   0.95   │
-│       n        │   179    │
-│       n1       │    30    │
-│       n2       │   149    │
-│      ssr       │ 66.4425  │
-│     sigma2     │ 0.371187 │
-│      aic       │ 340.582  │
-│      bic       │ 356.519  │
-│       p        │    1     │
-│       d        │    1     │
-│    is_setar    │   true   │
-└────────────────┴──────────┘
+┌────────────────┬─────────┐
+│     metric     │  value  │
+├────────────────┼─────────┤
+│     gamma      │ -1.180  │
+│ gamma_ci_lower │ -1.228  │
+│ gamma_ci_upper │  0.401  │
+│ gamma_ci_level │  0.680  │
+│       n        │   179   │
+│       n1       │   30    │
+│       n2       │   149   │
+│      ssr       │ 66.443  │
+│     sigma2     │  0.371  │
+│      aic       │ 340.582 │
+│      bic       │ 356.519 │
+│       p        │    1    │
+│       d        │    1    │
+│    is_setar    │  true   │
+└────────────────┴─────────┘
 ```
 
-The estimation tables (`setar_coefficients`, `setar_diagnostics`) identify sample-splitting threshold `gamma = -1.18005` (`95%` CI `[-1.25629, 0.400644]`), partitioning the `179` effective observations into `n1 = 30` lower-regime and `n2 = 149` upper-regime observations (`ssr = 66.4425`, `aic = 340.582`); omit `--no-linearity` or run [`test hansen-linearity`](@ref ref-test-hansen-linearity) and [`test star-linearity`](@ref ref-test-star-linearity) for bootstrap and Teräsvirta linearity tests.
+The estimation tables (`setar_coefficients`, `setar_diagnostics`) identify sample-splitting threshold `gamma = -1.180` (`68%` CI `[-1.228, 0.401]`), partitioning the `179` effective observations into `n1 = 30` lower-regime and `n2 = 149` upper-regime observations (`ssr = 66.443`, `aic = 340.582`); omit `--no-linearity` or run [`test hansen-linearity`](@ref ref-test-hansen-linearity) and [`test star-linearity`](@ref ref-test-star-linearity) for bootstrap and Teräsvirta linearity tests.
 
 ---
 

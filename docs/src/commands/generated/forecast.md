@@ -3,11 +3,15 @@
 
 Generated command reference for `frdc forecast` (`39` leaves). Back to [CLI Reference Overview](@ref cli-overview).
 
+**Command aliases:** `fc`, `fcst`
+
 **Workflow guides:** [Univariate, Filters & Spectral](@ref chap-univariate) · [Volatility & Multivariate GARCH](@ref chap-volatility) · [Regime-Switching & Nonlinear TS](@ref chap-nonlinear) · [VAR, BVAR, VECM & Factor Models](@ref chap-multivariate) · [Nowcasting & Forecast Evaluation](@ref chap-nowcast)
 
 ---
 
 ## [Evaluate](@id ref-fam-forecast-evaluate)
+
+**Family aliases:** `eval`
 
 Forecast accuracy, encompassing, calibration, and combination diagnostics
 
@@ -17,6 +21,8 @@ Forecast accuracy, encompassing, calibration, and combination diagnostics
 
 Clark-West (2007) adjusted-MSPE test for nested models (exactly 2 forecasts: small then big)
 
+**Aliases:** `cw`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
@@ -25,8 +31,8 @@ Clark-West (2007) adjusted-MSPE test for nested models (exactly 2 forecasts: sma
 |--------|-------|------|---------|---------|-------------|
 | `--actual` | — | `String` | `""` | — | Realized-values column name (required) |
 | `--forecasts` | — | `String` | `""` | — | Two forecast columns: small (restricted), big (unrestricted) |
-| `--result` | — | `String` | `""` | — | Comma-separated forecast-result handle stems (alternative to --forecasts columns) |
-| `--horizons` | — | `Int64` | `1` | — | Forecast horizon (sets truncation lag h-1) |
+| `--result` | `-R` | `String` | `""` | — | Comma-separated forecast-result handle stems (alternative to --forecasts columns) |
+| `--horizons` | `-H` | `Int64` | `1` | — | Forecast horizon (sets truncation lag h-1) *(aliases: `--horizon`, `--hor`)* |
 | `--alternative` | — | `String` | `greater` | `two-sided`, `less`, `greater` | Alternative hypothesis |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
@@ -47,8 +53,8 @@ Forecast combination (equal / Bates-Granger / Granger-Ramanathan weights; >=2 fo
 |--------|-------|------|---------|---------|-------------|
 | `--actual` | — | `String` | `""` | — | Realized-values column name (required) |
 | `--forecasts` | — | `String` | `""` | — | Forecast column names, comma-separated (required, >=2) |
-| `--result` | — | `String` | `""` | — | Comma-separated forecast-result handle stems (alternative to --forecasts columns) |
-| `--method` | — | `String` | `equal` | `equal`, `bates-granger`, `granger-ramanathan` | Combination method |
+| `--result` | `-R` | `String` | `""` | — | Comma-separated forecast-result handle stems (alternative to --forecasts columns) |
+| `--method` | `-m` | `String` | `equal` | `equal`, `bates-granger`, `granger-ramanathan` | Combination method |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
@@ -72,9 +78,9 @@ Diebold-Mariano (1995) equal-predictive-accuracy test (exactly 2 forecasts)
 |--------|-------|------|---------|---------|-------------|
 | `--actual` | — | `String` | `""` | — | Realized-values column name (required) |
 | `--forecasts` | — | `String` | `""` | — | Two forecast column names, comma-separated (required) |
-| `--result` | — | `String` | `""` | — | Comma-separated forecast-result handle stems (alternative to --forecasts columns) |
+| `--result` | `-R` | `String` | `""` | — | Comma-separated forecast-result handle stems (alternative to --forecasts columns) |
 | `--loss` | — | `String` | `se` | `se`, `ad` | Loss: se (squared) \| ad (absolute) |
-| `--horizons` | — | `Int64` | `1` | — | Forecast horizon (sets truncation lag h-1) |
+| `--horizons` | `-H` | `Int64` | `1` | — | Forecast horizon (sets truncation lag h-1) *(aliases: `--horizon`, `--hor`)* |
 | `--alternative` | — | `String` | `two-sided` | `two-sided`, `less`, `greater` | Alternative hypothesis |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
@@ -91,6 +97,8 @@ Diebold-Mariano (1995) equal-predictive-accuracy test (exactly 2 forecasts)
 
 Harvey-Leybourne-Newbold (1998) forecast-encompassing test (exactly 2 forecasts)
 
+**Aliases:** `enc`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
@@ -99,9 +107,9 @@ Harvey-Leybourne-Newbold (1998) forecast-encompassing test (exactly 2 forecasts)
 |--------|-------|------|---------|---------|-------------|
 | `--actual` | — | `String` | `""` | — | Realized-values column name (required) |
 | `--forecasts` | — | `String` | `""` | — | Two forecast column names, comma-separated (required) |
-| `--result` | — | `String` | `""` | — | Comma-separated forecast-result handle stems (alternative to --forecasts columns) |
-| `--lags` | — | `Int64` | `0` | — | Newey-West HAC truncation lag (0 = White) |
-| `--kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `quadratic_spectral`, `tukey_hanning` | HAC kernel |
+| `--result` | `-R` | `String` | `""` | — | Comma-separated forecast-result handle stems (alternative to --forecasts columns) |
+| `--lags` | `-p` | `Int64` | `0` | — | Newey-West HAC truncation lag (0 = White) |
+| `--kernel` | `-k` | `String` | `bartlett` | `bartlett`, `parzen`, `quadratic_spectral`, `tukey_hanning` | HAC kernel |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
@@ -121,15 +129,15 @@ Point forecast-accuracy metrics (ME/MAE/RMSE/MAPE/sMAPE/MASE/U1/U2) + Theil deco
 |--------|-------|------|---------|---------|-------------|
 | `--actual` | — | `String` | `""` | — | Realized-values column name (required) |
 | `--forecasts` | — | `String` | `""` | — | Forecast column names, comma-separated (required, >=1) |
-| `--result` | — | `String` | `""` | — | Comma-separated forecast-result handle stems (alternative to --forecasts columns) |
+| `--result` | `-R` | `String` | `""` | — | Comma-separated forecast-result handle stems (alternative to --forecasts columns) |
 | `--seasonal-period` | — | `Int64` | `1` | — | Seasonal lag for MASE naive-forecast scaling |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Display an interactive plot |
+| `--plot` | `-g` | Display an interactive plot |
 
 **Handles:** data kinds: `:csv`, `:timeseries`, `:panel`, `:cross_section`
 
@@ -139,6 +147,8 @@ Point forecast-accuracy metrics (ME/MAE/RMSE/MAPE/sMAPE/MASE/U1/U2) + Theil deco
 
 Mincer-Zarnowitz (1969) forecast-efficiency regression (exactly 1 forecast)
 
+**Aliases:** `mz`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
@@ -147,9 +157,9 @@ Mincer-Zarnowitz (1969) forecast-efficiency regression (exactly 1 forecast)
 |--------|-------|------|---------|---------|-------------|
 | `--actual` | — | `String` | `""` | — | Realized-values column name (required) |
 | `--forecasts` | — | `String` | `""` | — | One forecast column name (required) |
-| `--result` | — | `String` | `""` | — | Comma-separated forecast-result handle stems (alternative to --forecasts columns) |
-| `--lags` | — | `Int64` | `0` | — | Newey-West HAC truncation lag (0 = White) |
-| `--kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `quadratic_spectral`, `tukey_hanning` | HAC kernel |
+| `--result` | `-R` | `String` | `""` | — | Comma-separated forecast-result handle stems (alternative to --forecasts columns) |
+| `--lags` | `-p` | `Int64` | `0` | — | Newey-West HAC truncation lag (0 = White) |
+| `--kernel` | `-k` | `String` | `bartlett` | `bartlett`, `parzen`, `quadratic_spectral`, `tukey_hanning` | HAC kernel |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 
@@ -160,6 +170,8 @@ Mincer-Zarnowitz (1969) forecast-efficiency regression (exactly 1 forecast)
 ---
 
 ## [Factor & Quantile-Factor Diagnostics](@id ref-fam-forecast-factor)
+
+**Family aliases:** `fac`
 
 Factor and FAVAR multi-step forecasts
 
@@ -176,20 +188,21 @@ Dynamic-factor observable forecast reconstructed from factors
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--nfactors` | — | `Int64` | — | — | Number of factors (default: auto) |
-| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
+| `--horizons` | `-H` | `Int64` | `12` | — | Forecast horizon *(aliases: `--hor`)* |
 | `--factor-lags` | — | `Int64` | `1` | — | Factor VAR lag order |
-| `--method` | — | `String` | `twostep` | — | twostep\|em |
+| `--method` | `-m` | `String` | `twostep` | `twostep`, `em` | twostep\|em |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `DynamicFactorModel`; result types: `FactorForecast`
 
@@ -206,22 +219,23 @@ GDFM observable forecast reconstructed from factors
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--nfactors` | — | `Int64` | — | — | Number of static factors (default: auto) |
-| `--dynamic-rank` | — | `Int64` | — | — | Dynamic rank (default: auto) |
-| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
-| `--method` | — | `String` | `ar` | `ar`, `one-sided`, `spectral` | Factor projection: ar (two-sided)\|one-sided\|spectral (FHLR 2005) |
+| `--dynamic-rank` | — | `Int64` | — | — | Dynamic rank (default: auto) *(aliases: `--drank`)* |
+| `--horizons` | `-H` | `Int64` | `12` | — | Forecast horizon *(aliases: `--hor`)* |
+| `--method` | `-m` | `String` | `ar` | `ar`, `one-sided`, `spectral` | Factor projection: ar (two-sided)\|one-sided\|spectral (FHLR 2005) |
 | `--spectral` | — | `String` | `lag-window` | `lag-window`, `smoothed-periodogram` | GDFM spectrum: lag-window (FHLR)\|smoothed-periodogram |
 | `--n-lags-proj` | — | `Int64` | — | — | Lag depth for stacked FHLR one-sided/spectral projection |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `GeneralizedDynamicFactorModel`; result types: `FactorForecast`
 
@@ -237,38 +251,38 @@ Level forecasts from I(1) cointegrated GDFM
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dynamic-rank` | — | `Int64` | — | — | Number of dynamic shocks q (default: auto on first differences) |
+| `--dynamic-rank` | — | `Int64` | — | — | Number of dynamic shocks q (default: auto on first differences) *(aliases: `--drank`)* |
 | `--n-permanent` | — | `Int64` | — | — | Number of permanent I(1) stochastic trends (0..q; default: auto) |
-| `--id` | — | `String` | `permanent-transitory` | `permanent-transitory`, `cholesky`, `longrun`, `sign`, `proxy` | Identification: permanent-transitory\|cholesky\|longrun\|sign\|proxy |
+| `--id` | `-i` | `String` | `permanent-transitory` | `permanent-transitory`, `cholesky`, `longrun`, `sign`, `proxy` | Identification: permanent-transitory\|cholesky\|longrun\|sign\|proxy |
 | `--det-trend` | — | `String` | `constant` | `none`, `constant`, `linear`, `trend` | Deterministic trend: none\|constant\|linear\|trend (trend aliases linear) |
 | `--p-max` | — | `Int64` | `4` | — | Maximum block VECM VAR lag order in levels |
 | `--n-perm` | — | `Int64` | `25` | — | Cross-sectional permutations to average |
-| `--bandwidth` | — | `Int64` | `0` | — | Spectral lag-window bandwidth M (0=auto) |
-| `--kernel` | — | `String` | `bartlett` | `bartlett`, `parzen`, `tukey` | Spectral kernel: bartlett\|parzen\|tukey |
+| `--bandwidth` | `-b` | `Int64` | `0` | — | Spectral lag-window bandwidth M (0=auto) *(aliases: `--bw`)* |
+| `--kernel` | `-k` | `String` | `bartlett` | `bartlett`, `parzen`, `tukey` | Spectral kernel: bartlett\|parzen\|tukey |
 | `--lag-criterion` | — | `String` | `bic` | `bic`, `aic` | Block VECM lag criterion: bic\|aic |
 | `--irf-horizon` | — | `Int64` | `40` | — | Maximum stored level IRF horizon |
-| `--config` | — | `String` | `""` | — | TOML config for sign restrictions (--id sign) |
+| `--config` | `-C` | `String` | `""` | — | TOML config for sign restrictions (--id sign) *(aliases: `--cfg`)* |
 | `--instrument` | — | `String` | `""` | — | External instrument CSV column (--id proxy) |
 | `--seed` | — | `Int64` | — | — | Optional RNG seed |
-| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
+| `--horizons` | `-H` | `Int64` | `12` | — | Forecast horizon *(aliases: `--hor`)* |
 | `--ci` | — | `String` | `none` | `none`, `theoretical`, `bootstrap` | Interval method: none\|theoretical\|bootstrap |
-| `--draws` | — | `Int64` | `200` | — | Bootstrap replications (with --ci bootstrap) |
-| `--conf-level` | — | `Float64` | `0.95` | — | Confidence level in (0, 1) |
+| `--draws` | `-n` | `Int64` | `200` | — | Bootstrap replications (with --ci bootstrap) *(aliases: `--reps`)* |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--no-standardize` | — | Do not scale series by first-difference standard deviation |
-| `--plot` | — | Open interactive plot in browser |
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--no-standardize` | — | Do not scale series by first-difference standard deviation *(aliases: `--nostd`)* |
+| `--plot` | `-g` | Open interactive plot in browser |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `CointegratedGDFM`; result types: `FactorForecast`
 
@@ -278,6 +292,8 @@ Level forecasts from I(1) cointegrated GDFM
 
 Growth-at-Risk (GaR) distributional forecast with skewed-t / normal density & expected shortfall
 
+**Aliases:** `gar`
+
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `data` | `String` | yes | — | Path to data file or handle stem (.csv, .jld2, .jls) |
@@ -285,8 +301,8 @@ Growth-at-Risk (GaR) distributional forecast with skewed-t / normal density & ex
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--target` | — | `String` | `""` | — | Target column name or 1-based index (default: column 1) |
-| `--horizons` | — | `Int64` | `1` | — | Direct forecast horizon h (>= 1) |
-| `--factors` | — | `String` | `2` | — | Number of quantile factors (integer or 'auto') |
+| `--horizons` | `-H` | `Int64` | `1` | — | Direct forecast horizon h (>= 1) *(aliases: `--hor`)* |
+| `--factors` | `-q` | `String` | `2` | — | Number of quantile factors (integer or 'auto') |
 | `--taus` | — | `String` | `0.05,0.10,0.25,0.50,0.75,0.90,0.95` | — | Comma-separated quantile grid in (0, 1) |
 | `--lags` | `-p` | `Int64` | `1` | — | Number of target lags in direct quantile regression (>= 0) |
 | `--alpha` | — | `Float64` | `0.05` | — | Tail probability in (0, 1) for GaR and Expected Shortfall |
@@ -294,17 +310,17 @@ Growth-at-Risk (GaR) distributional forecast with skewed-t / normal density & ex
 | `--oos-split` | — | `Int64` | `0` | — | Origin index for expanding-window OOS evaluation (0 = disabled) |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--no-rearrange` | — | Disable monotone quantile rearrangement across taus |
-| `--no-standardize` | — | Do not standardize panel columns before QFM estimation |
-| `--plot` | — | Open interactive plot in browser |
+| `--no-standardize` | — | Do not standardize panel columns before QFM estimation *(aliases: `--nostd`)* |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `QuantileFactorGrid`; result types: `GrowthAtRiskResult`
 
@@ -322,25 +338,25 @@ Multi-step Quantile Factor Model forecast via QAR/QVAR with optional rearrangeme
 |--------|-------|------|---------|---------|-------------|
 | `--tau` | — | `Float64` | `0.5` | — | Single quantile level in (0, 1) (when --taus is empty) |
 | `--taus` | — | `String` | `""` | — | Comma-separated quantiles in (0, 1) for grid forecasting |
-| `--factors` | — | `String` | `auto` | — | Number of quantile factors (integer or 'auto') |
-| `--horizons` | — | `Int64` | `12` | — | Forecast horizon (>= 1) |
+| `--factors` | `-q` | `String` | `auto` | — | Number of quantile factors (integer or 'auto') |
+| `--horizons` | `-H` | `Int64` | `12` | — | Forecast horizon (>= 1) *(aliases: `--hor`)* |
 | `--lags` | `-p` | `Int64` | `1` | — | QAR/QVAR lag order on quantile factors (>= 1) |
 | `--ci-method` | — | `String` | `none` | `none`, `bootstrap` | Interval method: none\|bootstrap |
 | `--n-boot` | — | `Int64` | `299` | — | Bootstrap replications for --ci-method bootstrap |
-| `--conf-level` | — | `Float64` | `0.95` | — | Confidence level in (0, 1) |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--no-rearrange` | — | Disable Chernozhukov-Fernandez-Val-Galichon monotone quantile rearrangement |
-| `--standardize` | — | Standardize panel columns when estimating inline |
-| `--plot` | — | Open interactive plot in browser |
+| `--standardize` | — | Standardize panel columns when estimating inline *(aliases: `--std`)* |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `QuantileFactorModel`, `QuantileFactorGrid`; result types: `FactorForecast`
 
@@ -357,33 +373,34 @@ SDFM observable forecast reconstructed from factors
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--factors` | `-q` | `Int64` | — | — | Number of dynamic factors (default: auto via --q-method) |
-| `--id` | — | `String` | `cholesky` | — | cholesky\|sign\|longrun\|max-share\|proxy\|lewis-tvv\|sv-em\|gmm-moments (--id proxy requires --instrument) |
+| `--id` | `-i` | `String` | `cholesky` | `cholesky`, `sign`, `longrun`, `max-share`, `proxy`, `lewis-tvv`, `sv-em`, `gmm-moments` | cholesky\|sign\|longrun\|max-share\|proxy\|lewis-tvv\|sv-em\|gmm-moments (--id proxy requires --instrument) |
 | `--q-method` | — | `String` | `hallin-liska` | `hallin-liska`, `bai-ng`, `amengual-watson` | Auto factor selection: hallin-liska\|bai-ng\|amengual-watson |
-| `--method` | — | `String` | `fglr` | `fglr`, `fhlz`, `gdfm-var` | Structural estimator: fglr\|fhlz\|gdfm-var (fhlz is one-sided infinite-r; gdfm-var is legacy) |
+| `--method` | `-m` | `String` | `fglr` | `fglr`, `fhlz`, `gdfm-var` | Structural estimator: fglr\|fhlz\|gdfm-var (fhlz is one-sided infinite-r; gdfm-var is legacy) |
 | `--spectral` | — | `String` | `lag-window` | `lag-window`, `smoothed-periodogram` | GDFM spectrum: lag-window (FHLR)\|smoothed-periodogram |
 | `--instrument` | — | `String` | `""` | — | Proxy-instrument CSV column (only with --id proxy) |
 | `--var-lags` | — | `String` | `auto` | — | Factor VAR lag order (positive integer or auto\|aic\|bic\|hq) |
 | `--n-perm` | — | `Int64` | `30` | — | Cross-sectional permutations for --method fhlz |
 | `--p-max` | — | `Int64` | — | — | Maximum lag order for automatic/FHLZ lag selection |
 | `--target` | — | `String` | `""` | — | Target variable name or 1-based index (for --id max-share) |
-| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
-| `--config` | — | `String` | `""` | — | TOML config for sign restrictions |
+| `--horizons` | `-H` | `Int64` | `12` | — | Forecast horizon *(aliases: `--hor`)* |
+| `--config` | `-C` | `String` | `""` | — | TOML config for sign restrictions *(aliases: `--cfg`)* |
 | `--ci` | — | `String` | `none` | `none`, `bootstrap` | Interval method: none\|bootstrap |
-| `--draws` | — | `Int64` | `200` | — | Bootstrap replications (with --ci bootstrap) |
+| `--draws` | `-n` | `Int64` | `200` | — | Bootstrap replications (with --ci bootstrap) *(aliases: `--reps`)* |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--plot` | `-g` | Open interactive plot in browser |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `StructuralDFM`; result types: `FactorForecast`
 
@@ -400,20 +417,20 @@ Static-factor observable forecast reconstructed from factors
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--nfactors` | — | `Int64` | — | — | Number of factors (default: auto via IC) |
-| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
-| `--ci-method` | — | `String` | `none` | — | none\|bootstrap\|parametric |
-| `--conf-level` | — | `Float64` | `0.95` | — | Confidence level for intervals |
+| `--horizons` | `-H` | `Int64` | `12` | — | Forecast horizon *(aliases: `--hor`)* |
+| `--ci-method` | — | `String` | `none` | `none`, `bootstrap`, `parametric` | none\|bootstrap\|parametric |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `FactorModel`; result types: `FactorForecast`
 
@@ -423,13 +440,15 @@ Static-factor observable forecast reconstructed from factors
 
 ## [Multivariate](@id ref-fam-forecast-multivariate)
 
+**Family aliases:** `mv`
+
 Multivariate point and density forecasts (VAR, BVAR, VECM, LP)
 
 **See guide:** [VAR, BVAR, VECM & Factor Models](@ref chap-multivariate)
 
 ### [`frdc forecast multivariate bvar`](@id ref-forecast-multivariate-bvar)
 
-BVAR posterior-mean forecast with fixed 68% credible bands
+BVAR posterior-mean forecast with credible bands (default 68%)
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -438,28 +457,29 @@ BVAR posterior-mean forecast with fixed 68% credible bands
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | `4` | — | Lag order |
-| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
+| `--horizons` | `-H` | `Int64` | `12` | — | Forecast horizon *(aliases: `--hor`)* |
 | `--draws` | `-n` | `Int64` | `2000` | — | MCMC draws |
-| `--sampler` | — | `String` | `direct` | — | direct\|gibbs |
-| `--config` | — | `String` | `""` | — | TOML config for prior hyperparameters |
+| `--sampler` | — | `String` | `direct` | `direct`, `gibbs` | direct\|gibbs |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--config` | `-C` | `String` | `""` | — | TOML config for prior hyperparameters *(aliases: `--cfg`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Display an interactive plot |
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--plot` | `-g` | Display an interactive plot |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `BVARPosterior`; result types: `BVARForecast`
 
-**Output tables:** `bvar_forecast` (Posterior-mean forecasts with 68% credible bands, tidy long form: horizon | variable | value | lower | upper)
+**Output tables:** `bvar_forecast` (Posterior-mean forecasts with credible bands (default 68%), tidy long form: horizon | variable | value | lower | upper)
 
 ### [`frdc forecast multivariate favar`](@id ref-forecast-multivariate-favar)
 
@@ -471,22 +491,23 @@ FAVAR factor-level (or --panel-forecast panel-wide) forecast
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--factors` | — | `Int64` | — | — | Number of factors (default: auto) |
+| `--factors` | `-q` | `Int64` | — | — | Number of factors (default: auto) |
 | `--lags` | `-p` | `Int64` | `2` | — | VAR lag order |
 | `--key-vars` | — | `String` | `""` | — | Key variable names or indices (comma-separated) |
-| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
+| `--horizons` | `-H` | `Int64` | `12` | — | Forecast horizon *(aliases: `--hor`)* |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--panel-forecast` | — | Output panel-wide forecast instead of factor-level |
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `FAVARModel`; result types: `VARForecast`
 
@@ -502,25 +523,25 @@ Local-projection forecast along a fixed shock path
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--shock` | — | `Int64` | `1` | — | Shock variable index (1-based) |
-| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
-| `--shock-size` | — | `Float64` | `1.0` | — | Impulse shock size |
+| `--shock` | `-K` | `Int64` | `1` | — | Shock variable index (1-based) |
+| `--horizons` | `-H` | `Int64` | `12` | — | Forecast horizon *(aliases: `--hor`)* |
+| `--shock-size` | — | `Float64` | `1.0` | — | Impulse shock size *(aliases: `--ssize`)* |
 | `--lags` | `-p` | `Int64` | `4` | — | LP control lags |
-| `--vcov` | — | `String` | `newey_west` | — | newey_west\|white\|driscoll_kraay |
-| `--ci-method` | — | `String` | `analytical` | — | analytical\|bootstrap\|none |
-| `--conf-level` | — | `Float64` | `0.95` | — | Confidence level |
+| `--vcov` | — | `String` | `newey_west` | `newey_west`, `white`, `driscoll_kraay` | newey_west\|white\|driscoll_kraay |
+| `--ci-method` | — | `String` | `analytical` | `analytical`, `bootstrap`, `none` | analytical\|bootstrap\|none |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--n-boot` | — | `Int64` | `500` | — | Bootstrap replications |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `LPModel`; result types: `LPForecast`
 
@@ -536,23 +557,23 @@ Quantile FAVAR panel-wide multi-step quantile forecast with optional rearrangeme
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--factors` | — | `Int64` | `2` | — | Number of latent quantile factors r (>= 1) |
+| `--factors` | `-q` | `Int64` | `2` | — | Number of latent quantile factors r (>= 1) |
 | `--lags` | `-p` | `Int64` | `1` | — | QVAR lag order p (>= 1) |
 | `--key-vars` | — | `String` | `""` | — | Key variable column names or 1-based indices (comma-separated, required without --model) |
 | `--taus` | — | `String` | `0.1,0.5,0.9` | — | Comma-separated quantile levels in (0, 1) |
-| `--method` | — | `String` | `twostep` | `twostep`, `vb` | Estimation method: twostep\|vb |
-| `--horizons` | — | `Int64` | `12` | — | Forecast horizon (>= 1) |
+| `--method` | `-m` | `String` | `twostep` | `twostep`, `vb` | Estimation method: twostep\|vb |
+| `--horizons` | `-H` | `Int64` | `12` | — | Forecast horizon (>= 1) *(aliases: `--hor`)* |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | Output format |
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--no-rearrange` | — | Disable monotone quantile rearrangement across taus |
-| `--no-standardize` | — | Do not standardize panel columns before factor extraction |
+| `--no-standardize` | — | Do not standardize panel columns before factor extraction *(aliases: `--nostd`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `QuantileFAVAR`, `VBQuantileFAVAR`; result types: `NamedTuple`
 
@@ -569,28 +590,28 @@ Waggoner-Zha conditional (scenario) forecast
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--conditions-file` | — | `String` | `""` | — | REQUIRED long-format CSV: variable,period,value[,sd] |
-| `--method` | — | `String` | `var` | `var`, `bvar` | Model to condition: var\|bvar |
+| `--method` | `-m` | `String` | `var` | `var`, `bvar` | Model to condition: var\|bvar |
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto for var, 4 for bvar) |
-| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
+| `--horizons` | `-H` | `Int64` | `12` | — | Forecast horizon *(aliases: `--hor`)* |
 | `--replications` | — | `Int64` | `1000` | — | Draws used for the conditional bands |
-| `--conf-level` | — | `Float64` | `0.95` | — | Confidence level in (0, 1) |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--draws` | `-n` | `Int64` | `2000` | — | MCMC draws (--method bvar) |
-| `--sampler` | — | `String` | `direct` | — | direct\|gibbs (--method bvar) |
-| `--config` | — | `String` | `""` | — | TOML config for the BVAR prior (--method bvar; ignored with --method var) |
+| `--sampler` | — | `String` | `direct` | `direct`, `gibbs` | direct\|gibbs (--method bvar) |
+| `--config` | `-C` | `String` | `""` | — | TOML config for the BVAR prior (--method bvar; ignored with --method var) *(aliases: `--cfg`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--plot` | `-g` | Open interactive plot in browser |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `VARModel`, `BVARPosterior`; result types: `ConditionalForecast`
 
@@ -607,20 +628,20 @@ Unconditional VAR forecast with analytical or bootstrap intervals
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | — | — | Lag order (default: auto) |
-| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
-| `--conf-level` | — | `Float64` | `0.95` | — | Confidence level for intervals |
+| `--horizons` | `-H` | `Int64` | `12` | — | Forecast horizon *(aliases: `--hor`)* |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--ci-method` | — | `String` | `analytical` | `analytical`, `bootstrap`, `none` | Interval method: analytical\|bootstrap\|none (none = point forecast) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `VARModel`; result types: `VARForecast`
 
@@ -638,22 +659,22 @@ Level VECM forecast with optional bootstrap/parametric intervals
 |--------|-------|------|---------|---------|-------------|
 | `--lags` | `-p` | `Int64` | `2` | — | Lag order (in levels) |
 | `--rank` | `-r` | `String` | `auto` | — | Cointegration rank (auto\|1\|2\|...) |
-| `--deterministic` | — | `String` | `constant` | — | none\|constant\|trend |
-| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
-| `--ci-method` | — | `String` | `none` | — | none\|bootstrap\|parametric |
-| `--draws` | — | `Int64` | `500` | — | Bootstrap replications |
-| `--conf-level` | — | `Float64` | `0.95` | — | Confidence level for intervals |
+| `--deterministic` | — | `String` | `constant` | `none`, `constant`, `trend` | none\|constant\|trend *(aliases: `--det`)* |
+| `--horizons` | `-H` | `Int64` | `12` | — | Forecast horizon *(aliases: `--hor`)* |
+| `--ci-method` | — | `String` | `none` | `none`, `bootstrap`, `parametric` | none\|bootstrap\|parametric |
+| `--draws` | `-n` | `Int64` | `500` | — | Bootstrap replications *(aliases: `--replications`)* |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `VECMModel`; result types: `VECMForecast`
 
@@ -662,6 +683,8 @@ Level VECM forecast with optional bootstrap/parametric intervals
 ---
 
 ## [Regime](@id ref-fam-forecast-regime)
+
+**Family aliases:** `rgm`
 
 Regime-weighted multi-step forecasts for Markov-switching, STAR, and TAR models
 
@@ -677,20 +700,20 @@ Switching-regression forecast over future regressors (or intercept-only horizons
 
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--dep` | — | `String` | `""` | — | Dependent variable column (default: first numeric) |
+| `--dep` | `-y` | `String` | `""` | — | Dependent variable column (default: first numeric) |
 | `--k-regimes` | — | `Int64` | `2` | — | Number of regimes (≥ 2) |
-| `--max-iter` | — | `Int64` | `500` | — | Max EM iterations (≥ 1) |
-| `--tol` | — | `Float64` | `1.0e-8` | — | EM convergence tolerance (> 0) |
-| `--horizons` | — | `Int64` | `12` | — | Forecast horizon (intercept-only models; else use --x-future) |
+| `--max-iter` | `-I` | `Int64` | `500` | — | Max EM iterations (≥ 1) *(aliases: `--miter`)* |
+| `--tol` | `-T` | `Float64` | `1.0e-8` | — | EM convergence tolerance (> 0) |
+| `--horizons` | `-H` | `Int64` | `12` | — | Forecast horizon (intercept-only models; else use --x-future) *(aliases: `--hor`)* |
 | `--x-future` | — | `String` | `""` | — | CSV of future regressors: h rows x k columns (required unless intercept-only) |
-| `--draws` | — | `Int64` | `1000` | — | Simulated regime paths for the bands (≥ 1) |
-| `--conf-level` | — | `Float64` | `0.9` | — | Band coverage, 0 < level < 1 |
+| `--draws` | `-n` | `Int64` | `1000` | — | Simulated regime paths for the bands (≥ 1) *(aliases: `--reps`)* |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -714,16 +737,16 @@ Regime-averaged MS-AR forecast over simulated regime paths
 | `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
 | `--p` | — | `Int64` | `1` | — | AR order (≥ 1) |
 | `--k-regimes` | — | `Int64` | `2` | — | Number of regimes (≥ 2) |
-| `--max-iter` | — | `Int64` | `1000` | — | Max EM iterations (≥ 1) |
-| `--horizons` | — | `Int64` | `12` | — | Forecast horizon (≥ 1) |
-| `--draws` | — | `Int64` | `1000` | — | Simulated regime paths for the bands (≥ 1) |
-| `--conf-level` | — | `Float64` | `0.9` | — | Band coverage, 0 < level < 1 |
+| `--max-iter` | `-I` | `Int64` | `1000` | — | Max EM iterations (≥ 1) *(aliases: `--miter`)* |
+| `--horizons` | `-H` | `Int64` | `12` | — | Forecast horizon (≥ 1) *(aliases: `--hor`)* |
+| `--draws` | `-n` | `Int64` | `1000` | — | Simulated regime paths for the bands (≥ 1) *(aliases: `--reps`)* |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -747,15 +770,15 @@ Bootstrap-simulation threshold forecast for self-exciting models
 | `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
 | `--p` | — | `Int64` | `1` | — | AR order (≥ 1) |
 | `--d` | — | `String` | `1` | — | Delay lag: an integer ≥ 1, or 'auto' (=1:p grid) |
-| `--horizons` | — | `Int64` | `12` | — | Forecast horizon (≥ 1) |
-| `--draws` | — | `Int64` | `1000` | — | Bootstrap simulation paths (≥ 1) |
-| `--conf-level` | — | `Float64` | `0.95` | `0.90`, `0.95`, `0.99` | Band coverage: 0.90\|0.95\|0.99 |
+| `--horizons` | `-H` | `Int64` | `12` | — | Forecast horizon (≥ 1) *(aliases: `--hor`)* |
+| `--draws` | `-n` | `Int64` | `1000` | — | Bootstrap simulation paths (≥ 1) *(aliases: `--reps`)* |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `ThresholdModel`; result types: `ThresholdForecast`
 
@@ -775,15 +798,15 @@ Bootstrap-simulation STAR forecast for self-exciting models
 | `--p` | — | `Int64` | `1` | — | AR order (≥ 1) |
 | `--d` | — | `Int64` | `1` | — | Delay lag for the self-exciting transition var (≥ 1) |
 | `--type` | — | `String` | `auto` | `lstr1`, `lstr2`, `estr`, `auto` | Transition shape: lstr1\|lstr2\|estr\|auto |
-| `--horizons` | — | `Int64` | `12` | — | Forecast horizon (≥ 1) |
-| `--draws` | — | `Int64` | `1000` | — | Bootstrap simulation paths (≥ 1) |
-| `--conf-level` | — | `Float64` | `0.95` | `0.90`, `0.95`, `0.99` | Band coverage: 0.90\|0.95\|0.99 |
+| `--horizons` | `-H` | `Int64` | `12` | — | Forecast horizon (≥ 1) *(aliases: `--hor`)* |
+| `--draws` | `-n` | `Int64` | `1000` | — | Bootstrap simulation paths (≥ 1) *(aliases: `--reps`)* |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `STARModel`; result types: `STARForecast`
 
@@ -792,6 +815,8 @@ Bootstrap-simulation STAR forecast for self-exciting models
 ---
 
 ## [Univariate](@id ref-fam-forecast-univariate)
+
+**Family aliases:** `uv`
 
 Univariate multi-step forecasts (ARIMA, ARFIMA, ARDL, NARDL, MIDAS, GP)
 
@@ -812,21 +837,21 @@ ARFIMA forecast with fractional-filter truncation and interval bands
 | `--q` | — | `Int64` | `0` | — | MA order |
 | `--method` | `-m` | `String` | `css` | `css`, `mle` | css\|mle (fractional-integration estimator) |
 | `--d0` | — | `Float64` | — | — | Starting value for d (default: GPH pre-estimate) |
-| `--max-iter` | — | `Int64` | `500` | — | Maximum optimizer iterations |
-| `--horizons` | `-H` | `Int64` | `12` | — | Forecast horizons (≥ 1) |
-| `--conf-level` | — | `Float64` | `0.95` | — | Interval level in (0,1) |
+| `--max-iter` | `-I` | `Int64` | `500` | — | Maximum optimizer iterations *(aliases: `--miter`)* |
+| `--horizons` | `-H` | `Int64` | `12` | — | Forecast horizons (≥ 1) *(aliases: `--hor`)* |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--trunc-lag` | — | `Int64` | `200` | — | AR(inf) truncation lag for the fractional filter (≥ 1) |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Display an interactive plot |
+| `--plot` | `-g` | Display an interactive plot |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `ARFIMAModel`; result types: `ARIMAForecast`
 
@@ -849,21 +874,21 @@ ARIMA point forecast with interval bands (auto or fixed order)
 | `--max-p` | — | `Int64` | `5` | — | Max AR order for auto selection |
 | `--max-d` | — | `Int64` | `2` | — | Max differencing order for auto selection |
 | `--max-q` | — | `Int64` | `5` | — | Max MA order for auto selection |
-| `--criterion` | — | `String` | `bic` | — | aic\|bic |
-| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
-| `--conf-level` | — | `Float64` | `0.95` | — | Confidence level |
-| `--method` | `-m` | `String` | `css_mle` | — | ols\|css\|mle\|css_mle |
+| `--criterion` | — | `String` | `bic` | `aic`, `bic` | aic\|bic *(aliases: `--crit`)* |
+| `--horizons` | `-H` | `Int64` | `12` | — | Forecast horizon *(aliases: `--hor`)* |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
+| `--method` | `-m` | `String` | `css_mle` | `ols`, `css`, `mle`, `css_mle` | ols\|css\|mle\|css_mle |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `ARIMAModel`, `ARMAModel`, `ARModel`, `MAModel`; result types: `ARIMAForecast`
 
@@ -887,15 +912,15 @@ Direct h-step ADL-MIDAS forecast from a high-frequency indicator block (horizon 
 | `--weights` | — | `String` | `expalmon` | `expalmon`, `beta2`, `beta3`, `almon`, `umidas` | MIDAS weight family |
 | `--p-ar` | — | `Int64` | `0` | — | Autoregressive lags of the target (ADL-MIDAS) |
 | `--poly-degree` | — | `Int64` | `2` | — | Almon polynomial degree (≥ 0) |
-| `--horizons` | — | `Int64` | `1` | — | Direct forecast horizon, fixed at estimation |
-| `--max-iter` | — | `Int64` | `500` | — | Maximum optimizer iterations |
-| `--conf-level` | — | `Float64` | `0.95` | — | Prediction-interval level in (0,1) |
+| `--horizons` | `-H` | `Int64` | `1` | — | Direct forecast horizon, fixed at estimation *(aliases: `--horizon`, `--hor`)* |
+| `--max-iter` | `-I` | `Int64` | `500` | — | Maximum optimizer iterations *(aliases: `--miter`)* |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `MidasModel`; result types: `MidasForecast`
 
@@ -923,24 +948,24 @@ SARIMA point forecast with interval bands (auto or fixed order)
 | `--max-q` | — | `Int64` | `2` | — | Auto search bound for q |
 | `--max-P` | — | `Int64` | `1` | — | Auto search bound for seasonal P |
 | `--max-Q` | — | `Int64` | `1` | — | Auto search bound for seasonal Q |
-| `--criterion` | — | `String` | `aic` | `aic`, `bic` | Auto-selection criterion |
-| `--method` | — | `String` | `css_mle` | `css_mle`, `mle`, `css` | Estimation method |
-| `--max-iter` | — | `Int64` | `500` | — | Maximum optimiser iterations |
-| `--horizons` | — | `Int64` | `12` | — | Forecast horizon (>= 1) |
-| `--conf-level` | — | `Float64` | `0.95` | — | Band coverage, 0 < level < 1 |
+| `--criterion` | — | `String` | `aic` | `aic`, `bic` | Auto-selection criterion *(aliases: `--crit`)* |
+| `--method` | `-m` | `String` | `css_mle` | `css_mle`, `mle`, `css` | Estimation method |
+| `--max-iter` | `-I` | `Int64` | `500` | — | Maximum optimiser iterations *(aliases: `--miter`)* |
+| `--horizons` | `-H` | `Int64` | `12` | — | Forecast horizon (>= 1) *(aliases: `--hor`)* |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--auto` | — | Force automatic order selection (auto_sarima) |
-| `--no-intercept` | — | Exclude the intercept term |
-| `--plot` | — | Open interactive plot in browser |
+| `--no-intercept` | — | Exclude the intercept term *(aliases: `--noint`)* |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `SARIMAModel`; result types: `ARIMAForecast`
 
@@ -949,6 +974,8 @@ SARIMA point forecast with interval bands (auto or fixed order)
 ---
 
 ## [Volatility](@id ref-fam-forecast-volatility)
+
+**Family aliases:** `vol`
 
 Conditional variance and volatility forecasts across GARCH and SV families
 
@@ -969,27 +996,27 @@ APARCH volatility forecast with interval level
 | `--q` | — | `Int64` | `1` | — | ARCH order q |
 | `--fix-delta` | — | `Float64` | — | — | Fix the power parameter delta |
 | `--fix-gamma` | — | `Float64` | — | — | Fix the asymmetry parameter gamma |
-| `--horizons` | `-H` | `Int64` | `10` | — | Forecast horizons (≥ 1) |
-| `--conf-level` | — | `Float64` | `0.95` | — | Forecast interval level in (0,1) |
+| `--horizons` | `-H` | `Int64` | `10` | — | Forecast horizons (≥ 1) *(aliases: `--hor`)* |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Display an interactive plot |
+| `--plot` | `-g` | Display an interactive plot |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `APARCHModel`; result types: `VolatilityForecast`
 
-**Output tables:** `aparch_volatility_forecast` (Conditional variance path: horizon | variance | volatility)
+**Output tables:** `aparch_volatility_forecast` (Conditional variance path with interval bounds: horizon | variance | volatility | lower | upper)
 
 ### [`frdc forecast volatility arch`](@id ref-forecast-volatility-arch)
 
-ARCH(1) volatility forecast (no interval level; horizons only)
+ARCH(1) volatility forecast with interval bands
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -999,22 +1026,23 @@ ARCH(1) volatility forecast (no interval level; horizons only)
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
 | `--q` | — | `Int64` | `1` | — | ARCH order |
-| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
+| `--horizons` | `-H` | `Int64` | `12` | — | Forecast horizon *(aliases: `--hor`)* |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `ARCHModel`; result types: `VolatilityForecast`
 
-**Output tables:** `arch_volatility_forecast` (Per-horizon forecast conditional variance and volatility)
+**Output tables:** `arch_volatility_forecast` (Per-horizon forecast conditional variance, volatility, and confidence bounds)
 
 ### [`frdc forecast volatility cgarch`](@id ref-forecast-volatility-cgarch)
 
@@ -1027,27 +1055,27 @@ CGARCH volatility forecast with interval level
 | Option | Short | Type | Default | Choices | Description |
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
-| `--horizons` | `-H` | `Int64` | `10` | — | Forecast horizons (≥ 1) |
-| `--conf-level` | — | `Float64` | `0.95` | — | Forecast interval level in (0,1) |
+| `--horizons` | `-H` | `Int64` | `10` | — | Forecast horizons (≥ 1) *(aliases: `--hor`)* |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Display an interactive plot |
+| `--plot` | `-g` | Display an interactive plot |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `CGARCHModel`; result types: `VolatilityForecast`
 
-**Output tables:** `cgarch_volatility_forecast` (Conditional variance path: horizon | variance | volatility)
+**Output tables:** `cgarch_volatility_forecast` (Conditional variance path with interval bounds: horizon | variance | volatility | lower | upper)
 
 ### [`frdc forecast volatility egarch`](@id ref-forecast-volatility-egarch)
 
-EGARCH(1,1) volatility forecast (no interval level; horizons only)
+EGARCH(1,1) volatility forecast with interval bands
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1058,23 +1086,24 @@ EGARCH(1,1) volatility forecast (no interval level; horizons only)
 | `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
 | `--p` | — | `Int64` | `1` | — | GARCH order |
 | `--q` | — | `Int64` | `1` | — | ARCH order |
-| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
+| `--horizons` | `-H` | `Int64` | `12` | — | Forecast horizon *(aliases: `--hor`)* |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--dist` | — | `String` | `normal` | `normal`, `student`, `ged` | Conditional distribution of the innovations |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `EGARCHModel`; result types: `VolatilityForecast`
 
-**Output tables:** `egarch_volatility_forecast` (Per-horizon forecast conditional variance and volatility)
+**Output tables:** `egarch_volatility_forecast` (Per-horizon forecast conditional variance, volatility, and confidence bounds)
 
 ### [`frdc forecast volatility fiegarch`](@id ref-forecast-volatility-fiegarch)
 
@@ -1092,23 +1121,23 @@ FIEGARCH volatility forecast with interval level
 | `--d0` | — | `Float64` | `0.4` | — | Initial fractional differencing parameter |
 | `--truncation` | — | `Int64` | `1000` | — | Truncation lag for the ARCH(inf) expansion |
 | `--dist` | — | `String` | `normal` | `normal` | Innovation distribution (only normal is accepted; use garch\|egarch\|gjr-garch for Student-t or GED) |
-| `--horizons` | `-H` | `Int64` | `10` | — | Forecast horizons (≥ 1) |
-| `--conf-level` | — | `Float64` | `0.95` | — | Forecast interval level in (0,1) |
+| `--horizons` | `-H` | `Int64` | `10` | — | Forecast horizons (≥ 1) *(aliases: `--hor`)* |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Display an interactive plot |
+| `--plot` | `-g` | Display an interactive plot |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `FIEGARCHModel`; result types: `VolatilityForecast`
 
-**Output tables:** `fiegarch_volatility_forecast` (Conditional variance path: horizon | variance | volatility)
+**Output tables:** `fiegarch_volatility_forecast` (Conditional variance path with interval bounds: horizon | variance | volatility | lower | upper)
 
 ### [`frdc forecast volatility figarch`](@id ref-forecast-volatility-figarch)
 
@@ -1126,27 +1155,27 @@ FIGARCH volatility forecast with interval level
 | `--d0` | — | `Float64` | `0.4` | — | Initial fractional differencing parameter |
 | `--truncation` | — | `Int64` | `1000` | — | Truncation lag for the ARCH(inf) expansion |
 | `--dist` | — | `String` | `normal` | `normal` | Innovation distribution (only normal is accepted; use garch\|egarch\|gjr-garch for Student-t or GED) |
-| `--horizons` | `-H` | `Int64` | `10` | — | Forecast horizons (≥ 1) |
-| `--conf-level` | — | `Float64` | `0.95` | — | Forecast interval level in (0,1) |
+| `--horizons` | `-H` | `Int64` | `10` | — | Forecast horizons (≥ 1) *(aliases: `--hor`)* |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Display an interactive plot |
+| `--plot` | `-g` | Display an interactive plot |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `FIGARCHModel`; result types: `VolatilityForecast`
 
-**Output tables:** `figarch_volatility_forecast` (Conditional variance path: horizon | variance | volatility)
+**Output tables:** `figarch_volatility_forecast` (Conditional variance path with interval bounds: horizon | variance | volatility | lower | upper)
 
 ### [`frdc forecast volatility garch`](@id ref-forecast-volatility-garch)
 
-GARCH(1,1) volatility forecast (no interval level; horizons only)
+GARCH(1,1) volatility forecast with interval bands
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1157,27 +1186,30 @@ GARCH(1,1) volatility forecast (no interval level; horizons only)
 | `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
 | `--p` | — | `Int64` | `1` | — | GARCH order |
 | `--q` | — | `Int64` | `1` | — | ARCH order |
-| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
+| `--horizons` | `-H` | `Int64` | `12` | — | Forecast horizon *(aliases: `--hor`)* |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--dist` | — | `String` | `normal` | `normal`, `student`, `ged` | Conditional distribution of the innovations |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `GARCHModel`; result types: `VolatilityForecast`
 
-**Output tables:** `garch_volatility_forecast` (Per-horizon forecast conditional variance and volatility)
+**Output tables:** `garch_volatility_forecast` (Per-horizon forecast conditional variance, volatility, and confidence bounds)
 
 ### [`frdc forecast volatility garch-midas`](@id ref-forecast-volatility-garch-midas)
 
 GARCH-MIDAS variance forecast split into long-run/short-run components (no interval level)
+
+**Aliases:** `gm`
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1190,18 +1222,18 @@ GARCH-MIDAS variance forecast split into long-run/short-run components (no inter
 | `--k` | — | `Int64` | `12` | — | Number of MIDAS lags |
 | `--rv` | — | `String` | `realized` | `realized`, `macro` | Long-run driver |
 | `--span` | — | `String` | `fixed` | `fixed`, `rolling` | Forecast span window scheme |
-| `--config` | — | `String` | `""` | — | TOML with [garch_midas] x_lf (required for --rv macro) |
-| `--horizons` | `-H` | `Int64` | `10` | — | Forecast horizons (≥ 1) |
+| `--config` | `-C` | `String` | `""` | — | TOML with [garch_midas] x_lf (required for --rv macro) *(aliases: `--cfg`)* |
+| `--horizons` | `-H` | `Int64` | `10` | — | Forecast horizons (≥ 1) *(aliases: `--hor`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--config-json` | — | `String` | `""` | — | JSON object merged over --config (file < json < --set) |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--strict` | — | Treat config schema warnings as errors (exit 4) |
+| `--strict` | `-X` | Treat config schema warnings as errors (exit 4) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `GarchMidasModel`
 
@@ -1209,7 +1241,7 @@ GARCH-MIDAS variance forecast split into long-run/short-run components (no inter
 
 ### [`frdc forecast volatility gjr-garch`](@id ref-forecast-volatility-gjr-garch)
 
-GJR-GARCH(1,1) volatility forecast (no interval level; horizons only)
+GJR-GARCH(1,1) volatility forecast with interval bands
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1220,23 +1252,24 @@ GJR-GARCH(1,1) volatility forecast (no interval level; horizons only)
 | `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
 | `--p` | — | `Int64` | `1` | — | GARCH order |
 | `--q` | — | `Int64` | `1` | — | ARCH order |
-| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
+| `--horizons` | `-H` | `Int64` | `12` | — | Forecast horizon *(aliases: `--hor`)* |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--dist` | — | `String` | `normal` | `normal`, `student`, `ged` | Conditional distribution of the innovations |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `GJRGARCHModel`; result types: `VolatilityForecast`
 
-**Output tables:** `gjr_garch_volatility_forecast` (Per-horizon forecast conditional variance and volatility)
+**Output tables:** `gjr_garch_volatility_forecast` (Per-horizon forecast conditional variance, volatility, and confidence bounds)
 
 ### [`frdc forecast volatility igarch`](@id ref-forecast-volatility-igarch)
 
@@ -1251,27 +1284,27 @@ IGARCH volatility forecast with interval level
 | `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
 | `--p` | — | `Int64` | `1` | — | GARCH order p |
 | `--q` | — | `Int64` | `1` | — | ARCH order q |
-| `--horizons` | `-H` | `Int64` | `10` | — | Forecast horizons (≥ 1) |
-| `--conf-level` | — | `Float64` | `0.95` | — | Forecast interval level in (0,1) |
+| `--horizons` | `-H` | `Int64` | `10` | — | Forecast horizons (≥ 1) *(aliases: `--hor`)* |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save interactive plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Display an interactive plot |
+| `--plot` | `-g` | Display an interactive plot |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `IGARCHModel`; result types: `VolatilityForecast`
 
-**Output tables:** `igarch_volatility_forecast` (Conditional variance path: horizon | variance | volatility)
+**Output tables:** `igarch_volatility_forecast` (Conditional variance path with interval bounds: horizon | variance | volatility | lower | upper)
 
 ### [`frdc forecast volatility sv`](@id ref-forecast-volatility-sv)
 
-SV volatility forecast (no interval level; horizons only)
+SV volatility forecast with interval bands
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
@@ -1281,20 +1314,21 @@ SV volatility forecast (no interval level; horizons only)
 |--------|-------|------|---------|---------|-------------|
 | `--column` | `-c` | `Int64` | `1` | — | Column index (1-based) |
 | `--draws` | `-n` | `Int64` | `5000` | — | MCMC draws |
-| `--horizons` | — | `Int64` | `12` | — | Forecast horizon |
+| `--horizons` | `-H` | `Int64` | `12` | — | Forecast horizon *(aliases: `--hor`)* |
+| `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
-| `--plot-save` | — | `String` | `""` | — | Save plot to HTML file |
-| `--model` | — | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
-| `--result` | — | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
-| `--save-result` | — | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) |
-| `--save-model` | — | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) |
+| `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
+| `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
+| `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
+| `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--plot` | — | Open interactive plot in browser |
+| `--plot` | `-g` | Open interactive plot in browser |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `SVModel`; result types: `VolatilityForecast`
 
-**Output tables:** `sv_volatility_forecast` (Per-horizon forecast conditional variance and volatility)
+**Output tables:** `sv_volatility_forecast` (Per-horizon forecast conditional variance, volatility, and confidence bounds)
 
