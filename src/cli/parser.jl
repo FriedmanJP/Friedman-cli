@@ -125,11 +125,22 @@ end
 
 _fmt_opt_name(k::AbstractString) = ncodeunits(k) == 1 ? "-$k" : "--$k"
 
+const _CHOICE_ALIASES = Dict{String,String}(
+    "longrun"  => "long-run",
+    "long-run" => "longrun",
+)
+
 function _choice_match(raw::String, choices::Vector{String})
     raw in choices && return raw
     norm_raw = replace(raw, "_" => "-")
     for c in choices
         replace(c, "_" => "-") == norm_raw && return c
+    end
+    alias = get(_CHOICE_ALIASES, norm_raw, nothing)
+    if alias !== nothing
+        for c in choices
+            replace(c, "_" => "-") == alias && return c
+        end
     end
     return nothing
 end

@@ -730,6 +730,7 @@ const ID_METHOD_MAP = Dict(
     "sign"              => :sign,
     "narrative"         => :narrative,
     "longrun"           => :long_run,
+    "long-run"          => :long_run,
     "fastica"           => :fastica,
     "jade"              => :jade,
     "sobi"              => :sobi,
@@ -1169,15 +1170,25 @@ function _load_svec_zeros(config_path::String, n::Int, leaf::String)
 end
 
 """
-    _build_check_func(config_path) -> (check_func, narrative_check)
+    _require_sign_narrative_config(id, config_path, leaf)
 
-Build sign restriction and narrative restriction check functions from TOML config.
-Returns `(nothing, nothing)` if no config or no restrictions.
+Fail fast BEFORE model estimation when `--id sign` or `--id narrative` is
+invoked without `--config` / `--config-json` (post-merge in `wrap_legacy`).
 """
+function _require_sign_narrative_config(id::String, config_path::String, leaf::String)
+    id in ("sign", "narrative") || return nothing
+    if isempty(config_path)
+        throw(CliError("usage/missing",
+            "$leaf: --id $id requires --config <toml> (or --config-json)";
+            hint="define [identification.sign_matrix] for --id sign or [identification.narrative] for --id narrative"))
+    end
+    return nothing
+end
+
 function _check_sign_narrative_config_match(id::String, config_path::String,
                                          check_func, narrative_check, leaf::String)
-    isempty(config_path) && return
     id in ("sign", "narrative") || return
+    _require_sign_narrative_config(id, config_path, leaf)
     if id == "sign" && isnothing(check_func)
         cfg = load_config(config_path)
         id_sec = get(cfg, "identification", Dict())
@@ -1186,10 +1197,33 @@ function _check_sign_narrative_config_match(id::String, config_path::String,
                 "$leaf: --id sign uses [identification.sign_matrix], not declarative [[identification.sign_restrictions]]";
                 hint="use --id arias or --id uhlig for declarative restrictions, or define [identification.sign_matrix] for --id sign"))
         end
+        throw(CliError("config/invalid",
+            "$leaf: --id sign requires [identification.sign_matrix] in --config";
+            hint="define [identification.sign_matrix] with matrix = [...] and horizons = [...]"))
+    elseif id == "narrative" && (isnothing(check_func) || isnothing(narrative_check))
+        cfg = load_config(config_path)
+        id_sec = get(cfg, "identification", Dict())
+        if !isempty(get(id_sec, "narrative_contributions", [])) || !isempty(get(id_sec, "narrative_shocks", []))
+            throw(CliError("config/invalid",
+                "$leaf: --id narrative uses [identification.sign_matrix] + [identification.narrative], not declarative [[identification.narrative_contributions]]";
+                hint="use --id narrative-adrr for declarative ADRR narrative restrictions, or define [identification.sign_matrix] and [identification.narrative] for --id narrative"))
+        end
+        missing_secs = String[]
+        isnothing(check_func) && push!(missing_secs, "[identification.sign_matrix]")
+        isnothing(narrative_check) && push!(missing_secs, "[identification.narrative]")
+        throw(CliError("config/invalid",
+            "$leaf: --id narrative requires $(join(missing_secs, " and ")) in --config";
+            hint="define [identification.sign_matrix] and [identification.narrative] in --config (or use --id narrative-adrr for declarative ADRR restrictions)"))
     end
     return
 end
 
+"""
+    _build_check_func(config_path) -> (check_func, narrative_check)
+
+Build sign restriction and narrative restriction check functions from TOML config.
+Returns `(nothing, nothing)` if no config or no restrictions.
+"""
 function _build_check_func(config_path::String; nvars::Union{Int,Nothing}=nothing)
     if isempty(config_path)
         return nothing, nothing
@@ -1348,9 +1382,11 @@ function _load_and_structural_lp(data::String, horizons::Int, lags::Int,
     vp = isnothing(var_lags) ? lags : var_lags
     vp >= 1 || throw(CliError("usage/invalid", "structural lp: VAR lag order must be ≥ 1 (got $vp)"))
 
+    method = _identification_method(id, ID_METHOD_MAP, "structural lp")
+    _require_sign_narrative_config(id, config, "structural lp")
+
     Y, varnames = load_multivariate_data(data)
 
-    method = _identification_method(id, ID_METHOD_MAP, "structural lp")
     check_func, narrative_check = _build_check_func(config; nvars=size(Y, 2))
     _check_sign_narrative_config_match(id, config, check_func, narrative_check, "structural lp")
 
@@ -1815,6 +1851,7 @@ const _SDFM_ID_CLI = Dict(
     "cholesky"     => :cholesky,
     "sign"         => :sign,
     "longrun"      => :long_run,
+    "long-run"     => :long_run,
     "max-share"    => :max_share,
     "proxy"        => :proxy,
     "lewis-tvv"    => :lewis_tvv,
@@ -1946,6 +1983,7 @@ function _load_and_estimate_sdfm(data::String, factors, id::String, var_lags,
             "estimate factor sdfm: --id proxy requires --instrument <column>";
             hint="name a numeric, missing-free proxy column, e.g. --instrument mp_shock"))
     end
+    id == "sign" && _require_sign_narrative_config(id, config, "estimate factor sdfm")
 
     Y, varnames = load_multivariate_data(data)
 
@@ -1954,6 +1992,7 @@ function _load_and_estimate_sdfm(data::String, factors, id::String, var_lags,
     sign_check = nothing
     if id == "sign" && !isempty(config)
         sign_check, _ = _build_check_func(config)
+        _check_sign_narrative_config_match(id, config, sign_check, nothing, "estimate factor sdfm")
     end
     instrument = isempty(instrument_col) ? nothing : _load_instrument(data, instrument_col)
 

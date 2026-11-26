@@ -60,7 +60,8 @@ const _RESULT_REPLAY_ALLOWED_OPTS = Set([
     "strict", "max-rows", "max-cols",
 ])
 
-function _load_typed_handle(path::String, allowed::Vector{Symbol}, code::String; slot::String)
+function _load_typed_handle(path::String, allowed::Vector{Symbol}, code::String;
+                            slot::String, other_allowed::Vector{Symbol}=Symbol[])
     if !startswith(path, ":") && !_is_session_uri(path)
         _validate_input_path(path)
     end
@@ -74,9 +75,14 @@ function _load_typed_handle(path::String, allowed::Vector{Symbol}, code::String;
             return obj
         end
         other = code == "model/wrong-kind" ? "--result" : "--model"
+        hint = if n in other_allowed
+            "this is a $n; pass it as $other, not --$slot"
+        else
+            "this command expects $(join(allowed, ", ")) in --$slot"
+        end
         throw(CliError(code,
             "$path is a $n handle; this command accepts $(join(allowed, ", "))";
-            hint="this is a $n; pass it as $other, not --$slot"))
+            hint=hint))
     end
     return obj
 end
@@ -252,7 +258,7 @@ function wrap_legacy(handler::Function)
                 elseif !isempty(ctx.spec.result_types)
                     resolved = resolve_stem(String(rp); slot=:result)
                     kwargs[:result] = _load_typed_handle(resolved, ctx.spec.result_types,
-                        "data/wrong-result"; slot="result")
+                        "data/wrong-result"; slot="result", other_allowed=ctx.spec.model_types)
                     _has_data_slot(ctx.spec) && get!(kwargs, :data, "")
                     any(a -> a.name == "model", ctx.spec.args) && get!(kwargs, :model, "")
                 end
@@ -279,7 +285,7 @@ function wrap_legacy(handler::Function)
                     if !isempty(ctx.spec.model_types) && is_handle_tok
                         resolved_mp = resolve_stem(mp_str; slot=:result)
                         kwargs[:model] = _load_typed_handle(resolved_mp, ctx.spec.model_types,
-                            "model/wrong-kind"; slot="model")
+                            "model/wrong-kind"; slot="model", other_allowed=ctx.spec.result_types)
                     end
                 else
                     mp_str = String(mp)
@@ -289,7 +295,7 @@ function wrap_legacy(handler::Function)
                     if !isempty(ctx.spec.model_types) && !is_domain_choice
                         resolved_mp = resolve_stem(mp_str; slot=:result)
                         kwargs[:model] = _load_typed_handle(resolved_mp, ctx.spec.model_types,
-                            "model/wrong-kind"; slot="model")
+                            "model/wrong-kind"; slot="model", other_allowed=ctx.spec.result_types)
                         _has_data_slot(ctx.spec) && get!(kwargs, :data, "")
                     elseif _is_handle_path(mp_str)
                         if !startswith(mp_str, ":") && !_is_session_uri(mp_str)

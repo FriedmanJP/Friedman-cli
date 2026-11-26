@@ -11042,6 +11042,170 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
     end
 
     include(joinpath(@__DIR__, "test_w3_nongaussian.jl"))
+
+    @testset "UX-W4 (#345): Structural ID, handles, longrun/long-run & LMS-SVAR" begin
+        mktempdir() do dir
+            # 1. Fail-fast exit 2 on irf var :denmark --id sign without --config (before VAR estimation)
+            r_sign_cap = run_cli_capture(["irf", "var", ":denmark", "--id", "sign"]; quiet=false)
+            @test r_sign_cap.code == 2
+            doc_sign_miss = JSON3.read(strip(r_sign_cap.out))
+            @test String(doc_sign_miss.error.code) == "usage/missing"
+            @test occursin("[identification.sign_matrix]", String(doc_sign_miss.error.hint))
+            @test !occursin("Computing IRFs", r_sign_cap.err)
+            @test !occursin("near-singular", lowercase(r_sign_cap.err))
+
+            r_narr_miss = run_json(["irf", "var", ":denmark", "--id", "narrative"])
+            @test r_narr_miss.code == 2
+            @test String(r_narr_miss.doc.error.code) == "usage/missing"
+
+            empty_cfg = joinpath(dir, "empty.toml")
+            write(empty_cfg, "[prior]\ntype = \"minnesota\"\n")
+            r_sign_empty = run_json(["irf", "var", ":denmark", "--lags", "2", "--id", "sign",
+                                     "--ci", "none", "--config", empty_cfg])
+            @test r_sign_empty.code == 4
+            @test String(r_sign_empty.doc.error.code) == "config/invalid"
+
+            # 2. LanneLuotoGMMResult passed to test multivariate gmm-moments --model never hints --result
+            rng_ng = Random.Xoshiro(345)
+            T_ng = 180
+            B0_true = [1.0 0.35; -0.25 0.9]
+            E_ng = hcat(
+                [randn(rng_ng) / sqrt(sum(randn(rng_ng)^2 for _ in 1:4) / 4) for _ in 1:T_ng],
+                [randn(rng_ng) / sqrt(sum(randn(rng_ng)^2 for _ in 1:5) / 5) for _ in 1:T_ng],
+            )
+            Y_ng = zeros(T_ng, 2)
+            for t in 2:T_ng
+                Y_ng[t, :] = [0.45 0.1; -0.05 0.5] * Y_ng[t-1, :] + B0_true * E_ng[t, :]
+            end
+            ng_csv = joinpath(dir, "ng2.csv")
+            open(ng_csv, "w") do io
+                println(io, "y1,y2")
+                for t in 1:T_ng
+                    println(io, "$(Y_ng[t, 1]),$(Y_ng[t, 2])")
+                end
+            end
+
+            ll_path = joinpath(dir, "ll.jld2")
+            r_ll = run_json(["--seed", "1", "estimate", "multivariate", "lanne-luoto", ng_csv,
+                             "--lags", "1", "--n-starts", "2", "--save-model", ll_path])
+            assert_envelope_ok(r_ll; label="UX-W4 save LanneLuotoGMMResult")
+
+            r_wk = run_json(["test", "multivariate", "gmm-moments", "--model", ll_path])
+            @test r_wk.code == 5
+            @test String(r_wk.doc.error.code) == "model/wrong-kind"
+            wk_hint = String(r_wk.doc.error.hint)
+            @test !occursin("--result", wk_hint)
+            @test occursin("VARModel", wk_hint)
+
+            # 3. Both --id longrun and --id long-run succeed across structural, GDFM-I(1), DSGE-ABCD & DSGE-VAR
+            r_lr1 = run_json(["irf", "var", ":denmark", "--lags", "2", "--horizons", "6", "--id", "longrun", "--ci", "none"])
+            r_lr2 = run_json(["irf", "var", ":denmark", "--lags", "2", "--horizons", "6", "--id", "long-run", "--ci", "none"])
+            assert_envelope_ok(r_lr1; label="irf var --id longrun")
+            assert_envelope_ok(r_lr2; label="irf var --id long-run")
+            @test r_lr1.doc.data.irf.rows == r_lr2.doc.data.irf.rows
+
+            r_flr = run_json(["fevd", "var", ":denmark", "--lags", "2", "--horizons", "6", "--id", "long-run"])
+            assert_envelope_ok(r_flr; label="fevd var --id long-run")
+            r_hlr = run_json(["hd", "var", ":denmark", "--lags", "2", "--id", "long-run"])
+            assert_envelope_ok(r_hlr; label="hd var --id long-run")
+
+            # GDFM-I(1) accepts --id long-run
+            r_glr = run_json(["--seed", "2", "irf", "gdfm-i1", ":denmark", "--dynamic-rank", "2",
+                              "--n-perm", "4", "--horizons", "5", "--id", "long-run"])
+            assert_envelope_ok(r_glr; label="irf gdfm-i1 --id long-run")
+
+            # DSGE-ABCD audit-irf & DSGE-VAR irf accept both --id longrun and --id long-run
+            nk_jl = joinpath(dir, "nk_w4.jl")
+            write(nk_jl, """
+            using .MacroEconometricModels
+            @dsge begin
+                parameters: rho = 0.7, kappa = 0.25, sig = 0.01
+                endogenous: y, pi, a
+                exogenous: ea, ep
+                y[t] = 0.6 * y[t-1] + a[t] + sig * ea[t]
+                pi[t] = 0.5 * pi[t-1] + kappa * y[t] + sig * ep[t]
+                a[t] = rho * a[t-1] + sig * ea[t]
+            end
+            """)
+            r_abcd_lr1 = run_json(["dsge", "abcd", "audit-irf", nk_jl, "--lags", "2", "--horizons", "5",
+                                   "--observables", "y,pi", "--id", "longrun"])
+            r_abcd_lr2 = run_json(["dsge", "abcd", "audit-irf", nk_jl, "--lags", "2", "--horizons", "5",
+                                   "--observables", "y,pi", "--id", "long-run"])
+            assert_envelope_ok(r_abcd_lr1; label="dsge abcd audit-irf --id longrun")
+            assert_envelope_ok(r_abcd_lr2; label="dsge abcd audit-irf --id long-run")
+
+            dv_csv = joinpath(dir, "dv_ypi.csv")
+            open(dv_csv, "w") do io
+                println(io, "y,pi")
+                for t in 1:T_ng
+                    println(io, "$(Y_ng[t, 1]),$(Y_ng[t, 2])")
+                end
+            end
+            post_path = joinpath(dir, "dv_post.jld2")
+            r_dv_est = run_json(["--seed", "10", "dsge", "var", "estimate", nk_jl,
+                                 "--data", dv_csv, "--observables", "y,pi",
+                                 "--lags", "2", "--lambda", "1.5", "--draws", "20",
+                                 "--save-model", post_path])
+            assert_envelope_ok(r_dv_est; label="UX-W4 dsge var estimate")
+            r_dv_lr1 = run_json(["dsge", "var", "irf", "--model", post_path, "--id", "longrun", "--horizons", "5"])
+            r_dv_lr2 = run_json(["dsge", "var", "irf", "--model", post_path, "--id", "long-run", "--horizons", "5"])
+            assert_envelope_ok(r_dv_lr1; label="dsge var irf --id longrun")
+            assert_envelope_ok(r_dv_lr2; label="dsge var irf --id long-run")
+            @test r_dv_lr1.doc.data.dsge_var_irf.rows == r_dv_lr2.doc.data.dsge_var_irf.rows
+
+            # 4. Explicit --id arias --ci bootstrap emits usage/ignored-option warning in envelope
+            arias_cfg = joinpath(dir, "arias.toml")
+            write(arias_cfg, """
+            [identification]
+            method = "arias"
+            [[identification.sign_restrictions]]
+            var = 1
+            shock = 1
+            sign = "positive"
+            horizon = 0
+            """)
+            r_ar_warn = run_json(["--seed", "3", "irf", "var", ng_csv, "--lags", "1", "--horizons", "4",
+                                  "--id", "arias", "--config", arias_cfg, "--ci", "bootstrap"])
+            assert_envelope_ok(r_ar_warn; label="irf var --id arias --ci bootstrap")
+            @test any(w -> String(w.code) == "usage/ignored-option", r_ar_warn.doc.warnings)
+
+            r_ar_nowarn = run_json(["--seed", "3", "irf", "var", ng_csv, "--lags", "1", "--horizons", "4",
+                                    "--id", "arias", "--config", arias_cfg])
+            assert_envelope_ok(r_ar_nowarn; label="irf var --id arias default ci")
+            @test !any(w -> String(w.code) == "usage/ignored-option", r_ar_nowarn.doc.warnings)
+
+            # LP-IV column-name mistake gives actionable file-path hint
+            r_lp_col = run_json(["estimate", "multivariate", "lp", ng_csv, "--method", "iv",
+                                 "--instruments", "y1", "--horizons", "4"])
+            @test r_lp_col.code == 3
+            @test String(r_lp_col.doc.error.code) == "data/file-not-found"
+            @test occursin("separate CSV file path", String(r_lp_col.doc.error.message))
+            @test occursin("--instruments", String(r_lp_col.doc.error.hint))
+
+            # 5. LMS-SVAR diagnostics table & exact B0 == irf_var h=1 reconciliation
+            lms_path = joinpath(dir, "lms_uxw4.jld2")
+            r_lms = run_json(["--seed", "42", "estimate", "multivariate", "lms-svar", ng_csv,
+                              "--lags", "1", "--distributions", "student-t,student-t",
+                              "--n-starts", "2", "--max-iter", "120", "--save-model", lms_path])
+            assert_envelope_ok(r_lms; label="UX-W4 estimate multivariate lms-svar")
+            @test haskey(r_lms.doc.data, :lms_svar_estimates)
+            @test haskey(r_lms.doc.data, :lms_svar_diagnostics)
+            dmetrics = Dict(String(r[1]) => r[2] for r in r_lms.doc.data.lms_svar_diagnostics.rows)
+            for k in ("loglik", "loglik_gaussian", "aic", "bic", "converged", "iterations", "nu[Shock 1]")
+                @test haskey(dmetrics, k)
+            end
+            # Extract ML B0[:, Shock 1] from lms_svar_estimates
+            b0_rows = r_lms.doc.data.lms_svar_estimates.rows
+            b0_s1 = Float64[Float64(r[2]) for r in b0_rows if startswith(String(r[1]), "B0[") && endswith(String(r[1]), ",Shock 1]")]
+            @test length(b0_s1) == 2
+
+            r_lms_irf = run_json(["irf", "var", "--model", lms_path, "--shock", "1", "--ci", "none", "--horizons", "4"])
+            assert_envelope_ok(r_lms_irf; label="UX-W4 irf var --model LMSSVARResult")
+            irf_h1 = Float64[Float64(r[4]) for r in r_lms_irf.doc.data.irf.rows if Int(r[1]) == 1]
+            @test length(irf_h1) == 2
+            @test isapprox(irf_h1, b0_s1; atol=1e-5, rtol=1e-5)
+        end
+    end
 end
 
 # Wave 1 ([MEM111-W1] #313): QFM, GaR, xtqreg, QVAR, QFAVAR & QReg IPM

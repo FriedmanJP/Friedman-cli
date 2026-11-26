@@ -38,6 +38,7 @@ const _W2_GDFM_I1_IDS = Dict(
     "permanent-transitory" => :permanent_transitory,
     "cholesky"             => :cholesky,
     "longrun"              => :long_run,
+    "long-run"             => :long_run,
     "sign"                 => :sign,
     "proxy"                => :proxy,
 )
@@ -198,8 +199,8 @@ function _w2_load_and_estimate_gdfm_i1(data::String, dynamic_rank, n_permanent,
     end
     if id == "sign" && isempty(config)
         throw(CliError("usage/missing",
-            "$leaf: --id sign requires --config <toml>";
-            hint="supply a TOML config with [sign] restrictions"))
+            "$leaf: --id sign requires --config <toml> (or --config-json)";
+            hint="define [identification.sign_matrix] for --id sign"))
     end
 
     X, varnames = load_multivariate_data(data)
@@ -221,6 +222,7 @@ function _w2_load_and_estimate_gdfm_i1(data::String, dynamic_rank, n_permanent,
     sign_check = nothing
     if id == "sign" && !isempty(config)
         sign_check, _ = _build_check_func(config)
+        _check_sign_narrative_config_match(id, config, sign_check, nothing, leaf)
     end
     instrument = isempty(instrument_col) ? nothing : _load_instrument(data, instrument_col)
     eff_seed = _w2_resolve_seed(seed)

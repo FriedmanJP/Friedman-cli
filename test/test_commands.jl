@@ -156,11 +156,12 @@ end
 @testset "Shared utilities" begin
 
     @testset "ID_METHOD_MAP" begin
-        @test length(ID_METHOD_MAP) == 27   # 23 + cvm, mixture-normal-asym, mixture_normal_asym, lms (#315)
+        @test length(ID_METHOD_MAP) == 28   # 23 + cvm, mixture-normal-asym, mixture_normal_asym, lms (#315) + long-run (#345)
         @test ID_METHOD_MAP["cholesky"] == :cholesky
         @test ID_METHOD_MAP["sign"] == :sign
         @test ID_METHOD_MAP["narrative"] == :narrative
         @test ID_METHOD_MAP["longrun"] == :long_run
+        @test ID_METHOD_MAP["long-run"] == :long_run
         @test ID_METHOD_MAP["fastica"] == :fastica
         @test ID_METHOD_MAP["jade"] == :jade
         @test ID_METHOD_MAP["sobi"] == :sobi
@@ -16161,6 +16162,267 @@ end
         for s in (bsh, zsh, fsh)
             @test occursin("schema", s) && occursin("serve", s) && occursin("show", s) && occursin("repl", s)
             @test occursin("bayes", s) && occursin(":fred_md", s)
+        end
+    end
+
+    @testset "UX-W4 (#345): Structural ID, handles, longrun/long-run & LMS-SVAR" begin
+        _parse_env(raw::String) = JSON3.read(raw[findfirst('{', raw):end])
+        mktempdir() do dir
+            csv = _make_csv(dir; T=100, n=3)
+            empty_cfg = joinpath(dir, "empty.toml")
+            write(empty_cfg, "[prior]\ntype = \"minnesota\"\n")
+            sign_cfg = _make_sign_config(dir)
+            narr_only_cfg = joinpath(dir, "narr_only.toml")
+            write(narr_only_cfg, """
+            [identification]
+            method = "narrative"
+            [identification.narrative]
+            shock_index = 1
+            periods = [5, 10]
+            signs = [1, -1]
+            """)
+            arias_cfg = _make_arias_config(dir)
+            adrr_cfg = _make_adrr_config(dir)
+
+            # 1. Fail-fast BEFORE data load / estimation on missing --config for --id sign|narrative
+            bogus = joinpath(dir, "never_read_missing.csv")
+            for id_m in ("sign", "narrative")
+                for fn in (
+                    () -> _irf_var(; data=bogus, id=id_m, config="", format="json"),
+                    () -> _irf_bvar(; data=bogus, id=id_m, config="", format="json"),
+                    () -> _irf_lp(; data=bogus, id=id_m, config="", format="json"),
+                    () -> _irf_vecm(; data=bogus, id=id_m, config="", format="json"),
+                    () -> _irf_favar(; data=bogus, id=id_m, config="", key_vars="var1", format="json"),
+                    () -> _fevd_var(; data=bogus, id=id_m, config="", format="json"),
+                    () -> _fevd_bvar(; data=bogus, id=id_m, config="", format="json"),
+                    () -> _fevd_lp(; data=bogus, id=id_m, config="", format="json"),
+                    () -> _fevd_vecm(; data=bogus, id=id_m, config="", format="json"),
+                    () -> _fevd_favar(; data=bogus, id=id_m, config="", key_vars="var1", format="json"),
+                    () -> _hd_var(; data=bogus, id=id_m, config="", format="json"),
+                    () -> _hd_bvar(; data=bogus, id=id_m, config="", format="json"),
+                    () -> _hd_lp(; data=bogus, id=id_m, config="", format="json"),
+                    () -> _hd_vecm(; data=bogus, id=id_m, config="", format="json"),
+                    () -> _hd_favar(; data=bogus, id=id_m, config="", key_vars="var1", format="json"),
+                )
+                    err = try; fn(); nothing; catch e; e; end
+                    @test err isa CliError
+                    @test err.code == "usage/missing"
+                    @test exit_class(err) == 2
+                    @test occursin("[identification.sign_matrix]", err.hint)
+                end
+            end
+
+            # Generalized FEVD ignores --id, so --id sign --generalized does not fail on missing config
+            out_gfevd = _capture() do
+                _fevd_var(; data=csv, lags=2, horizons=5, id="sign", generalized=true, format="table")
+            end
+            @test !isempty(out_gfevd)
+
+            # Config provided without [identification.sign_matrix] or [identification.narrative] -> config/invalid (exit 4)
+            for (id_m, cfg_p) in (("sign", empty_cfg), ("narrative", empty_cfg),
+                                  ("narrative", sign_cfg), ("narrative", narr_only_cfg),
+                                  ("narrative", adrr_cfg))
+                err = try
+                    _capture() do
+                        _irf_var(; data=csv, lags=2, horizons=5, id=id_m, ci="none", config=cfg_p, format="table")
+                    end
+                    nothing
+                catch e; e; end
+                @test err isa CliError
+                @test err.code == "config/invalid"
+                @test exit_class(err) == 4
+            end
+
+            # --config-json merges cleanly before _irf_var runs
+            irf_var_leaf = APP.root.subcmds["irf"].subcmds["var"]
+            cj = "{\"identification\":{\"sign_matrix\":{\"matrix\":[[1,0,0],[0,1,0],[0,0,1]],\"horizons\":[0]}}}"
+            out_cj = _capture() do
+                dispatch_leaf(irf_var_leaf, [csv, "--lags", "2", "--horizons", "5", "--id", "sign",
+                                             "--ci", "none", "--config-json", cj, "--format", "json"];
+                              prog="frdc irf var")
+            end
+            doc_cj = _parse_env(out_cj)
+            @test doc_cj.status == "ok"
+            @test haskey(doc_cj.data, :irf)
+
+            # 2. _load_typed_handle wrong-kind hint logic
+            ll_path = joinpath(dir, "ll.jld2")
+            var_path = joinpath(dir, "var.jld2")
+            irf_path = joinpath(dir, "irf.jld2")
+            ll_leaf = APP.root.subcmds["estimate"].subcmds["multivariate"].subcmds["lanne-luoto"]
+            _capture() do
+                dispatch_leaf(ll_leaf, [csv, "--lags", "2", "--save-model", ll_path, "--format", "json"];
+                              prog="frdc estimate multivariate lanne-luoto")
+                dispatch_leaf(irf_var_leaf, [csv, "--lags", "2", "--horizons", "5", "--ci", "none",
+                                             "--save-model", var_path, "--save-result", irf_path, "--format", "json"];
+                              prog="frdc irf var")
+            end
+            gmm_leaf = APP.root.subcmds["test"].subcmds["multivariate"].subcmds["gmm-moments"]
+            err_ll = try
+                _capture() do
+                    dispatch_leaf(gmm_leaf, ["--model", ll_path, "--format", "json"];
+                                  prog="frdc test multivariate gmm-moments")
+                end
+                nothing
+            catch e; e; end
+            @test err_ll isa CliError && err_ll.code == "model/wrong-kind"
+            @test !occursin("--result", err_ll.hint)
+            @test occursin("VARModel", err_ll.hint) && occursin("--model", err_ll.hint)
+
+            # Wrong-result where handle is NOT in model_types -> never tells user to pass as --model
+            err_ll_res = try
+                _capture() do
+                    dispatch_leaf(gmm_leaf, ["--result", ll_path, "--format", "json"];
+                                  prog="frdc test multivariate gmm-moments")
+                end
+                nothing
+            catch e; e; end
+            @test err_ll_res isa CliError && err_ll_res.code == "data/wrong-result"
+            @test !occursin("--model", err_ll_res.hint)
+            @test occursin("GMMMomentSelectionResult", err_ll_res.hint) && occursin("--result", err_ll_res.hint)
+
+            # Swapped model/result where type IS in sibling slot -> keeps accurate swap hint
+            err_swap_m = try
+                _capture() do
+                    dispatch_leaf(irf_var_leaf, ["--model", irf_path, "--format", "json"];
+                                  prog="frdc irf var")
+                end
+                nothing
+            catch e; e; end
+            @test err_swap_m isa CliError && err_swap_m.code == "model/wrong-kind"
+            @test occursin("pass it as --result, not --model", err_swap_m.hint)
+
+            err_swap_r = try
+                _capture() do
+                    dispatch_leaf(irf_var_leaf, ["--result", var_path, "--format", "json"];
+                                  prog="frdc irf var")
+                end
+                nothing
+            catch e; e; end
+            @test err_swap_r isa CliError && err_swap_r.code == "data/wrong-result"
+            @test occursin("pass it as --model, not --result", err_swap_r.hint)
+
+            # 3. Unify --id longrun / --id long-run across structural, SDFM, GDFM-I(1), DSGE-ABCD/DSGE-VAR
+            @test ID_METHOD_MAP["longrun"] == :long_run
+            @test ID_METHOD_MAP["long-run"] == :long_run
+            @test _SDFM_ID_CLI["longrun"] == :long_run
+            @test _SDFM_ID_CLI["long-run"] == :long_run
+            @test _W2_GDFM_I1_IDS["longrun"] == :long_run
+            @test _W2_GDFM_I1_IDS["long-run"] == :long_run
+            @test "long-run" in CONFIG_ENUMS["identification.method"]
+            @test _choice_match("longrun", ["dsge-qr", "cholesky", "long-run"]) == "long-run"
+            @test _choice_match("long-run", ["permanent-transitory", "cholesky", "longrun", "sign", "proxy"]) == "longrun"
+
+            fevd_var_leaf = APP.root.subcmds["fevd"].subcmds["var"]
+            hd_var_leaf = APP.root.subcmds["hd"].subcmds["var"]
+            irf_gdfm_leaf = APP.root.subcmds["irf"].subcmds["gdfm-i1"]
+            abcd_audit_leaf = APP.root.subcmds["dsge"].subcmds["abcd"].subcmds["audit-irf"]
+            dsge_var_irf_leaf = APP.root.subcmds["dsge"].subcmds["var"].subcmds["irf"]
+            dsge_var_fevd_leaf = APP.root.subcmds["dsge"].subcmds["var"].subcmds["fevd"]
+            dsge_var_hd_leaf = APP.root.subcmds["dsge"].subcmds["var"].subcmds["hd"]
+
+            for id_spell in ("longrun", "long-run")
+                out_i = _capture() do
+                    dispatch_leaf(irf_var_leaf, [csv, "--lags", "2", "--horizons", "5", "--id", id_spell,
+                                                 "--ci", "none", "--format", "json"]; prog="frdc irf var")
+                end
+                @test _parse_env(out_i).status == "ok"
+
+                out_f = _capture() do
+                    dispatch_leaf(fevd_var_leaf, [csv, "--lags", "2", "--horizons", "5", "--id", id_spell,
+                                                  "--format", "json"]; prog="frdc fevd var")
+                end
+                @test _parse_env(out_f).status == "ok"
+
+                out_h = _capture() do
+                    dispatch_leaf(hd_var_leaf, [csv, "--lags", "2", "--id", id_spell,
+                                                "--format", "json"]; prog="frdc hd var")
+                end
+                @test _parse_env(out_h).status == "ok"
+
+                # Parser resolution on choices-constrained leaves (GDFM-I(1) & DSGE-ABCD/DSGE-VAR)
+                @test bind_args(tokenize([csv, "--id", id_spell]), irf_gdfm_leaf).id == "longrun"
+                @test bind_args(tokenize(["m.toml", "--id", id_spell]), abcd_audit_leaf).id == "long-run"
+                @test bind_args(tokenize(["m.toml", "--id", id_spell]), dsge_var_irf_leaf).id == "long-run"
+                @test bind_args(tokenize(["m.toml", "--id", id_spell]), dsge_var_fevd_leaf).id == "long-run"
+                @test bind_args(tokenize(["m.toml", "--id", id_spell]), dsge_var_hd_leaf).id == "long-run"
+            end
+            # Handler-level fallback also accepts both spellings directly
+            @test _w4_parse_dsgevar_id("longrun", "dsge var irf") == :long_run
+            @test _w4_parse_dsgevar_id("long-run", "dsge var irf") == :long_run
+
+            # 4. Warning on explicit ignored --ci with --id arias|uhlig|narrative-adrr + --instrument/--instruments
+            for (id_m, cfg_p) in (("arias", arias_cfg), ("uhlig", arias_cfg), ("narrative-adrr", adrr_cfg))
+                out_w = _capture() do
+                    dispatch_leaf(irf_var_leaf, [csv, "--lags", "2", "--horizons", "5", "--id", id_m,
+                                                 "--config", cfg_p, "--ci", "bootstrap", "--format", "json"];
+                                  prog="frdc irf var")
+                end
+                doc_w = _parse_env(out_w)
+                @test doc_w.status == "ok"
+                @test any(w -> String(w.code) == "usage/ignored-option" && occursin("--ci", String(w.message)),
+                          doc_w.warnings)
+
+                # Without explicit --ci, no usage/ignored-option warning
+                out_nw = _capture() do
+                    dispatch_leaf(irf_var_leaf, [csv, "--lags", "2", "--horizons", "5", "--id", id_m,
+                                                 "--config", cfg_p, "--format", "json"];
+                                  prog="frdc irf var")
+                end
+                doc_nw = _parse_env(out_nw)
+                @test doc_nw.status == "ok"
+                @test !any(w -> String(w.code) == "usage/ignored-option", doc_nw.warnings)
+            end
+
+            # LP-IV --instruments column-name vs file-path hint + option descriptions
+            inst_opt_irf = only(filter(o -> o.name == "instrument", irf_var_leaf.options))
+            @test occursin("column name", inst_opt_irf.description) && occursin("not a file path", inst_opt_irf.description)
+            lp_leaf = APP.root.subcmds["estimate"].subcmds["multivariate"].subcmds["lp"]
+            inst_opt_lp = only(filter(o -> o.name == "instruments", lp_leaf.options))
+            @test occursin("file path", inst_opt_lp.description) && occursin("not a column name", inst_opt_lp.description)
+
+            err_lp_iv = try
+                _estimate_lp(; data=csv, method="iv", instruments="var1", horizons=4)
+                nothing
+            catch e; e; end
+            @test err_lp_iv isa CliError && err_lp_iv.code == "data/file-not-found"
+            @test occursin("separate CSV file path", err_lp_iv.message)
+            @test occursin("--instruments <instruments.csv>", err_lp_iv.hint)
+
+            # 5. LMS-SVAR additive diagnostics table & ML effective VAR/Q reconstruction
+            lms_leaf = APP.root.subcmds["estimate"].subcmds["multivariate"].subcmds["lms-svar"]
+            out_lms = _capture() do
+                dispatch_leaf(lms_leaf, [csv, "--lags", "2", "--format", "json"];
+                              prog="frdc estimate multivariate lms-svar")
+            end
+            doc_lms = _parse_env(out_lms)
+            @test doc_lms.status == "ok"
+            @test haskey(doc_lms.data, :lms_svar_estimates)
+            @test haskey(doc_lms.data, :lms_svar_diagnostics)
+            diag_metrics = Set(String(r[1]) for r in doc_lms.data.lms_svar_diagnostics.rows)
+            for req in ("loglik", "loglik_gaussian", "aic", "bic", "converged", "iterations", "nu[shock_1]")
+                @test req in diag_metrics
+            end
+
+            # _w3_lms_effective_var_and_Q exact B0 reconstruction check (non-identity B0)
+            Y_t, vn_t = load_multivariate_data(csv)
+            vm_t = estimate_var(Y_t, 2; varnames=vn_t)
+            lms_base = estimate_lms_svar(vm_t)
+            B0_custom = [1.2 0.3 -0.1; 0.4 0.9 0.2; -0.2 0.1 0.8]
+            lms_custom = LMSSVARResult{Float64}(
+                B0_custom, lms_base.B, lms_base.sigma, lms_base.Q, lms_base.Pi,
+                lms_base.var_ols, lms_base.shocks, lms_base.raw_shocks,
+                lms_base.distributions, lms_base.dist_params, lms_base.theta,
+                lms_base.loglik, lms_base.loglik_gaussian, lms_base.vcov,
+                lms_base.se_B0, lms_base.se_B, lms_base.se_sigma, lms_base.se_Pi,
+                lms_base.method, lms_base.se_type, lms_base.converged, lms_base.iterations,
+                lms_base.aic, lms_base.bic, lms_base.shock_names, lms_base.manifest,
+            )
+            m_eff, Q_ml = _w3_lms_effective_var_and_Q(lms_custom)
+            L_eff = _w3_chol_lower(m_eff.Sigma)
+            @test L_eff !== nothing
+            @test isapprox(L_eff * Q_ml, B0_custom; atol=1e-12)
+            @test isapprox(Q_ml * transpose(Q_ml), Matrix{Float64}(I, 3, 3); atol=1e-12)
         end
     end
 end

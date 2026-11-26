@@ -272,7 +272,7 @@ function estimate_specs()::Vector{CommandSpec}
                 OptionSpec(name="horizons", type=Int, default=20, description="IRF horizon"),
                 OptionSpec(name="control-lags", type=Int, default=4, description="Number of control lags (standard/iv only; ignored by smooth|state|propensity|robust)"),
                 OptionSpec(name="vcov", type=String, default="newey_west", description="newey_west|white|driscoll_kraay (standard/iv only; ignored by smooth|state|propensity|robust)", choices=["newey_west", "white", "driscoll_kraay"]),
-                OptionSpec(name="instruments", type=String, default="", description="Path to instruments CSV (iv only)"),
+                OptionSpec(name="instruments", type=String, default="", description="Path to separate instruments CSV file (file path, not a column name in <data>; --method iv only)"),
                 OptionSpec(name="knots", type=Int, default=3, description="Number of B-spline knots (smooth only)"),
                 OptionSpec(name="lambda", type=Float64, default=0.0, description="Smoothing penalty, 0=auto CV (smooth only)"),
                 OptionSpec(name="state-var", type=Int, default=nothing, description="State variable index (state only)"),
@@ -2231,7 +2231,20 @@ function _estimate_lp_iv(data, shock, horizons, control_lags, vcov, instruments,
     end
 
     Y, varnames = load_multivariate_data(data)
-    Z, _ = load_multivariate_data(instruments)
+    Z, _ = try
+        load_multivariate_data(instruments)
+    catch e
+        if e isa CliError && e.code == "data/file-not-found"
+            raw_cols = try names(load_data(data)) catch; varnames end
+            toks = String[strip(s) for s in split(instruments, ",") if !isempty(strip(s))]
+            if !isempty(toks) && all(t -> t in raw_cols, toks)
+                throw(CliError("data/file-not-found",
+                    "estimate multivariate lp --method iv: --instruments expects a separate CSV file path, not column name '$instruments' from <data>";
+                    hint="save the instrument column(s) to their own CSV file and pass --instruments <instruments.csv> (unlike --instrument <col> on proxy SVAR)"))
+            end
+        end
+        rethrow()
+    end
     n = size(Y, 2)
     shock_name = _shock_name(varnames, shock)
 

@@ -34,7 +34,7 @@ function hd_specs()::Vector{CommandSpec}
                 OptionSpec(name="lags", short="p", type=Int, default=nothing, description="Lag order (default: auto)"),
                 OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|proxy|max-share|gmm-moments|lewis-tvv|sv-em|fastica|jade|sobi|dcov|hsic|cvm|student-t|mixture-normal|mixture-normal-asym|pml|skew-normal|lms|markov-switching|garch-id"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
-                OptionSpec(name="instrument", type=String, default="", description="Proxy-instrument CSV column (only with --id proxy)"),
+                OptionSpec(name="instrument", type=String, default="", description="Proxy-instrument column name inside <data> (not a file path; only with --id proxy)"),
                 OptionSpec(name="target-var", type=String, default="", description="Max-share target: column name or 1-based index (only with --id max-share)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -142,7 +142,7 @@ function hd_specs()::Vector{CommandSpec}
                 OptionSpec(name="q-method", type=String, default="hallin-liska", description="Auto factor selection: hallin-liska|bai-ng|amengual-watson", choices=["hallin-liska","bai-ng","amengual-watson"]),
                 OptionSpec(name="method", type=String, default="fglr", description="Estimator: fglr|fhlz|gdfm-var (fhlz is one-sided infinite-r; gdfm-var is legacy)", choices=["fglr","fhlz","gdfm-var"]),
                 OptionSpec(name="spectral", type=String, default="lag-window", description="GDFM spectrum: lag-window (FHLR)|smoothed-periodogram", choices=["lag-window","smoothed-periodogram"]),
-                OptionSpec(name="instrument", type=String, default="", description="Proxy-instrument CSV column (only with --id proxy)"),
+                OptionSpec(name="instrument", type=String, default="", description="Proxy-instrument column name inside <data> (not a file path; only with --id proxy)"),
                 OptionSpec(name="var-lags", type=String, default="auto", description="Factor VAR lag order (positive integer or auto|aic|bic|hq)"),
                 OptionSpec(name="n-perm", type=Int, default=30, description="Cross-sectional permutations for --method fhlz"),
                 OptionSpec(name="p-max", type=Int, default=nothing, description="Maximum lag order for automatic/FHLZ lag selection"),
@@ -225,6 +225,7 @@ function _hd_var(; data::String="", result=nothing, model=nothing, lags=nothing,
                           key_prefix="historical_decomposition")
         return (; model, result=hd_result)
     end
+    _require_sign_narrative_config(id, config, "hd var")
     if isnothing(model)
         model, Y, varnames, p = _load_and_estimate_var(data, lags)
     else
@@ -359,6 +360,7 @@ function _hd_bvar(; data::String="", result=nothing, lags::Int=4, id::String="ch
         _maybe_plot(loaded; plot=plot, plot_save=plot_save)
         return loaded
     end
+    _require_sign_narrative_config(id, config, "hd bvar")
     if isnothing(model)
         post, Y, varnames, p, n = _load_and_estimate_bvar(data, lags, config, draws, sampler)
     else
@@ -420,6 +422,8 @@ function _hd_lp(; data::String="", result=nothing, lags::Int=4, var_lags=nothing
         return loaded
     end
     if isnothing(model)
+        method = _identification_method(id, ID_METHOD_MAP, "hd lp")
+        _require_sign_narrative_config(id, config, "hd lp")
         Y, varnames = load_multivariate_data(data)
         T_obs, n = size(Y)
         vp = isnothing(var_lags) ? lags : var_lags
@@ -429,7 +433,6 @@ function _hd_lp(; data::String="", result=nothing, lags::Int=4, var_lags=nothing
         lp_horizon < 1 && throw(CliError("data/too-short",
             "Not enough observations for LP historical decomposition (T=$T_obs, lags=$lags)"))
 
-        method = _identification_method(id, ID_METHOD_MAP, "hd lp")
         check_func, narrative_check = _build_check_func(config; nvars=n)
         _check_sign_narrative_config_match(id, config, check_func, narrative_check, "hd lp")
         kwargs = Dict{Symbol,Any}(
@@ -515,6 +518,7 @@ function _hd_vecm(; data::String="", result=nothing, lags::Int=2, rank::String="
                           key_prefix="vecm_historical_decomposition")
         return (; model, result=hd_result)
     end
+    _require_sign_narrative_config(id, config, "hd vecm")
     if isnothing(model)
         vecm, Y, varnames, p = _load_and_estimate_vecm(data, lags, rank, deterministic, "johansen", 0.05)
         var_model = to_var(vecm)
@@ -591,6 +595,7 @@ function _hd_favar(; data::String="", result=nothing, factors=nothing, lags::Int
         _maybe_plot(loaded; plot=plot, plot_save=plot_save)
         return loaded
     end
+    _require_sign_narrative_config(id, config, "hd favar")
     if isnothing(model)
         favar, Y, varnames = _load_and_estimate_favar(data, factors, lags, key_vars, "two_step", 5000)
     else

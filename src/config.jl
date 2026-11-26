@@ -63,7 +63,7 @@ const CONFIG_NESTED_SCHEMA = Dict{String,Vector{String}}(
 """Enum-like string fields validated against allow-lists."""
 const CONFIG_ENUMS = Dict{String,Vector{String}}(
     "prior.type" => ["minnesota"],
-    "identification.method" => ["cholesky", "sign", "narrative", "longrun", "arias", "uhlig",
+    "identification.method" => ["cholesky", "sign", "narrative", "longrun", "long-run", "arias", "uhlig",
                                 "narrative-adrr", "proxy", "max-share", "gmm-moments",
                                 "svec", "svar",
                                 "fastica", "jade", "sobi", "dcov", "hsic", "cvm",

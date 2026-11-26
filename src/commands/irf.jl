@@ -29,7 +29,7 @@ function irf_specs()::Vector{CommandSpec}
                 OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|arias|uhlig|fastica|jade|sobi|dcov|hsic|cvm|student-t|mixture-normal|mixture-normal-asym|pml|skew-normal|lms|markov-switching|garch-id|proxy|max-share|gmm-moments|narrative-adrr|lewis-tvv|sv-em"),
                 OptionSpec(name="ci", type=String, default="bootstrap", description="none|bootstrap|theoretical (ignored with --id arias|uhlig|narrative-adrr and --identified-set)"),
                 OptionSpec(name="draws", aliases=["replications"], kwarg=:replications, type=Int, default=1000, description="Bootstrap replications (also the sign-draw cap with --identified-set; ignored with --id arias|uhlig)"),
-                OptionSpec(name="instrument", type=String, default="", description="Proxy-instrument CSV column (only with --id proxy)"),
+                OptionSpec(name="instrument", type=String, default="", description="Proxy-instrument column name inside <data> (not a file path; only with --id proxy)"),
                 OptionSpec(name="target-var", type=String, default="", description="Max-share target: column name or 1-based index (only with --id max-share)"),
                 OptionSpec(name="bootstrap", type=String, default="iid",
                            description="Bootstrap scheme (--ci bootstrap): iid|wild|block (ignored with --id arias|uhlig|narrative-adrr and --identified-set)",
@@ -229,7 +229,7 @@ function irf_specs()::Vector{CommandSpec}
                 OptionSpec(name="q-method", type=String, default="hallin-liska", description="Auto factor selection: hallin-liska|bai-ng|amengual-watson", choices=["hallin-liska","bai-ng","amengual-watson"]),
                 OptionSpec(name="method", type=String, default="fglr", description="Estimator: fglr|fhlz|gdfm-var (fhlz is one-sided infinite-r; gdfm-var is legacy)", choices=["fglr","fhlz","gdfm-var"]),
                 OptionSpec(name="spectral", type=String, default="lag-window", description="GDFM spectrum: lag-window (FHLR)|smoothed-periodogram", choices=["lag-window","smoothed-periodogram"]),
-                OptionSpec(name="instrument", type=String, default="", description="Proxy-instrument CSV column (only with --id proxy)"),
+                OptionSpec(name="instrument", type=String, default="", description="Proxy-instrument column name inside <data> (not a file path; only with --id proxy)"),
                 OptionSpec(name="var-lags", type=String, default="auto", description="Factor VAR lag order (positive integer or auto|aic|bic|hq)"),
                 OptionSpec(name="n-perm", type=Int, default=30, description="Cross-sectional permutations for --method fhlz"),
                 OptionSpec(name="p-max", type=Int, default=nothing, description="Maximum lag order for automatic/FHLZ lag selection"),
@@ -348,6 +348,7 @@ function _irf_var(; data::String="", result=nothing, model=nothing, lags=nothing
                      format=Symbol(format), output=output, shocks=shock_name)
         return (; model, result=irf_result)
     end
+    _require_sign_narrative_config(id, config, "irf var")
     if isnothing(model)
         model, Y, varnames, p = _load_and_estimate_var(data, lags)
     else
@@ -396,6 +397,11 @@ function _irf_var(; data::String="", result=nothing, model=nothing, lags=nothing
 
     # Arias identification handled separately (narrative-adrr shares the Arias
     # pipeline via identify_narrative — same AriasSVARResult shape)
+    if id in ("arias", "uhlig", "narrative-adrr") &&
+       isdefined(@__MODULE__, :_CURRENT_EXPLICIT_OPTS) && ("ci" in _CURRENT_EXPLICIT_OPTS[])
+        _cli_warn!("usage/ignored-option",
+            "irf var: --ci $ci is ignored with --id $id (set-identified samplers compute their own bands)")
+    end
     if id in ("arias", "narrative-adrr")
         arias = _var_irf_arias(model, config, horizons, varnames, shock;
                                format=format, output=output, estimator=id,
@@ -417,9 +423,8 @@ function _irf_var(; data::String="", result=nothing, model=nothing, lags=nothing
 
     # Sign-identified set: return full draw set instead of point estimates
     if identified_set && id == "sign"
-        check_func, _ = _build_check_func(config)
-        isnothing(check_func) && throw(CliError("usage/missing-option",
-            "--identified-set requires a --config file with sign restrictions"))
+        check_func, _ = _build_check_func(config; nvars=n)
+        _check_sign_narrative_config_match(id, config, check_func, nothing, "irf var")
         set = identify_sign(model, horizons, check_func; max_draws=replications, store_all=true,
                             _fwd_seed()...)
         # W2/#166 (#746): set-identified summaries operate on the held set.
@@ -624,6 +629,7 @@ function _irf_bvar(; data::String="", result=nothing, lags::Int=4, shock::Int=1,
                             id, horizons, horizons_default=20)
     loaded === nothing || return _rerender_irf_result(loaded; format, output,
         title="Impulse Responses", key="bayesian_irf", plot, plot_save, shock)
+    _require_sign_narrative_config(id, config, "irf bvar")
     if isnothing(model)
         post, Y, varnames, p, n = _load_and_estimate_bvar(data, lags, config, draws, sampler)
     else
@@ -834,6 +840,7 @@ function _irf_vecm(; data::String="", result=nothing, lags::Int=2, rank::String=
                      key="vecm_irf", format=Symbol(format), output=output, shocks=shock_name)
         return (; model, result=irf_result)
     end
+    _require_sign_narrative_config(id, config, "irf vecm")
     if isnothing(model)
         vecm, Y, varnames, p = _load_and_estimate_vecm(data, lags, rank, deterministic, "johansen", 0.05)
         var_model = to_var(vecm)
@@ -998,6 +1005,7 @@ function _irf_favar(; data::String="", result=nothing, factors=nothing, lags::In
                             id, horizons, horizons_default=20)
     loaded === nothing || return _rerender_irf_result(loaded; format, output,
         title="Impulse Responses", key="favar_irf", plot, plot_save)
+    _require_sign_narrative_config(id, config, "irf favar")
     if isnothing(model)
         favar, Y, varnames = _load_and_estimate_favar(data, factors, lags, key_vars, "two_step", 5000)
     else

@@ -572,7 +572,7 @@ function _dsge_abcd_audit_irf(; file::String="", model=nothing, result=nothing,
     horizon >= 1 || throw(CliError("usage/invalid-option", "$leaf: --horizons must be >= 1 (got $horizon)"))
     max_draws >= 1 || throw(CliError("usage/invalid-option", "$leaf: --max-draws must be >= 1 (got $max_draws)"))
     id_map = Dict("best-rotation" => :best_rotation, "cholesky" => :cholesky,
-                  "long-run" => :long_run, "sign" => :sign)
+                  "long-run" => :long_run, "longrun" => :long_run, "sign" => :sign)
     haskey(id_map, id) || throw(CliError("usage/invalid-option",
         "$leaf: --id must be best-rotation|cholesky|long-run|sign (got '$id')"))
     id_sym = id_map[id]
@@ -931,7 +931,8 @@ function _w4_resolve_dsge_var_posterior(; file::String="", model=nothing,
 end
 
 function _w4_parse_dsgevar_id(id::String, leaf::String)::Symbol
-    id_map = Dict("dsge-qr" => :dsge_qr, "cholesky" => :cholesky, "long-run" => :long_run)
+    id_map = Dict("dsge-qr" => :dsge_qr, "cholesky" => :cholesky,
+                  "long-run" => :long_run, "longrun" => :long_run)
     haskey(id_map, id) || throw(CliError("usage/invalid-option",
         "$leaf: --id must be dsge-qr|cholesky|long-run (got '$id')"))
     return id_map[id]

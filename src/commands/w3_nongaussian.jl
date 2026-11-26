@@ -174,6 +174,48 @@ end
 
 # ── Downstream IRF / FEVD / HD Bridges for LMS-SVAR & Lanne-Luoto GMM ─────
 
+"""
+    _w3_lms_effective_var_and_Q(r::LMSSVARResult) -> (m_eff::VARModel, Q_ml::Matrix)
+
+Construct the ML-consistent reduced-form `VARModel` (`Pi`, `U = shocks * B0'`,
+`Sigma = B0 * B0'`) and exact orthogonal rotation `Q_ml = L_ml \\ B0` so that
+downstream `irf`/`fevd`/`historical_decomposition` reproduce ML `r.B0` at `h=1`
+exactly (matching `LanneLuotoGMMResult` upstream), rather than using the OLS
+dof-adjusted `var_ols.Sigma` and polar factor `r.Q`.
+"""
+function _w3_chol_lower(S::Matrix{T}) where {T<:AbstractFloat}
+    n = size(S, 1)
+    L = zeros(T, n, n)
+    @inbounds for i in 1:n
+        for j in 1:i
+            s = S[i, j]
+            for k in 1:(j - 1)
+                s -= L[i, k] * L[j, k]
+            end
+            if i == j
+                (isfinite(s) && s > zero(T)) || return nothing
+                L[i, j] = sqrt(s)
+            else
+                L[i, j] = s / L[j, j]
+            end
+        end
+    end
+    return L
+end
+
+function _w3_lms_effective_var_and_Q(r::LMSSVARResult{T}) where {T<:AbstractFloat}
+    B0_T = Matrix{T}(r.B0)
+    Sigma_raw = B0_T * transpose(B0_T)
+    Sigma_ml = Matrix{T}((Sigma_raw .+ transpose(Sigma_raw)) .* T(0.5))
+    U_ml = Matrix{T}(r.shocks * transpose(B0_T))
+    L_ml = _w3_chol_lower(Sigma_ml)
+    L_ml === nothing && return r.var_ols, Matrix{T}(r.Q)
+    Q_ml = Matrix{T}(L_ml \ B0_T)
+    m_eff = VARModel(r.var_ols.Y, r.var_ols.p, Matrix{T}(r.Pi), U_ml, Sigma_ml,
+                     r.var_ols.aic, r.var_ols.bic, r.var_ols.hqic, r.var_ols.varnames)
+    return m_eff, Q_ml
+end
+
 function _w3_preidentified_irf(model::Union{LMSSVARResult,LanneLuotoGMMResult};
                                horizons::Int, shock::Int, id::String,
                                ci::String, replications::Int,
@@ -218,7 +260,8 @@ function _w3_preidentified_irf(model::Union{LMSSVARResult,LanneLuotoGMMResult};
 
     irf_result = try
         if model isa LMSSVARResult
-            irf(model.var_ols, horizons; method=:svar, _svar_Q=model.Q,
+            m_eff, Q_ml = _w3_lms_effective_var_and_Q(model)
+            irf(m_eff, horizons; method=:svar, _svar_Q=Q_ml,
                 shock_names=model.shock_names, kw...)
         else
             irf(model, horizons; kw...)
@@ -246,7 +289,8 @@ function _w3_preidentified_fevd(model::Union{LMSSVARResult,LanneLuotoGMMResult};
         "fevd var: --generalized does not apply to $(nameof(typeof(model)))"))
     fevd_result = try
         if model isa LMSSVARResult
-            fevd(model.var_ols, horizons; method=:svar, _svar_Q=model.Q,
+            m_eff, Q_ml = _w3_lms_effective_var_and_Q(model)
+            fevd(m_eff, horizons; method=:svar, _svar_Q=Q_ml,
                  shock_names=model.shock_names)
         else
             fevd(model, horizons)
@@ -270,8 +314,9 @@ function _w3_preidentified_hd(model::Union{LMSSVARResult,LanneLuotoGMMResult};
     varnames = model isa LMSSVARResult ? _model_varnames(model.var_ols) : _model_varnames(model)
     hd_result = try
         if model isa LMSSVARResult
-            historical_decomposition(model.var_ols, size(model.shocks, 1);
-                                     method=:svar, _svar_Q=model.Q,
+            m_eff, Q_ml = _w3_lms_effective_var_and_Q(model)
+            historical_decomposition(m_eff, size(model.shocks, 1);
+                                     method=:svar, _svar_Q=Q_ml,
                                      shock_names=model.shock_names)
         else
             historical_decomposition(model)
@@ -334,6 +379,40 @@ function _estimate_lms_svar(; data::String, lags=nothing,
     _maybe_plot(res; plot=plot, plot_save=plot_save)
     _emit_result(res; title="LMS Non-Gaussian SVAR", key="lms_svar_estimates",
                  format=Symbol(format), output=output)
+
+    diag_pairs = Pair{String,Any}[
+        "method"          => string(res.method),
+        "se_type"         => string(res.se_type),
+        "nobs"            => size(res.shocks, 1),
+        "loglik"          => round(Float64(res.loglik); digits=6),
+        "loglik_gaussian" => round(Float64(res.loglik_gaussian); digits=6),
+        "aic"             => round(Float64(res.aic); digits=4),
+        "bic"             => round(Float64(res.bic); digits=4),
+        "converged"       => res.converged,
+        "iterations"      => res.iterations,
+    ]
+    for i in eachindex(res.distributions)
+        sname = i <= length(res.shock_names) ? res.shock_names[i] : "shock_$i"
+        d = res.distributions[i]
+        dp = i <= length(res.dist_params) ? res.dist_params[i] : Float64[]
+        push!(diag_pairs, "distribution[$sname]" => string(d))
+        if d === :student_t && length(dp) >= 1
+            push!(diag_pairs, "nu[$sname]" => round(Float64(dp[1]); digits=6))
+        elseif d === :skewed_t && length(dp) >= 2
+            push!(diag_pairs, "nu[$sname]" => round(Float64(dp[1]); digits=6))
+            push!(diag_pairs, "eta[$sname]" => round(Float64(dp[2]); digits=6))
+        elseif d === :ged && length(dp) >= 1
+            push!(diag_pairs, "kappa[$sname]" => round(Float64(dp[1]); digits=6))
+        elseif d === :skew_normal && length(dp) >= 1
+            push!(diag_pairs, "alpha[$sname]" => round(Float64(dp[1]); digits=6))
+        elseif !isempty(dp)
+            push!(diag_pairs, "dist_params[$sname]" => join([string(round(Float64(v); digits=6)) for v in dp], ", "))
+        end
+    end
+    output_kv(diag_pairs; format=format,
+              output=_per_var_output_path(output, "diagnostics"),
+              title="LMS Non-Gaussian SVAR Diagnostics",
+              key="lms_svar_diagnostics")
     return res
 end
 
@@ -985,8 +1064,12 @@ function w3_estimate_specs()::Vector{CommandSpec}
                 PLOT_OPTIONS...,
             ],
             flags=[PLOT_FLAGS...],
-            tables=[TableSpec(name=:lms_svar_estimates,
-                              description="LMS non-Gaussian SVAR impact matrix B0 and scale estimates with standard errors")],
+            tables=[
+                TableSpec(name=:lms_svar_estimates,
+                          description="LMS non-Gaussian SVAR impact matrix B0 and scale estimates with standard errors"),
+                TableSpec(name=:lms_svar_diagnostics,
+                          description="LMS non-Gaussian SVAR model diagnostics: log-likelihood, Gaussian log-likelihood, AIC, BIC, convergence, iterations, and per-shock distribution parameters (e.g., Student-t nu)"),
+            ],
             category="estimate",
             handler=wrap_legacy(_estimate_lms_svar),
         ),

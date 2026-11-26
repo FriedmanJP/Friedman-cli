@@ -27,7 +27,7 @@ function fevd_specs()::Vector{CommandSpec}
                 OptionSpec(name="horizons", type=Int, default=20, description="Forecast horizon"),
                 OptionSpec(name="id", type=String, default="cholesky", description="cholesky|sign|narrative|longrun|arias|uhlig|proxy|max-share|gmm-moments|narrative-adrr|lewis-tvv|sv-em|fastica|jade|sobi|dcov|hsic|cvm|student-t|mixture-normal|mixture-normal-asym|pml|skew-normal|lms|markov-switching|garch-id"),
                 OptionSpec(name="config", type=String, default="", description="TOML config for identification"),
-                OptionSpec(name="instrument", type=String, default="", description="Proxy-instrument CSV column (only with --id proxy)"),
+                OptionSpec(name="instrument", type=String, default="", description="Proxy-instrument column name inside <data> (not a file path; only with --id proxy)"),
                 OptionSpec(name="target-var", type=String, default="", description="Max-share target: column name or 1-based index (only with --id max-share)"),
                 OptionSpec(name="output", short="o", type=String, default="", description="Export results to file"),
                 OptionSpec(name="format", short="f", type=String, default="table", description="table|csv|json", choices=["table","csv","json"]),
@@ -162,7 +162,7 @@ function fevd_specs()::Vector{CommandSpec}
                 OptionSpec(name="q-method", type=String, default="hallin-liska", description="Auto factor selection: hallin-liska|bai-ng|amengual-watson", choices=["hallin-liska","bai-ng","amengual-watson"]),
                 OptionSpec(name="method", type=String, default="fglr", description="Estimator: fglr|fhlz|gdfm-var (fhlz is one-sided infinite-r; gdfm-var is legacy)", choices=["fglr","fhlz","gdfm-var"]),
                 OptionSpec(name="spectral", type=String, default="lag-window", description="GDFM spectrum: lag-window (FHLR)|smoothed-periodogram", choices=["lag-window","smoothed-periodogram"]),
-                OptionSpec(name="instrument", type=String, default="", description="Proxy-instrument CSV column (only with --id proxy)"),
+                OptionSpec(name="instrument", type=String, default="", description="Proxy-instrument column name inside <data> (not a file path; only with --id proxy)"),
                 OptionSpec(name="var-lags", type=String, default="auto", description="Factor VAR lag order (positive integer or auto|aic|bic|hq)"),
                 OptionSpec(name="n-perm", type=Int, default=30, description="Cross-sectional permutations for --method fhlz"),
                 OptionSpec(name="p-max", type=Int, default=nothing, description="Maximum lag order for automatic/FHLZ lag selection"),
@@ -243,6 +243,7 @@ function _fevd_var(; data::String="", result=nothing, model=nothing, lags=nothin
                      format=Symbol(format), output=output)
         return (; model, result=fevd_result)
     end
+    generalized || _require_sign_narrative_config(id, config, "fevd var")
     if isnothing(model)
         model, Y, varnames, p = _load_and_estimate_var(data, lags)
     else
@@ -406,6 +407,7 @@ function _fevd_bvar(; data::String="", result=nothing, lags::Int=4, horizons::In
     loaded === nothing || return _rerender_fevd_result(loaded; format, output,
         title="Bayesian FEVD", key="bayesian_fevd", plot, plot_save,
         key_prefix="bayesian_fevd")
+    _require_sign_narrative_config(id, config, "fevd bvar")
     if isnothing(model)
         post, Y, varnames, p, n = _load_and_estimate_bvar(data, lags, config, draws, sampler)
     else
@@ -511,6 +513,7 @@ function _fevd_vecm(; data::String="", result=nothing, lags::Int=2, rank::String
                      format=Symbol(format), output=output)
         return (; model, result=fevd_result)
     end
+    _require_sign_narrative_config(id, config, "fevd vecm")
     if isnothing(model)
         vecm, Y, varnames, p = _load_and_estimate_vecm(data, lags, rank, deterministic, "johansen", 0.05)
         var_model = to_var(vecm)
@@ -628,6 +631,7 @@ function _fevd_favar(; data::String="", result=nothing, factors=nothing, lags::I
                             id, horizons, horizons_default=20)
     loaded === nothing || return _rerender_fevd_result(loaded; format, output,
         title="Forecast Error Variance Decomposition", key="favar_fevd", plot, plot_save)
+    _require_sign_narrative_config(id, config, "fevd favar")
     if isnothing(model)
         favar, Y, varnames = _load_and_estimate_favar(data, factors, lags, key_vars, "two_step", 5000)
     else
