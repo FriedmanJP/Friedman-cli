@@ -4059,7 +4059,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             sm = named_table(ra.doc, :sdfm_estimation_summary)
             @test sm !== nothing
             if sm !== nothing
-                mets = Dict(String(collect(r)[1]) => String(collect(r)[2])
+                mets = Dict(String(collect(r)[1]) => string(collect(r)[2])
                             for r in table_rows(sm))
                 @test parse(Int, mets["dynamic_factors"]) >= 1
             end
@@ -4169,7 +4169,7 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         sm = named_table(re.doc, :sdfm_estimation_summary)
         @test sm !== nothing
         if sm !== nothing
-            mets = Dict(String(collect(r)[1]) => String(collect(r)[2])
+            mets = Dict(String(collect(r)[1]) => string(collect(r)[2])
                         for r in table_rows(sm))
             @test mets["dynamic_factors"] == "2"
             @test mets["identification"] == "cholesky"

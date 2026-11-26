@@ -1902,8 +1902,8 @@ function _rerender_test_result(result; format::String="table", output::String=""
     if tn === :JohansenResult
         trace_df = DataFrame(
             rank=0:(length(result.trace_stats)-1),
-            trace_stat=round.(result.trace_stats; digits=4),
-            p_value=round.(result.trace_pvalues; digits=4),
+            trace_stat=result.trace_stats,
+            p_value=result.trace_pvalues,
             reject=[p < 0.05 ? "yes" : "no" for p in result.trace_pvalues],
         )
         output_result(trace_df; format=Symbol(format),
@@ -1911,8 +1911,8 @@ function _rerender_test_result(result; format::String="table", output::String=""
                       title="Johansen Trace Test")
         maxeig_df = DataFrame(
             rank=0:(length(result.max_eigen_stats)-1),
-            max_stat=round.(result.max_eigen_stats; digits=4),
-            p_value=round.(result.max_eigen_pvalues; digits=4),
+            max_stat=result.max_eigen_stats,
+            p_value=result.max_eigen_pvalues,
             reject=[p < 0.05 ? "yes" : "no" for p in result.max_eigen_pvalues],
         )
         output_result(maxeig_df; format=Symbol(format),
@@ -1924,24 +1924,24 @@ function _rerender_test_result(result; format::String="table", output::String=""
     elseif tn === :VECMGrangerResult
         test_df = DataFrame(
             test=["Short-run", "Long-run", "Strong (joint)"],
-            statistic=round.([result.short_run_stat, result.long_run_stat, result.strong_stat]; digits=4),
+            statistic=[result.short_run_stat, result.long_run_stat, result.strong_stat],
             df=[result.short_run_df, result.long_run_df, result.strong_df],
-            p_value=round.([result.short_run_pvalue, result.long_run_pvalue, result.strong_pvalue]; digits=4),
+            p_value=[result.short_run_pvalue, result.long_run_pvalue, result.strong_pvalue],
         )
         output_result(test_df; format=Symbol(format), output=output,
                       title="Granger Causality", key="granger_causality")
     elseif tn === :VarianceRatioResult
         df = DataFrame(
             horizon=result.q,
-            variance_ratio=round.(Float64.(result.vr); digits=4),
-            z_star=round.(Float64.(result.z_star); digits=4),
-            p_value=round.(Float64.(result.z_star_pvalue); digits=4),
+            variance_ratio=Float64.(result.vr),
+            z_star=Float64.(result.z_star),
+            p_value=Float64.(result.z_star_pvalue),
         )
         output_result(df; format=Symbol(format), output=output,
                       title="Variance-Ratio Test", key="variance_ratio_test")
         output_kv(Pair{String,Any}[
-            "Chow-Denning stat" => round(Float64(result.cd_star_stat); digits=4),
-            "Chow-Denning p-value" => round(Float64(result.cd_star_pvalue); digits=4),
+            "Chow-Denning stat" => Float64(result.cd_star_stat),
+            "Chow-Denning p-value" => Float64(result.cd_star_pvalue),
             "robust" => result.robust,
             "observations" => result.nobs,
         ]; format=format, output=_per_var_output_path(output, "summary"),
@@ -1949,40 +1949,40 @@ function _rerender_test_result(result; format::String="table", output::String=""
     elseif tn === :BDSResult
         df = DataFrame(
             embed_dim=result.m,
-            statistic=round.(Float64.(vec(result.statistic)); digits=4),
-            p_value=round.(Float64.(vec(result.pvalue)); digits=4),
+            statistic=Float64.(vec(result.statistic)),
+            p_value=Float64.(vec(result.pvalue)),
         )
         output_result(df; format=Symbol(format), output=output,
                       title="BDS Test", key="bds_test")
     elseif tn === :ADFResult
         output_kv(Pair{String,Any}[
-            "Test statistic" => round(result.statistic; digits=4),
+            "Test statistic" => result.statistic,
             "Lags" => result.lags,
-            "p-value" => round(result.pvalue; digits=4),
+            "p-value" => result.pvalue,
         ]; format=format, output=output, title="ADF Test", key="adf_test")
     elseif tn === :KPSSResult
         output_kv(Pair{String,Any}[
-            "Test statistic" => round(result.statistic; digits=4),
+            "Test statistic" => result.statistic,
         ]; format=format, output=output, title="KPSS Test", key="kpss_test")
     elseif tn === :PPResult
         output_kv(Pair{String,Any}[
-            "Test statistic" => round(result.statistic; digits=4),
-            "p-value" => round(result.pvalue; digits=4),
+            "Test statistic" => result.statistic,
+            "p-value" => result.pvalue,
         ]; format=format, output=output, title="Phillips-Perron Test",
             key="phillips_perron_test")
     elseif tn === :ZAResult
         pairs = Pair{String,Any}[
-            "Test statistic" => round(result.statistic; digits=4),
+            "Test statistic" => result.statistic,
             "Break index" => result.break_index,
             "Lags" => result.lags,
-            "p-value" => round(result.pvalue; digits=4),
+            "p-value" => result.pvalue,
         ]
         output_kv(pairs; format=format, output=output, title="Zivot-Andrews Test",
                   key=isempty(key) ? "zivot_andrews_test" : key)
     elseif tn === :LjungBoxResult
         output_kv(Pair{String,Any}[
-            "Q-statistic" => round(result.statistic; digits=4),
-            "p-value" => round(result.pvalue; digits=4),
+            "Q-statistic" => result.statistic,
+            "p-value" => result.pvalue,
             "Lags" => result.lags,
         ]; format=format, output=output, title="Ljung-Box Test",
             key=isempty(key) ? "ljung_box_test" : key)
@@ -2061,9 +2061,9 @@ function _test_adf(; data::String, column::Int=1, max_lags=nothing,
     end
 
     pairs = Pair{String,Any}[
-        "Test statistic" => round(result.statistic; digits=4),
+        "Test statistic" => result.statistic,
         "Lags" => result.lags,
-        "p-value" => round(result.pvalue; digits=4),
+        "p-value" => result.pvalue,
     ]
 
     output_kv(pairs; format=format, output=output, title="ADF Test: $vname",
@@ -2091,7 +2091,7 @@ function _test_kpss(; data::String, column::Int=1, trend::String="constant",
     end
 
     pairs = Pair{String,Any}[
-        "Test statistic" => round(result.statistic; digits=4),
+        "Test statistic" => result.statistic,
     ]
 
     output_kv(pairs; format=format, output=output, title="KPSS Test: $vname",
@@ -2123,8 +2123,8 @@ function _test_pp(; data::String, column::Int=1, trend::String="constant",
     end
 
     pairs = Pair{String,Any}[
-        "Test statistic" => round(result.statistic; digits=4),
-        "p-value" => round(result.pvalue; digits=4),
+        "Test statistic" => result.statistic,
+        "p-value" => result.pvalue,
     ]
 
     output_kv(pairs; format=format, output=output, title="Phillips-Perron Test: $vname",
@@ -2151,7 +2151,7 @@ function _test_za(; data::String, column::Int=1, trend::String="both",
     end
 
     pairs = Pair{String,Any}[
-        "Test statistic" => round(result.statistic; digits=4),
+        "Test statistic" => result.statistic,
         "Break date" => result.break_index,
     ]
 
@@ -2178,10 +2178,10 @@ function _test_np(; data::String, column::Int=1, trend::String="constant",
     end
 
     pairs = Pair{String,Any}[
-        "MZa statistic" => round(result.MZa; digits=4),
-        "MZt statistic" => round(result.MZt; digits=4),
-        "MSB statistic" => round(result.MSB; digits=4),
-        "MPT statistic" => round(result.MPT; digits=4),
+        "MZa statistic" => result.MZa,
+        "MZt statistic" => result.MZt,
+        "MSB statistic" => result.MSB,
+        "MPT statistic" => result.MPT,
     ]
 
     output_kv(pairs; format=format, output=output, title="Ng-Perron Test: $vname",
@@ -2208,10 +2208,10 @@ function _test_gph(; data::String, column::Int=1, bandwidth=nothing, trim::Int=0
     end
 
     pairs = Pair{String,Any}[
-        "d (long-memory)" => round(result.d; digits=4),
-        "Std. error" => round(result.se; digits=4),
-        "z-statistic" => round(result.tstat; digits=4),
-        "p-value" => round(result.pval; digits=4),
+        "d (long-memory)" => result.d,
+        "Std. error" => result.se,
+        "z-statistic" => result.tstat,
+        "p-value" => result.pval,
         "Frequencies (m)" => result.m,
         "Trimmed" => result.trim,
         "Observations" => result.n,
@@ -2241,13 +2241,13 @@ function _test_local_whittle(; data::String, column::Int=1, bandwidth=nothing,
     end
 
     pairs = Pair{String,Any}[
-        "d (long-memory)" => round(result.d; digits=4),
-        "Std. error" => round(result.se; digits=4),
-        "z-statistic" => round(result.tstat; digits=4),
-        "p-value" => round(result.pval; digits=4),
+        "d (long-memory)" => result.d,
+        "Std. error" => result.se,
+        "z-statistic" => result.tstat,
+        "p-value" => result.pval,
         "Frequencies (m)" => result.m,
         "Observations" => result.n,
-        "Objective R(d)" => round(result.objective; digits=4),
+        "Objective R(d)" => result.objective,
     ]
 
     output_kv(pairs; format=format, output=output, title="Local Whittle Test: $vname",
@@ -2273,8 +2273,8 @@ function _test_johansen(; data::String, lags::Int=2, trend::String="constant",
 
     trace_df = DataFrame(
         rank=0:(length(result.trace_stats)-1),
-        trace_stat=round.(result.trace_stats; digits=4),
-        p_value=round.(result.trace_pvalues; digits=4),
+        trace_stat=result.trace_stats,
+        p_value=result.trace_pvalues,
         reject=[p < 0.05 ? "yes" : "no" for p in result.trace_pvalues]
     )
     output_result(trace_df; format=Symbol(format),
@@ -2284,8 +2284,8 @@ function _test_johansen(; data::String, lags::Int=2, trend::String="constant",
 
     maxeig_df = DataFrame(
         rank=0:(length(result.max_eigen_stats)-1),
-        max_stat=round.(result.max_eigen_stats; digits=4),
-        p_value=round.(result.max_eigen_pvalues; digits=4),
+        max_stat=result.max_eigen_stats,
+        p_value=result.max_eigen_pvalues,
         reject=[p < 0.05 ? "yes" : "no" for p in result.max_eigen_pvalues]
     )
     output_result(maxeig_df; format=Symbol(format),
@@ -2370,8 +2370,8 @@ function _test_identifiability(; data::String, lags=nothing, test::String="all",
         str_result = test_identification_strength(model; _fwd_seed()...)
         push!(results_df, (
             test="Identification Strength",
-            statistic=round(str_result.statistic; digits=4),
-            p_value=round(str_result.pvalue; digits=4),
+            statistic=str_result.statistic,
+            p_value=str_result.pvalue,
             conclusion=str_result.pvalue < 0.05 ? "Strong identification" : "Weak identification"
         ))
     end
@@ -2397,8 +2397,8 @@ function _test_identifiability(; data::String, lags=nothing, test::String="all",
         gauss_result = test_shock_gaussianity(ica_result)
         push!(results_df, (
             test="Shock Gaussianity",
-            statistic=round(gauss_result.statistic; digits=4),
-            p_value=round(gauss_result.pvalue; digits=4),
+            statistic=gauss_result.statistic,
+            p_value=gauss_result.pvalue,
             conclusion=gauss_result.pvalue < 0.05 ? "Reject Gaussianity" : "Cannot reject Gaussianity"
         ))
     end
@@ -2407,8 +2407,8 @@ function _test_identifiability(; data::String, lags=nothing, test::String="all",
         indep_result = test_shock_independence(ica_result; _fwd_seed()...)
         push!(results_df, (
             test="Shock Independence",
-            statistic=round(indep_result.statistic; digits=4),
-            p_value=round(indep_result.pvalue; digits=4),
+            statistic=indep_result.statistic,
+            p_value=indep_result.pvalue,
             conclusion=indep_result.pvalue < 0.05 ? "Reject independence" : "Cannot reject independence"
         ))
     end
@@ -2417,8 +2417,8 @@ function _test_identifiability(; data::String, lags=nothing, test::String="all",
         overid_result = test_overidentification(model, ica_result; _fwd_seed()...)
         push!(results_df, (
             test="Overidentification",
-            statistic=round(overid_result.statistic; digits=4),
-            p_value=round(overid_result.pvalue; digits=4),
+            statistic=overid_result.statistic,
+            p_value=overid_result.pvalue,
             conclusion=overid_result.pvalue < 0.05 ? "Reject overidentification" : "Cannot reject overidentification"
         ))
     end
@@ -2432,8 +2432,8 @@ function _test_identifiability(; data::String, lags=nothing, test::String="all",
         bonf = collect(Float64, lam.pvalue_bonferroni)
         push!(results_df, (
             test="Lambda Distinctness",
-            statistic=round(maximum(stats); digits=4),
-            p_value=round(minimum(bonf); digits=4),
+            statistic=maximum(stats),
+            p_value=minimum(bonf),
             conclusion=all(b -> b < 0.05, bonf) ? "Eigenvalues distinct" : "Some eigenvalues indistinguishable"
         ))
     end
@@ -2443,8 +2443,8 @@ function _test_identifiability(; data::String, lags=nothing, test::String="all",
         n_gaussian = gc_result.details[:n_gaussian]
         push!(results_df, (
             test="Gaussian Shock Count",
-            statistic=round(Float64(gc_result.statistic); digits=4),
-            p_value=round(Float64(gc_result.pvalue); digits=4),
+            statistic=Float64(gc_result.statistic),
+            p_value=Float64(gc_result.pvalue),
             conclusion=n_gaussian <= 1 ? "At most one Gaussian shock" : "$n_gaussian Gaussian shocks"
         ))
     end
@@ -2455,7 +2455,7 @@ function _test_identifiability(; data::String, lags=nothing, test::String="all",
         # Label stability carries no p-value (match fraction only); NaN renders
         # as null in JSON and never counts toward the 5% summary below.
         ls_result = test_label_stability(model; method=Symbol(method), n_bootstrap=n_bootstrap)
-        frac = round(Float64(ls_result.statistic); digits=4)
+        frac = Float64(ls_result.statistic)
         push!(results_df, (
             test="Label Stability",
             statistic=frac,
@@ -2468,8 +2468,8 @@ function _test_identifiability(; data::String, lags=nothing, test::String="all",
         comp_result = test_gaussian_vs_nongaussian(model)
         push!(results_df, (
             test="Gaussian vs Non-Gaussian",
-            statistic=round(comp_result.statistic; digits=4),
-            p_value=round(comp_result.pvalue; digits=4),
+            statistic=comp_result.statistic,
+            p_value=comp_result.pvalue,
             conclusion=comp_result.pvalue < 0.05 ? "Non-Gaussian preferred" : "No significant difference"
         ))
     end
@@ -2548,8 +2548,8 @@ function _test_arch_lm(; data::String="", model=nothing, column::Int=1, lags::In
     result = arch_lm_test(y, lags)
 
     pairs = Pair{String,Any}[
-        "LM statistic" => round(result.statistic; digits=4),
-        "p-value" => round(result.pvalue; digits=4),
+        "LM statistic" => result.statistic,
+        "p-value" => result.pvalue,
         "Lags" => lags,
     ]
 
@@ -2574,8 +2574,8 @@ function _test_ljung_box(; data::String="", model=nothing, column::Int=1, lags::
     result = ljung_box_squared(y, lags)
 
     pairs = Pair{String,Any}[
-        "Q statistic" => round(result.statistic; digits=4),
-        "p-value" => round(result.pvalue; digits=4),
+        "Q statistic" => result.statistic,
+        "p-value" => result.pvalue,
         "Lags" => lags,
     ]
 
@@ -2620,15 +2620,15 @@ function _test_sign_bias(; data::String, column::Int=1, model::String="garch",
         throw(_garch_variant_error(e, "sign-bias test"))
     end
     pairs = Pair{String,Any}[
-        "sign_bias" => round(result.sign_bias; digits=4),
-        "sign_bias_t" => round(result.sign_bias_t; digits=4),
-        "sign_bias_p" => round(result.sign_bias_p; digits=4),
-        "neg_size_t" => round(result.neg_size_t; digits=4),
-        "neg_size_p" => round(result.neg_size_p; digits=4),
-        "pos_size_t" => round(result.pos_size_t; digits=4),
-        "pos_size_p" => round(result.pos_size_p; digits=4),
-        "joint_statistic" => round(result.joint_statistic; digits=4),
-        "joint_pvalue" => round(result.joint_pvalue; digits=4),
+        "sign_bias" => result.sign_bias,
+        "sign_bias_t" => result.sign_bias_t,
+        "sign_bias_p" => result.sign_bias_p,
+        "neg_size_t" => result.neg_size_t,
+        "neg_size_p" => result.neg_size_p,
+        "pos_size_t" => result.pos_size_t,
+        "pos_size_p" => result.pos_size_p,
+        "joint_statistic" => result.joint_statistic,
+        "joint_pvalue" => result.joint_pvalue,
         "dof" => result.dof,
     ]
     output_kv(pairs; format=format, output=output, title="Sign-Bias Test: $vname ($model)",
@@ -2656,16 +2656,16 @@ function _test_nyblom(; data::String, column::Int=1, model::String="garch",
     end
     # Headline: per-parameter individual Lᵢ vs the Hansen (1992) 5% critical value (≈0.470).
     df = DataFrame(parameter=result.param_names,
-                   L_stat=round.(Float64.(result.individual); digits=4),
-                   cv_5pct=fill(round(Float64(result.cv_individual); digits=3), length(result.individual)),
+                   L_stat=Float64.(result.individual),
+                   cv_5pct=fill(Float64(result.cv_individual), length(result.individual)),
                    reject_5pct=Float64.(result.individual) .> Float64(result.cv_individual))
     output_result(df; format=Symbol(format), output=output,
                   title="Nyblom Individual Stability: $vname ($model)",
                   key="nyblom_individual_stability")
     reject_joint = Float64(result.joint) > Float64(result.cv_joint)
     output_kv(Pair{String,Any}[
-        "joint_LC" => round(Float64(result.joint); digits=4),
-        "cv_joint_5pct" => round(Float64(result.cv_joint); digits=4),
+        "joint_LC" => Float64(result.joint),
+        "cv_joint_5pct" => Float64(result.cv_joint),
         "n_params" => result.k,
         "reject_joint_5pct" => reject_joint,
     ]; format=format, output=_per_var_output_path(output, "joint"),
@@ -2723,15 +2723,13 @@ function _test_weak_instrument(; data::String, dep::String="", endogenous::Strin
 
     pairs = Pair{String,Any}["n_endogenous" => length(endog_idx),
                              "n_excluded_instruments" => n_excl]
-    # Non-finite diagnostics render as strings (legacy JSON writer rejects NaN/Inf floats).
-    _fnum(x) = isfinite(x) ? round(Float64(x); digits=4) : string(Float64(x))
-    fs_f !== nothing && push!(pairs, "first_stage_f" => _fnum(fs_f))
-    (cd_f !== nothing) && push!(pairs, "cragg_donald_f" => _fnum(cd_f))
-    (kp_f !== nothing) && push!(pairs, "kleibergen_paap_f" => _fnum(kp_f))
+    fs_f !== nothing && push!(pairs, "first_stage_f" => Float64(fs_f))
+    (cd_f !== nothing) && push!(pairs, "cragg_donald_f" => Float64(cd_f))
+    (kp_f !== nothing) && push!(pairs, "kleibergen_paap_f" => Float64(kp_f))
     if sy !== nothing
-        push!(pairs, "stock_yogo_10pct_cv" => round(Float64(sy); digits=4))
+        push!(pairs, "stock_yogo_10pct_cv" => Float64(sy))
     else
-        push!(pairs, "threshold" => round(threshold; digits=4))
+        push!(pairs, "threshold" => threshold)
     end
     push!(pairs, "weak" => weak)
     output_kv(pairs; format=format, output=output,
@@ -2825,9 +2823,9 @@ function _test_anderson_rubin(; data::String, dep::String="", endogenous::String
     output_kv(Pair{String,Any}[
         "n_endogenous"          => n_endog,
         "n_excluded_instruments"=> length(d.inst_names),
-        "beta0"                 => join(string.(round.(b0; digits=6)), ","),
-        "statistic"             => round(Float64(art.statistic); digits=6),
-        "p_value"               => round(Float64(art.p_value); digits=6),
+        "beta0"                 => join(string.(b0), ","),
+        "statistic"             => Float64(art.statistic),
+        "p_value"               => Float64(art.p_value),
         "df1"                   => art.df1,
         "df2"                   => art.df2,
         "distribution"          => string(art.distribution),
@@ -2863,12 +2861,12 @@ function _test_anderson_rubin(; data::String, dep::String="", endogenous::String
                 "is_empty"        => ci.is_empty,
                 "is_whole_line"   => ci.is_whole_line,
                 "level"           => Float64(ci.level),
-                "critical_value"  => round(Float64(ci.critical_value); digits=6),
-                "grid_lo"         => round(Float64(ci.grid_lo); digits=6),
-                "grid_hi"         => round(Float64(ci.grid_hi); digits=6),
-                "estimate_2sls"   => round(Float64(ci.estimate); digits=6),
-                "wald_lower"      => round(Float64(ci.wald_lower); digits=6),
-                "wald_upper"      => round(Float64(ci.wald_upper); digits=6),
+                "critical_value"  => Float64(ci.critical_value),
+                "grid_lo"         => Float64(ci.grid_lo),
+                "grid_hi"         => Float64(ci.grid_hi),
+                "estimate_2sls"   => Float64(ci.estimate),
+                "wald_lower"      => Float64(ci.wald_lower),
+                "wald_upper"      => Float64(ci.wald_upper),
             ]; format=format, output=_per_var_output_path(output, "ar_set_summary"),
                title="Anderson-Rubin Set Summary")
             ci.is_empty && _status_styled(
@@ -2979,12 +2977,12 @@ function _test_wild_cluster(; data::String, dep::String="", clusters::String="",
 
     pairs = Pair{String,Any}[
         "coefficient"             => b.coefname,
-        "estimate"                => round(Float64(b.estimate); digits=6),
+        "estimate"                => Float64(b.estimate),
         "null_value"              => Float64(b.null_value),
-        "t_statistic"             => round(Float64(b.t_stat); digits=6),
-        "p_bootstrap_symmetric"   => round(Float64(b.p_value); digits=6),
-        "p_bootstrap_equaltail"   => round(Float64(b.p_value_equaltail); digits=6),
-        "p_cluster_robust_normal" => round(Float64(b.p_value_asymptotic); digits=6),
+        "t_statistic"             => Float64(b.t_stat),
+        "p_bootstrap_symmetric"   => Float64(b.p_value),
+        "p_bootstrap_equaltail"   => Float64(b.p_value_equaltail),
+        "p_cluster_robust_normal" => Float64(b.p_value_asymptotic),
         "n_clusters"              => b.n_clusters,
         "n_boot"                  => b.n_boot,
         "weights"                 => string(b.weighttype),
@@ -2993,8 +2991,8 @@ function _test_wild_cluster(; data::String, dep::String="", clusters::String="",
     ]
     if !no_ci && isfinite(b.ci_lower)
         push!(pairs, "level" => Float64(b.level))
-        push!(pairs, "ci_lower" => round(Float64(b.ci_lower); digits=6))
-        push!(pairs, "ci_upper" => round(Float64(b.ci_upper); digits=6))
+        push!(pairs, "ci_lower" => Float64(b.ci_lower))
+        push!(pairs, "ci_upper" => Float64(b.ci_upper))
     end
     output_kv(pairs; format=format, output=output,
               title="Wild Cluster Bootstrap: $(b.coefname)",
@@ -3060,9 +3058,9 @@ p-value rejects the imposed restriction. `key` is the caller leaf's registry-dec
 table name — the title carries the series list, which must not reach the envelope key."""
 function _vecm_restriction_output(res, label, vname; key, format, output)
     pairs = Pair{String,Any}[
-        "LR statistic" => round(Float64(res.lr_stat); digits=4),
+        "LR statistic" => Float64(res.lr_stat),
         "df"           => res.df,
-        "p-value"      => round(Float64(res.pvalue); digits=4),
+        "p-value"      => Float64(res.pvalue),
         "rank (r)"     => res.rank,
         "converged"    => res.converged,
         "restriction"  => res.description,
@@ -3240,14 +3238,14 @@ function _test_variance_ratio(; data::String, column::Int=1, horizons::String="2
     # z*-stats, matching the robust=true default. The joint headline is the robust
     # Chow–Denning max|z*| (cd_star_*) — exactly StatsAPI.pvalue(res) when robust=true,
     # so it stays internally consistent with the robust z* above.
-    df = DataFrame(horizon=res.q, variance_ratio=round.(Float64.(res.vr); digits=4),
-                   z_star=round.(Float64.(res.z_star); digits=4),
-                   p_value=round.(Float64.(res.z_star_pvalue); digits=4))
+    df = DataFrame(horizon=res.q, variance_ratio=Float64.(res.vr),
+                   z_star=Float64.(res.z_star),
+                   p_value=Float64.(res.z_star_pvalue))
     output_result(df; format=Symbol(format), output=output, title="Variance-Ratio Test: $vname",
                   key="variance_ratio_test")
     output_kv(Pair{String,Any}[
-        "Chow-Denning stat" => round(Float64(res.cd_star_stat); digits=4),
-        "Chow-Denning p-value" => round(Float64(res.cd_star_pvalue); digits=4),
+        "Chow-Denning stat" => Float64(res.cd_star_stat),
+        "Chow-Denning p-value" => Float64(res.cd_star_pvalue),
         "robust" => res.robust,
         "observations" => res.nobs];
         format=format, output=_per_var_output_path(output, "summary"), title="Joint Random-Walk Test")
@@ -3271,8 +3269,8 @@ function _test_bds(; data::String, column::Int=1, max_dim::Int=6, eps_frac::Floa
     # res.statistic / res.pvalue are (n_dims × n_eps) matrices; a single scalar
     # --eps-frac ⇒ one ε column, so flatten to per-dimension vectors aligned with res.m.
     df = DataFrame(embed_dim=res.m,
-                   statistic=round.(Float64.(vec(res.statistic)); digits=4),
-                   p_value=round.(Float64.(vec(res.pvalue)); digits=4))
+                   statistic=Float64.(vec(res.statistic)),
+                   p_value=Float64.(vec(res.pvalue)))
     output_result(df; format=Symbol(format), output=output, title="BDS Test: $vname",
                   key="bds_test")
     interpret_test_result(minimum(Float64.(res.pvalue)),
@@ -3322,7 +3320,7 @@ end
 
 """Render a `Dict{Int,<:Real}` of critical values as sorted `"CV 1%" => x` pairs."""
 _cv_pairs(cv) = Pair{String,Any}[
-    "CV $(k)%" => round(Float64(cv[k]); digits=4) for k in sort(collect(keys(cv)))]
+    "CV $(k)%" => Float64(cv[k]) for k in sort(collect(keys(cv)))]
 
 # HEGY (1990) seasonal unit roots. Rejection is per-frequency, so the headline is a
 # frequency-by-frequency table (zero / Nyquist / harmonic pairs), not one p-value.
@@ -3361,15 +3359,15 @@ function _test_hegy(; data::String, column::Int=1, frequency::Int=4,
         push!(decs, _hegy_decision(Float64(res.pair_F[i]), pf_cv, :right))
     end
     output_result(DataFrame(frequency=labels, kind=kinds,
-                            statistic=round.(stats; digits=4),
-                            cv_5pct=[isfinite(c) ? round(c; digits=4) : "n/a" for c in cvs],
+                            statistic=stats,
+                            cv_5pct=[isfinite(c) ? c : "n/a" for c in cvs],
                             decision=decs);
                   format=Symbol(format), output=output,
                   title="HEGY Seasonal Unit-Root Test: $vname",
                   key="hegy_seasonal_unit_root_test")
     output_kv(Pair{String,Any}[
-        "F (seasonal, joint)" => round(Float64(res.F_seasonal); digits=4),
-        "F (all roots)" => round(Float64(res.F_all); digits=4),
+        "F (seasonal, joint)" => Float64(res.F_seasonal),
+        "F (all roots)" => Float64(res.F_all),
         "deterministic" => String(res.deterministic),
         "lags" => res.lags,
         "observations" => res.nobs];
@@ -3400,8 +3398,8 @@ function _test_ers(; data::String, column::Int=1, trend::Bool=false,
         throw(_teststat_error(e, "ERS point-optimal test"))
     end
     pairs = Pair{String,Any}[
-        "P_T statistic" => round(Float64(res.P_T); digits=4),
-        "p-value" => round(Float64(res.pvalue); digits=4),
+        "P_T statistic" => Float64(res.P_T),
+        "p-value" => Float64(res.pvalue),
         "regression" => String(res.regression),
         "observations" => res.nobs,
     ]
@@ -3446,10 +3444,10 @@ function _bubble_leaf(fn, label::String; key::String, data::String, column::Int,
     output_result(eps_df; format=Symbol(format), output=output,
                   title="Explosive Episodes ($(uppercase(label))): $vname", key=key)
     pairs = Pair{String,Any}[
-        "statistic" => round(Float64(res.statistic); digits=4),
-        "p-value" => round(Float64(res.pvalue); digits=4),
+        "statistic" => Float64(res.statistic),
+        "p-value" => Float64(res.pvalue),
         "kind" => String(res.kind),
-        "r0" => round(Float64(res.r0); digits=4),
+        "r0" => Float64(res.r0),
         "adflag" => res.adflag,
         "cv method" => String(res.cv_method),
         "mc reps" => res.mc_reps,
@@ -3510,14 +3508,14 @@ function _test_edf(; data::String, column::Int=1, dist::String="normal", test::S
         throw(_teststat_error(e, "EDF test"))
     end
     pairs = Pair{String,Any}[
-        "statistic" => round(Float64(res.statistic); digits=4),
-        "raw statistic" => round(Float64(res.raw_statistic); digits=4),
-        "p-value" => round(Float64(res.pvalue); digits=4),
+        "statistic" => Float64(res.statistic),
+        "raw statistic" => Float64(res.raw_statistic),
+        "p-value" => Float64(res.pvalue),
         "test" => String(res.test),
         "distribution" => String(res.dist),
         "parameters" => String(res.params),
         "case" => res.case,
-        "theta" => join(round.(Float64.(res.theta); digits=4), ", "),
+        "theta" => join(Float64.(res.theta), ", "),
         "observations" => res.nobs,
     ]
     append!(pairs, _cv_pairs(res.critical_values))
@@ -3550,8 +3548,8 @@ function _test_engle_granger(; data::String, dep::String="", trend::String="cons
         throw(_teststat_error(e, "Engle-Granger test"))
     end
     output_kv(Pair{String,Any}[
-        "statistic" => round(Float64(res.statistic); digits=4),
-        "p-value" => round(Float64(res.pvalue); digits=4),
+        "statistic" => Float64(res.statistic),
+        "p-value" => Float64(res.pvalue),
         "lags" => res.lags,
         "regression" => String(res.regression),
         "regressors (k)" => res.k,
@@ -3582,14 +3580,14 @@ function _test_phillips_ouliaris(; data::String, dep::String="", trend::String="
     end
     output_result(DataFrame(
             statistic=["Z_t", "Z_alpha"],
-            value=round.(Float64[res.statistic, res.z_alpha]; digits=4),
-            p_value=round.(Float64[res.pvalue, res.z_alpha_pvalue]; digits=4));
+            value=Float64[res.statistic, res.z_alpha],
+            p_value=Float64[res.pvalue, res.z_alpha_pvalue]);
         format=Symbol(format), output=output,
         title="Phillips-Ouliaris Test: $dep_name", key="phillips_ouliaris_test")
     output_kv(Pair{String,Any}[
         "regression" => String(res.regression),
         "kernel" => String(res.kernel),
-        "bandwidth" => round(Float64(res.bandwidth); digits=4),
+        "bandwidth" => Float64(res.bandwidth),
         "regressors (k)" => res.k,
         "I(1) series (N)" => res.N,
         "observations" => res.nobs];
@@ -3636,8 +3634,8 @@ function _test_hansen_instability(; data::String, dep::String="", method::String
         throw(_teststat_error(e, "Hansen instability test"))
     end
     output_kv(Pair{String,Any}[
-        "L_c statistic" => round(Float64(res.statistic); digits=4),
-        "p-value" => round(Float64(res.pvalue); digits=4),
+        "L_c statistic" => Float64(res.statistic),
+        "p-value" => Float64(res.pvalue),
         "regression" => String(res.regression),
         "trend" => String(res.trend),
         "parameters" => res.nparam,
@@ -3671,8 +3669,8 @@ function _test_park_added(; data::String, dep::String="", method::String="fmols"
         throw(_teststat_error(e, "Park added-variables test"))
     end
     output_kv(Pair{String,Any}[
-        "H(p,q) statistic" => round(Float64(res.statistic); digits=4),
-        "p-value" => round(Float64(res.pvalue); digits=4),
+        "H(p,q) statistic" => Float64(res.statistic),
+        "p-value" => Float64(res.pvalue),
         "q_add (df)" => res.q_add,
         "base trend order (p)" => res.base_order,
         "regression" => String(res.regression),
@@ -3705,11 +3703,6 @@ end
 #   * InfluenceStats / Vector — influence, recursive-residuals (per-observation)
 # ─────────────────────────────────────────────────────────────────────────────
 
-"""Round for display, but render a non-finite value as a string — the direct
-`-f json` writer (no envelope) chokes on raw Inf/NaN, and a string is honest
-either way. (`_test_weak_instrument` has its own local `_fnum`.)"""
-_finite_or_str(x) = isfinite(x) ? round(Float64(x); digits=6) : string(Float64(x))
-
 """Fit the cross-section OLS that the `reg` diagnostics consume. Mirrors
 `estimate reg` (same `_load_reg_data` partition and `--cov-type`), so the diagnostic
 describes the regression the user would get from that command."""
@@ -3732,16 +3725,16 @@ function _reg_diagnostic_kv(res, title::String, key::String, format::String, out
     pairs = Pair{String,Any}[
         "test" => res.test_name,
         "H0" => res.h0,
-        "statistic" => _finite_or_str(Float64(res.statistic)),
-        "p-value" => _finite_or_str(Float64(res.pvalue)),
+        "statistic" => Float64(res.statistic),
+        "p-value" => Float64(res.pvalue),
         "df" => res.df isa Tuple ? join(res.df, ", ") : res.df,
     ]
     if res.f_stat !== nothing
-        push!(pairs, "F statistic" => _finite_or_str(Float64(res.f_stat)))
-        res.f_pvalue === nothing || push!(pairs, "F p-value" => _finite_or_str(Float64(res.f_pvalue)))
+        push!(pairs, "F statistic" => Float64(res.f_stat))
+        res.f_pvalue === nothing || push!(pairs, "F p-value" => Float64(res.f_pvalue))
         res.f_df === nothing || push!(pairs, "F df" => join(res.f_df, ", "))
     end
-    push!(pairs, "auxiliary R2" => _finite_or_str(Float64(res.aux_r2)))
+    push!(pairs, "auxiliary R2" => Float64(res.aux_r2))
     push!(pairs, "observations" => res.n)
     output_kv(pairs; format=format, output=output, title=title, key=key)
     return nothing
@@ -3851,9 +3844,9 @@ function _cusum_leaf(fn, label::String, statcol::String; key::String, data::Stri
     # MethodError, not a nice error).
     output_result(DataFrame(
             "observation" => res.tindex,
-            statcol => round.(Float64.(res.stat_path); digits=6),
-            "lower" => round.(Float64.(res.lower); digits=6),
-            "upper" => round.(Float64.(res.upper); digits=6));
+            statcol => Float64.(res.stat_path),
+            "lower" => Float64.(res.lower),
+            "upper" => Float64.(res.upper));
         format=Symbol(format), output=output,
         title="$(uppercase(label)) Path: $dep_name", key=key)
     output_kv(Pair{String,Any}[
@@ -3901,12 +3894,12 @@ function _test_recursive_residuals(; data::String, dep::String="", cov_type::Str
     k = size(model.X, 2)
     output_result(DataFrame(step=collect(1:length(wv)),
                             observation=collect((k + 1):(k + length(wv))),
-                            recursive_residual=round.(wv; digits=6));
+                            recursive_residual=wv);
         format=Symbol(format), output=output,
         title="Recursive Residuals: $dep_name", key="recursive_residuals")
     output_kv(Pair{String,Any}[
         "count" => length(wv),
-        "mean" => _finite_or_str(isempty(wv) ? NaN : sum(wv) / length(wv)),
+        "mean" => Float64(isempty(wv) ? NaN : sum(wv) / length(wv)),
         "regressors (k)" => k];
         format=format, output=_per_var_output_path(output, "summary"), title="Recursive Residuals Summary")
     return w
@@ -3927,15 +3920,15 @@ function _test_influence(; data::String, dep::String="", cov_type::String="hc1",
     end
     output_result(DataFrame(
             observation = collect(1:res.n),
-            hat = round.(Float64.(res.hat); digits=6),
-            student_internal = round.(Float64.(res.student_internal); digits=6),
-            student_external = round.(Float64.(res.student_external); digits=6),
-            dffits = round.(Float64.(res.dffits); digits=6),
-            cooksd = round.(Float64.(res.cooksd); digits=6));
+            hat = Float64.(res.hat),
+            student_internal = Float64.(res.student_internal),
+            student_external = Float64.(res.student_external),
+            dffits = Float64.(res.dffits),
+            cooksd = Float64.(res.cooksd));
         format=Symbol(format), output=output,
         title="Influence Diagnostics: $dep_name", key="influence_diagnostics")
     output_kv(Pair{String,Any}[
-        "sigma" => _finite_or_str(Float64(res.sigma)),
+        "sigma" => Float64(res.sigma),
         "high-leverage count" => length(res.high_leverage),
         "high-leverage obs" => isempty(res.high_leverage) ? "none" : join(res.high_leverage, ", "),
         "influential count" => length(res.influential),
@@ -3969,13 +3962,13 @@ function _test_hansen_linearity(; data::String, column::Int=1, p::Int=1, d::Int=
     res === nothing && throw(CliError("model/error",
         "Hansen linearity test: the SETAR fit did not attach a linearity test result"))
     output_kv(Pair{String,Any}[
-        "sup_lm"      => round(Float64(res.sup_lm); digits=4),
-        "pvalue_lm"   => round(Float64(res.pvalue_lm); digits=4),
-        "sup_wald"    => round(Float64(res.sup_wald); digits=4),
-        "pvalue_wald" => round(Float64(res.pvalue_wald); digits=4),
-        "gamma_sup"   => round(Float64(res.gamma_sup); digits=6),
+        "sup_lm"      => Float64(res.sup_lm),
+        "pvalue_lm"   => Float64(res.pvalue_lm),
+        "sup_wald"    => Float64(res.sup_wald),
+        "pvalue_wald" => Float64(res.pvalue_wald),
+        "gamma_sup"   => Float64(res.gamma_sup),
         "reps"        => res.reps,
-        "trim"        => round(Float64(res.trim); digits=4),
+        "trim"        => Float64(res.trim),
         "n_grid"      => res.n_grid,
     ]; format=format, output=output, title="Hansen (1996) Linearity Test: $vname",
        key="hansen_1996_linearity_test")
@@ -4012,10 +4005,10 @@ function _test_star_linearity(; data::String, column::Int=1, p::Int=1, d::Int=1,
         throw(_nonlinear_error(e, "STAR linearity test"))
     end
     output_kv(Pair{String,Any}[
-        "stat"     => round(Float64(res.stat); digits=4),
-        "pvalue"   => round(Float64(res.pvalue); digits=4),
-        "fstat"    => round(Float64(res.fstat); digits=4),
-        "fpvalue"  => round(Float64(res.fpvalue); digits=4),
+        "stat"     => Float64(res.stat),
+        "pvalue"   => Float64(res.pvalue),
+        "fstat"    => Float64(res.fstat),
+        "fpvalue"  => Float64(res.fpvalue),
         "df"       => res.df,
     ]; format=format, output=output, title="STAR Linearity Test (LM3): $vname",
        key="star_linearity_test_lm3")
@@ -4087,10 +4080,10 @@ function _test_llc(; data::String, deterministic::String="constant", lags::Strin
         throw(_teststat_error(e, "LLC test"))
     end
     output_kv(Pair{String,Any}[
-        "statistic" => _finite_or_str(Float64(res.statistic)),
-        "p-value" => _finite_or_str(Float64(res.pvalue)),
-        "t (unadjusted)" => _finite_or_str(Float64(res.t_unadjusted)),
-        "delta" => _finite_or_str(Float64(res.delta)),
+        "statistic" => Float64(res.statistic),
+        "p-value" => Float64(res.pvalue),
+        "t (unadjusted)" => Float64(res.t_unadjusted),
+        "delta" => Float64(res.delta),
         "deterministic" => String(res.deterministic),
         "lags (per unit)" => join(res.lags, ", "),
         "n_units" => res.n_units,
@@ -4122,13 +4115,13 @@ function _test_ips(; data::String, deterministic::String="constant", lags::Strin
     end
     # IPS is a MEAN-GROUP test: the per-unit ADF t-statistics are the interesting detail.
     output_result(DataFrame(unit=collect(1:length(res.individual_t)),
-                            t_statistic=round.(Float64.(res.individual_t); digits=4),
+                            t_statistic=Float64.(res.individual_t),
                             lags=res.lags);
         format=Symbol(format), output=output, title="IPS Per-Unit ADF Statistics")
     output_kv(Pair{String,Any}[
-        "W[t-bar] statistic" => _finite_or_str(Float64(res.statistic)),
-        "p-value" => _finite_or_str(Float64(res.pvalue)),
-        "t-bar" => _finite_or_str(Float64(res.tbar)),
+        "W[t-bar] statistic" => Float64(res.statistic),
+        "p-value" => Float64(res.pvalue),
+        "t-bar" => Float64(res.tbar),
         "deterministic" => String(res.deterministic),
         "n_units" => res.n_units,
         "observations" => res.nobs];
@@ -4151,8 +4144,8 @@ function _test_breitung(; data::String, deterministic::String="constant", lags::
         throw(_teststat_error(e, "Breitung test"))
     end
     output_kv(Pair{String,Any}[
-        "statistic" => _finite_or_str(Float64(res.statistic)),
-        "p-value" => _finite_or_str(Float64(res.pvalue)),
+        "statistic" => Float64(res.statistic),
+        "p-value" => Float64(res.pvalue),
         "deterministic" => String(res.deterministic),
         "lags" => res.lags,
         "n_units" => res.n_units,
@@ -4183,10 +4176,10 @@ function _test_fisher_johansen(; data::String, id_col::String="", time_col::Stri
     end
     output_result(DataFrame(
             rank = res.ranks,
-            trace_statistic = round.(Float64.(res.trace_statistics); digits=4),
-            trace_p_value = round.(Float64.(res.trace_pvalues); digits=4),
-            max_statistic = round.(Float64.(res.max_statistics); digits=4),
-            max_p_value = round.(Float64.(res.max_pvalues); digits=4));
+            trace_statistic = Float64.(res.trace_statistics),
+            trace_p_value = Float64.(res.trace_pvalues),
+            max_statistic = Float64.(res.max_statistics),
+            max_p_value = Float64.(res.max_pvalues));
         format=Symbol(format), output=output,
         title="Fisher-Johansen Panel Cointegration Test")
     output_kv(Pair{String,Any}[
@@ -4224,17 +4217,17 @@ function _test_dh_causality(; data::String, id_col::String="", time_col::String=
     pairs = Pair{String,Any}[
         "cause" => String(res.cause),
         "effect" => String(res.effect),
-        "W-bar" => _finite_or_str(Float64(res.Wbar)),
-        "Z-bar" => _finite_or_str(Float64(res.Zbar)),
-        "Z-bar p-value" => _finite_or_str(Float64(res.Zbar_pvalue)),
-        "Z-tilde" => _finite_or_str(Float64(res.Ztilde)),
-        "Z-tilde p-value" => _finite_or_str(Float64(res.Ztilde_pvalue)),
+        "W-bar" => Float64(res.Wbar),
+        "Z-bar" => Float64(res.Zbar),
+        "Z-bar p-value" => Float64(res.Zbar_pvalue),
+        "Z-tilde" => Float64(res.Ztilde),
+        "Z-tilde p-value" => Float64(res.Ztilde_pvalue),
         "lags (p)" => res.p,
         "n_units" => res.N,
         "units skipped" => res.n_skipped,
         "observations" => res.nobs,
     ]
-    res.bootstrap > 0 && push!(pairs, "bootstrap p-value" => _finite_or_str(Float64(res.bootstrap_pvalue)))
+    res.bootstrap > 0 && push!(pairs, "bootstrap p-value" => Float64(res.bootstrap_pvalue))
     output_kv(pairs; format=format, output=output, title="Dumitrescu-Hurlin Panel Causality")
     # Z-tilde is the small-T-corrected statistic and is the one to read by default.
     interpret_test_result(Float64(res.Ztilde_pvalue),
@@ -4255,8 +4248,8 @@ function _test_hadri(; data::String, deterministic::String="constant",
         throw(_teststat_error(e, "Hadri test"))
     end
     output_kv(Pair{String,Any}[
-        "statistic" => round(Float64(res.statistic); digits=4),
-        "p-value" => round(Float64(res.pvalue); digits=4),
+        "statistic" => Float64(res.statistic),
+        "p-value" => Float64(res.pvalue),
         "n_units" => res.n_units,
         "observations" => res.nobs];
         format=format, output=output, title="Hadri Panel Stationarity Test")
@@ -4295,8 +4288,8 @@ kv (all three share the `.names`/`.statistics`/`.pvalues`/`.n_units`/`.n_regress
 `.nobs` output triple). H0 = no cointegration; any p-value < 0.05 rejects."""
 function _panel_coint_output(res, label, depc, indeps; key, format, output)
     df = DataFrame(statistic=String.(res.names),
-                   value=round.(Float64.(res.statistics); digits=4),
-                   p_value=round.(Float64.(res.pvalues); digits=4))
+                   value=Float64.(res.statistics),
+                   p_value=Float64.(res.pvalues))
     output_result(df; format=Symbol(format), output=output,
                   title="$label: $depc ~ $(join(indeps, " + "))", key=key)
     output_kv(Pair{String,Any}[
@@ -4392,17 +4385,17 @@ function _test_ardl_bounds(; data::String, dep::String="", p::String="auto", q::
     li = findfirst(x -> isapprox(x, res.level), res.levels)
     li === nothing && (li = 2)   # fall back to the 5% row (levels are the fixed PSS grid)
     # Bounds table at the decision level: t-bounds are NaN for cases II/IV → "undefined".
-    _fb(x) = isnan(x) ? "undefined" : round(Float64(x); digits=4)
+    _fb(x) = isnan(x) ? "undefined" : Float64(x)
     df = DataFrame(bound=String["F", "t"],
-                   statistic=round.(Float64[res.fstat, res.tstat]; digits=4),
+                   statistic=Float64[res.fstat, res.tstat],
                    i0_lower=[_fb(res.f_lower[li]), _fb(res.t_lower[li])],
                    i1_upper=[_fb(res.f_upper[li]), _fb(res.t_upper[li])],
                    decision=String[String(res.f_decision), String(res.t_decision)])
     output_result(df; format=Symbol(format), output=output,
                   title="ARDL Bounds Test (I(0)/I(1) bounds; NO p-value)")
     output_kv(Pair{String,Any}[
-        "f_stat"     => round(Float64(res.fstat); digits=4),
-        "t_stat"     => round(Float64(res.tstat); digits=4),
+        "f_stat"     => Float64(res.fstat),
+        "t_stat"     => Float64(res.tstat),
         "k"          => res.k,
         "case"       => res.case,
         "cv_source"  => String(res.cv_source),
@@ -4427,14 +4420,14 @@ end
 function _nardl_symmetry_table(res)
     return DataFrame(
         regressor = String.(res.reg_names),
-        theta_pos = round.(Float64.(res.theta_pos); digits=6),
-        theta_neg = round.(Float64.(res.theta_neg); digits=6),
-        lr_stat   = round.(Float64.(res.lr_stat); digits=4),
-        lr_p_chi2 = round.(Float64.(res.lr_p_chi2); digits=4),
-        lr_p_f    = round.(Float64.(res.lr_p_f); digits=4),
-        sr_stat   = round.(Float64.(res.sr_stat); digits=4),
-        sr_p_chi2 = round.(Float64.(res.sr_p_chi2); digits=4),
-        sr_p_f    = round.(Float64.(res.sr_p_f); digits=4),
+        theta_pos = Float64.(res.theta_pos),
+        theta_neg = Float64.(res.theta_neg),
+        lr_stat   = Float64.(res.lr_stat),
+        lr_p_chi2 = Float64.(res.lr_p_chi2),
+        lr_p_f    = Float64.(res.lr_p_f),
+        sr_stat   = Float64.(res.sr_stat),
+        sr_p_chi2 = Float64.(res.sr_p_chi2),
+        sr_p_f    = Float64.(res.sr_p_f),
     )
 end
 
@@ -4504,8 +4497,8 @@ function _test_pmg_hausman(; data::String, id_col::String="", time_col::String="
     end
     kv_pairs = Pair{String,Any}[
         "test_name"   => res.test_name,
-        "statistic"   => round(Float64(res.statistic); digits=4),
-        "pvalue"      => round(Float64(res.pvalue); digits=4),
+        "statistic"   => Float64(res.statistic),
+        "pvalue"      => Float64(res.pvalue),
     ]
     append!(kv_pairs, _df_kv_pairs(res.df))
     push!(kv_pairs, "description" => res.description)
@@ -4581,8 +4574,8 @@ function _test_var_stability(; data::String, lags=nothing, format::String="table
 
     eig_df = DataFrame(
         index=1:length(eigenvalues),
-        eigenvalue=string.(round.(eigenvalues; digits=6)),
-        modulus=round.(moduli; digits=6)
+        eigenvalue=string.(eigenvalues),
+        modulus=moduli
     )
 
     output_result(eig_df; format=Symbol(format), output=output, title="Companion Matrix Eigenvalues")
@@ -4643,9 +4636,9 @@ function _test_granger_vecm(data, cause, effect, lags, rank, deterministic, form
 
     test_df = DataFrame(
         test=["Short-run", "Long-run", "Strong (joint)"],
-        statistic=round.([result.short_run_stat, result.long_run_stat, result.strong_stat]; digits=4),
+        statistic=[result.short_run_stat, result.long_run_stat, result.strong_stat],
         df=[result.short_run_df, result.long_run_df, result.strong_df],
-        p_value=round.([result.short_run_pvalue, result.long_run_pvalue, result.strong_pvalue]; digits=4)
+        p_value=[result.short_run_pvalue, result.long_run_pvalue, result.strong_pvalue]
     )
 
     output_result(test_df; format=Symbol(format), output=output,
@@ -4689,8 +4682,8 @@ function _test_granger_var(data, cause, effect, lags, test_all, format, output; 
             r === nothing && continue
             cause_name = join((_var_name(varnames, i) for i in r.cause), "+")
             push!(test_df, (cause=cause_name, effect=_var_name(varnames, r.effect),
-                           statistic=round(r.statistic; digits=4),
-                           df=r.df, p_value=round(r.pvalue; digits=4)))
+                           statistic=r.statistic,
+                           df=r.df, p_value=r.pvalue))
         end
         sort!(test_df, [:cause, :effect])
 
@@ -4708,8 +4701,8 @@ function _test_granger_var(data, cause, effect, lags, test_all, format, output; 
         result = granger_test(model, cause, effect)
 
         pairs = Pair{String,Any}[
-            "Test statistic" => round(result.statistic; digits=4),
-            "p-value" => round(result.pvalue; digits=4),
+            "Test statistic" => result.statistic,
+            "p-value" => result.pvalue,
             "Degrees of freedom" => result.df,
         ]
 
@@ -4740,8 +4733,8 @@ function _test_pvar_hansen_j(; data::String="", model=nothing, id_col::String=""
     result = pvar_hansen_j(model)
 
     pairs = Pair{String,Any}[
-        "J statistic" => round(result.statistic; digits=4),
-        "p-value" => round(result.pvalue; digits=4),
+        "J statistic" => result.statistic,
+        "p-value" => result.pvalue,
         "Degrees of freedom" => result.df,
         "Instruments" => result.n_instruments,
         "Parameters" => result.n_params,
@@ -4761,9 +4754,9 @@ function _test_pvar_mmsc(; data::String="", model=nothing, id_col::String="", ti
         c = pvar_mmsc(model)
         res_df = DataFrame(
             lags=[model.p],
-            BIC=[round(Float64(c.mbic); digits=4)],
-            AIC=[round(Float64(c.maic); digits=4)],
-            HQIC=[round(Float64(c.mqic); digits=4)],
+            BIC=[Float64(c.mbic)],
+            AIC=[Float64(c.maic)],
+            HQIC=[Float64(c.mqic)],
         )
         output_result(res_df; format=Symbol(format), output=output, title="MMSC Results")
         return c
@@ -4819,8 +4812,8 @@ function _test_pvar_stability(; data::String, id_col::String="", time_col::Strin
 
     eig_df = DataFrame(
         index=1:length(result.eigenvalues),
-        eigenvalue=string.(round.(result.eigenvalues; digits=6)),
-        modulus=round.(result.moduli; digits=6)
+        eigenvalue=string.(result.eigenvalues),
+        modulus=result.moduli
     )
 
     output_result(eig_df; format=Symbol(format), output=output,
@@ -4859,11 +4852,11 @@ function _test_lr(; data1::String, data2::String, lags1=nothing, lags2=nothing,
     end
 
     pairs = Pair{String,Any}[
-        "LR statistic" => round(result.statistic; digits=4),
-        "p-value" => round(result.pvalue; digits=4),
+        "LR statistic" => result.statistic,
+        "p-value" => result.pvalue,
         "Degrees of freedom" => result.df,
-        "Log-lik (restricted)" => round(result.loglik_restricted; digits=4),
-        "Log-lik (unrestricted)" => round(result.loglik_unrestricted; digits=4),
+        "Log-lik (restricted)" => result.loglik_restricted,
+        "Log-lik (unrestricted)" => result.loglik_unrestricted,
     ]
     output_kv(pairs; format=format, output=output, title="Likelihood Ratio Test")
 
@@ -4896,8 +4889,8 @@ function _test_lm(; data1::String, data2::String, lags1=nothing, lags2=nothing,
     end
 
     pairs = Pair{String,Any}[
-        "LM statistic" => round(result.statistic; digits=4),
-        "p-value" => round(result.pvalue; digits=4),
+        "LM statistic" => result.statistic,
+        "p-value" => result.pvalue,
         "Degrees of freedom" => result.df,
         "Observations" => result.nobs,
     ]
@@ -4930,10 +4923,10 @@ function _test_andrews(; data::String, response::Int=1,
 
     pairs = Pair{String,Any}[
         "Test type" => result.test_type,
-        "Statistic" => round(result.statistic; digits=4),
-        "p-value" => round(result.pvalue; digits=4),
+        "Statistic" => result.statistic,
+        "p-value" => result.pvalue,
         "Break date (index)" => result.break_index,
-        "Break fraction" => round(result.break_fraction; digits=4),
+        "Break fraction" => result.break_fraction,
         "Observations" => result.nobs,
     ]
     output_kv(pairs; format=format, output=output, title="Andrews Break Test")
@@ -5011,8 +5004,8 @@ function _test_panic(; data::String, factors::String="auto",
     end
 
     pairs = Pair{String,Any}[
-        "Pooled statistic" => round(result.pooled_statistic; digits=4),
-        "Pooled p-value" => round(result.pooled_pvalue; digits=4),
+        "Pooled statistic" => result.pooled_statistic,
+        "Pooled p-value" => result.pooled_pvalue,
         "Number of factors" => result.n_factors,
         "Units" => result.n_units,
         "Observations" => result.nobs,
@@ -5043,8 +5036,8 @@ function _test_cips(; data::String, lags::String="auto",
     end
 
     pairs = Pair{String,Any}[
-        "CIPS statistic" => round(result.cips_statistic; digits=4),
-        "p-value" => round(result.pvalue; digits=4),
+        "CIPS statistic" => result.cips_statistic,
+        "p-value" => result.pvalue,
         "Lags" => result.lags,
         "Deterministic" => result.deterministic,
         "Units" => result.n_units,
@@ -5075,10 +5068,10 @@ function _test_moon_perron(; data::String, factors::String="auto",
     end
 
     pairs = Pair{String,Any}[
-        "t_a* statistic" => round(result.t_a_statistic; digits=4),
-        "t_b* statistic" => round(result.t_b_statistic; digits=4),
-        "p-value (t_a*)" => round(result.pvalue_a; digits=4),
-        "p-value (t_b*)" => round(result.pvalue_b; digits=4),
+        "t_a* statistic" => result.t_a_statistic,
+        "t_b* statistic" => result.t_b_statistic,
+        "p-value (t_a*)" => result.pvalue_a,
+        "p-value (t_b*)" => result.pvalue_b,
         "Factors" => result.n_factors,
         "Units" => result.n_units,
     ]
@@ -5106,8 +5099,8 @@ function _test_factor_break(; data::String, factors::Int=2,
     end
 
     pairs = Pair{String,Any}[
-        "Statistic" => round(result.statistic; digits=4),
-        "p-value" => round(result.pvalue; digits=4),
+        "Statistic" => result.statistic,
+        "p-value" => result.pvalue,
         "Break date (index)" => result.break_date,
         "Method" => result.method,
         "Factors" => result.n_factors,
@@ -5124,7 +5117,7 @@ function _test_factor_break(; data::String, factors::Int=2,
         ord = sortperm(result.series_statistics; rev=true)
         per_df = DataFrame(
             series=ord,
-            statistic=round.(Float64.(result.series_statistics[ord]); digits=4),
+            statistic=Float64.(result.series_statistics[ord]),
             break_date=result.series_break_dates[ord],
         )
         output_result(per_df; format=Symbol(format),
@@ -5162,11 +5155,11 @@ function _test_fourier_adf(; data::String, column::Int=1,
     end
 
     pairs = Pair{String,Any}[
-        "Test statistic" => round(result.statistic; digits=4),
-        "p-value" => round(result.pvalue; digits=4),
+        "Test statistic" => result.statistic,
+        "p-value" => result.pvalue,
         "Optimal frequency" => result.frequency,
-        "F-statistic (Fourier)" => round(result.f_statistic; digits=4),
-        "F p-value" => round(result.f_pvalue; digits=4),
+        "F-statistic (Fourier)" => result.f_statistic,
+        "F p-value" => result.f_pvalue,
         "Lags" => result.lags,
         "Observations" => result.nobs,
     ]
@@ -5207,11 +5200,11 @@ function _test_fourier_kpss(; data::String, column::Int=1,
     end
 
     pairs = Pair{String,Any}[
-        "Test statistic" => round(result.statistic; digits=4),
-        "p-value" => round(result.pvalue; digits=4),
+        "Test statistic" => result.statistic,
+        "p-value" => result.pvalue,
         "Optimal frequency" => result.frequency,
-        "F-statistic (Fourier)" => round(result.f_statistic; digits=4),
-        "F p-value" => round(result.f_pvalue; digits=4),
+        "F-statistic (Fourier)" => result.f_statistic,
+        "F p-value" => result.f_pvalue,
         "Bandwidth" => result.bandwidth,
         "Observations" => result.nobs,
     ]
@@ -5252,16 +5245,16 @@ function _test_dfgls(; data::String, column::Int=1,
     end
 
     pairs = Pair{String,Any}[
-        "DF-GLS tau statistic" => round(result.statistic; digits=4),
-        "PT statistic" => round(result.pt_statistic; digits=4),
-        "p-value" => round(result.pvalue; digits=4),
+        "DF-GLS tau statistic" => result.statistic,
+        "PT statistic" => result.pt_statistic,
+        "p-value" => result.pvalue,
         "Lags" => result.lags,
         "Observations" => result.nobs,
     ]
 
     # M-GLS statistics are separate fields upstream, not a collection.
     for k in (:MZa, :MZt, :MSB, :MPT)
-        push!(pairs, "M-GLS $k" => round(getfield(result, k); digits=4))
+        push!(pairs, "M-GLS $k" => getfield(result, k))
     end
 
     output_kv(pairs; format=format, output=output, title="DF-GLS Test: $vname",
@@ -5297,8 +5290,8 @@ function _test_lm_unitroot(; data::String, column::Int=1,
     end
 
     pairs = Pair{String,Any}[
-        "LM statistic" => round(result.statistic; digits=4),
-        "p-value" => round(result.pvalue; digits=4),
+        "LM statistic" => result.statistic,
+        "p-value" => result.pvalue,
         "Breaks" => result.breaks,
         "Lags" => result.lags,
         "Observations" => result.nobs,
@@ -5306,7 +5299,7 @@ function _test_lm_unitroot(; data::String, column::Int=1,
 
     if !isnothing(result.break_dates)
         push!(pairs, "Break indices" => join(result.break_dates, ", "))
-        push!(pairs, "Break fractions" => join(round.(result.break_fractions; digits=4), ", "))
+        push!(pairs, "Break fractions" => join(result.break_fractions, ", "))
     end
 
     output_kv(pairs; format=format, output=output, title="LM Unit Root Test: $vname",
@@ -5342,12 +5335,12 @@ function _test_adf_2break(; data::String, column::Int=1,
     end
 
     pairs = Pair{String,Any}[
-        "Test statistic" => round(result.statistic; digits=4),
-        "p-value" => round(result.pvalue; digits=4),
+        "Test statistic" => result.statistic,
+        "p-value" => result.pvalue,
         "Break 1 index" => result.break1,
-        "Break 1 fraction" => round(result.break1_fraction; digits=4),
+        "Break 1 fraction" => result.break1_fraction,
         "Break 2 index" => result.break2,
-        "Break 2 fraction" => round(result.break2_fraction; digits=4),
+        "Break 2 fraction" => result.break2_fraction,
         "Lags" => result.lags,
         "Observations" => result.nobs,
     ]
@@ -5392,14 +5385,14 @@ function _test_gregory_hansen(; data::String, model::String="C",
     end
 
     pairs = Pair{String,Any}[
-        "ADF* statistic" => round(result.adf_statistic; digits=4),
-        "ADF* p-value" => round(result.adf_pvalue; digits=4),
+        "ADF* statistic" => result.adf_statistic,
+        "ADF* p-value" => result.adf_pvalue,
         "ADF* break index" => result.adf_break,
-        "Zt* statistic" => round(result.zt_statistic; digits=4),
-        "Zt* p-value" => round(result.zt_pvalue; digits=4),
+        "Zt* statistic" => result.zt_statistic,
+        "Zt* p-value" => result.zt_pvalue,
         "Zt* break index" => result.zt_break,
-        "Za* statistic" => round(result.za_statistic; digits=4),
-        "Za* p-value" => round(result.za_pvalue; digits=4),
+        "Za* statistic" => result.za_statistic,
+        "Za* p-value" => result.za_pvalue,
         "Za* break index" => result.za_break,
         "Model" => result.model,
         "Observations" => result.nobs,
@@ -5445,8 +5438,8 @@ function _test_vif(; data::String="", model=nothing, dep::String="",
 
     vif_df = DataFrame(
         Variable = var_labels,
-        VIF = round.(vif_vals; digits=4),
-        Tolerance = round.(1.0 ./ vif_vals; digits=4),
+        VIF = vif_vals,
+        Tolerance = 1.0 ./ vif_vals,
     )
 
     output_result(vif_df; format=Symbol(format), output=output,
@@ -5495,8 +5488,8 @@ function _test_hausman(; data::String, dep::String="", indep::String="",
     _status()
     pairs = Pair{String,Any}[
         "Test" => result.test_name,
-        "χ² statistic" => round(result.statistic; digits=4),
-        "p-value" => round(result.pvalue; digits=4),
+        "χ² statistic" => result.statistic,
+        "p-value" => result.pvalue,
     ]
     append!(pairs, _df_kv_pairs(result.df))
     push!(pairs, "Decision" => result.pvalue < 0.05 ? "Reject H0 (use FE)" : "Fail to reject H0 (RE consistent)")
@@ -5528,8 +5521,8 @@ function _test_breusch_pagan(; data::String, dep::String="", indep::String="",
     _status()
     pairs = Pair{String,Any}[
         "Test" => result.test_name,
-        "LM statistic" => round(result.statistic; digits=4),
-        "p-value" => round(result.pvalue; digits=4),
+        "LM statistic" => result.statistic,
+        "p-value" => result.pvalue,
     ]
     append!(pairs, _df_kv_pairs(result.df))
     push!(pairs, "Decision" => result.pvalue < 0.05 ? "Reject H0 (RE preferred over pooled OLS)" : "Fail to reject H0 (pooled OLS adequate)")
@@ -5561,8 +5554,8 @@ function _test_f_fe(; data::String, dep::String="", indep::String="",
     _status()
     pairs = Pair{String,Any}[
         "Test" => result.test_name,
-        "F statistic" => round(result.statistic; digits=4),
-        "p-value" => round(result.pvalue; digits=4),
+        "F statistic" => result.statistic,
+        "p-value" => result.pvalue,
     ]
     append!(pairs, _df_kv_pairs(result.df))
     push!(pairs, "Decision" => result.pvalue < 0.05 ? "Reject H0 (individual effects significant)" : "Fail to reject H0 (pooled OLS adequate)")
@@ -5586,8 +5579,8 @@ function _test_pesaran_cd(; data::String, dep::String="", indep::String="",
     _status()
     pairs = Pair{String,Any}[
         "Test" => result.test_name,
-        "CD statistic" => round(result.statistic; digits=4),
-        "p-value" => round(result.pvalue; digits=4),
+        "CD statistic" => result.statistic,
+        "p-value" => result.pvalue,
         "Decision" => result.pvalue < 0.05 ? "Reject H0 (cross-sectional dependence detected)" : "Fail to reject H0 (no cross-sectional dependence)",
     ]
     output_kv(pairs; format=format, output=output, title="Pesaran CD Test")
@@ -5618,8 +5611,8 @@ function _test_wooldridge_ar(; data::String, dep::String="", indep::String="",
     _status()
     pairs = Pair{String,Any}[
         "Test" => result.test_name,
-        "F statistic" => round(result.statistic; digits=4),
-        "p-value" => round(result.pvalue; digits=4),
+        "F statistic" => result.statistic,
+        "p-value" => result.pvalue,
     ]
     append!(pairs, _df_kv_pairs(result.df))
     push!(pairs, "Decision" => result.pvalue < 0.05 ? "Reject H0 (serial correlation detected)" : "Fail to reject H0 (no serial correlation)")
@@ -5651,8 +5644,8 @@ function _test_modified_wald(; data::String, dep::String="", indep::String="",
     _status()
     pairs = Pair{String,Any}[
         "Test" => result.test_name,
-        "χ² statistic" => round(result.statistic; digits=4),
-        "p-value" => round(result.pvalue; digits=4),
+        "χ² statistic" => result.statistic,
+        "p-value" => result.pvalue,
     ]
     append!(pairs, _df_kv_pairs(result.df))
     push!(pairs, "Decision" => result.pvalue < 0.05 ? "Reject H0 (groupwise heteroskedasticity detected)" : "Fail to reject H0 (homoskedastic)")
@@ -5672,8 +5665,8 @@ function _test_fisher(; data::String, column::Int=1,
     result = fisher_test(y)
 
     pairs = Pair{String,Any}[
-        "Test statistic" => round(result.statistic; digits=4),
-        "p-value" => round(result.pvalue; digits=4),
+        "Test statistic" => result.statistic,
+        "p-value" => result.pvalue,
         "Observations" => result.nobs,
     ]
     output_kv(pairs; format=format, output=output, title="Fisher's Test: $vname",
@@ -5695,8 +5688,8 @@ function _test_bartlett_wn(; data::String="", model=nothing, column::Int=1,
     result = bartlett_white_noise_test(y)
 
     pairs = Pair{String,Any}[
-        "Test statistic" => round(result.statistic; digits=4),
-        "p-value" => round(result.pvalue; digits=4),
+        "Test statistic" => result.statistic,
+        "p-value" => result.pvalue,
         "Observations" => result.nobs,
     ]
     output_kv(pairs; format=format, output=output, title="Bartlett White Noise Test: $vname",
@@ -5718,8 +5711,8 @@ function _test_box_pierce(; data::String="", model=nothing, column::Int=1, lags:
     result = box_pierce_test(y; lags=lags)
 
     pairs = Pair{String,Any}[
-        "Q statistic" => round(result.statistic; digits=4),
-        "p-value" => round(result.pvalue; digits=4),
+        "Q statistic" => result.statistic,
+        "p-value" => result.pvalue,
         "df" => result.df,
         "Observations" => result.nobs,
     ]
@@ -5744,8 +5737,8 @@ function _test_durbin_watson(; data::String="", model=nothing, column::Int=1,
     # DurbinWatsonResult is (statistic, pvalue, nobs) — real MEMs exposes no
     # Savin-White dL/dU bounds or decision string, so report the p-value instead.
     pairs = Pair{String,Any}[
-        "DW statistic" => round(result.statistic; digits=4),
-        "p-value" => round(result.pvalue; digits=4),
+        "DW statistic" => result.statistic,
+        "p-value" => result.pvalue,
         "Observations" => result.nobs,
     ]
     output_kv(pairs; format=format, output=output, title="Durbin-Watson Test: $vname",
@@ -5781,8 +5774,8 @@ function _test_brant(; data::String, dep::String="", cov_type::String="hc1",
 
     pairs = Pair{String,Any}[
         "Test" => "Brant Test of Parallel Regression",
-        "χ² statistic" => round(result.statistic; digits=4),
-        "p-value" => round(result.pvalue; digits=4),
+        "χ² statistic" => result.statistic,
+        "p-value" => result.pvalue,
         "df" => result.df,
         "Decision" => result.pvalue < 0.05 ? "Reject H0 (parallel regression assumption violated)" : "Fail to reject H0 (parallel regression assumption holds)",
     ]
@@ -5815,8 +5808,8 @@ function _test_hausman_iia(; data::String, dep::String="", omit_category=nothing
 
     pairs = Pair{String,Any}[
         "Test" => "Hausman-McFadden IIA Test",
-        "χ² statistic" => round(result.statistic; digits=4),
-        "p-value" => round(result.pvalue; digits=4),
+        "χ² statistic" => result.statistic,
+        "p-value" => result.pvalue,
         "df" => result.df,
         "Omitted category" => omit_category,
         "Decision" => result.pvalue < 0.05 ? "Reject H0 (IIA assumption violated)" : "Fail to reject H0 (IIA assumption holds)",

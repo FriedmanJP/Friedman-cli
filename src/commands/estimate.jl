@@ -2155,12 +2155,12 @@ function _output_lp_coef_table(irf_result, varnames, horizons;
     for vi in 1:n_resp
         vname = vi <= length(varnames) ? varnames[vi] : "var_$vi"
         coeffs = irf_result.values[:, vi]
-        coef_df[!, Symbol(vname)] = round.(coeffs; digits=6)
+        coef_df[!, Symbol(vname)] = coeffs
         if has_se
             ses = irf_result.se[:, vi]
             tstats = coeffs ./ ses
-            coef_df[!, Symbol("$(vname)_se")] = round.(ses; digits=6)
-            coef_df[!, Symbol("$(vname)_t")] = round.(tstats; digits=3)
+            coef_df[!, Symbol("$(vname)_se")] = ses
+            coef_df[!, Symbol("$(vname)_t")] = tstats
         end
     end
 
@@ -2295,8 +2295,8 @@ function _estimate_lp_iv(data, shock, horizons, control_lags, vcov, instruments,
         "Effective observations (h=0)" => first(t_eff),
         "Effective observations (min)" => minimum(t_eff),
         "Covariance estimator" => vcov,
-        "First-stage F (min)" => round(min_f; digits=2),
-        "First-stage F (h=0)" => round(first(f_stats); digits=2),
+        "First-stage F (min)" => min_f,
+        "First-stage F (h=0)" => first(f_stats),
         "Weak horizons" => length(wi.weak_horizons),
         "Instruments" => size(Z, 2),
     ]; format=format, output=_per_var_output_path(output, "summary"),
@@ -2311,13 +2311,13 @@ function _estimate_lp_iv(data, shock, horizons, control_lags, vcov, instruments,
         end
         _status()
         output_kv(Pair{String,Any}[
-            "f_effective"     => round(Float64(mop.f_effective); digits=4),
-            "critical_value"  => round(Float64(mop.critical_value); digits=4),
+            "f_effective"     => Float64(mop.f_effective),
+            "critical_value"  => Float64(mop.critical_value),
             "tau"             => Float64(mop.tau),
             "weak"            => mop.weak,
             "n_instruments"   => mop.n_instruments,
             "bandwidth"       => mop.bandwidth,
-            "f_naive"         => round(Float64(mop.f_naive); digits=4),
+            "f_naive"         => Float64(mop.f_naive),
         ]; format=format, output=_per_var_output_path(output, "mop_f"),
            title="Montiel Olea-Pflueger Effective F")
         mop.weak && _status_styled(
@@ -2405,7 +2405,7 @@ function _estimate_lp_smooth(data, shock, horizons, knots, lambda, output, forma
 
     _status()
     output_kv(Pair{String,Any}[
-        "Smoothing parameter (λ)" => round(lam; digits=6),
+        "Smoothing parameter (λ)" => lam,
         "B-spline knots" => knots,
         "Horizons" => horizons,
     ]; format=format, output=_per_var_output_path(output, "summary"),
@@ -2573,9 +2573,9 @@ function _estimate_arima(; data::String, column::Int=1, p=nothing, d::Int=0, q::
 
     _status()
     output_kv(Pair{String,Any}[
-        "AIC" => round(aic(model); digits=4),
-        "BIC" => round(bic(model); digits=4),
-        "Log-likelihood" => round(loglikelihood(model); digits=4),
+        "AIC" => aic(model),
+        "BIC" => bic(model),
+        "Log-likelihood" => loglikelihood(model),
     ]; format=format, output=_per_var_output_path(output, "criteria"), title="Information Criteria")
     _set_save_meta!(; varnames=[vname])
     return model
@@ -2636,7 +2636,7 @@ function _sarima_coef_df(m)
     for (i, v) in enumerate(m.Phi);   push!(names, "sar$i");   push!(vals, Float64(v)); end
     for (i, v) in enumerate(m.Theta); push!(names, "sma$i");   push!(vals, Float64(v)); end
     push!(names, "sigma2"); push!(vals, Float64(m.sigma2))
-    return DataFrame(parameter=names, estimate=round.(vals; digits=6))
+    return DataFrame(parameter=names, estimate=vals)
 end
 
 function _estimate_sarima(; data::String, column::Int=1, p=nothing, d::Int=0, q::Int=0,
@@ -2657,9 +2657,9 @@ function _estimate_sarima(; data::String, column::Int=1, p=nothing, d::Int=0, q:
                   title="$lbl Coefficients ($vname)", key="sarima_coefficients")
     _status()
     output_kv(Pair{String,Any}[
-        "AIC"            => round(Float64(aic(model)); digits=4),
-        "BIC"            => round(Float64(bic(model)); digits=4),
-        "Log-likelihood" => round(Float64(loglikelihood(model)); digits=4),
+        "AIC"            => Float64(aic(model)),
+        "BIC"            => Float64(bic(model)),
+        "Log-likelihood" => Float64(loglikelihood(model)),
         "n_obs"          => length(model.y),
         "n_effective"    => length(model.residuals),
     ]; format=format, output=_per_var_output_path(output, "criteria"), title="Information Criteria")
@@ -2720,7 +2720,7 @@ function _predict_sarima(; data::String="", column::Int=1, p=nothing, d::Int=0, 
     end
     f = predict(m)
     _status("$(_sarima_label(m)) fitted values: variable=$vname, n=$(length(f))"); _status()
-    return output_result(DataFrame(t=1:length(f), fitted=round.(Float64.(f); digits=6));
+    return output_result(DataFrame(t=1:length(f), fitted=Float64.(f));
                          format=Symbol(format), output=output,
                          title="$(_sarima_label(m)) In-Sample Predictions for $vname",
                          key="sarima_predictions")
@@ -2742,7 +2742,7 @@ function _residuals_sarima(; data::String="", column::Int=1, p=nothing, d::Int=0
     end
     r = residuals(m)
     _status("$(_sarima_label(m)) residuals: variable=$vname, n=$(length(r))"); _status()
-    return output_result(DataFrame(t=1:length(r), residual=round.(Float64.(r); digits=6));
+    return output_result(DataFrame(t=1:length(r), residual=Float64.(r));
                          format=Symbol(format), output=output,
                          title="$(_sarima_label(m)) Residuals for $vname",
                          key="sarima_residuals")
@@ -2795,11 +2795,11 @@ function _arima_coef_table(model; format::String="table", output::String="", tit
         se = stderror(model)
         z = c ./ se
         pv = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
-        DataFrame(parameter=param_names, estimate=round.(c; digits=6),
-                  std_error=round.(se; digits=6),
-                  z_stat=round.(z; digits=3), p_value=round.(pv; digits=4))
+        DataFrame(parameter=param_names, estimate=c,
+                  std_error=se,
+                  z_stat=z, p_value=pv)
     catch
-        DataFrame(parameter=param_names, estimate=round.(c; digits=6))
+        DataFrame(parameter=param_names, estimate=c)
     end
 
     output_result(coef_df; format=Symbol(format), output=output, title=title, key=key)
@@ -2866,7 +2866,7 @@ function _predict_arfima(; data::String="", column::Int=1, p::Int=0, q::Int=0,
     m, vname = _arfima_refit(data, column, p, q, method, d0, max_iter, model)
     _status("ARFIMA($p,d,$q) in-sample fitted values: variable=$vname"); _status()
     f = Float64.(collect(m.fitted))
-    output_result(DataFrame(t=1:length(f), fitted=round.(f; digits=6));
+    output_result(DataFrame(t=1:length(f), fitted=f);
         format=Symbol(format), output=output,
         title="ARFIMA($p,d,$q) In-Sample Predictions for $vname", key="arfima_predictions")
     return m.fitted
@@ -2878,7 +2878,7 @@ function _residuals_arfima(; data::String="", column::Int=1, p::Int=0, q::Int=0,
     m, vname = _arfima_refit(data, column, p, q, method, d0, max_iter, model)
     _status("ARFIMA($p,d,$q) residuals: variable=$vname"); _status()
     r = Float64.(collect(m.residuals))
-    output_result(DataFrame(t=1:length(r), residual=round.(r; digits=6));
+    output_result(DataFrame(t=1:length(r), residual=r);
         format=Symbol(format), output=output,
         title="ARFIMA($p,d,$q) Residuals for $vname", key="arfima_residuals")
     return m.residuals
@@ -2910,11 +2910,11 @@ function _estimate_arfima(; data::String, column::Int=1, p::Int=0, q::Int=0,
 
     _status()
     output_kv(Pair{String,Any}[
-        "d (frac. integ.)" => round(model.d; digits=6),
-        "d std. error"     => round(model.d_se; digits=6),
-        "Log-likelihood"   => round(model.loglik; digits=4),
-        "AIC"              => round(model.aic; digits=4),
-        "BIC"              => round(model.bic; digits=4),
+        "d (frac. integ.)" => model.d,
+        "d std. error"     => model.d_se,
+        "Log-likelihood"   => model.loglik,
+        "AIC"              => model.aic,
+        "BIC"              => model.bic,
         "Converged"        => model.converged,
     ]; format=format, output=_per_var_output_path(output, "diagnostics"),
        title="ARFIMA Diagnostics ($vname)", key="arfima_diagnostics")
@@ -2943,11 +2943,11 @@ function _arfima_coef_table(model; format::String="table", output::String="", ti
         se = stderror(model)
         z = c ./ se
         pv = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
-        DataFrame(parameter=param_names, estimate=round.(c; digits=6),
-                  std_error=round.(se; digits=6),
-                  z_stat=round.(z; digits=3), p_value=round.(pv; digits=4))
+        DataFrame(parameter=param_names, estimate=c,
+                  std_error=se,
+                  z_stat=z, p_value=pv)
     catch
-        DataFrame(parameter=param_names, estimate=round.(c; digits=6))
+        DataFrame(parameter=param_names, estimate=c)
     end
 
     output_result(coef_df; format=Symbol(format), output=output, title=title, key=key)
@@ -3278,7 +3278,7 @@ function _estimate_gdfm(; data::String, nfactors=nothing, dynamic_rank=nothing,
     end
 
     var_shares = common_variance_share(model)
-    var_df = DataFrame(variable=varnames, common_variance_share=round.(var_shares; digits=4))
+    var_df = DataFrame(variable=varnames, common_variance_share=var_shares)
     output_result(var_df; format=Symbol(format), output=output,
                   title="GDFM Common Variance Shares")
     _maybe_plot(model; plot=plot, plot_save=plot_save)
@@ -3408,10 +3408,10 @@ function _estimate_ml(; data::String, lags=nothing, distribution::String="studen
     _status()
 
     output_kv(Pair{String,Any}[
-        "Log-likelihood" => round(result.loglik; digits=4),
-        "Log-likelihood (Gaussian)" => round(result.loglik_gaussian; digits=4),
-        "AIC" => round(result.aic; digits=4),
-        "BIC" => round(result.bic; digits=4),
+        "Log-likelihood" => result.loglik,
+        "Log-likelihood (Gaussian)" => result.loglik_gaussian,
+        "AIC" => result.aic,
+        "BIC" => result.bic,
         "Distribution" => string(result.distribution),
     ]; format=format, output=_per_var_output_path(output, "fit"), title="Model Fit")
 
@@ -3476,10 +3476,10 @@ function _estimate_vecm(; data::String, lags::Int=2, rank::String="auto",
     _status()
 
     output_kv(Pair{String,Any}[
-        "AIC" => round(vecm.aic; digits=4),
-        "BIC" => round(vecm.bic; digits=4),
-        "HQC" => round(vecm.hqic; digits=4),
-        "Log-likelihood" => round(loglikelihood(vecm); digits=4),
+        "AIC" => vecm.aic,
+        "BIC" => vecm.bic,
+        "HQC" => vecm.hqic,
+        "Log-likelihood" => loglikelihood(vecm),
     ]; format=format, output=_per_var_output_path(output, "criteria"), title="Information Criteria")
     return vecm
 end
@@ -3523,10 +3523,10 @@ function _estimate_svar(; data::String, lags=nothing, pattern::String="recursive
     _status()
 
     output_kv(Pair{String,Any}[
-        "Log-likelihood" => round(Float64(svar.loglik); digits=4),
-        "LR statistic" => round(Float64(svar.lr_stat); digits=4),
+        "Log-likelihood" => Float64(svar.loglik),
+        "LR statistic" => Float64(svar.lr_stat),
         "LR df" => svar.lr_df,
-        "LR p-value" => round(Float64(svar.lr_pvalue); digits=6),
+        "LR p-value" => Float64(svar.lr_pvalue),
         "Identification" => string(svar.identification.status),
         "Overidentifying restrictions" => svar.identification.n_overidentifying,
     ]; format=format, output=_per_var_output_path(output, "summary"), title="SVAR Identification Summary",
@@ -3810,10 +3810,10 @@ function _estimate_smm(; data::String, config::String="",
 
     est_df = DataFrame(
         parameter = param_names,
-        estimate = round.(model.theta; digits=6),
-        std_error = round.(se; digits=6),
-        t_stat = round.(t_stats; digits=4),
-        p_value = round.(p_vals; digits=4),
+        estimate = model.theta,
+        std_error = se,
+        t_stat = t_stats,
+        p_value = p_vals,
     )
     output_result(est_df; format=Symbol(format), output=output,
                   title="SMM Estimation (model=$modelname, weighting=$weighting)",
@@ -3897,10 +3897,10 @@ function _estimate_sdfm(; data::String, factors=nothing, id::String="cholesky",
     summary_df = DataFrame(
         metric = ["n_vars", "T", "dynamic_factors", "static_rank", "identification",
                   "factor_var_lags", "horizon", "shocks", "avg_common_variance_share"],
-        value = [string(n), string(size(Y, 1)), string(sdfm.gdfm.q), string(sdfm.gdfm.r),
-                 String(sdfm.identification), string(sdfm.p_var), string(horizon),
-                 join(sdfm.shock_names, ", "),
-                 string(round(mean(sdfm.gdfm.variance_explained); digits=4))],
+        value = Any[string(n), string(size(Y, 1)), string(sdfm.gdfm.q), string(sdfm.gdfm.r),
+                    String(sdfm.identification), string(sdfm.p_var), string(horizon),
+                    join(sdfm.shock_names, ", "),
+                    Float64(mean(sdfm.gdfm.variance_explained))],
     )
     output_result(summary_df; format=Symbol(format), output=output,
                   title="Structural DFM Estimation Summary",
@@ -4019,13 +4019,13 @@ function _estimate_reg(; data::String, dep::String="", cov_type::String="hc1",
     f_pv = hasproperty(model, :f_pval) ? model.f_pval :
            (hasproperty(model, :f_pvalue) ? model.f_pvalue : NaN)
     pairs = Pair{String,Any}[
-        "R²"              => round(r2(model); digits=6),
-        "Adj. R²"         => round(model.adj_r2; digits=6),
-        "F-statistic"     => round(model.f_stat; digits=4),
-        "F p-value"       => round(f_pv; digits=4),
-        "Log-likelihood"  => round(loglikelihood(model); digits=4),
-        "AIC"             => round(aic(model); digits=4),
-        "BIC"             => round(bic(model); digits=4),
+        "R²"              => r2(model),
+        "Adj. R²"         => model.adj_r2,
+        "F-statistic"     => model.f_stat,
+        "F p-value"       => f_pv,
+        "Log-likelihood"  => loglikelihood(model),
+        "AIC"             => aic(model),
+        "BIC"             => bic(model),
     ]
     output_kv(pairs; format=format, output=_per_var_output_path(output, "fit"), title="Fit Statistics")
 
@@ -4106,7 +4106,7 @@ function _estimate_select(; data::String, dep::String="", method::String="bidire
                 step = collect(1:length(res.path)),
                 action = [String(p[1]) for p in res.path],
                 variable = [res.varnames[p[2]] for p in res.path],
-                statistic = [round(Float64(p[3]); digits=6) for p in res.path]);
+                statistic = [Float64(p[3]) for p in res.path]);
             format=Symbol(format), output=_per_var_output_path(output, "path"),
             title="Selection Path ($dep_name)", key="selection_path")
     end
@@ -4119,15 +4119,12 @@ function _estimate_select(; data::String, dep::String="", method::String="bidire
         "candidates (GUM)" => res.n_gum,
         "terminal models" => length(res.terminal_models),
     ]
-    res.encompassing_f === nothing || push!(pairs, "encompassing F" => _finite_or_str_reg(Float64(res.encompassing_f)))
-    res.encompassing_pval === nothing || push!(pairs, "encompassing p-value" => _finite_or_str_reg(Float64(res.encompassing_pval)))
+    res.encompassing_f === nothing || push!(pairs, "encompassing F" => Float64(res.encompassing_f))
+    res.encompassing_pval === nothing || push!(pairs, "encompassing p-value" => Float64(res.encompassing_pval))
     output_kv(pairs; format=format, output=_per_var_output_path(output, "summary"),
               title="Selection Summary")
     return res
 end
-
-"""Round for display but render a non-finite value as a string (legacy JSON writer)."""
-_finite_or_str_reg(x) = isfinite(x) ? round(Float64(x); digits=6) : string(Float64(x))
 
 function _estimate_iv(; data::String, dep::String="", endogenous::String="",
                        instruments::String="", cov_type::String="hc1",
@@ -4180,18 +4177,18 @@ function _estimate_iv(; data::String, dep::String="", endogenous::String="",
 
     _status()
     pairs = Pair{String,Any}[
-        "R²"              => round(r2(model); digits=6),
-        "Adj. R²"         => round(model.adj_r2; digits=6),
+        "R²"              => r2(model),
+        "Adj. R²"         => model.adj_r2,
     ]
     push!(pairs, "method" => method)
-    isnothing(model.kclass_k)   || push!(pairs, "k-class k" => round(Float64(model.kclass_k); digits=6))
-    isnothing(model.kappa_hat)  || push!(pairs, "kappa_hat" => round(Float64(model.kappa_hat); digits=6))
+    isnothing(model.kclass_k)   || push!(pairs, "k-class k" => Float64(model.kclass_k))
+    isnothing(model.kappa_hat)  || push!(pairs, "kappa_hat" => Float64(model.kappa_hat))
     if !isnothing(model.first_stage_f)
-        push!(pairs, "First-stage F" => round(model.first_stage_f; digits=4))
+        push!(pairs, "First-stage F" => model.first_stage_f)
     end
     if !isnothing(model.sargan_stat)
-        push!(pairs, "Sargan statistic" => round(model.sargan_stat; digits=4))
-        push!(pairs, "Sargan p-value"   => round(model.sargan_pval; digits=4))
+        push!(pairs, "Sargan statistic" => model.sargan_stat)
+        push!(pairs, "Sargan p-value"   => model.sargan_pval)
     end
     output_kv(pairs; format=format, output=_per_var_output_path(output, "diagnostics"),
               title="IV Diagnostics")
@@ -4259,7 +4256,7 @@ function _system_long_table(model, field::Symbol, valuecol::String)
         append!(ts, 1:length(v))
         append!(vals, v)
     end
-    return DataFrame("equation" => eqs, "t" => ts, valuecol => round.(vals; digits=6))
+    return DataFrame("equation" => eqs, "t" => ts, valuecol => vals)
 end
 
 """Refit the SUR system for the downstream verbs, mirroring `_estimate_sur` exactly."""
@@ -4372,9 +4369,9 @@ function _estimate_sur(; data::String, config::String="", iterate::Bool=false,
         "estimator"  => model.restricted ? "$kind (restricted)" : kind,
         "equations"  => length(model.eqnames),
         "obs_per_eq" => model.nobs,
-        "det_sigma"  => round(model.det_sigma; digits=6),
-        "mcelroy_r2" => round(model.mcelroy_r2; digits=6),
-        "loglik"     => round(model.loglik; digits=4),
+        "det_sigma"  => model.det_sigma,
+        "mcelroy_r2" => model.mcelroy_r2,
+        "loglik"     => model.loglik,
         "iterations" => model.iterations,
     ]; format=format, output=_per_var_output_path(output, "stats"), title="SUR System Statistics")
     return model
@@ -4419,8 +4416,8 @@ function _estimate_3sls(; data::String, config::String="", instruments::String="
         "estimator"          => "3SLS",
         "equations"          => length(model.eqnames),
         "obs_per_eq"         => model.nobs,
-        "det_sigma"          => round(model.det_sigma; digits=6),
-        "mcelroy_r2"         => round(model.mcelroy_r2; digits=6),
+        "det_sigma"          => model.det_sigma,
+        "mcelroy_r2"         => model.mcelroy_r2,
         "instruments_per_eq" => join(model.n_instruments, ", "),
     ]; format=format, output=_per_var_output_path(output, "stats"), title="3SLS System Statistics")
     return model
@@ -4449,11 +4446,11 @@ function _estimate_logit(; data::String, dep::String="", cov_type::String="hc1",
     pr2 = hasproperty(model, :pseudo_r2) ? model.pseudo_r2 :
           (try r2(model) catch; NaN end)
     pairs = Pair{String,Any}[
-        "Pseudo R²"       => round(pr2; digits=6),
-        "Log-likelihood"  => round(loglikelihood(model); digits=4),
-        "Log-lik (null)"  => round(model.loglik_null; digits=4),
-        "AIC"             => round(aic(model); digits=4),
-        "BIC"             => round(bic(model); digits=4),
+        "Pseudo R²"       => pr2,
+        "Log-likelihood"  => loglikelihood(model),
+        "Log-lik (null)"  => model.loglik_null,
+        "AIC"             => aic(model),
+        "BIC"             => bic(model),
         "Converged"       => model.converged,
         "Iterations"      => model.iterations,
     ]
@@ -4484,11 +4481,11 @@ function _estimate_probit(; data::String, dep::String="", cov_type::String="hc1"
     pr2 = hasproperty(model, :pseudo_r2) ? model.pseudo_r2 :
           (try r2(model) catch; NaN end)
     pairs = Pair{String,Any}[
-        "Pseudo R²"       => round(pr2; digits=6),
-        "Log-likelihood"  => round(loglikelihood(model); digits=4),
-        "Log-lik (null)"  => round(model.loglik_null; digits=4),
-        "AIC"             => round(aic(model); digits=4),
-        "BIC"             => round(bic(model); digits=4),
+        "Pseudo R²"       => pr2,
+        "Log-likelihood"  => loglikelihood(model),
+        "Log-lik (null)"  => model.loglik_null,
+        "AIC"             => aic(model),
+        "BIC"             => bic(model),
         "Converged"       => model.converged,
         "Iterations"      => model.iterations,
     ]
@@ -4588,12 +4585,12 @@ function _estimate_preg(; data::String, dep::String="", indep::String="",
 
     _status()
     pairs = Pair{String,Any}[
-        "R2 (within)"  => round(model.r2_within; digits=6),
-        "R2 (between)" => round(model.r2_between; digits=6),
-        "R2 (overall)" => round(model.r2_overall; digits=6),
-        "F-statistic"  => round(model.f_stat; digits=4),
-        "F p-value"    => round(hasproperty(model, :f_pval) ? model.f_pval :
-                                (hasproperty(model, :f_pvalue) ? model.f_pvalue : NaN); digits=4),
+        "R2 (within)"  => model.r2_within,
+        "R2 (between)" => model.r2_between,
+        "R2 (overall)" => model.r2_overall,
+        "F-statistic"  => model.f_stat,
+        "F p-value"    => (hasproperty(model, :f_pval) ? Float64(model.f_pval) :
+                           (hasproperty(model, :f_pvalue) ? Float64(model.f_pvalue) : NaN)),
         "N obs"        => model.n_obs,
         "N groups"     => model.n_groups,
     ]
@@ -4607,13 +4604,13 @@ function _estimate_preg(; data::String, dep::String="", indep::String="",
     dd = hasproperty(model, :dynamic_diagnostics) ? model.dynamic_diagnostics : nothing
     if dd !== nothing
         dpairs = Pair{String,Any}[
-            "AR(1) statistic" => round(dd.ar1; digits=4),
-            "AR(1) p-value"   => round(dd.ar1_p; digits=4),
-            "AR(2) statistic" => round(dd.ar2; digits=4),
-            "AR(2) p-value"   => round(dd.ar2_p; digits=4),
-            "Hansen J"        => round(dd.hansen; digits=4),
+            "AR(1) statistic" => dd.ar1,
+            "AR(1) p-value"   => dd.ar1_p,
+            "AR(2) statistic" => dd.ar2,
+            "AR(2) p-value"   => dd.ar2_p,
+            "Hansen J"        => dd.hansen,
             "Hansen df"       => dd.hansen_df,
-            "Hansen p-value"  => round(dd.hansen_p; digits=4),
+            "Hansen p-value"  => dd.hansen_p,
             "n_instruments"   => dd.n_instruments,
             "collapse"        => collapse,
             "instrument lag window" => "$min_lag_endo:$max_lag_endo",
@@ -4681,8 +4678,7 @@ function _estimate_piv(; data::String, dep::String="", exog::String="",
     # underidentified (bare try/catch in _panel_weak_iv_diagnostics; Sargan is
     # nothing when just-identified) — say so rather than a clean "N/A".
     _status()
-    fmt_d(x) = x === nothing ? "unavailable (failed or underidentified)" :
-               round(Float64(x); digits=4)
+    fmt_d(x) = x === nothing ? "unavailable (failed or underidentified)" : Float64(x)
     dpairs = Pair{String,Any}[
         "first-stage F (min partial)"    => fmt_d(model.first_stage_f),
         "Cragg-Donald F"                 => fmt_d(model.cragg_donald_f),
@@ -4723,10 +4719,10 @@ function _estimate_plogit(; data::String, dep::String="", indep::String="",
 
     _status()
     pairs = Pair{String,Any}[
-        "Pseudo R2"       => round(model.pseudo_r2; digits=6),
-        "Log-likelihood"  => round(model.loglik; digits=4),
-        "AIC"             => round(model.aic; digits=4),
-        "BIC"             => round(model.bic; digits=4),
+        "Pseudo R2"       => model.pseudo_r2,
+        "Log-likelihood"  => model.loglik,
+        "AIC"             => model.aic,
+        "BIC"             => model.bic,
         "Converged"       => model.converged,
         "N obs"           => model.n_obs,
         "N groups"        => model.n_groups,
@@ -4756,10 +4752,10 @@ function _estimate_pprobit(; data::String, dep::String="", indep::String="",
 
     _status()
     pairs = Pair{String,Any}[
-        "Pseudo R2"       => round(model.pseudo_r2; digits=6),
-        "Log-likelihood"  => round(model.loglik; digits=4),
-        "AIC"             => round(model.aic; digits=4),
-        "BIC"             => round(model.bic; digits=4),
+        "Pseudo R2"       => model.pseudo_r2,
+        "Log-likelihood"  => model.loglik,
+        "AIC"             => model.aic,
+        "BIC"             => model.bic,
         "Converged"       => model.converged,
         "N obs"           => model.n_obs,
         "N groups"        => model.n_groups,
@@ -4785,7 +4781,7 @@ function _estimate_ologit(; data::String, dep::String="", cov_type::String="ols"
     J = length(model.cutpoints)
     cut_df = DataFrame(
         Cutpoint = ["cut$i" for i in 1:J],
-        Value = round.(model.cutpoints; digits=6),
+        Value = model.cutpoints,
     )
     output_result(cut_df; format=Symbol(format),
                   output=_per_var_output_path(output, "cutpoints"),
@@ -4797,10 +4793,10 @@ function _estimate_ologit(; data::String, dep::String="", cov_type::String="ols"
 
     _status()
     pairs = Pair{String,Any}[
-        "Pseudo R2"       => round(model.pseudo_r2; digits=6),
-        "Log-likelihood"  => round(model.loglik; digits=4),
-        "AIC"             => round(model.aic; digits=4),
-        "BIC"             => round(model.bic; digits=4),
+        "Pseudo R2"       => model.pseudo_r2,
+        "Log-likelihood"  => model.loglik,
+        "AIC"             => model.aic,
+        "BIC"             => model.bic,
         "Categories"      => length(model.categories),
     ]
     output_kv(pairs; format=format, output=_per_var_output_path(output, "fit"), title="Fit Statistics")
@@ -4822,7 +4818,7 @@ function _estimate_oprobit(; data::String, dep::String="", cov_type::String="ols
     model = estimate_oprobit(y, X; cov_type=Symbol(cov_type), varnames=xcols, clusters=cl)
 
     J = length(model.cutpoints)
-    cut_df = DataFrame(Cutpoint = ["cut$i" for i in 1:J], Value = round.(model.cutpoints; digits=6))
+    cut_df = DataFrame(Cutpoint = ["cut$i" for i in 1:J], Value = model.cutpoints)
     output_result(cut_df; format=Symbol(format),
                   output=_per_var_output_path(output, "cutpoints"),
                   title="Cutpoints")
@@ -4833,9 +4829,9 @@ function _estimate_oprobit(; data::String, dep::String="", cov_type::String="ols
 
     _status()
     pairs = Pair{String,Any}[
-        "Pseudo R2" => round(model.pseudo_r2; digits=6),
-        "Log-likelihood" => round(model.loglik; digits=4),
-        "AIC" => round(model.aic; digits=4), "BIC" => round(model.bic; digits=4),
+        "Pseudo R2" => model.pseudo_r2,
+        "Log-likelihood" => model.loglik,
+        "AIC" => model.aic, "BIC" => model.bic,
         "Categories" => length(model.categories)]
     output_kv(pairs; format=format, output=_per_var_output_path(output, "fit"), title="Fit Statistics")
     return model
@@ -4863,9 +4859,9 @@ function _estimate_mlogit(; data::String, dep::String="", cov_type::String="ols"
     _status()
 
     pairs = Pair{String,Any}[
-        "Pseudo R2" => round(model.pseudo_r2; digits=6),
-        "Log-likelihood" => round(model.loglik; digits=4),
-        "AIC" => round(model.aic; digits=4), "BIC" => round(model.bic; digits=4),
+        "Pseudo R2" => model.pseudo_r2,
+        "Log-likelihood" => model.loglik,
+        "AIC" => model.aic, "BIC" => model.bic,
         "Categories" => size(model.fitted, 2)]
     output_kv(pairs; format=format, output=_per_var_output_path(output, "fit"), title="Fit Statistics")
     return model
@@ -4933,21 +4929,21 @@ point-estimate field is `or` (NOT `odds_ratio` — the #84 alias trap)."""
 function _irr_table(model, conf_level::Float64)
     irr = incidence_rate_ratio(model; conf_level=conf_level)
     return DataFrame(term=copy(irr.varnames),
-                     irr=round.(Float64.(irr.or); digits=6),
-                     std_error=round.(Float64.(irr.se); digits=6),
-                     ci_lower=round.(Float64.(irr.ci_lower); digits=6),
-                     ci_upper=round.(Float64.(irr.ci_upper); digits=6))
+                     irr=Float64.(irr.or),
+                     std_error=Float64.(irr.se),
+                     ci_lower=Float64.(irr.ci_lower),
+                     ci_upper=Float64.(irr.ci_upper))
 end
 
 """Fit statistics shared by the two count estimators."""
 function _count_fit_pairs(model)
     return Pair{String,Any}[
-        "Pseudo R²"      => round(Float64(model.pseudo_r2); digits=6),
-        "Log-likelihood" => round(Float64(model.loglik); digits=4),
-        "Log-lik (null)" => round(Float64(model.loglik_null); digits=4),
-        "Deviance"       => round(Float64(model.deviance); digits=4),
-        "AIC"            => round(Float64(model.aic); digits=4),
-        "BIC"            => round(Float64(model.bic); digits=4),
+        "Pseudo R²"      => Float64(model.pseudo_r2),
+        "Log-likelihood" => Float64(model.loglik),
+        "Log-lik (null)" => Float64(model.loglik_null),
+        "Deviance"       => Float64(model.deviance),
+        "AIC"            => Float64(model.aic),
+        "BIC"            => Float64(model.bic),
         "Converged"      => model.converged,
         "Iterations"     => model.iterations,
     ]
@@ -5045,9 +5041,9 @@ function _estimate_nbreg(; data::String, dep::String="", offset::String="",
     # would drop the coefficients above.
     z = model.alpha_se > 0 ? model.alpha / model.alpha_se : NaN
     output_result(DataFrame(parameter=["alpha"],
-                            estimate=[round(Float64(model.alpha); digits=6)],
-                            std_error=[round(Float64(model.alpha_se); digits=6)],
-                            z_stat=[round(Float64(z); digits=4)]);
+                            estimate=[Float64(model.alpha)],
+                            std_error=[Float64(model.alpha_se)],
+                            z_stat=[Float64(z)]);
                   format=Symbol(format), output=_per_var_output_path(output, "alpha"),
                   title="Overdispersion Parameter")
     if irr
@@ -5072,7 +5068,7 @@ function _predict_poisson(; data::String="", dep::String="", offset::String="",
     _status("Poisson conditional means: n=$(length(predict(m)))"); _status()
     mu = predict(m)   # 1-arg predict == m.fitted upstream; the (m, Xnew) form is out of scope
     return output_result(DataFrame(observation=1:length(mu),
-                                   fitted=round.(Float64.(mu); digits=6));
+                                   fitted=Float64.(mu));
                          format=Symbol(format), output=output,
                          title="Poisson Conditional Means")
 end
@@ -5085,7 +5081,7 @@ function _predict_nbreg(; data::String="", dep::String="", offset::String="",
     mu = predict(m)
     _status("Negative binomial conditional means: n=$(length(mu))"); _status()
     return output_result(DataFrame(observation=1:length(mu),
-                                   fitted=round.(Float64.(mu); digits=6));
+                                   fitted=Float64.(mu));
                          format=Symbol(format), output=output,
                          title="Negative Binomial Conditional Means")
 end
@@ -5100,7 +5096,7 @@ function _residuals_poisson(; data::String="", dep::String="", offset::String=""
     r = residuals(m)
     _status("Poisson residuals: n=$(length(r))"); _status()
     return output_result(DataFrame(observation=1:length(r),
-                                   residual=round.(Float64.(r); digits=6));
+                                   residual=Float64.(r));
                          format=Symbol(format), output=output,
                          title="Poisson Residuals")
 end
@@ -5113,7 +5109,7 @@ function _residuals_nbreg(; data::String="", dep::String="", offset::String="",
     r = residuals(m)
     _status("Negative binomial residuals: n=$(length(r))"); _status()
     return output_result(DataFrame(observation=1:length(r),
-                                   residual=round.(Float64.(r); digits=6));
+                                   residual=Float64.(r));
                          format=Symbol(format), output=output,
                          title="Negative Binomial Residuals")
 end
@@ -5140,10 +5136,10 @@ function _test_dispersion(; data::String="", model=nothing, dep::String="", offs
     rows = [(form="NB2", nt=dt.nb2), (form="NB1", nt=dt.nb1)]
     df = DataFrame(
         form=[r.form for r in rows],
-        alpha=[round(Float64(r.nt.alpha); digits=6) for r in rows],
-        std_error=[round(Float64(r.nt.se); digits=6) for r in rows],
-        t_stat=[round(Float64(r.nt.t_stat); digits=4) for r in rows],
-        p_value=[round(Float64(r.nt.p_value); digits=6) for r in rows],
+        alpha=[Float64(r.nt.alpha) for r in rows],
+        std_error=[Float64(r.nt.se) for r in rows],
+        t_stat=[Float64(r.nt.t_stat) for r in rows],
+        p_value=[Float64(r.nt.p_value) for r in rows],
         # The p-value is two-sided, but the decision is DIRECTIONAL: alpha > 0 is
         # overdispersion (Poisson understates the variance → prefer nbreg), alpha < 0 is
         # UNDERdispersion, for which nbreg is not the remedy — NB2 cannot represent it.
@@ -5169,7 +5165,7 @@ function _test_dispersion(; data::String="", model=nothing, dep::String="", offs
     output_kv(Pair{String,Any}[
         "n"               => dt.n,
         "alpha_level"     => alpha,
-        "nb2_alpha"       => round(a2; digits=6),
+        "nb2_alpha"       => a2,
         "preferred_model" => preferred,
     ]; format=format, output=_per_var_output_path(output, "summary"), title="Dispersion Summary")
     return dt
@@ -5192,11 +5188,11 @@ function _garch_variant_coef_table(model, param_names::Vector{String})
         (length(se) == length(c) && all(isfinite, se)) || error("unavailable SEs")
         z = [se[i] == 0 ? 0.0 : c[i] / se[i] for i in eachindex(c)]
         pv = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
-        return DataFrame(parameter=names, estimate=round.(c; digits=6),
-                         std_error=round.(se; digits=6),
-                         z_stat=round.(z; digits=4), p_value=round.(pv; digits=4))
+        return DataFrame(parameter=names, estimate=c,
+                         std_error=se,
+                         z_stat=z, p_value=pv)
     catch
-        return DataFrame(parameter=names, estimate=round.(c; digits=6))
+        return DataFrame(parameter=names, estimate=c)
     end
 end
 
@@ -5204,10 +5200,10 @@ end
 convergence, iterations, plus any model-specific `extra` rows."""
 function _garch_variant_diag(model; extra::Vector{<:Pair}=Pair{String,Any}[])
     pairs = Pair{String,Any}[
-        "log_likelihood" => round(Float64(loglikelihood(model)); digits=4),
-        "aic"            => round(Float64(model.aic); digits=4),
-        "bic"            => round(Float64(model.bic); digits=4),
-        "persistence"    => round(Float64(persistence(model)); digits=6),
+        "log_likelihood" => Float64(loglikelihood(model)),
+        "aic"            => Float64(model.aic),
+        "bic"            => Float64(model.bic),
+        "persistence"    => Float64(persistence(model)),
         "converged"      => model.converged,
         "iterations"     => model.iterations,
     ]
@@ -5246,8 +5242,8 @@ function _threshold_coef_table(betas::AbstractVector, ses::AbstractVector,
     z  = [s[i] == 0.0 ? 0.0 : b[i] / s[i] for i in 1:n]
     pv = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
     return DataFrame(regime=fill(regime_label, n), term=tm[1:n],
-                     estimate=round.(b; digits=6), std_error=round.(s; digits=6),
-                     z_stat=round.(z; digits=4), p_value=round.(pv; digits=4))
+                     estimate=b, std_error=s,
+                     z_stat=z, p_value=pv)
 end
 
 """Map an untyped MEMs nonlinear-TS failure (SETAR/STAR/MS estimator, test, or
@@ -5307,8 +5303,8 @@ so `predict garch` and `predict igarch` render identically."""
 function _vol_variant_predict_output(cond_var, vname::String, title::String;
                                      format::String, output::String, key::String="")
     cv = Float64.(collect(cond_var))
-    output_result(DataFrame(t=1:length(cv), variance=round.(cv; digits=6),
-                            volatility=round.(sqrt.(abs.(cv)); digits=6));
+    output_result(DataFrame(t=1:length(cv), variance=cv,
+                            volatility=sqrt.(abs.(cv)));
         format=Symbol(format), output=output, title="$title ($vname)", key=key)
     return cond_var
 end
@@ -5317,7 +5313,7 @@ end
 function _vol_variant_residuals_output(resid, vname::String, title::String;
                                        format::String, output::String, key::String="")
     r = Float64.(collect(resid))
-    output_result(DataFrame(t=1:length(r), residual=round.(r; digits=6));
+    output_result(DataFrame(t=1:length(r), residual=r);
         format=Symbol(format), output=output, title="$title ($vname)", key=key)
     return resid
 end
@@ -5669,10 +5665,10 @@ function _forecast_garch_midas(; data::String="", result=nothing, column::Int=1,
     tot = Float64.(collect(fc.total))
     output_result(DataFrame(
             horizon = collect(1:length(tot)),
-            total_variance = round.(tot; digits=6),
-            long_run = round.(Float64.(collect(fc.long_run)); digits=6),
-            short_run = round.(Float64.(collect(fc.short_run)); digits=6),
-            volatility = round.(sqrt.(abs.(tot)); digits=6));
+            total_variance = tot,
+            long_run = Float64.(collect(fc.long_run)),
+            short_run = Float64.(collect(fc.short_run)),
+            volatility = sqrt.(abs.(tot)));
         format=Symbol(format), output=output,
         title="GARCH-MIDAS Volatility Forecast ($vname)", key="garch_midas_volatility_forecast")
     return (; model=m, result=fc)
@@ -5734,8 +5730,8 @@ function _estimate_cgarch(; data::String, column::Int=1,
                   output=output, title="Component-GARCH(1,1) Coefficients ($vname)",
                   key="cgarch_coefficients")
     output_kv(_garch_variant_diag(model; extra=Pair{String,Any}[
-        "transitory_persistence" => round(Float64(model.alpha + model.beta); digits=6),
-        "unconditional_variance" => round(Float64(unconditional_variance(model)); digits=6),
+        "transitory_persistence" => Float64(model.alpha + model.beta),
+        "unconditional_variance" => Float64(unconditional_variance(model)),
     ]); format=format, output=_per_var_output_path(output, "diagnostics"),
        title="Component-GARCH Diagnostics", key="cgarch_diagnostics")
     return model
@@ -5760,7 +5756,7 @@ function _estimate_aparch(; data::String, column::Int=1, p::Int=1, q::Int=1,
                   output=output, title="APARCH($p,$q) Coefficients ($vname)",
                   key="aparch_coefficients")
     output_kv(_garch_variant_diag(model; extra=Pair{String,Any}[
-        "delta" => round(Float64(model.delta); digits=6),
+        "delta" => Float64(model.delta),
         "n_params" => model.n_params,
     ]); format=format, output=_per_var_output_path(output, "diagnostics"),
        title="APARCH Diagnostics", key="aparch_diagnostics")
@@ -5783,7 +5779,7 @@ function _estimate_figarch(; data::String, column::Int=1, p::Int=1, q::Int=1,
                   output=output, title="FIGARCH($p,d,$q) Coefficients ($vname)",
                   key="figarch_coefficients")
     output_kv(_garch_variant_diag(model; extra=Pair{String,Any}[
-        "d" => round(Float64(model.d); digits=6),
+        "d" => Float64(model.d),
         "truncation" => model.truncation,
         "n_neg_lambda" => model.n_neg_lambda,
     ]); format=format, output=_per_var_output_path(output, "diagnostics"),
@@ -5807,7 +5803,7 @@ function _estimate_fiegarch(; data::String, column::Int=1, p::Int=1, q::Int=1,
                   output=output, title="FIEGARCH($p,d,$q) Coefficients ($vname)",
                   key="fiegarch_coefficients")
     output_kv(_garch_variant_diag(model; extra=Pair{String,Any}[
-        "d" => round(Float64(model.d); digits=6),
+        "d" => Float64(model.d),
         "truncation" => model.truncation,
     ]); format=format, output=_per_var_output_path(output, "diagnostics"),
        title="FIEGARCH Diagnostics", key="fiegarch_diagnostics")
@@ -5841,7 +5837,7 @@ function _estimate_garch_midas(; data::String, column::Int=1, m_freq::Int=0, k::
                   output=output, title="GARCH-MIDAS Coefficients ($vname)",
                   key="garch_midas_coefficients")
     output_kv(_garch_variant_diag(model; extra=Pair{String,Any}[
-        "variance_ratio" => round(Float64(model.variance_ratio); digits=6),
+        "variance_ratio" => Float64(model.variance_ratio),
         "K" => model.K, "m_freq" => model.m_freq, "n_blocks" => model.n_blocks,
         "rv" => String(model.rv), "span" => String(model.span),
     ]); format=format, output=_per_var_output_path(output, "diagnostics"),
@@ -5860,7 +5856,7 @@ end
 (the label would otherwise collide → uncaught `ArgumentError` → exit-1) and any duplicate
 input headers; the colliding label is renamed (`series_1`) rather than crashing."""
 _mgarch_corr_df(R::AbstractMatrix, names::Vector{String}) =
-    insertcols!(DataFrame(round.(R; digits=6), names; makeunique=true), 1,
+    insertcols!(DataFrame(R, names; makeunique=true), 1,
                 :series => names; makeunique=true)
 
 """Shared renderer for an MGARCH fit: headline conditional-correlation matrix (wide),
@@ -5886,9 +5882,9 @@ function _mgarch_output(model, varnames::Vector{String}, label::String;
                       key="$(key_prefix)_dynamics_parameters")
     end
     pairs = Pair{String,Any}[
-        "loglik"       => round(Float64(loglikelihood(model)); digits=4),
-        "aic"          => round(Float64(model.aic); digits=4),
-        "bic"          => round(Float64(model.bic); digits=4),
+        "loglik"       => Float64(loglikelihood(model)),
+        "aic"          => Float64(model.aic),
+        "bic"          => Float64(model.bic),
         "series"       => model.n,
         "observations" => size(model.Y, 1),
         "converged"    => model.converged,
@@ -5896,7 +5892,7 @@ function _mgarch_output(model, varnames::Vector{String}, label::String;
     ]
     if model.kind === :dcc
         push!(pairs, "correction" => string(model.correction))
-        push!(pairs, "persistence" => round(Float64(sum(coef(model))); digits=6))
+        push!(pairs, "persistence" => Float64(sum(coef(model))))
     elseif model.kind === :bekk
         push!(pairs, "bekk_kind" => string(model.bekk_kind))
     end
@@ -5970,20 +5966,20 @@ is estimate-only — the C051-documented hand-built exception."""
 function _penalized_coef_table(model, xcols::Vector{String})
     names = String["(Intercept)"; xcols[1:length(model.beta)]]
     est = Float64[model.beta0; model.beta]
-    DataFrame(term=names, estimate=round.(est; digits=6), nonzero=(est .!= 0.0))
+    DataFrame(term=names, estimate=est, nonzero=(est .!= 0.0))
 end
 
 """Diagnostics kv for a penalized fit: mixing `alpha`, selected `lambda`, active-set
 size, fit `r2`, information criteria, and the selection rule."""
 function _penalized_diag(model)
     Pair{String,Any}[
-        "alpha"    => round(Float64(model.alpha); digits=4),
-        "lambda"   => round(Float64(model.lambda); digits=6),
+        "alpha"    => Float64(model.alpha),
+        "lambda"   => Float64(model.lambda),
         "n_active" => count(!=(0.0), model.beta),
-        "r2"       => round(Float64(model.r2); digits=6),
-        "aic"      => round(Float64(model.aic); digits=4),
-        "bic"      => round(Float64(model.bic); digits=4),
-        "ebic"     => round(Float64(model.ebic); digits=4),
+        "r2"       => Float64(model.r2),
+        "aic"      => Float64(model.aic),
+        "bic"      => Float64(model.bic),
+        "ebic"     => Float64(model.ebic),
         "select"   => string(model.select),
     ]
 end
@@ -6080,9 +6076,9 @@ function _estimate_robust(; data::String, dep::String="", psi::String="huber",
     output_kv(Pair{String,Any}[
         "psi"        => string(model.psi),
         "method"     => string(model.method),
-        "scale"      => round(Float64(model.scale); digits=6),
-        "robust_r2"  => round(Float64(model.robust_r2); digits=6),
-        "tuning"     => round(Float64(model.tuning); digits=6),
+        "scale"      => Float64(model.scale),
+        "robust_r2"  => Float64(model.robust_r2),
+        "tuning"     => Float64(model.tuning),
         "converged"  => model.converged,
         "iterations" => model.iterations,
     ]; format=format, output=_per_var_output_path(output, "diagnostics"),
@@ -6106,10 +6102,10 @@ function _estimate_tobit(; data::String, dep::String="", lower::Float64=0.0,
     output_result(_garch_variant_coef_table(model, xcols); format=Symbol(format), output=output,
                   title="Tobit Coefficients")
     output_kv(Pair{String,Any}[
-        "sigma"            => round(Float64(model.sigma); digits=6),
-        "loglik"           => round(Float64(model.loglik); digits=4),
-        "aic"              => round(Float64(model.aic); digits=4),
-        "bic"              => round(Float64(model.bic); digits=4),
+        "sigma"            => Float64(model.sigma),
+        "loglik"           => Float64(model.loglik),
+        "aic"              => Float64(model.aic),
+        "bic"              => Float64(model.bic),
         # Render ±Inf bounds as strings: a raw Inf/-Inf Float crashes the direct
         # JSON writer, which — unlike the envelope path — does not apply
         # `_json_safe` ("Inf not allowed in JSON spec"). Matches the envelope output.
@@ -6144,11 +6140,11 @@ function _estimate_truncreg(; data::String, dep::String="", lower::Float64=0.0,
     output_result(_garch_variant_coef_table(model, xcols); format=Symbol(format), output=output,
                   title="Truncated Regression Coefficients")
     output_kv(Pair{String,Any}[
-        "sigma"        => round(Float64(model.sigma); digits=6),
-        "sigma_se"     => round(Float64(model.sigma_se); digits=6),
-        "loglik"       => round(Float64(model.loglik); digits=4),
-        "aic"          => round(Float64(model.aic); digits=4),
-        "bic"          => round(Float64(model.bic); digits=4),
+        "sigma"        => Float64(model.sigma),
+        "sigma_se"     => Float64(model.sigma_se),
+        "loglik"       => Float64(model.loglik),
+        "aic"          => Float64(model.aic),
+        "bic"          => Float64(model.bic),
         # ±Inf bounds → strings (legacy JSON writer rejects non-finite floats; see Tobit).
         "lower"        => isfinite(model.lower) ? Float64(model.lower) : string(model.lower),
         "upper"        => isfinite(model.upper) ? Float64(model.upper) : string(model.upper),
@@ -6177,9 +6173,9 @@ function _heckman_coef_table(model)
     _append!("selection", model.select_names,  model.gamma, model.vcov_gamma)
     z  = [sec[i] == 0.0 ? 0.0 : est[i] / sec[i] for i in eachindex(est)]
     pv = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
-    DataFrame(equation=eqc, term=term, estimate=round.(est; digits=6),
-              std_error=round.(sec; digits=6), z_stat=round.(z; digits=4),
-              p_value=round.(pv; digits=4))
+    DataFrame(equation=eqc, term=term, estimate=est,
+              std_error=sec, z_stat=z,
+              p_value=pv)
 end
 
 function _estimate_heckman(; data::String, dep::String="", select::String="",
@@ -6255,15 +6251,15 @@ function _estimate_heckman(; data::String, dep::String="", select::String="",
                   title="Heckman Coefficients (outcome + selection)")
     output_kv(Pair{String,Any}[
         "method"      => string(model.method),
-        "rho"         => round(Float64(model.rho); digits=6),
-        "rho_se"      => isfinite(model.rho_se) ? round(Float64(model.rho_se); digits=6) : string(model.rho_se),
-        "sigma"       => round(Float64(model.sigma); digits=6),
-        "sigma_se"    => isfinite(model.sigma_se) ? round(Float64(model.sigma_se); digits=6) : string(model.sigma_se),
-        "lambda"      => round(Float64(model.lambda); digits=6),
-        "lambda_se"   => isfinite(model.lambda_se) ? round(Float64(model.lambda_se); digits=6) : string(model.lambda_se),
-        "loglik"      => round(Float64(model.loglik); digits=4),
-        "aic"         => round(Float64(model.aic); digits=4),
-        "bic"         => round(Float64(model.bic); digits=4),
+        "rho"         => Float64(model.rho),
+        "rho_se"      => Float64(model.rho_se),
+        "sigma"       => Float64(model.sigma),
+        "sigma_se"    => Float64(model.sigma_se),
+        "lambda"      => Float64(model.lambda),
+        "lambda_se"   => Float64(model.lambda_se),
+        "loglik"      => Float64(model.loglik),
+        "aic"         => Float64(model.aic),
+        "bic"         => Float64(model.bic),
         "n_selected"  => model.n_selected,
         "n_total"     => model.n_total,
         "converged"   => model.converged,
@@ -6284,7 +6280,7 @@ function _statespace_param_table(model)
     names = String.(model.param_names)
     th = Float64.(model.theta)
     m = min(length(names), length(th))
-    DataFrame(parameter=names[1:m], estimate=round.(th[1:m]; digits=6))
+    DataFrame(parameter=names[1:m], estimate=th[1:m])
 end
 
 """Tidy LONG coefficient-path table for a TVP regression: one row per (period, coefficient)
@@ -6296,7 +6292,7 @@ function _tvp_path_table(model, coefnames::Vector{String})
     period = Int[]; coefficient = String[]; estimate = Float64[]
     for t in 1:Tn, j in 1:kk
         push!(period, t); push!(coefficient, coefnames[j])
-        push!(estimate, round(Float64(S[t, j]); digits=6))
+        push!(estimate, Float64(S[t, j]))
     end
     DataFrame(period=period, coefficient=coefficient, estimate=estimate)
 end
@@ -6350,8 +6346,8 @@ function _predict_statespace(; data::String="", column::Int=1, kind::String="loc
     end
     _status("State-space $kind states: variable=$vname, T=$nT, states=$nS"); _status()
     df = DataFrame("period" => periods, "state" => states)
-    state in ("filtered", "both") && (df[!, "filtered"] = round.(filt; digits=6))
-    state in ("smoothed", "both") && (df[!, "smoothed"] = round.(smoo; digits=6))
+    state in ("filtered", "both") && (df[!, "filtered"] = filt)
+    state in ("smoothed", "both") && (df[!, "smoothed"] = smoo)
     output_result(df; format=Symbol(format), output=output,
                   title="State-Space State Paths ($kind, $vname)", key="state_space_state_paths")
     return ssm
@@ -6371,7 +6367,7 @@ function _residuals_statespace(; data::String="", column::Int=1, kind::String="l
     end
     _status("State-space $kind $(standardized ? "standardized " : "")innovations: variable=$vname, T=$nT"); _status()
     output_result(DataFrame("period" => periods, "series" => series,
-                            "residual" => round.(vals; digits=6));
+                            "residual" => vals);
         format=Symbol(format), output=output,
         title="State-Space $(standardized ? "Standardized " : "")Innovations ($kind, $vname)",
         key="state_space_innovations")
@@ -6440,8 +6436,7 @@ function _estimate_statespace(; data::String, column::Int=1, model::String="loca
                       title="State-Space System (general)")
         output_kv(Pair{String,Any}[
             "model"     => "general",
-            "loglik"    => isfinite(fitted_ss.loglik) ? round(Float64(fitted_ss.loglik); digits=4) :
-                           string(fitted_ss.loglik),
+            "loglik"    => Float64(fitted_ss.loglik),
             "init_mode" => string(fitted_ss.init_mode),
             "n_obs_series" => fitted_ss.n_obs,
             "n_state"   => fitted_ss.n_state,
@@ -6488,7 +6483,7 @@ function _estimate_statespace(; data::String, column::Int=1, model::String="loca
         "model"     => model,
         # loglik/theta can be non-finite if the optimizer stalls — string-render (legacy-JSON
         # writer rejects non-finite floats; see the C067a Inf gotcha).
-        "loglik"    => isfinite(ssm.loglik) ? round(Float64(ssm.loglik); digits=4) : string(ssm.loglik),
+        "loglik"    => Float64(ssm.loglik),
         "converged" => ssm.converged,
         "n_state"   => ssm.n_state,
         "n_obs"     => ssm.T_obs,   # T_obs = number of time observations (the user-facing "n_obs")
@@ -6533,7 +6528,7 @@ function _estimate_tvp(; data::String, dep::String="", init_mode::String="kappa"
     output_result(_tvp_path_table(ssm, coefnames); format=Symbol(format),
                   output=_per_var_output_path(output, "path"), title="TVP Coefficient Paths")
     output_kv(Pair{String,Any}[
-        "loglik"    => isfinite(ssm.loglik) ? round(Float64(ssm.loglik); digits=4) : string(ssm.loglik),
+        "loglik"    => Float64(ssm.loglik),
         "converged" => ssm.converged,
         "n_coef"    => ssm.n_state,
         "intercept" => intercept,
@@ -6544,8 +6539,8 @@ function _estimate_tvp(; data::String, dep::String="", init_mode::String="kappa"
 end
 
 # estimate kde — univariate kernel density estimate
-_kde_table(kd) = DataFrame(x=round.(Float64.(kd.x); digits=6),
-                           density=round.(Float64.(kd.density); digits=6))
+_kde_table(kd) = DataFrame(x=Float64.(kd.x),
+                           density=Float64.(kd.density))
 
 function _estimate_kde(; data::String, column::Int=1, kernel::String="gaussian",
                         bw::String="silverman", npoints::Int=512, cut::Float64=3.0,
@@ -6568,7 +6563,7 @@ function _estimate_kde(; data::String, column::Int=1, kernel::String="gaussian",
     output_kv(Pair{String,Any}[
         "kernel"    => string(kd.kernel),
         "bw_method" => string(kd.bw_method),
-        "bandwidth" => round(Float64(kd.bandwidth); digits=6),
+        "bandwidth" => Float64(kd.bandwidth),
         "nobs"      => kd.nobs,
     ]; format=format, output=_per_var_output_path(output, "diagnostics"),
        title="Kernel Density Diagnostics")
@@ -6576,9 +6571,9 @@ function _estimate_kde(; data::String, column::Int=1, kernel::String="gaussian",
 end
 
 # estimate kernel-reg — Nadaraya-Watson / local-linear / local-polynomial regression
-_kernel_reg_table(kr) = DataFrame(x=round.(Float64.(kr.x); digits=6),
-                                  fitted=round.(Float64.(kr.fitted); digits=6),
-                                  se=round.(Float64.(kr.se); digits=6))
+_kernel_reg_table(kr) = DataFrame(x=Float64.(kr.x),
+                                  fitted=Float64.(kr.fitted),
+                                  se=Float64.(kr.se))
 
 function _estimate_kernel_reg(; data::String, dep::String="", indep::String="",
                                method::String="ll", degree::Int=1, bw::String="cv",
@@ -6605,7 +6600,7 @@ function _estimate_kernel_reg(; data::String, dep::String="", indep::String="",
         "degree"    => kr.degree,
         "kernel"    => string(kr.kernel),
         "bw_method" => string(kr.bw_method),
-        "bandwidth" => round(Float64(kr.bandwidth); digits=6),
+        "bandwidth" => Float64(kr.bandwidth),
         "nobs"      => kr.nobs,
     ]; format=format, output=_per_var_output_path(output, "diagnostics"),
        title="Kernel Regression Diagnostics")
@@ -6613,8 +6608,8 @@ function _estimate_kernel_reg(; data::String, dep::String="", indep::String="",
 end
 
 # estimate lowess — Cleveland (1979) locally-weighted scatterplot smoother
-_lowess_table(lf) = DataFrame(x=round.(Float64.(lf.x); digits=6),
-                              fitted=round.(Float64.(lf.fitted); digits=6))
+_lowess_table(lf) = DataFrame(x=Float64.(lf.x),
+                              fitted=Float64.(lf.fitted))
 
 function _estimate_lowess(; data::String, dep::String="", indep::String="",
                            frac::Float64=0.6667, iter::Int=3,
@@ -6634,7 +6629,7 @@ function _estimate_lowess(; data::String, dep::String="", indep::String="",
     output_result(_lowess_table(lf); format=Symbol(format), output=output,
                   title="LOWESS Fit ($ynm ~ $xnm)", key="lowess_fit")
     output_kv(Pair{String,Any}[
-        "frac" => round(Float64(lf.span); digits=6),
+        "frac" => Float64(lf.span),
         "iter" => lf.iter,
         "nobs" => lf.nobs,
     ]; format=format, output=_per_var_output_path(output, "diagnostics"),
@@ -6684,11 +6679,11 @@ function _cointreg_coef_table(model)
     z = [se[i] == 0 ? 0.0 : est[i] / se[i] for i in eachindex(est)]
     pv = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
     zc = 1.959963984540054   # Φ⁻¹(0.975)
-    return DataFrame(term=names, estimate=round.(est; digits=6),
-                     std_error=round.(se; digits=6), stat=round.(z; digits=4),
-                     p_value=round.(pv; digits=4),
-                     ci_lower=round.(est .- zc .* se; digits=6),
-                     ci_upper=round.(est .+ zc .* se; digits=6))
+    return DataFrame(term=names, estimate=est,
+                     std_error=se, stat=z,
+                     p_value=pv,
+                     ci_lower=est .- zc .* se,
+                     ci_upper=est .+ zc .* se)
 end
 
 """Hand-built coefficient table for a panel cointegrating regression
@@ -6701,11 +6696,11 @@ function _panel_cointreg_coef_table(model)
     se = Float64.(model.se)
     names = String.(model.varnames)[1:length(est)]
     zc = 1.959963984540054
-    return DataFrame(term=names, estimate=round.(est; digits=6),
-                     std_error=round.(se; digits=6), stat=round.(Float64.(model.tstats); digits=4),
-                     p_value=round.(Float64.(model.pvalues); digits=4),
-                     ci_lower=round.(est .- zc .* se; digits=6),
-                     ci_upper=round.(est .+ zc .* se; digits=6))
+    return DataFrame(term=names, estimate=est,
+                     std_error=se, stat=Float64.(model.tstats),
+                     p_value=Float64.(model.pvalues),
+                     ci_lower=est .- zc .* se,
+                     ci_upper=est .+ zc .* se)
 end
 
 function _estimate_cointreg(; data::String, dep::String="", method::String="fmols",
@@ -6734,8 +6729,8 @@ function _estimate_cointreg(; data::String, dep::String="", method::String="fmol
         "method"    => String(model.method),
         "trend"     => String(model.trend),
         "kernel"    => String(model.kernel),
-        "bandwidth" => round(Float64(model.bandwidth); digits=4),
-        "omega_uv"  => round(Float64(model.omega_uv); digits=6),
+        "bandwidth" => Float64(model.bandwidth),
+        "omega_uv"  => Float64(model.omega_uv),
         "nobs"      => model.nobs,
         "d"         => model.d,
         "k"         => model.k,
@@ -6810,9 +6805,9 @@ function _ardl_coef_table(a)
     names = String.(a.coefnames)[1:length(est)]
     z = [se[i] == 0 ? 0.0 : est[i] / se[i] for i in eachindex(est)]
     pv = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
-    return DataFrame(term=names, estimate=round.(est; digits=6),
-                     std_error=round.(se; digits=6), stat=round.(z; digits=4),
-                     p_value=round.(pv; digits=4))
+    return DataFrame(term=names, estimate=est,
+                     std_error=se, stat=z,
+                     p_value=pv)
 end
 
 """Hand-built long-run (level) multiplier table from an `ARDLLongRun`:
@@ -6825,9 +6820,9 @@ function _ardl_longrun_table(lr)
     names = String.(lr.varnames)[1:length(est)]
     z = [se[i] == 0 ? 0.0 : est[i] / se[i] for i in eachindex(est)]
     pv = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
-    return DataFrame(term=names, estimate=round.(est; digits=6),
-                     std_error=round.(se; digits=6), stat=round.(z; digits=4),
-                     p_value=round.(pv; digits=4))
+    return DataFrame(term=names, estimate=est,
+                     std_error=se, stat=z,
+                     p_value=pv)
 end
 
 """Fit an `ARDLModel` from a loaded `(y, X, xcols)` + a resolved dep name, with all
@@ -6883,10 +6878,6 @@ function _fit_nardl(y, X, xcols, dep_name; asymmetric::String, p::String, q::Str
     end
 end
 
-"""Round a scalar for kv output, string-rendering non-finite values (the legacy-JSON writer
-rejects Inf/NaN — the C067a gotcha; `alpha_t` can be Inf when `alpha_se==0`)."""
-_ardl_kv(x; digits::Int=6) = isfinite(x) ? round(Float64(x); digits=digits) : string(x)
-
 function _estimate_ardl(; data::String, dep::String="", p::String="auto", q::String="auto",
                          max_p::Int=4, max_q::Int=4, ic::String="aic", case::Int=3,
                          trend::String="none", output::String="", format::String="table")
@@ -6912,14 +6903,14 @@ function _estimate_ardl(; data::String, dep::String="", p::String="auto", q::Str
         "selected"      => m.selected,
         "nobs"          => m.n,
         "K"             => m.K,
-        "sigma2"        => _ardl_kv(m.sigma2),
-        "loglik"        => _ardl_kv(m.loglik; digits=4),
-        "aic"           => _ardl_kv(m.aic; digits=4),
-        "bic"           => _ardl_kv(m.bic; digits=4),
-        "alpha"         => _ardl_kv(ecm.alpha),           # ECM speed of adjustment (Σφ − 1)
-        "alpha_se"      => _ardl_kv(ecm.alpha_se),
-        "alpha_t"       => _ardl_kv(ecm.alpha_t; digits=4),
-        "longrun_denom" => _ardl_kv(lr.denom),            # 1 − Σφ̂ = −alpha
+        "sigma2"        => Float64(m.sigma2),
+        "loglik"        => Float64(m.loglik),
+        "aic"           => Float64(m.aic),
+        "bic"           => Float64(m.bic),
+        "alpha"         => Float64(ecm.alpha),           # ECM speed of adjustment (Σφ − 1)
+        "alpha_se"      => Float64(ecm.alpha_se),
+        "alpha_t"       => Float64(ecm.alpha_t),
+        "longrun_denom" => Float64(lr.denom),            # 1 − Σφ̂ = −alpha
     ]; format=format, output=_per_var_output_path(output, "diagnostics"),
        title="ARDL Diagnostics")
     return m
@@ -6957,11 +6948,11 @@ function _estimate_nardl(; data::String, dep::String="", asymmetric::String="all
         "case"         => a.case,
         "ic"           => String(a.ic),
         "nobs"         => a.n,
-        "f_stat"       => _ardl_kv(b.fstat; digits=4),
-        "t_stat"       => _ardl_kv(b.tstat; digits=4),
+        "f_stat"       => Float64(b.fstat),
+        "t_stat"       => Float64(b.tstat),
         "bounds_level" => b.level,
-        "f_lower"      => li === nothing ? "n/a" : _ardl_kv(b.f_lower[li]; digits=4),
-        "f_upper"      => li === nothing ? "n/a" : _ardl_kv(b.f_upper[li]; digits=4),
+        "f_lower"      => li === nothing ? "n/a" : Float64(b.f_lower[li]),
+        "f_upper"      => li === nothing ? "n/a" : Float64(b.f_upper[li]),
         "f_decision"   => String(b.f_decision),
         "t_decision"   => String(b.t_decision),
     ]; format=format, title="NARDL Diagnostics + Bounds (enlarged k=$(m.k))",
@@ -6982,8 +6973,8 @@ end
 # normal approximation (`_normal_cdf`, the CLI convention — the pooled θ is asymptotically
 # normal). NOTE the trend vocabulary is PMG-specific: none|constant|trend — `:constant` is
 # SPELLED OUT (NOT ARDL's :const, NOT cointreg's :linear); do not copy another leaf's trend
-# OptionSpec here. Display SEs (φ, θ) can be Inf → the kv path string-renders non-finite
-# scalars (`_ardl_kv`) and the table path is non-finite-safe (C067a/C073).
+# OptionSpec here. Display SEs (φ, θ) can be Inf → both kv and table paths are non-finite-safe
+# via `_json_safe` and `_render_table` (C067a/C073/#323).
 
 """Hand-built long-run coefficient table for a fitted `PMGModel`:
 `term|estimate|std_error|stat|p_value` from the common (`:pmg`/`:dfe`) or averaged (`:mg`)
@@ -6994,9 +6985,9 @@ function _pmg_longrun_table(m)
     names = String.(m.xnames)[1:length(est)]
     z = [se[i] == 0 ? 0.0 : est[i] / se[i] for i in eachindex(est)]
     pv = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
-    return DataFrame(term=names, estimate=round.(est; digits=6),
-                     std_error=round.(se; digits=6), stat=round.(z; digits=4),
-                     p_value=round.(pv; digits=4))
+    return DataFrame(term=names, estimate=est,
+                     std_error=se, stat=z,
+                     p_value=pv)
 end
 
 """Hand-built short-run / error-correction table for a fitted `PMGModel`:
@@ -7012,7 +7003,7 @@ function _pmg_shortrun_table(m)
     for j in eachindex(srnames)
         push!(terms, srnames[j]); push!(est, Float64(m.sr[j])); push!(se, Float64(m.sr_se[j]))
     end
-    return DataFrame(term=terms, estimate=round.(est; digits=6), std_error=round.(se; digits=6))
+    return DataFrame(term=terms, estimate=est, std_error=se)
 end
 
 function _estimate_pmg(; data::String, id_col::String="", time_col::String="",
@@ -7047,9 +7038,9 @@ function _estimate_pmg(; data::String, id_col::String="", time_col::String="",
         "p"         => m.p,
         "q"         => m.q,
         "T_i"       => tspan,
-        "phi"       => _ardl_kv(m.phi),
-        "phi_se"    => _ardl_kv(m.phi_se),
-        "loglik"    => _ardl_kv(m.loglik; digits=4),
+        "phi"       => Float64(m.phi),
+        "phi_se"    => Float64(m.phi_se),
+        "loglik"    => Float64(m.loglik),
         "converged" => m.converged,
         "iters"     => m.iters,
         "n_nonconv" => m.n_nonconv,
@@ -7091,7 +7082,7 @@ end
 most-recent-first). For `:umidas` these are the unrestricted lag coefficients (raw, not normalized)."""
 function _midas_weight_table(model)
     w = Float64.(midas_weights(model))
-    return DataFrame(lag=collect(1:length(w)), weight=round.(w; digits=6))
+    return DataFrame(lag=collect(1:length(w)), weight=w)
 end
 
 """Hand-built MIDAS coefficient table (`term|estimate|std_error|stat|p_value`) over the full
@@ -7109,11 +7100,11 @@ function _midas_coef_table(model)
         (length(se) == length(est) && all(isfinite, se)) || error("unavailable SEs")
         z = [se[i] == 0 ? 0.0 : est[i] / se[i] for i in eachindex(est)]
         pv = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
-        return DataFrame(term=names, estimate=round.(est; digits=6),
-                         std_error=round.(se; digits=6), stat=round.(z; digits=4),
-                         p_value=round.(pv; digits=4))
+        return DataFrame(term=names, estimate=est,
+                         std_error=se, stat=z,
+                         p_value=pv)
     catch
-        return DataFrame(term=names, estimate=round.(est; digits=6))
+        return DataFrame(term=names, estimate=est)
     end
 end
 
@@ -7249,13 +7240,13 @@ function _estimate_midas(; data::String, column::Int=1, hf_data::String="", hf_c
         "poly_degree"  => model.poly_degree,
         "h"            => model.h,
         "nobs"         => nobs(model),
-        "r2"           => _ardl_kv(model.r2),
-        "adj_r2"       => _ardl_kv(model.adj_r2),
-        "ssr"          => _ardl_kv(model.ssr; digits=4),
-        "sigma2"       => _ardl_kv(model.sigma2),
-        "aic"          => _ardl_kv(model.aic; digits=4),
-        "bic"          => _ardl_kv(model.bic; digits=4),
-        "loglik"       => _ardl_kv(model.loglik; digits=4),
+        "r2"           => Float64(model.r2),
+        "adj_r2"       => Float64(model.adj_r2),
+        "ssr"          => Float64(model.ssr),
+        "sigma2"       => Float64(model.sigma2),
+        "aic"          => Float64(model.aic),
+        "bic"          => Float64(model.bic),
+        "loglik"       => Float64(model.loglik),
         "converged"    => model.converged,
     ]; format=format, output=_per_var_output_path(output, "diagnostics"),
        title="MIDAS Diagnostics")
@@ -7345,27 +7336,27 @@ function _estimate_threshold(; data::String, dep::String="", threshold_col::Stri
                   key="threshold_regression_coefficients")
     diag = Pair{String,Any}[
         "threshold_var"  => threshold_col,
-        "gamma"          => round(Float64(model.gamma); digits=6),
-        "gamma_ci_lower" => round(Float64(model.gamma_ci[1]); digits=6),
-        "gamma_ci_upper" => round(Float64(model.gamma_ci[2]); digits=6),
+        "gamma"          => Float64(model.gamma),
+        "gamma_ci_lower" => Float64(model.gamma_ci[1]),
+        "gamma_ci_upper" => Float64(model.gamma_ci[2]),
         "gamma_ci_level" => Float64(model.gamma_ci_level),
         "n"              => model.n,
         "n1"             => model.n1,
         "n2"             => model.n2,
-        "ssr"            => round(Float64(model.ssr); digits=6),
-        "sigma2"         => round(Float64(model.sigma2); digits=6),
-        "aic"            => round(Float64(model.aic); digits=4),
-        "bic"            => round(Float64(model.bic); digits=4),
+        "ssr"            => Float64(model.ssr),
+        "sigma2"         => Float64(model.sigma2),
+        "aic"            => Float64(model.aic),
+        "bic"            => Float64(model.bic),
         "is_setar"       => model.is_setar,
     ]
     if model.linearity !== nothing
         lt = model.linearity
         append!(diag, Pair{String,Any}[
-            "sup_lm"      => round(Float64(lt.sup_lm); digits=4),
-            "pvalue_lm"   => round(Float64(lt.pvalue_lm); digits=4),
-            "sup_wald"    => round(Float64(lt.sup_wald); digits=4),
-            "pvalue_wald" => round(Float64(lt.pvalue_wald); digits=4),
-            "gamma_sup"   => round(Float64(lt.gamma_sup); digits=6),
+            "sup_lm"      => Float64(lt.sup_lm),
+            "pvalue_lm"   => Float64(lt.pvalue_lm),
+            "sup_wald"    => Float64(lt.sup_wald),
+            "pvalue_wald" => Float64(lt.pvalue_wald),
+            "gamma_sup"   => Float64(lt.gamma_sup),
         ])
     end
     output_kv(diag; format=format, output=_per_var_output_path(output, "diagnostics"),
@@ -7404,17 +7395,17 @@ function _estimate_setar(; data::String, column::Int=1, p::Int=1, d::String="1",
     output_result(coef; format=Symbol(format), output=output,
                   title="SETAR(2;$p,$p) Coefficients ($vname)", key="setar_coefficients")
     diag = Pair{String,Any}[
-        "gamma"          => round(Float64(model.gamma); digits=6),
-        "gamma_ci_lower" => round(Float64(model.gamma_ci[1]); digits=6),
-        "gamma_ci_upper" => round(Float64(model.gamma_ci[2]); digits=6),
+        "gamma"          => Float64(model.gamma),
+        "gamma_ci_lower" => Float64(model.gamma_ci[1]),
+        "gamma_ci_upper" => Float64(model.gamma_ci[2]),
         "gamma_ci_level" => Float64(model.gamma_ci_level),
         "n"              => model.n,
         "n1"             => model.n1,
         "n2"             => model.n2,
-        "ssr"            => round(Float64(model.ssr); digits=6),
-        "sigma2"         => round(Float64(model.sigma2); digits=6),
-        "aic"            => round(Float64(model.aic); digits=4),
-        "bic"            => round(Float64(model.bic); digits=4),
+        "ssr"            => Float64(model.ssr),
+        "sigma2"         => Float64(model.sigma2),
+        "aic"            => Float64(model.aic),
+        "bic"            => Float64(model.bic),
         "p"              => model.p,
         "d"              => model.d,
         "is_setar"       => model.is_setar,
@@ -7422,11 +7413,11 @@ function _estimate_setar(; data::String, column::Int=1, p::Int=1, d::String="1",
     if model.linearity !== nothing
         lt = model.linearity
         append!(diag, Pair{String,Any}[
-            "sup_lm"      => round(Float64(lt.sup_lm); digits=4),
-            "pvalue_lm"   => round(Float64(lt.pvalue_lm); digits=4),
-            "sup_wald"    => round(Float64(lt.sup_wald); digits=4),
-            "pvalue_wald" => round(Float64(lt.pvalue_wald); digits=4),
-            "gamma_sup"   => round(Float64(lt.gamma_sup); digits=6),
+            "sup_lm"      => Float64(lt.sup_lm),
+            "pvalue_lm"   => Float64(lt.pvalue_lm),
+            "sup_wald"    => Float64(lt.sup_wald),
+            "pvalue_wald" => Float64(lt.pvalue_wald),
+            "gamma_sup"   => Float64(lt.gamma_sup),
         ])
     end
     output_kv(diag; format=format, output=_per_var_output_path(output, "diagnostics"),
@@ -7447,9 +7438,9 @@ function _star_transition_table(model)
     se  = Float64.(vcat(model.se_gamma, model.se_c))
     z   = [se[i] == 0.0 ? 0.0 : est[i] / se[i] for i in eachindex(est)]
     pv  = [2.0 * (1.0 - _normal_cdf(abs(zi))) for zi in z]
-    return DataFrame(parameter=params, estimate=round.(est; digits=6),
-                     std_error=round.(se; digits=6),
-                     z_stat=round.(z; digits=4), p_value=round.(pv; digits=4))
+    return DataFrame(parameter=params, estimate=est,
+                     std_error=se,
+                     z_stat=z, p_value=pv)
 end
 
 # Every user option is guarded up-front → usage/invalid (before any MEMs call); the estimator
@@ -7499,26 +7490,26 @@ function _estimate_star(; data::String, column::Int=1, p::Int=1, d::Int=1,
     diag = Pair{String,Any}[
         "trans_type"  => string(model.trans_type),
         "sname"       => model.sname,
-        "sigma_s"     => round(Float64(model.sigma_s); digits=6),
+        "sigma_s"     => Float64(model.sigma_s),
         "n"           => model.n,
         "p"           => model.p,
         "d"           => model.d,
-        "ssr"         => round(Float64(model.ssr); digits=6),
-        "sigma2"      => round(Float64(model.sigma2); digits=6),
-        "aic"         => round(Float64(model.aic); digits=4),
-        "bic"         => round(Float64(model.bic); digits=4),
-        "lm3_stat"    => round(Float64(model.lm3_stat); digits=4),
-        "lm3_pvalue"  => round(Float64(model.lm3_pvalue); digits=4),
-        "lm3_fstat"   => round(Float64(model.lm3_fstat); digits=4),
-        "lm3_fpvalue" => round(Float64(model.lm3_fpvalue); digits=4),
+        "ssr"         => Float64(model.ssr),
+        "sigma2"      => Float64(model.sigma2),
+        "aic"         => Float64(model.aic),
+        "bic"         => Float64(model.bic),
+        "lm3_stat"    => Float64(model.lm3_stat),
+        "lm3_pvalue"  => Float64(model.lm3_pvalue),
+        "lm3_fstat"   => Float64(model.lm3_fstat),
+        "lm3_fpvalue" => Float64(model.lm3_fpvalue),
         "converged"   => model.converged,
     ]
     if model.sel_pvalues !== nothing
         sp = model.sel_pvalues
         append!(diag, Pair{String,Any}[
-            "sel_H04" => round(Float64(sp[1]); digits=4),
-            "sel_H03" => round(Float64(sp[2]); digits=4),
-            "sel_H02" => round(Float64(sp[3]); digits=4),
+            "sel_H04" => Float64(sp[1]),
+            "sel_H03" => Float64(sp[2]),
+            "sel_H02" => Float64(sp[3]),
         ])
     end
     output_kv(diag; format=format, output=_per_var_output_path(output, "diagnostics"),
@@ -7540,7 +7531,7 @@ header/label collision (a duplicate/colliding header would otherwise crash the U
 renderer → exit-1), exactly as `_mgarch_corr_df` does for the MGARCH correlation matrix."""
 function _ms_transition_df(P::AbstractMatrix)
     K = size(P, 1)
-    df = DataFrame(round.(Float64.(P); digits=6), String["to_regime$j" for j in 1:K]; makeunique=true)
+    df = DataFrame(Float64.(P), String["to_regime$j" for j in 1:K]; makeunique=true)
     insertcols!(df, 1, :from_regime => String["regime$i" for i in 1:K]; makeunique=true)
     return df
 end
@@ -7572,7 +7563,7 @@ function _ms_prob_table(model)
         push!(smoo, sp[t, k])
     end
     DataFrame("period" => periods, "regime" => regimes,
-              "filtered" => round.(filt; digits=6), "smoothed" => round.(smoo; digits=6))
+              "filtered" => filt, "smoothed" => smoo)
 end
 
 """Shared renderer for a Markov-switching fit (`estimate ms-ar` / `estimate ms`). Emits, in
@@ -7621,8 +7612,8 @@ function _ms_render(model, format::String, output::String)
                   title="$label Regime Coefficients ($yname)",
                   key="$(kp)_regime_coefficients")
     vardf = DataFrame(regime=String["regime$k" for k in 1:K],
-                      sigma2=round.(Float64.(model.sigma2); digits=6),
-                      std_error=round.(Float64.(model.se_sigma2); digits=6))
+                      sigma2=Float64.(model.sigma2),
+                      std_error=Float64.(model.se_sigma2))
     output_result(vardf; format=Symbol(format),
                   output=_per_var_output_path(output, "variance"),
                   title="$label Regime Variances", key="$(kp)_regime_variances")
@@ -7633,16 +7624,16 @@ function _ms_render(model, format::String, output::String)
                   output=_per_var_output_path(output, "probabilities"),
                   title="$label Regime Probabilities", key="$(kp)_regime_probabilities")
     diag = Pair{String,Any}[
-        "loglik"   => round(Float64(model.loglik); digits=4),
+        "loglik"   => Float64(model.loglik),
         "n_params" => model.n_params,
-        "aic"      => round(Float64(model.aic); digits=4),
-        "bic"      => round(Float64(model.bic); digits=4),
+        "aic"      => Float64(model.aic),
+        "bic"      => Float64(model.bic),
     ]
     for k in 1:K
-        push!(diag, "ergodic_$k" => round(Float64(model.ergodic[k]); digits=6))
+        push!(diag, "ergodic_$k" => Float64(model.ergodic[k]))
     end
     for k in 1:K
-        push!(diag, "expected_duration_$k" => round(Float64(model.expected_durations[k]); digits=4))
+        push!(diag, "expected_duration_$k" => Float64(model.expected_durations[k]))
     end
     append!(diag, Pair{String,Any}[
         "switching_var" => model.switching_var,
@@ -7768,7 +7759,7 @@ function _nonlinear_resid_output(resid, label::String, vname::String,
                                  format::String, output::String; key::String="")
     r = Float64.(collect(resid))
     output_result(DataFrame("period" => collect(1:length(r)),
-                            "residual" => round.(r; digits=6));
+                            "residual" => r);
         format=Symbol(format), output=output,
         title="$label Residuals ($vname)", key=key)
     return r
@@ -7921,7 +7912,7 @@ function _ms_predict_output(m, probs::String, label::String, vname::String,
     catch e
         throw(_nonlinear_error(e, "$label predict"))
     end
-    df = DataFrame(t=1:length(fitted), fitted=round.(Float64.(fitted); digits=6))
+    df = DataFrame(t=1:length(fitted), fitted=Float64.(fitted))
     # `--probs` selects which weighting produced the same column set, so it stays in the
     # title and out of the key.
     return output_result(df; format=Symbol(format), output=output,
@@ -7945,7 +7936,7 @@ function _ms_forecast_output(fc, label::String, vname::String, horizons::Int,
     K = size(fc.regime_prob, 2)
     rp = DataFrame(horizon=1:size(fc.regime_prob, 1))
     for k in 1:K
-        rp[!, "regime$k"] = round.(Float64.(fc.regime_prob[:, k]); digits=6)
+        rp[!, "regime$k"] = Float64.(fc.regime_prob[:, k])
     end
     return output_result(rp; format=Symbol(format),
                          output=_per_var_output_path(output, "regime-probabilities"),
@@ -8427,8 +8418,8 @@ function _estimate_qreg(; data::String, dep::String="", tau::String="0.5",
     # function objective against an intercept-only quantile fit, so it measures fit at that
     # quantile only.
     output_result(DataFrame(tau=Float64.(model.taus),
-                            objective=round.(Float64.(model.objective); digits=6),
-                            pseudo_r2=round.(Float64.(model.pseudo_r2); digits=6),
+                            objective=Float64.(model.objective),
+                            pseudo_r2=Float64.(model.pseudo_r2),
                             converged=[c ? 1.0 : 0.0 for c in model.converged]);
                   format=Symbol(format), output=_per_var_output_path(output, "fit"),
                   title="Quantile Fit Diagnostics")
@@ -8522,15 +8513,15 @@ function _estimate_rdd(; data::String, outcome::String="", running::String="",
         "cutoff"          => res.cutoff,
         "kernel"          => String(res.kernel),
         "order"           => res.p,
-        "bandwidth_h"     => round(Float64(res.h); digits=6),
-        "bias_bandwidth_b" => round(Float64(res.b); digits=6),
+        "bandwidth_h"     => Float64(res.h),
+        "bias_bandwidth_b" => Float64(res.b),
         "n_left"          => res.n_left,
         "n_right"         => res.n_right,
-        "z_robust"        => round(Float64(res.z_robust); digits=6),
-        "pvalue_robust"   => round(Float64(res.pvalue_robust); digits=6),
+        "z_robust"        => Float64(res.z_robust),
+        "pvalue_robust"   => Float64(res.pvalue_robust),
     ]
     res.first_stage === nothing ||
-        push!(settings, "first_stage" => round(Float64(res.first_stage); digits=6))
+        push!(settings, "first_stage" => Float64(res.first_stage))
     output_kv(settings; format=format, output=_per_var_output_path(output, "settings"),
               title="RDD Settings & Diagnostics")
 

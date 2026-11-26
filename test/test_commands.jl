@@ -16139,6 +16139,107 @@ end
                 @test haskey(cdoc, "display_precision")
                 @test cdoc["display_precision"]["table_default_digits"] == 3
             end
+
+            # [DISPLAY-W3] #325: lossless Float64 JSON/CSV + 3-decimal :table across estimate.jl & test.jl
+            @testset "[DISPLAY-W3] lossless estimate & test handlers (#325)" begin
+                uni_csv = joinpath(dir, "w3_uni.csv")
+                rng_w3 = MersenneTwister(325)
+                CSV.write(uni_csv, DataFrame(y = cumsum(randn(rng_w3, 80)) .+ 10.0))
+                multi_csv = joinpath(dir, "w3_multi.csv")
+                CSV.write(multi_csv, DataFrame(
+                    y1 = [sin(t / 3.0) + 0.1 * cos(t / 4.0) for t in 1:80],
+                    y2 = [sin(t / 4.0) + 0.1 * cos(t / 5.0) for t in 1:80],
+                    y3 = [sin(t / 5.0) + 0.1 * cos(t / 6.0) for t in 1:80],
+                ))
+
+                # 1. test unit-root adf: JSON/CSV emit raw Float64; :table renders 3 decimals
+                doc_adf = _run_leaf(["test", "unit-root", "adf", uni_csv])
+                @test String(doc_adf.status) == "ok"
+                adf_tbl = doc_adf.data.adf_test
+                adf_kv = Dict(String(r[1]) => r[2] for r in adf_tbl.rows)
+                @test adf_kv["Test statistic"] isa Number && adf_kv["Test statistic"] == -3.5
+                @test adf_kv["p-value"] isa Number && adf_kv["p-value"] == 0.01
+                adf_csv = _capture_all() do
+                    _dispatch_via_app(["test", "unit-root", "adf", uni_csv, "--format", "csv"])
+                end
+                @test occursin("-3.5", adf_csv.out) && occursin("0.01", adf_csv.out)
+                adf_tab = _capture_all() do
+                    _dispatch_via_app(["test", "unit-root", "adf", uni_csv, "--format", "table"])
+                end
+                @test occursin("-3.500", adf_tab.out) && occursin("0.010", adf_tab.out)
+
+                # 2. estimate univariate arima: JSON/CSV emit raw Float64; :table renders 3 decimals
+                doc_ar = _run_leaf(["estimate", "univariate", "arima", uni_csv, "--p", "1", "--d", "0", "--q", "1"])
+                @test String(doc_ar.status) == "ok"
+                ar_crit = Dict(String(r[1]) => r[2] for r in doc_ar.data.information_criteria.rows)
+                @test ar_crit["AIC"] isa Number && ar_crit["AIC"] == -100.0
+                @test ar_crit["BIC"] isa Number && ar_crit["BIC"] == -95.0
+                @test ar_crit["Log-likelihood"] isa Number && ar_crit["Log-likelihood"] == -50.0
+                ar_csv = _capture_all() do
+                    _dispatch_via_app(["estimate", "univariate", "arima", uni_csv, "--p", "1", "--d", "0", "--q", "1", "--format", "csv"])
+                end
+                @test occursin("0.3", ar_csv.out)
+                ar_tab = _capture_all() do
+                    _dispatch_via_app(["estimate", "univariate", "arima", uni_csv, "--p", "1", "--d", "0", "--q", "1", "--format", "table"])
+                end
+                @test occursin("-100.000", ar_tab.out) && occursin("-50.000", ar_tab.out)
+
+                # 3. test coint johansen: JSON/CSV emit raw Float64; :table renders 3 decimals
+                doc_joh = _run_leaf(["test", "coint", "johansen", multi_csv, "--lags", "2"])
+                @test String(doc_joh.status) == "ok"
+                joh_rows = doc_joh.data.johansen_trace_test.rows
+                @test joh_rows[1][2] isa Number && joh_rows[1][2] == 30.0
+                @test joh_rows[1][3] isa Number && joh_rows[1][3] == 0.01
+                joh_csv = _capture_all() do
+                    _dispatch_via_app(["test", "coint", "johansen", multi_csv, "--lags", "2", "--format", "csv"])
+                end
+                @test occursin("30.0", joh_csv.out) && occursin("0.01", joh_csv.out)
+                joh_tab = _capture_all() do
+                    _dispatch_via_app(["test", "coint", "johansen", multi_csv, "--lags", "2", "--format", "table"])
+                end
+                @test occursin("30.000", joh_tab.out) && occursin("0.010", joh_tab.out)
+
+                # 4. estimate factor sdfm: avg_common_variance_share is numeric Float64 (not rounded String)
+                doc_sdfm = _run_leaf(["estimate", "factor", "sdfm", multi_csv, "--factors", "1"])
+                @test String(doc_sdfm.status) == "ok"
+                @test isempty(validate_envelope_json(JSON3.write(doc_sdfm)))
+                sdfm_kv = Dict(String(r[1]) => r[2] for r in doc_sdfm.data.sdfm_estimation_summary.rows)
+                @test sdfm_kv["avg_common_variance_share"] isa Real
+                @test !(sdfm_kv["avg_common_variance_share"] isa AbstractString)
+                @test sdfm_kv["avg_common_variance_share"] == 0.5
+                sdfm_csv = _capture_all() do
+                    _dispatch_via_app(["estimate", "factor", "sdfm", multi_csv, "--factors", "1", "--format", "csv"])
+                end
+                @test occursin("avg_common_variance_share,0.5", sdfm_csv.out)
+                sdfm_tab = _capture_all() do
+                    _dispatch_via_app(["estimate", "factor", "sdfm", multi_csv, "--factors", "1", "--format", "table"])
+                end
+                @test occursin("0.500", sdfm_tab.out)
+
+                # 5. Full >6-decimal IEEE-754 precision preserved in JSON & CSV (not rounded to 4/6 digits),
+                #    while :table displays 3 decimals (verified via estimate regression kde)
+                doc_kde = _run_leaf(["estimate", "regression", "kde", uni_csv, "--npoints", "16"])
+                @test String(doc_kde.status) == "ok"
+                kde_bw = Dict(String(r[1]) => r[2] for r in doc_kde.data.kernel_density_diagnostics.rows)["bandwidth"]
+                @test kde_bw isa Float64
+                @test abs(kde_bw - round(kde_bw; digits=6)) > 1e-10
+                kde_dens = Float64(doc_kde.data.kernel_density_estimate.rows[8][2])
+                @test abs(kde_dens - round(kde_dens; digits=6)) > 1e-10
+                kde_csv = _capture_all() do
+                    _dispatch_via_app(["estimate", "regression", "kde", uni_csv, "--npoints", "16", "--format", "csv"])
+                end
+                @test occursin(string(kde_dens), kde_csv.out)
+                kde_tab = _capture_all() do
+                    _dispatch_via_app(["estimate", "regression", "kde", uni_csv, "--npoints", "16", "--format", "table"])
+                end
+                @test occursin(_format_display_float(kde_bw, 3), kde_tab.out)
+                @test !occursin(string(kde_bw), kde_tab.out)
+
+                # 6. Retired lossy local wrappers are gone; non-finite floats still serialize cleanly
+                @test !isdefined(@__MODULE__, :_finite_or_str_reg)
+                @test !isdefined(@__MODULE__, :_ardl_kv)
+                @test !isdefined(@__MODULE__, :_finite_or_str)
+            end
         end
     end
 
