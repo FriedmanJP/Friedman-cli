@@ -61,47 +61,12 @@ jobs:
       - name: Install dependencies
         shell: bash
         run: julia --project -e 'using Pkg; Pkg.instantiate()'
-      - name: Mock surface vs real MEMs (TS-3 / F32)
-        if: matrix.os == 'ubuntu-latest' && matrix.version == '1.13'
-        run: julia --project test/tools/check_mock_surface.jl
-      - name: Plot coverage drift (vs baseline)
-        if: matrix.os == 'ubuntu-latest' && matrix.version == '1.13'
-        run: julia --project test/tools/check_plot_coverage.jl
-      - name: Table-key drift gate (goldens)
-        if: matrix.os == 'ubuntu-latest' && matrix.version == '1.13'
-        run: julia --project test/tools/check_table_keys.jl
-      - name: Handle-kind drift gate
-        if: matrix.os == 'ubuntu-latest' && matrix.version == '1.13'
-        run: julia --project test/tools/check_handle_kinds.jl
-      - name: Live handle round-trip CI gate (#310)
-        if: matrix.os == 'ubuntu-latest' && matrix.version == '1.13'
-        run: julia --project test/tools/check_handle_roundtrips.jl
-      - name: Lossless handler precision gate (#328)
-        if: matrix.os == 'ubuntu-latest' && matrix.version == '1.13'
-        run: julia --project test/tools/check_lossless_handlers.jl
-      - name: CI defaults policy gate (68% macro / 90% micro, #334)
-        if: matrix.os == 'ubuntu-latest' && matrix.version == '1.13'
-        run: julia --project test/tools/check_ci_defaults.jl
-      - name: Coexisting abbreviations & short-flag uniformity gate (#340)
-        if: matrix.os == 'ubuntu-latest' && matrix.version == '1.13'
-        run: julia --project test/tools/check_abbreviations.jl
       - name: Fast-path metadata pack & thin wrapper parity (#293-#299)
         if: matrix.version == '1.13'
         shell: bash
         run: |
           julia --project test/tools/check_fastpath_pack.jl
           julia --project test/test_fastpath.jl
-      - name: Docs generation --check (P2-6 / C028)
-        if: matrix.os == 'ubuntu-latest' && matrix.version == '1.13'
-        run: |
-          julia --project docs/generate_cli_reference.jl --check
-          julia --project docs/lint_docs.jl
-          julia --project docs/capture_examples.jl --check
-      - name: Conformant envelope validation (schema + goldens)
-        if: matrix.os == 'ubuntu-latest' && matrix.version == '1.13'
-        run: |
-          pip install --quiet jsonschema
-          python3 test/tools/validate_envelopes.py
       - name: Run engine/unit tests (T0/T1/T2)
         shell: bash
         run: |
@@ -126,6 +91,51 @@ jobs:
           files: lcov.info
           name: engine
           fail_ci_if_error: true
+
+  # Contract, drift, docs & envelope schema gates (ubuntu / Julia 1.13; split from engine so
+  # both jobs stay well under 45 min even on cold cache)
+  contract-gates:
+    name: Contract & drift gates (Julia 1.13 / ubuntu-latest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: julia-actions/setup-julia@4c0cb0fce8556fdb04a90347310e5db8b1f98fb9 # v2
+        with:
+          version: "1.13"
+          arch: x64
+      - uses: julia-actions/cache@d10a6fd8f31b12404a54613ebad242900567f2b9 # v2
+      - name: Install dependencies
+        shell: bash
+        run: julia --project -e 'using Pkg; Pkg.instantiate()'
+      - name: Mock surface vs real MEMs (TS-3 / F32)
+        run: julia --project test/tools/check_mock_surface.jl
+      - name: Plot coverage drift (vs baseline)
+        run: julia --project test/tools/check_plot_coverage.jl
+      - name: Table-key drift gate (goldens)
+        run: julia --project test/tools/check_table_keys.jl
+      - name: Handle-kind drift gate
+        run: julia --project test/tools/check_handle_kinds.jl
+      - name: Live handle round-trip CI gate (#310)
+        run: julia --project test/tools/check_handle_roundtrips.jl
+      - name: Lossless handler precision gate (#328)
+        run: julia --project test/tools/check_lossless_handlers.jl
+      - name: CI defaults policy gate (68% macro / 90% micro, #334)
+        run: julia --project test/tools/check_ci_defaults.jl
+      - name: Coexisting abbreviations & short-flag uniformity gate (#340)
+        run: julia --project test/tools/check_abbreviations.jl
+      - name: Docs generation --check (P2-6 / C028)
+        run: |
+          julia --project docs/generate_cli_reference.jl --check
+          julia --project docs/lint_docs.jl
+          julia --project docs/capture_examples.jl --check
+      - name: Conformant envelope validation (schema + goldens)
+        run: |
+          pip install --quiet jsonschema
+          python3 test/tools/validate_envelopes.py
 
   # T3 core — real MEMs sharded into 5 balanced parallel suites (ubuntu every push, Julia 1.13 & 1.14+opt)
   # Each shard finishes in <35 min even with Julia 1.13 --code-coverage=user (<15 min on 1.14+opt);
