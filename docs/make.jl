@@ -88,7 +88,7 @@ makedocs(;
     ],
     format = Documenter.HTML(;
         prettyurls = get(ENV, "CI", "false") == "true",
-        canonical = "https://friedmanjp.github.io/Friedman-cli",
+        canonical = "https://api.friedman.jp/Friedman-cli",
         edit_link = "master",
         # Generated CLI reference pages hold complete option schemas for lookup;
         # raise Documenter's HTML size threshold so dense reference tables build cleanly.

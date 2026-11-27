@@ -1,11 +1,12 @@
 # Friedman-cli (`frdc`)
 
 [![CI](https://github.com/FriedmanJP/Friedman-cli/actions/workflows/CI.yml/badge.svg)](https://github.com/FriedmanJP/Friedman-cli/actions/workflows/CI.yml)
-[![Documentation](https://github.com/FriedmanJP/Friedman-cli/actions/workflows/Documentation.yml/badge.svg)](https://friedmanjp.github.io/Friedman-cli/stable/)
+[![codecov](https://codecov.io/gh/FriedmanJP/Friedman-cli/graph/badge.svg)](https://app.codecov.io/gh/FriedmanJP/Friedman-cli)
+[![Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://api.friedman.jp/Friedman-cli/stable/)
 
 `frdc` (**v1.2.0**) is a command-line interface for [MacroEconometricModels.jl](https://github.com/FriedmanJP/MacroEconometricModels.jl) (pinned to `=1.1.2` in [Project.toml](Project.toml)). It wraps the package's estimation, testing, structural identification, forecasting, and equilibrium-solving routines as standalone shell commands that read CSV files or saved `.jld2`/`.jls` handles and write formatted tables, CSV, JSON, or self-contained HTML plots.
 
-Full documentation and the generated command reference live at [friedmanjp.github.io/Friedman-cli/stable/](https://friedmanjp.github.io/Friedman-cli/stable/).
+Full documentation and the generated command reference live at [api.friedman.jp/Friedman-cli/stable/](https://api.friedman.jp/Friedman-cli/stable/).
 
 ## Installation
 
@@ -44,7 +45,7 @@ julia --project -e 'using Pkg; Pkg.instantiate()'
 julia --project bin/frdc --help
 ```
 
-Manual archive downloads, MSIX sideloading, local standalone builds (`build_release.jl`), and notes on moving from the older `friedman` binary name to `frdc` are covered in the [installation guide](https://friedmanjp.github.io/Friedman-cli/stable/getting-started/installation/).
+Manual archive downloads, MSIX sideloading, local standalone builds (`build_release.jl`), and notes on moving from the older `friedman` binary name to `frdc` are covered in the [installation guide](https://api.friedman.jp/Friedman-cli/stable/getting-started/installation/).
 
 ## Quick start
 
@@ -158,16 +159,16 @@ The same command structure extends to `dsge irf`, `dsge estimate`, `dsge bayes e
 
 ## Scope
 
-Commands are grouped by action (`estimate`, `test`, `irf`, `fevd`, `hd`, `forecast`, `predict`, `residuals`, `dsge`, `hadsge`, `did`, `policy`, `ri`, `io`, `filter`, `spectral`, `nowcast`, `data`, `model`) rather than by individual estimator. See the [command overview](https://friedmanjp.github.io/Friedman-cli/stable/commands/overview/) for the full tree.
+Commands are grouped by action (`estimate`, `test`, `irf`, `fevd`, `hd`, `forecast`, `predict`, `residuals`, `dsge`, `hadsge`, `did`, `policy`, `ri`, `io`, `filter`, `spectral`, `nowcast`, `data`, `model`) rather than by individual estimator. See the [command overview](https://api.friedman.jp/Friedman-cli/stable/commands/overview/) for the full tree.
 
 | Area | Examples | Guide |
 |---|---|---|
-| Time series and factors | VAR, BVAR, VECM, local projections, FAVAR, quantile factors/VAR/FAVAR and Growth-at-Risk (`qfm`, `qvar`, `qfavar`), DFM/GDFM/FHLZ/I(1)/TV-GDFM, ARIMA, ARDL, MIDAS, SETAR/STAR/Markov switching | [Multivariate](https://friedmanjp.github.io/Friedman-cli/stable/chapters/multivariate/), [Nonlinear](https://friedmanjp.github.io/Friedman-cli/stable/chapters/nonlinear/) |
-| Volatility | ARCH, GARCH, EGARCH, GJR-GARCH, stochastic volatility, CCC, DCC, BEKK | [Volatility](https://friedmanjp.github.io/Friedman-cli/stable/chapters/volatility/) |
-| Micro and panel data | OLS, IV, quantile regression, discrete choice (including RI-logit), panel regression, interactive-factor panel quantile (`xtqreg`), panel VAR, DiD (TWFE, Callaway-Sant'Anna, event studies, HonestDiD) | [Regression](https://friedmanjp.github.io/Friedman-cli/stable/chapters/regression/), [Panel](https://friedmanjp.github.io/Friedman-cli/stable/chapters/panel/) |
-| Equilibrium and rational inattention | Perturbation, projection, VFI, OccBin, canonical ABCD invertibility, Bayesian DSGE and DSGE-VAR, HANK/Huggett/OLG (`hadsge`), LQG / Maćkowiak-Wiederholt / Matějka-McKay rational inattention (`ri`) | [DSGE](https://friedmanjp.github.io/Friedman-cli/stable/chapters/dsge/), [HADSGE](https://friedmanjp.github.io/Friedman-cli/stable/chapters/hadsge/), [Rational Inattention](https://friedmanjp.github.io/Friedman-cli/stable/chapters/rational-inattention/) |
-| Identification and diagnostics | Cholesky, sign, narrative, long-run, Arias, Uhlig, LMS-SVAR, Lanne-Luoto GMM, SSVARMA, ICA, spectral FEVD, unit-root, cointegration, factor-rank, SVAR hypothesis, break, Granger, and weak-instrument tests | [Structural](https://friedmanjp.github.io/Friedman-cli/stable/chapters/structural/), [Tests](https://friedmanjp.github.io/Friedman-cli/stable/chapters/tests/) |
-| Policy and input-output | Causal-effect menus, optimal policy, behavioral RI policy news, counterfactuals, Leontief and Ghosh multipliers, structural decomposition, Baqaee-Farhi | [Policy](https://friedmanjp.github.io/Friedman-cli/stable/chapters/policy/), [Input-Output](https://friedmanjp.github.io/Friedman-cli/stable/chapters/io/) |
+| Time series and factors | VAR, BVAR, VECM, local projections, FAVAR, quantile factors/VAR/FAVAR and Growth-at-Risk (`qfm`, `qvar`, `qfavar`), DFM/GDFM/FHLZ/I(1)/TV-GDFM, ARIMA, ARDL, MIDAS, SETAR/STAR/Markov switching | [Multivariate](https://api.friedman.jp/Friedman-cli/stable/chapters/multivariate/), [Nonlinear](https://api.friedman.jp/Friedman-cli/stable/chapters/nonlinear/) |
+| Volatility | ARCH, GARCH, EGARCH, GJR-GARCH, stochastic volatility, CCC, DCC, BEKK | [Volatility](https://api.friedman.jp/Friedman-cli/stable/chapters/volatility/) |
+| Micro and panel data | OLS, IV, quantile regression, discrete choice (including RI-logit), panel regression, interactive-factor panel quantile (`xtqreg`), panel VAR, DiD (TWFE, Callaway-Sant'Anna, event studies, HonestDiD) | [Regression](https://api.friedman.jp/Friedman-cli/stable/chapters/regression/), [Panel](https://api.friedman.jp/Friedman-cli/stable/chapters/panel/) |
+| Equilibrium and rational inattention | Perturbation, projection, VFI, OccBin, canonical ABCD invertibility, Bayesian DSGE and DSGE-VAR, HANK/Huggett/OLG (`hadsge`), LQG / Maćkowiak-Wiederholt / Matějka-McKay rational inattention (`ri`) | [DSGE](https://api.friedman.jp/Friedman-cli/stable/chapters/dsge/), [HADSGE](https://api.friedman.jp/Friedman-cli/stable/chapters/hadsge/), [Rational Inattention](https://api.friedman.jp/Friedman-cli/stable/chapters/rational-inattention/) |
+| Identification and diagnostics | Cholesky, sign, narrative, long-run, Arias, Uhlig, LMS-SVAR, Lanne-Luoto GMM, SSVARMA, ICA, spectral FEVD, unit-root, cointegration, factor-rank, SVAR hypothesis, break, Granger, and weak-instrument tests | [Structural](https://api.friedman.jp/Friedman-cli/stable/chapters/structural/), [Tests](https://api.friedman.jp/Friedman-cli/stable/chapters/tests/) |
+| Policy and input-output | Causal-effect menus, optimal policy, behavioral RI policy news, counterfactuals, Leontief and Ghosh multipliers, structural decomposition, Baqaee-Farhi | [Policy](https://api.friedman.jp/Friedman-cli/stable/chapters/policy/), [Input-Output](https://api.friedman.jp/Friedman-cli/stable/chapters/io/) |
 
 Data utilities (`data describe`, `diagnose`, `transform`, `validate`, `simulate`), filters (`filter hp`, `hamilton`, `bk`, `eurocoin`), spectral tools, nowcasting, and an interactive shell (`frdc repl`) follow the same conventions.
 
@@ -183,7 +184,7 @@ frdc model reproduce var
 
 Passing `--seed N` fixes the random seed for samplers and simulators. With `--format json` (or `-J`/`--json`), every response includes a `meta.manifest` record containing the seed, thread count, OS, CLI version, and package versions. Output format is controlled with `--format table|csv|json` (`-f`) and `--output <path>` (`-o`). Human `--format table` output displays 3 decimal places by default (configurable via `--digits <0..16|full>` or `FRDC_DIGITS`), while `--format json`, `--format csv`, MCP payloads, and `.jld2`/`.jls` handles always store exact unrounded IEEE-754 floats. Confidence and credible intervals default to **68%** (`-L`/`--conf-level 0.68`, `-Q`/`--quantiles 0.16,0.5,0.84`) for macroeconometric leaves (including `did lp-did`) and **90%** for microeconometric leaves, while hypothesis-test significance levels remain 5%. Coexisting short abbreviations (`frdc est mv var :denmark -p 2 -J`, `frdc fc uv arima`, `frdc t ur adf`, `frdc d desc`, `-M`/`-R`/`-S`/`-W`) dispatch identically to canonical names and always emit canonical `command` strings in JSON envelopes. Progress messages go to stderr and results go to stdout, so stdout can be redirected or piped without stripping log lines.
 
-See the [pipelines and handles guide](https://friedmanjp.github.io/Friedman-cli/stable/getting-started/pipelines/) for multi-key handle addressing, session URIs (`data://`, `model://`, `result://`), and `model info`/`reproduce`.
+See the [pipelines and handles guide](https://api.friedman.jp/Friedman-cli/stable/getting-started/pipelines/) for multi-key handle addressing, session URIs (`data://`, `model://`, `result://`), and `model info`/`reproduce`.
 
 ## Scripting and MCP
 
@@ -194,7 +195,7 @@ Programmatic callers can inspect command interfaces without parsing help text:
 - `frdc schema <command...>` prints a JSON Schema (draft-07) description of the command's inputs and declared output table keys.
 - `frdc serve --mcp` runs a Model Context Protocol server over stdio (supporting `--families`, `--tools`, and `--compact` to narrow the exposed tool list).
 
-In standalone builds, a small C wrapper (`FRDCACHE` v2) handles `--version`, `--help` (including aliased paths), `schema`, `completions`, and MCP discovery (`initialize` with concise agent instructions, `ping`, strictly scoped `tools/list`) directly from a pre-built metadata cache in a few milliseconds, spawning `frdc-core` only when a command or MCP `tools/call` needs the Julia runtime. Setting `FRDC_NO_FASTPATH=1` bypasses the wrapper. For multi-step sessions, keeping a single `frdc repl` or `frdc serve --mcp` process open avoids repeated startup costs and allows in-memory handle reuse. Further details are in the [Agent Guide](https://friedmanjp.github.io/Friedman-cli/stable/agent-guide/).
+In standalone builds, a small C wrapper (`FRDCACHE` v2) handles `--version`, `--help` (including aliased paths), `schema`, `completions`, and MCP discovery (`initialize` with concise agent instructions, `ping`, strictly scoped `tools/list`) directly from a pre-built metadata cache in a few milliseconds, spawning `frdc-core` only when a command or MCP `tools/call` needs the Julia runtime. Setting `FRDC_NO_FASTPATH=1` bypasses the wrapper. For multi-step sessions, keeping a single `frdc repl` or `frdc serve --mcp` process open avoids repeated startup costs and allows in-memory handle reuse. Further details are in the [Agent Guide](https://api.friedman.jp/Friedman-cli/stable/agent-guide/).
 
 ## License
 
