@@ -266,9 +266,20 @@ end
 """Column index by name in a table, or nothing."""
 col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
 
+# ── CI Suite Sharding ─────────────────────────────────────────
+# Split T3 into 5 balanced disjoint suites (< 35 min each on Julia 1.13 with
+# --code-coverage=user, < 15 min on Julia 1.14+opt), mirroring MEMs.jl CI.
+# Local runs with unset FRDC_T3_SUITE (or "all") execute 100% of tests.
+const _T3_SUITE = Symbol(lowercase(strip(get(ENV, "FRDC_T3_SUITE", "all"))))
+const _VALID_T3_SUITES = (:all, :core1, :core2, :dsge, :hadsge1, :hadsge2)
+_T3_SUITE in _VALID_T3_SUITES || error(
+    "Invalid FRDC_T3_SUITE='$(_T3_SUITE)'; expected one of $(_VALID_T3_SUITES)")
+_in_suite(s::Symbol) = (_T3_SUITE === :all || _T3_SUITE === s)
+
 # ── Tests ─────────────────────────────────────────────────────
 
-@testset "Integration core vs real MEMs (TS-6)" begin
+@testset "Integration core vs real MEMs (TS-6; suite=$(_T3_SUITE))" begin
+if _in_suite(:core1)
     @testset "estimate multivariate var (C051 tidy coef)" begin
         csv = dgp_var2(; T=180, seed=7)
         r = run_json(["estimate", "multivariate", "var", csv, "--lags", "2"])
@@ -4450,7 +4461,9 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rm(sjld; force=true)
         rm(csv; force=true)
     end
+end # suite :core1 (part 1)
 
+if _in_suite(:hadsge1)
     # W3/#167 — DSGE/HA solutions move off .fmod: save → info → typed refusal
     @testset "W3 DSGE/HA native round-trips" begin
         dir = mktempdir()
@@ -4504,7 +4517,9 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         rm(ks; force=true)
         rm(dir; force=true, recursive=true)
     end
+end # suite :hadsge1 (part 1)
 
+if _in_suite(:core1)
     @testset "W1/#106 native save/load across the widened registry" begin
         ar = dgp_ar1(; T=150, φ=0.5, seed=917)
 
@@ -5036,7 +5051,9 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         @test hyper_tbl(rc.doc) === nothing
         rm(cfg; force=true); rm(csv; force=true)
     end
+end # suite :core1 (part 2)
 
+if _in_suite(:hadsge1)
     @testset "hadsge accuracy (W13/#115)" begin
         # `cols_table` is a LOCAL helper of the io testset, not suite-level — define it here
         # rather than reaching across scopes (this has bitten twice already).
@@ -5312,7 +5329,9 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             end
         end
     end
+end # suite :hadsge1 (part 2)
 
+if _in_suite(:hadsge2)
     @testset "W1 hadsge solve krusell-smith Dict R²" begin
         r = run_json(["hadsge", "solve", "krusell-smith", "--method", "krusell-smith"])
         assert_envelope_ok(r; label="ha solve krusell-smith")
@@ -5348,7 +5367,9 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             rm(csv; force=true); rm(priors; force=true)
         end
     end
+end # suite :hadsge2
 
+if _in_suite(:hadsge1)
     # C041 — CT Aiyagari + Blanchard OLG (small grids for CI time)
     @testset "dsge ct solve aiyagari" begin
         r = run_json(["dsge", "ct", "solve",
@@ -5372,7 +5393,9 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         @test tbl !== nothing
         @test length(table_rows(tbl)) >= 20
     end
+end # suite :hadsge1 (part 3)
 
+if _in_suite(:dsge)
     @testset "W6–W8 HA two-asset / dcegm / lifecycle / firm / bank" begin
         cols_table(doc, cols) = begin
             doc === nothing && return nothing
@@ -6937,7 +6960,9 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
 
         rm(dir; force=true, recursive=true)
     end
+end # suite :dsge (part 1)
 
+if _in_suite(:core2)
     # C042 — X-13ARIMA-SEATS (pure-Julia MEMs port; always available)
     @testset "filter x13 monthly" begin
         csv = tempname() * ".csv"
@@ -8146,7 +8171,9 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         end
         rm(ord; force=true)
     end
+end # suite :core2 (part 1)
 
+if _in_suite(:dsge)
     # ── W12/#114: determinacy map, closed-form moments, prefilter ───────────
     @testset "dsge determinacy-map (W12/#114)" begin
         # A textbook 3-equation New Keynesian block. Its determinacy frontier is the TAYLOR
@@ -8501,7 +8528,9 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
         end
         rm(spec; force=true)
     end
+end # suite :dsge (part 2)
 
+if _in_suite(:core2)
     # ── W10/#112: micro inference riders ────────────────────────────────────
     @testset "estimate regression reg --cov-type conley (W10/#112)" begin
         # Spatially correlated errors on a lat/lon grid: the true slope is 1.5 and the
@@ -10829,7 +10858,9 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test occursin("madnlp", String(rip.doc.error.hint))
         end
     end
+end # suite :core2 (part 2)
 
+if _in_suite(:dsge)
     @testset "[UX-W1] #342 — DSGE bayes hd --mode-only, observables subsetting, posterior-mode singularity & VFI (real MEMs)" begin
         mktempdir() do dir
             ar2_plain = joinpath(dir, "ar2_plain.jl")
@@ -11043,7 +11074,9 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             @test Int(table_rows(inv_s_tbl)[1][ci_s_rD]) == 0
         end
     end
+end # suite :dsge (part 3)
 
+if _in_suite(:core2)
     include(joinpath(@__DIR__, "test_w3_nongaussian.jl"))
 
     @testset "UX-W4 (#345): Structural ID, handles, longrun/long-run & LMS-SVAR" begin
@@ -12137,14 +12170,21 @@ capacity = 1.0
             end
         end
     end
+end # suite :core2 (part 3)
 end
 
-# Wave 1 ([MEM111-W1] #313): QFM, GaR, xtqreg, QVAR, QFAVAR & QReg IPM
-include(joinpath(@__DIR__, "test_w1_quantile.jl"))
+# Wave 1–6 & entry-point suites (assigned to balanced CI shards; all run under default FRDC_T3_SUITE=all)
+if _in_suite(:core2)
+    # Wave 1 ([MEM111-W1] #313): QFM, GaR, xtqreg, QVAR, QFAVAR & QReg IPM
+    include(joinpath(@__DIR__, "test_w1_quantile.jl"))
 
-# Real entry-point coverage (C036) — also on core/CI path
-include(joinpath(@__DIR__, "test_entry.jl"))
-include(joinpath(@__DIR__, "test_w2_gdfm.jl"))
-include(joinpath(@__DIR__, "test_w4_abcd_dsgevar.jl"))
-include(joinpath(@__DIR__, "test_w5_ri.jl"))
-include(joinpath(@__DIR__, "test_w6_dgp.jl"))
+    # Real entry-point coverage (C036) — also on core/CI path
+    include(joinpath(@__DIR__, "test_entry.jl"))
+    include(joinpath(@__DIR__, "test_w2_gdfm.jl"))
+    include(joinpath(@__DIR__, "test_w5_ri.jl"))
+    include(joinpath(@__DIR__, "test_w6_dgp.jl"))
+end
+
+if _in_suite(:dsge)
+    include(joinpath(@__DIR__, "test_w4_abcd_dsgevar.jl"))
+end

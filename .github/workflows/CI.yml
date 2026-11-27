@@ -124,13 +124,16 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: lcov.info
+          name: engine
           fail_ci_if_error: true
 
-  # T3 core — real MEMs (ubuntu every push, Julia 1.13 & 1.14+opt)
+  # T3 core — real MEMs sharded into 5 balanced parallel suites (ubuntu every push, Julia 1.13 & 1.14+opt)
+  # Each shard finishes in <35 min even with Julia 1.13 --code-coverage=user (<15 min on 1.14+opt);
+  # Codecov automatically merges all 5 t3-* lcov.info uploads with engine coverage.
   integration-core:
-    name: Integration core (T3 / Julia ${{ matrix.version }})
+    name: Integration T3 (${{ matrix.suite }} / Julia ${{ matrix.version }})
     runs-on: ubuntu-latest
-    timeout-minutes: 150
+    timeout-minutes: 60
     permissions:
       actions: write
       contents: read
@@ -138,6 +141,7 @@ jobs:
       fail-fast: false
       matrix:
         version: ["1.13", "1.14+opt"]
+        suite: ["core1", "core2", "dsge", "hadsge1", "hadsge2"]
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - uses: julia-actions/setup-julia@4c0cb0fce8556fdb04a90347310e5db8b1f98fb9 # v2
@@ -157,9 +161,10 @@ jobs:
             Pkg.develop(path=".")
             Pkg.instantiate()
           '
-      - name: Run integration-core
+      - name: Run integration-core (${{ matrix.suite }})
         env:
           FRDC_T3_DUMP_ENVELOPES: ${{ runner.temp }}/envelopes
+          FRDC_T3_SUITE: ${{ matrix.suite }}
         shell: bash
         run: |
           if [ "${{ matrix.version }}" = "1.14+opt" ]; then
@@ -177,6 +182,7 @@ jobs:
           julia --project -e 'using Pkg; Pkg.instantiate()'
           julia --project test/tools/check_table_keys.jl "${{ runner.temp }}/envelopes"
       - name: Input-schema metaschema check
+        if: matrix.suite == 'core1'
         run: |
           julia --project=test/integration test/tools/dump_input_schemas.jl "${{ runner.temp }}/input_schemas"
           python3 test/tools/validate_envelopes.py --input-schemas "${{ runner.temp }}/input_schemas"
@@ -191,6 +197,7 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: lcov.info
+          name: t3-${{ matrix.suite }}
           fail_ci_if_error: true
 
   # T4 E2E — subprocess battery on PRs (+ push) across Julia 1.13 & 1.14+opt
