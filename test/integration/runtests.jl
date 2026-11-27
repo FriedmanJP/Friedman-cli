@@ -11112,10 +11112,18 @@ col_index(tbl, name::AbstractString) = findfirst(==(name), table_cols(tbl))
             r_hlr = run_json(["hd", "var", ":denmark", "--lags", "2", "--id", "long-run"])
             assert_envelope_ok(r_hlr; label="hd var --id long-run")
 
-            # GDFM-I(1) accepts --id long-run
-            r_glr = run_json(["--seed", "2", "irf", "gdfm-i1", ":denmark", "--dynamic-rank", "2",
-                              "--n-perm", "4", "--horizons", "5", "--id", "long-run"])
-            assert_envelope_ok(r_glr; label="irf gdfm-i1 --id long-run")
+            # GDFM-I(1) accepts both --id longrun and --id long-run (use well-conditioned I(1) panel, not tiny 5-var :denmark)
+            d_i1_w4 = MacroEconometricModels.dgp_infinite_gdfm(
+                Random.Xoshiro(3142); T_obs=120, N=12, q=2, n_permanent=1, signal_share=0.80)
+            i1_w4_csv = joinpath(dir, "i1_w4.csv")
+            CSV.write(i1_w4_csv, DataFrame(d_i1_w4.X, ["x$j" for j in 1:size(d_i1_w4.X, 2)]))
+            r_glr1 = run_json(["--seed", "2", "irf", "gdfm-i1", i1_w4_csv, "--dynamic-rank", "2",
+                               "--n-perm", "4", "--horizons", "5", "--id", "longrun"])
+            r_glr2 = run_json(["--seed", "2", "irf", "gdfm-i1", i1_w4_csv, "--dynamic-rank", "2",
+                               "--n-perm", "4", "--horizons", "5", "--id", "long-run"])
+            assert_envelope_ok(r_glr1; label="irf gdfm-i1 --id longrun")
+            assert_envelope_ok(r_glr2; label="irf gdfm-i1 --id long-run")
+            @test r_glr1.doc.data.gdfm_i1_irf.rows == r_glr2.doc.data.gdfm_i1_irf.rows
 
             # DSGE-ABCD audit-irf & DSGE-VAR irf accept both --id longrun and --id long-run
             nk_jl = joinpath(dir, "nk_w4.jl")
