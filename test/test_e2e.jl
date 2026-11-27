@@ -1,12 +1,14 @@
 # T4 subprocess battery (TS-8 / C033).
 # Runs when CI=1, FRDC_E2E=1, or FRIEDMAN_E2E=1 (dev-mode startup is slower).
+# Set FRDC_E2E=0 to skip explicitly (e.g. CI `engine` job, since dedicated `e2e` job runs T4).
 #
 # Contract: `frdc … --format=json | jq .` — stdout is exactly one JSON document.
 
 using Test
 using JSON3
 
-const _E2E = get(ENV, "CI", "") != "" || get(ENV, "FRDC_E2E", get(ENV, "FRIEDMAN_E2E", "")) == "1"
+const _E2E = get(ENV, "FRDC_E2E", "") == "0" ? false :
+    (get(ENV, "CI", "") != "" || get(ENV, "FRDC_E2E", get(ENV, "FRIEDMAN_E2E", "")) == "1")
 const _ROOT = dirname(@__DIR__)
 const _JULIA = Base.julia_cmd()
 const _BIN = joinpath(_ROOT, "bin", "frdc")

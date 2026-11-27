@@ -68,6 +68,10 @@ jobs:
           julia --project test/tools/check_fastpath_pack.jl
           julia --project test/test_fastpath.jl
       - name: Run engine/unit tests (T0/T1/T2)
+        env:
+          # T4 E2E subprocess battery runs in the dedicated `e2e` job below; avoid
+          # duplicating 40+ julia subprocesses (and --code-coverage=user overhead) here.
+          FRDC_E2E: "0"
         shell: bash
         run: |
           if [ "${{ matrix.version }}" = "1.14+opt" ]; then
