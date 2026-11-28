@@ -37,6 +37,7 @@ Compute Bayesian forecast error variance decomposition
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
@@ -72,6 +73,7 @@ FAVAR forecast error variance decomposition
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
@@ -115,6 +117,7 @@ Panel FEVD from I(1) cointegrated GDFM level IRFs
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
@@ -153,6 +156,7 @@ Compute forecast error variance decomposition via structural LP
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
@@ -184,6 +188,7 @@ Compute Panel VAR forecast error variance decomposition
 | `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
@@ -224,6 +229,7 @@ Structural DFM forecast error variance decomposition
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
@@ -261,6 +267,7 @@ Compute structural forecast error variance decomposition for a Strong SVARMA mod
 | `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
@@ -295,6 +302,7 @@ Compute forecast error variance decomposition
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
@@ -332,6 +340,7 @@ Compute FEVD via VECM → VAR representation (direct VECM under --id svec)
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |

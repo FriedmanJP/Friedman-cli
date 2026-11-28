@@ -50,6 +50,7 @@ Rule counterfactual: enforce a PolicyRule on the menu with exact/ls projection
 | `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -93,6 +94,7 @@ Rule counterfactual: enforce a PolicyRule on the menu with exact/ls projection
 | `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -135,6 +137,7 @@ Rule counterfactual: enforce a PolicyRule on the menu with exact/ls projection
 | `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -178,6 +181,7 @@ McKay-Wolf causal-effects menu (Theta_x/Theta_z) from an estimated IRF
 | `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `BVARPosterior`; result types: `PolicyCausalEffects`
 
@@ -206,6 +210,7 @@ McKay-Wolf causal-effects menu (Theta_x/Theta_z) from an estimated IRF
 | `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `StructuralLP`, `LPModel`, `LPIVModel`; result types: `PolicyCausalEffects`
 
@@ -234,6 +239,7 @@ McKay-Wolf causal-effects menu (Theta_x/Theta_z) from an estimated IRF
 | `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `VARModel`, `SignIdentifiedSet`; result types: `PolicyCausalEffects`
 
@@ -261,6 +267,7 @@ McKay-Wolf causal-effects menu (Theta_x/Theta_z) from an estimated IRF
 | `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`; model types: `VARModel`, `SVARModel`; result types: `PolicyCausalEffects`
 
@@ -307,6 +314,7 @@ Counterfactual history: re-run an observation window under the policy
 | `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -346,6 +354,7 @@ Counterfactual history: re-run an observation window under the policy
 | `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -383,6 +392,7 @@ Sequence-space household Jacobian d(output)/d(input) as a tidy T² table
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 **Handles:** model types: `HADSGESolution`; result types: `Matrix`, `SSJGEJacobian`
 
@@ -430,6 +440,7 @@ Counterfactual second moments (sd/corr), rule XOR loss
 | `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -470,6 +481,7 @@ Counterfactual second moments (sd/corr), rule XOR loss
 | `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -511,6 +523,7 @@ Square DSGE news menu (policy_news_matrix) for one exogenous shock
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 **Handles:** model types: `DSGESolution`, `PerturbationSolution`; result types: `PolicyCausalEffects`
 
@@ -540,6 +553,7 @@ Square HA sequence-space news menu under a rate-wedge closure
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 **Handles:** model types: `HADSGESolution`; result types: `PolicyCausalEffects`
 
@@ -591,6 +605,7 @@ Barnichon-Mesters optimal policy perturbation (unconstrained or constrained)
 | `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -639,6 +654,7 @@ Barnichon-Mesters optimal policy perturbation (unconstrained or constrained)
 | `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -691,6 +707,7 @@ OPP rerun over a sequence of dated gap forecasts with news/preference/aging spli
 | `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -731,6 +748,7 @@ OPP rerun over a sequence of dated gap forecasts with news/preference/aging spli
 | `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -781,6 +799,7 @@ Optimal policy: minimize a quadratic PolicyLoss over the menu (spanned_tol fixed
 | `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -821,6 +840,7 @@ Optimal policy: minimize a quadratic PolicyLoss over the menu (spanned_tol fixed
 | `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -860,6 +880,7 @@ Optimal policy: minimize a quadratic PolicyLoss over the menu (spanned_tol fixed
 | `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -913,6 +934,7 @@ Spanning diagnostic: thin empirical menu vs full DSGE news menu
 | `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -950,6 +972,7 @@ Forecast-sufficiency FEV ratios for an observable set (population laboratory, no
 | `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|

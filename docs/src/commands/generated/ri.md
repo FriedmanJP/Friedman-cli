@@ -33,6 +33,7 @@ Coibion-Gorodnichenko (2015) information-rigidity regression test (with optional
 | `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -60,6 +61,7 @@ Solve Matějka-McKay (2015) / Caplin-Dean-Leahy (2019) discrete-choice RI proble
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 | `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
@@ -102,6 +104,7 @@ Estimate RI capacity or shadow cost from observed series via Kalman MLE or Bayes
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 | `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
@@ -133,6 +136,7 @@ Analytical FEVD decomposing fundamental vs endogenous RI processing-noise varian
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -161,6 +165,7 @@ Diagnose IIA breakdown under discrete-choice RI when adding a new alternative
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -188,6 +193,7 @@ Analytical inertial impulse response functions for a SimsKalmanSolution
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -215,6 +221,7 @@ Solve Maćkowiak-Wiederholt (2009) multi-block attention allocation and GE price
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 | `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
@@ -273,6 +280,7 @@ Solve Sims (2003) steady-state LQG Rational Inattention Kalman filter
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 | `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
@@ -306,6 +314,7 @@ Convert a SimsKalmanSolution into joint StateSpaceModel, ABCDSystem, or SteadySt
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 | `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
@@ -340,6 +349,7 @@ Solve Afrouzi-Yang (2021) dynamic LQG Rational Inattention transition path
 | `--output` | `-o` | `String` | `""` | — | Write to file instead of stdout |
 | `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 | `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |

@@ -41,6 +41,7 @@ Staggered-adoption DiD estimation (twfe|cs|sa|bjs|dcdh) with event-time and over
 | `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -77,6 +78,7 @@ Local-projection event-study DiD with pre-trend leads and post-treatment horizon
 | `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -117,6 +119,7 @@ LP-DiD estimation (Dube et al. 2023) with pre/post windows and clean-control opt
 | `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|

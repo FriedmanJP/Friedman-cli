@@ -31,8 +31,8 @@ Example shape (fields abbreviated):
   "command": "frdc estimate multivariate var",
   "status": "ok",
   "meta": {
-    "cli_version": "1.2.0",
-    "mems_version": "1.1.2",
+    "cli_version": "1.2.1",
+    "mems_version": "1.1.3",
     "julia": "1.13.0",
     "seed": null,
     "argv": ["estimate", "multivariate", "var", "data.csv", "--lags", "1", "--format", "json"],
@@ -490,7 +490,8 @@ the docs site.
 | Global | Effect |
 |------|--------|
 | `--seed <int>` / `--seed=<int>` | seed the process RNG; forwarded as the estimator's own `seed=` where supported; echoed in `meta.seed` (rejected on `serve --mcp` with exit `2`; pass per-call `seed` in `tools/call` arguments instead) |
-| `--quiet` / `-q` | suppress CLI status on stderr (runtime warnings emitted via `always_stderr=true` still surface and populate `warnings`) |
+| `--threads <1\|N\|auto>` / `--threads=<val>` | configure Julia worker threads before `jl_init()` (default `1`, also configurable via `FRDC_THREADS`; `auto` caps at `4` P-cores/cgroup quota; defaults `OPENBLAS_NUM_THREADS=1` when `> 1` thread and pins `FFTW=1`; invalid values emit `usage/bad-threads` exit `2`) |
+| `--quiet` / `-q` | suppress CLI status on stderr (runtime warnings emitted via `always_stderr=true` still surface and populate `warnings`; fatal errors always preserve the `Error: ` prefix) |
 | `--no-color` | disable ANSI (also honors `NO_COLOR`) |
 | `--json` / `-J` | alias that sets `--format json` when no explicit `--format` was given (conflicts with explicit `--format csv` or `table` → exit `2`) |
 | `--digits <0..16\|full>` | override human `--format table` decimal precision (default `3`, also configurable via `FRDC_DIGITS`; invalid values emit typed `usage/bad-digits` exit `2`). Never alters `--format json`, `--format csv`, MCP payloads, or `.jld2`/`.jls` handles |
@@ -556,6 +557,14 @@ always resolve to the canonical command and emit the canonical `command` string 
 (e.g. `"frdc estimate multivariate var"`), never the alias. Machine callers and MCP clients should
 prefer canonical names; inspect `frdc schema <path>` for `aliases` metadata (omitted from MCP
 `tools/list` schemas to keep tool payloads compact).
+
+---
+
+## Performance, caching & opt-in daemon
+
+- **Per-user JIT object cache (`JULIA_OBJCACHE=1`):** Standalone Julia 1.14 binaries automatically enable a build-stamp-isolated local LMDB object cache (`FRDC_CACHE_DIR` override; `FRDC_OBJCACHE=0` or `JULIA_OBJCACHE=0` to disable; `FRDC_CACHE_MAX_MB=256` budget; inspect/prune via `frdc cache info` and `frdc cache clear [--stale-only]`) and silently fall back to `JULIA_OBJCACHE=0` on read-only or network filesystems.
+- **Per-leaf `thread_mode`:** `frdc schema <path>` advertises each leaf's `thread_mode` (`julia_threads`, `blas_threads`, or `serial_safe`), and `meta.manifest` records both `n_threads` and `blas_threads`.
+- **Opt-in resident worker daemon (`FRDC_DAEMON=1`):** Off by default. When enabled, repeated compute commands route over a user-private socket/pipe (`frdc daemon start|stop|status`) protected by an OS bootstrap lock (anti-spawn-storm), an exhaustive 23-Ref state-reset barrier, RSS recycle ceilings (`FRDC_DAEMON_MAX_RSS_MB=2048`), idle TTL (`FRDC_DAEMON_TTL=600`), and bounded-acquire fail-open (`FRDC_DAEMON_ACQUIRE_MS=200`) to one-shot `frdc-core`.
 
 ---
 

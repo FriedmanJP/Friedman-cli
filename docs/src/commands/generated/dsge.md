@@ -282,6 +282,7 @@ Bewley-bank MIT IRF (variable names from the ImpulseResponse)
 | `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -315,6 +316,7 @@ Bewley-bank partial equilibrium at given (R, rᵏ)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 **Output tables:** `bewley_banks_pe` (PE prices, convergence and iterations); `bewley_banks_pe_policy` (Lending and deposit policy over the net-worth grid)
 
@@ -343,6 +345,7 @@ Bewley-bank credit-market stationary equilibrium
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 **Output tables:** `bewley_banks_steady_state` (R, rk, L, N, B, leverage, Y, excess demand and convergence); `bewley_banks_steady_state_policy` (Lending and deposit policy over the net-worth grid at SS prices)
 
@@ -362,6 +365,7 @@ Bewley-bank MIT TFP path
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 **Handles:** result types: `IntermediaryTransition`
 
@@ -396,6 +400,7 @@ FEVD from the CT MIT impulse (single TFP shock)
 | `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -427,6 +432,7 @@ MIT impulse response of CT Aiyagari or two-asset GE
 | `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -456,6 +462,7 @@ Continuous-time Aiyagari (or two-asset KMV) stationary equilibrium
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -490,6 +497,7 @@ MIT-shock perfect-foresight transition (ct_mit_shock; ct_two_asset_mit with --tw
 | `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -534,6 +542,7 @@ FEVD of a DCEGM equilibrium (single TFP shock)
 | `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -569,6 +578,7 @@ MIT IRF of a DCEGM equilibrium (needs GE, not DCEGMSolution)
 | `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -603,6 +613,7 @@ MIT simulation of a DCEGM equilibrium (levels)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 **Handles:** result types: `Matrix`, `TimeSeriesData`
 
@@ -640,6 +651,7 @@ Discrete-continuous EGM household (builtin retirement or .jl DCEGMProblem/DCEGMS
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -686,6 +698,7 @@ DCEGM capital-market equilibrium (dcegm_steady_state)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -718,6 +731,7 @@ MIT TFP path of a DCEGM equilibrium
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 **Handles:** result types: `DCEGMTransition`
 
@@ -749,6 +763,7 @@ Khan–Thomas MIT IRF of Y, I, K, N, C, Z
 | `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -787,6 +802,7 @@ Khan–Thomas plant-level stationary equilibrium
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 **Output tables:** `khan_thomas_steady_state` (w, p, K, N, Y, I, C, inaction, convergence); `khan_thomas_policy` (k-grid × ε: unconstrained k*, constrained k' and adjustment probability)
 
@@ -807,6 +823,7 @@ Khan–Thomas MIT TFP path (--prices ss|ge)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 **Handles:** result types: `KhanThomasTransition`
 
@@ -840,6 +857,7 @@ FEVD of a life-cycle OLG steady state
 | `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -867,6 +885,7 @@ MIT IRF of a life-cycle OLG steady state
 | `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -893,6 +912,7 @@ MIT simulation of a life-cycle OLG steady state (levels)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 **Handles:** result types: `Matrix`, `TimeSeriesData`
 
@@ -932,6 +952,7 @@ Life-cycle OLG stationary equilibrium
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -972,6 +993,7 @@ Life-cycle OLG perfect-foresight transition (--k0 XOR --z-path)
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 **Handles:** result types: `LifeCycleTransition`
 
@@ -1011,6 +1033,7 @@ Blanchard OLG FEVD via to_spec (TFP; NK adds monetary)
 | `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -1048,6 +1071,7 @@ Blanchard OLG IRF via to_spec (TFP; NK adds monetary)
 | `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -1077,6 +1101,7 @@ Blanchard OLG transitional dynamics from k0 along the saddle path
 | `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -1101,6 +1126,7 @@ Blanchard perpetual-youth OLG: steady state + saddle path
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 **Output tables:** `blanchard_olg_steady_state` (Steady-state k, C, r, w, human wealth, MPC, debt and convergence); `blanchard_olg_dynamics` (Stable eigenvalue, policy slope, determinacy verdict and both eigenvalue moduli)
 
@@ -1183,6 +1209,7 @@ Estimate a DSGE model with Bayesian sampling and report the posterior
 | `--conf-level` | `-L` | `Float64` | `0.68` | — | Confidence/credible interval level in (0, 1) (default: 0.68) *(aliases: `--ci-level`, `--confidence`, `--level`, `--cl`)* |
 | `--quantiles` | `-Q` | `String` | `0.16,0.5,0.84` | — | Posterior/bootstrap band quantiles in (0, 1) (default: 0.16,0.5,0.84 = 68% band) *(aliases: `--qtl`)* |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -1712,6 +1739,7 @@ Map the DSGE determinacy region over two parameters
 | `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -1748,6 +1776,7 @@ Estimate DSGE parameters by moment matching
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
@@ -1785,6 +1814,7 @@ Decompose the DSGE forecast-error variance by shock
 | `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -1829,6 +1859,7 @@ Decompose DSGE observables into historical shock contributions
 | `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -1874,6 +1905,7 @@ Compute DSGE impulse responses to each structural shock
 | `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -1928,6 +1960,7 @@ Solve a DSGE model under perfect foresight along a shock path
 | `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -2016,6 +2049,7 @@ Solve a DSGE model and report the policy solution
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|

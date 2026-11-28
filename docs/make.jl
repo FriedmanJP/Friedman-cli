@@ -56,7 +56,9 @@ makedocs(;
         ],
         "CLI Reference" => [
             "Overview" => "commands/overview.md",
+            "cache" => "commands/generated/cache.md",
             "completions" => "commands/generated/completions.md",
+            "daemon" => "commands/generated/daemon.md",
             "data" => "commands/generated/data.md",
             "did" => "commands/generated/did.md",
             "dsge" => "commands/generated/dsge.md",
@@ -81,6 +83,7 @@ makedocs(;
         ],
         "Internals" => [
             "Architecture" => "internals/architecture.md",
+            "Resident Worker Daemon ADR" => "internals/daemon-adr.md",
             "Storage & Handles" => "internals/storage.md",
             "API Reference" => "internals/api.md",
             "Unwrapped Upstream Surface" => "internals/not-wrapped.md",

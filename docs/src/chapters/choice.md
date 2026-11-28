@@ -18,6 +18,25 @@ frdc predict choice logit bin_sim --dep y --cov-type hc1 --marginal-effects --cl
 ├──────┼──────────┼───────────┼───────┼─────────┼──────────┼──────────┤
 │  x2  │  0.057   │   0.028   │ 2.037 │  0.042  │  0.011   │  0.103   │
 └──────┴──────────┴───────────┴───────┴─────────┴──────────┴──────────┘
+Classification Metrics (threshold=0.5)
+┌─────────────┬───────┐
+│   metric    │ value │
+├─────────────┼───────┤
+│  accuracy   │ 0.755 │
+│  f1_score   │ 0.860 │
+│      n      │  200  │
+│  precision  │ 0.755 │
+│ sensitivity │ 1.000 │
+│ specificity │ 0.000 │
+│  threshold  │ 0.500 │
+└─────────────┴───────┘
+            Confusion Matrix
+┌──────────┬─────────────┬─────────────┐
+│  actual  │ predicted_0 │ predicted_1 │
+├──────────┼─────────────┼─────────────┤
+│ actual_0 │    0.000    │   49.000    │
+│ actual_1 │    0.000    │   151.000   │
+└──────────┴─────────────┴─────────────┘
 ```
 
 The command produces predicted probabilities (`logit_fitted_probabilities`), average marginal effects (`average_marginal_effects_logit`, here `x2 = 0.056878`, `p = 0.0416704`), classification accuracy (`classification_metrics`, `confusion_matrix`), and optional odds ratios (`--odds-ratio`).

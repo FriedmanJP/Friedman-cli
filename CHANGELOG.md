@@ -4,6 +4,86 @@ All notable changes to Friedman-cli are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to
 Semantic Versioning. Releases before v0.6.0 are recorded in the git tag history.
 
+## [1.2.1] — 2026-11-28 — MacroEconometricModels v1.1.3, UX inspection remediation, multivariate precompile, safe JULIA_OBJCACHE=1, conflict-free multithreading & opt-in resident daemon (#349–#360)
+
+Reliability, performance, and UX hardening release upgrading to
+`MacroEconometricModels =1.1.3` (adopting upstream parallel thread-invariant BVAR
+`irf`/`fevd`/`hd` and nonlinear PF/SMC²/HA-DSGE fixes `#945`–`#951`) and resolving
+all 12 issues across the `[UX2]` (`#349`–`#354`) and `[PERF]` (`#355`–`#360`)
+roadmaps while keeping `schema/envelope-v1.json` frozen at v1.
+
+### UX Inspection Remediation (`[UX2-W1..W5]`, `#349`–`#354`)
+
+- **Zero P0 exit-1 crashes or stacktrace leaks (`#349`):** Added
+  `allow_missing::Bool=false` / `allow_nonfinite::Bool=false` to `df_to_matrix` so
+  `data describe`/`diagnose`/`fix` handle CSV blank cells (`rc=0`) while estimation,
+  filter, spectral, DSGE, and policy loaders enforce `data/missing-values` /
+  `data/non-finite-values` (`rc=3`); converted `nowcast news` column-count errors to
+  `usage/invalid` (`rc=2`) and vintage shape mismatches to `data/shape` (`rc=3`);
+  wrapped all remaining `did` handlers (`estimate`, `event-study`, `bacon`,
+  `pretrend`, `negweight`, `honest`) in `_domain_or_data_error` (`rc=3`); replaced
+  `JLD2.load` fallback in `src/storage/codec.jl` with direct `JLD2.jldopen` +
+  single-line sanitized error hints (zero `FileIO`/`HDF5`/`Stacktrace:` leaks).
+- **Data, storage & panel handle consistency (`#350`):** Fixed `data filter -o`
+  to persist typed handles via `_persist_edit` while emitting a valid JSON envelope
+  with `artifacts` under `-J -o`; implemented keyed `#key` JLD2/.jls archive upsert
+  in `save_handle!` (preserving sibling keys for `model keys` / `model info` and
+  rejecting non-keyable targets with `rc=2`, zero silent overwrite); aligned
+  `data validate` with estimator finiteness checks (`:mp_shocks` → `valid = false`);
+  stripped synthetic `time`/`obs` index columns from `data simulate -f csv` exports;
+  unified bundled `PanelData` (`:grunfeld`, `:mpdta`) auto-ID resolution in
+  `load_panel_data` (`pvar`), `data export :grunfeld`, and `data transform :denmark -o .jld2`;
+  plumbed `--note` onto `--save-model` and `--save-result`.
+- **MCP, schema & discrete-choice `predict` fixes (`#351`):** Propagated leading
+  global `--compact` on `frdc --compact serve --mcp` in both C99 `mcp_proxy` and
+  Julia; handled combined `--marginal-effects` / `--odds-ratio` /
+  `--classification-table` flags in `predict choice logit|probit`; added `x-handle`
+  (`role: "data"`) + `data://` URI hints to `nowcast news` `data-new`/`data-old`
+  and Draft-07 `anyOf` constraints to `ri {solve,discrete,mw,iia-test}`.
+- **CLI ergonomics, display, REPL & completions polish (`#352`):** Added narrow-TTY
+  (`< 100` cols) fail-open wrapping in `frdc_thin.c` and `_wrap_text` in
+  `print_repl_help`; preserved `"Error: "` stderr prefix under `--quiet`; fixed
+  `_net_command` to skip valued `--digits`/`--seed`/`--threads`; added Levenshtein
+  `<= 2` subcommand & enum choice did-you-mean plus v0.x/`snake_case` migration
+  hints and `forecast var arima -> forecast univariate arima`; rejected
+  `unknowncmd --help` (`rc=2`); preserved `Bool`/`Int` table types in BVAR &
+  HADSGE diagnostics; normalized `-0.0` to `0.0` under `--digits full`; rejected
+  unclosed REPL quotes with `ParseError`; added setup docs to `completions --help`
+  and `zsh` parity for `schema` + `--digits`; refreshed `install.sh` macOS build
+  guidance.
+
+### Performance, Caching & Safe Multithreading (`[PERF-W1..W5]`, `#355`–`#360`, `MEMs =1.1.3`)
+
+- **Multivariate precompile expansion (`#355`):** Expanded `build_release.jl`
+  deterministic precompile workload (`--seed 7`) to cover `BVAR` + `.jld2` round-trip
+  + cholesky/sign `irf`/`fevd`/`hd`/`forecast`/`predict`/`residuals`, `VECM`,
+  `SVAR` / `irf var` sign & longrun, `LP`/`StructuralLP`, `FAVAR`, `PVAR`, `QVAR`,
+  `SSVARMA`, `TVP-VAR`, and `MF-VAR`.
+- **Safe per-user writable `JULIA_OBJCACHE=1` & `frdc cache` (`#356`):** Updated
+  `packaging/c_driver/frdc_driver.c` to resolve a version+build-stamp-keyed local
+  per-user cache dir (`FRDC_CACHE_DIR` override; `FRDC_OBJCACHE=0`/`JULIA_OBJCACHE=0`
+  opt-out; local-FS guard rejecting NFS/SMB/CIFS/FUSE/network drives; actual write
+  probe; stale stamp pruning; silent zero-stderr fallback to `JULIA_OBJCACHE=0` on
+  read-only/MSIX/sandboxed hosts) and added `frdc cache info` / `frdc cache clear [--stale-only]`.
+- **Conflict-free multithreading (`#358`, `#359`):** Added `_LOG_LOCK`
+  (`ReentrantLock`) around `_MemsCliLogger` and warning helpers; implemented
+  pre-`jl_init()` `--threads=<1|N|auto>` + `FRDC_THREADS` (cgroup/P-core capped at
+  4, `OPENBLAS_NUM_THREADS=1` auto-default when `> 1` thread, unconditional
+  `FFTW.set_num_threads(1)`, strict `usage/bad-threads` exit `2`); added declarative
+  per-leaf `CommandSpec.thread_mode` (`:julia_threads` | `:blas_threads` | `:serial_safe`)
+  enforced via `with_thread_budget()`, recorded `blas_threads` in `meta.manifest`,
+  adopted `MacroEconometricModels v1.1.3` (`#945` parallel thread-invariant BVAR
+  `irf`/`fevd`/`hd`), and added a permanent CI multi-thread solver-conflict matrix
+  (`MadNLP`, `UMFPACK`, `FFTW`, `NLopt`, bootstrap/Arias/Uhlig/QFM/GSADF/SMC, BVAR
+  `1T == 4T` bit-exact parity).
+- **Multi-agent-safe opt-in resident worker daemon (`#357`):** Authored ADR
+  (`docs/src/internals/daemon-adr.md`), implemented opt-in `FRDC_DAEMON=1` worker
+  (`src/daemon.jl`, `packaging/thin_wrapper/daemon_client.c`, `frdc daemon start|stop|status`)
+  with anti-spawn-storm `flock`/`CreateMutexW` rendezvous, `SO_PEERCRED`/`getpeereid`
+  peer verification, exhaustive 23-Ref state-reset barrier, two-phase ACK bounded
+  fail-open (`FRDC_DAEMON_ACQUIRE_MS=200`), RSS recycle ceilings, and a 30-agent
+  chaos/soak test suite (`test/test_daemon_chaos.jl`).
+
 ## [1.2.0] — 2026-11-27 — MacroEconometricModels v1.1.2, presentation-only 3-decimal display, 68%/90% CI defaults, zero-collision abbreviations, FRDCACHE v2 & MCP/DSGE UX overhaul (#322–#348)
 
 Major UX, precision, statistical-defaults, abbreviation, and MCP hardening release

@@ -32,6 +32,7 @@ Autocorrelation / partial autocorrelation / cross-correlation
 | `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -59,6 +60,7 @@ Cross-spectral analysis (coherence, phase, gain)
 | `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -89,6 +91,7 @@ Spectral density estimation
 | `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -133,6 +136,7 @@ Frequency-band structural FEVD for a Structural DFM
 | `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 | `--config-json` | — | `String` | `""` | — | Zero-file JSON object string merged over --config (file < json < --set; e.g. '{"identification":{"sign_matrix":[[1,1],[-1,1]]}}') *(aliases: `--cj`)* |
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
@@ -166,6 +170,7 @@ Raw periodogram
 | `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -192,6 +197,7 @@ Filter transfer function (theoretical frequency response)
 | `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|

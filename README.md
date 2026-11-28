@@ -4,7 +4,7 @@
 [![codecov](https://codecov.io/gh/FriedmanJP/Friedman-cli/graph/badge.svg)](https://app.codecov.io/gh/FriedmanJP/Friedman-cli)
 [![Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://api.friedman.jp/Friedman-cli/stable/)
 
-`frdc` (**v1.2.0**) is a command-line interface for [MacroEconometricModels.jl](https://github.com/FriedmanJP/MacroEconometricModels.jl) (pinned to `=1.1.2` in [Project.toml](Project.toml)). It wraps the package's estimation, testing, structural identification, forecasting, and equilibrium-solving routines as standalone shell commands that read CSV files or saved `.jld2`/`.jls` handles and write formatted tables, CSV, JSON, or self-contained HTML plots.
+`frdc` (**v1.2.1**) is a command-line interface for [MacroEconometricModels.jl](https://github.com/FriedmanJP/MacroEconometricModels.jl) (pinned to `=1.1.3` in [Project.toml](Project.toml)). It wraps the package's estimation, testing, structural identification, forecasting, and equilibrium-solving routines as standalone shell commands that read CSV files or saved `.jld2`/`.jls` handles and write formatted tables, CSV, JSON, or self-contained HTML plots.
 
 Full documentation and the generated command reference live at [api.friedman.jp/Friedman-cli/stable/](https://api.friedman.jp/Friedman-cli/stable/).
 

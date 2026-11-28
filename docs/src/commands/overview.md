@@ -8,7 +8,9 @@ Friedman-cli uses an **action-first** command hierarchy (`verb [family] model`).
 
 ```text
 frdc
+├── cache     clear | info
 ├── completions     bash | fish | zsh
+├── daemon     start | status | stop
 ├── data     balance | describe | diagnose | dropna | export | filter | fix | import | keeprows | list | load | simulate ardl | simulate arima | simulate cointreg | simulate cross-section | simulate ct | simulate did | simulate dsge | simulate factors | simulate garch | simulate gdfm-infinite | simulate gmm | simulate ha | simulate heteroskedastic-var | simulate lp-iv | simulate olg | simulate panel | simulate pvar | simulate qfavar | simulate qfm | simulate regime | simulate ssvarma | simulate sv | simulate svar | simulate var | simulate vecm | transform | validate
 ├── did     estimate | event-study | lp-did
 ├── dsge     abcd audit-irf | abcd extract | abcd innovations | abcd invertibility | abcd population-var | abcd recoverability | abcd search-observables | bank irf | bank pe | bank steady-state | bank transition | bayes compare | bayes estimate | bayes fevd | bayes hd | bayes identification | bayes irf | bayes learning-rate | bayes marginal-lik | bayes mcmc-diag | bayes overlap | bayes posterior-mode | bayes predictive | bayes prior-predictive | bayes simulate | bayes summary | ct fevd | ct irf | ct solve | ct transition | dcegm fevd | dcegm irf | dcegm simulate | dcegm solve | dcegm steady-state | dcegm transition | determinacy-map | estimate | fevd | firm irf | firm steady-state | firm transition | hd | irf | lifecycle fevd | lifecycle irf | lifecycle simulate | lifecycle steady-state | lifecycle transition | moments | olg fevd | olg irf | olg simulate | olg solve | perfect-foresight | simulate | solve | steady-state | var estimate | var fevd | var forecast | var hd | var irf | var lambda | var prior
@@ -31,7 +33,7 @@ frdc
 ├── spectral     acf | cross | density | fevd | periodogram | transfer
 └── test     brant | coint ardl-bounds | coint engle-granger | coint fisher-johansen | coint gregory-hansen | coint johansen | coint kao | coint pedroni | coint phillips-ouliaris | coint westerlund | did bacon | did honest | did negweight | did pretrend | dispersion | edf | factor ahn-horenstein | factor onatski-ed | factor onatski-q | factor qfm-constancy | factor qfm-spanning | fisher | gph | hansen-linearity | hausman-iia | identifiability | influence | iv anderson-rubin | iv weak-instrument | iv wild-cluster | local-whittle | multivariate fundamentalness | multivariate gmm-moments | multivariate granger | multivariate lagselect | multivariate lm | multivariate lr | multivariate nongaussian-diag | multivariate stability | multivariate sufficient-info | multivariate svar-hypothesis | nardl-symmetry | normality | panel dh-causality | panel f-fe | panel hausman | panel modified-wald | panel panic | panel pesaran-cd | panel pmg-hausman | panel wooldridge-ar | park-added | pvar hansen-j | pvar lagselect | pvar mmsc | pvar stability | serial arch-lm | serial bartlett-wn | serial bds | serial box-pierce | serial breusch-pagan | serial durbin-watson | serial glejser | serial harvey | serial heteroskedasticity | serial ljung-box | serial sign-bias | serial white | stability andrews | stability bai-perron | stability chow | stability cusum | stability cusumsq | stability factor-break | stability gsadf | stability hansen-instability | stability nyblom | stability recursive-residuals | stability sadf | star-linearity | unit-root adf | unit-root adf-2break | unit-root breitung | unit-root cips | unit-root dfgls | unit-root ers | unit-root fourier-adf | unit-root fourier-kpss | unit-root hadri | unit-root hegy | unit-root ips | unit-root kpss | unit-root llc | unit-root lm-unitroot | unit-root moon-perron | unit-root np | unit-root pp | unit-root za | variance-ratio | vecm alpha | vecm beta | vecm joint | vecm known-beta | vecm weak-exog | vif
 
-Total: 22 top-level commands, 559 leaves (from registry).
+Total: 24 top-level commands, 564 leaves (from registry).
 ```
 
 Additionally, `frdc repl` launches an interactive REPL session ([Interactive REPL](@ref gs-repl)).
@@ -40,7 +42,9 @@ Additionally, `frdc repl` launches an interactive REPL session ([Interactive REP
 
 ## Generated Reference Pages
 
+- [`cache`](@ref ref-cache) — 2 leaves
 - [`completions`](@ref ref-completions) — 3 leaves
+- [`daemon`](@ref ref-daemon) — 3 leaves
 - [`data`](@ref ref-data) — 38 leaves
 - [`did`](@ref ref-did) — 3 leaves
 - [`dsge`](@ref ref-dsge) — 65 leaves

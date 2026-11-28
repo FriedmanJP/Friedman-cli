@@ -38,6 +38,7 @@ Compute Bayesian impulse response functions with credible intervals
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
@@ -75,6 +76,7 @@ FAVAR impulse response functions
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
@@ -119,6 +121,7 @@ Level structural IRFs from I(1) cointegrated GDFM
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
@@ -160,6 +163,7 @@ Compute structural LP impulse response functions
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
@@ -195,6 +199,7 @@ Compute Panel VAR impulse response functions (OIRF/GIRF)
 | `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
@@ -235,6 +240,7 @@ Quantile FAVAR panel-wide impulse response functions
 | `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
@@ -274,6 +280,7 @@ Quantile VAR impulse response functions (Chavleishvili-Manganelli)
 | `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
@@ -317,6 +324,7 @@ Structural DFM impulse response functions (panel-wide)
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
@@ -355,6 +363,7 @@ Compute causal structural impulse response functions for a Strong SVARMA model
 | `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
@@ -395,6 +404,7 @@ Date-specific IRF from a TVP-VAR-SV
 | `--model` | `-M` | `String` | `""` | — | Load model from a handle (.jld2 native, .jls serialized, .fmod interim, or model://; skip re-estimation) |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
@@ -440,6 +450,7 @@ Compute frequentist impulse response functions
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |
@@ -484,6 +495,7 @@ Compute impulse response functions via VECM → VAR representation (direct VECM 
 | `--set` | — | `String` *(repeatable)* | `""` | — | Override config key=value; repeatable; dotted keys OK |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
 
 | Flag | Short | Description |

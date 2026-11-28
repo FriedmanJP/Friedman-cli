@@ -40,6 +40,7 @@ Den Haan (2010) accuracy of the aggregate law of motion
 | `--plot-save` | `-G` | `String` | `""` | — | Save interactive plot to HTML file *(aliases: `--ps`)* |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -111,6 +112,7 @@ Bayesian estimation of HA-DSGE parameters (MH/SMC)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 **Handles:** data kinds: `:timeseries`, `:csv`
 
@@ -136,6 +138,7 @@ Aggregate FEVD from linearized HA-DSGE solution
 | `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -168,6 +171,7 @@ Historical decomposition of HA-DSGE aggregates
 | `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -228,6 +232,7 @@ Aggregate IRFs from linearized HA-DSGE solution
 | `--plot-save` | `-G` | `String` | `""` | — | Save plot to HTML file *(aliases: `--ps`)* |
 | `--result` | `-R` | `String` | `""` | — | Load a result handle (.jld2, .jls, .fmod, or result://; skip computation) |
 | `--save-result` | `-W` | `String` | `""` | — | Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://) *(aliases: `--sr`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -309,6 +314,7 @@ Solve HA-DSGE (SSJ / Reiter / Krusell-Smith)
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 **Output tables:** `ha_dsge_solve_diagnostics` (Solution method with its size and fit diagnostics); `krusell_smith_plm_coefficients` (Fitted perceived-law-of-motion coefficients (--method krusell-smith)); `ha_steady_state_aggregates` (Steady-state aggregate quantities); `ha_steady_state_prices` (Steady-state prices); `ha_steady_state_diagnostics` (Steady-state convergence, iterations, Euler error and excess demand); `ha_euler_accuracy_log10_by_convention` (log10 Euler errors by convention (one row per measured convention; absent when the steady-state path records no accuracy))
 
@@ -332,6 +338,7 @@ Compute HA-DSGE stationary equilibrium
 | `--output` | `-o` | `String` | `""` | — | Export results to file |
 | `--format` | `-f` | `String` | `table` | `table`, `csv`, `json` | table\|csv\|json |
 | `--save-model` | `-S` | `String` | `""` | — | Save estimated model to a handle (.jld2 native, .jls serialized, .fmod interim, or model://) *(aliases: `--sm`)* |
+| `--note` | — | `String` | `""` | — | Optional free-form note stored in the handle header (--save-model/--save-result) |
 
 **Output tables:** `ha_steady_state_aggregates` (Steady-state aggregate quantities); `ha_steady_state_prices` (Steady-state prices); `ha_steady_state_diagnostics` (Convergence, iterations, Euler error and excess demand); `ha_euler_accuracy_log10_by_convention` (log10 Euler errors by convention (one row per measured convention; absent when the steady-state path records no accuracy))
 

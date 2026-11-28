@@ -64,13 +64,21 @@ Pre-built standalone archives are published on the [GitHub Releases](https://git
 
 - **Standalone `.zip` / `install.ps1`:** Extract anywhere (or run `install.ps1` for `%USERPROFILE%\.frdc\bin\frdc.exe`) with zero admin privileges or Developer Mode.
 
-### Runtime Depot & Offline Notes
+### Runtime Depot, Object Cache & Offline Notes
 
-Standalone builds bundle all required artifacts under `share/julia/artifacts/` and run completely offline without network access. On Linux/Windows standalone builds powered by Julia 1.14, the native entry point defaults `JULIA_OBJCACHE=0` so read-only install directories (Windows `WindowsApps` MSIX, `/opt`, `chmod 555` depots) never emit `objcache error` messages or write cache files into user depots. Set `JULIA_OBJCACHE=1` if you want to opt into Julia's on-disk JIT object cache under a writable depot:
+Standalone builds bundle all required artifacts under `share/julia/artifacts/` and run completely offline without network access. On Julia 1.14 standalone builds, the native C driver automatically resolves a **version- and build-stamp-keyed per-user local object cache** (`JULIA_OBJCACHE=1`) under `~/Library/Caches/frdc/` (macOS), `$XDG_CACHE_HOME/frdc/` or `~/.cache/frdc/` (Linux), or `%LOCALAPPDATA%\frdc\cache\` (Windows) after verifying recursive writability and a local filesystem (rejecting NFS/SMB/CIFS/FUSE network mounts). On read-only install roots (`WindowsApps` MSIX, `/opt`, `chmod 555` homes/depots) or network home directories, it silently falls back to `JULIA_OBJCACHE=0` with zero stderr noise.
 
-```bash
-JULIA_OBJCACHE=1 frdc --version
-```
+Control or inspect the object cache via environment variables and [`frdc cache`](@ref ref-cache):
+
+- `FRDC_OBJCACHE=0` or `JULIA_OBJCACHE=0` — disable on-disk JIT object caching cleanly (writes zero cache files)
+- `FRDC_CACHE_DIR=<path>` — override the per-user object-cache base directory
+- `FRDC_CACHE_MAX_MB=<int>` — soft footprint budget reported by `frdc cache info` (default `256` MiB)
+- `frdc cache info` / `frdc cache clear [--stale-only]` — inspect or prune cached build stamps
+
+### Multithreading & Opt-In Resident Daemon
+
+- **Safe multithreading:** Pass `--threads=<1|N|auto>` or set `FRDC_THREADS=<1|N|auto>` (default `1`; `auto` uses container/cgroup- and P-core-aware sizing capped at `4`). Whenever Julia runs with `> 1` thread and `OPENBLAS_NUM_THREADS` is unset, `frdc` defaults `OPENBLAS_NUM_THREADS=1` and pins `FFTW` to 1 thread while per-leaf `thread_mode` (`:julia_threads`, `:blas_threads`, `:serial_safe`) coordinates OpenBLAS, FFTW, NLopt, MadNLP, and SuiteSparse cleanly.
+- **Opt-in resident worker daemon:** Set `FRDC_DAEMON=1` (off by default) or manage explicitly via [`frdc daemon`](@ref ref-daemon) (`frdc daemon start|stop|status`) to keep a single warm worker resident behind the C99 thin wrapper with anti-spawn-storm locking, 23-Ref state-reset isolation, RSS recycle ceilings (`FRDC_DAEMON_MAX_RSS_MB=2048`), idle TTL (`FRDC_DAEMON_TTL=600`), and bounded-acquire fail-open (`FRDC_DAEMON_ACQUIRE_MS=200`). See [Resident Worker Daemon Architecture](@ref int-daemon-adr).
 
 ---
 

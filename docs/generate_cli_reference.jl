@@ -57,6 +57,7 @@ _md_cell(s) = replace(string(s), "|" => "\\|")
 const _CHAPTER_REF_LABELS = Dict{String,String}(
     "gs-installation" => "[Installation & Quickstart](@ref gs-installation)",
     "gs-pipelines"    => "[Pipelines, Handles & Reproducibility](@ref gs-pipelines)",
+    "int-daemon-adr"  => "[Resident Worker Daemon ADR](@ref int-daemon-adr)",
     "agent-guide"     => "[Agent Guide](../../agent-guide.md)",
     "chap-data"       => "[Data Management & Simulation](@ref chap-data)",
     "chap-univariate" => "[Univariate, Filters & Spectral](@ref chap-univariate)",
@@ -77,7 +78,9 @@ const _CHAPTER_REF_LABELS = Dict{String,String}(
 )
 
 const _TOP_GUIDES = Dict{String,Vector{String}}(
+    "cache"       => ["gs-installation"],
     "completions" => ["gs-installation"],
+    "daemon"      => ["int-daemon-adr"],
     "data"        => ["chap-data"],
     "did"         => ["chap-panel"],
     "dsge"        => ["chap-dsge", "chap-hadsge"],

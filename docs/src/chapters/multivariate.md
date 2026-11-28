@@ -85,9 +85,9 @@ Minnesota Hyperparameters (glp)
 │     log_ml     │ 766.070 │
 │ log_ml_default │ 697.472 │
 │ log_posterior  │ 761.733 │
-│   converged    │  1.000  │
-│    at_bound    │  0.000  │
-│   iterations   │ 273.000 │
+│   converged    │  true   │
+│    at_bound    │  false  │
+│   iterations   │   273   │
 └────────────────┴─────────┘
 Information Criteria (Posterior Mean)
 ┌────────────────┬─────────┐

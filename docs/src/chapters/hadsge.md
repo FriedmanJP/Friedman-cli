@@ -47,8 +47,8 @@ HA Steady-State Diagnostics
 ┌───────────────┬────────┐
 │    metric     │ value  │
 ├───────────────┼────────┤
-│   converged   │ 1.000  │
-│  iterations   │ 28.000 │
+│   converged   │  true  │
+│  iterations   │   28   │
 │  euler_error  │ -1.936 │
 │ excess_demand │ 0.000  │
 └───────────────┴────────┘
