@@ -32,11 +32,14 @@
 #include <string.h>
 
 #ifdef _WIN32
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0601
+#endif
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <windows.h>
-#include <direct.h>
+#include <wchar.h>
 #else
 #include <fcntl.h>
 #include <poll.h>
@@ -193,7 +196,13 @@ static uint8_t *dc_build_exec_frame(int argc, char **argv, int acquire_ms, size_
     char cwd[DAEMON_PATH_MAX];
     cwd[0] = '\0';
 #ifdef _WIN32
-    if (_getcwd(cwd, sizeof(cwd)) == NULL) cwd[0] = '\0';
+    wchar_t wcwd[DAEMON_PATH_MAX];
+    DWORD wclen = GetCurrentDirectoryW(DAEMON_PATH_MAX, wcwd);
+    if (wclen > 0 && wclen < DAEMON_PATH_MAX) {
+        if (WideCharToMultiByte(CP_UTF8, 0, wcwd, -1, cwd, (int)sizeof(cwd), NULL, NULL) <= 0) {
+            cwd[0] = '\0';
+        }
+    }
 #else
     if (getcwd(cwd, sizeof(cwd)) == NULL) cwd[0] = '\0';
 #endif
@@ -201,18 +210,27 @@ static uint8_t *dc_build_exec_frame(int argc, char **argv, int acquire_ms, size_
 
     yyjson_mut_val *jenv = yyjson_mut_obj(doc);
 #ifdef _WIN32
-    LPCH env_block = GetEnvironmentStringsA();
+    LPWCH env_block = GetEnvironmentStringsW();
     if (env_block) {
-        for (const char *entry = env_block; *entry != '\0'; entry += strlen(entry) + 1) {
-            const char *eq = strchr(entry, '=');
-            if (!eq || eq == entry) continue;
-            size_t klen = (size_t)(eq - entry);
-            if (!dc_is_propagated_env_name(entry, klen)) continue;
-            yyjson_mut_val *jk = yyjson_mut_strncpy(doc, entry, klen);
-            yyjson_mut_val *jv = yyjson_mut_strcpy(doc, eq + 1);
-            if (jk && jv) yyjson_mut_obj_add(jenv, jk, jv);
+        for (const wchar_t *wentry = env_block; *wentry != L'\0'; wentry += wcslen(wentry) + 1) {
+            int u8len = WideCharToMultiByte(CP_UTF8, 0, wentry, -1, NULL, 0, NULL, NULL);
+            if (u8len <= 1 || u8len > 65536) continue;
+            char *entry = (char *)malloc((size_t)u8len);
+            if (!entry) continue;
+            if (WideCharToMultiByte(CP_UTF8, 0, wentry, -1, entry, u8len, NULL, NULL) > 0) {
+                const char *eq = strchr(entry, '=');
+                if (eq && eq != entry) {
+                    size_t klen = (size_t)(eq - entry);
+                    if (dc_is_propagated_env_name(entry, klen)) {
+                        yyjson_mut_val *jk = yyjson_mut_strncpy(doc, entry, klen);
+                        yyjson_mut_val *jv = yyjson_mut_strcpy(doc, eq + 1);
+                        if (jk && jv) yyjson_mut_obj_add(jenv, jk, jv);
+                    }
+                }
+            }
+            free(entry);
         }
-        FreeEnvironmentStringsA(env_block);
+        FreeEnvironmentStringsW(env_block);
     }
 #else
     if (environ) {
@@ -598,7 +616,10 @@ static int dc_win_spawn_daemon(const char *exe_path, const char *pipe_name, cons
         return -1;
     }
     if (stamp && stamp[0] != '\0') {
-        _putenv_s("FRDC_DAEMON_STAMP", stamp);
+        wchar_t wstamp[128];
+        if (MultiByteToWideChar(CP_UTF8, 0, stamp, -1, wstamp, 128) > 0) {
+            SetEnvironmentVariableW(L"FRDC_DAEMON_STAMP", wstamp);
+        }
     }
     char cmd_u8[DAEMON_PATH_MAX * 2];
     int n = snprintf(cmd_u8, sizeof(cmd_u8), "\"%s\" --daemon-serve \"%s\"", core_path, pipe_name);
