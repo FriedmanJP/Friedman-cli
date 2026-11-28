@@ -171,7 +171,9 @@ function resolve_option(parsed::ParsedArgs, opt::Option)
     if opt.choices !== nothing
         matched = _choice_match(raw, opt.choices)
         if matched === nothing
-            throw(ParseError("option --$(opt.name) must be one of $(join(opt.choices, "|")), got '$raw'"))
+            sugg = _nearest(lowercase(raw), sort(collect(opt.choices)))
+            hint = sugg === nothing ? "" : " — did you mean '$sugg'?"
+            throw(ParseError("option --$(opt.name) must be one of $(join(opt.choices, "|")), got '$raw'$hint"))
         end
         raw = matched
     end

@@ -394,7 +394,7 @@ function _hd_bvar(; data::String="", result=nothing, lags::Int=4, id::String="ch
     !isnothing(narrative_check) && (bhd_kwargs[:narrative_check] = narrative_check)
     bhd = try
         historical_decomposition(post, horizon;
-            method=method, quantiles=qs, bhd_kwargs..., _fwd_seed()...)
+            method=method, quantiles=qs, threaded=_allow_upstream_threading(), bhd_kwargs..., _fwd_seed()...)
     catch e
         throw(_domain_or_data_error(e, "BVAR historical decomposition"))
     end

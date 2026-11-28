@@ -7,7 +7,11 @@
  * in dev trees) for compute commands or any pack/argument anomaly.
  */
 
-#ifndef _WIN32
+#ifdef __APPLE__
+#ifndef _DARWIN_C_SOURCE
+#define _DARWIN_C_SOURCE
+#endif
+#elif !defined(_WIN32)
 #ifndef _POSIX_C_SOURCE
 #define _POSIX_C_SOURCE 200809L
 #endif
@@ -42,10 +46,12 @@
 #else
 #include <dirent.h>
 #include <signal.h>
+#include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
+#include <sys/sysctl.h>
 #endif
 #define FRDC_PATH_SEP '/'
 #endif
@@ -124,12 +130,225 @@ int frdc_stderr_is_tty(void) {
 #endif
 }
 
+static int frdc_stdout_tty_cols(void) {
+#ifdef _WIN32
+    CONSOLE_SCREEN_BUFFER_INFO csbi;
+    memset(&csbi, 0, sizeof(csbi));
+    HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
+    if (h != INVALID_HANDLE_VALUE && h != NULL && GetConsoleScreenBufferInfo(h, &csbi)) {
+        int cols = (int)(csbi.srWindow.Right - csbi.srWindow.Left + 1);
+        if (cols > 0) return cols;
+    }
+#else
+    struct winsize ws;
+    memset(&ws, 0, sizeof(ws));
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_col > 0) {
+        return (int)ws.ws_col;
+    }
+#endif
+    const char *env_cols = getenv("COLUMNS");
+    if (env_cols && env_cols[0] != '\0') {
+        char *endp = NULL;
+        long v = strtol(env_cols, &endp, 10);
+        if (endp && *endp == '\0' && v > 0 && v <= 10000) {
+            return (int)v;
+        }
+    }
+    return 0;
+}
+
 const char *frdc_env_get(const char *primary, const char *legacy) {
     const char *v = primary ? getenv(primary) : NULL;
     if (v && v[0] != '\0') return v;
     v = legacy ? getenv(legacy) : NULL;
     if (v && v[0] != '\0') return v;
     return NULL;
+}
+
+static void frdc_set_env(const char *name, const char *val) {
+#ifdef _WIN32
+    _putenv_s(name, val);
+    wchar_t wname[128];
+    wchar_t wval[256];
+    if (MultiByteToWideChar(CP_UTF8, 0, name, -1, wname, 128) > 0 &&
+        MultiByteToWideChar(CP_UTF8, 0, val, -1, wval, 256) > 0) {
+        SetEnvironmentVariableW(wname, wval);
+    }
+#else
+    setenv(name, val, 1);
+#endif
+}
+
+/* Container- and P-core-aware `auto` thread budget: min(physical/P-cores, cgroup quota, 4) ([PERF-W4] #358). */
+static int frdc_detect_auto_threads(void) {
+    int cores = 1;
+#ifdef _WIN32
+    DWORD len = 0;
+    GetLogicalProcessorInformationEx(RelationProcessorCore, NULL, &len);
+    if (len > 0 && GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
+        uint8_t *buf = (uint8_t *)malloc(len);
+        if (buf) {
+            if (GetLogicalProcessorInformationEx(RelationProcessorCore,
+                    (PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX)buf, &len)) {
+                int pcores = 0;
+                DWORD off = 0;
+                while (off + sizeof(SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX) <= len) {
+                    PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX info =
+                        (PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX)(buf + off);
+                    if (info->Size == 0) break;
+                    if (info->Relationship == RelationProcessorCore) pcores++;
+                    off += info->Size;
+                }
+                if (pcores > 0) cores = pcores;
+            }
+            free(buf);
+        }
+    }
+    if (cores <= 1) {
+        SYSTEM_INFO si;
+        memset(&si, 0, sizeof(si));
+        GetSystemInfo(&si);
+        if (si.dwNumberOfProcessors > 1) cores = (int)si.dwNumberOfProcessors;
+    }
+#elif defined(__APPLE__)
+    int val = 0;
+    size_t sz = sizeof(val);
+    if (sysctlbyname("hw.perflevel0.physicalcpu", &val, &sz, NULL, 0) == 0 && val > 0) {
+        cores = val;
+    } else {
+        sz = sizeof(val);
+        if (sysctlbyname("hw.physicalcpu", &val, &sz, NULL, 0) == 0 && val > 0) {
+            cores = val;
+        } else {
+            long n = sysconf(_SC_NPROCESSORS_ONLN);
+            if (n > 0) cores = (int)n;
+        }
+    }
+#else
+    long n = sysconf(_SC_NPROCESSORS_ONLN);
+    if (n > 0) cores = (int)n;
+#ifdef __linux__
+    FILE *fp = fopen("/sys/fs/cgroup/cpu.max", "r");
+    if (fp) {
+        char qbuf[64];
+        long long period = 0;
+        if (fscanf(fp, "%63s %lld", qbuf, &period) == 2 &&
+            strcmp(qbuf, "max") != 0 && period > 0) {
+            char *endp = NULL;
+            long long quota = strtoll(qbuf, &endp, 10);
+            if (endp && *endp == '\0' && quota > 0) {
+                int cg = (int)(quota / period);
+                if (cg < 1) cg = 1;
+                if (cg < cores) cores = cg;
+            }
+        }
+        fclose(fp);
+    } else {
+        FILE *fq = fopen("/sys/fs/cgroup/cpu/cpu.cfs_quota_us", "r");
+        FILE *fper = fopen("/sys/fs/cgroup/cpu/cpu.cfs_period_us", "r");
+        if (fq && fper) {
+            long long quota = -1, period = 0;
+            if (fscanf(fq, "%lld", &quota) == 1 &&
+                fscanf(fper, "%lld", &period) == 1 &&
+                quota > 0 && period > 0) {
+                int cg = (int)(quota / period);
+                if (cg < 1) cg = 1;
+                if (cg < cores) cores = cg;
+            }
+        }
+        if (fq) fclose(fq);
+        if (fper) fclose(fper);
+    }
+#endif
+#endif
+    if (cores < 1) cores = 1;
+    if (cores > 4) cores = 4;
+    return cores;
+}
+
+static int parse_threads_val(const char *s, int *out_n) {
+    if (!s) return -1;
+    while (*s == ' ' || *s == '\t' || *s == '\n' || *s == '\r') s++;
+    size_t len = strlen(s);
+    while (len > 0 && (s[len - 1] == ' ' || s[len - 1] == '\t' ||
+                       s[len - 1] == '\n' || s[len - 1] == '\r')) {
+        len--;
+    }
+    if (len == 0) return -1;
+    if (len == 4 &&
+        tolower((unsigned char)s[0]) == 'a' &&
+        tolower((unsigned char)s[1]) == 'u' &&
+        tolower((unsigned char)s[2]) == 't' &&
+        tolower((unsigned char)s[3]) == 'o') {
+        if (out_n) *out_n = frdc_detect_auto_threads();
+        return 0;
+    }
+    int val = 0;
+    for (size_t i = 0; i < len; i++) {
+        if (s[i] < '0' || s[i] > '9') return -1;
+        val = val * 10 + (s[i] - '0');
+        if (val > 1024) return -1;
+    }
+    if (val < 1) return -1;
+    if (out_n) *out_n = val;
+    return 0;
+}
+
+/* Pre-exec thread env setup shared by frdc_exec_core & mcp_proxy ([PERF-W4] #358). */
+static void frdc_apply_thread_env(int argc, char **argv) {
+    const char *cli_val = NULL;
+    int cli_bad = 0;
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--") == 0) break;
+        if (strcmp(argv[i], "--threads") == 0) {
+            if (i + 1 < argc && strcmp(argv[i + 1], "--") != 0) {
+                cli_val = argv[++i];
+            } else {
+                cli_bad = 1;
+            }
+        } else if (strncmp(argv[i], "--threads=", 10) == 0) {
+            cli_val = argv[i] + 10;
+        }
+    }
+
+    int effective = 1;
+    int set_julia_env = 0;
+    if (!cli_bad && cli_val != NULL) {
+        if (parse_threads_val(cli_val, &effective) == 0) {
+            set_julia_env = 1;
+        } else {
+            return;
+        }
+    } else if (!cli_bad) {
+        const char *env_frdc = getenv("FRDC_THREADS");
+        if (env_frdc && env_frdc[0] != '\0') {
+            if (parse_threads_val(env_frdc, &effective) == 0) {
+                set_julia_env = 1;
+            } else {
+                return;
+            }
+        } else {
+            const char *env_jl = getenv("JULIA_NUM_THREADS");
+            if (env_jl && env_jl[0] != '\0') {
+                int tmp = 1;
+                if (parse_threads_val(env_jl, &tmp) == 0) {
+                    effective = tmp;
+                }
+            }
+        }
+    }
+
+    if (set_julia_env) {
+        char nbuf[32];
+        snprintf(nbuf, sizeof(nbuf), "%d", effective);
+        frdc_set_env("JULIA_NUM_THREADS", nbuf);
+    }
+    if (effective > 1) {
+        const char *ob = getenv("OPENBLAS_NUM_THREADS");
+        if (!ob || ob[0] == '\0') {
+            frdc_set_env("OPENBLAS_NUM_THREADS", "1");
+        }
+    }
 }
 
 void frdc_write_all_stdout(const uint8_t *buf, size_t len) {
@@ -695,8 +914,7 @@ static wchar_t *build_win_cmdline(const wchar_t *core_wpath) {
 }
 
 int frdc_exec_core(const char *exe_path, int argc, char **argv) {
-    (void)argc;
-    (void)argv;
+    frdc_apply_thread_env(argc, argv);
     char core_path[FRDC_PATH_MAX];
     int is_dev = 0;
     if (frdc_resolve_core_path(exe_path, core_path, sizeof(core_path), &is_dev) != 0) {
@@ -748,6 +966,7 @@ int frdc_exec_core(const char *exe_path, int argc, char **argv) {
 }
 #else
 int frdc_exec_core(const char *exe_path, int argc, char **argv) {
+    frdc_apply_thread_env(argc, argv);
     char core_path[FRDC_PATH_MAX];
     int is_dev = 0;
     if (frdc_resolve_core_path(exe_path, core_path, sizeof(core_path), &is_dev) != 0) {
@@ -869,9 +1088,11 @@ static void probe_target_command(const FrdcPack *pack, int argc, char **argv, in
             strcmp(tok, "--json") == 0 || strcmp(tok, "-J") == 0 ||
             strcmp(tok, "--compact") == 0 ||
             strncmp(tok, "--seed=", 7) == 0 || strncmp(tok, "--digits=", 9) == 0 ||
+            strncmp(tok, "--threads=", 10) == 0 ||
             (strcmp(tok, "-q") == 0 && res->cmd_path_len == 0)) {
             i++;
-        } else if (strcmp(tok, "--seed") == 0 || strcmp(tok, "--digits") == 0) {
+        } else if (strcmp(tok, "--seed") == 0 || strcmp(tok, "--digits") == 0 ||
+                   strcmp(tok, "--threads") == 0) {
             i += 2;
         } else if (tok[0] == '-') {
             i++;
@@ -1093,6 +1314,12 @@ static void resolve_net_command(const FrdcPack *pack, int argc, char **argv,
     path[0] = '\0';
     for (int i = 1; i < argc; i++) {
         const char *tok = argv[i];
+        if (strcmp(tok, "--") == 0) break;
+        if (strcmp(tok, "--seed") == 0 || strcmp(tok, "--digits") == 0 ||
+            strcmp(tok, "--threads") == 0) {
+            i++;
+            continue;
+        }
         if (tok[0] == '-') continue;
         char seg_buf[128];
         const char *seg = resolve_seg(pack, path, plen, tok, seg_buf, sizeof(seg_buf), NULL);
@@ -1115,14 +1342,13 @@ static void resolve_net_command(const FrdcPack *pack, int argc, char **argv,
 }
 
 static void emit_stderr_error(const char *msg, int quiet, int stderr_use_color) {
-    if (!quiet) {
-        if (stderr_use_color) {
-            const char *styled = "\x1b[31m\x1b[1mError: \x1b[22m\x1b[39m";
-            frdc_write_all_stderr((const uint8_t *)styled, strlen(styled));
-        } else {
-            const char *plain = "Error: ";
-            frdc_write_all_stderr((const uint8_t *)plain, strlen(plain));
-        }
+    (void)quiet;
+    if (stderr_use_color) {
+        const char *styled = "\x1b[31m\x1b[1mError: \x1b[22m\x1b[39m";
+        frdc_write_all_stderr((const uint8_t *)styled, strlen(styled));
+    } else {
+        const char *plain = "Error: ";
+        frdc_write_all_stderr((const uint8_t *)plain, strlen(plain));
     }
     frdc_write_all_stderr((const uint8_t *)msg, strlen(msg));
     const uint8_t nl = '\n';
@@ -1196,6 +1422,94 @@ static void emit_error_envelope(const FrdcPack *pack, int argc, char **argv,
     buf_free(&b);
 }
 
+static int levenshtein_bounded(const char *a, size_t alen, const char *b, size_t blen) {
+    if (alen > 128u || blen > 128u) return 3;
+    if (alen > blen ? (alen - blen > 2u) : (blen - alen > 2u)) return 3;
+    int prev[130];
+    int curr[130];
+    for (size_t j = 0; j <= blen; j++) prev[j] = (int)j;
+    for (size_t i = 0; i < alen; i++) {
+        curr[0] = (int)(i + 1u);
+        for (size_t j = 0; j < blen; j++) {
+            int cost = (a[i] == b[j]) ? 0 : 1;
+            int del_c = prev[j + 1] + 1;
+            int ins_c = curr[j] + 1;
+            int sub_c = prev[j] + cost;
+            int m = del_c < ins_c ? del_c : ins_c;
+            if (sub_c < m) m = sub_c;
+            curr[j + 1] = m;
+        }
+        memcpy(prev, curr, (blen + 1u) * sizeof(int));
+    }
+    return prev[blen];
+}
+
+static int find_nearest_subcmd(const FrdcPack *pack, const char *cur_path,
+                               const char *word, char *out, size_t cap) {
+    size_t wlen = strlen(word);
+    size_t clen = cur_path ? strlen(cur_path) : 0u;
+    int best_d = 3;
+    const char *best_ptr = NULL;
+    size_t best_len = 0u;
+    int is_root = (clen == 0u);
+    int checked_repl = !is_root;
+
+    for (uint32_t i = 0; i < pack->n_nodes; i++) {
+        const uint8_t *row = pack->buf + pack->node_off + (size_t)i * 12u;
+        uint32_t poff = frdc_rd_u32(row);
+        uint32_t plen = frdc_rd_u32(row + 4);
+        if ((uint64_t)poff + (uint64_t)plen > pack->key_pool_len) continue;
+        const char *pstr = (const char *)(pack->buf + pack->key_pool_off + poff);
+        const char *seg = NULL;
+        size_t slen = 0u;
+        if (is_root) {
+            if (memchr(pstr, ' ', plen) != NULL) continue;
+            seg = pstr;
+            slen = plen;
+        } else {
+            if (plen <= clen + 1u) continue;
+            if (memcmp(pstr, cur_path, clen) != 0 || pstr[clen] != ' ') continue;
+            seg = pstr + clen + 1u;
+            slen = plen - clen - 1u;
+            if (memchr(seg, ' ', slen) != NULL) continue;
+        }
+        /* Match Julia sort!(cands) tie-breaking for "repl" at root */
+        if (!checked_repl) {
+            size_t cmp_n = slen < 4u ? slen : 4u;
+            int cmp = memcmp(seg, "repl", cmp_n);
+            if (cmp > 0 || (cmp == 0 && slen > 4u)) {
+                int dr = levenshtein_bounded(word, wlen, "repl", 4u);
+                if (dr < best_d) {
+                    best_d = dr;
+                    best_ptr = "repl";
+                    best_len = 4u;
+                }
+                checked_repl = 1;
+            }
+        }
+        int d = levenshtein_bounded(word, wlen, seg, slen);
+        if (d < best_d) {
+            best_d = d;
+            best_ptr = seg;
+            best_len = slen;
+        }
+    }
+    if (!checked_repl) {
+        int dr = levenshtein_bounded(word, wlen, "repl", 4u);
+        if (dr < best_d) {
+            best_d = dr;
+            best_ptr = "repl";
+            best_len = 4u;
+        }
+    }
+    if (best_d <= 2 && best_ptr != NULL && best_len + 1u <= cap) {
+        memcpy(out, best_ptr, best_len);
+        out[best_len] = '\0';
+        return 1;
+    }
+    return 0;
+}
+
 /* Format unknown-command message matching _unknown_command_message in src/cli/dispatch.jl */
 static void build_unknown_cmd_msg(const FrdcPack *pack, const char *cur_path,
                                   const char *subcmd, const char *const *rest, int n_rest,
@@ -1260,11 +1574,23 @@ static void build_unknown_cmd_msg(const FrdcPack *pack, const char *cur_path,
             return;
         }
     }
+
+    char sugg[128];
+    if (find_nearest_subcmd(pack, cur_path, subcmd, sugg, sizeof(sugg))) {
+        buf_append_str(out, " \xe2\x80\x94 did you mean '");
+        buf_append_str(out, sugg);
+        buf_append_str(out, "'?");
+    }
 }
 
 /* ── Tier 1, Tier 2, Tier 3 & Tier 4 Fast-Path Handlers ────────────────── */
 
 static int handle_help_key(const FrdcPack *pack, const char *path, size_t path_len, int use_color) {
+    /* Narrow interactive TTY (< 100 cols): fail open to frdc-core so _help_width wraps (#352). */
+    if (frdc_stdout_is_tty()) {
+        int cols = frdc_stdout_tty_cols();
+        if (cols > 0 && cols < 100) return -1;
+    }
     char key[300];
     if (path_len + 3 > sizeof(key)) return -1;
     key[0] = 'H';
@@ -1540,7 +1866,7 @@ static int handle_catalog_cmd(const FrdcPack *pack, const char *tag, const char 
         buf_append_json_str(&b, (const char *)mems_ver.ptr, mems_ver.len);
         buf_append_str(&b, ",\"manifest\":{\"seed\":");
         buf_append_str(&b, seed_buf);
-        buf_append_str(&b, ",\"n_threads\":1,\"julia_version\":");
+        buf_append_str(&b, ",\"n_threads\":1,\"blas_threads\":1,\"julia_version\":");
         buf_append_json_str(&b, (const char *)jl_ver.ptr, jl_ver.len);
         buf_append_str(&b, ",\"package_version\":");
         buf_append_json_str(&b, (const char *)mems_ver.ptr, mems_ver.len);
@@ -1678,6 +2004,8 @@ static int run_thin(int argc, char **argv) {
     int compact = 0;
     int force_json = 0;
     int explicit_digits = 0;
+    int explicit_threads = 0;
+    int threads_val = 1;
     int has_seed = 0;
     int64_t seed_val = 0;
 
@@ -1705,6 +2033,22 @@ static int run_thin(int argc, char **argv) {
             i++;
         } else if (strcmp(tok, "--json") == 0 || strcmp(tok, "-J") == 0) {
             force_json = 1;
+            i++;
+        } else if (strcmp(tok, "--threads") == 0) {
+            if (i + 1 >= stop_idx || parse_threads_val(argv[i + 1], &threads_val) != 0) {
+                free(rem);
+                frdc_pack_free(&pack);
+                return frdc_exec_core(exe_path, argc, argv);
+            }
+            explicit_threads = 1;
+            i += 2;
+        } else if (strncmp(tok, "--threads=", 10) == 0) {
+            if (parse_threads_val(tok + 10, &threads_val) != 0) {
+                free(rem);
+                frdc_pack_free(&pack);
+                return frdc_exec_core(exe_path, argc, argv);
+            }
+            explicit_threads = 1;
             i++;
         } else if (strcmp(tok, "--digits") == 0) {
             if (i + 1 >= stop_idx || parse_display_digits(argv[i + 1]) != 0) {
@@ -1753,6 +2097,27 @@ static int run_thin(int argc, char **argv) {
     int rem_dd = rem_n;
     if (dd < argc) {
         for (int j = dd; j < argc; j++) rem[rem_n++] = argv[j];
+    }
+
+    if (!explicit_threads) {
+        const char *env_thr = getenv("FRDC_THREADS");
+        if (env_thr) {
+            const char *p = env_thr;
+            while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r') p++;
+            if (*p != '\0' && parse_threads_val(env_thr, &threads_val) != 0) {
+                free(rem);
+                frdc_pack_free(&pack);
+                return frdc_exec_core(exe_path, argc, argv);
+            }
+        } else {
+            const char *env_jl = getenv("JULIA_NUM_THREADS");
+            if (env_jl && env_jl[0] != '\0') {
+                int tmp_t = 1;
+                if (parse_threads_val(env_jl, &tmp_t) == 0) {
+                    threads_val = tmp_t;
+                }
+            }
+        }
     }
 
     if (!explicit_digits) {
@@ -1864,9 +2229,11 @@ static int run_thin(int argc, char **argv) {
 
         uint32_t fl = 0;
         if (frdc_pack_node(&pack, cand, (size_t)n, &fl) != 0) {
-            if (wants_help_in(rem, k, rem_n)) {
-                /* When cur_len == 0 (e.g. `--quiet repl --help`), Julia prints NodeCommand
-                   root without Entry footer; fail open to match byte-for-byte. */
+            if (cur_len == 0 && strcmp(rem[k], "repl") == 0) {
+                /* Interactive REPL (and `--quiet repl --help`) lives in frdc-core. */
+                break;
+            }
+            if (strcmp(rem[k], "--help") == 0 || strcmp(rem[k], "-h") == 0) {
                 if (cur_len > 0) {
                     int rc = handle_help_key(&pack, cur_path, cur_len, use_color);
                     free(rem);
@@ -1876,7 +2243,7 @@ static int run_thin(int argc, char **argv) {
                 }
                 break;
             }
-            /* Tier 4 fast-fail: unknown command with longest-prefix _PATH_REPLACEMENTS hint */
+            /* Tier 4 fast-fail: unknown command with longest-prefix _PATH_REPLACEMENTS / did-you-mean */
             FrdcBuf msg;
             buf_init(&msg);
             build_unknown_cmd_msg(&pack, cur_path, rem[k],
@@ -1937,11 +2304,13 @@ static int run_thin(int argc, char **argv) {
 
         /* Tier 3: static offline catalogs (data list & io sources) */
         if (strcmp(cur_path, "data list") == 0) {
+            if (explicit_threads && threads_val > 1) break;
             int rc = handle_catalog_cmd(&pack, "data_list", "frdc data list",
                                         argc, argv, rem + leaf_start, leaf_argc,
                                         compact, has_seed, seed_val, t0_ns);
             if (rc == 0) { free(rem); frdc_pack_free(&pack); return 0; }
         } else if (strcmp(cur_path, "io sources") == 0) {
+            if (explicit_threads && threads_val > 1) break;
             int rc = handle_catalog_cmd(&pack, "io_sources", "frdc io sources",
                                         argc, argv, rem + leaf_start, leaf_argc,
                                         compact, has_seed, seed_val, t0_ns);
@@ -1972,7 +2341,7 @@ static int run_thin(int argc, char **argv) {
 #ifdef FRDC_ENABLE_MCP_PROXY
             if (!force_json) {
                 int has_mcp = 0;
-                int mcp_compact = 0;
+                int mcp_compact = compact;
                 const char *mcp_families = "";
                 const char *mcp_tools = "";
                 int ok_opts = 1;
@@ -2002,6 +2371,7 @@ static int run_thin(int argc, char **argv) {
                     }
                 }
                 if (ok_opts && has_mcp) {
+                    frdc_apply_thread_env(argc, argv);
                     int rc = frdc_mcp_proxy_main(&pack, exe_path, argc, argv,
                                                  quiet, no_color,
                                                  mcp_families, mcp_tools, mcp_compact);
@@ -2016,6 +2386,16 @@ static int run_thin(int argc, char **argv) {
     }
 
     free(rem);
+#ifdef FRDC_ENABLE_DAEMON_CLIENT
+    frdc_apply_thread_env(argc, argv);
+    {
+        int drc = frdc_daemon_try_exec(&pack, exe_path, argc, argv, cur_path, threads_val);
+        if (drc >= 0) {
+            frdc_pack_free(&pack);
+            return drc;
+        }
+    }
+#endif
     frdc_pack_free(&pack);
     return frdc_exec_core(exe_path, argc, argv);
 }

@@ -21,15 +21,24 @@ end
 # metric/value table instead) and was deleted so emission cannot drift under
 # the strict schema.
 
+const _LOG_LOCK = ReentrantLock()
+
 add_table!(env::Envelope, name::Symbol, df::DataFrame) = (push!(env.tables, name => df); env)
-add_warning!(env::Envelope, code::String, msg::String) =
-    (push!(env.warnings, Dict("code" => code, "message" => msg)); env)
+function add_warning!(env::Envelope, code::String, msg::String)
+    @lock _LOG_LOCK begin
+        push!(env.warnings, Dict("code" => code, "message" => msg))
+    end
+    return env
+end
 
 function _add_warning_once!(env::Envelope, code::String, msg::String)
-    for w in env.warnings
-        get(w, "code", "") == code && get(w, "message", "") == msg && return env
+    @lock _LOG_LOCK begin
+        for w in env.warnings
+            get(w, "code", "") == code && get(w, "message", "") == msg && return env
+        end
+        push!(env.warnings, Dict("code" => code, "message" => msg))
     end
-    return add_warning!(env, code, msg)
+    return env
 end
 
 """
@@ -37,18 +46,20 @@ end
 
 Emit a structured runtime warning: prints to stderr (respecting `--quiet` unless
 `always_stderr=true`) and attaches `(code, msg)` to `envelope.warnings` whenever an
-envelope is active (deduplicated).
+envelope is active (deduplicated). Thread-safe under `_LOG_LOCK` ([PERF-W4] #358).
 """
 function _cli_warn!(code::String, msg::String; color::Symbol=:yellow, always_stderr::Bool=false)
-    if always_stderr || !_QUIET[]
-        if _COLOR[]
-            printstyled(stderr, "Warning: "; bold=true, color=color)
-        else
-            print(stderr, "Warning: ")
+    @lock _LOG_LOCK begin
+        if always_stderr || !_QUIET[]
+            if _COLOR[]
+                printstyled(stderr, "Warning: "; bold=true, color=color)
+            else
+                print(stderr, "Warning: ")
+            end
+            println(stderr, msg)
         end
-        println(stderr, msg)
+        envelope_active() && _add_warning_once!(_ENVELOPE[], code, msg)
     end
-    envelope_active() && _add_warning_once!(_ENVELOPE[], code, msg)
     return nothing
 end
 
@@ -70,14 +81,16 @@ active callers at the 0.6.7 pin (every targeted defect is fixed upstream — see
 C047); this is the reusable mechanism for the next such case.
 """
 function validity_warning!(code::String, msg::String)
-    # stderr: bypasses _QUIET on purpose (validity ≠ status)
-    if _COLOR[]
-        printstyled(stderr, "warning: "; bold=true, color=:yellow)
-        println(stderr, code, ": ", msg)
-    else
-        println(stderr, "warning: ", code, ": ", msg)
+    @lock _LOG_LOCK begin
+        # stderr: bypasses _QUIET on purpose (validity ≠ status)
+        if _COLOR[]
+            printstyled(stderr, "warning: "; bold=true, color=:yellow)
+            println(stderr, code, ": ", msg)
+        else
+            println(stderr, "warning: ", code, ": ", msg)
+        end
+        envelope_active() && _add_warning_once!(_ENVELOPE[], code, msg)
     end
-    envelope_active() && _add_warning_once!(_ENVELOPE[], code, msg)
     return nothing
 end
 add_artifact!(env::Envelope, kind::String, path::String) =

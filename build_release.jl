@@ -19,11 +19,13 @@
 #     unused lazy artifacts (MKL_jll, oneTBB_jll, IntelOpenMP_jll) out of the
 #     app bundle while bundling all required JLL artifacts.
 #
-# Julia 1.14 runtime depot behavior:
+# Julia 1.14 runtime depot behavior ([PERF-W2] #356):
 #   * Standalone binaries compile with packaging/c_driver/frdc_driver.c,
-#     which defaults JULIA_OBJCACHE=0 unless explicitly overridden by the user
-#     so read-only install roots (WindowsApps MSIX, /opt, chmod 555 depots)
-#     never emit `objcache error` or write cache/v1.14/objcache-lmdb1/.
+#     which resolves a version+build-stamp-keyed per-user local cache dir
+#     (verifying mkdir + local-FS + write probe) to enable JULIA_OBJCACHE=1
+#     safely, and silently falls back to JULIA_OBJCACHE=0 with zero stderr on
+#     read-only install roots (WindowsApps MSIX, /opt, chmod 555 depots, NFS)
+#     or when FRDC_OBJCACHE=0 / JULIA_OBJCACHE=0 is set.
 #
 # Deterministic CPU-independent MKL exclusion:
 #   * LinearSolve.jl defaults `LoadMKL_JLL` to `!occursin("EPYC", cpu_model)`
@@ -163,9 +165,9 @@ Pkg.activate(_BUILD_PROJECT_DIR)
 const _PRECOMPILE_SCRIPT = joinpath(_BUILD_PROJECT_DIR, "precompile_app.jl")
 open(_PRECOMPILE_SCRIPT, "w") do io
     write(io, """
-    using Friedman
+    using Friedman, Random
 
-    # Deterministic fixtures inside a scratch dir (no RNG — reproducible sysimages)
+    # Deterministic fixtures inside a scratch dir (seeded RNG — reproducible sysimages)
     outdir = mktempdir()
     fixture = joinpath(outdir, "precompile_fixture.csv")
     open(fixture, "w") do f
@@ -186,6 +188,46 @@ open(_PRECOMPILE_SCRIPT, "w") do io
             yv = 0.5 * i + 0.1 * t + 0.8 * tr + sin(i + t) * 0.1
             xv = cos(i * 0.4 + t * 0.3)
             println(f, "\$i,\$t,\$yv,\$xv,\$tr")
+        end
+    end
+    mv_fixture = joinpath(outdir, "precompile_mv3.csv")
+    open(mv_fixture, "w") do f
+        println(f, "y1,y2,y3")
+        rng = Random.MersenneTwister(7)
+        y1 = 0.0; y2 = 0.0; y3 = 0.0
+        for _ in 1:90
+            ny1 = 0.55 * y1 + 0.10 * y2 - 0.05 * y3 + 0.4 * randn(rng)
+            ny2 = 0.15 * y1 + 0.50 * y2 + 0.08 * y3 + 0.4 * randn(rng)
+            ny3 = -0.05 * y1 + 0.12 * y2 + 0.45 * y3 + 0.4 * randn(rng)
+            y1, y2, y3 = ny1, ny2, ny3
+            println(f, "\$y1,\$y2,\$y3")
+        end
+    end
+    favar_fixture = joinpath(outdir, "precompile_favar5.csv")
+    open(favar_fixture, "w") do f
+        println(f, "x1,x2,x3,x4,x5")
+        rng = Random.MersenneTwister(11)
+        f1 = 0.0
+        for _ in 1:90
+            f1 = 0.6 * f1 + randn(rng)
+            x1 = f1 + 0.4 * randn(rng)
+            x2 = 0.8 * f1 + 0.4 * randn(rng)
+            x3 = -0.7 * f1 + 0.4 * randn(rng)
+            x4 = 0.6 * f1 + 0.4 * randn(rng)
+            x5 = 0.5 * f1 + 0.4 * randn(rng)
+            println(f, "\$x1,\$x2,\$x3,\$x4,\$x5")
+        end
+    end
+    mf_fixture = joinpath(outdir, "precompile_mf.csv")
+    open(mf_fixture, "w") do f
+        println(f, "m1,m2,q1")
+        rng = Random.MersenneTwister(13)
+        m1 = 0.0; m2 = 0.0
+        for t in 1:72
+            m1 = 0.5 * m1 + 0.4 * randn(rng)
+            m2 = 0.45 * m2 + 0.1 * m1 + 0.4 * randn(rng)
+            q1 = (t % 3 == 0) ? string(0.5 * m1 + 0.3 * m2 + 0.3 * randn(rng)) : ""
+            println(f, "\$m1,\$m2,\$q1")
         end
     end
     rbc_toml = joinpath(outdir, "rbc.toml")
@@ -214,7 +256,7 @@ expr = "pi[t] = 0.99 * pi[t+1] + kappa * y[t]"
             Friedman.dispatch(app, ["--version"])
             for cmd in ["estimate", "test", "irf", "fevd", "hd", "forecast", "predict",
                         "residuals", "filter", "data", "dsge", "hadsge", "did", "policy",
-                        "ri", "spectral", "nowcast", "io", "model"]
+                        "ri", "spectral", "nowcast", "io", "model", "cache", "daemon"]
                 Friedman.dispatch(app, [cmd, "--help"])
             end
             Friedman.dispatch(app, ["schema"])
@@ -318,6 +360,60 @@ units = "nats"
             Friedman.dispatch(app, ["ri", "solve", "--config", ri_toml, "--format", "json"])
             Friedman.dispatch(app, ["ri", "mw", "--config", ri_toml, "--horizons", "4", "--format", "json"])
             Friedman.dispatch(app, ["ri", "discrete", "--config", ri_toml, "--format", "json"])
+
+            # [PERF-W1] (#355): high-traffic multivariate empirical models (deterministic --seed 7)
+            _pc_run(args) = begin
+                rc = Friedman.run_cli(vcat(["--quiet", "--seed", "7"], args))
+                rc == 0 || error("precompile command failed (rc=\$rc): \$(join(args, ' '))")
+            end
+            sign_json = "{\\"identification\\":{\\"sign_matrix\\":{\\"matrix\\":[[1,1,1],[-1,1,1],[1,-1,1]],\\"horizons\\":[0]}}}"
+
+            # 1. BVAR suite + .jld2 save/load + cholesky/sign IRF/FEVD/HD/forecast/fitted
+            bvar_jld2 = joinpath(outdir, "bvar_m.jld2")
+            _pc_run(["estimate", "multivariate", "bvar", mv_fixture, "--lags", "2", "--draws", "20", "--save-model", bvar_jld2, "--format", "json"])
+            _pc_run(["irf", "bvar", "--model", bvar_jld2, "--horizons", "4", "--id", "cholesky", "--format", "json"])
+            _pc_run(["irf", "bvar", "--model", bvar_jld2, "--horizons", "4", "--id", "sign", "--config-json", sign_json, "--format", "json"])
+            _pc_run(["fevd", "bvar", "--model", bvar_jld2, "--horizons", "4", "--id", "sign", "--config-json", sign_json, "--format", "json"])
+            _pc_run(["hd", "bvar", "--model", bvar_jld2, "--format", "json"])
+            _pc_run(["forecast", "multivariate", "bvar", "--model", bvar_jld2, "--horizons", "4", "--format", "json"])
+            _pc_run(["predict", "multivariate", "bvar", "--model", bvar_jld2, "--format", "json"])
+            _pc_run(["residuals", "multivariate", "bvar", "--model", bvar_jld2, "--format", "json"])
+
+            # 2. VECM & Structural VAR (sign + longrun)
+            vecm_jld2 = joinpath(outdir, "vecm_m.jld2")
+            _pc_run(["estimate", "multivariate", "vecm", mv_fixture, "--lags", "2", "--save-model", vecm_jld2, "--format", "json"])
+            _pc_run(["irf", "vecm", "--model", vecm_jld2, "--horizons", "4", "--format", "json"])
+            _pc_run(["fevd", "vecm", "--model", vecm_jld2, "--horizons", "4", "--format", "json"])
+            _pc_run(["forecast", "multivariate", "vecm", "--model", vecm_jld2, "--horizons", "4", "--format", "json"])
+            var3_jld2 = joinpath(outdir, "var3_m.jld2")
+            _pc_run(["estimate", "multivariate", "var", mv_fixture, "--lags", "1", "--save-model", var3_jld2, "--format", "json"])
+            _pc_run(["irf", "var", "--model", var3_jld2, "--horizons", "4", "--id", "sign", "--config-json", sign_json, "--format", "json"])
+            _pc_run(["irf", "var", "--model", var3_jld2, "--horizons", "4", "--id", "longrun", "--format", "json"])
+            _pc_run(["estimate", "multivariate", "svar", mv_fixture, "--lags", "1", "--pattern", "recursive", "--format", "json"])
+
+            # 3. Local Projections (LP + Structural LP)
+            lp_jld2 = joinpath(outdir, "lp_m.jld2")
+            slp_jld2 = joinpath(outdir, "slp_m.jld2")
+            _pc_run(["estimate", "multivariate", "lp", mv_fixture, "--shock", "1", "--horizons", "4", "--save-model", lp_jld2, "--format", "json"])
+            _pc_run(["irf", "lp", mv_fixture, "--horizons", "4", "--save-model", slp_jld2, "--format", "json"])
+            _pc_run(["irf", "lp", "--model", slp_jld2, "--format", "json"])
+            _pc_run(["fevd", "lp", "--model", slp_jld2, "--horizons", "4", "--format", "json"])
+            _pc_run(["forecast", "multivariate", "lp", "--model", lp_jld2, "--horizons", "4", "--format", "json"])
+
+            # 4. FAVAR, Panel VAR, QVAR, SSVARMA, TVP-VAR & MF-VAR
+            favar_jld2 = joinpath(outdir, "favar_m.jld2")
+            _pc_run(["estimate", "multivariate", "favar", favar_fixture, "--factors", "1", "--lags", "1", "--key-vars", "1,2", "--save-model", favar_jld2, "--format", "json"])
+            _pc_run(["irf", "favar", "--model", favar_jld2, "--horizons", "4", "--format", "json"])
+            pvar_jld2 = joinpath(outdir, "pvar_m.jld2")
+            _pc_run(["estimate", "panel", "pvar", panel_csv, "--id-col", "id", "--time-col", "time", "--dependent", "y,x", "--lags", "1", "--method", "feols", "--save-model", pvar_jld2, "--format", "json"])
+            _pc_run(["irf", "pvar", "--model", pvar_jld2, "--horizons", "4", "--format", "json"])
+            _pc_run(["fevd", "pvar", "--model", pvar_jld2, "--horizons", "4", "--format", "json"])
+            _pc_run(["estimate", "multivariate", "qvar", mv_fixture, "--lags", "1", "--taus", "0.5", "--format", "json"])
+            _pc_run(["irf", "qvar", mv_fixture, "--lags", "1", "--taus", "0.5", "--horizons", "4", "--format", "json"])
+            _pc_run(["estimate", "multivariate", "ssvarma", mv_fixture, "--ar-lags", "1", "--ma-lags", "1", "--n-starts", "1", "--max-iter", "20", "--format", "json"])
+            _pc_run(["irf", "ssvarma", mv_fixture, "--ar-lags", "1", "--ma-lags", "1", "--horizons", "4", "--n-starts", "1", "--max-iter", "20", "--format", "json"])
+            _pc_run(["estimate", "multivariate", "tvpvar", mv_fixture, "--lags", "1", "--draws", "20", "--burnin", "10", "--n-train", "10", "--format", "json"])
+            _pc_run(["estimate", "multivariate", "mfvar", mf_fixture, "--lags", "1", "--low-freq", "3", "--draws", "20", "--burnin", "10", "--format", "json"])
         end
     end
     """)
@@ -402,6 +498,7 @@ function _compile_thin_wrapper(out_exe::String)
     srcs = String[_THIN_WRAPPER_SRC]
     mcp_src = joinpath(_THIN_WRAPPER_DIR, "mcp_proxy.c")
     yy_src  = joinpath(_THIN_WRAPPER_DIR, "yyjson.c")
+    dc_src  = joinpath(_THIN_WRAPPER_DIR, "daemon_client.c")
     if isfile(mcp_src) && isfile(yy_src)
         append!(flags, [
             "-DFRDC_ENABLE_MCP_PROXY",
@@ -411,6 +508,10 @@ function _compile_thin_wrapper(out_exe::String)
             "-DYYJSON_DISABLE_FAST_FP_CONV=1",
         ])
         push!(srcs, mcp_src, yy_src)
+        if isfile(dc_src)
+            push!(flags, "-DFRDC_ENABLE_DAEMON_CLIENT")
+            push!(srcs, dc_src)
+        end
     end
     if Sys.iswindows()
         push!(flags, "-municode")

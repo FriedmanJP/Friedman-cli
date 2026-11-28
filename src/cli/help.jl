@@ -116,9 +116,12 @@ _desc_mentions_default(desc::AbstractString) = occursin(r"\(default[:\s]"i, desc
 Print help for the interactive `frdc repl` subcommand.
 """
 function print_repl_help(io::IO=stdout; prog::String="frdc repl")
+    w = _help_width(io)
     printstyled(io, prog, "\n"; bold=true)
     println(io)
-    println(io, "Start an interactive session with persistent arrow-key history, line editing, and tab completion.")
+    for ln in _wrap_text("Start an interactive session with persistent arrow-key history, line editing, and tab completion.", w)
+        println(io, ln)
+    end
     println(io)
     printstyled(io, "Usage:\n"; bold=true, color=:yellow)
     println(io, INDENT, prog)
@@ -147,6 +150,7 @@ function print_help(io::IO, entry::Entry)
     println(io)
     printstyled(io, "Global Flags:\n"; bold=true, color=:yellow)
     print_entry_line(io, "--seed=<int>", "Set deterministic RNG seed for estimation/simulation")
+    print_entry_line(io, "--threads=<1|N|auto>", "Julia worker threads (default: 1; env: FRDC_THREADS; auto caps at 4 P-cores)")
     print_entry_line(io, "--digits=<int|full>", "Decimal places for table display (0..16 or 'full'; default: 3; env: FRDC_DIGITS)")
     print_entry_line(io, "-q, --quiet", "Suppress status prose on stderr")
     print_entry_line(io, "-J, --json", "Print compact JSON output")

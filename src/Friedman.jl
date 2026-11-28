@@ -22,10 +22,11 @@ using MacroEconometricModels
 # backs MEMs `save_model`/`load_model` (native `.jld2` handles). Unlike FFTW — pulled in
 # transitively — a bare JLD2 dep does NOT auto-load at runtime, so import it explicitly.
 import JLD2
-using LinearAlgebra: eigvals, diag, I, svd, logdet, det
+using LinearAlgebra: LinearAlgebra, BLAS, eigvals, diag, I, svd, logdet, det
 using Statistics: mean, median, var, quantile, std
 using Random
 using Serialization
+using Sockets
 import REPL
 using Logging: Logging, AbstractLogger, LogLevel, with_logger, Info, Warn
 
@@ -83,6 +84,9 @@ include("commands/spectral.jl")
 include("commands/schema.jl")
 include("commands/model.jl")       # model info (C029)
 include("commands/completions.jl") # completions bash|zsh|fish (C029)
+include("commands/cache.jl")       # cache info|clear ([PERF-W2] #356)
+include("daemon.jl")               # opt-in multi-agent-safe resident daemon ([PERF-W3] #357)
+include("commands/daemon.jl")      # daemon start|stop|status ([PERF-W3] #357)
 include("commands/serve.jl")       # serve --mcp (C057/#61, W7/#142)
 include("commands/show.jl")        # show HANDLE (typed-handles Wave 2)
 
@@ -123,6 +127,8 @@ function build_app()
         "spectral"  => register_spectral_commands!(),
         "schema"    => register_schema_command!(),
         "model"     => register_model_commands!(),
+        "cache"     => register_cache_commands!(),
+        "daemon"    => register_daemon_commands!(),
         "completions" => register_completions_commands!(),
         "serve"     => register_serve_commands!(),
         "show"      => register_show_commands!(),
@@ -150,13 +156,32 @@ Logging.catch_exceptions(::_MemsCliLogger) = true
 function Logging.handle_message(l::_MemsCliLogger, level::LogLevel, message, _module, group, id, file, line; kwargs...)
     msg = strip(string(message))
     isempty(msg) && return nothing
-    if level >= Warn
-        printstyled(l.stream, "Warning: "; bold=true, color=:yellow)
-        println(l.stream, msg)
-        envelope_active() && _add_warning_once!(_ENVELOPE[], "mems/warning", String(msg))
-    else
-        println(l.stream, msg)
+    @lock _LOG_LOCK begin
+        if level >= Warn
+            printstyled(l.stream, "Warning: "; bold=true, color=:yellow)
+            println(l.stream, msg)
+            envelope_active() && _add_warning_once!(_ENVELOPE[], "mems/warning", String(msg))
+        else
+            println(l.stream, msg)
+        end
     end
+    return nothing
+end
+
+"""Unconditionally pin FFTW to 1 thread on startup and on `:serial_safe` leaves ([PERF-W4] #358)."""
+function _pin_fftw_serial!()
+    if isdefined(MacroEconometricModels, :FFTW) &&
+       isdefined(MacroEconometricModels.FFTW, :set_num_threads)
+        try
+            MacroEconometricModels.FFTW.set_num_threads(1)
+        catch
+        end
+    end
+    return nothing
+end
+
+function __init__()
+    _pin_fftw_serial!()
     return nothing
 end
 
@@ -176,14 +201,26 @@ that is not a subcommand (so data paths/values never leak into `command`)."""
 function _net_command(args::Vector{String})
     node = APP.root
     path = String["frdc"]
-    for tok in args
-        startswith(tok, "-") && continue
+    i = 1
+    n = length(args)
+    while i <= n
+        tok = args[i]
+        if tok == "--"
+            break
+        elseif tok == "--seed" || tok == "--digits" || tok == "--threads"
+            i += 2
+            continue
+        elseif startswith(tok, "-")
+            i += 1
+            continue
+        end
         if node isa NodeCommand
             canon, sub = _resolve_subcmd(node, tok)
             if sub !== nothing
                 push!(path, canon)
                 sub isa LeafCommand && break
                 node = sub
+                i += 1
             else
                 break
             end
@@ -233,6 +270,10 @@ Single entry shared by `main` (dev) and `julia_main` (compiled). Exit codes
 (P1-4): 0 ok · 2 usage · 3 data · 4 config · 5 model · 6 env · 1 internal.
 """
 function run_cli(args::Vector{String})::Cint
+    # Internal hidden worker mode for the opt-in resident daemon ([PERF-W3] #357)
+    if !isempty(args) && args[1] == "--daemon-serve"
+        return _run_daemon_serve_cli(args)
+    end
     # Launch REPL if "repl" is the first argument
     if !isempty(args) && args[1] == "repl"
         if any(a -> a in ("--help", "-h"), @view args[2:end])
@@ -240,7 +281,7 @@ function run_cli(args::Vector{String})::Cint
             return Cint(0)
         elseif length(args) > 1
             msg = "frdc repl takes no positional arguments (got '$(args[2])'); run 'frdc repl --help'"
-            _status_styled("Error: "; bold=true, color=:red)
+            _error_prefix()
             println(stderr, msg)
             return Cint(2)
         end
@@ -257,6 +298,20 @@ function run_cli(args::Vector{String})::Cint
     t0 = time_ns()
     try
         remaining = _extract_global_flags!(copy(args))
+        if !isempty(remaining) && remaining[1] == "repl"
+            if any(a -> a in ("--help", "-h"), @view remaining[2:end])
+                print_repl_help(stdout; prog="frdc repl")
+                return Cint(0)
+            elseif length(remaining) > 1
+                msg = "frdc repl takes no positional arguments (got '$(remaining[2])'); run 'frdc repl --help'"
+                _error_prefix()
+                println(stderr, msg)
+                _emit_error_net(args, CliError("usage/invalid", msg), t0, wants_json)
+                return Cint(2)
+            end
+            start_repl()
+            return Cint(0)
+        end
         _LAST_ARGV[] = copy(args)
         # Route MEMs @info/@warn/@error to stderr (#348 / C050); --quiet drops
         # @info, keeps @warn. @debug stays off unless JULIA_DEBUG is set.
@@ -268,12 +323,12 @@ function run_cli(args::Vector{String})::Cint
         if e isa Base.IOError && e.code == Base.UV_EPIPE
             return Cint(0)
         elseif e isa CliError
-            _status_styled("Error: "; bold=true, color=:red)
+            _error_prefix()
             println(stderr, sprint(showerror, e))
             _emit_error_net(args, e, t0, wants_json)
             return Cint(exit_class(e))
         elseif e isa ParseError || e isa DispatchError
-            _status_styled("Error: "; bold=true, color=:red)
+            _error_prefix()
             println(stderr, e.message)
             code = e isa DispatchError ? "usage/unknown-command" : "usage/parse"
             _emit_error_net(args, CliError(code, e.message), t0, wants_json)
@@ -282,12 +337,12 @@ function run_cli(args::Vector{String})::Cint
             # MEMs domain error (MacroModelError hierarchy) → typed exit (C050)
             mapped = _domain_error_class(e)
             if mapped !== nothing
-                _status_styled("Error: "; bold=true, color=:red)
+                _error_prefix()
                 println(stderr, sprint(showerror, mapped))
                 _emit_error_net(args, mapped, t0, wants_json)
                 return Cint(exit_class(mapped))
             end
-            _status_styled("Error: "; bold=true, color=:red)
+            _error_prefix()
             println(stderr, sprint(showerror, e))
             println(stderr, "this is likely a bug — please report")
             _emit_error_net(args, CliError("internal/error", sprint(showerror, e)), t0, wants_json)
@@ -298,6 +353,7 @@ function run_cli(args::Vector{String})::Cint
         _COMPACT[] = false
         _FORCE_JSON[] = false
         _DISPLAY_DIGITS[] = _DEFAULT_DISPLAY_DIGITS
+        _REQUESTED_THREADS[] = nothing
     end
 end
 

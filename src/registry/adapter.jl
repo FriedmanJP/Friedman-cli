@@ -347,7 +347,7 @@ end
 const _RESULT_REPLAY_ALLOWED_OPTS = Set([
     "result", "format", "output", "plot-save", "plot",
     "shock", "shocks", "summary", "emit-series",
-    "quiet", "no-color", "compact", "json", "seed", "digits",
+    "quiet", "no-color", "compact", "json", "seed", "digits", "threads",
     "strict", "max-rows", "max-cols",
 ])
 
@@ -379,7 +379,7 @@ function _load_typed_handle(path::String, allowed::Vector{Symbol}, code::String;
 end
 
 function _nt_save_slot(nt, key::Symbol, path::String, flag::String;
-                       source_model=nothing, source_model_path::String="",
+                       note::String="", source_model=nothing, source_model_path::String="",
                        artifact_kind::String="")
     haskey(nt, key) || throw(CliError("model/no-result",
         "cannot $flag: handler NamedTuple has no $key field";
@@ -388,16 +388,16 @@ function _nt_save_slot(nt, key::Symbol, path::String, flag::String;
     isnothing(obj) && throw(CliError("model/no-result",
         "cannot $flag: handler returned nothing";
         hint="only estimate/solve commands produce savable models"))
-    return save_model_dispatch(path, obj; source_model=source_model,
+    return save_model_dispatch(path, obj; note=note, source_model=source_model,
                                source_model_path=source_model_path,
                                artifact_kind=artifact_kind)
 end
 
-function _save_bare(path::String, obj, flag::String; artifact_kind::String="")
+function _save_bare(path::String, obj, flag::String; note::String="", artifact_kind::String="")
     isnothing(obj) && throw(CliError("model/no-result",
         "cannot $flag: handler returned nothing";
         hint="only estimate/solve commands produce savable models"))
-    return save_model_dispatch(path, obj; artifact_kind=artifact_kind)
+    return save_model_dispatch(path, obj; note=note, artifact_kind=artifact_kind)
 end
 
 """
@@ -506,11 +506,14 @@ function wrap_legacy(handler::Function)
             end
         end
 
-        # --save-model / --save-result are never handler kwargs
+        # --save-model / --save-result / --note (on save-capable leaves) are handled by wrap_legacy
         save_path = resolve_save_path(string(get(kwargs, :save_model, "")))
         save_result_path = resolve_save_path(string(get(kwargs, :save_result, "")))
+        has_save_opts = any(o -> o.name in ("save-model", "save-result"), ctx.spec.options)
+        save_note = has_save_opts ? string(get(kwargs, :note, "")) : ""
         delete!(kwargs, :save_model)
         delete!(kwargs, :save_result)
+        has_save_opts && delete!(kwargs, :note)
 
         # Reject --save-model when a pre-fitted --model handle was already supplied (#306),
         # except on transform/estimation leaves where --model is an input model and
@@ -633,11 +636,11 @@ function wrap_legacy(handler::Function)
             if nt_split
                 saved_m_path = isempty(save_path) ? "" :
                     string(something(_nt_save_slot(result, :model, save_path, "--save-model";
-                                                   artifact_kind="model"), ""))
+                                                   note=save_note, artifact_kind="model"), ""))
                 if !isempty(save_result_path)
                     src_m = (haskey(result, :model) && result.model !== nothing) ? result.model : nothing
                     _nt_save_slot(result, :result, save_result_path, "--save-result";
-                                  source_model=src_m, source_model_path=saved_m_path,
+                                  note=save_note, source_model=src_m, source_model_path=saved_m_path,
                                   artifact_kind="result")
                 end
             elseif !isempty(save_path) && !isempty(save_result_path)
@@ -645,8 +648,8 @@ function wrap_legacy(handler::Function)
                     "handler returned a single object; use a NamedTuple (; model, result)";
                     hint="pass only --save-model or only --save-result, or return (; model, result)"))
             else
-                isempty(save_path) || _save_bare(save_path, result, "--save-model"; artifact_kind="model")
-                isempty(save_result_path) || _save_bare(save_result_path, result, "--save-result"; artifact_kind="result")
+                isempty(save_path) || _save_bare(save_path, result, "--save-model"; note=save_note, artifact_kind="model")
+                isempty(save_result_path) || _save_bare(save_result_path, result, "--save-result"; note=save_note, artifact_kind="result")
             end
             return result
         finally
@@ -680,6 +683,9 @@ function to_leaf(spec::CommandSpec)
         for f in spec.flags
     )
     cmd_str = join(spec.path, " ")
+    spec.thread_mode in _VALID_THREAD_MODES || error(
+        "registry: leaf '$cmd_str' declares invalid thread_mode :$(spec.thread_mode) " *
+        "(expected one of $_VALID_THREAD_MODES)")
     _check_leaf_collisions(cmd_str, options, flags)
     handler = spec.handler
 
@@ -708,7 +714,7 @@ function to_leaf(spec::CommandSpec)
 
     return LeafCommand(leaf_name, wrapper;
         args=args, options=options, flags=flags, description=spec.summary,
-        family=spec.family)
+        family=spec.family, thread_mode=spec.thread_mode)
 end
 
 """Register a leaf under its primary name in a subcmds dict. (C055: the C044

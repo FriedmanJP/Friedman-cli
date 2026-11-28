@@ -29,6 +29,74 @@ const _FORCE_JSON = Ref(false)
 const _ENVELOPE_JSON_TO_FILE = Ref(false)
 const _DEFAULT_DISPLAY_DIGITS = 3
 const _DISPLAY_DIGITS = Ref{Union{Int,Nothing}}(_DEFAULT_DISPLAY_DIGITS)
+const _REQUESTED_THREADS = Ref{Union{Nothing,Int}}(nothing)
+
+"""Container- and P-core-aware `auto` thread budget: min(physical/P-cores, cgroup quota, 4) ([PERF-W4] #358)."""
+function _auto_thread_count()::Int
+    cores = max(1, Int(Sys.CPU_THREADS))
+    if Sys.isapple()
+        try
+            val = Ref{Cint}(0)
+            sz = Ref{Csize_t}(sizeof(Cint))
+            rc = ccall(:sysctlbyname, Cint,
+                       (Cstring, Ptr{Cint}, Ref{Csize_t}, Ptr{Cvoid}, Csize_t),
+                       "hw.perflevel0.physicalcpu", val, sz, C_NULL, 0)
+            if rc == 0 && val[] > 0
+                cores = Int(val[])
+            else
+                sz[] = sizeof(Cint)
+                rc2 = ccall(:sysctlbyname, Cint,
+                            (Cstring, Ptr{Cint}, Ref{Csize_t}, Ptr{Cvoid}, Csize_t),
+                            "hw.physicalcpu", val, sz, C_NULL, 0)
+                if rc2 == 0 && val[] > 0
+                    cores = Int(val[])
+                end
+            end
+        catch
+        end
+    elseif Sys.islinux()
+        try
+            if isfile("/sys/fs/cgroup/cpu.max")
+                parts = split(strip(read("/sys/fs/cgroup/cpu.max", String)))
+                if length(parts) >= 2 && parts[1] != "max"
+                    q = tryparse(Int64, parts[1])
+                    p = tryparse(Int64, parts[2])
+                    if q !== nothing && p !== nothing && q > 0 && p > 0
+                        cores = min(cores, max(1, Int(div(q, p))))
+                    end
+                end
+            elseif isfile("/sys/fs/cgroup/cpu/cpu.cfs_quota_us") &&
+                   isfile("/sys/fs/cgroup/cpu/cpu.cfs_period_us")
+                q = tryparse(Int64, strip(read("/sys/fs/cgroup/cpu/cpu.cfs_quota_us", String)))
+                p = tryparse(Int64, strip(read("/sys/fs/cgroup/cpu/cpu.cfs_period_us", String)))
+                if q !== nothing && p !== nothing && q > 0 && p > 0
+                    cores = min(cores, max(1, Int(div(q, p))))
+                end
+            end
+        catch
+        end
+    end
+    return clamp(cores, 1, 4)
+end
+
+"""Validate `--threads` / `FRDC_THREADS` value: positive integer (1..1024) or `'auto'` ([PERF-W4] #358)."""
+function _parse_threads_spec(raw::AbstractString; source::String="--threads")::Int
+    s = strip(String(raw))
+    isempty(s) && throw(CliError("usage/bad-threads",
+        "invalid $source value ''";
+        hint="pass a positive integer (e.g. 1, 4) or 'auto'"))
+    lowercase(s) == "auto" && return _auto_thread_count()
+    if !all(c -> '0' <= c <= '9', s)
+        throw(CliError("usage/bad-threads",
+            "invalid $source value '$raw'";
+            hint="pass a positive integer (e.g. 1, 4) or 'auto'"))
+    end
+    n = tryparse(Int, s)
+    (n === nothing || n < 1 || n > 1024) && throw(CliError("usage/bad-threads",
+        "invalid $source value '$raw' (must be an integer 1..1024 or 'auto')";
+        hint="pass a positive integer (e.g. 1, 4) or 'auto'"))
+    return n
+end
 
 """
     _parse_display_digits(raw) → Union{Int,Nothing}
@@ -69,6 +137,16 @@ function _status_styled(args...; kwargs...)
         return nothing
     end
     printstyled(stderr, args...; kwargs...)
+end
+
+"""Always emit the `Error: ` stderr prefix regardless of `--quiet` (respecting `--no-color`, #352)."""
+function _error_prefix()
+    if !_COLOR[]
+        print(stderr, "Error: ")
+    else
+        printstyled(stderr, "Error: "; bold=true, color=:red)
+    end
+    return nothing
 end
 """
 Run `f` with stdout redirected to stderr unless quiet (MEMs `report()` dumps).
@@ -126,10 +204,10 @@ function _probe_target_command(args::Vector{String}, stop_idx::Int)
     while i <= stop_idx
         tok = args[i]
         if tok == "--quiet" || tok == "--no-color" || tok == "--json" || tok == "-J" || tok == "--compact" ||
-           startswith(tok, "--seed=") || startswith(tok, "--digits=") ||
+           startswith(tok, "--seed=") || startswith(tok, "--digits=") || startswith(tok, "--threads=") ||
            (tok == "-q" && isempty(path))
             i += 1
-        elseif tok == "--seed" || tok == "--digits"
+        elseif tok == "--seed" || tok == "--digits" || tok == "--threads"
             i += 2
         elseif startswith(tok, "-")
             i += 1
@@ -187,6 +265,7 @@ function _extract_global_flags!(args::Vector{String})
     _COMPACT[] = false
     _FORCE_JSON[] = false
     _DISPLAY_DIGITS[] = _DEFAULT_DISPLAY_DIGITS
+    _REQUESTED_THREADS[] = nothing
 
     dd = findfirst(==("--"), args)
     stop_idx = dd === nothing ? length(args) : dd - 1
@@ -208,6 +287,7 @@ function _extract_global_flags!(args::Vector{String})
     sizehint!(remaining, length(args))
     force_json = false
     explicit_digits = false
+    explicit_threads = false
     cli_digits = _DEFAULT_DISPLAY_DIGITS
     i = 1
     while i <= stop_idx
@@ -227,6 +307,17 @@ function _extract_global_flags!(args::Vector{String})
             i += 1
         elseif tok == "--json" || tok == "-J"
             force_json = true
+            i += 1
+        elseif tok == "--threads"
+            i + 1 <= stop_idx || throw(CliError("usage/bad-threads",
+                "--threads requires a value (positive integer or 'auto')";
+                hint="pass a positive integer (e.g. 1, 4) or 'auto'"))
+            _REQUESTED_THREADS[] = _parse_threads_spec(args[i + 1]; source="--threads")
+            explicit_threads = true
+            i += 2
+        elseif startswith(tok, "--threads=")
+            _REQUESTED_THREADS[] = _parse_threads_spec(tok[11:end]; source="--threads")
+            explicit_threads = true
             i += 1
         elseif tok == "--digits"
             i + 1 <= stop_idx || throw(CliError("usage/bad-digits",
@@ -267,6 +358,13 @@ function _extract_global_flags!(args::Vector{String})
     end
     if dd !== nothing
         append!(remaining, @view args[dd:end])
+    end
+
+    if !explicit_threads
+        env_thr = strip(get(ENV, "FRDC_THREADS", ""))
+        if !isempty(env_thr)
+            _REQUESTED_THREADS[] = _parse_threads_spec(env_thr; source="FRDC_THREADS")
+        end
     end
 
     _DISPLAY_DIGITS[] = explicit_digits ? cli_digits : _default_display_digits()
@@ -660,6 +758,33 @@ function load_data(path::String)
     return df
 end
 
+# ── Gap-cell guard ─────────────────────────────────────────
+
+"""Gap-cell test for loaded data columns: `missing` (a blank CSV cell) or a
+non-finite float (`NaN` literal, `±Inf`, or a NaN-bearing `:example` dataset
+such as `:fred_md`)."""
+_is_gap(v) = v === missing || (v isa Real && !isfinite(v))
+
+"""
+    _check_finite_col!(col, colname; allow_nan=false)
+
+Standardized finite-value guard shared across all univariate, multivariate, and
+panel data loaders (both raw files and handles, #307, #349). Rejects `Inf`/`-Inf`
+unconditionally as `data/non-finite-values` (exit 3) and rejects `missing`/`NaN`
+as `data/missing-values` (exit 3) unless `allow_nan=true`.
+"""
+function _check_finite_col!(col, colname::AbstractString; allow_nan::Bool=false)
+    n_inf = count(v -> v isa Real && isinf(v), col)
+    n_inf > 0 && throw(CliError("data/non-finite-values",
+        "column '$colname' contains $n_inf non-finite (Inf/-Inf) value(s); clean or drop them (e.g. via `data dropna`/`data fix`) first"))
+    if !allow_nan
+        n_miss = count(v -> v === missing || (v isa Real && isnan(v)), col)
+        n_miss > 0 && throw(CliError("data/missing-values",
+            "column '$colname' contains missing values ($n_miss missing/NaN); drop or impute them (e.g. via `data dropna`/`data fix`) first"))
+    end
+    return nothing
+end
+
 """
     _numeric_column_names(df) → Vector{String}
 
@@ -669,25 +794,37 @@ _numeric_column_names(df::DataFrame) =
     [n for n in names(df) if eltype(df[!, n]) <: Union{Number, Missing}]
 
 """
-    df_to_matrix(df) → Matrix{Float64}
+    df_to_matrix(df; allow_missing=false, allow_nonfinite=false) → Matrix{Float64}
 
 Convert a DataFrame to a numeric matrix, selecting only numeric columns.
+By default (`allow_missing=false, allow_nonfinite=false`), enforces `_check_finite_col!`
+so `missing`/`NaN` throw `data/missing-values` (exit 3) and `Inf`/`-Inf` throw
+`data/non-finite-values` (exit 3). Opt in via `allow_missing=true` (converts
+`missing -> NaN`, still rejecting `±Inf`) or `allow_nonfinite=true` (for diagnostic/repair
+commands such as `data describe`/`diagnose`/`fix`).
 """
-function _fill_matrix_col!(mat::AbstractMatrix{Float64}, j::Int, col::AbstractVector)
+function _fill_matrix_col!(mat::AbstractMatrix{Float64}, j::Int, col::AbstractVector;
+                           allow_missing::Bool=false)
     @inbounds for i in eachindex(col)
-        mat[i, j] = Float64(col[i])
+        v = col[i]
+        mat[i, j] = (allow_missing && v === missing) ? NaN : Float64(v)
     end
     return nothing
 end
 
-function df_to_matrix(df::DataFrame)
+function df_to_matrix(df::DataFrame; allow_missing::Bool=false, allow_nonfinite::Bool=false)
     numeric_cols = _numeric_column_names(df)
     isempty(numeric_cols) && throw(CliError("data/no-numeric-columns", "no numeric columns found in data"))
+    if !allow_nonfinite
+        for colname in numeric_cols
+            _check_finite_col!(df[!, colname], colname; allow_nan=allow_missing)
+        end
+    end
     nr = nrow(df)
     nc = length(numeric_cols)
     mat = Matrix{Float64}(undef, nr, nc)
     for (j, colname) in enumerate(numeric_cols)
-        _fill_matrix_col!(mat, j, df[!, colname])
+        _fill_matrix_col!(mat, j, df[!, colname]; allow_missing=allow_missing)
     end
     return mat
 end

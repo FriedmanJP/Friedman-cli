@@ -51,6 +51,42 @@ end
 const _MEMS_VERSION_CACHE = Ref{String}("")
 const _CURRENT_EXPLICIT_OPTS = Ref{Set{String}}(Set{String}())
 const _IN_DISPATCH = Ref{Bool}(false)
+const _THREAD_MODE = Ref{Symbol}(:julia_threads)
+
+"""True when the active leaf allows upstream multi-threaded execution (`:serial_safe` returns `false`, #358)."""
+_allow_upstream_threading()::Bool = _THREAD_MODE[] !== :serial_safe
+
+"""Execute `f` under the leaf's declarative BLAS/FFTW/Julia thread budget, restoring previous BLAS threads in `finally` ([PERF-W4] #358)."""
+function with_thread_budget(f::Function, mode::Symbol)
+    prev_mode = _THREAD_MODE[]
+    has_blas = isdefined(@__MODULE__, :BLAS)
+    prev_blas = has_blas ? BLAS.get_num_threads() : 1
+    _THREAD_MODE[] = mode
+    try
+        if has_blas
+            if mode === :julia_threads
+                Threads.nthreads() > 1 && BLAS.set_num_threads(1)
+            elseif mode === :blas_threads
+                n_blas = isdefined(@__MODULE__, :_auto_thread_count) ? _auto_thread_count() : min(max(1, Int(Sys.CPU_THREADS)), 4)
+                BLAS.set_num_threads(n_blas)
+            elseif mode === :serial_safe
+                BLAS.set_num_threads(1)
+                isdefined(@__MODULE__, :_pin_fftw_serial!) && _pin_fftw_serial!()
+            end
+        elseif mode === :serial_safe
+            isdefined(@__MODULE__, :_pin_fftw_serial!) && _pin_fftw_serial!()
+        end
+        return f()
+    finally
+        _THREAD_MODE[] = prev_mode
+        if has_blas
+            try
+                BLAS.set_num_threads(prev_blas)
+            catch
+            end
+        end
+    end
+end
 
 function _cached_mems_version()::String
     v = _MEMS_VERSION_CACHE[]
@@ -207,32 +243,45 @@ function dispatch_node(node::NodeCommand, args::Vector{String};
         end
     end
 
-    # First arg isn't a subcommand — show help if requested, otherwise error
-    if _wants_help(args)
+    # First arg isn't a subcommand — show help only when the first arg itself is --help/-h (#352)
+    if subcmd_name == "--help" || subcmd_name == "-h"
         print_help(stdout, node; prog=prog, aliases=aliases)
         return
     end
 
-    throw(DispatchError(_unknown_command_message(prog, subcmd_name, rest)))
+    throw(DispatchError(_unknown_command_message(prog, subcmd_name, rest; node=node)))
 end
 
 """
 Usage message for an unknown subcommand. Once the registry's replacement map
-exists (#202), a removed v0.13 spelling names the v1.0.0 path. Engine tests
-include this file before that map, so the fallback is the bare message.
+exists (#202), a removed v0.x / v0.13 spelling names the v1.x path; otherwise
+falls back to Levenshtein `<= 2` nearest-subcommand did-you-mean (#352).
 """
 function _unknown_command_message(prog::AbstractString, subcmd::AbstractString,
-                                  rest::Vector{String}=String[])
+                                  rest::Vector{String}=String[];
+                                  node::Union{NodeCommand,Nothing}=nothing)
+    base = "$prog: unknown command '$subcmd'"
     if isdefined(@__MODULE__, :_replacement_for)
         parts = String.(split(String(prog)))
         consumed = length(parts) <= 1 ? String[] : parts[2:end]
         tokens = vcat(consumed, [String(subcmd)], rest)
         newp = _replacement_for(tokens)
-        base = "$prog: unknown command '$subcmd'"
-        newp === nothing && return base
-        return base * " — use `$(join(newp, " "))`"
+        if newp !== nothing
+            return base * " — use `$(join(newp, " "))`"
+        end
     end
-    return "$prog: unknown command '$subcmd'"
+    if node !== nothing && isdefined(@__MODULE__, :_nearest)
+        cands = String[k for k in keys(node.subcmds)]
+        if isempty(split(String(prog))[2:end]) && !("repl" in cands)
+            push!(cands, "repl")
+        end
+        sort!(cands)
+        sugg = _nearest(String(subcmd), cands)
+        if sugg !== nothing
+            return base * " — did you mean '$sugg'?"
+        end
+    end
+    return base
 end
 
 _slot_set_cli(v) = v isa AbstractString ? !isempty(v) : v !== nothing
@@ -315,7 +364,13 @@ function dispatch_leaf(leaf::LeafCommand, args::Vector{String};
         _IN_DISPATCH[] = true
         _ENVELOPE_JSON_TO_FILE[] = false
         try
-            _run_leaf = () -> begin
+            _run_leaf = () -> with_thread_budget(leaf.thread_mode) do
+                if use_env && _ENVELOPE[] !== nothing
+                    try
+                        _ENVELOPE[].meta["manifest"] = _envelope_manifest()
+                    catch
+                    end
+                end
                 if isempty(extra_dict)
                     return leaf.handler(; bound...)
                 else

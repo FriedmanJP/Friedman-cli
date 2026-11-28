@@ -40,6 +40,8 @@ Base.@kwdef struct TableSpec
     family::Bool = false
 end
 
+const _VALID_THREAD_MODES = (:julia_threads, :blas_threads, :serial_safe)
+
 Base.@kwdef struct CommandSpec
     path::Vector{String}
     summary::String
@@ -58,6 +60,8 @@ Base.@kwdef struct CommandSpec
     family::String = ""
     # #336: coexisting shorthand aliases for the leaf's final path segment
     aliases::Vector{String} = String[]
+    # #358: declarative solver/BLAS thread-budget mode (:julia_threads | :blas_threads | :serial_safe)
+    thread_mode::Symbol = :julia_threads
 end
 
 """
@@ -108,6 +112,10 @@ const SAVE_RESULT_OPTION = OptionSpec(
     name="save-result", type=String, default="",
     description="Save the result object to a handle (.jld2 native, .jls serialized, .fmod interim, or result://)",
 )
+const NOTE_OPTION = OptionSpec(
+    name="note", type=String, default="",
+    description="Optional free-form note stored in the handle header (--save-model/--save-result)",
+)
 
 # Standardized CI defaults ([CI-W1] #330, aligned with MacroEconometricModels v1.1.2)
 const _DEFAULT_CI_MACRO = 0.68
@@ -134,11 +142,23 @@ const QUANTILES_MACRO_OPTION = OptionSpec(
     default=_DEFAULT_QUANTILES_MACRO,
     description="Posterior/bootstrap band quantiles in (0, 1) (default: 0.16,0.5,0.84 = 68% band)",
 )
+function _append_unique_opts(existing::Vector{OptionSpec}, extras::Vector{OptionSpec})
+    names_set = Set{String}(o.name for o in existing)
+    out = copy(existing)
+    for o in extras
+        if !(o.name in names_set)
+            push!(out, o)
+            push!(names_set, o.name)
+        end
+    end
+    return out
+end
+
 function with_result_handles(specs::Vector{CommandSpec})
     out = CommandSpec[]
     for s in specs
         isempty(s.result_types) ? push!(out, s) :
-            push!(out, _copy_spec(s; options=vcat(s.options, [RESULT_OPTION, SAVE_RESULT_OPTION])))
+            push!(out, _copy_spec(s; options=_append_unique_opts(s.options, [RESULT_OPTION, SAVE_RESULT_OPTION, NOTE_OPTION])))
     end
     return out
 end
@@ -170,7 +190,41 @@ function _copy_spec(s::CommandSpec; kwargs...)
         allow_data_with_model = get(kwargs, :allow_data_with_model, s.allow_data_with_model),
         family       = get(kwargs, :family, s.family),
         aliases      = get(kwargs, :aliases, s.aliases),
+        thread_mode  = get(kwargs, :thread_mode, s.thread_mode),
     )
+end
+
+"""Set declarative `thread_mode` (`:julia_threads` | `:blas_threads` | `:serial_safe`) on specs (#358)."""
+function with_thread_mode(specs::Vector{CommandSpec}, mode::Symbol)
+    mode in _VALID_THREAD_MODES || error("registry: invalid thread_mode :$mode (expected one of $_VALID_THREAD_MODES)")
+    return [_copy_spec(s; thread_mode=mode) for s in specs]
+end
+
+"""Default per-leaf thread budget derived from solver/library conflict audit ([PERF-W4] #358)."""
+function _default_thread_mode(path::Vector{String})::Symbol
+    isempty(path) && return :julia_threads
+    p1 = path[1]
+    if p1 == "io"
+        return (length(path) >= 2 && path[2] == "sources") ? :julia_threads : :blas_threads
+    elseif p1 == "spectral"
+        return :serial_safe  # FFTW planner / transforms
+    elseif p1 == "hadsge"
+        return :serial_safe  # UMFPACK / CHOLMOD sparse factorizations
+    elseif p1 == "filter"
+        return :serial_safe  # SuiteSparse / banded solvers
+    elseif p1 == "dsge"
+        # Frequentist / MadNLP / NLopt / posterior-mode leaves stay :serial_safe;
+        # Bayesian MCMC/SMC sampling & simulation keep :julia_threads.
+        if length(path) >= 2 && path[2] == "bayes"
+            return (length(path) >= 3 && path[3] == "posterior-mode") ? :serial_safe : :julia_threads
+        end
+        return :serial_safe
+    elseif path == ["estimate", "factor", "static"] || path == ["estimate", "factor", "dynamic"]
+        return :blas_threads
+    elseif path == ["estimate", "factor", "gdfm"]
+        return :serial_safe  # FFTW spectral density
+    end
+    return :julia_threads
 end
 
 """Append --config-json/--set/--strict to specs that already declare --config."""
@@ -229,8 +283,7 @@ function _tag_slot_types(specs::Vector{CommandSpec},
 end
 
 function with_save_model(specs::Vector{CommandSpec})
-    return [any(o -> o.name == "save-model", s.options) ? s :
-            _copy_spec(s; options=vcat(s.options, [SAVE_MODEL_OPTION])) for s in specs]
+    return [_copy_spec(s; options=_append_unique_opts(s.options, [SAVE_MODEL_OPTION, NOTE_OPTION])) for s in specs]
 end
 with_model_option(specs::Vector{CommandSpec}) = with_options(specs, [MODEL_OPTION])
 

@@ -67,6 +67,7 @@ function main(args::Vector{String}=ARGS)
     srcs = String[joinpath(_WRAPPER_DIR, "frdc_thin.c")]
     mcp_src = joinpath(_WRAPPER_DIR, "mcp_proxy.c")
     yy_src  = joinpath(_WRAPPER_DIR, "yyjson.c")
+    dc_src  = joinpath(_WRAPPER_DIR, "daemon_client.c")
     if isfile(mcp_src) && isfile(yy_src)
         append!(flags, [
             "-DFRDC_ENABLE_MCP_PROXY",
@@ -76,6 +77,10 @@ function main(args::Vector{String}=ARGS)
             "-DYYJSON_DISABLE_FAST_FP_CONV=1",
         ])
         push!(srcs, mcp_src, yy_src)
+        if isfile(dc_src)
+            push!(flags, "-DFRDC_ENABLE_DAEMON_CLIENT")
+            push!(srcs, dc_src)
+        end
     end
     Sys.iswindows() && push!(flags, "-municode")
     run(`$cc $flags $srcs -o $exe_path`)

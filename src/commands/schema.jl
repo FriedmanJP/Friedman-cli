@@ -80,6 +80,13 @@ function _x_handle_dict(spec::CommandSpec, name::String; is_arg::Bool=false)
             "types" => String[],
         )
     end
+    if !is_arg && spec.path == ["nowcast", "news"] && name in ("data-new", "data-old")
+        return Dict{String,Any}(
+            "role" => "data",
+            "kinds" => String["timeseries", "tabular"],
+            "types" => String[],
+        )
+    end
     if is_arg && name == "model" && !isempty(spec.model_types)
         return Dict{String,Any}(
             "role" => "model",
@@ -106,9 +113,9 @@ function _x_handle_dict(spec::CommandSpec, name::String; is_arg::Bool=false)
     return nothing
 end
 
-"""Ensure `data` / `save-data` schema descriptions advertise `data://` session URIs (#344)."""
+"""Ensure `data` / `save-data` / `data-new` / `data-old` schema descriptions advertise `data://` session URIs (#344, #351)."""
 function _with_data_uri_hint(name::String, desc::String)::String
-    (name == "data" || name == "save-data") || return desc
+    (name == "data" || name == "save-data" || name == "data-new" || name == "data-old") || return desc
     occursin("data://", desc) && return desc
     if occursin("(.csv, .jld2, .jls)", desc)
         return replace(desc, "(.csv, .jld2, .jls)" => "(.csv, .jld2, .jls, or data://)")
@@ -214,6 +221,12 @@ function _input_schema(leaf::LeafCommand, path::Vector{String})
                 alts = String["config", "model"]
                 haskey(props, "result") && !isempty(spec.result_types) && push!(alts, "result")
                 any_of = [Dict{String,Any}("required" => [a]) for a in alts]
+            elseif haskey(props, "config") && haskey(props, "result") && !isempty(spec.result_types)
+                # ri {solve,discrete,mw,iia-test} (4): --config [or --config-json] or --result (#351)
+                alts = String["config"]
+                haskey(props, "config-json") && push!(alts, "config-json")
+                push!(alts, "result")
+                any_of = [Dict{String,Any}("required" => [a]) for a in alts]
             elseif haskey(props, "data-new") && haskey(props, "data-old") &&
                    haskey(props, "result") && !isempty(spec.result_types)
                 # nowcast news (1): (--data-new + --data-old) or --result
@@ -288,6 +301,14 @@ function _contract_doc()
             "lossless_formats" => ["json", "csv", "mcp", "jld2", "jls", "fmod"],
             "note" => "Rounding applies strictly to human :table presentation; JSON, CSV, MCP, and saved handles always preserve full IEEE-754 Float64 precision.",
         ),
+        "threading" => Dict{String,Any}(
+            "flag" => "--threads=<1|N|auto>",
+            "env" => "FRDC_THREADS",
+            "default" => 1,
+            "auto_cap" => 4,
+            "modes" => ["julia_threads", "blas_threads", "serial_safe"],
+            "note" => "Defaults OPENBLAS_NUM_THREADS=1 when Julia threads > 1 and pins FFTW to 1 thread; per-leaf thread_mode coordinates BLAS/FFTW/NLopt/MadNLP/SuiteSparse safely.",
+        ),
     )
 end
 
@@ -338,6 +359,7 @@ function _schema_leaf(leaf::LeafCommand, path::Vector{String}; aliases::Vector{S
         "input_schema" => _input_schema(leaf, path),
         "tables" => _registry_tables(path, leaf),
         "family" => leaf.family,
+        "thread_mode" => String(leaf.thread_mode),
         "allow_data_with_model" => (spec !== nothing && spec.allow_data_with_model),
     )
 end

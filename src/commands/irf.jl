@@ -665,9 +665,11 @@ function _irf_bvar(; data::String="", result=nothing, lags::Int=4, shock::Int=1,
         rb_level = (isdefined(@__MODULE__, :_CURRENT_EXPLICIT_OPTS) &&
                     ("quantiles" in _CURRENT_EXPLICIT_OPTS[]) && length(qs) >= 2) ?
                    clamp(qs[end] - qs[1], 1e-6, 1.0 - 1e-6) : conf_level
-        rb = _irf_bvar_robust_bayes(post, config, n, horizons, varnames, shock;
+        rb = with_thread_budget(:serial_safe) do
+            _irf_bvar_robust_bayes(post, config, n, horizons, varnames, shock;
                                    level=rb_level,
                                    format=format, output=output, plot=plot, plot_save=plot_save)
+        end
         return (; model=post, result=rb)
     end
     method = _identification_method(id, ID_METHOD_MAP, "irf bvar")
@@ -682,6 +684,7 @@ function _irf_bvar(; data::String="", result=nothing, lags::Int=4, shock::Int=1,
     kwargs = Dict{Symbol,Any}(
         :method => method,
         :quantiles => qs,
+        :threaded => _allow_upstream_threading(),
     )
     if !isnothing(check_func)
         kwargs[:check_func] = check_func

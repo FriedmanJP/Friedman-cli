@@ -533,9 +533,11 @@ function _envelope_manifest()
         get(deps, k, "unknown") in ("", "unknown") && (deps[k] = v)
     end
     git_sha = (isempty(m.git_sha) || m.git_sha == "unknown") ? _BAKED_GIT_SHA : m.git_sha
+    blas_threads = isdefined(@__MODULE__, :BLAS) ? BLAS.get_num_threads() : 1
     return Dict{String,Any}(
         "seed"                => m.seed,
         "n_threads"           => m.n_threads,
+        "blas_threads"        => blas_threads,
         "julia_version"       => m.julia_version,
         "package_version"     => pkg_ver,
         "dependency_versions" => deps,
@@ -570,6 +572,7 @@ function _native_model_info(raw_path::String; deep::Bool=false)
 
     display_path = key === nothing ? path : "$path#$key"
     frdc_meta = nothing
+    frdc_key_meta = nothing
     top_keys = String[]
     has_container = false
     has_src_model = false
@@ -586,6 +589,9 @@ function _native_model_info(raw_path::String; deep::Bool=false)
                     if "_frdc_meta" in top_keys
                         frdc_meta = f["_frdc_meta"]
                     end
+                    if "_frdc_key_meta" in top_keys
+                        frdc_key_meta = f["_frdc_key_meta"]
+                    end
                     if "_friedman_cli_version" in top_keys
                         legacy_cli_ver = string(f["_friedman_cli_version"])
                     end
@@ -593,7 +599,7 @@ function _native_model_info(raw_path::String; deep::Bool=false)
             end
         catch e
             throw(CliError("data/corrupt-handle", "corrupt or unreadable JLD2 file: $raw_path",
-                           hint=sprint(showerror, e)))
+                           hint=_sanitize_error_hint(e)))
         end
     else
         # Mock `.jld2` container in unit tests (non-HDF5 serialized Dict)
@@ -601,13 +607,14 @@ function _native_model_info(raw_path::String; deep::Bool=false)
             open(deserialize, path)
         catch e
             throw(CliError("data/corrupt-handle", "failed to read model file: $raw_path",
-                           hint=sprint(showerror, e)))
+                           hint=_sanitize_error_hint(e)))
         end
         if d isa AbstractDict
             top_keys = String[string(k) for k in keys(d)]
             has_container = _is_mems_jld2_dict(d)
             has_src_model = haskey(d, "_friedman_source_model")
             haskey(d, "_frdc_meta") && (frdc_meta = d["_frdc_meta"])
+            haskey(d, "_frdc_key_meta") && (frdc_key_meta = d["_frdc_key_meta"])
             haskey(d, "_friedman_cli_version") && (legacy_cli_ver = string(d["_friedman_cli_version"]))
         end
     end
@@ -702,12 +709,14 @@ function _native_model_info(raw_path::String; deep::Bool=false)
         else
             _has_supertype_named(typeof(e), :MacroModelError) && rethrow()
             throw(CliError("data/corrupt-handle", "failed to read native model file: $raw_path",
-                           hint=sprint(showerror, e)))
+                           hint=_sanitize_error_hint(e)))
         end
     end
 
     is_bundle = get(header, "bundle", false) === true
     bundle_keys = String[]
+    entry_meta = (key !== nothing && frdc_key_meta isa AbstractDict && haskey(frdc_key_meta, key)) ?
+        frdc_key_meta[key] : nothing
     if is_bundle
         entries = get(header, "entries", Dict{String,Any}())
         bundle_keys = sort!(String[string(k) for k in keys(entries)])
@@ -733,8 +742,10 @@ function _native_model_info(raw_path::String; deep::Bool=false)
         end
     end
 
-    # Strictly header-only dims: read from _frdc_meta, NEVER call load_model unless --deep!
-    dims = if key === nothing && frdc_meta isa AbstractDict && haskey(frdc_meta, "dims")
+    # Strictly header-only dims: read from _frdc_meta / _frdc_key_meta, NEVER call load_model unless --deep!
+    dims = if entry_meta isa AbstractDict && haskey(entry_meta, "dims")
+        Dict{String,Any}(string(k) => v for (k, v) in entry_meta["dims"])
+    elseif key === nothing && frdc_meta isa AbstractDict && haskey(frdc_meta, "dims")
         Dict{String,Any}(string(k) => v for (k, v) in frdc_meta["dims"])
     elseif deep
         try
@@ -755,12 +766,25 @@ function _native_model_info(raw_path::String; deep::Bool=false)
     mems_ver = (isempty(raw_pv) || raw_pv == "unknown") ?
         (frdc_meta isa AbstractDict ? string(get(frdc_meta, "mems_version", _mems_version_string())) : _mems_version_string()) :
         raw_pv
-    note_str = string(get(header, "note", ""))
-    if isempty(note_str) && frdc_meta isa AbstractDict && haskey(frdc_meta, "note")
+    note_str = if entry_meta isa AbstractDict && haskey(entry_meta, "note") && !isempty(string(entry_meta["note"]))
+        string(entry_meta["note"])
+    elseif is_bundle && key !== nothing
+        entries = get(header, "entries", Dict{String,Any}())
+        ei = get(entries, key, Dict{String,Any}())
+        ei isa AbstractDict ? string(get(ei, "note", "")) : ""
+    else
+        string(get(header, "note", ""))
+    end
+    if isempty(note_str) && key === nothing && frdc_meta isa AbstractDict && haskey(frdc_meta, "note")
         note_str = string(frdc_meta["note"])
     end
-    kind_str = (frdc_meta isa AbstractDict && haskey(frdc_meta, "kind")) ?
-        string(frdc_meta["kind"]) : (is_bundle ? "bundle" : "model")
+    kind_str = if entry_meta isa AbstractDict && haskey(entry_meta, "kind")
+        string(entry_meta["kind"])
+    elseif frdc_meta isa AbstractDict && haskey(frdc_meta, "kind")
+        string(frdc_meta["kind"])
+    else
+        is_bundle ? "bundle" : "model"
+    end
     has_prov = has_src_model || (frdc_meta isa AbstractDict &&
         (!isempty(get(frdc_meta, "source_model", Dict())) || !isempty(get(frdc_meta, "provenance", Dict()))))
 
@@ -805,12 +829,21 @@ function _inspect_handle_keys(raw_path::String)
     if magic === :hdf5
         top_keys = String[]
         has_container = false
-        _with_quiet_jld2() do
-            JLD2.jldopen(p, "r") do f
-                top_keys = String[string(k) for k in keys(f)]
-                has_container = "container" in top_keys || "__format__" in top_keys ||
-                    "format_version" in top_keys || "package_version" in top_keys
+        key_meta = nothing
+        try
+            _with_quiet_jld2() do
+                JLD2.jldopen(p, "r") do f
+                    top_keys = String[string(k) for k in keys(f)]
+                    has_container = "container" in top_keys || "__format__" in top_keys ||
+                        "format_version" in top_keys || "package_version" in top_keys
+                    if "_frdc_key_meta" in top_keys
+                        key_meta = f["_frdc_key_meta"]
+                    end
+                end
             end
+        catch e
+            throw(CliError("data/corrupt-handle", "corrupt or unreadable JLD2 file: $raw_path";
+                           hint=_sanitize_error_hint(e)))
         end
         if has_container
             header = try
@@ -823,7 +856,8 @@ function _inspect_handle_keys(raw_path::String)
                 ks = sort!(String[string(k) for k in keys(entries)])
                 return [(key=k, selector="$(p)#$k",
                          type=(entries[k] isa AbstractDict ? string(get(entries[k], "type", "unknown")) : string(entries[k])),
-                         dims="") for k in ks]
+                         dims=(key_meta isa AbstractDict && haskey(key_meta, k) && key_meta[k] isa AbstractDict && haskey(key_meta[k], "dims") ?
+                               string(key_meta[k]["dims"]) : "")) for k in ks]
             end
             return [(key="(root)", selector=p,
                      type=string(get(header, "type", "unknown")), dims="")]

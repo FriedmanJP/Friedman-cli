@@ -438,7 +438,7 @@ function _fevd_bvar(; data::String="", result=nothing, lags::Int=4, horizons::In
     !isnothing(narrative_check) && (bfevd_kwargs[:narrative_check] = narrative_check)
     bfevd = try
         fevd(post, horizons;
-            method=method, quantiles=qs, bfevd_kwargs...)
+            method=method, quantiles=qs, threaded=_allow_upstream_threading(), bfevd_kwargs...)
     catch e
         throw(_domain_or_data_error(e, "BVAR FEVD"))
     end

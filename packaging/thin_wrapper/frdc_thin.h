@@ -103,6 +103,12 @@ int frdc_mcp_proxy_main(const FrdcPack *pack, const char *exe_path,
                         const char *families, const char *tools, int compact);
 #endif
 
+#ifdef FRDC_ENABLE_DAEMON_CLIENT
+int frdc_daemon_try_exec(const FrdcPack *pack, const char *exe_path,
+                         int argc, char **argv,
+                         const char *cmd_path, int effective_threads);
+#endif
+
 #ifdef __cplusplus
 }
 #endif

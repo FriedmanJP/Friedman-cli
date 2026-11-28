@@ -224,6 +224,27 @@ function _remember_replacement(old::Vector{String}, new::Vector{String})
     return new
 end
 
+# Static v0.x / snake_case / common-mistake top-level & path migration hints (#352).
+const _STATIC_PATH_REPLACEMENTS = Pair{Vector{String},Vector{String}}[
+    ["var"]               => ["estimate", "multivariate", "var"],
+    ["bvar"]              => ["estimate", "multivariate", "bvar"],
+    ["vecm"]              => ["estimate", "multivariate", "vecm"],
+    ["arima"]             => ["estimate", "univariate", "arima"],
+    ["garch"]             => ["estimate", "volatility", "garch"],
+    ["unit_root"]         => ["test", "unit-root"],
+    ["unit-root"]         => ["test", "unit-root"],
+    ["local_projections"] => ["estimate", "multivariate", "lp"],
+    ["local-projections"] => ["estimate", "multivariate", "lp"],
+    ["help"]              => ["frdc", "--help"],
+    ["forecast", "var", "arima"]  => ["forecast", "univariate", "arima"],
+    ["forecast", "var", "sarima"] => ["forecast", "univariate", "sarima"],
+    ["forecast", "var", "arfima"] => ["forecast", "univariate", "arfima"],
+    ["forecast", "var", "midas"]  => ["forecast", "univariate", "midas"],
+]
+for (old, new) in _STATIC_PATH_REPLACEMENTS
+    _PATH_REPLACEMENTS[old] = new
+end
+
 """Stamp `family` and apply the v1.0.0 path move. Idempotent on an already-final spec."""
 function _finalize_spec(s::CommandSpec)
     fam = isempty(s.family) ? _family_for(s.path) : s.family
@@ -233,8 +254,9 @@ function _finalize_spec(s::CommandSpec)
        newpath[1] in ("estimate", "predict", "residuals", "forecast", "test")
         _remember_replacement([newpath[1], "var", newpath[3]], newpath)
     end
-    (newpath == s.path && fam == s.family) && return s
-    return _copy_spec(s; path=newpath, family=fam)
+    tmode = s.thread_mode === :julia_threads ? _default_thread_mode(newpath) : s.thread_mode
+    (newpath == s.path && fam == s.family && tmode == s.thread_mode) && return s
+    return _copy_spec(s; path=newpath, family=fam, thread_mode=tmode)
 end
 
 """Longest removed-path prefix of `tokens`, or `nothing`."""

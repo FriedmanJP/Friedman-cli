@@ -96,6 +96,7 @@ struct LeafCommand
     flags::Vector{Flag}
     description::String
     family::String
+    thread_mode::Symbol
     known_opts::Set{String}
     known_flags::Set{String}
     arg_syms::Vector{Symbol}
@@ -141,9 +142,9 @@ end
 function LeafCommand(name::String, handler::Function,
                      args::Vector{Argument}, options::Vector{Option},
                      flags::Vector{Flag}, description::String,
-                     family::String="")
+                     family::String="", thread_mode::Symbol=:julia_threads)
     known, known_flags, arg_syms, opt_syms, flag_syms = _leaf_lookup_tables(args, options, flags)
-    return LeafCommand(name, handler, args, options, flags, description, family,
+    return LeafCommand(name, handler, args, options, flags, description, family, thread_mode,
                        known, known_flags, arg_syms, opt_syms, flag_syms)
 end
 
@@ -152,8 +153,9 @@ LeafCommand(name::String, handler::Function;
     options::Vector{Option}=Option[],
     flags::Vector{Flag}=Flag[],
     description::String="",
-    family::String="") =
-    LeafCommand(name, handler, args, options, flags, description, family)
+    family::String="",
+    thread_mode::Symbol=:julia_threads) =
+    LeafCommand(name, handler, args, options, flags, description, family, thread_mode)
 
 """
     NodeCommand(name, subcmds, description[, aliases])
