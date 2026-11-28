@@ -2064,9 +2064,10 @@ function _bvar_select_hyper(Y::AbstractMatrix, p::Int, hyperopt::String)
             parameter = ["tau", "decay", "lambda", "mu", "omega",
                          "log_ml", "log_ml_default", "log_posterior",
                          "converged", "at_bound", "iterations"],
-            value = Float64[h.tau, h.decay, h.lambda, h.mu, h.omega,
-                            r.log_ml, r.log_ml_default, r.log_posterior,
-                            r.converged ? 1.0 : 0.0, r.at_bound ? 1.0 : 0.0, r.iterations],
+            value = Any[Float64(h.tau), Float64(h.decay), Float64(h.lambda),
+                        Float64(h.mu), Float64(h.omega),
+                        Float64(r.log_ml), Float64(r.log_ml_default), Float64(r.log_posterior),
+                        Bool(r.converged), Bool(r.at_bound), Int(r.iterations)],
         )
         return h, tbl
     end

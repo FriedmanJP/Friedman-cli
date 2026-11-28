@@ -542,9 +542,28 @@ function _finish_sim(sample::DataFrame, truth, settings;
                      format::String, output::String, save_data::String="")
     isempty(truth) && throw(CliError("internal/error", "population truth is empty"))
     isempty(sample) && throw(CliError("internal/error", "simulated sample is empty"))
-    output_result(sample; format=Symbol(format), output=output,
+    fmt_sym = Symbol(lowercase(format))
+    # For CSV exports of non-panel series/cross-sections, omit the synthetic 1:T
+    # `time`/`obs` index column so `data simulate <dgp> -f csv -o sim.csv` feeds
+    # straight into `estimate`/`forecast` without treating `time` as an endogenous
+    # variable (#350). JSON and table schemas keep the full indexed `simulated_data`.
+    out_sample = if fmt_sym === :csv
+        pnames = propertynames(sample)
+        if :id in pnames && :time in pnames
+            sample
+        elseif :obs in pnames
+            select(sample, Not(:obs))
+        elseif :time in pnames
+            select(sample, Not(:time))
+        else
+            sample
+        end
+    else
+        sample
+    end
+    output_result(out_sample; format=fmt_sym, output=output,
                   title="Simulated Data", key="simulated_data")
-    output_result(DataFrame(truth); format=Symbol(format),
+    output_result(DataFrame(truth); format=fmt_sym,
                   output=_per_var_output_path(output, "truth"),
                   title="Population Truth", key="population_truth")
     output_kv(settings; format=format,

@@ -217,13 +217,17 @@ function _validate_nowcast_vars(Y::AbstractMatrix, monthly_vars::Int, quarterly_
     N = size(Y, 2)
     nM = monthly_vars
     nQ = quarterly_vars
+    (nM < 0 || nQ < 0) && throw(CliError("usage/invalid",
+        "monthly-vars ($nM) and quarterly-vars ($nQ) must be non-negative"))
     if nM == 0 && nQ == 0
         # Default: treat all as monthly with last as quarterly target
         nM = N - 1
         nQ = 1
     end
     if nM + nQ != N
-        error("monthly-vars ($nM) + quarterly-vars ($nQ) must equal number of variables ($N)")
+        throw(CliError("usage/invalid",
+            "monthly-vars ($nM) + quarterly-vars ($nQ) must equal number of variables ($N)";
+            hint="adjust --monthly-vars and --quarterly-vars so their sum equals $N"))
     end
     return nM, nQ
 end
@@ -415,6 +419,11 @@ function _nowcast_news(; data_new::String="", data_old::String="",
 
     Y_new, varnames_new = load_multivariate_data(resolve_stem(data_new; slot=:data); allow_nan=true)
     Y_old, _ = load_multivariate_data(resolve_stem(data_old; slot=:data); allow_nan=true)
+    if size(Y_new) != size(Y_old)
+        throw(CliError("data/shape",
+            "the two vintages must have the same dimensions (new is $(size(Y_new)), old is $(size(Y_old)))";
+            hint="a newer vintage fills in missing cells rather than adding rows or columns"))
+    end
     nM, nQ = _validate_nowcast_vars(Y_new, monthly_vars, quarterly_vars)
     T_new, N = size(Y_new)
     T_old = size(Y_old, 1)
@@ -425,13 +434,17 @@ function _nowcast_news(; data_new::String="", data_old::String="",
     _status()
 
     if isnothing(model)
-        model = if method == "dfm"
-            nowcast_dfm(Y_old, nM, nQ; r=factors, p=lags)
-        elseif method == "bvar"
-            nowcast_bvar(Y_old, nM, nQ; lags=lags)
-        else
-            throw(CliError("usage/invalid",
-                "unknown nowcast method for news: $method"; hint="use --method dfm|bvar"))
+        model = try
+            if method == "dfm"
+                nowcast_dfm(Y_old, nM, nQ; r=factors, p=lags)
+            elseif method == "bvar"
+                nowcast_bvar(Y_old, nM, nQ; lags=lags)
+            else
+                throw(CliError("usage/invalid",
+                    "unknown nowcast method for news: $method"; hint="use --method dfm|bvar"))
+            end
+        catch e
+            throw(_domain_or_data_error(e, "nowcast news"))
         end
     end
 
@@ -444,7 +457,7 @@ function _nowcast_news(; data_new::String="", data_old::String="",
             "the two vintages must have the same dimensions";
             hint="new is $(size(Y_new)), old is $(size(Y_old)); a newer vintage fills in " *
                  "missing cells rather than adding rows"))
-        rethrow()
+        throw(_domain_or_data_error(e, "nowcast news"))
     end
 
     _maybe_plot(news; plot=plot, plot_save=plot_save)
@@ -483,14 +496,19 @@ function _nowcast_forecast(; data::String="", result=nothing, model=nothing,
         _status("  Method: $method, horizons: $horizons")
         _status()
 
-        model = if method == "dfm"
-            nowcast_dfm(Y, nM, nQ; r=factors, p=lags)
-        elseif method == "bvar"
-            nowcast_bvar(Y, nM, nQ; lags=lags)
-        elseif method == "bridge"
-            nowcast_bridge(Y, nM, nQ)
-        else
-            error("unknown nowcast method: $method (expected dfm|bvar|bridge)")
+        model = try
+            if method == "dfm"
+                nowcast_dfm(Y, nM, nQ; r=factors, p=lags)
+            elseif method == "bvar"
+                nowcast_bvar(Y, nM, nQ; lags=lags)
+            elseif method == "bridge"
+                nowcast_bridge(Y, nM, nQ)
+            else
+                throw(CliError("usage/invalid",
+                    "unknown nowcast method: $method (expected dfm|bvar|bridge)"))
+            end
+        catch e
+            throw(_domain_or_data_error(e, "nowcast forecast"))
         end
     else
         varnames = _model_varnames(model)

@@ -4,7 +4,7 @@ set -euo pipefail
 # Friedman-cli standalone installer for Linux (x86_64)
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.sh | bash
-#   curl -fsSL https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.sh | bash -s -- --version 1.0.7
+#   curl -fsSL https://raw.githubusercontent.com/FriedmanJP/Friedman-cli/master/install.sh | bash -s -- --version 1.2.1
 
 REPO="FriedmanJP/Friedman-cli"
 INSTALL_DIR="$HOME/.frdc"
@@ -45,9 +45,11 @@ Run or build Friedman-cli from source on macOS (requires Julia 1.13+):
   julia --project -e 'using Pkg; Pkg.instantiate()'
   julia --project bin/frdc --help
 
-Or compile a local standalone bundle (offline, zero-Julia once built):
-  julia build_release.jl
-  ./build/frdc/bin/frdc --version
+Or compile and install a local standalone bundle (offline, zero-Julia once built):
+  julia +1.14+opt build_release.jl
+  rm -rf ~/.frdc && cp -R build/frdc ~/.frdc
+  mkdir -p ~/.local/bin && ln -sfn ~/.frdc/bin/frdc ~/.local/bin/frdc
+  frdc --version
 EOF
         exit 0
         ;;
@@ -92,7 +94,7 @@ if [ -z "$VERSION" ]; then
     RELEASE_JSON=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null) || {
         echo "Error: Failed to fetch latest release from GitHub API." >&2
         echo "You may be rate-limited. Try specifying a version:" >&2
-        echo "  curl -fsSL https://raw.githubusercontent.com/${REPO}/master/install.sh | bash -s -- --version 1.0.7" >&2
+        echo "  curl -fsSL https://raw.githubusercontent.com/${REPO}/master/install.sh | bash -s -- --version 1.2.1" >&2
         exit 1
     }
     VERSION=$(echo "$RELEASE_JSON" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"v\{0,1\}\([^"]*\)".*/\1/')

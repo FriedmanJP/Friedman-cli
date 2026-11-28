@@ -796,7 +796,7 @@ function _card_config_path(path::AbstractString, set_vals::Vector{String}, confi
     if !isempty(set_vals) || !isempty(config_json)
         throw(CliError("config/invalid",
             "--set / --config-json apply to TOML config files; '$(basename(path))' is a model card";
-            hint="put the overrides in the card, or pass a .toml file"))
+            hint="edit the model card file directly, or pass a .toml config file (e.g. --config model.toml --set key=val)"))
     end
     return String(path)
 end

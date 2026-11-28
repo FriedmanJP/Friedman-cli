@@ -68,7 +68,12 @@ other non-float values untouched (critical for integer columns and heterogeneous
 """
 function _make_table_formatter(digits::Union{Int,Nothing})
     if digits === nothing
-        return (v, i, j) -> v isa AbstractFloat ? string(v) : v
+        return (v, i, j) -> if v isa AbstractFloat
+            vf = (v == 0 && !isnan(v)) ? zero(v) : v
+            string(vf)
+        else
+            v
+        end
     end
     d = clamp(digits, 0, 16)
     return (v, i, j) -> v isa AbstractFloat ? _format_display_float(v, d) : v

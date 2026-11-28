@@ -514,6 +514,61 @@ function _register_handle_artifact!(obj, written_path::String, artifact_kind::St
     return nothing
 end
 
+function _sanitize_error_hint(e)::String
+    msg = try
+        sprint(showerror, e)
+    catch
+        string(typeof(e))
+    end
+    first_line = strip(first(split(msg, '\n')))
+    if isempty(first_line) || occursin("FileIO", first_line) ||
+       occursin("Package HDF5", first_line) || occursin("Stacktrace", first_line)
+        return "file appears truncated or corrupt; re-create the handle"
+    end
+    return length(first_line) > 240 ? first_line[1:prevind(first_line, 240)] * "…" : first_line
+end
+
+function _jld2_read_dict(path::String, raw::String)::Dict{String,Any}
+    return try
+        _with_quiet_jld2() do
+            JLD2.jldopen(path, "r") do f
+                d = Dict{String,Any}()
+                for k in keys(f)
+                    d[string(k)] = f[k]
+                end
+                d
+            end
+        end
+    catch err_jld
+        throw(CliError("data/corrupt-handle",
+            "corrupt or unreadable JLD2 file: $raw";
+            hint=_sanitize_error_hint(err_jld)))
+    end
+end
+
+function _jld2_is_mems_keys(top_keys::Vector{String})::Bool
+    return ("container" in top_keys) || ("__format__" in top_keys) ||
+           ("format_version" in top_keys) || ("package_version" in top_keys)
+end
+
+function _build_bundle_meta(entries_meta::Dict{String,Any}; note::String="")::Dict{String,Any}
+    ks = sort!(collect(keys(entries_meta)))
+    return Dict{String,Any}(
+        "schema_version" => _FRDC_META_SCHEMA_VERSION,
+        "cli_version"    => _cli_version_string(),
+        "mems_version"   => _mems_version_string(),
+        "kind"           => "bundle",
+        "type_name"      => "bundle($(length(ks)) entries: $(join(ks, ", ")))",
+        "dims"           => Dict{String,Any}("entries" => length(ks)),
+        "varnames"       => String[],
+        "note"           => String(note),
+        "seed"           => (isdefined(@__MODULE__, :_SEED) ? _SEED[] : nothing),
+        "created_utc"    => Dates.format(Dates.now(Dates.UTC), "yyyy-mm-ddTHH:MM:SS") * "Z",
+        "source_model"   => Dict{String,Any}(),
+        "provenance"     => Dict{String,Any}(),
+    )
+end
+
 function save_handle!(ref::HandleRef, obj; note::String="", source_model=nothing,
                       source_model_path::String="", compress::Bool=false,
                       artifact_kind::String="")::String
@@ -528,6 +583,7 @@ function save_handle!(ref::HandleRef, obj; note::String="", source_model=nothing
     dest = ref.path::String
     _enforce_data_root!(ref; kind="output")
     fmt = ref.format
+    key = ref.key
     if fmt === nothing
         # Extensionless path: default to .jld2 when native-saveable or plain JLD2-safe, else .jls
         if is_mems_serializable(obj) || _is_plain_jld2_payload(obj) ||
@@ -539,6 +595,12 @@ function save_handle!(ref::HandleRef, obj; note::String="", source_model=nothing
             fmt = :jls
             _status("Note: $(nameof(typeof(obj))) is outside the native .jld2 registry; writing .jls ($dest)")
         end
+    end
+
+    if key !== nothing && startswith(key, "_")
+        throw(CliError("usage/invalid",
+            "archive key '#$key' cannot start with '_' (reserved for CLI metadata)";
+            hint="choose a key name not starting with '_'"))
     end
 
     src_meta = if source_model isa AbstractDict
@@ -554,6 +616,7 @@ function save_handle!(ref::HandleRef, obj; note::String="", source_model=nothing
     end
     meta = _build_frdc_meta(obj; note=note, source_model=src_meta)
     cli_ver = _cli_version_string()
+    display_dest = key === nothing ? dest : "$(dest)#$(key)"
 
     if fmt === :jld2
         is_native = is_mems_serializable(obj)
@@ -569,6 +632,154 @@ function save_handle!(ref::HandleRef, obj; note::String="", source_model=nothing
                 hint="re-run with a .jls path — this type is outside the $(n_reg)-type " *
                      "native registry, so it uses Julia Serialization instead",
             ))
+        end
+
+        if key !== nothing
+            # Keyed JLD2 archive upsert (#350): preserve existing sibling keys; never silently
+            # overwrite a single-object root handle.
+            if is_native && isdefined(MacroEconometricModels, :_build_container)
+                entry_container = MacroEconometricModels._build_container(obj)
+                !isempty(note) && (entry_container["note"] = String(note))
+                entries = Dict{String,Any}()
+                key_meta = Dict{String,Any}()
+                bundle_note = String(note)
+                if isfile(dest)
+                    sniff_handle_format(dest) === :hdf5 || throw(CliError("usage/invalid",
+                        "cannot upsert '#$key' into non-HDF5 file '$dest'";
+                        hint="use a fresh .jld2 archive path"))
+                    existing = _jld2_read_dict(dest, dest)
+                    if haskey(existing, "container") && existing["container"] isa AbstractDict
+                        c_old = existing["container"]
+                        if get(c_old, "bundle", false) === true && get(c_old, "entries", nothing) isa AbstractDict
+                            for (ek, ev) in c_old["entries"]
+                                entries[string(ek)] = ev
+                            end
+                            isempty(bundle_note) && (bundle_note = string(get(c_old, "note", "")))
+                        else
+                            throw(CliError("usage/invalid",
+                                "cannot upsert '#$key' into single-object handle '$dest'";
+                                hint="use a separate archive path (e.g. archive.jld2#$key) for keyed multi-model storage"))
+                        end
+                    else
+                        throw(CliError("usage/invalid",
+                            "cannot upsert native model '#$key' into plain JLD2 archive '$dest'";
+                            hint="use a separate archive path for native model bundles"))
+                    end
+                    if haskey(existing, "_frdc_key_meta") && existing["_frdc_key_meta"] isa AbstractDict
+                        for (ek, ev) in existing["_frdc_key_meta"]
+                            key_meta[string(ek)] = ev
+                        end
+                    end
+                end
+                entries[key] = entry_container
+                key_meta[key] = meta
+                fmt_ver = isdefined(MacroEconometricModels, :SERIALIZATION_FORMAT_VERSION) ?
+                    getfield(MacroEconometricModels, :SERIALIZATION_FORMAT_VERSION) : 1
+                bundle_container = Dict{String,Any}(
+                    "format_version"  => fmt_ver,
+                    "bundle"          => true,
+                    "note"            => bundle_note,
+                    "package_version" => _mems_version_string(),
+                    "julia_version"   => string(VERSION),
+                    "created"         => meta["created_utc"],
+                    "entries"         => entries,
+                )
+                bmeta = _build_bundle_meta(key_meta; note=bundle_note)
+                _atomic_write(dest, tmp -> begin
+                    _with_quiet_jld2() do
+                        JLD2.jldopen(tmp, "w"; compress=compress) do f
+                            f["container"] = bundle_container
+                            f["_frdc_meta"] = bmeta
+                            f["_frdc_key_meta"] = key_meta
+                            f["_friedman_cli_version"] = cli_ver
+                        end
+                    end
+                end)
+            elseif is_native
+                # Mock MEMs keyed bundle upsert (unit tests)
+                objs_map = Dict{String,Any}()
+                key_meta = Dict{String,Any}()
+                if isfile(dest)
+                    d_old = try
+                        open(deserialize, dest)
+                    catch e
+                        throw(CliError("data/corrupt-handle", "corrupt handle '$dest'";
+                                       hint=_sanitize_error_hint(e)))
+                    end
+                    if d_old isa AbstractDict && get(d_old, "bundle", false) === true &&
+                       get(d_old, "entries", nothing) isa AbstractDict
+                        for (ek, ev) in d_old["entries"]
+                            objs_map[string(ek)] = ev isa AbstractDict && haskey(ev, "payload") ? ev["payload"] : ev
+                        end
+                        if haskey(d_old, "_frdc_key_meta") && d_old["_frdc_key_meta"] isa AbstractDict
+                            for (ek, ev) in d_old["_frdc_key_meta"]
+                                key_meta[string(ek)] = ev
+                            end
+                        end
+                    else
+                        throw(CliError("usage/invalid",
+                            "cannot upsert '#$key' into single-object handle '$dest'";
+                            hint="use a separate archive path (e.g. archive.jld2#$key) for keyed multi-model storage"))
+                    end
+                end
+                objs_map[key] = obj
+                key_meta[key] = meta
+                bmeta = _build_bundle_meta(key_meta; note=note)
+                _atomic_write(dest, tmp -> begin
+                    MacroEconometricModels.save_model(objs_map, tmp; note=note, compress=compress)
+                    d = open(deserialize, tmp)
+                    if d isa AbstractDict
+                        d["_frdc_meta"] = bmeta
+                        d["_frdc_key_meta"] = key_meta
+                        d["_friedman_cli_version"] = cli_ver
+                        open(io -> serialize(io, d), tmp, "w")
+                    end
+                end)
+            elseif is_tabular
+                existing_plain = Dict{String,Any}()
+                key_meta = Dict{String,Any}()
+                if isfile(dest)
+                    sniff_handle_format(dest) === :hdf5 || throw(CliError("usage/invalid",
+                        "cannot upsert '#$key' into non-HDF5 file '$dest'";
+                        hint="use a fresh .jld2 archive path"))
+                    d_old = _jld2_read_dict(dest, dest)
+                    if _is_mems_jld2_dict(d_old)
+                        throw(CliError("usage/invalid",
+                            "cannot upsert plain data '#$key' into native MEMs handle '$dest'";
+                            hint="use a separate plain .jld2 archive path"))
+                    end
+                    for (ek, ev) in d_old
+                        startswith(ek, "_") || (existing_plain[ek] = ev)
+                    end
+                    if haskey(d_old, "_frdc_key_meta") && d_old["_frdc_key_meta"] isa AbstractDict
+                        for (ek, ev) in d_old["_frdc_key_meta"]
+                            key_meta[string(ek)] = ev
+                        end
+                    end
+                end
+                existing_plain[key] = obj
+                key_meta[key] = meta
+                _atomic_write(dest, tmp -> begin
+                    _with_quiet_jld2() do
+                        JLD2.jldopen(tmp, "w"; compress=compress) do f
+                            for (ek, ev) in existing_plain
+                                f[ek] = ev
+                            end
+                            f["_frdc_meta"] = _build_bundle_meta(key_meta; note=note)
+                            f["_frdc_key_meta"] = key_meta
+                            f["_friedman_cli_version"] = cli_ver
+                        end
+                    end
+                end)
+            else
+                throw(CliError("usage/invalid",
+                    "cannot write a nested bundle under '#$key' in '$dest'";
+                    hint="save each model individually under '#<key>' or omit '#$key'"))
+            end
+            isdefined(@__MODULE__, :invalidate_handle_cache!) && (invalidate_handle_cache!(ref); invalidate_handle_cache!(dest); invalidate_handle_cache!(display_dest))
+            _register_handle_artifact!(obj, display_dest, artifact_kind)
+            _status("Model saved to $display_dest (keyed jld2 archive, $(nameof(typeof(obj))))")
+            return display_dest
         end
 
         _atomic_write(dest, tmp -> begin
@@ -643,19 +854,55 @@ function save_handle!(ref::HandleRef, obj; note::String="", source_model=nothing
         _status("Model saved to $dest (native jld2, $(nameof(typeof(obj))))")
         return dest
     elseif fmt === :jls
+        payload_obj = obj
+        env_kind = meta["kind"]
+        env_type = meta["type_name"]
+        env_dims = meta["dims"]
+        env_vnames = meta["varnames"]
+        if key !== nothing
+            dict_payload = Dict{String,Any}()
+            if isfile(dest)
+                sniff_handle_format(dest) === :jls || throw(CliError("usage/invalid",
+                    "cannot upsert '#$key' into non-.jls file '$dest'";
+                    hint="use a fresh .jls archive path"))
+                old_raw = try
+                    open(deserialize, dest)
+                catch e
+                    throw(CliError("data/corrupt-handle", "corrupt .jls handle '$dest'";
+                                   hint=_sanitize_error_hint(e)))
+                end
+                old_val = old_raw isa FrdcJlsEnvelope ? old_raw.payload : old_raw
+                if old_val isa AbstractDict
+                    for (ek, ev) in old_val
+                        dict_payload[string(ek)] = ev
+                    end
+                else
+                    throw(CliError("usage/invalid",
+                        "cannot upsert '#$key' into single-object .jls handle '$dest'";
+                        hint="use a separate archive path (e.g. archive.jls#$key) for keyed multi-model storage"))
+                end
+            end
+            dict_payload[key] = obj
+            payload_obj = dict_payload
+            env_kind = "archive"
+            ks = sort!(collect(keys(dict_payload)))
+            env_type = "Dict($(length(ks)) entries: $(join(ks, ", ")))"
+            env_dims = Dict{String,Any}("entries" => length(ks))
+            env_vnames = String[]
+        end
         env_obj = FrdcJlsEnvelope(
             _FRDC_META_SCHEMA_VERSION,
             cli_ver,
             _mems_version_string(),
-            meta["kind"],
-            meta["type_name"],
-            meta["dims"],
-            meta["varnames"],
+            env_kind,
+            env_type,
+            env_dims,
+            env_vnames,
             String(note),
             meta["seed"],
             source_model,
             meta["created_utc"],
-            obj,
+            payload_obj,
             get(meta, "provenance", Dict{String,Any}()),
         )
         _atomic_write(dest, tmp -> begin
@@ -663,12 +910,17 @@ function save_handle!(ref::HandleRef, obj; note::String="", source_model=nothing
                 serialize(io, env_obj)
             end
         end)
-        isdefined(@__MODULE__, :invalidate_handle_cache!) && (invalidate_handle_cache!(ref); invalidate_handle_cache!(dest))
-        _register_handle_artifact!(obj, dest, artifact_kind)
-        _status("Serialized to $dest ($(nameof(typeof(obj))))")
-        return dest
+        isdefined(@__MODULE__, :invalidate_handle_cache!) && (invalidate_handle_cache!(ref); invalidate_handle_cache!(dest); invalidate_handle_cache!(display_dest))
+        _register_handle_artifact!(obj, display_dest, artifact_kind)
+        _status("Serialized to $display_dest ($(nameof(typeof(obj))))")
+        return display_dest
     else
         # Explicit .fmod path (legacy compatibility)
+        if key !== nothing
+            throw(CliError("usage/invalid",
+                "keyed '#$key' writes are not supported for legacy .fmod handles";
+                hint="use .jld2 or .jls for keyed multi-entry archives"))
+        end
         header = ModelHandleHeader(
             FMOD_MAGIC,
             cli_ver,
@@ -771,20 +1023,14 @@ function load_handle(ref::HandleRef)
                 return native_res
             end
             # Inspect plain JLD2 or report native SerializationError / corruption
-            d = try
-                _with_quiet_jld2() do
-                    JLD2.load(path)
-                end
-            catch err_jld
-                throw(CliError("data/corrupt-handle",
-                    "corrupt or unreadable JLD2 file: $(ref.raw)";
-                    hint=sprint(showerror, err_jld)))
-            end
+            # Use JLD2.jldopen directly (never JLD2.load / FileIO, which tries to load HDF5.jl
+            # and leaks a 21-frame Stacktrace on truncated headers — #349).
+            d = _jld2_read_dict(path, ref.raw)
             if _is_mems_jld2_dict(d)
                 _has_supertype_named(typeof(native_res), :MacroModelError) && throw(native_res)
                 throw(CliError("data/corrupt-handle",
                     "failed to read native model file: $(ref.raw)";
-                    hint=sprint(showerror, native_res)))
+                    hint=_sanitize_error_hint(native_res)))
             end
             # Filter out internal CLI metadata keys when inspecting plain JLD2 user keys
             user_dict = Dict{String,Any}(string(k) => v for (k, v) in d if !startswith(string(k), "_"))
@@ -805,17 +1051,31 @@ function load_handle(ref::HandleRef)
                 hint="select an entry with '$(ref.raw)#<key>' or save under key \"data\""))
         else
             # `#key` selector on HDF5/JLD2 (supports MEMs bundle AND plain multi-key JLD2)
-            d = try
-                _with_quiet_jld2() do
-                    JLD2.load(path)
-                end
-            catch err_jld
-                throw(CliError("data/corrupt-handle",
-                    "corrupt or unreadable JLD2 file: $(ref.raw)";
-                    hint=sprint(showerror, err_jld)))
-            end
+            req_key = ref.key::String
+            d = _jld2_read_dict(path, ref.raw)
+            key_meta_dict = get(d, "_frdc_key_meta", nothing)
+            entry_meta = (key_meta_dict isa AbstractDict && haskey(key_meta_dict, req_key)) ?
+                key_meta_dict[req_key] : get(d, "_frdc_meta", nothing)
             if _is_mems_jld2_dict(d)
-                # Reconstruct MEMs bundle and pick the requested key
+                # Fast direct single-entry reconstruction when MEMs bundle container is present
+                c = get(d, "container", d)
+                if c isa AbstractDict && get(c, "bundle", false) === true &&
+                   get(c, "entries", nothing) isa AbstractDict &&
+                   isdefined(MacroEconometricModels, :_reconstruct_from_container)
+                    entries = c["entries"]
+                    entry_c = _extract_key_from_dict(entries, req_key, ref.raw)
+                    val = try
+                        MacroEconometricModels._reconstruct_from_container(entry_c)
+                    catch e
+                        _has_supertype_named(typeof(e), :MacroModelError) && rethrow()
+                        throw(CliError("data/corrupt-handle",
+                            "failed to read native bundle entry '#$req_key': $(ref.raw)";
+                            hint=_sanitize_error_hint(e)))
+                    end
+                    isdefined(@__MODULE__, :_record_handle_meta!) && entry_meta !== nothing && _record_handle_meta!(val, entry_meta)
+                    return val
+                end
+                # Fallback: reconstruct MEMs bundle via load_model and pick the requested key
                 obj = try
                     _with_quiet_jld2() do
                         MacroEconometricModels.load_model(path)
@@ -824,14 +1084,18 @@ function load_handle(ref::HandleRef)
                     _has_supertype_named(typeof(e), :MacroModelError) && rethrow()
                     throw(CliError("data/corrupt-handle",
                         "failed to read native bundle: $(ref.raw)";
-                        hint=sprint(showerror, e)))
+                        hint=_sanitize_error_hint(e)))
                 end
                 obj isa AbstractDict || throw(CliError("data/key-not-found",
                     "handle '$(ref.raw)' is not a multi-entry bundle (got $(nameof(typeof(obj))))";
-                    hint="omit '#$(ref.key)' to load the single object"))
-                return _extract_key_from_dict(obj, ref.key::String, ref.raw)
+                    hint="omit '#$req_key' to load the single object"))
+                val = _extract_key_from_dict(obj, req_key, ref.raw)
+                isdefined(@__MODULE__, :_record_handle_meta!) && entry_meta !== nothing && _record_handle_meta!(val, entry_meta)
+                return val
             end
-            return _extract_key_from_dict(d, ref.key::String, ref.raw)
+            val = _extract_key_from_dict(d, req_key, ref.raw)
+            isdefined(@__MODULE__, :_record_handle_meta!) && entry_meta !== nothing && _record_handle_meta!(val, entry_meta)
+            return val
         end
     end
 
@@ -841,21 +1105,29 @@ function load_handle(ref::HandleRef)
         if !isdefined(MacroEconometricModels, :_build_container)
             try
                 obj = MacroEconometricModels.load_model(path)
-                if isdefined(@__MODULE__, :_record_handle_meta!)
-                    raw_d = try; open(deserialize, path); catch; nothing; end
-                    if raw_d isa AbstractDict && haskey(raw_d, "_frdc_meta")
-                        _record_handle_meta!(obj, raw_d["_frdc_meta"])
+                raw_d = try; open(deserialize, path); catch; nothing; end
+                if ref.key !== nothing
+                    obj isa AbstractDict || throw(CliError("data/key-not-found",
+                        "handle '$(ref.raw)' is not a multi-entry bundle (got $(nameof(typeof(obj))))";
+                        hint="omit '#$(ref.key)' to load the single object"))
+                    val = _extract_key_from_dict(obj, ref.key::String, ref.raw)
+                    if isdefined(@__MODULE__, :_record_handle_meta!) && raw_d isa AbstractDict
+                        km = get(raw_d, "_frdc_key_meta", nothing)
+                        em = (km isa AbstractDict && haskey(km, ref.key)) ? km[ref.key] : get(raw_d, "_frdc_meta", nothing)
+                        em !== nothing && _record_handle_meta!(val, em)
                     end
+                    return val
                 end
-                if ref.key !== nothing && obj isa AbstractDict
-                    return _extract_key_from_dict(obj, ref.key::String, ref.raw)
+                if isdefined(@__MODULE__, :_record_handle_meta!) && raw_d isa AbstractDict && haskey(raw_d, "_frdc_meta")
+                    _record_handle_meta!(obj, raw_d["_frdc_meta"])
                 end
                 return obj
             catch e
+                e isa CliError && rethrow()
                 _has_supertype_named(typeof(e), :MacroModelError) && rethrow()
                 throw(CliError("data/corrupt-handle",
                     "failed to read native model file: $(ref.raw)";
-                    hint=sprint(showerror, e)))
+                    hint=_sanitize_error_hint(e)))
             end
         end
         throw(CliError("data/corrupt-handle",
@@ -868,7 +1140,7 @@ function load_handle(ref::HandleRef)
     catch e
         throw(CliError("data/corrupt-handle",
             "failed to deserialize handle file: $(ref.raw)";
-            hint=sprint(showerror, e)))
+            hint=_sanitize_error_hint(e)))
     end
 
     if payload isa FrdcJlsEnvelope

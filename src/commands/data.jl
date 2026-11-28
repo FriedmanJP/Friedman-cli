@@ -633,7 +633,7 @@ end
 
 function _as_macro_data(obj)
     obj isa DataFrame || return obj
-    Y = df_to_matrix(obj)
+    Y = df_to_matrix(obj; allow_missing=true, allow_nonfinite=true)
     vn = variable_names(obj)
     return TimeSeriesData(Y; varnames=vn, tcode=fill(1, length(vn)),
                           time_index=collect(1:size(Y, 1)))
@@ -693,11 +693,20 @@ function _data_filter(; data::String, method::String="hp", component::String="cy
                        lambda::Float64=1600.0, horizon::Int=8, lags::Int=4,
                        columns::String="", output::String="", format::String="table")
     validate_method(method, ["hp", "hamilton", "bn", "bk", "bhp"], "filter method")
-    component in ("cycle", "trend") || error("unknown component: $component (expected cycle|trend)")
+    component in ("cycle", "trend") || throw(CliError("usage/invalid",
+        "unknown component: $component (expected cycle|trend)"))
 
-    df = load_data(data)
-    Y = df_to_matrix(df)
-    vn = variable_names(df)
+    obj_in = resolve_data(data)
+    if obj_in isa DataFrame
+        Y = df_to_matrix(obj_in)
+        vn = variable_names(obj_in)
+    else
+        Y = to_matrix(obj_in)
+        vn = Vector{String}(varnames(obj_in))
+        for (j, c) in enumerate(vn)
+            _check_finite_col!(@view(Y[:, j]), c; allow_nan=false)
+        end
+    end
     T_obs, n = size(Y)
     col_idx = _parse_columns(columns, n)
 
@@ -749,9 +758,22 @@ function _data_filter(; data::String, method::String="hp", component::String="cy
         result_df[!, vname] = selected
     end
 
+    selected_vnames = String[vn[ci] for ci in col_idx]
+    filtered_Y = Matrix{Float64}(hcat([Vector{Float64}(result_df[!, vname]) for vname in selected_vnames]...))
+    ti_vec = collect(Int, result_df.t)
+    freq_kw = (obj_in isa DataFrame || !hasproperty(obj_in, :frequency)) ? (;) : (; frequency=obj_in.frequency)
+    out_obj = TimeSeriesData(filtered_Y; varnames=selected_vnames, tcode=fill(1, length(selected_vnames)),
+                             time_index=ti_vec, freq_kw...)
+    if !(obj_in isa DataFrame) && hasproperty(obj_in, :dates) && obj_in.dates isa AbstractVector && !isempty(obj_in.dates)
+        if length(obj_in.dates) == T_obs && all(idx -> 1 <= idx <= T_obs, ti_vec)
+            set_dates!(out_obj, String[string(obj_in.dates[idx]) for idx in ti_vec])
+        end
+    end
+
+    _persist_edit(out_obj, data, output, "_filter")
     title = "Data Filter: $method ($component component)"
-    output_result(result_df; format=Symbol(format), output=output, title=title, key="data_filter")
-    return result_df
+    output_result(result_df; format=Symbol(format), output="", title=title, key="data_filter")
+    return out_obj
 end
 
 function _data_validate(; data::String, model::String="", format::String="table", output::String="")
@@ -763,14 +785,36 @@ function _data_validate(; data::String, model::String="", format::String="table"
     validate_method(model, allowed_models, "model type")
 
     tsd = _as_macro_data(data)
-    n_obs, n_vars = size(to_matrix(tsd))
+    Y = to_matrix(tsd)
+    vn = Vector{String}(varnames(tsd))
+    n_obs, n_vars = size(Y)
     m_sym = model == "gjr-garch" ? :gjr_garch : Symbol(model)
 
     valid = true
     detail = "Data is valid for $model estimation ($n_vars variable(s), $n_obs observations)"
     try
         validate_for_model(tsd, m_sym)
-        _status_styled(detail * "\n"; color=:green)
+        bad_inf = String[]
+        bad_nan = String[]
+        for (j, c) in enumerate(vn)
+            n_inf = count(v -> v isa Real && isinf(v), @view Y[:, j])
+            n_nan = count(v -> v === missing || (v isa Real && isnan(v)), @view Y[:, j])
+            n_inf > 0 && push!(bad_inf, "$c ($n_inf Inf)")
+            n_nan > 0 && push!(bad_nan, "$c ($n_nan NaN/missing)")
+        end
+        if !isempty(bad_inf)
+            valid = false
+            detail = "Non-finite (Inf/-Inf) values in column(s): $(join(bad_inf, ", ")); clean via `data dropna` or `data fix` first"
+        elseif !isempty(bad_nan)
+            valid = false
+            detail = "Missing/NaN values in column(s): $(join(bad_nan, ", ")); drop or impute via `data dropna` or `data fix` first"
+        end
+        if valid
+            _status_styled(detail * "\n"; color=:green)
+        else
+            _status_styled("Data validation failed for $model:\n"; color=:red)
+            _status("  ", detail)
+        end
     catch e
         valid = false
         detail = sprint(showerror, e)
@@ -1165,7 +1209,7 @@ end
 
 function _data_export(; data::String, output::String="", format::String="table",
                        no_dates::Bool=false)
-    obj = resolve_data(data)
+    obj = startswith(data, ":") ? _load_example(parse_dataset_name(data)) : resolve_data(data)
     k = _data_kind_of(obj)
     k in (:timeseries, :panel, :cross_section) || throw(CliError("data/wrong-kind",
         "$data is not a data container (got $(typeof(obj)))";

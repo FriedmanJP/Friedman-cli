@@ -378,45 +378,56 @@ function _predict_logit(; data::String="", dep::String="", cov_type::String="hc1
         dep_name = "y"
     end
 
-    if marginal_effects
-        me = MacroEconometricModels.marginal_effects(model; conf_level=conf_level)
-        # #216: vector-form MarginalEffects routes through the central helper —
-        # upstream lowercase unrounded columns (+ non-finite-row drop, as report() does).
-        # Key frozen via the title slug (`average_marginal_effects_logit`).
-        _emit_result(me; title="Average Marginal Effects (Logit)",
-            format=Symbol(format), output=output, conf_level=conf_level)
-    elseif odds_ratio
-        or = MacroEconometricModels.odds_ratio(model; conf_level=conf_level)
-        or_df = DataFrame(Variable=or.varnames, Odds_Ratio=or.or,
-            CI_Lower=or.ci_lower, CI_Upper=or.ci_upper)
-        output_result(or_df; format=Symbol(format), output=output,
-                      title="Odds Ratios (Logit)")
-    elseif classification_table
-        ct = MacroEconometricModels.classification_table(model; threshold=threshold)
-        _status("Classification Table (threshold=$threshold):")
-        # Sort by KEY: the dict mixes scalars with a `confusion` matrix, so sorting
-        # the pairs themselves compares a Matrix against a Float (exit 1).
-        scalars = Pair{String,Any}[]
-        confusion = nothing
-        for k in sort(collect(keys(ct)))
-            v = ct[k]
-            if v isa AbstractMatrix
-                confusion = v
-            else
-                push!(scalars, k => v)
-            end
+    if marginal_effects || odds_ratio || classification_table
+        n_emitted = 0
+        if marginal_effects
+            me = MacroEconometricModels.marginal_effects(model; conf_level=conf_level)
+            # #216: vector-form MarginalEffects routes through the central helper —
+            # upstream lowercase unrounded columns (+ non-finite-row drop, as report() does).
+            # Key frozen via the title slug (`average_marginal_effects_logit`).
+            out_me = n_emitted == 0 ? output : _per_var_output_path(output, "marginal_effects")
+            _emit_result(me; title="Average Marginal Effects (Logit)",
+                format=Symbol(format), output=out_me, conf_level=conf_level)
+            n_emitted += 1
         end
-        output_kv(scalars; format=format, output=output,
-                  title="Classification Metrics (threshold=$threshold)",
-                  key="classification_metrics")
-        if confusion !== nothing
-            conf_df = DataFrame(confusion, ["predicted_$j" for j in 0:size(confusion, 2) - 1];
-                                makeunique=true)
-            insertcols!(conf_df, 1, :actual => ["actual_$i" for i in 0:size(confusion, 1) - 1];
-                        makeunique=true)
-            output_result(conf_df; format=Symbol(format),
-                          output=_per_var_output_path(output, "confusion"),
-                          title="Confusion Matrix")
+        if odds_ratio
+            or = MacroEconometricModels.odds_ratio(model; conf_level=conf_level)
+            or_df = DataFrame(Variable=or.varnames, Odds_Ratio=or.or,
+                CI_Lower=or.ci_lower, CI_Upper=or.ci_upper)
+            out_or = n_emitted == 0 ? output : _per_var_output_path(output, "odds_ratio")
+            output_result(or_df; format=Symbol(format), output=out_or,
+                          title="Odds Ratios (Logit)")
+            n_emitted += 1
+        end
+        if classification_table
+            ct = MacroEconometricModels.classification_table(model; threshold=threshold)
+            _status("Classification Table (threshold=$threshold):")
+            # Sort by KEY: the dict mixes scalars with a `confusion` matrix, so sorting
+            # the pairs themselves compares a Matrix against a Float (exit 1).
+            scalars = Pair{String,Any}[]
+            confusion = nothing
+            for k in sort(collect(keys(ct)))
+                v = ct[k]
+                if v isa AbstractMatrix
+                    confusion = v
+                else
+                    push!(scalars, k => v)
+                end
+            end
+            out_ct = n_emitted == 0 ? output : _per_var_output_path(output, "classification")
+            output_kv(scalars; format=format, output=out_ct,
+                      title="Classification Metrics (threshold=$threshold)",
+                      key="classification_metrics")
+            if confusion !== nothing
+                conf_df = DataFrame(confusion, ["predicted_$j" for j in 0:size(confusion, 2) - 1];
+                                    makeunique=true)
+                insertcols!(conf_df, 1, :actual => ["actual_$i" for i in 0:size(confusion, 1) - 1];
+                            makeunique=true)
+                output_result(conf_df; format=Symbol(format),
+                              output=_per_var_output_path(output, "confusion"),
+                              title="Confusion Matrix")
+            end
+            n_emitted += 1
         end
     else
         _status("Logit Fitted Probabilities: $dep_name")
@@ -448,39 +459,47 @@ function _predict_probit(; data::String="", dep::String="", cov_type::String="hc
         dep_name = "y"
     end
 
-    if marginal_effects
-        me = MacroEconometricModels.marginal_effects(model; conf_level=conf_level)
-        # #216: vector-form MarginalEffects routes through the central helper —
-        # upstream lowercase unrounded columns (+ non-finite-row drop, as report() does).
-        # Key frozen via the title slug (`average_marginal_effects_probit`).
-        _emit_result(me; title="Average Marginal Effects (Probit)",
-            format=Symbol(format), output=output, conf_level=conf_level)
-    elseif classification_table
-        ct = MacroEconometricModels.classification_table(model; threshold=threshold)
-        _status("Classification Table (threshold=$threshold):")
-        # Sort by KEY: the dict mixes scalars with a `confusion` matrix, so sorting
-        # the pairs themselves compares a Matrix against a Float (exit 1).
-        scalars = Pair{String,Any}[]
-        confusion = nothing
-        for k in sort(collect(keys(ct)))
-            v = ct[k]
-            if v isa AbstractMatrix
-                confusion = v
-            else
-                push!(scalars, k => v)
-            end
+    if marginal_effects || classification_table
+        n_emitted = 0
+        if marginal_effects
+            me = MacroEconometricModels.marginal_effects(model; conf_level=conf_level)
+            # #216: vector-form MarginalEffects routes through the central helper —
+            # upstream lowercase unrounded columns (+ non-finite-row drop, as report() does).
+            # Key frozen via the title slug (`average_marginal_effects_probit`).
+            out_me = n_emitted == 0 ? output : _per_var_output_path(output, "marginal_effects")
+            _emit_result(me; title="Average Marginal Effects (Probit)",
+                format=Symbol(format), output=out_me, conf_level=conf_level)
+            n_emitted += 1
         end
-        output_kv(scalars; format=format, output=output,
-                  title="Classification Metrics (threshold=$threshold)",
-                  key="classification_metrics")
-        if confusion !== nothing
-            conf_df = DataFrame(confusion, ["predicted_$j" for j in 0:size(confusion, 2) - 1];
-                                makeunique=true)
-            insertcols!(conf_df, 1, :actual => ["actual_$i" for i in 0:size(confusion, 1) - 1];
-                        makeunique=true)
-            output_result(conf_df; format=Symbol(format),
-                          output=_per_var_output_path(output, "confusion"),
-                          title="Confusion Matrix")
+        if classification_table
+            ct = MacroEconometricModels.classification_table(model; threshold=threshold)
+            _status("Classification Table (threshold=$threshold):")
+            # Sort by KEY: the dict mixes scalars with a `confusion` matrix, so sorting
+            # the pairs themselves compares a Matrix against a Float (exit 1).
+            scalars = Pair{String,Any}[]
+            confusion = nothing
+            for k in sort(collect(keys(ct)))
+                v = ct[k]
+                if v isa AbstractMatrix
+                    confusion = v
+                else
+                    push!(scalars, k => v)
+                end
+            end
+            out_ct = n_emitted == 0 ? output : _per_var_output_path(output, "classification")
+            output_kv(scalars; format=format, output=out_ct,
+                      title="Classification Metrics (threshold=$threshold)",
+                      key="classification_metrics")
+            if confusion !== nothing
+                conf_df = DataFrame(confusion, ["predicted_$j" for j in 0:size(confusion, 2) - 1];
+                                    makeunique=true)
+                insertcols!(conf_df, 1, :actual => ["actual_$i" for i in 0:size(confusion, 1) - 1];
+                            makeunique=true)
+                output_result(conf_df; format=Symbol(format),
+                              output=_per_var_output_path(output, "confusion"),
+                              title="Confusion Matrix")
+            end
+            n_emitted += 1
         end
     else
         _status("Probit Fitted Probabilities: $dep_name")

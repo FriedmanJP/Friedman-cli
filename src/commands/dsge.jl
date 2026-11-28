@@ -3937,9 +3937,9 @@ function _ha_ss_tables(ss; format::String, output::String, title_prefix::String=
     end
     diag_df = DataFrame(
         metric = ["converged", "iterations", "euler_error", "excess_demand"],
-        value = [
-            Float64(ss.converged ? 1.0 : 0.0),
-            Float64(ss.iterations),
+        value = Any[
+            Bool(ss.converged),
+            Int(ss.iterations),
             Float64(ss.euler_error),
             Float64(ss.excess_demand),
         ],

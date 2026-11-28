@@ -1,9 +1,10 @@
 function resolve_save_path(path::String; default_ext::String=".jld2")::String
     isempty(path) && return path
     _is_session_uri(path) && return path
-    p = _expanduser(path)
-    !isempty(_known_ext(p)) && return p
-    return p * default_ext
+    base, key = _split_key_selector(path)
+    p = _expanduser(base)
+    out = !isempty(_known_ext(p)) ? p : (p * default_ext)
+    return key === nothing ? out : "$(out)#$(key)"
 end
 
 function resolve_stem(path::String; slot::Symbol=:data)::String
@@ -73,7 +74,7 @@ function _write_macro_data(obj, output::String; input_path::String, default_stem
     catch
         input_path
     end
-    input_handle = _is_handle_path(resolved_in)
+    input_handle = _is_handle_path(resolved_in) || startswith(resolved_in, ":")
     if isempty(output)
         output = default_stem
         output = input_handle ? resolve_save_path(output) :

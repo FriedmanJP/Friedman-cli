@@ -41,7 +41,7 @@ function session_load_data!(s::Session, path::String)
     path = (startswith(path, ":") || _repl_is_session_uri(path)) ? path :
            resolve_stem(_expanduser(path); slot=:data)
     df = load_data(path)
-    Y = df_to_matrix(df)
+    Y = df_to_matrix(df; allow_missing=true, allow_nonfinite=true)
     vnames = variable_names(df)
     s.data_path = path
     s.df = df
@@ -607,8 +607,8 @@ function _exec_repl_line!(
     line = _strip_csi_escapes(raw_line)
     isempty(strip(line)) && return true
 
-    args = _split_repl_line(line)
     try
+        args = _split_repl_line(line)
         repl_dispatch(s, app, args; output=output, err=err)
     catch e
         if e isa InterruptException
@@ -720,7 +720,7 @@ end
 
 Split a REPL input line into tokens, respecting quoted strings.
 """
-function _split_repl_line(line::String)
+function _split_repl_line(line::String; strict::Bool=true)
     tokens = String[]
     buf = IOBuffer()
     in_token = false
@@ -752,6 +752,13 @@ function _split_repl_line(line::String)
             write(buf, ch)
             in_token = true
         end
+    end
+    if quote_char !== nothing && strict
+        throw(ParseError("unclosed quote ($quote_char) in input"))
+    end
+    if escaped
+        write(buf, '\\')
+        in_token = true
     end
     in_token && push!(tokens, String(take!(buf)))
     return tokens
@@ -868,7 +875,7 @@ function complete_command(
     index::Union{Nothing,CompletionIndex}=nothing,
 )
     idx = isnothing(index) ? _completion_index(app) : index
-    tokens = _split_repl_line(partial)
+    tokens = _split_repl_line(partial; strict=false)
     isempty(tokens) && return get(idx.children, String[], String[])
 
     has_trailing_space = !isempty(partial) && isspace(last(partial))
@@ -961,7 +968,7 @@ function _init_completion_provider()
             partial = pos > 0 ? String(buf.data[1:pos]) : ""
             completions = complete_command(c.app, partial; index=c.index)
             has_trailing_space = !isempty(partial) && isspace(last(partial))
-            tokens = _split_repl_line(partial)
+            tokens = _split_repl_line(partial; strict=false)
             last_token = (isempty(tokens) || has_trailing_space) ? "" : tokens[end]
             return completions, last_token, !isempty(completions)
         end

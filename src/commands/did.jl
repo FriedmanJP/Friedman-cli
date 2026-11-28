@@ -63,11 +63,15 @@ function _did_estimate(; data::String, outcome::String, treatment::String,
 
     covs = isempty(covariates) ? String[] : String.(split(covariates, ","))
 
-    result = estimate_did(pd, outcome, treatment;
-        method=_did_method_sym(method), leads=leads, horizon=horizon,
-        covariates=covs, control_group=Symbol(control_group),
-        cluster=Symbol(cluster), conf_level=conf_level, n_boot=n_boot,
-        base_period=Symbol(base_period), _fwd_seed()...)
+    result = try
+        estimate_did(pd, outcome, treatment;
+            method=_did_method_sym(method), leads=leads, horizon=horizon,
+            covariates=covs, control_group=Symbol(control_group),
+            cluster=Symbol(cluster), conf_level=conf_level, n_boot=n_boot,
+            base_period=Symbol(base_period), _fwd_seed()...)
+    catch e
+        throw(_domain_or_data_error(e, "DiD estimation"))
+    end
 
     # #216: the C051 exception is overturned — upstream `_coef_nt(::DIDResult)` is a
     # strict superset (event_time|term|estimate|std_error|stat|p_value|ci_lower|ci_upper),
@@ -119,9 +123,13 @@ function _did_event_study(; data::String, outcome::String, treatment::String,
 
     covs = isempty(covariates) ? String[] : String.(split(covariates, ","))
 
-    result = estimate_event_study_lp(pd, outcome, treatment, horizon;
-        leads=leads, lags=lags, covariates=covs,
-        cluster=Symbol(cluster), conf_level=conf_level)
+    result = try
+        estimate_event_study_lp(pd, outcome, treatment, horizon;
+            leads=leads, lags=lags, covariates=covs,
+            cluster=Symbol(cluster), conf_level=conf_level)
+    catch e
+        throw(_domain_or_data_error(e, "event-study LP estimation"))
+    end
 
     fmt = Symbol(lowercase(format))
     _emit_result(result; title="Event Study LP — $(result.outcome_var)",
@@ -243,7 +251,11 @@ function _did_test_bacon(; data::String, outcome::String, treatment::String,
     id, tc = _did_panel_cols(df, id_col, time_col)
     pd = _load_panel_for_did(data, id, tc)
 
-    result = bacon_decomposition(pd, outcome, treatment)
+    result = try
+        bacon_decomposition(pd, outcome, treatment)
+    catch e
+        throw(_domain_or_data_error(e, "Bacon decomposition"))
+    end
 
     fmt = Symbol(lowercase(format))
     _emit_result(result; title="Bacon Decomposition (Goodman-Bacon 2021)",
@@ -272,15 +284,19 @@ function _did_test_pretrend(; data::String, outcome::String, treatment::String,
     id, tc = _did_panel_cols(df, id_col, time_col)
     pd = _load_panel_for_did(data, id, tc)
 
-    if method == "event-study"
-        est = estimate_event_study_lp(pd, outcome, treatment, horizon;
-            leads=leads, lags=lags, cluster=Symbol(cluster), conf_level=conf_level)
-        result = pretrend_test(est)
-    else
-        est = estimate_did(pd, outcome, treatment;
-            method=_did_method_sym(did_method), leads=leads, horizon=horizon,
-            cluster=Symbol(cluster), conf_level=conf_level, _fwd_seed()...)
-        result = pretrend_test(est)
+    result = try
+        if method == "event-study"
+            est = estimate_event_study_lp(pd, outcome, treatment, horizon;
+                leads=leads, lags=lags, cluster=Symbol(cluster), conf_level=conf_level)
+            pretrend_test(est)
+        else
+            est = estimate_did(pd, outcome, treatment;
+                method=_did_method_sym(did_method), leads=leads, horizon=horizon,
+                cluster=Symbol(cluster), conf_level=conf_level, _fwd_seed()...)
+            pretrend_test(est)
+        end
+    catch e
+        throw(_domain_or_data_error(e, "pre-trend test"))
     end
 
     output_kv([
@@ -305,7 +321,11 @@ function _did_test_negweight(; data::String, treatment::String,
     id, tc = _did_panel_cols(df, id_col, time_col)
     pd = _load_panel_for_did(data, id, tc)
 
-    result = negative_weight_check(pd, treatment)
+    result = try
+        negative_weight_check(pd, treatment)
+    catch e
+        throw(_domain_or_data_error(e, "negative weight check"))
+    end
 
     fmt = Symbol(lowercase(format))
     output_kv([
@@ -344,15 +364,19 @@ function _did_test_honest(; data::String, outcome::String, treatment::String,
     id, tc = _did_panel_cols(df, id_col, time_col)
     pd = _load_panel_for_did(data, id, tc)
 
-    if method == "event-study"
-        est = estimate_event_study_lp(pd, outcome, treatment, horizon;
-            leads=leads, lags=lags, cluster=Symbol(cluster), conf_level=conf_level)
-        result = honest_did(est; Mbar=mbar, conf_level=conf_level)
-    else
-        est = estimate_did(pd, outcome, treatment;
-            method=_did_method_sym(did_method), leads=leads, horizon=horizon,
-            cluster=Symbol(cluster), conf_level=conf_level, _fwd_seed()...)
-        result = honest_did(est; Mbar=mbar, conf_level=conf_level)
+    result = try
+        if method == "event-study"
+            est = estimate_event_study_lp(pd, outcome, treatment, horizon;
+                leads=leads, lags=lags, cluster=Symbol(cluster), conf_level=conf_level)
+            honest_did(est; Mbar=mbar, conf_level=conf_level)
+        else
+            est = estimate_did(pd, outcome, treatment;
+                method=_did_method_sym(did_method), leads=leads, horizon=horizon,
+                cluster=Symbol(cluster), conf_level=conf_level, _fwd_seed()...)
+            honest_did(est; Mbar=mbar, conf_level=conf_level)
+        end
+    catch e
+        throw(_domain_or_data_error(e, "HonestDiD sensitivity"))
     end
 
     hon_df = DataFrame(

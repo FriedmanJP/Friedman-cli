@@ -15,40 +15,8 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 # Shared utilities for command handlers
-
-# ── Gap-cell guard ─────────────────────────────────────────
-
-"""Gap-cell test for loaded data columns: `missing` (a blank CSV cell) or a
-non-finite float (`NaN` literal, `±Inf`, or a NaN-bearing `:example` dataset
-such as `:fred_md`).
-
-Every shared loader guards with `any(_is_gap, col)` so both surface as typed
-`data/missing-values` (exit 3) instead of an untyped `ArgumentError` from the
-`Matrix{Float64}`/`Vector{Float64}` conversion or an upstream validator (exit 1) —
-unless the caller passes `allow_nan` (nowcasting estimators digest ragged edges).
-Non-finiteness needs the explicit `isa Real` check: `isnan`/`isinf`/`isfinite`
-are undefined on `missing` and on non-Real values, and a bare broadcast would throw."""
-_is_gap(v) = v === missing || (v isa Real && !isfinite(v))
-
-"""
-    _check_finite_col!(col, colname; allow_nan=false)
-
-Standardized finite-value guard shared across all univariate, multivariate, and
-panel data loaders (both raw files and handles, #307). Rejects `Inf`/`-Inf`
-unconditionally as `data/non-finite-values` (exit 3) and rejects `missing`/`NaN`
-as `data/missing-values` (exit 3) unless `allow_nan=true`.
-"""
-function _check_finite_col!(col, colname::AbstractString; allow_nan::Bool=false)
-    n_inf = count(v -> v isa Real && isinf(v), col)
-    n_inf > 0 && throw(CliError("data/non-finite-values",
-        "column '$colname' contains $n_inf non-finite (Inf/-Inf) value(s); clean or drop them (e.g. via `data dropna`/`data fix`) first"))
-    if !allow_nan
-        n_miss = count(v -> v === missing || (v isa Real && isnan(v)), col)
-        n_miss > 0 && throw(CliError("data/missing-values",
-            "column '$colname' contains missing values ($n_miss missing/NaN); drop or impute them (e.g. via `data dropna`/`data fix`) first"))
-    end
-    return nothing
-end
+# Note: `_is_gap` and `_check_finite_col!` live in `src/io.jl` (so `df_to_matrix`
+# enforces finite checks even when `io.jl` is loaded standalone in engine tests, #349).
 
 # ── Data Loading Helpers ───────────────────────────────────
 
@@ -63,25 +31,8 @@ unless `allow_nan` (nowcasting only; `Inf`/`-Inf` are always rejected).
 function load_multivariate_data(data::String; allow_nan::Bool=false)
     obj = resolve_data(data)
     if obj isa DataFrame
-        df = obj
-        vn = variable_names(df)
-        for c in vn
-            _check_finite_col!(df[!, c], c; allow_nan=allow_nan)
-        end
-        if allow_nan
-            isempty(vn) && throw(CliError("data/no-numeric-columns", "no numeric columns found in data"))
-            nr, nc = nrow(df), length(vn)
-            Y = Matrix{Float64}(undef, nr, nc)
-            for (j, c) in enumerate(vn)
-                col = df[!, c]
-                @inbounds for i in 1:nr
-                    v = col[i]
-                    Y[i, j] = v === missing ? NaN : Float64(v)
-                end
-            end
-            return Y, vn
-        end
-        return df_to_matrix(df), vn
+        vn = variable_names(obj)
+        return df_to_matrix(obj; allow_missing=allow_nan), vn
     end
     Y = to_matrix(obj)
     vn = Vector{String}(varnames(obj))
@@ -1640,7 +1591,27 @@ handle does not.
 """
 function load_panel_data(data::String, id_col::String, time_col::String; allow_nan::Bool=false)
     df = nothing
-    if _is_handle_path(data)
+    if startswith(data, ":")
+        obj = _load_example(parse_dataset_name(data))
+        k = _data_kind_of(obj)
+        if k === :panel
+            if isempty(id_col) && isempty(time_col)
+                Y = to_matrix(obj)
+                vn = Vector{String}(MacroEconometricModels.varnames(obj))
+                for (j, c) in enumerate(vn)
+                    _check_finite_col!(@view(Y[:, j]), c; allow_nan=allow_nan)
+                end
+                return obj
+            end
+            df = dataset_to_dataframe(obj)
+            isempty(id_col) && (id_col = "group")
+            isempty(time_col) && (time_col = "time")
+        else
+            throw(CliError("data/wrong-kind",
+                "$data is a $k dataset ($(nameof(typeof(obj)))); this command expects PanelData";
+                hint="use a panel example (:grunfeld, :mpdta, :pwt, :ddcg) or a panel CSV with --id-col/--time-col"))
+        end
+    elseif _is_handle_path(data)
         obj = load_model_dispatch(data)
         k = _data_kind_of(obj)
         if k === :panel

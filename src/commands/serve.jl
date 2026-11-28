@@ -389,9 +389,10 @@ function _serve(; mcp::Bool=false, families::String="", tools::String="", compac
     silent_banner = isdefined(@__MODULE__, :_env_get) ?
         (_env_get("FRDC_MCP_SILENT_BANNER", "FRIEDMAN_MCP_SILENT_BANNER") == "1") :
         (get(ENV, "FRDC_MCP_SILENT_BANNER", get(ENV, "FRIEDMAN_MCP_SILENT_BANNER", "")) == "1")
+    effective_compact = compact || (isdefined(@__MODULE__, :_COMPACT) && _COMPACT[])
     silent_banner || _status("frdc MCP server on stdio (JSON-RPC 2.0, protocol $_MCP_PROTOCOL_VERSION); " *
                              "one line per message; Ctrl-D to stop")
-    _serve_loop(stdin, stdout; families=families, tools=tools, compact=compact)
+    _serve_loop(stdin, stdout; families=families, tools=tools, compact=effective_compact)
     return nothing
 end
 
