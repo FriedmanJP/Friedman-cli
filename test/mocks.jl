@@ -136,7 +136,7 @@ capture_manifest(; seed::Union{Integer,Nothing}=nothing,
                   "2026-01-01T00:00:00Z", "unknown", false,
                   Dict{String,Any}(settings))
 
-function save_model(model, path::AbstractString)
+function save_model(model, path::AbstractString; note::AbstractString="", compress::Bool=false)
     tname = string(nameof(typeof(model)))
     # `_SERIALIZABLE_TYPES` mirrors the real registry and is defined at the BOTTOM of this
     # file — every type in it must already exist, and mocks.jl is one flat top-to-bottom
@@ -145,7 +145,25 @@ function save_model(model, path::AbstractString)
         "save_model does not support $(typeof(model))"))
     open(p -> Serialization.serialize(p,
         Dict{String,Any}("format_version" => SERIALIZATION_FORMAT_VERSION,
-                         "type" => tname, "payload" => model)), path, "w")
+                         "type" => tname, "note" => String(note), "payload" => model)), path, "w")
+    return path
+end
+
+function save_model(objs::AbstractDict{String,<:Any}, path::AbstractString;
+                    note::AbstractString="", compress::Bool=false)
+    entries = Dict{String,Any}()
+    for (k, v) in objs
+        tname = string(nameof(typeof(v)))
+        haskey(_SERIALIZABLE_TYPES, tname) || throw(SerializationError(
+            "bundle key '$k': save_model does not support $(typeof(v))"))
+        entries[k] = Dict{String,Any}(
+            "format_version" => SERIALIZATION_FORMAT_VERSION,
+            "type" => tname, "note" => "", "payload" => v,
+        )
+    end
+    open(p -> Serialization.serialize(p,
+        Dict{String,Any}("format_version" => SERIALIZATION_FORMAT_VERSION,
+                         "bundle" => true, "note" => String(note), "entries" => entries)), path, "w")
     return path
 end
 
@@ -157,6 +175,10 @@ function load_model(path::AbstractString)
     c["format_version"] == SERIALIZATION_FORMAT_VERSION || throw(SerializationError(
         "unsupported serialization format_version $(c["format_version"]): " *
         "this build reads $SERIALIZATION_FORMAT_VERSION"))
+    if get(c, "bundle", false) === true
+        src = get(c, "entries", Dict{String,Any}())
+        return Dict{String,Any}(string(k) => v["payload"] for (k, v) in src)
+    end
     return c["payload"]
 end
 
@@ -166,12 +188,36 @@ function model_info(path::AbstractString)
     c = open(Serialization.deserialize, path)
     (c isa AbstractDict && haskey(c, "format_version")) ||
         throw(SerializationError("file '$path' is not a model container"))
+    if get(c, "bundle", false) === true
+        src = get(c, "entries", Dict{String,Any}())
+        entries = Dict{String,Any}(
+            string(k) => Dict{String,Any}(
+                "format_version" => c["format_version"],
+                "package_version" => "0.7.2",
+                "julia_version" => string(VERSION),
+                "created" => "2026-01-01T00:00:00Z",
+                "note" => String(get(v, "note", "")),
+                "manifest" => nothing,
+                "type" => v["type"],
+            ) for (k, v) in src
+        )
+        return Dict{String,Any}(
+            "format_version" => c["format_version"],
+            "package_version" => "0.7.2",
+            "julia_version" => string(VERSION),
+            "created" => "2026-01-01T00:00:00Z",
+            "note" => String(get(c, "note", "")),
+            "manifest" => nothing,
+            "bundle" => true,
+            "entries" => entries,
+        )
+    end
     return Dict{String,Any}(
         "format_version" => c["format_version"],
         "package_version" => "0.7.2",
         "julia_version" => string(VERSION),
         "created" => "2026-01-01T00:00:00Z",
-        "note" => "",
+        "note" => String(get(c, "note", "")),
         "manifest" => nothing,
         "bundle" => false,
         "type" => c["type"],
@@ -1185,7 +1231,7 @@ end
 function irf(post::BVARPosterior, horizon::Int;
              method=:cholesky, quantiles=[0.16, 0.5, 0.84],
              check_func=nothing, narrative_check=nothing,
-             seed=nothing,
+             seed=nothing, threaded::Bool=true,
              weighting=nothing, hetero=nothing, maxiter=nothing,
              gibbs_burn=nothing, gibbs_draws=nothing, init=nothing)
     n = post.n
@@ -1251,6 +1297,7 @@ end
 function fevd(post::BVARPosterior, horizon::Int;
               method=:cholesky, quantiles=[0.16, 0.5, 0.84],
               check_func=nothing, narrative_check=nothing,
+              threaded::Bool=true,
               weighting=nothing, hetero=nothing, maxiter=nothing,
               gibbs_burn=nothing, gibbs_draws=nothing, init=nothing)
     n = post.n
@@ -1310,7 +1357,8 @@ end
 function historical_decomposition(post::BVARPosterior, horizon::Int;
                                    method=:cholesky, quantiles=[0.16, 0.5, 0.84],
                                    check_func=nothing, narrative_check=nothing,
-                                   seed=nothing, weighting=nothing, hetero=nothing,
+                                   seed=nothing, threaded::Bool=true,
+                                   weighting=nothing, hetero=nothing,
                                    maxiter=nothing, gibbs_burn=nothing,
                                    gibbs_draws=nothing, init=nothing)
     n = post.n; p = post.p; data = post.data

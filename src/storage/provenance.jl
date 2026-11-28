@@ -220,6 +220,70 @@ function _reproduce_from_source(obj, src, seed_val, tol::Float64)
     return _compare_repro_objects(obj, rerun, cands, tol)
 end
 
+"""MEMs v1.1.3 parallelized fixed-parameter `estimate_dsge_var` via per-draw
+`Xoshiro(draw_seeds[s])` seeding while `reproduce(::DSGEVARPosterior)` retained
+sequential `rng` draws. Re-verify using the per-draw RNG stream; only adopt the
+result when all posterior draw arrays match within `tol` (tampered handles still
+report `matched = false`)."""
+function _reproduce_dsgevar_per_draw(post, seed_val, tol::Float64)
+    hasproperty(post, :theta_draws) && post.theta_draws !== nothing && return nothing
+    hasproperty(post, :lambda) && isinf(post.lambda) && return nothing
+    seed_val isa Integer || return nothing
+    M = MacroEconometricModels
+    for sym in (:_resolve_repro_rng, :_dsgevar_has_intercept, :_dsgevar_data_stats,
+                :_dsgevar_posterior_params, :_dsgevar_draw_iw, :safe_cholesky)
+        isdefined(M, sym) || return nothing
+    end
+    try
+        T = eltype(post.B_draws)
+        WT = promote_type(T, Float64)
+        rng = M._resolve_repro_rng(Random.default_rng(), seed_val)
+        n_draws = Int(post.n_draws)
+        prior = post.dsge_prior
+        n = post.n
+        p = post.p
+        k = size(prior.Gamma_xx, 1)
+        sh_m = size(prior.Omega_star, 2)
+        include_intercept = M._dsgevar_has_intercept(prior)
+        Y_eff, X, _, XtY, XtX, T_eff = M._dsgevar_data_stats(WT, post.data, p, n, include_intercept)
+        B_post, V_post, _, _, _, S_post, _, nu_post, _, _ =
+            M._dsgevar_posterior_params(
+                Matrix{WT}(prior.Gamma_yy),
+                Matrix{WT}(prior.Gamma_xy),
+                Matrix{WT}(prior.Gamma_xx),
+                Matrix{WT}(prior.Phi_star),
+                Matrix{WT}(prior.Sigma_u_star),
+                prior.T_obs,
+                WT(post.lambda),
+                Y_eff, X, XtY, XtX, T_eff,
+            )
+        L_V = Matrix{WT}(M.safe_cholesky(LinearAlgebra.Hermitian(V_post); silent=true))
+        L_S = Matrix{WT}(M.safe_cholesky(LinearAlgebra.Hermitian(S_post); silent=true))
+        Omega_w = Matrix{WT}(prior.Omega_star)
+        B_fresh = Array{T,3}(undef, n_draws, k, n)
+        S_fresh = Array{T,3}(undef, n_draws, n, n)
+        B0_fresh = Array{T,3}(undef, n_draws, n, sh_m)
+        draw_seeds = rand(rng, UInt64, n_draws)
+        Z_buf = Matrix{WT}(undef, k, n)
+        @inbounds for s in 1:n_draws
+            local_rng = Random.Xoshiro(draw_seeds[s])
+            Sigma_s = M._dsgevar_draw_iw(nu_post, L_S, local_rng)
+            L_Sigma = Matrix{WT}(M.safe_cholesky(LinearAlgebra.Hermitian(Sigma_s); silent=true))
+            Random.randn!(local_rng, Z_buf)
+            Phi_s = B_post + L_V * Z_buf * transpose(L_Sigma)
+            B0_s = L_Sigma * Omega_w
+            B_fresh[s, :, :] = Matrix{T}(Phi_s)
+            S_fresh[s, :, :] = Matrix{T}(Sigma_s)
+            B0_fresh[s, :, :] = Matrix{T}(B0_s)
+        end
+        rerun = (B_draws=B_fresh, Sigma_draws=S_fresh, B0_draws=B0_fresh)
+        cmp = _compare_repro_objects(post, rerun, (:B_draws, :Sigma_draws, :B0_draws), tol)
+        return (cmp !== nothing && cmp.matched) ? cmp : nothing
+    catch
+        return nothing
+    end
+end
+
 """
     reproduce_handle(obj, path; source_model="", tol=1e-10) → NamedTuple
 
@@ -269,7 +333,18 @@ function reproduce_handle(obj, path::String; source_model::String="", tol::Float
     note = rep.note
     max_abs_diff = isempty(fields) ? 0.0 : maximum(Float64(d.max_abs_diff) for d in fields)
 
-    # Fallback: if upstream returned matched === missing and we have a source model,
+    # Fallback 1: MEMs v1.1.3 per-draw RNG compatibility for fixed-parameter DSGEVARPosterior.
+    if matched === false && nameof(typeof(obj)) === :DSGEVARPosterior
+        dv_cmp = _reproduce_dsgevar_per_draw(obj, seed_val, tol)
+        if dv_cmp !== nothing
+            matched = dv_cmp.matched
+            max_abs_diff = dv_cmp.max_abs_diff
+            fields = dv_cmp.fields
+            note = "reproduced via per-draw seeded NIW stream"
+        end
+    end
+
+    # Fallback 2: if upstream returned matched === missing and we have a source model,
     # attempt CLI-level derived reproduction (VAR/BVAR/LP/VECM/ARIMA/Factor).
     if matched === missing && src !== nothing
         cli_cmp = _reproduce_from_source(obj, src, seed_val, tol)
