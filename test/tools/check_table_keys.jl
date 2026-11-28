@@ -25,6 +25,7 @@ using CSV, DataFrames, JSON3, PrettyTables, TOML, Random
 using LinearAlgebra: eigvals, diag, I, svd, diagm
 using Statistics: mean, median, var, quantile
 using Dates
+using Sockets
 
 const ROOT = dirname(dirname(@__DIR__))
 
@@ -77,6 +78,9 @@ include(joinpath(ROOT, "src", "commands", "ri.jl"))
 include(joinpath(ROOT, "src", "commands", "spectral.jl"))
 include(joinpath(ROOT, "src", "commands", "schema.jl"))
 include(joinpath(ROOT, "src", "commands", "model.jl"))
+include(joinpath(ROOT, "src", "daemon.jl"))
+include(joinpath(ROOT, "src", "commands", "cache.jl"))
+include(joinpath(ROOT, "src", "commands", "daemon.jl"))
 include(joinpath(ROOT, "src", "commands", "completions.jl"))
 include(joinpath(ROOT, "src", "commands", "serve.jl"))
 include(joinpath(ROOT, "src", "commands", "show.jl"))
@@ -101,6 +105,8 @@ register_policy_commands!()
 register_ri_commands!()
 register_spectral_commands!()
 register_model_commands!()
+register_cache_commands!()
+register_daemon_commands!()
 register_completions_commands!()
 register_serve_commands!()
 register_show_commands!()

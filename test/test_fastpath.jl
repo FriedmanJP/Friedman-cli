@@ -37,6 +37,7 @@ function _compile_wrapper(out_exe::String; sanitize::Bool=!Sys.iswindows())
     srcs = String[joinpath(_WRAPPER_DIR, "frdc_thin.c")]
     mcp_src = joinpath(_WRAPPER_DIR, "mcp_proxy.c")
     yy_src  = joinpath(_WRAPPER_DIR, "yyjson.c")
+    dc_src  = joinpath(_WRAPPER_DIR, "daemon_client.c")
     has_mcp = isfile(mcp_src) && isfile(yy_src)
     if has_mcp
         append!(flags, [
@@ -47,6 +48,10 @@ function _compile_wrapper(out_exe::String; sanitize::Bool=!Sys.iswindows())
             "-DYYJSON_DISABLE_FAST_FP_CONV=1",
         ])
         push!(srcs, mcp_src, yy_src)
+        if isfile(dc_src)
+            push!(flags, "-DFRDC_ENABLE_DAEMON_CLIENT")
+            push!(srcs, dc_src)
+        end
     end
     if Sys.iswindows()
         push!(flags, "-municode")
@@ -673,6 +678,67 @@ print('INTERACTIVE_OK')
                 # Valid CLI --digits overrides bad FRDC_DIGITS (matches src/io.jl:272)
                 r_ovr = _run_proc(wrapper_exe, ["--digits", "4", "data", "list"]; env_extra=Dict("FRDC_DIGITS" => "bad"))
                 @test r_ovr.code == 0 && !startswith(r_ovr.stdout, "CORE_FALLBACK:")
+            end
+
+            @testset "[UX2] & [PERF-W4] fast-path parity (#351, #352, #358)" begin
+                # #351 P1-1: leading --compact serve --mcp == serve --mcp --compact
+                if has_mcp
+                    req1 = """{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"limit":2}}\n"""
+                    fp_lead = _run_proc(wrapper_exe, ["--compact", "serve", "--mcp", "--quiet"]; stdin_data=req1)
+                    fp_tail = _run_proc(wrapper_exe, ["serve", "--mcp", "--quiet", "--compact"]; stdin_data=req1)
+                    @test fp_lead.code == 0 && fp_tail.code == 0
+                    @test fp_lead.stdout == fp_tail.stdout
+                    t0 = JSON3.read(strip(fp_lead.stdout)).result.tools[1]
+                    for pv in values(t0.inputSchema.properties)
+                        @test !(pv isa JSON3.Object && haskey(pv, Symbol("x-cli")))
+                        @test !(pv isa JSON3.Object && haskey(pv, Symbol("x-handle")))
+                    end
+                end
+
+                # #352 P2-3, P2-4, P3-2: --quiet Error: prefix, did-you-mean, v0.x hints, unknowncmd --help
+                for argv in (
+                    ["--quiet", "estimat"],
+                    ["estimate", "multivariate", "vra"],
+                    ["var"],
+                    ["unit_root"],
+                    ["local_projections"],
+                    ["help"],
+                    ["forecast", "var", "arima"],
+                    ["unknowncmd", "--help"],
+                    ["-J", "--quiet", "estimat"],
+                    ["-J", "unknowncmd", "--help"],
+                )
+                    fp = _run_proc(wrapper_exe, argv)
+                    jl = _run_julia_cli(argv)
+                    @test fp.code == 2
+                    @test fp.code == jl.code
+                    @test fp.stderr == jl.stderr
+                    @test startswith(fp.stderr, "Error: ")
+                    if "-J" in argv
+                        fd = JSON3.read(strip(fp.stdout))
+                        jd = JSON3.read(strip(jl.stdout))
+                        @test fd.status == "error" && fd.status == jd.status
+                        @test fd.error == jd.error
+                        @test fd.command == jd.command
+                    end
+                end
+                @test occursin("did you mean 'estimate'", _run_proc(wrapper_exe, ["--quiet", "estimat"]).stderr)
+                @test occursin("forecast univariate arima", _run_proc(wrapper_exe, ["forecast", "var", "arima"]).stderr)
+
+                # #358: valid --threads fast-path & invalid --threads / FRDC_THREADS fail-open to frdc-core
+                r_t1 = _run_proc(wrapper_exe, ["--threads=1", "--version"])
+                @test r_t1.code == 0 && startswith(r_t1.stdout, "frdc v")
+                r_ta = _run_proc(wrapper_exe, ["--threads=auto", "--version"])
+                @test r_ta.code == 0 && startswith(r_ta.stdout, "frdc v")
+                for bad_t in (["--threads=0", "--version"], ["--threads=-2", "--version"], ["--threads=foo", "--version"])
+                    rb = _run_proc(wrapper_exe, bad_t)
+                    @test rb.code == 42 && startswith(rb.stdout, "CORE_FALLBACK:")
+                end
+                rb_env = _run_proc(wrapper_exe, ["--version"]; env_extra=Dict("FRDC_THREADS" => "bad"))
+                @test rb_env.code == 42 && startswith(rb_env.stdout, "CORE_FALLBACK:")
+                # --threads=4 on data list fails open to frdc-core so live n_threads/blas_threads populate
+                r_t4_dl = _run_proc(wrapper_exe, ["--threads=4", "data", "list", "--format", "json"])
+                @test r_t4_dl.code == 42 && startswith(r_t4_dl.stdout, "CORE_FALLBACK:")
             end
         end
     end

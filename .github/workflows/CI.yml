@@ -246,6 +246,47 @@ jobs:
           CI: "1"
         run: julia --project test/test_e2e.jl
 
+  # Multi-thread solver conflict matrix (JULIA_NUM_THREADS=4 OPENBLAS_NUM_THREADS=1) + daemon chaos (#357, #358, #359)
+  multithread-conflicts:
+    name: Multithread solver conflicts & daemon (${{ matrix.os }} / Julia 1.13)
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    permissions:
+      actions: write
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: julia-actions/setup-julia@4c0cb0fce8556fdb04a90347310e5db8b1f98fb9 # v2
+        with:
+          version: "1.13"
+          arch: x64
+      - uses: julia-actions/cache@d10a6fd8f31b12404a54613ebad242900567f2b9 # v2
+      - name: Instantiate integration project
+        shell: bash
+        run: |
+          julia --project=test/integration -e '
+            using Pkg
+            try Pkg.rm("Friedman") catch end
+            Pkg.develop(path=".")
+            Pkg.instantiate()
+          '
+      - name: Run multi-thread solver conflict matrix (4T / OPENBLAS=1)
+        env:
+          JULIA_NUM_THREADS: "4"
+          OPENBLAS_NUM_THREADS: "1"
+        shell: bash
+        run: julia --project=test/integration test/integration/test_multithread_conflicts.jl
+      - name: Run multi-agent daemon chaos suite (POSIX)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          julia --project -e 'using Pkg; Pkg.instantiate()'
+          julia --project test/test_daemon_chaos.jl
+
   # Upstream early-warning radar: latest Julia + MEMs dev. Allowed to fail.
   canary:
     name: Canary — Julia latest + MEMs dev

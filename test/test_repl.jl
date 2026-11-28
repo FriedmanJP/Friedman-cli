@@ -97,9 +97,20 @@ module Friedman
         nrow(df) == 0 && error("empty dataset: $path")
         return df
     end
-    function df_to_matrix(df::DataFrame)
+    function df_to_matrix(df::DataFrame; allow_missing::Bool=false, allow_nonfinite::Bool=false)
         numeric_cols = [n for n in names(df) if eltype(df[!, n]) <: Union{Number, Missing}]
         isempty(numeric_cols) && error("no numeric columns found")
+        if allow_missing
+            T, n = nrow(df), length(numeric_cols)
+            mat = Matrix{Float64}(undef, T, n)
+            for (j, col) in enumerate(numeric_cols)
+                v = df[!, col]
+                for i in 1:T
+                    mat[i, j] = ismissing(v[i]) ? NaN : Float64(v[i])
+                end
+            end
+            return mat
+        end
         return Matrix{Float64}(df[!, numeric_cols])
     end
     variable_names(df::DataFrame) = [n for n in names(df) if eltype(df[!, n]) <: Union{Number, Missing}]
@@ -454,7 +465,8 @@ end
     @test Friedman._split_repl_line("   ") == String[]
     @test Friedman._split_repl_line("help") == ["help"]
     # Unclosed quote — takes rest of line as token
-    @test Friedman._split_repl_line("data use \"my file") == ["data", "use", "my file"]
+    @test_throws Friedman.ParseError Friedman._split_repl_line("data use \"my file")
+    @test Friedman._split_repl_line("data use \"my file"; strict=false) == ["data", "use", "my file"]
 end
 
 @testset "command path tree-walk" begin
@@ -1055,6 +1067,16 @@ end
         @test Friedman._split_repl_line("data use 'my dir/data file.csv'") == ["data", "use", "my dir/data file.csv"]
         @test Friedman._split_repl_line("data use \"régime μ/café.csv\" --json") == ["data", "use", "régime μ/café.csv", "--json"]
         @test Friedman._split_repl_line("data use 'it\"s ok'") == ["data", "use", "it\"s ok"]
+        # #352 P2-12: strict mode rejects unclosed quotes with ParseError; tab-completion uses strict=false
+        @test_throws Friedman.ParseError Friedman._split_repl_line("\"foo")
+        @test_throws Friedman.ParseError Friedman._split_repl_line("data use 'unterminated")
+        @test Friedman._split_repl_line("\"foo"; strict=false) == ["foo"]
+        # _exec_repl_line! catches ParseError cleanly without crashing the REPL loop
+        s_q = Friedman.Session()
+        err_q = IOBuffer()
+        out_q = IOBuffer()
+        Friedman._exec_repl_line!(s_q, app, "\"foo"; output=out_q, err=err_q)
+        @test occursin("unclosed", lowercase(String(take!(err_q))))
     end
 
     @testset "bare data use / --help / --json / --quiet built-ins" begin

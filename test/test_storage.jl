@@ -301,5 +301,45 @@ end
         end
         @test _HANDLE_LOAD_COUNTER[] == 0
         @test occursin("VARModel", info) && occursin("hdr-check", info)
+
+        # #349 P0-4: truncated HDF5/JLD2 header -> data/corrupt-handle with zero FileIO/HDF5/Stacktrace leakage
+        trunc_p = joinpath(dir, "trunc.jld2")
+        write(trunc_p, UInt8[0x89, 0x48, 0x44, 0x46, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00])
+        err_trunc = try; load_model_dispatch(trunc_p); nothing; catch e; e; end
+        @test err_trunc isa CliError
+        @test err_trunc.code == "data/corrupt-handle"
+        @test !occursin("FileIO", err_trunc.hint)
+        @test !occursin("HDF5", err_trunc.hint)
+        @test !occursin("Stacktrace:", err_trunc.hint)
+        @test !occursin("\n", err_trunc.hint)
+
+        # #350 P1-3: explicit #key archive upsert (JLD2 + .jls) & .fmod#key exit-2 refusal
+        arch_jld = joinpath(dir, "arch.jld2")
+        m1 = estimate_var(randn(30, 2), 1; varnames=["a", "b"])
+        m2 = estimate_var(randn(30, 2), 2; varnames=["a", "b"])
+        save_model_dispatch(arch_jld * "#m1", m1; note="first")
+        save_model_dispatch(arch_jld * "#m2", m2; note="second")
+        ks = _inspect_handle_keys(arch_jld)
+        @test sort([r.key for r in ks]) == ["m1", "m2"]
+        @test load_model_dispatch(arch_jld * "#m1").p == 1
+        @test load_model_dispatch(arch_jld * "#m2").p == 2
+        info_k1 = _native_model_info(arch_jld * "#m1")
+        @test info_k1.note == "first"
+
+        arch_jls = joinpath(dir, "arch.jls")
+        save_model_dispatch(arch_jls * "#k1", m1)
+        save_model_dispatch(arch_jls * "#k2", m2)
+        @test sort([r.key for r in _inspect_handle_keys(arch_jls)]) == ["k1", "k2"]
+        @test load_model_dispatch(arch_jls * "#k1").p == 1
+        @test load_model_dispatch(arch_jls * "#k2").p == 2
+
+        err_fmod_k = try; save_model_dispatch(joinpath(dir, "bad.fmod#k1"), m1); nothing; catch e; e; end
+        @test err_fmod_k isa CliError && err_fmod_k.code == "usage/invalid"
+
+        # #350 P2-10: _write_macro_data allows .jld2 from bundled :example container
+        ts_ex = TimeSeriesData(randn(20, 2); varnames=["x1", "x2"])
+        ex_out = joinpath(dir, "from_example.jld2")
+        _write_macro_data(ts_ex, ex_out; input_path=":denmark")
+        @test isfile(ex_out) && load_model_dispatch(ex_out) isa TimeSeriesData
     end
 end

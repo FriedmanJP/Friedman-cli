@@ -361,7 +361,7 @@ jobs:
           test "$ec" -eq 3 || { echo "expected exit 3 for missing file, got $ec"; exit 1; }
           echo "exit-code checks ok"
 
-          # Verify zero home mutations and zero files written into depot under default env
+          # Verify zero home/.julia mutations and zero files written into EMPTY_DEPOT under default env
           test ! -e "$EMPTY_HOME/.julia" || { echo "Unexpected $EMPTY_HOME/.julia created!"; exit 1; }
           if [ -n "$(find "$EMPTY_DEPOT" -mindepth 1 -print -quit)" ]; then
             echo "Unexpected files written into depot in offline standalone mode:" >&2
@@ -370,15 +370,26 @@ jobs:
           fi
           echo "zero-write offline depot check ok"
 
-          # Read-only depot (chmod 555) must exit 0 with empty stderr on BOTH fast-path and frdc-core
-          chmod 555 "$RO_DEPOT"
-          env -i PATH="/usr/bin:/bin" HOME="$EMPTY_HOME" JULIA_DEPOT_PATH="$RO_DEPOT" JULIA_PKG_OFFLINE="true" "$BIN" --version 2> ro_err.txt
-          test ! -s ro_err.txt || { echo "Unexpected stderr on read-only depot (fast):"; cat ro_err.txt >&2; exit 1; }
-          env -i PATH="/usr/bin:/bin" HOME="$EMPTY_HOME" JULIA_DEPOT_PATH="$RO_DEPOT" JULIA_PKG_OFFLINE="true" FRDC_NO_FASTPATH=1 "$BIN" --version 2> ro_core_err.txt
-          test ! -s ro_core_err.txt || { echo "Unexpected stderr on read-only depot (frdc-core):"; cat ro_core_err.txt >&2; exit 1; }
-          env -i PATH="/usr/bin:/bin" HOME="$EMPTY_HOME" JULIA_DEPOT_PATH="$RO_DEPOT" JULIA_PKG_OFFLINE="true" "$BIN" --quiet estimate multivariate var smoke.csv --lags 1 --format json > /dev/null
-          chmod 755 "$RO_DEPOT"
-          echo "read-only depot ok"
+          # FRDC_OBJCACHE=0 must create zero cache files (#356)
+          NOCACHE_HOME=$(mktemp -d)
+          env -i PATH="/usr/bin:/bin" HOME="$NOCACHE_HOME" JULIA_DEPOT_PATH="$EMPTY_DEPOT" JULIA_PKG_OFFLINE="true" FRDC_OBJCACHE="0" "$BIN" --quiet estimate multivariate var smoke.csv --lags 1 --format json > /dev/null 2> nocache_err.txt
+          test ! -s nocache_err.txt || { echo "Unexpected stderr with FRDC_OBJCACHE=0:"; cat nocache_err.txt >&2; exit 1; }
+          test ! -e "$NOCACHE_HOME/.cache/frdc" || { echo "FRDC_OBJCACHE=0 unexpectedly created cache dir!"; exit 1; }
+          rm -rf "$NOCACHE_HOME"
+          echo "FRDC_OBJCACHE=0 opt-out ok"
+
+          # Read-only HOME + read-only depot (chmod 555) must exit 0 with empty stderr on BOTH fast-path and frdc-core (#356)
+          RO_HOME=$(mktemp -d)
+          chmod 555 "$RO_HOME" "$RO_DEPOT"
+          env -i PATH="/usr/bin:/bin" HOME="$RO_HOME" JULIA_DEPOT_PATH="$RO_DEPOT" JULIA_PKG_OFFLINE="true" "$BIN" --version 2> ro_err.txt
+          test ! -s ro_err.txt || { echo "Unexpected stderr on read-only HOME+depot (fast):"; cat ro_err.txt >&2; exit 1; }
+          env -i PATH="/usr/bin:/bin" HOME="$RO_HOME" JULIA_DEPOT_PATH="$RO_DEPOT" JULIA_PKG_OFFLINE="true" FRDC_NO_FASTPATH=1 "$BIN" --version 2> ro_core_err.txt
+          test ! -s ro_core_err.txt || { echo "Unexpected stderr on read-only HOME+depot (frdc-core):"; cat ro_core_err.txt >&2; exit 1; }
+          env -i PATH="/usr/bin:/bin" HOME="$RO_HOME" JULIA_DEPOT_PATH="$RO_DEPOT" JULIA_PKG_OFFLINE="true" "$BIN" --quiet estimate multivariate var smoke.csv --lags 1 --format json > /dev/null 2> ro_est_err.txt
+          test ! -s ro_est_err.txt || { echo "Unexpected stderr on read-only HOME+depot estimate:"; cat ro_est_err.txt >&2; exit 1; }
+          chmod 755 "$RO_HOME" "$RO_DEPOT"
+          rm -rf "$RO_HOME"
+          echo "read-only HOME + depot silent fallback ok"
 
       # C074/#79 (W6/#141): latency budgets gate the release on Linux (cold start, min of 3).
       - name: Latency budgets (Linux, offline, enforced)
@@ -638,7 +649,23 @@ jobs:
             if ($Written) {
               throw "Standalone binary wrote files into depot under default env: $(($Written | Select-Object -ExpandProperty FullName) -join ', ')"
             }
-            Write-Host "Direct standalone Windows binary smoke tests passed (zero stderr errors, zero depot writes)."
+            # FRDC_OBJCACHE=0 opt-out must create zero cache files (#356)
+            $NoCacheDir = Join-Path $env:TEMP ("friedman-nocache-" + [System.Guid]::NewGuid().ToString("N"))
+            New-Item -ItemType Directory -Path $NoCacheDir -Force | Out-Null
+            $env:FRDC_CACHE_DIR = $NoCacheDir
+            $env:FRDC_OBJCACHE = "0"
+            try {
+              $null = Invoke-Friedman $Exe @("--quiet", "estimate", "multivariate", "var", $SmokeCsv, "--lags", "1", "--format", "json") -RequireEmptyStderr
+              $NoCacheWritten = Get-ChildItem -Path $NoCacheDir -Recurse -Force -ErrorAction SilentlyContinue
+              if ($NoCacheWritten) {
+                throw "FRDC_OBJCACHE=0 unexpectedly created cache files on Windows!"
+              }
+            } finally {
+              Remove-Item Env:FRDC_OBJCACHE -ErrorAction SilentlyContinue
+              Remove-Item Env:FRDC_CACHE_DIR -ErrorAction SilentlyContinue
+              Remove-Item -Path $NoCacheDir -Recurse -Force -ErrorAction SilentlyContinue
+            }
+            Write-Host "Direct standalone Windows binary smoke tests passed (zero stderr errors, zero depot writes, FRDC_OBJCACHE=0 ok)."
 
             # 2. Install sideload MSIX & verify AppExecutionAlias + read-only WindowsApps + caller CWD
             $DevKey = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock"

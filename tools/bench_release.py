@@ -37,6 +37,7 @@ import argparse
 import os
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -135,6 +136,8 @@ def main() -> int:
     ap.add_argument("--runs", type=int, default=3, help="cold runs per case (default 3)")
     ap.add_argument("--budget-version-ms", type=float, default=50.0)
     ap.add_argument("--budget-estimate-ms", type=float, default=3500.0)
+    ap.add_argument("--bvar-sign-report", action="store_true",
+                    help="also report cold `irf bvar --model bvar.jld2 --id sign` latency (#355/#359)")
     ap.add_argument("--enforce", action="store_true",
                     help="exit non-zero on budget breach (release CI: ubuntu only)")
     args = ap.parse_args()
@@ -185,6 +188,36 @@ def main() -> int:
         "|------|-----------|-------------|--------|----------------|",
     ]
     lines += [f"| {l} | {b:.0f} | {bud:.0f} | {s} | {ts} |" for l, b, bud, s, ts in rows]
+
+    # Optional informational multivariate BVAR sign-IRF tracking (#355 / #359)
+    if args.bvar_sign_report:
+        with tempfile.TemporaryDirectory(prefix="frdc_bvar_bench_") as td:
+            mv_csv = os.path.join(td, "mv3.csv")
+            bvar_m = os.path.join(td, "bvar4.jld2")
+            with open(mv_csv, "w", encoding="utf-8") as f:
+                f.write("y1,y2,y3\n")
+                y1 = y2 = y3 = 0.0
+                for t in range(1, 188):
+                    e1 = 0.3 * ((t * 17 % 19) - 9) / 9.0
+                    e2 = 0.3 * ((t * 23 % 17) - 8) / 8.0
+                    e3 = 0.3 * ((t * 31 % 13) - 6) / 6.0
+                    ny1 = 0.55 * y1 + 0.10 * y2 - 0.05 * y3 + e1
+                    ny2 = 0.15 * y1 + 0.50 * y2 + 0.08 * y3 + e2
+                    ny3 = -0.05 * y1 + 0.12 * y2 + 0.45 * y3 + e3
+                    y1, y2, y3 = ny1, ny2, ny3
+                    f.write(f"{y1:.6f},{y2:.6f},{y3:.6f}\n")
+            run_case(prefix + [bin_path, "--quiet", "--seed", "42",
+                               "estimate", "multivariate", "bvar", mv_csv,
+                               "--lags", "4", "--draws", "2000", "--save-model", bvar_m], 1)
+            sign_json = '{"identification":{"sign_matrix":{"matrix":[[1,1,1],[-1,1,1],[1,-1,1]],"horizons":[0]}}}'
+            btimes = run_case(prefix + [bin_path, "--quiet", "--seed", "42",
+                                        "irf", "bvar", "--model", bvar_m,
+                                        "--horizons", "20", "--id", "sign",
+                                        "--config-json", sign_json], args.runs)
+            bbest = min(btimes)
+            bts = ", ".join(f"{t:.0f}" for t in btimes)
+            lines.append(f"| irf bvar --model --id sign (2000 draws) | {bbest:.0f} | info | info | {bts} |")
+
     table = "\n".join(lines)
     print(table)
 

@@ -8255,7 +8255,7 @@ end  # Enhanced Granger handlers
 
         _data_simulate_var(; periods=6, burn=2, seed=4, format="csv", output=out)
         sample = CSV.read(out, DataFrame)
-        @test names(sample) == ["time", "y1", "y2", "y3"]
+        @test names(sample) == ["y1", "y2", "y3"]
         @test nrow(sample) == 6
         truth = CSV.read(truth_path(out), DataFrame)
         @test cell(truth, "A_1"; row=1, col=1) ≈ 0.5
@@ -8315,10 +8315,10 @@ end  # Enhanced Granger handlers
 
         _data_simulate_factors(; series=4, periods=5, burn=1, seed=1,
                                format="csv", output=out)
-        @test names(CSV.read(out, DataFrame)) == ["time", "x1", "x2", "x3", "x4"]
+        @test names(CSV.read(out, DataFrame)) == ["x1", "x2", "x3", "x4"]
         _data_simulate_lpiv(; periods=6, pi1=1.5, theta=1.0, seed=1,
                             format="csv", output=out)
-        @test names(CSV.read(out, DataFrame)) == ["time", "s", "y", "x2", "z1"]
+        @test names(CSV.read(out, DataFrame)) == ["s", "y", "x2", "z1"]
         @test cell(CSV.read(truth_path(out), DataFrame), "theta") ≈ 1.0
 
         _data_simulate_panel(; kind="linear", n=4, periods=3, seed=1,
@@ -8376,7 +8376,7 @@ end  # Enhanced Granger handlers
         _data_simulate_dsge(; model=model, periods=5, burn=1, seed=3,
                             format="csv", output=out)
         ds = CSV.read(out, DataFrame)
-        @test names(ds) == ["time", "Y", "C"]
+        @test names(ds) == ["Y", "C"]
         @test nrow(ds) == 5
         @test cell(CSV.read(truth_path(out), DataFrame), "ss:Y") ≈ 0.0
         _data_simulate_dsge(; model=model, periods=5, burn=1, seed=3,
@@ -8397,7 +8397,7 @@ end  # Enhanced Granger handlers
         _data_simulate_olg(; periods=4, seed=1, format="csv", output=out)
         olg = CSV.read(out, DataFrame)
         @test nrow(olg) == 5
-        @test names(olg) == ["time", "k", "C", "r", "w"]
+        @test names(olg) == ["k", "C", "r", "w"]
         @test cell(CSV.read(truth_path(out), DataFrame), "ss:k") ≈ 5.0
         @test_throws CliError _data_simulate_olg(; gamma=1.5, periods=4, seed=1,
                                                  format="csv", output=out)
@@ -8405,7 +8405,7 @@ end  # Enhanced Granger handlers
         _data_simulate_ct(; grid_size=4, periods=3, max_iter=5, seed=1,
                           format="csv", output=out)
         ct = CSV.read(out, DataFrame)
-        @test names(ct) == ["time", "Z", "K", "r", "w", "C"]
+        @test names(ct) == ["Z", "K", "r", "w", "C"]
         @test nrow(ct) == 3
         @test cell(CSV.read(truth_path(out), DataFrame), "ss:K") ≈ 3.0
 
@@ -8959,7 +8959,7 @@ end  # Enhanced Granger handlers
             end
             @test isfile(outfile)
             result_df = CSV.read(outfile, DataFrame)
-            @test "t" in names(result_df)
+            @test names(result_df) == ["var1", "var2", "var3"]
             @test nrow(result_df) == 100
         end
     end
@@ -9136,11 +9136,11 @@ end  # Data handlers
 
     @testset "option counts" begin
         node = register_nowcast_commands!()
-        @test length(node.subcmds["dfm"].options) == 14
-        @test length(node.subcmds["bvar"].options) == 16   # +6 in W1/#123 + 4 handle opts (#307)
-        @test length(node.subcmds["bridge"].options) == 12
-        @test length(node.subcmds["news"].options) == 16
-        @test length(node.subcmds["forecast"].options) == 14
+        @test length(node.subcmds["dfm"].options) == 15
+        @test length(node.subcmds["bvar"].options) == 17   # +6 in W1/#123 + 4 handle opts (#307) + --note (#350)
+        @test length(node.subcmds["bridge"].options) == 13
+        @test length(node.subcmds["news"].options) == 17
+        @test length(node.subcmds["forecast"].options) == 15
     end
 
     @testset "_nowcast_dfm — basic" begin

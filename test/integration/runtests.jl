@@ -12169,6 +12169,159 @@ capacity = 1.0
                 @test r4.doc.command == "frdc model info"
             end
         end
+
+        @testset "[UX2-W5] & [PERF] real-MEMs regression battery (#349–#353, #356–#358)" begin
+            mktempdir() do d_ux
+                # #349 P0-1: missing CSV cells -> data describe/diagnose/fix exit 0, estimators/filter/spectral exit 3
+                miss_csv = joinpath(d_ux, "miss.csv")
+                write(miss_csv, "x,y\n1.0,2.0\n,3.0\n4.0,5.0\n6.0,7.0\n8.0,9.0\n10.0,11.0\n")
+                for sub in ("describe", "diagnose")
+                    rm_ok = run_json(["data", sub, miss_csv])
+                    assert_envelope_ok(rm_ok; label="UX2 data $sub miss.csv")
+                end
+                fix_out = joinpath(d_ux, "miss_fixed.csv")
+                rm_fix = run_json(["data", "fix", miss_csv, "-m", "interpolate", "-o", fix_out])
+                assert_envelope_ok(rm_fix; label="UX2 data fix miss.csv")
+                @test isfile(fix_out)
+                for bad_cmd in (
+                    ["estimate", "multivariate", "var", miss_csv, "-p", "1"],
+                    ["filter", "hp", miss_csv],
+                    ["spectral", "density", miss_csv],
+                )
+                    rb = run_json(bad_cmd)
+                    @test rb.code == 3
+                    @test rb.doc.error.code == "data/missing-values"
+                end
+
+                # #349 P0-2: nowcast news invalid var counts (exit 2) & vintage shape mismatch (exit 3)
+                nc4 = joinpath(d_ux, "nc4.csv")
+                nc3 = joinpath(d_ux, "nc3.csv")
+                open(nc4, "w") do io
+                    println(io, "m1,m2,m3,q1")
+                    for t in 1:36; println(io, "$(sin(t/3)),$(cos(t/4)),$(sin(t/5)),$(t % 3 == 0 ? cos(t/2) : "")"); end
+                end
+                open(nc3, "w") do io
+                    println(io, "m1,m2,q1")
+                    for t in 1:36; println(io, "$(sin(t/3)),$(cos(t/4)),$(t % 3 == 0 ? cos(t/2) : "")"); end
+                end
+                r_nc2 = run_json(["nowcast", "news", "--data-new", nc4, "--data-old", nc4,
+                                  "--monthly-vars", "2", "--quarterly-vars", "1", "-q", "1", "-p", "1"])
+                @test r_nc2.code == 2 && r_nc2.doc.error.code == "usage/invalid"
+                r_nc3 = run_json(["nowcast", "news", "--data-new", nc4, "--data-old", nc3,
+                                  "--monthly-vars", "3", "--quarterly-vars", "1", "-q", "1", "-p", "1"])
+                @test r_nc3.code == 3 && r_nc3.doc.error.code == "data/shape"
+
+                # #349 P0-3: did unknown column exits 3 (data/invalid) instead of 1
+                for did_cmd in (
+                    ["did", "estimate", ":mpdta", "--outcome", "lemp", "--treatment", "treat"],
+                    ["did", "event-study", ":mpdta", "--outcome", "lemp", "--treatment", "treat"],
+                    ["test", "did", "pretrend", ":mpdta", "--outcome", "lemp", "--treatment", "treat"],
+                    ["test", "did", "bacon", ":mpdta", "--outcome", "lemp", "--treatment", "treat"],
+                )
+                    rd = run_json(did_cmd)
+                    @test rd.code == 3 && startswith(String(rd.doc.error.code), "data/")
+                end
+
+                # #349 P0-4: truncated HDF5/JLD2 -> exit 3 with zero FileIO/HDF5/Stacktrace leakage
+                trunc_f = joinpath(d_ux, "trunc.jld2")
+                write(trunc_f, UInt8[0x89, 0x48, 0x44, 0x46, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00])
+                r_tr = run_json(["show", trunc_f])
+                @test r_tr.code == 3 && r_tr.doc.error.code == "data/corrupt-handle"
+                h_tr = string(get(r_tr.doc.error, :hint, ""))
+                @test !occursin("FileIO", h_tr) && !occursin("HDF5", h_tr) && !occursin("Stacktrace:", h_tr)
+
+                # #350 P1-2: data filter -o <handle.jld2> writes HDF5 handle + valid JSON envelope with artifacts
+                dk_jld = joinpath(d_ux, "dk.jld2")
+                dk_filt = joinpath(d_ux, "dk_f.jld2")
+                assert_envelope_ok(run_json(["data", "import", ":denmark", "-o", dk_jld]); label="UX2 import :denmark")
+                rf = run_json(["data", "filter", dk_jld, "-o", dk_filt])
+                assert_envelope_ok(rf; label="UX2 data filter -o .jld2")
+                @test isfile(dk_filt) && begin
+                    _hdr = read(dk_filt, 520)
+                    _h5 = UInt8[0x89, 0x48, 0x44, 0x46, 0x0d, 0x0a, 0x1a, 0x0a]
+                    (length(_hdr) >= 8 && _hdr[1:8] == _h5) ||
+                    (length(_hdr) >= 520 && startswith(String(_hdr[1:10]), "HDF5-based") && _hdr[513:520] == _h5)
+                end
+                @test any(a -> endswith(String(a.path), "dk_f.jld2"), rf.doc.artifacts)
+
+                # #350 P1-3 & P2-11: #key upsert + --note on estimate
+                arch = joinpath(d_ux, "arch.jld2")
+                assert_envelope_ok(run_json(["estimate", "multivariate", "var", ":denmark", "--lags", "1",
+                                             "--note", "lag1", "--save-model", arch * "#m1"]); label="UX2 #m1 save")
+                assert_envelope_ok(run_json(["estimate", "multivariate", "var", ":denmark", "--lags", "2",
+                                             "--note", "lag2", "--save-model", arch * "#m2"]); label="UX2 #m2 save")
+                rk = run_json(["model", "keys", arch])
+                assert_envelope_ok(rk; label="UX2 model keys arch")
+                knames = sort([String(row[1]) for row in table_rows(rk.doc.data[:model_keys])])
+                @test knames == ["m1", "m2"]
+                ri1 = run_json(["model", "info", arch * "#m1"])
+                assert_envelope_ok(ri1; label="UX2 model info arch#m1")
+                @test any(row -> String(row[1]) == "note" && String(row[2]) == "lag1", table_rows(ri1.doc.data[:model_handle_info]))
+
+                # #350 P1-5: data validate :mp_shocks -M var -> valid=false
+                rv = run_json(["data", "validate", ":mp_shocks", "-M", "var"])
+                assert_envelope_ok(rv; label="UX2 data validate :mp_shocks")
+                @test any(row -> String(row[1]) == "valid" && (row[2] === false || string(row[2]) == "false"),
+                          table_rows(rv.doc.data[:data_validation]))
+
+                # #350 P1-6: data simulate var -f csv -> estimate multivariate var estimates only y1..yn (no time)
+                sim_csv = joinpath(d_ux, "sim_v.csv")
+                r_sim_csv = run_cli_capture(["--seed", "42", "data", "simulate", "var", "--periods", "40", "-f", "csv", "-o", sim_csv])
+                @test r_sim_csv.code == 0 && isfile(sim_csv)
+                rsv = run_json(["estimate", "multivariate", "var", sim_csv, "-p", "1"])
+                assert_envelope_ok(rsv; label="UX2 estimate var on sim_v.csv")
+                terms = [String(row[2]) for row in table_rows(rsv.doc.data[:var_coefficients])]
+                @test !any(t -> startswith(t, "time"), terms)
+
+                # #350 P1-7, P2-9, P2-10: pvar :grunfeld, data export :grunfeld, data transform :denmark -o .jld2
+                assert_envelope_ok(run_json(["estimate", "panel", "pvar", ":grunfeld", "--dependent", "invest,value", "--lags", "1", "--method", "feols"]); label="UX2 pvar :grunfeld")
+                grun_csv = joinpath(d_ux, "grun.csv")
+                assert_envelope_ok(run_json(["data", "export", ":grunfeld", "-o", grun_csv]); label="UX2 data export :grunfeld")
+                @test isfile(grun_csv)
+                den_tr = joinpath(d_ux, "den_tr.jld2")
+                assert_envelope_ok(run_json(["data", "transform", ":denmark", "--tcodes", "1,1,1,1,1", "-o", den_tr]); label="UX2 data transform :denmark -o .jld2")
+                @test isfile(den_tr)
+
+                # #351 P1-4: combined predict choice logit flags emit all requested tables
+                log_csv = joinpath(d_ux, "logit.csv")
+                open(log_csv, "w") do io
+                    println(io, "y,x1,x2")
+                    rng = Random.MersenneTwister(11)
+                    for _ in 1:80
+                        x1 = randn(rng); x2 = randn(rng)
+                        p = 1.0 / (1.0 + exp(-(0.5 + 1.2 * x1 - 0.8 * x2)))
+                        println(io, "$(rand(rng) < p ? 1 : 0),$x1,$x2")
+                    end
+                end
+                m_log = joinpath(d_ux, "m_log.jld2")
+                assert_envelope_ok(run_json(["estimate", "choice", "logit", log_csv, "--dep", "y", "--save-model", m_log]); label="UX2 logit est")
+                rpl = run_json(["predict", "choice", "logit", "--model", m_log, "--marginal-effects", "--odds-ratio", "--classification-table"])
+                assert_envelope_ok(rpl; label="UX2 predict choice logit combined")
+                @test haskey(rpl.doc.data, :average_marginal_effects_logit)
+                @test haskey(rpl.doc.data, :odds_ratios_logit)
+                @test haskey(rpl.doc.data, :classification_metrics)
+                @test haskey(rpl.doc.data, :confusion_matrix)
+
+                # #352 P2-5: BVAR GLP & HADSGE Bool/Int types + P3-3 enum did-you-mean
+                rbv = run_json(["--seed", "7", "estimate", "multivariate", "bvar", ":denmark", "--lags", "1", "--draws", "40"])
+                assert_envelope_ok(rbv; label="UX2 bvar glp types")
+                if haskey(rbv.doc.data, :hyperparameter_selection)
+                    hmap = Dict(String(row[1]) => row[2] for row in table_rows(rbv.doc.data[:hyperparameter_selection]))
+                    @test hmap["converged"] isa Bool
+                    @test hmap["at_bound"] isa Bool
+                    @test hmap["iterations"] isa Integer
+                end
+                r_enum = run_json(["irf", "var", ":denmark", "--id", "choleski"])
+                @test r_enum.code == 2 && occursin("did you mean 'cholesky'", String(r_enum.doc.error.message))
+
+                # #356 & #358: cache info/clear & manifest blas_threads
+                rc_info = run_json(["cache", "info"])
+                assert_envelope_ok(rc_info; label="PERF cache info")
+                @test haskey(rc_info.doc.meta.manifest, :blas_threads)
+                assert_envelope_ok(run_json(["cache", "clear", "--stale-only"]); label="PERF cache clear --stale-only")
+                assert_envelope_ok(run_json(["daemon", "status"]); label="PERF daemon status")
+            end
+        end
     end
 end # suite :core2 (part 3)
 end

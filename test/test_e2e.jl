@@ -294,4 +294,42 @@ sys.exit(p.returncode)
             end
         end
     end
+
+    @testset "[UX2] & [PERF] T4 subprocess regressions (#352, #356, #357, #358)" begin
+        # --quiet preserves "Error: " + did-you-mean
+        r1 = _e2e_run(["--quiet", "estimat"])
+        @test r1.code == 2
+        @test startswith(r1.err, "Error: ")
+        @test occursin("did you mean 'estimate'", r1.err)
+
+        # unknowncmd --help exits 2 (never silent 0)
+        r2 = _e2e_run(["unknowncmd", "--help"])
+        @test r2.code == 2
+        @test occursin("unknown command 'unknowncmd'", r2.err)
+
+        # -J --digits 17 data list reports command "frdc data list" (not "frdc")
+        r3 = _e2e_run(["-J", "--digits", "17", "data", "list"])
+        @test r3.code == 2
+        j3 = JSON3.read(strip(r3.out))
+        @test j3.status == "error"
+        @test j3.command == "frdc data list"
+        @test j3.error.code == "usage/bad-digits"
+
+        # -J --threads=0 data list -> usage/bad-threads exit 2
+        r4 = _e2e_run(["-J", "--threads=0", "data", "list"])
+        @test r4.code == 2
+        j4 = JSON3.read(strip(r4.out))
+        @test j4.status == "error"
+        @test j4.command == "frdc data list"
+        @test j4.error.code == "usage/bad-threads"
+
+        # cache info & daemon status JSON envelopes
+        r5 = _e2e_run(["-J", "cache", "info"])
+        @test r5.code == 0
+        @test JSON3.read(strip(r5.out)).status == "ok"
+
+        r6 = _e2e_run(["-J", "daemon", "status"])
+        @test r6.code == 0
+        @test JSON3.read(strip(r6.out)).status == "ok"
+    end
 end
